@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useProgram } from "@/contexts/ProgramContext";
 import { 
   Plus, 
   AlertTriangle, 
@@ -20,18 +21,47 @@ import type { Risk, RiskMitigation } from "@shared/schema";
 import { queryClient } from "@/lib/queryClient";
 
 export function Risks() {
+  const { selectedProgramId } = useProgram();
   const [filterPriority, setFilterPriority] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [selectedRisk, setSelectedRisk] = useState<string | null>(null);
 
   const { data: risks, isLoading, error } = useQuery<Risk[]>({
-    queryKey: ['/api/risks'],
+    queryKey: ['/api/risks', selectedProgramId],
+    queryFn: async () => {
+      if (!selectedProgramId) return [];
+      const res = await fetch(`/api/risks?programId=${selectedProgramId}`, {
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to fetch risks');
+      return res.json();
+    },
+    enabled: !!selectedProgramId,
   });
 
   const { data: mitigations } = useQuery<RiskMitigation[]>({
     queryKey: ['/api/risks', selectedRisk, 'mitigations'],
+    queryFn: async () => {
+      if (!selectedRisk) return [];
+      const res = await fetch(`/api/risks/${selectedRisk}/mitigations`, {
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to fetch mitigations');
+      return res.json();
+    },
     enabled: !!selectedRisk,
   });
+
+  if (!selectedProgramId) {
+    return (
+      <Alert>
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          Please select a program from the dropdown above to view risk information.
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   if (isLoading) {
     return (
