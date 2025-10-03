@@ -14,12 +14,35 @@ import {
   Clock,
   User
 } from "lucide-react";
+import { useProgram } from "@/contexts/ProgramContext";
 import type { Task } from "@shared/schema";
 
 export function Timeline() {
+  const { selectedProgramId } = useProgram();
+  
   const { data: tasks, isLoading, error } = useQuery<Task[]>({
-    queryKey: ['/api/tasks'],
+    queryKey: ['/api/tasks', selectedProgramId],
+    queryFn: async () => {
+      if (!selectedProgramId) return [];
+      const res = await fetch(`/api/tasks?programId=${selectedProgramId}`, {
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to fetch tasks');
+      return res.json();
+    },
+    enabled: !!selectedProgramId,
   });
+
+  if (!selectedProgramId) {
+    return (
+      <Alert>
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          Please select a program from the dropdown above to view timeline and tasks.
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -77,6 +100,57 @@ export function Timeline() {
     return new Date(date).toLocaleDateString();
   };
 
+  const getGanttData = () => {
+    if (!tasks || tasks.length === 0) return null;
+    
+    const tasksWithDates = tasks.filter(t => t.startDate && t.endDate);
+    if (tasksWithDates.length === 0) return null;
+    
+    const dates = tasksWithDates.flatMap(t => [
+      new Date(t.startDate!).getTime(),
+      new Date(t.endDate!).getTime()
+    ]);
+    
+    const minDate = new Date(Math.min(...dates));
+    const maxDate = new Date(Math.max(...dates));
+    const totalMs = Math.max(maxDate.getTime() - minDate.getTime(), 1);
+    
+    return { minDate, maxDate, totalMs, tasksWithDates };
+  };
+
+  const calculateBarPosition = (task: Task, minDate: Date, totalMs: number) => {
+    const startTime = new Date(task.startDate!).getTime();
+    const endTime = new Date(task.endDate!).getTime();
+    const minTime = minDate.getTime();
+    
+    const startOffsetMs = startTime - minTime;
+    const durationMs = endTime - startTime;
+    
+    const left = (startOffsetMs / totalMs) * 100;
+    const width = Math.max((durationMs / totalMs) * 100, 2);
+    
+    return { left: `${Math.max(left, 0)}%`, width: `${width}%` };
+  };
+
+  const getBarColor = (status: string) => {
+    switch (status) {
+      case 'Completed':
+        return 'bg-green-500';
+      case 'In Progress':
+        return 'bg-blue-500';
+      case 'At Risk':
+        return 'bg-yellow-500';
+      case 'Delayed':
+        return 'bg-red-500';
+      case 'On Hold':
+        return 'bg-gray-400';
+      default:
+        return 'bg-gray-300';
+    }
+  };
+
+  const ganttData = getGanttData();
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -93,7 +167,7 @@ export function Timeline() {
         </Button>
       </div>
 
-      {/* Gantt Chart Placeholder */}
+      {/* Gantt Chart */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
@@ -103,16 +177,55 @@ export function Timeline() {
           <CardDescription>Gantt chart visualization of project tasks</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="min-h-[400px] flex items-center justify-center border-2 border-dashed border-border rounded-lg">
-            <div className="text-center">
-              <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-foreground mb-2">Gantt Chart View</h3>
-              <p className="text-muted-foreground mb-4">
-                Interactive timeline visualization will be implemented here
-              </p>
-              <Badge variant="outline">Coming Soon</Badge>
+          {!ganttData ? (
+            <div className="min-h-[300px] flex items-center justify-center border-2 border-dashed border-border rounded-lg">
+              <div className="text-center">
+                <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">No Timeline Data</h3>
+                <p className="text-muted-foreground">
+                  Tasks need start and end dates to appear on the Gantt chart
+                </p>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-4" data-testid="gantt-chart">
+              {/* Timeline header */}
+              <div className="flex items-center justify-between text-sm text-muted-foreground border-b pb-2">
+                <span data-testid="gantt-start-date">{formatDate(ganttData.minDate)}</span>
+                <span data-testid="gantt-end-date">{formatDate(ganttData.maxDate)}</span>
+              </div>
+              
+              {/* Gantt bars */}
+              <div className="space-y-3">
+                {ganttData.tasksWithDates.map((task) => {
+                  const position = calculateBarPosition(task, ganttData.minDate, ganttData.totalMs);
+                  return (
+                    <div key={task.id} className="space-y-1" data-testid={`gantt-task-${task.id}`}>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium truncate max-w-[200px]" data-testid={`gantt-task-name-${task.id}`}>
+                          {task.name}
+                        </span>
+                        <Badge className={getStatusColor(task.status)} variant="outline">
+                          {task.status}
+                        </Badge>
+                      </div>
+                      <div className="relative h-8 bg-muted rounded">
+                        <div
+                          className={`absolute h-full rounded ${getBarColor(task.status)} opacity-80 hover:opacity-100 transition-opacity flex items-center px-2`}
+                          style={position}
+                          data-testid={`gantt-bar-${task.id}`}
+                        >
+                          <span className="text-xs text-white font-medium truncate">
+                            {task.progress}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
