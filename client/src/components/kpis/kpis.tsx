@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import type { Kpi, KpiMeasurement } from "@shared/schema";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 export function KPIs() {
   const { toast } = useToast();
@@ -56,6 +57,14 @@ export function KPIs() {
 
   const { data: measurements } = useQuery<KpiMeasurement[]>({
     queryKey: ['/api/kpis', selectedKpi, 'measurements'],
+    queryFn: async () => {
+      if (!selectedKpi) return [];
+      const res = await fetch(`/api/kpis/${selectedKpi}/measurements`, {
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to fetch measurements');
+      return res.json();
+    },
     enabled: !!selectedKpi,
   });
 
@@ -253,17 +262,62 @@ export function KPIs() {
               </CardTitle>
               <CardDescription>Performance trends over time</CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="h-96 flex items-center justify-center border-2 border-dashed border-border rounded-lg">
-                <div className="text-center">
-                  <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-foreground mb-2">Trend Visualization</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Interactive charts showing KPI performance over time
-                  </p>
-                  <Badge variant="outline">Chart Integration Required</Badge>
-                </div>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-4">
+                <Label className="text-sm font-medium">Select KPI:</Label>
+                <Select value={selectedKpi || ''} onValueChange={setSelectedKpi}>
+                  <SelectTrigger className="w-[300px]" data-testid="select-kpi-trend">
+                    <SelectValue placeholder="Choose a KPI to view trends" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {kpis?.map((kpi) => (
+                      <SelectItem key={kpi.id} value={kpi.id} data-testid={`select-kpi-option-${kpi.id}`}>
+                        {kpi.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+
+              {!selectedKpi ? (
+                <div className="h-96 flex items-center justify-center border-2 border-dashed border-border rounded-lg">
+                  <div className="text-center">
+                    <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-foreground mb-2">Select a KPI</h3>
+                    <p className="text-muted-foreground">
+                      Choose a KPI from the dropdown above to view its trend over time
+                    </p>
+                  </div>
+                </div>
+              ) : !measurements || measurements.length === 0 ? (
+                <div className="h-96 flex items-center justify-center border-2 border-dashed border-border rounded-lg">
+                  <div className="text-center">
+                    <Activity className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-foreground mb-2">No Measurements</h3>
+                    <p className="text-muted-foreground">
+                      No measurement data available for this KPI yet
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="h-96" data-testid="kpi-trend-chart">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={measurements.map(m => ({
+                      date: new Date(m.measurementDate).toLocaleDateString(),
+                      value: parseFloat(m.value),
+                      target: parseFloat(kpis?.find(k => k.id === selectedKpi)?.targetValue || '0')
+                    }))} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2} name="Actual Value" dot={{ r: 4 }} />
+                      <Line type="monotone" dataKey="target" stroke="#10b981" strokeWidth={2} strokeDasharray="5 5" name="Target" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
