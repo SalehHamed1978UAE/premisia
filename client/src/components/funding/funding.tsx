@@ -7,6 +7,11 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
 import { 
   Plus, 
   DollarSign, 
@@ -19,15 +24,59 @@ import {
   FileText
 } from "lucide-react";
 import type { FundingSource, Expense } from "@shared/schema";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 
 export function Funding() {
+  const { toast } = useToast();
+  const [fundingDialogOpen, setFundingDialogOpen] = useState(false);
+  const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
+  const [fundingForm, setFundingForm] = useState({
+    sourceName: "",
+    allocatedAmount: "",
+    dateReceived: ""
+  });
+  const [expenseForm, setExpenseForm] = useState({
+    category: "Software",
+    description: "",
+    amount: "",
+    expenseDate: "",
+    vendor: ""
+  });
+
   const { data: fundingSources, isLoading: sourcesLoading } = useQuery<FundingSource[]>({
     queryKey: ['/api/funding/sources'],
   });
 
   const { data: expenses, isLoading: expensesLoading } = useQuery<Expense[]>({
     queryKey: ['/api/funding/expenses'],
+  });
+
+  const createFundingMutation = useMutation({
+    mutationFn: (data: any) => apiRequest('/api/funding/sources', 'POST', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/funding/sources'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
+      setFundingDialogOpen(false);
+      setFundingForm({ sourceName: "", allocatedAmount: "", dateReceived: "" });
+      toast({ title: "Funding source added successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to create funding source", variant: "destructive" });
+    }
+  });
+
+  const createExpenseMutation = useMutation({
+    mutationFn: (data: any) => apiRequest('/api/funding/expenses', 'POST', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/funding/expenses'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
+      setExpenseDialogOpen(false);
+      setExpenseForm({ category: "Software", description: "", amount: "", expenseDate: "", vendor: "" });
+      toast({ title: "Expense added successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to create expense", variant: "destructive" });
+    }
   });
 
   const isLoading = sourcesLoading || expensesLoading;
@@ -124,7 +173,7 @@ export function Funding() {
             <FileText className="h-4 w-4 mr-2" />
             Export Report
           </Button>
-          <Button data-testid="button-add-expense">
+          <Button onClick={() => setExpenseDialogOpen(true)} data-testid="button-add-expense">
             <Plus className="h-4 w-4 mr-2" />
             Add Expense
           </Button>
@@ -232,7 +281,7 @@ export function Funding() {
                   <p className="text-muted-foreground mb-4">
                     Add funding sources to track your program budget
                   </p>
-                  <Button>
+                  <Button onClick={() => setFundingDialogOpen(true)} data-testid="button-add-funding-source">
                     <Plus className="h-4 w-4 mr-2" />
                     Add Funding Source
                   </Button>
@@ -278,7 +327,7 @@ export function Funding() {
                   <p className="text-muted-foreground mb-4">
                     Start tracking program expenses to monitor budget utilization
                   </p>
-                  <Button>
+                  <Button onClick={() => setExpenseDialogOpen(true)} data-testid="button-add-expense">
                     <Plus className="h-4 w-4 mr-2" />
                     Add First Expense
                   </Button>
@@ -397,6 +446,144 @@ export function Funding() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Funding Source Dialog */}
+      <Dialog open={fundingDialogOpen} onOpenChange={setFundingDialogOpen}>
+        <DialogContent data-testid="dialog-add-funding-source">
+          <DialogHeader>
+            <DialogTitle>Add Funding Source</DialogTitle>
+            <DialogDescription>Add a new funding source to your program budget</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="sourceName">Source Name</Label>
+              <Input
+                id="sourceName"
+                value={fundingForm.sourceName}
+                onChange={(e) => setFundingForm({ ...fundingForm, sourceName: e.target.value })}
+                placeholder="e.g., Annual IT Budget"
+                data-testid="input-funding-source-name"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="allocatedAmount">Allocated Amount ($)</Label>
+              <Input
+                id="allocatedAmount"
+                type="number"
+                value={fundingForm.allocatedAmount}
+                onChange={(e) => setFundingForm({ ...fundingForm, allocatedAmount: e.target.value })}
+                placeholder="e.g., 5000000"
+                data-testid="input-funding-amount"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="dateReceived">Date Received</Label>
+              <Input
+                id="dateReceived"
+                type="date"
+                value={fundingForm.dateReceived}
+                onChange={(e) => setFundingForm({ ...fundingForm, dateReceived: e.target.value })}
+                data-testid="input-funding-date"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFundingDialogOpen(false)} data-testid="button-cancel-funding-source">
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => createFundingMutation.mutate(fundingForm)}
+              disabled={createFundingMutation.isPending || !fundingForm.sourceName || !fundingForm.allocatedAmount}
+              data-testid="button-save-funding-source"
+            >
+              {createFundingMutation.isPending ? "Adding..." : "Add Funding Source"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Expense Dialog */}
+      <Dialog open={expenseDialogOpen} onOpenChange={setExpenseDialogOpen}>
+        <DialogContent data-testid="dialog-add-expense">
+          <DialogHeader>
+            <DialogTitle>Add Expense</DialogTitle>
+            <DialogDescription>Record a new program expense</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="category">Category</Label>
+              <Select
+                value={expenseForm.category}
+                onValueChange={(value) => setExpenseForm({ ...expenseForm, category: value })}
+              >
+                <SelectTrigger id="category" data-testid="select-expense-category">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Software">Software</SelectItem>
+                  <SelectItem value="Personnel">Personnel</SelectItem>
+                  <SelectItem value="Infrastructure">Infrastructure</SelectItem>
+                  <SelectItem value="Travel">Travel</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="description">Description</Label>
+              <Input
+                id="description"
+                value={expenseForm.description}
+                onChange={(e) => setExpenseForm({ ...expenseForm, description: e.target.value })}
+                placeholder="e.g., CRM software licenses"
+                data-testid="input-expense-description"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="amount">Amount ($)</Label>
+              <Input
+                id="amount"
+                type="number"
+                value={expenseForm.amount}
+                onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
+                placeholder="e.g., 50000"
+                data-testid="input-expense-amount"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="vendor">Vendor (Optional)</Label>
+              <Input
+                id="vendor"
+                value={expenseForm.vendor}
+                onChange={(e) => setExpenseForm({ ...expenseForm, vendor: e.target.value })}
+                placeholder="e.g., Salesforce"
+                data-testid="input-expense-vendor"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="expenseDate">Expense Date</Label>
+              <Input
+                id="expenseDate"
+                type="date"
+                value={expenseForm.expenseDate}
+                onChange={(e) => setExpenseForm({ ...expenseForm, expenseDate: e.target.value })}
+                data-testid="input-expense-date"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExpenseDialogOpen(false)} data-testid="button-cancel-expense">
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => createExpenseMutation.mutate(expenseForm)}
+              disabled={createExpenseMutation.isPending || !expenseForm.description || !expenseForm.amount}
+              data-testid="button-save-expense"
+            >
+              {createExpenseMutation.isPending ? "Adding..." : "Add Expense"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
