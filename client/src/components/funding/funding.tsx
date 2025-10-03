@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useProgram } from "@/contexts/ProgramContext";
 import { 
   Plus, 
   DollarSign, 
@@ -28,6 +29,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 
 export function Funding() {
   const { toast } = useToast();
+  const { selectedProgramId } = useProgram();
   const [fundingDialogOpen, setFundingDialogOpen] = useState(false);
   const [expenseDialogOpen, setExpenseDialogOpen] = useState(false);
   const [fundingForm, setFundingForm] = useState({
@@ -44,18 +46,28 @@ export function Funding() {
   });
 
   const { data: fundingSources, isLoading: sourcesLoading } = useQuery<FundingSource[]>({
-    queryKey: ['/api/funding/sources'],
+    queryKey: ['/api/funding/sources', selectedProgramId],
+    enabled: !!selectedProgramId,
   });
 
   const { data: expenses, isLoading: expensesLoading } = useQuery<Expense[]>({
-    queryKey: ['/api/funding/expenses'],
+    queryKey: ['/api/funding/expenses', selectedProgramId],
+    enabled: !!selectedProgramId,
   });
 
   const createFundingMutation = useMutation({
-    mutationFn: (data: any) => apiRequest('/api/funding/sources', 'POST', data),
+    mutationFn: (data: any) => {
+      const payload = {
+        programId: selectedProgramId,
+        sourceName: data.sourceName,
+        allocatedAmount: data.allocatedAmount,
+        dateReceived: data.dateReceived || null,
+      };
+      return apiRequest('/api/funding/sources', 'POST', payload);
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/funding/sources'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/funding/sources', selectedProgramId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary', selectedProgramId] });
       setFundingDialogOpen(false);
       setFundingForm({ sourceName: "", allocatedAmount: "", dateReceived: "" });
       toast({ title: "Funding source added successfully" });
@@ -66,10 +78,20 @@ export function Funding() {
   });
 
   const createExpenseMutation = useMutation({
-    mutationFn: (data: any) => apiRequest('/api/funding/expenses', 'POST', data),
+    mutationFn: (data: any) => {
+      const payload = {
+        programId: selectedProgramId,
+        category: data.category,
+        description: data.description,
+        amount: data.amount,
+        vendor: data.vendor || null,
+        expenseDate: data.expenseDate || new Date().toISOString().split('T')[0],
+      };
+      return apiRequest('/api/funding/expenses', 'POST', payload);
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/funding/expenses'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/funding/expenses', selectedProgramId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary', selectedProgramId] });
       setExpenseDialogOpen(false);
       setExpenseForm({ category: "Software", description: "", amount: "", expenseDate: "", vendor: "" });
       toast({ title: "Expense added successfully" });

@@ -1,5 +1,7 @@
 import { Button } from "@/components/ui/button";
-import { Menu, Bell, Search, Plus } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Menu, Bell, Search, FolderKanban } from "lucide-react";
+import { useProgram } from "@/contexts/ProgramContext";
 
 interface TopBarProps {
   title: string;
@@ -8,6 +10,8 @@ interface TopBarProps {
 }
 
 export function TopBar({ title, subtitle, onToggleSidebar }: TopBarProps) {
+  const { selectedProgramId, setSelectedProgramId, programs, isLoading } = useProgram();
+
   return (
     <header className="sticky top-0 z-20 bg-card border-b border-border">
       <div className="flex items-center justify-between px-6 py-4">
@@ -28,6 +32,23 @@ export function TopBar({ title, subtitle, onToggleSidebar }: TopBarProps) {
         </div>
         
         <div className="flex items-center gap-3">
+          {!isLoading && programs.length > 0 && (
+            <div className="flex items-center gap-2">
+              <FolderKanban className="h-4 w-4 text-muted-foreground" />
+              <Select value={selectedProgramId || ""} onValueChange={setSelectedProgramId}>
+                <SelectTrigger className="w-[200px]" data-testid="select-program">
+                  <SelectValue placeholder="Select program" />
+                </SelectTrigger>
+                <SelectContent>
+                  {programs.map((program) => (
+                    <SelectItem key={program.id} value={program.id} data-testid={`select-program-${program.id}`}>
+                      {program.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <Button
             variant="outline"
             size="icon"
