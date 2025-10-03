@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useProgram } from "@/contexts/ProgramContext";
 import { 
   Plus, 
   Trophy, 
@@ -17,13 +18,36 @@ import {
   DollarSign,
   Calendar
 } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { Benefit } from "@shared/schema";
 import { queryClient } from "@/lib/queryClient";
 
 export function Benefits() {
+  const { selectedProgramId } = useProgram();
+  
   const { data: benefits, isLoading, error } = useQuery<Benefit[]>({
-    queryKey: ['/api/benefits'],
+    queryKey: ['/api/benefits', selectedProgramId],
+    queryFn: async () => {
+      if (!selectedProgramId) return [];
+      const res = await fetch(`/api/benefits?programId=${selectedProgramId}`, {
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to fetch benefits');
+      return res.json();
+    },
+    enabled: !!selectedProgramId,
   });
+
+  if (!selectedProgramId) {
+    return (
+      <Alert>
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          Please select a program from the dropdown above to view benefits information.
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -236,25 +260,46 @@ export function Benefits() {
                 </CardContent>
               </Card>
 
-              {/* Realization Timeline */}
+              {/* Benefits Tracking Chart */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
-                    <Calendar className="h-5 w-5" />
-                    <span>Realization Timeline</span>
+                    <TrendingUp className="h-5 w-5" />
+                    <span>Benefits Progress</span>
                   </CardTitle>
+                  <CardDescription>Target vs Realized by Category</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-64 flex items-center justify-center border-2 border-dashed border-border rounded-lg">
-                    <div className="text-center">
-                      <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                      <h3 className="text-lg font-semibold text-foreground mb-2">Timeline Chart</h3>
-                      <p className="text-muted-foreground mb-4">
-                        Expected vs realized benefits over time
-                      </p>
-                      <Badge variant="outline">Chart Integration Required</Badge>
+                  {Object.keys(categorizedBenefits).length === 0 ? (
+                    <div className="h-64 flex items-center justify-center">
+                      <div className="text-center">
+                        <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                        <p className="text-muted-foreground">No benefits data available</p>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart
+                        data={Object.entries(categorizedBenefits).map(([category, data]) => ({
+                          category,
+                          target: data.expected,
+                          realized: data.realized,
+                        }))}
+                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="category" />
+                        <YAxis tickFormatter={(value) => formatCurrency(value)} />
+                        <Tooltip 
+                          formatter={(value: number) => formatCurrency(value)}
+                          contentStyle={{ backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}
+                        />
+                        <Legend />
+                        <Bar dataKey="target" fill="hsl(217, 91%, 60%)" name="Target" data-testid="bar-target" />
+                        <Bar dataKey="realized" fill="hsl(142, 71%, 45%)" name="Realized" data-testid="bar-realized" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
                 </CardContent>
               </Card>
             </div>
