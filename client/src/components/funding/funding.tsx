@@ -47,11 +47,27 @@ export function Funding() {
 
   const { data: fundingSources, isLoading: sourcesLoading } = useQuery<FundingSource[]>({
     queryKey: ['/api/funding/sources', selectedProgramId],
+    queryFn: async () => {
+      if (!selectedProgramId) return [];
+      const res = await fetch(`/api/funding/sources?programId=${selectedProgramId}`, {
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to fetch funding sources');
+      return res.json();
+    },
     enabled: !!selectedProgramId,
   });
 
   const { data: expenses, isLoading: expensesLoading } = useQuery<Expense[]>({
     queryKey: ['/api/funding/expenses', selectedProgramId],
+    queryFn: async () => {
+      if (!selectedProgramId) return [];
+      const res = await fetch(`/api/funding/expenses?programId=${selectedProgramId}`, {
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to fetch expenses');
+      return res.json();
+    },
     enabled: !!selectedProgramId,
   });
 
@@ -102,6 +118,17 @@ export function Funding() {
   });
 
   const isLoading = sourcesLoading || expensesLoading;
+
+  if (!selectedProgramId) {
+    return (
+      <Alert>
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          Please select a program from the dropdown above to view funding and budget information.
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   if (isLoading) {
     return (

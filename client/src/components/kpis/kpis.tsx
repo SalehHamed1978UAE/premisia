@@ -41,8 +41,16 @@ export function KPIs() {
     frequency: "Monthly"
   });
 
-  const { data: kpis, isLoading, error} = useQuery<Kpi[]>({
+  const { data: kpis, isLoading, error } = useQuery<Kpi[]>({
     queryKey: ['/api/kpis', selectedProgramId],
+    queryFn: async () => {
+      if (!selectedProgramId) return [];
+      const res = await fetch(`/api/kpis?programId=${selectedProgramId}`, {
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to fetch KPIs');
+      return res.json();
+    },
     enabled: !!selectedProgramId,
   });
 
@@ -83,6 +91,17 @@ export function KPIs() {
       toast({ title: "Failed to create KPI", variant: "destructive" });
     }
   });
+
+  if (!selectedProgramId) {
+    return (
+      <Alert>
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          Please select a program from the dropdown above to view KPI data.
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   if (isLoading) {
     return (

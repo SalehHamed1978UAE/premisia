@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useProgram } from "@/contexts/ProgramContext";
 import { 
   Calendar, 
   DollarSign, 
@@ -39,8 +40,18 @@ interface DashboardSummary {
 }
 
 export function Dashboard() {
+  const { selectedProgramId } = useProgram();
   const { data: summary, isLoading, error } = useQuery<DashboardSummary>({
-    queryKey: ['/api/dashboard/summary'],
+    queryKey: ['/api/dashboard/summary', selectedProgramId],
+    queryFn: async () => {
+      if (!selectedProgramId) return null;
+      const res = await fetch(`/api/dashboard/summary?programId=${selectedProgramId}`, {
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to fetch dashboard summary');
+      return res.json();
+    },
+    enabled: !!selectedProgramId,
   });
 
   if (isLoading) {
