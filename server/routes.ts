@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
-import { insertTaskSchema, insertKpiSchema, insertRiskSchema, insertBenefitSchema, insertExpenseSchema, insertResourceSchema } from "@shared/schema";
+import { insertProgramSchema, insertWorkstreamSchema, insertTaskSchema, insertKpiSchema, insertRiskSchema, insertBenefitSchema, insertExpenseSchema, insertResourceSchema } from "@shared/schema";
 
 export function registerRoutes(app: Express): Server {
   // Setup authentication routes
@@ -46,6 +46,16 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  app.post("/api/programs", requireAuth, requireRole(['Admin', 'Editor']), async (req, res) => {
+    try {
+      const validatedData = insertProgramSchema.parse(req.body);
+      const program = await storage.createProgram(validatedData);
+      res.status(201).json(program);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid program data" });
+    }
+  });
+
   // Workstreams
   app.get("/api/workstreams", requireAuth, async (req, res) => {
     try {
@@ -54,6 +64,16 @@ export function registerRoutes(app: Express): Server {
       res.json(workstreams);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch workstreams" });
+    }
+  });
+
+  app.post("/api/workstreams", requireAuth, requireRole(['Admin', 'Editor']), async (req, res) => {
+    try {
+      const validatedData = insertWorkstreamSchema.parse(req.body);
+      const workstream = await storage.createWorkstream(validatedData);
+      res.status(201).json(workstream);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid workstream data" });
     }
   });
 
