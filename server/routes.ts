@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
-import { insertProgramSchema, insertWorkstreamSchema, insertTaskSchema, insertKpiSchema, insertRiskSchema, insertBenefitSchema, insertExpenseSchema, insertResourceSchema } from "@shared/schema";
+import { insertProgramSchema, insertWorkstreamSchema, insertStageGateSchema, insertTaskSchema, insertKpiSchema, insertRiskSchema, insertBenefitSchema, insertExpenseSchema, insertResourceSchema } from "@shared/schema";
 
 export function registerRoutes(app: Express): Server {
   // Setup authentication routes
@@ -118,6 +118,17 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  app.post("/api/stage-gates", requireAuth, requireRole(['Admin', 'Editor']), async (req, res) => {
+    try {
+      const validatedData = insertStageGateSchema.parse(req.body);
+      const stageGate = await storage.createStageGate(validatedData);
+      res.status(201).json(stageGate);
+    } catch (error) {
+      console.error("Stage gate validation error:", error);
+      res.status(400).json({ message: "Invalid stage gate data", error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
   app.get("/api/stage-gates/reviews", requireAuth, async (req, res) => {
     try {
       const programId = req.query.programId as string;
@@ -215,7 +226,8 @@ export function registerRoutes(app: Express): Server {
       const kpi = await storage.createKpi(validatedData);
       res.status(201).json(kpi);
     } catch (error) {
-      res.status(400).json({ message: "Invalid KPI data" });
+      console.error("KPI validation error:", error);
+      res.status(400).json({ message: "Invalid KPI data", error: error instanceof Error ? error.message : String(error) });
     }
   });
 

@@ -39,6 +39,7 @@ export interface IStorage {
   
   // Stage Gates
   getStageGates(programId?: string): Promise<StageGate[]>;
+  createStageGate(gate: any): Promise<StageGate>;
   getStageGateReviews(programId?: string): Promise<StageGateReview[]>;
   createStageGateReview(review: any): Promise<StageGateReview>;
   
@@ -159,6 +160,11 @@ export class DatabaseStorage implements IStorage {
       ? db.select().from(stageGates).where(eq(stageGates.programId, programId))
       : db.select().from(stageGates);
     return await query.orderBy(stageGates.code);
+  }
+
+  async createStageGate(gate: any): Promise<StageGate> {
+    const [newGate] = await db.insert(stageGates).values(gate).returning();
+    return newGate;
   }
 
   async getStageGateReviews(programId?: string): Promise<StageGateReview[]> {
