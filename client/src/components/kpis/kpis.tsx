@@ -7,6 +7,13 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { useProgram } from "@/contexts/ProgramContext";
 import { 
   Plus, 
   TrendingUp, 
@@ -18,18 +25,63 @@ import {
   Calendar
 } from "lucide-react";
 import type { Kpi, KpiMeasurement } from "@shared/schema";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 
 export function KPIs() {
+  const { toast } = useToast();
+  const { selectedProgramId } = useProgram();
   const [selectedKpi, setSelectedKpi] = useState<string | null>(null);
+  const [kpiDialogOpen, setKpiDialogOpen] = useState(false);
+  const [kpiForm, setKpiForm] = useState({
+    name: "",
+    description: "",
+    targetValue: "",
+    currentValue: "",
+    unit: "",
+    frequency: "Monthly"
+  });
 
-  const { data: kpis, isLoading, error } = useQuery<Kpi[]>({
-    queryKey: ['/api/kpis'],
+  const { data: kpis, isLoading, error} = useQuery<Kpi[]>({
+    queryKey: ['/api/kpis', selectedProgramId],
+    enabled: !!selectedProgramId,
   });
 
   const { data: measurements } = useQuery<KpiMeasurement[]>({
     queryKey: ['/api/kpis', selectedKpi, 'measurements'],
     enabled: !!selectedKpi,
+  });
+
+  const createKpiMutation = useMutation({
+    mutationFn: (data: any) => {
+      const payload = {
+        programId: selectedProgramId,
+        name: data.name,
+        description: data.description || null,
+        targetValue: data.targetValue || null,
+        currentValue: data.currentValue || "0",
+        unit: data.unit || null,
+        frequency: data.frequency || "Monthly",
+        ownerId: null,
+      };
+      return apiRequest('/api/kpis', 'POST', payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/kpis', selectedProgramId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/summary', selectedProgramId] });
+      setKpiDialogOpen(false);
+      setKpiForm({
+        name: "",
+        description: "",
+        targetValue: "",
+        currentValue: "",
+        unit: "",
+        frequency: "Monthly"
+      });
+      toast({ title: "KPI added successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to create KPI", variant: "destructive" });
+    }
   });
 
   if (isLoading) {
@@ -92,7 +144,7 @@ export function KPIs() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div></div>
-        <Button data-testid="button-add-kpi">
+        <Button onClick={() => setKpiDialogOpen(true)} data-testid="button-add-kpi">
           <Plus className="h-4 w-4 mr-2" />
           Add KPI
         </Button>
@@ -115,7 +167,7 @@ export function KPIs() {
                 <p className="text-muted-foreground text-center mb-4">
                   Start tracking your program performance by adding your first KPI
                 </p>
-                <Button>
+                <Button onClick={() => setKpiDialogOpen(true)} data-testid="button-add-first-kpi">
                   <Plus className="h-4 w-4 mr-2" />
                   Add First KPI
                 </Button>
@@ -285,6 +337,112 @@ export function KPIs() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* KPI Creation Dialog */}
+      <Dialog open={kpiDialogOpen} onOpenChange={setKpiDialogOpen}>
+        <DialogContent data-testid="dialog-add-kpi">
+          <DialogHeader>
+            <DialogTitle>Add New KPI</DialogTitle>
+            <DialogDescription>Create a new key performance indicator to track program success</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="name">KPI Name *</Label>
+              <Input
+                id="name"
+                value={kpiForm.name}
+                onChange={(e) => setKpiForm({ ...kpiForm, name: e.target.value })}
+                placeholder="e.g., Customer Satisfaction Score"
+                data-testid="input-kpi-name"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="description">Description</Label>
+              <Textarea
+                id="description"
+                value={kpiForm.description}
+                onChange={(e) => setKpiForm({ ...kpiForm, description: e.target.value })}
+                placeholder="Brief description of this KPI"
+                data-testid="input-kpi-description"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="targetValue">Target Value</Label>
+                <Input
+                  id="targetValue"
+                  type="number"
+                  value={kpiForm.targetValue}
+                  onChange={(e) => setKpiForm({ ...kpiForm, targetValue: e.target.value })}
+                  placeholder="e.g., 95"
+                  data-testid="input-kpi-target"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="currentValue">Current Value</Label>
+                <Input
+                  id="currentValue"
+                  type="number"
+                  value={kpiForm.currentValue}
+                  onChange={(e) => setKpiForm({ ...kpiForm, currentValue: e.target.value })}
+                  placeholder="e.g., 0"
+                  data-testid="input-kpi-current"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="unit">Unit</Label>
+                <Select
+                  value={kpiForm.unit}
+                  onValueChange={(value) => setKpiForm({ ...kpiForm, unit: value })}
+                >
+                  <SelectTrigger id="unit" data-testid="select-kpi-unit">
+                    <SelectValue placeholder="Select unit" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="%">Percentage (%)</SelectItem>
+                    <SelectItem value="$">Currency ($)</SelectItem>
+                    <SelectItem value="number">Number</SelectItem>
+                    <SelectItem value="days">Days</SelectItem>
+                    <SelectItem value="hours">Hours</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="frequency">Frequency</Label>
+                <Select
+                  value={kpiForm.frequency}
+                  onValueChange={(value) => setKpiForm({ ...kpiForm, frequency: value })}
+                >
+                  <SelectTrigger id="frequency" data-testid="select-kpi-frequency">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Daily">Daily</SelectItem>
+                    <SelectItem value="Weekly">Weekly</SelectItem>
+                    <SelectItem value="Monthly">Monthly</SelectItem>
+                    <SelectItem value="Quarterly">Quarterly</SelectItem>
+                    <SelectItem value="Annually">Annually</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setKpiDialogOpen(false)} data-testid="button-cancel-kpi">
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => createKpiMutation.mutate(kpiForm)}
+              disabled={createKpiMutation.isPending || !kpiForm.name}
+              data-testid="button-save-kpi"
+            >
+              {createKpiMutation.isPending ? "Adding..." : "Add KPI"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
