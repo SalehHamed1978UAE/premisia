@@ -117,6 +117,47 @@ export class DatabaseStorage implements IStorage {
 
   async createProgram(program: any): Promise<Program> {
     const [newProgram] = await db.insert(programs).values(program).returning();
+    
+    const defaultStageGates = [
+      {
+        code: 'G0',
+        name: 'Ideation',
+        description: 'Initial concept development and feasibility assessment',
+        successCriteria: 'Business case approved, feasibility confirmed, initial scope defined',
+        programId: newProgram.id
+      },
+      {
+        code: 'G1',
+        name: 'Planning',
+        description: 'Detailed planning and requirements definition',
+        successCriteria: 'Requirements documented, project plan approved, resources allocated',
+        programId: newProgram.id
+      },
+      {
+        code: 'G2',
+        name: 'Execution',
+        description: 'Development and implementation phase',
+        successCriteria: 'Development complete, quality standards met, documentation updated',
+        programId: newProgram.id
+      },
+      {
+        code: 'G3',
+        name: 'Validation',
+        description: 'Testing and quality assurance',
+        successCriteria: 'Testing complete, acceptance criteria met, stakeholder approval received',
+        programId: newProgram.id
+      },
+      {
+        code: 'G4',
+        name: 'Closure',
+        description: 'Deployment and project closeout',
+        successCriteria: 'Deployment successful, handover complete, lessons learned documented',
+        programId: newProgram.id
+      }
+    ];
+    
+    await db.insert(stageGates).values(defaultStageGates);
+    
     return newProgram;
   }
 
