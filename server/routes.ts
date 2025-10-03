@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
-import { insertProgramSchema, insertWorkstreamSchema, insertStageGateSchema, insertTaskSchema, insertKpiSchema, insertRiskSchema, insertBenefitSchema, insertExpenseSchema, insertResourceSchema } from "@shared/schema";
+import { insertProgramSchema, insertWorkstreamSchema, insertStageGateSchema, insertTaskSchema, insertKpiSchema, insertRiskSchema, insertBenefitSchema, insertFundingSourceSchema, insertExpenseSchema, insertResourceSchema } from "@shared/schema";
 
 export function registerRoutes(app: Express): Server {
   // Setup authentication routes
@@ -368,10 +368,12 @@ export function registerRoutes(app: Express): Server {
 
   app.post("/api/funding/sources", requireAuth, requireRole(['Admin', 'Editor']), async (req, res) => {
     try {
-      const source = await storage.createFundingSource(req.body);
+      const validatedData = insertFundingSourceSchema.parse(req.body);
+      const source = await storage.createFundingSource(validatedData);
       res.status(201).json(source);
     } catch (error) {
-      res.status(400).json({ message: "Failed to create funding source" });
+      console.error("Funding source validation error:", error);
+      res.status(400).json({ message: "Failed to create funding source", error: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -381,7 +383,8 @@ export function registerRoutes(app: Express): Server {
       const expense = await storage.createExpense(validatedData);
       res.status(201).json(expense);
     } catch (error) {
-      res.status(400).json({ message: "Invalid expense data" });
+      console.error("Expense validation error:", error);
+      res.status(400).json({ message: "Invalid expense data", error: error instanceof Error ? error.message : String(error) });
     }
   });
 
