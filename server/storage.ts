@@ -80,6 +80,7 @@ export interface IStorage {
 
   // Session Context
   getActiveSessionContext(): Promise<SessionContext | undefined>;
+  getSessionContextById(id: string): Promise<SessionContext | undefined>;
   createSessionContext(context: InsertSessionContext): Promise<SessionContext>;
   updateSessionContext(id: string, data: Partial<InsertSessionContext>): Promise<SessionContext>;
   deactivateSessionContext(id: string): Promise<void>;
@@ -461,6 +462,13 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(sessionContext.createdAt))
       .limit(1);
     return activeContext || undefined;
+  }
+
+  async getSessionContextById(id: string): Promise<SessionContext | undefined> {
+    const [context] = await db.select()
+      .from(sessionContext)
+      .where(eq(sessionContext.id, id));
+    return context || undefined;
   }
 
   async createSessionContext(context: InsertSessionContext): Promise<SessionContext> {
