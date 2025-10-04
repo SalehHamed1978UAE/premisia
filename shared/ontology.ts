@@ -1206,4 +1206,313 @@ export const EPM_ONTOLOGY: Record<string, EntityDefinition> = {
   }
 };
 
+export interface EntityRelationship {
+  from: string;
+  to: string;
+  type: 'hierarchical' | 'dependency' | 'association' | 'cross-cutting' | 'temporal' | 'measurement';
+  cardinality: '1:1' | '1:many' | 'many:1' | 'many:many';
+  description: string;
+  required: boolean;
+  cascadeRules?: string[];
+  bidirectional?: boolean;
+}
+
+export const EPM_RELATIONSHIP_GRAPH: EntityRelationship[] = [
+  {
+    from: 'Program',
+    to: 'Workstream',
+    type: 'hierarchical',
+    cardinality: '1:many',
+    description: 'Programs contain multiple workstreams that organize work into focused areas',
+    required: false,
+    cascadeRules: [
+      'When program timeline changes, review workstream dates for alignment',
+      'When program is cancelled, all workstreams should be cancelled',
+      'When program status changes to On Hold, workstreams should reflect this'
+    ]
+  },
+  {
+    from: 'Program',
+    to: 'Task',
+    type: 'hierarchical',
+    cardinality: '1:many',
+    description: 'Programs contain tasks (either directly or through workstreams)',
+    required: true,
+    cascadeRules: [
+      'Active programs must have at least one task',
+      'Tasks must fit within program timeline boundaries',
+      'When program is cancelled, all tasks should be cancelled',
+      'Program completion requires all critical tasks to be completed'
+    ]
+  },
+  {
+    from: 'Workstream',
+    to: 'Task',
+    type: 'hierarchical',
+    cardinality: '1:many',
+    description: 'Workstreams decompose into executable tasks',
+    required: true,
+    cascadeRules: [
+      'Workstream timeline must encompass all its tasks',
+      'Workstream cannot be completed until all tasks are completed',
+      'When workstream is on hold, associated tasks should be paused'
+    ]
+  },
+  {
+    from: 'Task',
+    to: 'Task',
+    type: 'dependency',
+    cardinality: 'many:many',
+    description: 'Tasks can have predecessor/successor dependencies (finish-to-start relationships)',
+    required: false,
+    cascadeRules: [
+      'Successor task cannot start before predecessor completes',
+      'When predecessor task is delayed, successor start date must be adjusted',
+      'Circular dependencies must be detected and prevented',
+      'Critical path calculations must respect dependencies'
+    ]
+  },
+  {
+    from: 'Program',
+    to: 'KPI',
+    type: 'association',
+    cardinality: '1:many',
+    description: 'Programs define KPIs to measure success',
+    required: true,
+    cascadeRules: [
+      'Every program should have at least 3-5 KPIs',
+      'KPIs should align with program objectives',
+      'When program scope changes, KPIs should be reviewed for relevance'
+    ]
+  },
+  {
+    from: 'KPI',
+    to: 'Measurement',
+    type: 'measurement',
+    cardinality: '1:many',
+    description: 'KPIs are tracked through regular measurements over time',
+    required: true,
+    cascadeRules: [
+      'KPIs should have measurements according to their defined frequency',
+      'Missing measurements for active KPIs indicate tracking gaps',
+      'Trend analysis requires minimum 3 measurements'
+    ]
+  },
+  {
+    from: 'Program',
+    to: 'Risk',
+    type: 'association',
+    cardinality: '1:many',
+    description: 'Programs identify and manage risks that could affect objectives',
+    required: true,
+    cascadeRules: [
+      'New programs should conduct initial risk assessment',
+      'High/Critical risks require mitigation actions',
+      'When program scope expands, conduct risk reassessment'
+    ]
+  },
+  {
+    from: 'Risk',
+    to: 'Mitigation',
+    type: 'association',
+    cardinality: '1:many',
+    description: 'Risks have mitigation actions to reduce likelihood or impact',
+    required: false,
+    cascadeRules: [
+      'High and Critical priority risks must have at least one mitigation action',
+      'Mitigation completion should reduce risk priority',
+      'Failed mitigations should trigger alternative actions'
+    ]
+  },
+  {
+    from: 'Program',
+    to: 'Benefit',
+    type: 'association',
+    cardinality: '1:many',
+    description: 'Programs deliver measurable benefits that justify the investment',
+    required: true,
+    cascadeRules: [
+      'Every program must define expected benefits',
+      'Total benefit value should exceed total cost (positive ROI)',
+      'When program scope reduces, benefit targets should be adjusted'
+    ]
+  },
+  {
+    from: 'Benefit',
+    to: 'KPI',
+    type: 'measurement',
+    cardinality: 'many:1',
+    description: 'Benefits are measured through associated KPIs',
+    required: true,
+    cascadeRules: [
+      'Each benefit should link to at least one KPI for tracking',
+      'Benefit realization requires KPI target achievement',
+      'KPI trends predict benefit delivery success'
+    ]
+  },
+  {
+    from: 'Program',
+    to: 'Funding',
+    type: 'association',
+    cardinality: '1:many',
+    description: 'Programs have funding sources that provide financial resources',
+    required: true,
+    cascadeRules: [
+      'Total funding must be sufficient for planned expenses',
+      'When funding is reduced, scope or timeline must be adjusted',
+      'Funding availability dates must align with spend plan'
+    ]
+  },
+  {
+    from: 'Program',
+    to: 'Expense',
+    type: 'association',
+    cardinality: '1:many',
+    description: 'Programs track expenses against budget',
+    required: false,
+    cascadeRules: [
+      'Total expenses cannot exceed total funding',
+      'Expense trends predict budget variance',
+      'When expenses exceed plan, trigger budget review'
+    ]
+  },
+  {
+    from: 'Program',
+    to: 'Resource',
+    type: 'cross-cutting',
+    cardinality: '1:many',
+    description: 'Programs allocate resources for execution',
+    required: true,
+    cascadeRules: [
+      'Resources must be allocated before tasks can begin',
+      'Resource availability must overlap with task timelines',
+      'Total resource allocation across programs cannot exceed 100%'
+    ]
+  },
+  {
+    from: 'Resource',
+    to: 'Task',
+    type: 'cross-cutting',
+    cardinality: 'many:many',
+    description: 'Resources are assigned to specific tasks',
+    required: false,
+    cascadeRules: [
+      'Task effort should match resource availability',
+      'Resource conflicts trigger scheduling alerts',
+      'Critical tasks should have assigned resources'
+    ]
+  },
+  {
+    from: 'Program',
+    to: 'StageGate',
+    type: 'temporal',
+    cardinality: '1:many',
+    description: 'Programs have stage gates that mark governance checkpoints',
+    required: true,
+    cascadeRules: [
+      'All programs must have standard stage gates (G0-G4)',
+      'Stage gates must be in sequence (cannot skip)',
+      'Cannot proceed to next phase until current gate is approved',
+      'Major scope/budget changes require gate re-review'
+    ]
+  },
+  {
+    from: 'StageGate',
+    to: 'Task',
+    type: 'temporal',
+    cardinality: '1:many',
+    description: 'Stage gates relate to tasks that must complete before gate review',
+    required: false,
+    cascadeRules: [
+      'Exit criteria often reference completion of specific tasks',
+      'When critical tasks are delayed, gate date should be adjusted',
+      'Gate approval may depend on task completion status'
+    ]
+  },
+  {
+    from: 'Task',
+    to: 'Risk',
+    type: 'association',
+    cardinality: 'many:many',
+    description: 'Tasks may be affected by or generate risks',
+    required: false,
+    bidirectional: true,
+    cascadeRules: [
+      'High-risk tasks may need additional mitigation',
+      'Task delays may increase risk likelihood',
+      'Risk occurrence may block task execution'
+    ]
+  },
+  {
+    from: 'Benefit',
+    to: 'Task',
+    type: 'association',
+    cardinality: 'many:many',
+    description: 'Benefits are enabled by completion of specific tasks',
+    required: false,
+    cascadeRules: [
+      'Benefit realization depends on enabling tasks being completed',
+      'When enabling tasks are delayed, benefit timing is impacted',
+      'Task completion should trigger benefit measurement'
+    ]
+  },
+  {
+    from: 'Workstream',
+    to: 'Resource',
+    type: 'cross-cutting',
+    cardinality: 'many:many',
+    description: 'Workstreams have assigned resources (workstream leads, team members)',
+    required: true,
+    cascadeRules: [
+      'Every workstream should have a designated lead',
+      'Workstream resource allocation should match task requirements',
+      'Resource availability must cover workstream timeline'
+    ]
+  }
+];
+
+export interface RelationshipMetadata {
+  entityPairs: Map<string, EntityRelationship[]>;
+  dependencyGraph: Map<string, string[]>;
+  cascadeImpactMap: Map<string, string[]>;
+}
+
+export function getRelationshipsForEntity(entityName: string): EntityRelationship[] {
+  return EPM_RELATIONSHIP_GRAPH.filter(
+    rel => rel.from === entityName || (rel.bidirectional && rel.to === entityName)
+  );
+}
+
+export function getDependentEntities(entityName: string): string[] {
+  return EPM_RELATIONSHIP_GRAPH
+    .filter(rel => rel.from === entityName)
+    .map(rel => rel.to);
+}
+
+export function getRequiredRelationships(entityName: string): EntityRelationship[] {
+  return EPM_RELATIONSHIP_GRAPH.filter(
+    rel => rel.from === entityName && rel.required
+  );
+}
+
+export function getHierarchicalChildren(entityName: string): string[] {
+  return EPM_RELATIONSHIP_GRAPH
+    .filter(rel => rel.from === entityName && rel.type === 'hierarchical')
+    .map(rel => rel.to);
+}
+
+export function getHierarchicalParent(entityName: string): string | null {
+  const parentRel = EPM_RELATIONSHIP_GRAPH.find(
+    rel => rel.to === entityName && rel.type === 'hierarchical'
+  );
+  return parentRel ? parentRel.from : null;
+}
+
+export function getCascadeRules(fromEntity: string, toEntity: string): string[] {
+  const relationship = EPM_RELATIONSHIP_GRAPH.find(
+    rel => rel.from === fromEntity && rel.to === toEntity
+  );
+  return relationship?.cascadeRules || [];
+}
+
 export default EPM_ONTOLOGY;
