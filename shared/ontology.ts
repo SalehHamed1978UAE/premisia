@@ -1206,6 +1206,8 @@ export const EPM_ONTOLOGY: Record<string, EntityDefinition> = {
   }
 };
 
+export type EPMEntity = keyof typeof EPM_ONTOLOGY;
+
 export interface EntityRelationship {
   from: string;
   to: string;
