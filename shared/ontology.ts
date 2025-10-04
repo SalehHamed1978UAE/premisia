@@ -1895,4 +1895,483 @@ export function getErrorValidationRules(): ValidationRule[] {
   return VALIDATION_RULES.filter(rule => rule.severity === 'error');
 }
 
+export interface CompletenessCheck {
+  id: string;
+  entity: string;
+  checkType: 'required_entity' | 'mandatory_relationship' | 'data_quality' | 'governance';
+  description: string;
+  validation: string;
+  importance: 'critical' | 'important' | 'recommended';
+  guidance: string;
+}
+
+export const COMPLETENESS_CRITERIA: CompletenessCheck[] = [
+  {
+    id: 'program-has-tasks',
+    entity: 'Program',
+    checkType: 'required_entity',
+    description: 'Programs must have defined work (tasks or workstreams)',
+    validation: 'COUNT(tasks) > 0 OR COUNT(workstreams) > 0',
+    importance: 'critical',
+    guidance: 'Programs without work breakdown cannot be executed. Create workstreams and tasks.'
+  },
+  {
+    id: 'program-has-stage-gates',
+    entity: 'Program',
+    checkType: 'governance',
+    description: 'Programs must have all standard stage gates (G0-G4)',
+    validation: 'COUNT(stageGates) >= 5 AND has G0, G1, G2, G3, G4',
+    importance: 'critical',
+    guidance: 'Stage gates provide governance checkpoints. All 5 gates are mandatory.'
+  },
+  {
+    id: 'program-has-kpis',
+    entity: 'Program',
+    checkType: 'required_entity',
+    description: 'Programs should have 3-7 KPIs to measure success',
+    validation: 'COUNT(kpis) >= 3 AND COUNT(kpis) <= 7',
+    importance: 'important',
+    guidance: 'KPIs provide objective success metrics. Too few = blind spots. Too many = diluted focus.'
+  },
+  {
+    id: 'program-has-benefits',
+    entity: 'Program',
+    checkType: 'required_entity',
+    description: 'Programs must define expected benefits',
+    validation: 'COUNT(benefits) >= 1',
+    importance: 'critical',
+    guidance: 'Benefits justify program investment. Define quantifiable business value.'
+  },
+  {
+    id: 'program-has-funding',
+    entity: 'Program',
+    checkType: 'required_entity',
+    description: 'Programs must have identified funding sources',
+    validation: 'COUNT(funding) >= 1',
+    importance: 'critical',
+    guidance: 'Programs cannot execute without funding. Identify budget sources.'
+  },
+  {
+    id: 'program-has-risks-assessed',
+    entity: 'Program',
+    checkType: 'governance',
+    description: 'Programs should conduct risk assessment',
+    validation: 'COUNT(risks) >= 3',
+    importance: 'important',
+    guidance: 'All programs have risks. Identify minimum 3-5 key risks.'
+  },
+  {
+    id: 'kpis-have-measurements',
+    entity: 'KPI',
+    checkType: 'data_quality',
+    description: 'Active KPIs should have regular measurements',
+    validation: 'IF status = Active THEN lastMeasurement within frequency period',
+    importance: 'important',
+    guidance: 'KPIs without data cannot track progress. Ensure regular measurement collection.'
+  },
+  {
+    id: 'high-risks-have-mitigations',
+    entity: 'Risk',
+    checkType: 'governance',
+    description: 'High/Critical risks must have mitigation plans',
+    validation: 'IF priority IN (High, Critical) THEN COUNT(mitigations) > 0',
+    importance: 'critical',
+    guidance: 'Significant risks require active management. Define mitigation actions.'
+  },
+  {
+    id: 'benefits-have-measurement-mechanism',
+    entity: 'Benefit',
+    checkType: 'mandatory_relationship',
+    description: 'Benefits must have measurement mechanism (linked KPI)',
+    validation: 'measurementKPI IS NOT NULL OR linked to KPI',
+    importance: 'critical',
+    guidance: 'Benefits must be measurable. Link to KPI or define measurement approach.'
+  },
+  {
+    id: 'tasks-have-owners',
+    entity: 'Task',
+    checkType: 'data_quality',
+    description: 'Critical path tasks should have assigned owners',
+    validation: 'IF isCriticalPath THEN assignedTo IS NOT NULL',
+    importance: 'important',
+    guidance: 'Critical tasks need ownership for accountability and tracking.'
+  },
+  {
+    id: 'resources-allocated',
+    entity: 'Program',
+    checkType: 'required_entity',
+    description: 'Programs should have allocated resources',
+    validation: 'COUNT(resources) > 0',
+    importance: 'important',
+    guidance: 'Programs need people to execute. Identify and allocate resources.'
+  },
+  {
+    id: 'workstreams-have-leads',
+    entity: 'Workstream',
+    checkType: 'data_quality',
+    description: 'Workstreams should have designated leads',
+    validation: 'lead IS NOT NULL',
+    importance: 'important',
+    guidance: 'Workstreams need leadership. Assign a workstream lead for coordination.'
+  }
+];
+
+export interface CascadeImpact {
+  trigger: string;
+  affectedEntities: string[];
+  impactDescription: string;
+  automationPotential: 'full' | 'partial' | 'manual';
+  suggestedAction: string;
+}
+
+export const CASCADE_IMPACT_MODEL: CascadeImpact[] = [
+  {
+    trigger: 'Task end date extended',
+    affectedEntities: ['Successor Tasks', 'Workstream', 'Program', 'StageGate', 'KPI', 'Risk'],
+    impactDescription: 'Task delay cascades to dependent tasks, may extend workstream/program timelines, delay stage gate reviews, miss KPI measurement windows, increase schedule risks',
+    automationPotential: 'partial',
+    suggestedAction: 'Auto-adjust successor task start dates. Alert for program/gate timing conflicts. Flag for manual review if critical path affected.'
+  },
+  {
+    trigger: 'Program timeline changed',
+    affectedEntities: ['Workstream', 'Task', 'StageGate', 'KPI Measurements', 'Resource Allocation'],
+    impactDescription: 'Program date changes require alignment of all child entities, stage gate timing, measurement schedules, and resource availability',
+    automationPotential: 'manual',
+    suggestedAction: 'Flag all date misalignments. Require manual review of workstream/task dates, gate timing, and resource conflicts.'
+  },
+  {
+    trigger: 'Funding reduced',
+    affectedEntities: ['Program Scope', 'Tasks', 'Resources', 'Benefits'],
+    impactDescription: 'Budget cuts may require scope reduction, task elimination, resource de-allocation, and benefit target adjustment',
+    automationPotential: 'manual',
+    suggestedAction: 'Alert that expenses exceed funding. Require decision on scope reduction, resource cuts, or additional funding.'
+  },
+  {
+    trigger: 'Risk severity increased',
+    affectedEntities: ['Tasks', 'Workstream', 'StageGate', 'Resources'],
+    impactDescription: 'Elevated risks may block tasks, require mitigation resources, delay stage gate approval, or trigger contingency plans',
+    automationPotential: 'partial',
+    suggestedAction: 'Auto-flag affected tasks. Alert workstream leads. Suggest mitigation resource allocation.'
+  },
+  {
+    trigger: 'Task marked complete',
+    affectedEntities: ['Successor Tasks', 'Workstream', 'KPI', 'Benefit', 'StageGate'],
+    impactDescription: 'Task completion unblocks successors, updates workstream progress, may trigger KPI measurements, enable benefit realization, satisfy gate criteria',
+    automationPotential: 'full',
+    suggestedAction: 'Auto-enable successor tasks. Update progress calculations. Check if gate criteria now met.'
+  },
+  {
+    trigger: 'Resource over-allocated',
+    affectedEntities: ['Tasks', 'Programs', 'Timeline'],
+    impactDescription: 'Resource conflicts cause task delays, program scheduling issues, require rebalancing or additional resources',
+    automationPotential: 'partial',
+    suggestedAction: 'Flag resource conflicts. Suggest reducing allocation or hiring additional capacity.'
+  },
+  {
+    trigger: 'Stage gate rejected',
+    affectedEntities: ['Program', 'Tasks', 'Timeline', 'Funding', 'Resources'],
+    impactDescription: 'Gate rejection blocks program progression, may pause tasks, require rework, delay timelines, hold funding',
+    automationPotential: 'manual',
+    suggestedAction: 'Halt progression. Document rejection reasons. Require action plan for resubmission.'
+  },
+  {
+    trigger: 'KPI off-track',
+    affectedEntities: ['Program', 'Benefit', 'Risk', 'Tasks'],
+    impactDescription: 'KPI underperformance threatens benefit realization, may indicate new risks, require task adjustments or additional work',
+    automationPotential: 'partial',
+    suggestedAction: 'Alert stakeholders. Increase risk assessment. Suggest corrective tasks.'
+  },
+  {
+    trigger: 'Benefit not realizing',
+    affectedEntities: ['Program Viability', 'KPI', 'Tasks', 'Strategy'],
+    impactDescription: 'Benefit shortfall undermines program ROI, may require scope changes, additional tasks, or program cancellation',
+    automationPotential: 'manual',
+    suggestedAction: 'Escalate to governance. Review enabling tasks. Assess continued viability.'
+  }
+];
+
+export interface DomainTerm {
+  term: string;
+  definition: string;
+  context: string;
+  relatedTerms: string[];
+  commonMisunderstanding?: string;
+}
+
+export const DOMAIN_VOCABULARY: DomainTerm[] = [
+  {
+    term: 'Program',
+    definition: 'A coordinated set of projects and workstreams designed to achieve strategic objectives and deliver business benefits',
+    context: 'Programs are larger and more strategic than projects. They focus on benefits realization, not just deliverable completion.',
+    relatedTerms: ['Project', 'Portfolio', 'Workstream'],
+    commonMisunderstanding: 'Programs are NOT just big projects. Programs focus on change enablement and benefit delivery, while projects focus on delivering specific outputs.'
+  },
+  {
+    term: 'Project',
+    definition: 'A temporary endeavor with defined start/end dates undertaken to create a specific product, service, or result',
+    context: 'Projects are components of programs. They deliver discrete outputs.',
+    relatedTerms: ['Program', 'Task', 'Deliverable'],
+    commonMisunderstanding: 'Projects are time-boxed with clear outputs. Programs are outcome-focused with flexible scope.'
+  },
+  {
+    term: 'Workstream',
+    definition: 'A logical grouping of related tasks within a program, typically aligned to functional areas or capabilities',
+    context: 'Workstreams organize program work into manageable chunks (e.g., Technology Workstream, Training Workstream)',
+    relatedTerms: ['Program', 'Task', 'Work Package']
+  },
+  {
+    term: 'Stage Gate',
+    definition: 'A governance checkpoint where program viability, progress, and readiness are formally reviewed before proceeding',
+    context: 'Stage gates use predefined criteria to approve/reject/conditionally approve program progression to next phase',
+    relatedTerms: ['Governance', 'Phase', 'Decision Point'],
+    commonMisunderstanding: 'Stage gates are NOT just status meetings. They are formal go/no-go decision points with authority to stop programs.'
+  },
+  {
+    term: 'Milestone',
+    definition: 'A significant point or event in a project timeline, typically marking completion of a major deliverable or phase',
+    context: 'Milestones have zero duration and mark achievements. They differ from stage gates which are decision points.',
+    relatedTerms: ['Task', 'Deliverable', 'Stage Gate']
+  },
+  {
+    term: 'Critical Path',
+    definition: 'The sequence of dependent tasks that determines the minimum program duration. Any delay on this path delays the entire program.',
+    context: 'Critical path tasks have zero float/slack. They require priority focus and tight management.',
+    relatedTerms: ['Task Dependency', 'Float', 'Schedule']
+  },
+  {
+    term: 'Benefit',
+    definition: 'A measurable improvement or value resulting from program outcomes. Benefits justify the investment.',
+    context: 'Benefits are business changes (e.g., cost savings, revenue increase, efficiency gain), not project outputs',
+    relatedTerms: ['Value', 'ROI', 'Benefit Realization'],
+    commonMisunderstanding: 'Outputs are what the program produces. Benefits are the value those outputs create for the business.'
+  },
+  {
+    term: 'KPI (Key Performance Indicator)',
+    definition: 'A quantifiable metric that measures progress toward program objectives',
+    context: 'KPIs must be SMART: Specific, Measurable, Achievable, Relevant, Time-bound',
+    relatedTerms: ['Metric', 'Measurement', 'Target']
+  },
+  {
+    term: 'Risk',
+    definition: 'An uncertain event or condition that, if it occurs, has a positive or negative effect on program objectives',
+    context: 'Risks are assessed by likelihood and impact. They require mitigation strategies.',
+    relatedTerms: ['Issue', 'Mitigation', 'Contingency'],
+    commonMisunderstanding: 'Risks are uncertainties (may happen). Issues are problems (already happened).'
+  },
+  {
+    term: 'Issue',
+    definition: 'A current problem or situation that is negatively impacting the program right now',
+    context: 'Issues require immediate action. They differ from risks which are future uncertainties.',
+    relatedTerms: ['Risk', 'Problem', 'Blocker']
+  },
+  {
+    term: 'Dependency',
+    definition: 'A relationship where one task or deliverable relies on another to start or complete',
+    context: 'Common types: Finish-to-Start (most common), Start-to-Start, Finish-to-Finish',
+    relatedTerms: ['Critical Path', 'Task', 'Constraint']
+  },
+  {
+    term: 'Resource',
+    definition: 'People, equipment, or materials allocated to program execution',
+    context: 'In EPM systems, typically refers to human resources (staff, consultants, contractors)',
+    relatedTerms: ['Allocation', 'Capacity', 'Utilization']
+  },
+  {
+    term: 'Scope',
+    definition: 'The sum of products, services, and results to be provided by the program',
+    context: 'Scope defines what is included (and by implication, what is excluded)',
+    relatedTerms: ['Requirements', 'Boundaries', 'Change Control']
+  }
+];
+
+export interface FrameworkMapping {
+  framework: string;
+  concept: string;
+  epmEntity: string;
+  mapping: string;
+  notes?: string;
+}
+
+export const FRAMEWORK_MAPPINGS: FrameworkMapping[] = [
+  {
+    framework: 'PMBOK',
+    concept: 'Integration Management',
+    epmEntity: 'Program',
+    mapping: 'Program entity encompasses project charter, plan development, execution coordination',
+    notes: 'EPM program includes PMBOK integration processes at program level'
+  },
+  {
+    framework: 'PMBOK',
+    concept: 'Schedule Management',
+    epmEntity: 'Task + Dependencies',
+    mapping: 'Tasks with dependencies implement PMBOK schedule planning, critical path, timeline management',
+    notes: 'Includes WBS decomposition, activity sequencing, duration estimation'
+  },
+  {
+    framework: 'PMBOK',
+    concept: 'Cost Management',
+    epmEntity: 'Funding + Expenses',
+    mapping: 'Funding and Expenses cover PMBOK cost estimation, budgeting, control',
+    notes: 'EPM focuses on program-level financial tracking'
+  },
+  {
+    framework: 'PMBOK',
+    concept: 'Risk Management',
+    epmEntity: 'Risk + Mitigations',
+    mapping: 'Risk entity implements PMBOK risk identification, assessment, response planning, monitoring',
+    notes: 'Uses likelihood/impact matrix for prioritization'
+  },
+  {
+    framework: 'PMBOK',
+    concept: 'Quality Management',
+    epmEntity: 'KPI + StageGate',
+    mapping: 'KPIs measure quality metrics. Stage gates enforce quality gates.',
+    notes: 'Quality assurance through measurement and governance reviews'
+  },
+  {
+    framework: 'PMBOK',
+    concept: 'Resource Management',
+    epmEntity: 'Resource',
+    mapping: 'Resource entity covers PMBOK resource planning, acquisition, management',
+    notes: 'Tracks allocation percentages and availability'
+  },
+  {
+    framework: 'PRINCE2',
+    concept: 'Business Case Theme',
+    epmEntity: 'Benefit + Funding',
+    mapping: 'Benefits justify investment. Funding represents approved budget.',
+    notes: 'PRINCE2 business case = EPM benefit tracking + ROI'
+  },
+  {
+    framework: 'PRINCE2',
+    concept: 'Organization Theme',
+    epmEntity: 'Resource + Roles',
+    mapping: 'Resources with roles (owner, lead, team member) implement PRINCE2 organization',
+    notes: 'EPM uses role-based access control (Admin/Editor/Viewer)'
+  },
+  {
+    framework: 'PRINCE2',
+    concept: 'Plans Theme',
+    epmEntity: 'Workstream + Task + Timeline',
+    mapping: 'Workstreams decompose into tasks on timeline, implementing PRINCE2 planning',
+    notes: 'Product-based planning via work breakdown structure'
+  },
+  {
+    framework: 'PRINCE2',
+    concept: 'Risk Theme',
+    epmEntity: 'Risk + Mitigations',
+    mapping: 'Direct mapping to PRINCE2 risk management approach',
+    notes: 'Likelihood/impact assessment aligns with PRINCE2 methodology'
+  },
+  {
+    framework: 'PRINCE2',
+    concept: 'Quality Theme',
+    epmEntity: 'KPI + StageGate',
+    mapping: 'KPIs define quality criteria. Stage gates enforce quality reviews.',
+    notes: 'Quality control through measurement and governance'
+  },
+  {
+    framework: 'PRINCE2',
+    concept: 'Progress Theme',
+    epmEntity: 'Task Status + KPI Measurements',
+    mapping: 'Task status tracking and KPI measurements monitor progress',
+    notes: 'Supports management by exception'
+  },
+  {
+    framework: 'PRINCE2',
+    concept: 'Change Theme',
+    epmEntity: 'Benefit Realization Tracking',
+    mapping: 'Benefits track organizational change and value delivery',
+    notes: 'Focus on outcome-based change, not just output delivery'
+  },
+  {
+    framework: 'Agile/Scrum',
+    concept: 'Sprint',
+    epmEntity: 'Workstream (time-boxed)',
+    mapping: 'Workstreams can be structured as sprints with defined durations',
+    notes: 'EPM supports both agile and waterfall approaches'
+  },
+  {
+    framework: 'Agile/Scrum',
+    concept: 'User Story / Epic',
+    epmEntity: 'Task / Workstream',
+    mapping: 'Tasks = user stories. Workstreams = epics.',
+    notes: 'Hierarchical work breakdown aligns with agile terminology'
+  },
+  {
+    framework: 'Agile/Scrum',
+    concept: 'Velocity / Burndown',
+    epmEntity: 'KPI Measurements',
+    mapping: 'KPIs can track team velocity, burndown rates, sprint completion',
+    notes: 'Agile metrics implemented as program KPIs'
+  },
+  {
+    framework: 'Agile/Scrum',
+    concept: 'Retrospective',
+    epmEntity: 'StageGate Reviews',
+    mapping: 'Stage gate reviews include lessons learned similar to retrospectives',
+    notes: 'Governance checkpoints provide reflection opportunities'
+  },
+  {
+    framework: 'SAFe (Scaled Agile)',
+    concept: 'Program Increment (PI)',
+    epmEntity: 'Workstream',
+    mapping: 'Workstreams can represent PI timeboxes (typically 8-12 weeks)',
+    notes: 'EPM accommodates SAFe program-level planning'
+  },
+  {
+    framework: 'SAFe',
+    concept: 'Objectives and Key Results (OKR)',
+    epmEntity: 'Benefit + KPI',
+    mapping: 'Benefits = Objectives. KPIs = Key Results.',
+    notes: 'Direct mapping to OKR methodology'
+  },
+  {
+    framework: 'Portfolio Management',
+    concept: 'Portfolio',
+    epmEntity: 'Multiple Programs',
+    mapping: 'Programs roll up to organizational portfolio',
+    notes: 'EPM focuses on program level; portfolio is organizational context'
+  }
+];
+
+export function getCompletenessChecksForEntity(entityName: string): CompletenessCheck[] {
+  return COMPLETENESS_CRITERIA.filter(check => check.entity === entityName);
+}
+
+export function getCriticalCompletenessChecks(): CompletenessCheck[] {
+  return COMPLETENESS_CRITERIA.filter(check => check.importance === 'critical');
+}
+
+export function getCascadeImpactsForEntity(entityName: string): CascadeImpact[] {
+  return CASCADE_IMPACT_MODEL.filter(impact => 
+    impact.affectedEntities.includes(entityName) || impact.trigger.includes(entityName)
+  );
+}
+
+export function getFullAutoCascades(): CascadeImpact[] {
+  return CASCADE_IMPACT_MODEL.filter(impact => impact.automationPotential === 'full');
+}
+
+export function getDomainTerm(term: string): DomainTerm | undefined {
+  return DOMAIN_VOCABULARY.find(t => t.term.toLowerCase() === term.toLowerCase());
+}
+
+export function getRelatedTerms(term: string): DomainTerm[] {
+  const mainTerm = getDomainTerm(term);
+  if (!mainTerm) return [];
+  
+  return DOMAIN_VOCABULARY.filter(t => 
+    mainTerm.relatedTerms.includes(t.term)
+  );
+}
+
+export function getFrameworkMappingsForEntity(entityName: string): FrameworkMapping[] {
+  return FRAMEWORK_MAPPINGS.filter(mapping => mapping.epmEntity.includes(entityName));
+}
+
+export function getFrameworkMappings(framework: string): FrameworkMapping[] {
+  return FRAMEWORK_MAPPINGS.filter(mapping => mapping.framework === framework);
+}
+
 export default EPM_ONTOLOGY;
