@@ -60,29 +60,228 @@ export class BuilderAgent {
     // Query ontology if entity context provided
     if (task.context?.entity) {
       await executiveAgent.updatePhase('Querying Ontology');
-      await executiveAgent.queryOntologyForDecision(
+      const ontologyData = await executiveAgent.queryOntologyForDecision(
         task.context.entity,
         task.description
       );
+      
+      // Log ontology query as a decision
+      await this.logDecision(
+        `Queried ontology for ${task.context.entity} entity`,
+        `Found ${ontologyData.rules.length} validation rules to guide implementation`,
+        undefined,
+        'high'
+      );
+    }
+
+    // Analysis phase
+    await executiveAgent.updatePhase('Analysis');
+    const requirementsFulfilled: BuilderResponse['requirementsFulfilled'] = [];
+    const decisions: BuilderResponse['decisions'] = [];
+    
+    // Analyze each requirement
+    for (let i = 0; i < task.requirements.length; i++) {
+      const requirement = task.requirements[i];
+      
+      // In production, this would use AI to determine if requirement can be met
+      // For now, we simulate analysis
+      const canMeet = this.analyzeRequirement(requirement, task.context);
+      
+      requirementsFulfilled.push({
+        requirement,
+        met: canMeet,
+        notes: canMeet ? 'Implemented' : 'Requires additional context or capabilities',
+      });
+
+      if (canMeet) {
+        await this.fulfillRequirement(i);
+      }
     }
 
     // Implementation phase
     await executiveAgent.updatePhase('Implementation');
 
-    // This is a meta-agent that coordinates code generation
-    // In production, this would integrate with actual AI code generation
+    // Generate approach description
+    const metRequirements = requirementsFulfilled.filter(r => r.met);
+    const unmetRequirements = requirementsFulfilled
+      .filter(r => !r.met)
+      .map(r => r.requirement);
+
+    const approach = this.generateApproach(task, metRequirements.length, unmetRequirements);
+    
+    // Log approach decision
+    const approachDecision = {
+      decision: 'Selected implementation approach',
+      rationale: approach,
+    };
+    decisions.push(approachDecision);
+    await this.logDecision(
+      approachDecision.decision,
+      approachDecision.rationale,
+      undefined,
+      'high'
+    );
+
+    // Generate code artifacts
+    const codeArtifacts = this.generateCode(task, metRequirements);
+    
+    // Log code generation decisions
+    for (const artifact of codeArtifacts) {
+      const codeDecision = {
+        decision: `Created ${artifact.filePath}`,
+        rationale: artifact.description,
+      };
+      decisions.push(codeDecision);
+      await this.logDecision(
+        codeDecision.decision,
+        codeDecision.rationale,
+        undefined,
+        'medium'
+      );
+    }
+
+    // Calculate confidence based on fulfillment
+    const confidenceLevel = this.calculateConfidence(
+      metRequirements.length,
+      task.requirements.length
+    );
+
+    // Validation phase
+    await executiveAgent.updatePhase('Validation');
+
     const response: BuilderResponse = {
-      approach: '',
-      code: [],
-      confidenceLevel: 0,
-      requirementsFulfilled: [],
-      unmetRequirements: [],
-      decisions: [],
+      approach,
+      code: codeArtifacts,
+      confidenceLevel,
+      requirementsFulfilled,
+      unmetRequirements,
+      decisions,
     };
 
     console.log('[BuilderAgent] Task processing complete');
+    console.log('[BuilderAgent] Confidence:', confidenceLevel + '%');
+    console.log('[BuilderAgent] Requirements met:', metRequirements.length, '/', task.requirements.length);
 
     return response;
+  }
+
+  /**
+   * Analyze if a requirement can be met
+   */
+  private analyzeRequirement(requirement: string, context?: BuilderTask['context']): boolean {
+    // In production, this would use AI to analyze feasibility
+    // For demonstration, we use simple heuristics
+    
+    const lowerReq = requirement.toLowerCase();
+    
+    // Check for unsupported features
+    if (lowerReq.includes('machine learning') || lowerReq.includes('ml model')) {
+      return false;
+    }
+    
+    if (lowerReq.includes('real-time streaming') && !context?.constraints?.includes('websocket')) {
+      return false;
+    }
+    
+    // Most standard requirements can be met
+    return true;
+  }
+
+  /**
+   * Generate approach description
+   */
+  private generateApproach(
+    task: BuilderTask,
+    metCount: number,
+    unmet: string[]
+  ): string {
+    let approach = `Implementing ${task.description}. `;
+    
+    if (task.context?.constraints && task.context.constraints.length > 0) {
+      approach += `Following constraints: ${task.context.constraints.join(', ')}. `;
+    }
+    
+    approach += `Successfully addressed ${metCount} of ${task.requirements.length} requirements.`;
+    
+    if (unmet.length > 0) {
+      approach += ` Deferred ${unmet.length} requirement(s) for future iteration.`;
+    }
+    
+    return approach;
+  }
+
+  /**
+   * Generate code artifacts based on fulfilled requirements
+   */
+  private generateCode(
+    task: BuilderTask,
+    metRequirements: BuilderResponse['requirementsFulfilled']
+  ): BuilderResponse['code'] {
+    // In production, this would use AI to generate actual code
+    // For demonstration, we generate placeholder structure
+    
+    const artifacts: BuilderResponse['code'] = [];
+    
+    if (metRequirements.length > 0) {
+      // Generate main implementation file
+      const fileName = this.deriveFileName(task.description);
+      
+      artifacts.push({
+        filePath: fileName,
+        content: this.generatePlaceholderCode(task, metRequirements),
+        description: `Implementation for ${task.description} addressing ${metRequirements.length} requirements`,
+      });
+      
+      // If TypeScript types are required, generate types file
+      if (task.requirements.some(r => r.toLowerCase().includes('typescript') || r.toLowerCase().includes('types'))) {
+        artifacts.push({
+          filePath: fileName.replace('.ts', '.types.ts'),
+          content: '// TypeScript type definitions\n\nexport interface PlaceholderType {\n  // Generated types\n}\n',
+          description: 'TypeScript type definitions',
+        });
+      }
+    }
+    
+    return artifacts;
+  }
+
+  /**
+   * Derive file name from task description
+   */
+  private deriveFileName(description: string): string {
+    const normalized = description
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '')
+      .replace(/\s+/g, '-')
+      .substring(0, 50);
+    
+    return `shared/${normalized}.ts`;
+  }
+
+  /**
+   * Generate placeholder code structure
+   */
+  private generatePlaceholderCode(
+    task: BuilderTask,
+    metRequirements: BuilderResponse['requirementsFulfilled']
+  ): string {
+    let code = '/**\n';
+    code += ` * ${task.description}\n`;
+    code += ' * \n';
+    code += ' * Requirements implemented:\n';
+    
+    for (const req of metRequirements.filter(r => r.met)) {
+      code += ` * - ${req.requirement}\n`;
+    }
+    
+    code += ' */\n\n';
+    code += '// Implementation placeholder\n';
+    code += '// In production, AI would generate complete working code\n\n';
+    code += 'export function placeholder() {\n';
+    code += '  // Generated implementation\n';
+    code += '}\n';
+    
+    return code;
   }
 
   /**
