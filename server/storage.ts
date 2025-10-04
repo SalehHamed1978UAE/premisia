@@ -14,6 +14,8 @@ import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
 import type { Store } from "express-session";
+import { ontologyService } from "./ontology-service";
+import type { EPMEntity } from "@shared/ontology";
 
 const PostgresSessionStore = connectPg(session);
 
@@ -89,6 +91,46 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
+  private async validateEntity(entityName: EPMEntity, data: any): Promise<{
+    isValid: boolean;
+    errors: Array<{ rule: string; message: string; autoFix?: string }>;
+    warnings: Array<{ rule: string; message: string }>;
+    completeness: {
+      score: number;
+      maxScore: number;
+      percentage: number;
+      missingFields: Array<{ field: string; importance: string; description: string }>;
+    };
+  }> {
+    const [validation, completeness] = await Promise.all([
+      ontologyService.validateEntityData(entityName, data),
+      ontologyService.checkCompleteness(entityName, data)
+    ]);
+
+    return {
+      isValid: validation.isValid,
+      errors: validation.errors,
+      warnings: validation.warnings,
+      completeness: {
+        ...completeness,
+        percentage: completeness.maxScore > 0 ? Math.round((completeness.score / completeness.maxScore) * 100) : 0
+      }
+    };
+  }
+
+  private logValidationResults(entityName: string, entityId: string, results: any) {
+    if (results.errors.length > 0) {
+      console.warn(`[Validation] ${entityName} ${entityId} has ${results.errors.length} error(s):`, results.errors);
+    }
+    if (results.warnings.length > 0) {
+      console.info(`[Validation] ${entityName} ${entityId} has ${results.warnings.length} warning(s):`, results.warnings);
+    }
+    console.info(`[Completeness] ${entityName} ${entityId} is ${results.completeness.percentage}% complete (${results.completeness.score}/${results.completeness.maxScore})`);
+    if (results.completeness.missingFields.length > 0) {
+      console.info(`[Completeness] Missing fields for ${entityName} ${entityId}:`, results.completeness.missingFields.map((f: any) => `${f.field} (${f.importance})`).join(', '));
+    }
+  }
+
   // User management
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
@@ -116,6 +158,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createProgram(program: any): Promise<Program> {
+    // Validate program data using ontology
+    const validationResults = await this.validateEntity('Program', program);
+    this.logValidationResults('Program', program.name || 'new', validationResults);
+    
     const [newProgram] = await db.insert(programs).values(program).returning();
     
     const defaultStageGates = [
@@ -204,6 +250,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createStageGate(gate: any): Promise<StageGate> {
+    // Validate stage gate data using ontology
+    const validationResults = await this.validateEntity('StageGate', gate);
+    this.logValidationResults('StageGate', gate.name || gate.code || 'new', validationResults);
+    
     const [newGate] = await db.insert(stageGates).values(gate).returning();
     return newGate;
   }
@@ -259,6 +309,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createTask(task: any): Promise<Task> {
+    // Validate task data using ontology
+    const validationResults = await this.validateEntity('Task', task);
+    this.logValidationResults('Task', task.name || 'new', validationResults);
+    
     const [newTask] = await db.insert(tasks).values(task).returning();
     return newTask;
   }
