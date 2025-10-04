@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, decimal, boolean, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, decimal, boolean, pgEnum, jsonb, index } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -195,6 +195,121 @@ export const expenses = pgTable("expenses", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Ontology tables for AI knowledge base
+export const ontologyEntities = pgTable("ontology_entities", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  entityName: text("entity_name").notNull().unique(),
+  definition: text("definition").notNull(),
+  purpose: text("purpose").notNull(),
+  data: jsonb("data").notNull(),
+  version: integer("version").default(1),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  versionIdx: index("idx_ontology_entities_version").on(table.version),
+}));
+
+export const ontologyRelationships = pgTable("ontology_relationships", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fromEntity: text("from_entity").notNull(),
+  toEntity: text("to_entity").notNull(),
+  relationshipType: text("relationship_type").notNull(),
+  cardinality: text("cardinality").notNull(),
+  required: boolean("required").default(false),
+  data: jsonb("data").notNull(),
+  version: integer("version").default(1),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  fromEntityIdx: index("idx_ontology_rels_from_entity").on(table.fromEntity),
+  toEntityIdx: index("idx_ontology_rels_to_entity").on(table.toEntity),
+  typeIdx: index("idx_ontology_rels_type").on(table.relationshipType),
+  fromToIdx: index("idx_ontology_rels_from_to").on(table.fromEntity, table.toEntity),
+}));
+
+export const ontologyValidationRules = pgTable("ontology_validation_rules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ruleId: text("rule_id").notNull().unique(),
+  entity: text("entity").notNull(),
+  category: text("category").notNull(),
+  severity: text("severity").notNull(),
+  rule: text("rule").notNull(),
+  validation: text("validation").notNull(),
+  data: jsonb("data").notNull(),
+  enabled: boolean("enabled").default(true),
+  version: integer("version").default(1),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  entityIdx: index("idx_ontology_rules_entity").on(table.entity),
+  categoryIdx: index("idx_ontology_rules_category").on(table.category),
+  severityIdx: index("idx_ontology_rules_severity").on(table.severity),
+  enabledIdx: index("idx_ontology_rules_enabled").on(table.enabled),
+  entityCategoryIdx: index("idx_ontology_rules_entity_category").on(table.entity, table.category),
+}));
+
+export const ontologyCompletenessChecks = pgTable("ontology_completeness_checks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  checkId: text("check_id").notNull().unique(),
+  entity: text("entity").notNull(),
+  checkType: text("check_type").notNull(),
+  importance: text("importance").notNull(),
+  description: text("description").notNull(),
+  validation: text("validation").notNull(),
+  data: jsonb("data").notNull(),
+  enabled: boolean("enabled").default(true),
+  version: integer("version").default(1),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  entityIdx: index("idx_ontology_checks_entity").on(table.entity),
+  checkTypeIdx: index("idx_ontology_checks_type").on(table.checkType),
+  importanceIdx: index("idx_ontology_checks_importance").on(table.importance),
+  enabledIdx: index("idx_ontology_checks_enabled").on(table.enabled),
+  entityImportanceIdx: index("idx_ontology_checks_entity_importance").on(table.entity, table.importance),
+}));
+
+export const ontologyCascadeImpacts = pgTable("ontology_cascade_impacts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  trigger: text("trigger").notNull(),
+  automationPotential: text("automation_potential").notNull(),
+  impactDescription: text("impact_description").notNull(),
+  data: jsonb("data").notNull(),
+  version: integer("version").default(1),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  triggerIdx: index("idx_ontology_cascades_trigger").on(table.trigger),
+  automationIdx: index("idx_ontology_cascades_automation").on(table.automationPotential),
+}));
+
+export const ontologyDomainTerms = pgTable("ontology_domain_terms", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  term: text("term").notNull().unique(),
+  definition: text("definition").notNull(),
+  context: text("context").notNull(),
+  data: jsonb("data").notNull(),
+  version: integer("version").default(1),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const ontologyFrameworkMappings = pgTable("ontology_framework_mappings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  framework: text("framework").notNull(),
+  concept: text("concept").notNull(),
+  epmEntity: text("epm_entity").notNull(),
+  mapping: text("mapping").notNull(),
+  data: jsonb("data").notNull(),
+  version: integer("version").default(1),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  frameworkIdx: index("idx_ontology_mappings_framework").on(table.framework),
+  entityIdx: index("idx_ontology_mappings_entity").on(table.epmEntity),
+  frameworkEntityIdx: index("idx_ontology_mappings_framework_entity").on(table.framework, table.epmEntity),
+}));
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   programs: many(programs),
@@ -323,6 +438,13 @@ export const insertRiskMitigationSchema = createInsertSchema(riskMitigations).om
 export const insertBenefitSchema = createInsertSchema(benefits).omit({ id: true, createdAt: true });
 export const insertFundingSourceSchema = createInsertSchema(fundingSources).omit({ id: true, createdAt: true });
 export const insertExpenseSchema = createInsertSchema(expenses).omit({ id: true, createdAt: true });
+export const insertOntologyEntitySchema = createInsertSchema(ontologyEntities).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertOntologyRelationshipSchema = createInsertSchema(ontologyRelationships).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertOntologyValidationRuleSchema = createInsertSchema(ontologyValidationRules).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertOntologyCompletenessCheckSchema = createInsertSchema(ontologyCompletenessChecks).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertOntologyCascadeImpactSchema = createInsertSchema(ontologyCascadeImpacts).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertOntologyDomainTermSchema = createInsertSchema(ontologyDomainTerms).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertOntologyFrameworkMappingSchema = createInsertSchema(ontologyFrameworkMappings).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -341,3 +463,10 @@ export type RiskMitigation = typeof riskMitigations.$inferSelect;
 export type Benefit = typeof benefits.$inferSelect;
 export type FundingSource = typeof fundingSources.$inferSelect;
 export type Expense = typeof expenses.$inferSelect;
+export type OntologyEntity = typeof ontologyEntities.$inferSelect;
+export type OntologyRelationship = typeof ontologyRelationships.$inferSelect;
+export type OntologyValidationRule = typeof ontologyValidationRules.$inferSelect;
+export type OntologyCompletenessCheck = typeof ontologyCompletenessChecks.$inferSelect;
+export type OntologyCascadeImpact = typeof ontologyCascadeImpacts.$inferSelect;
+export type OntologyDomainTerm = typeof ontologyDomainTerms.$inferSelect;
+export type OntologyFrameworkMapping = typeof ontologyFrameworkMappings.$inferSelect;
