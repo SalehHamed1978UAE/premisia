@@ -4,6 +4,7 @@ import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { insertProgramSchema, insertWorkstreamSchema, insertStageGateSchema, insertTaskSchema, insertKpiSchema, insertRiskSchema, insertBenefitSchema, insertFundingSourceSchema, insertExpenseSchema, insertResourceSchema } from "@shared/schema";
 import { ontologyService } from "./ontology-service";
+import { assessmentService } from "./assessment-service";
 
 export function registerRoutes(app: Express): Server {
   // Setup authentication routes
@@ -578,6 +579,85 @@ export function registerRoutes(app: Express): Server {
       res.json(mappings);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch framework mappings" });
+    }
+  });
+
+  // Assessment API endpoints
+  app.post("/api/assessment/program", requireAuth, async (req, res) => {
+    try {
+      const { program, relatedData } = req.body;
+      if (!program) {
+        return res.status(400).json({ message: "program data required" });
+      }
+      const assessment = await assessmentService.assessProgram(program, relatedData);
+      res.json(assessment);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to assess program" });
+    }
+  });
+
+  app.post("/api/assessment/task", requireAuth, async (req, res) => {
+    try {
+      const { task, program } = req.body;
+      if (!task) {
+        return res.status(400).json({ message: "task data required" });
+      }
+      const assessment = await assessmentService.assessTask(task, program);
+      res.json(assessment);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to assess task" });
+    }
+  });
+
+  app.post("/api/assessment/risk", requireAuth, async (req, res) => {
+    try {
+      const { risk, mitigations } = req.body;
+      if (!risk) {
+        return res.status(400).json({ message: "risk data required" });
+      }
+      const assessment = await assessmentService.assessRisk(risk, mitigations);
+      res.json(assessment);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to assess risk" });
+    }
+  });
+
+  app.post("/api/assessment/benefit", requireAuth, async (req, res) => {
+    try {
+      const { benefit, program } = req.body;
+      if (!benefit) {
+        return res.status(400).json({ message: "benefit data required" });
+      }
+      const assessment = await assessmentService.assessBenefit(benefit, program);
+      res.json(assessment);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to assess benefit" });
+    }
+  });
+
+  app.post("/api/assessment/resource", requireAuth, async (req, res) => {
+    try {
+      const { resource } = req.body;
+      if (!resource) {
+        return res.status(400).json({ message: "resource data required" });
+      }
+      const assessment = await assessmentService.assessResource(resource);
+      res.json(assessment);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to assess resource" });
+    }
+  });
+
+  app.post("/api/assessment/kpi", requireAuth, async (req, res) => {
+    try {
+      const { kpi, measurements } = req.body;
+      if (!kpi) {
+        return res.status(400).json({ message: "kpi data required" });
+      }
+      const assessment = await assessmentService.assessKpi(kpi, measurements);
+      res.json(assessment);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to assess KPI" });
     }
   });
 
