@@ -310,6 +310,20 @@ export const ontologyFrameworkMappings = pgTable("ontology_framework_mappings", 
   frameworkEntityIdx: index("idx_ontology_mappings_framework_entity").on(table.framework, table.epmEntity),
 }));
 
+// Session Context table for goal tracking
+export const sessionContext = pgTable("session_context", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  goal: text("goal").notNull(),
+  successCriteria: text("success_criteria").array().notNull().default(sql`ARRAY[]::text[]`),
+  decisionsLog: jsonb("decisions_log").notNull().default(sql`'[]'::jsonb`),
+  currentPhase: text("current_phase"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  isActiveIdx: index("idx_session_context_is_active").on(table.isActive),
+}));
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   programs: many(programs),
@@ -445,6 +459,7 @@ export const insertOntologyCompletenessCheckSchema = createInsertSchema(ontology
 export const insertOntologyCascadeImpactSchema = createInsertSchema(ontologyCascadeImpacts).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOntologyDomainTermSchema = createInsertSchema(ontologyDomainTerms).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOntologyFrameworkMappingSchema = createInsertSchema(ontologyFrameworkMappings).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertSessionContextSchema = createInsertSchema(sessionContext).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -470,3 +485,5 @@ export type OntologyCompletenessCheck = typeof ontologyCompletenessChecks.$infer
 export type OntologyCascadeImpact = typeof ontologyCascadeImpacts.$inferSelect;
 export type OntologyDomainTerm = typeof ontologyDomainTerms.$inferSelect;
 export type OntologyFrameworkMapping = typeof ontologyFrameworkMappings.$inferSelect;
+export type SessionContext = typeof sessionContext.$inferSelect;
+export type InsertSessionContext = z.infer<typeof insertSessionContextSchema>;

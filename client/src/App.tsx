@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "./hooks/use-auth";
 import { ProgramProvider } from "./contexts/ProgramContext";
+import { SessionContextPanel } from "@/components/SessionContext";
 import HomePage from "@/pages/home-page";
 import ProgramsPage from "@/pages/programs-page";
 import NotFound from "@/pages/not-found";
@@ -13,12 +14,15 @@ import { ProtectedRoute } from "./lib/protected-route";
 
 function Router() {
   return (
-    <Switch>
-      <ProtectedRoute path="/" component={HomePage} />
-      <ProtectedRoute path="/programs" component={ProgramsPage} />
-      <Route path="/auth" component={AuthPage} />
-      <Route component={NotFound} />
-    </Switch>
+    <>
+      <Switch>
+        <ProtectedRoute path="/" component={HomePage} />
+        <ProtectedRoute path="/programs" component={ProgramsPage} />
+        <Route path="/auth" component={AuthPage} />
+        <Route component={NotFound} />
+      </Switch>
+      <SessionContextPanel />
+    </>
   );
 }
 

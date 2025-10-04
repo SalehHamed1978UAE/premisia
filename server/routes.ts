@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
-import { insertProgramSchema, insertWorkstreamSchema, insertStageGateSchema, insertTaskSchema, insertKpiSchema, insertRiskSchema, insertBenefitSchema, insertFundingSourceSchema, insertExpenseSchema, insertResourceSchema } from "@shared/schema";
+import { insertProgramSchema, insertWorkstreamSchema, insertStageGateSchema, insertTaskSchema, insertKpiSchema, insertRiskSchema, insertBenefitSchema, insertFundingSourceSchema, insertExpenseSchema, insertResourceSchema, insertSessionContextSchema } from "@shared/schema";
 import { ontologyService } from "./ontology-service";
 import { assessmentService } from "./assessment-service";
 
@@ -579,6 +579,75 @@ export function registerRoutes(app: Express): Server {
       res.json(mappings);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch framework mappings" });
+    }
+  });
+
+  // Session Context API endpoints
+  app.get("/api/session-context", requireAuth, async (req, res) => {
+    try {
+      const activeContext = await storage.getActiveSessionContext();
+      res.json(activeContext || null);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch session context" });
+    }
+  });
+
+  app.post("/api/session-context", requireAuth, async (req, res) => {
+    try {
+      const validatedData = insertSessionContextSchema.parse(req.body);
+      const context = await storage.createSessionContext(validatedData);
+      res.status(201).json(context);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid session context data" });
+    }
+  });
+
+  app.patch("/api/session-context/:id", requireAuth, async (req, res) => {
+    try {
+      // Validate that only allowed fields are being updated
+      const allowedFields = ['goal', 'successCriteria', 'currentPhase', 'decisionsLog'];
+      const updates = Object.keys(req.body);
+      const invalidFields = updates.filter(field => !allowedFields.includes(field));
+      
+      if (invalidFields.length > 0) {
+        return res.status(400).json({ message: `Invalid fields: ${invalidFields.join(', ')}` });
+      }
+
+      // Validate successCriteria if present
+      if (req.body.successCriteria && !Array.isArray(req.body.successCriteria)) {
+        return res.status(400).json({ message: "successCriteria must be an array" });
+      }
+
+      const context = await storage.updateSessionContext(req.params.id, req.body);
+      res.json(context);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Failed to update session context" });
+    }
+  });
+
+  app.post("/api/session-context/:id/decision", requireAuth, async (req, res) => {
+    try {
+      // Validate decision structure
+      if (!req.body.decision || typeof req.body.decision !== 'string') {
+        return res.status(400).json({ message: "decision (string) is required" });
+      }
+
+      const context = await storage.addDecisionToContext(req.params.id, {
+        decision: req.body.decision,
+        reason: req.body.reason || '',
+      });
+      res.json(context);
+    } catch (error: any) {
+      res.status(400).json({ message: error.message || "Failed to add decision" });
+    }
+  });
+
+  app.post("/api/session-context/:id/deactivate", requireAuth, async (req, res) => {
+    try {
+      await storage.deactivateSessionContext(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(400).json({ message: "Failed to deactivate session context" });
     }
   });
 

@@ -2,12 +2,12 @@ import { db } from "./db";
 import { 
   users, programs, workstreams, resources, stageGates, stageGateReviews, 
   tasks, taskDependencies, kpis, kpiMeasurements, risks, riskMitigations,
-  benefits, fundingSources, expenses 
+  benefits, fundingSources, expenses, sessionContext
 } from "@shared/schema";
 import type { 
   User, InsertUser, Program, Workstream, Resource, StageGate, StageGateReview,
   Task, TaskDependency, Kpi, KpiMeasurement, Risk, RiskMitigation,
-  Benefit, FundingSource, Expense
+  Benefit, FundingSource, Expense, SessionContext, InsertSessionContext
 } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
 import session from "express-session";
@@ -77,6 +77,13 @@ export interface IStorage {
   getExpenses(programId?: string): Promise<Expense[]>;
   createFundingSource(source: any): Promise<FundingSource>;
   createExpense(expense: any): Promise<Expense>;
+
+  // Session Context
+  getActiveSessionContext(): Promise<SessionContext | undefined>;
+  createSessionContext(context: InsertSessionContext): Promise<SessionContext>;
+  updateSessionContext(id: string, data: Partial<InsertSessionContext>): Promise<SessionContext>;
+  deactivateSessionContext(id: string): Promise<void>;
+  addDecisionToContext(id: string, decision: any): Promise<SessionContext>;
 
   sessionStore: Store;
 }
@@ -444,6 +451,57 @@ export class DatabaseStorage implements IStorage {
   async createExpense(expense: any): Promise<Expense> {
     const [newExpense] = await db.insert(expenses).values(expense).returning();
     return newExpense;
+  }
+
+  // Session Context
+  async getActiveSessionContext(): Promise<SessionContext | undefined> {
+    const [activeContext] = await db.select()
+      .from(sessionContext)
+      .where(eq(sessionContext.isActive, true))
+      .orderBy(desc(sessionContext.createdAt))
+      .limit(1);
+    return activeContext || undefined;
+  }
+
+  async createSessionContext(context: InsertSessionContext): Promise<SessionContext> {
+    // Deactivate any existing active contexts
+    await db.update(sessionContext)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(sessionContext.isActive, true));
+
+    const [newContext] = await db.insert(sessionContext).values(context).returning();
+    return newContext;
+  }
+
+  async updateSessionContext(id: string, data: Partial<InsertSessionContext>): Promise<SessionContext> {
+    const [updatedContext] = await db.update(sessionContext)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(sessionContext.id, id))
+      .returning();
+    return updatedContext;
+  }
+
+  async deactivateSessionContext(id: string): Promise<void> {
+    await db.update(sessionContext)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(sessionContext.id, id));
+  }
+
+  async addDecisionToContext(id: string, decision: any): Promise<SessionContext> {
+    const [existing] = await db.select().from(sessionContext).where(eq(sessionContext.id, id));
+    if (!existing) {
+      throw new Error(`SessionContext with id ${id} not found`);
+    }
+
+    const currentLog = (existing.decisionsLog as any[]) || [];
+    const updatedLog = [...currentLog, { ...decision, timestamp: new Date().toISOString() }];
+
+    const [updated] = await db.update(sessionContext)
+      .set({ decisionsLog: updatedLog, updatedAt: new Date() })
+      .where(eq(sessionContext.id, id))
+      .returning();
+
+    return updated;
   }
 }
 
