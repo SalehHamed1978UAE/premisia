@@ -1515,4 +1515,384 @@ export function getCascadeRules(fromEntity: string, toEntity: string): string[] 
   return relationship?.cascadeRules || [];
 }
 
+export interface ValidationRule {
+  id: string;
+  entity: string;
+  category: 'date' | 'budget' | 'relationship' | 'state' | 'constraint' | 'permission' | 'dependency';
+  severity: 'error' | 'warning' | 'info';
+  rule: string;
+  validation: string;
+  errorMessage: string;
+  autoFix?: string;
+}
+
+export const VALIDATION_RULES: ValidationRule[] = [
+  {
+    id: 'program-date-consistency',
+    entity: 'Program',
+    category: 'date',
+    severity: 'error',
+    rule: 'Start date must be before end date',
+    validation: 'program.startDate < program.endDate',
+    errorMessage: 'Program start date ({startDate}) must be before end date ({endDate})',
+    autoFix: 'Suggest extending end date to startDate + 90 days minimum'
+  },
+  {
+    id: 'program-duration-reasonable',
+    entity: 'Program',
+    category: 'date',
+    severity: 'warning',
+    rule: 'Program duration should be between 3 and 36 months',
+    validation: 'daysBetween(program.startDate, program.endDate) >= 90 AND daysBetween(program.startDate, program.endDate) <= 1095',
+    errorMessage: 'Program duration is {duration} days. Typical programs run 90-1095 days (3-36 months)',
+    autoFix: 'Programs <90 days: consider if this should be a project. Programs >1095 days: consider breaking into phases'
+  },
+  {
+    id: 'program-has-stage-gates',
+    entity: 'Program',
+    category: 'relationship',
+    severity: 'error',
+    rule: 'Every program must have stage gates defined',
+    validation: 'COUNT(stageGates WHERE programId = program.id) >= 1',
+    errorMessage: 'Program has no stage gates defined. Minimum required: G0-G4',
+    autoFix: 'Auto-create default stage gates: G0 (Ideation), G1 (Planning), G2 (Execution), G3 (Validation), G4 (Closure)'
+  },
+  {
+    id: 'program-active-needs-work',
+    entity: 'Program',
+    category: 'state',
+    severity: 'warning',
+    rule: 'Active programs should have work defined',
+    validation: 'IF program.status = \'Active\' THEN (COUNT(tasks WHERE programId = program.id) > 0 OR COUNT(workstreams WHERE programId = program.id) > 0)',
+    errorMessage: 'Active program has no tasks or workstreams. Program cannot execute without work breakdown',
+    autoFix: 'Create initial workstream structure or add tasks'
+  },
+  {
+    id: 'program-budget-coverage',
+    entity: 'Program',
+    category: 'budget',
+    severity: 'error',
+    rule: 'Total funding must cover total expenses',
+    validation: 'SUM(funding.amount WHERE programId = program.id) >= SUM(expenses.amount WHERE programId = program.id)',
+    errorMessage: 'Total funding ({fundingTotal}) is less than total expenses ({expenseTotal}). Shortfall: {shortfall}',
+    autoFix: 'Add funding source for shortfall amount or reduce planned expenses'
+  },
+  {
+    id: 'program-has-benefits',
+    entity: 'Program',
+    category: 'relationship',
+    severity: 'warning',
+    rule: 'Programs should define expected benefits',
+    validation: 'COUNT(benefits WHERE programId = program.id) >= 1',
+    errorMessage: 'Program has no defined benefits. Benefits justify the investment and measure success',
+    autoFix: 'Define at least 3 measurable benefits aligned with program objectives'
+  },
+  {
+    id: 'program-positive-roi',
+    entity: 'Program',
+    category: 'budget',
+    severity: 'warning',
+    rule: 'Total benefit value should exceed total cost (positive ROI)',
+    validation: 'SUM(benefits.targetValue WHERE programId = program.id) > (SUM(funding.amount WHERE programId = program.id) + SUM(expenses.amount WHERE programId = program.id))',
+    errorMessage: 'Expected benefits ({benefitTotal}) do not exceed total costs ({costTotal}). ROI is negative',
+    autoFix: 'Review benefit calculations or reconsider program viability'
+  },
+  {
+    id: 'workstream-within-program-timeline',
+    entity: 'Workstream',
+    category: 'date',
+    severity: 'error',
+    rule: 'Workstream dates must fit within parent program timeline',
+    validation: 'workstream.startDate >= program.startDate AND workstream.endDate <= program.endDate',
+    errorMessage: 'Workstream timeline ({workstreamStart} to {workstreamEnd}) extends beyond program timeline ({programStart} to {programEnd})',
+    autoFix: 'Adjust workstream dates to fit within program bounds'
+  },
+  {
+    id: 'workstream-has-tasks',
+    entity: 'Workstream',
+    category: 'relationship',
+    severity: 'warning',
+    rule: 'Workstreams should have at least one task',
+    validation: 'COUNT(tasks WHERE workstreamId = workstream.id) >= 1',
+    errorMessage: 'Workstream has no tasks defined. Workstreams without tasks cannot be executed',
+    autoFix: 'Break down workstream into executable tasks'
+  },
+  {
+    id: 'task-date-consistency',
+    entity: 'Task',
+    category: 'date',
+    severity: 'error',
+    rule: 'Task start date must be before end date',
+    validation: 'task.startDate < task.endDate',
+    errorMessage: 'Task start date ({startDate}) must be before end date ({endDate})',
+    autoFix: 'Adjust end date to be after start date'
+  },
+  {
+    id: 'task-minimum-duration',
+    entity: 'Task',
+    category: 'date',
+    severity: 'warning',
+    rule: 'Tasks should be at least 1 day long',
+    validation: 'daysBetween(task.startDate, task.endDate) >= 1',
+    errorMessage: 'Task duration is less than 1 day. Consider consolidating very short tasks',
+    autoFix: 'Combine with other short tasks or extend to minimum 1 day'
+  },
+  {
+    id: 'task-within-program-timeline',
+    entity: 'Task',
+    category: 'date',
+    severity: 'error',
+    rule: 'Tasks must fit within program timeline',
+    validation: 'task.startDate >= program.startDate AND task.endDate <= program.endDate',
+    errorMessage: 'Task timeline extends beyond program timeline',
+    autoFix: 'Adjust task dates to fit within program bounds'
+  },
+  {
+    id: 'task-dependency-valid',
+    entity: 'Task',
+    category: 'dependency',
+    severity: 'error',
+    rule: 'Task cannot start before predecessor tasks complete',
+    validation: 'task.startDate >= MAX(predecessor.endDate) for all predecessors',
+    errorMessage: 'Task starts on {taskStart} but predecessor ends on {predecessorEnd}. Dependency violation',
+    autoFix: 'Adjust task start date to {predecessorEnd} or later'
+  },
+  {
+    id: 'task-no-circular-dependencies',
+    entity: 'Task',
+    category: 'dependency',
+    severity: 'error',
+    rule: 'Task dependency graph must not have cycles',
+    validation: 'NO_CYCLES in dependency graph',
+    errorMessage: 'Circular dependency detected: {cycle}. Tasks cannot depend on themselves transitively',
+    autoFix: 'Remove dependency creating cycle'
+  },
+  {
+    id: 'task-completed-past-date',
+    entity: 'Task',
+    category: 'state',
+    severity: 'error',
+    rule: 'Completed tasks must have end date in the past or today',
+    validation: 'IF task.status = \'Completed\' THEN task.endDate <= current_date',
+    errorMessage: 'Task marked completed but end date is in the future',
+    autoFix: 'Update end date to actual completion date'
+  },
+  {
+    id: 'task-blocked-has-reason',
+    entity: 'Task',
+    category: 'state',
+    severity: 'warning',
+    rule: 'Blocked tasks should have documented blocker',
+    validation: 'IF task.status = \'Blocked\' THEN EXISTS(risk WHERE task_id = task.id) OR task.blockerNote IS NOT NULL',
+    errorMessage: 'Task is blocked but no blocker is documented',
+    autoFix: 'Add risk or blocker note explaining what is blocking the task'
+  },
+  {
+    id: 'kpi-has-target',
+    entity: 'KPI',
+    category: 'constraint',
+    severity: 'error',
+    rule: 'KPIs must have defined target values',
+    validation: 'kpi.targetValue IS NOT NULL AND kpi.targetValue != \'\'',
+    errorMessage: 'KPI has no target value defined. KPIs must be measurable',
+    autoFix: 'Define specific numeric target value with units'
+  },
+  {
+    id: 'kpi-has-measurements',
+    entity: 'KPI',
+    category: 'relationship',
+    severity: 'warning',
+    rule: 'Active KPIs should have regular measurements',
+    validation: 'IF kpi.status = \'Active\' THEN COUNT(measurements WHERE kpiId = kpi.id) > 0',
+    errorMessage: 'Active KPI has no measurements. KPIs need data to track progress',
+    autoFix: 'Add measurement data or mark KPI as Defined instead of Active'
+  },
+  {
+    id: 'kpi-target-achievable',
+    entity: 'KPI',
+    category: 'constraint',
+    severity: 'warning',
+    rule: 'KPI target should be 10-30% improvement over baseline',
+    validation: 'IF kpi.baseline IS NOT NULL THEN ABS(kpi.targetValue - kpi.baseline) / kpi.baseline BETWEEN 0.1 AND 0.3',
+    errorMessage: 'KPI target ({target}) differs from baseline ({baseline}) by {percentage}%. Typical targets are 10-30% improvement',
+    autoFix: 'Review if target is realistic and achievable'
+  },
+  {
+    id: 'kpi-linked-to-benefit',
+    entity: 'KPI',
+    category: 'relationship',
+    severity: 'info',
+    rule: 'KPIs should be linked to program benefits',
+    validation: 'EXISTS(benefit WHERE benefit.measurementKPI = kpi.id)',
+    errorMessage: 'KPI is not linked to any benefit. Consider linking to show how this measurement drives value',
+    autoFix: 'Link KPI to related benefit'
+  },
+  {
+    id: 'risk-likelihood-impact-defined',
+    entity: 'Risk',
+    category: 'constraint',
+    severity: 'error',
+    rule: 'Risks must have likelihood and impact assessed',
+    validation: 'risk.likelihood IS NOT NULL AND risk.impact IS NOT NULL',
+    errorMessage: 'Risk assessment incomplete. Both likelihood and impact must be defined',
+    autoFix: 'Assess risk using 5x5 matrix (likelihood: Rare to Certain, impact: Very Low to Very High)'
+  },
+  {
+    id: 'risk-high-needs-mitigation',
+    entity: 'Risk',
+    category: 'relationship',
+    severity: 'warning',
+    rule: 'High and Critical risks must have mitigation actions',
+    validation: 'IF risk.priority IN [\'High\', \'Critical\'] THEN COUNT(mitigations WHERE riskId = risk.id) > 0',
+    errorMessage: 'High/Critical risk has no mitigation actions. Significant risks require active management',
+    autoFix: 'Define mitigation actions to reduce likelihood or impact'
+  },
+  {
+    id: 'risk-has-owner',
+    entity: 'Risk',
+    category: 'constraint',
+    severity: 'warning',
+    rule: 'Risks should have assigned owners',
+    validation: 'risk.owner IS NOT NULL AND risk.owner != \'\'',
+    errorMessage: 'Risk has no owner assigned. Risks need accountability for monitoring and mitigation',
+    autoFix: 'Assign risk owner (typically program manager or subject matter expert)'
+  },
+  {
+    id: 'benefit-quantifiable',
+    entity: 'Benefit',
+    category: 'constraint',
+    severity: 'error',
+    rule: 'Benefits must have quantifiable target values',
+    validation: 'benefit.targetValue IS NOT NULL AND benefit.targetValue != \'\'',
+    errorMessage: 'Benefit has no target value. Benefits must be measurable to track realization',
+    autoFix: 'Define numeric target value (e.g., cost savings in dollars, efficiency gain in percentage)'
+  },
+  {
+    id: 'benefit-has-measurement-kpi',
+    entity: 'Benefit',
+    category: 'relationship',
+    severity: 'warning',
+    rule: 'Benefits should have linked KPIs for measurement',
+    validation: 'benefit.measurementKPI IS NOT NULL OR EXISTS(kpi WHERE kpi linked to benefit)',
+    errorMessage: 'Benefit has no measurement KPI. Need measurement mechanism to track realization',
+    autoFix: 'Create or link KPI to measure this benefit'
+  },
+  {
+    id: 'benefit-has-owner',
+    entity: 'Benefit',
+    category: 'constraint',
+    severity: 'warning',
+    rule: 'Benefits should have business owners',
+    validation: 'benefit.owner IS NOT NULL AND benefit.owner != \'\'',
+    errorMessage: 'Benefit has no owner. Benefits need business sponsor accountable for realization',
+    autoFix: 'Assign business owner (typically not the program manager)'
+  },
+  {
+    id: 'benefit-realized-reasonable',
+    entity: 'Benefit',
+    category: 'constraint',
+    severity: 'warning',
+    rule: 'Realized value should not exceed target by >20%',
+    validation: 'IF benefit.realizedValue IS NOT NULL THEN benefit.realizedValue <= benefit.targetValue * 1.2',
+    errorMessage: 'Realized value ({realized}) exceeds target ({target}) by {percentage}%. May indicate poor initial estimation',
+    autoFix: 'Verify realized value calculations and consider adjusting future estimates'
+  },
+  {
+    id: 'funding-positive-amount',
+    entity: 'Funding',
+    category: 'constraint',
+    severity: 'error',
+    rule: 'Funding amount must be positive',
+    validation: 'funding.amount > 0',
+    errorMessage: 'Funding amount must be greater than zero',
+    autoFix: 'Enter positive funding amount'
+  },
+  {
+    id: 'funding-dates-align',
+    entity: 'Funding',
+    category: 'date',
+    severity: 'warning',
+    rule: 'Funding availability should align with program timeline',
+    validation: 'IF funding.availableDate IS NOT NULL THEN funding.availableDate <= program.startDate AND (funding.expirationDate IS NULL OR funding.expirationDate >= program.endDate)',
+    errorMessage: 'Funding availability ({available} to {expiration}) does not align with program timeline ({programStart} to {programEnd})',
+    autoFix: 'Adjust funding dates or program timeline'
+  },
+  {
+    id: 'resource-allocation-valid',
+    entity: 'Resource',
+    category: 'constraint',
+    severity: 'error',
+    rule: 'Resource allocation must be between 0 and 100%',
+    validation: 'resource.allocation >= 0 AND resource.allocation <= 100',
+    errorMessage: 'Resource allocation must be 0-100%. Current: {allocation}%',
+    autoFix: 'Set allocation to percentage (e.g., 50 for 50%)'
+  },
+  {
+    id: 'resource-no-over-allocation',
+    entity: 'Resource',
+    category: 'constraint',
+    severity: 'error',
+    rule: 'Total resource allocation across programs cannot exceed 100%',
+    validation: 'SUM(resource.allocation across all programs) <= 100',
+    errorMessage: 'Resource {name} is over-allocated: {total}% across programs. Maximum is 100%',
+    autoFix: 'Reduce allocation in one or more programs'
+  },
+  {
+    id: 'resource-availability-overlaps-program',
+    entity: 'Resource',
+    category: 'date',
+    severity: 'warning',
+    rule: 'Resource availability should overlap with program timeline',
+    validation: 'resource.availableFrom <= program.endDate AND (resource.availableTo IS NULL OR resource.availableTo >= program.startDate)',
+    errorMessage: 'Resource availability ({availableFrom} to {availableTo}) does not overlap with program ({programStart} to {programEnd})',
+    autoFix: 'Adjust resource availability or find alternative resource'
+  },
+  {
+    id: 'stagegate-sequential',
+    entity: 'StageGate',
+    category: 'state',
+    severity: 'error',
+    rule: 'Stage gates must be approved in sequence',
+    validation: 'Cannot approve gate Gx+1 before gate Gx is approved',
+    errorMessage: 'Cannot approve {gateCode} before {previousGate} is approved. Gates must be sequential',
+    autoFix: 'Approve previous gate first'
+  },
+  {
+    id: 'stagegate-has-criteria',
+    entity: 'StageGate',
+    category: 'constraint',
+    severity: 'warning',
+    rule: 'Stage gates should have defined exit criteria',
+    validation: 'IF stageGate.exitCriteria IS NULL OR LENGTH(stageGate.exitCriteria) = 0 THEN false',
+    errorMessage: 'Stage gate {name} has no exit criteria defined. Criteria needed for objective review',
+    autoFix: 'Define specific, measurable exit criteria for gate approval'
+  },
+  {
+    id: 'stagegate-conditional-has-conditions',
+    entity: 'StageGate',
+    category: 'state',
+    severity: 'error',
+    rule: 'Conditional approvals must document conditions',
+    validation: 'IF stageGate.status = \'Conditional\' THEN stageGate.decision IS NOT NULL AND stageGate.decision contains conditions',
+    errorMessage: 'Gate has conditional approval but conditions are not documented',
+    autoFix: 'Document specific conditions that must be met'
+  }
+];
+
+export function getValidationRulesForEntity(entityName: string): ValidationRule[] {
+  return VALIDATION_RULES.filter(rule => rule.entity === entityName);
+}
+
+export function getValidationRulesByCategory(category: ValidationRule['category']): ValidationRule[] {
+  return VALIDATION_RULES.filter(rule => rule.category === category);
+}
+
+export function getValidationRulesBySeverity(severity: ValidationRule['severity']): ValidationRule[] {
+  return VALIDATION_RULES.filter(rule => rule.severity === severity);
+}
+
+export function getErrorValidationRules(): ValidationRule[] {
+  return VALIDATION_RULES.filter(rule => rule.severity === 'error');
+}
+
 export default EPM_ONTOLOGY;
