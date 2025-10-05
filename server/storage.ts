@@ -9,7 +9,7 @@ import type {
   Task, TaskDependency, Kpi, KpiMeasurement, Risk, RiskMitigation,
   Benefit, FundingSource, Expense, SessionContext, InsertSessionContext, StrategyVersion
 } from "@shared/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, isNull, not } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -547,6 +547,24 @@ export class DatabaseStorage implements IStorage {
       .where(eq(strategyVersions.id, id))
       .returning();
     return updated;
+  }
+
+  /**
+   * Atomically start integration - prevents concurrent integrations
+   * Returns the version if successful, null if already integrating/integrated
+   */
+  async tryStartIntegration(versionId: string): Promise<StrategyVersion | null> {
+    const [updated] = await db.update(strategyVersions)
+      .set({ status: 'converting', updatedAt: new Date() })
+      .where(
+        and(
+          eq(strategyVersions.id, versionId),
+          isNull(strategyVersions.convertedProgramId),
+          not(eq(strategyVersions.status, 'converting'))
+        )
+      )
+      .returning();
+    return updated || null;
   }
 }
 

@@ -272,18 +272,16 @@ router.post('/integrate/:sessionId/:versionNumber', async (req: Request, res: Re
       });
     }
 
-    // Check if already integrated (idempotency check)
-    if (version.status === 'converted_to_program' || version.convertedProgramId) {
+    // Atomically check and start integration (prevents concurrent integrations)
+    const startedVersion = await storage.tryStartIntegration(version.id);
+    
+    if (!startedVersion) {
+      // Already integrated or currently integrating
       return res.status(400).json({
-        error: 'This version has already been integrated into the EPM Suite',
+        error: 'This version is already integrated or currently being integrated',
         programId: version.convertedProgramId
       });
     }
-
-    // Mark version as in-progress to prevent concurrent integrations
-    await storage.updateStrategyVersion(version.id, {
-      status: 'converting',
-    });
 
     try {
       // Integrate to EPM Suite
@@ -306,10 +304,20 @@ router.post('/integrate/:sessionId/:versionNumber', async (req: Request, res: Re
         message: 'Strategic Consultant program successfully integrated into EPM Suite',
       });
     } catch (error: any) {
-      // Rollback status on failure
-      await storage.updateStrategyVersion(version.id, {
-        status: version.status,
-      });
+      // Check current state to determine rollback strategy
+      const currentVersion = await storage.getStrategyVersion(sessionId, parseInt(versionNumber));
+      
+      if (currentVersion?.convertedProgramId) {
+        // Program was created - mark as converted to prevent duplicate on retry
+        await storage.updateStrategyVersion(version.id, {
+          status: 'converted_to_program',
+        });
+      } else {
+        // Program not created - allow retry
+        await storage.updateStrategyVersion(version.id, {
+          status: version.status, // Restore original status
+        });
+      }
       throw error;
     }
 
