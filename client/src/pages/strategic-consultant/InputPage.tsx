@@ -74,78 +74,56 @@ export default function InputPage() {
     setIsAnalyzing(true);
     setProgress(0);
 
-    // Simulate progress during analysis
+    // Simulate progress
     const progressInterval = setInterval(() => {
-      setProgress(prev => Math.min(prev + 1, 95));
-    }, 1200);
-
-    // Generate session ID
-    const sessionId = `session-${Date.now()}`;
-
-    // Store input in localStorage for whys-tree analysis
-    if (text.trim()) {
-      localStorage.setItem(`strategic-input-${sessionId}`, text);
-    }
+      setProgress(prev => Math.min(prev + 1, 90));
+    }, 50);
 
     try {
-      const formData = new FormData();
-      formData.append('sessionId', sessionId);
-      
-      if (text.trim()) {
-        formData.append('text', text);
-      }
+      // Generate session ID
+      const sessionId = `session-${Date.now()}`;
+
+      // Prepare input text (extract from file if uploaded)
+      let inputText = text.trim();
       
       if (file) {
+        // For files, we'll send them for extraction
+        const formData = new FormData();
         formData.append('file', file);
+        formData.append('sessionId', sessionId);
+        
+        const extractResponse = await fetch('/api/strategic-consultant/analyze', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (!extractResponse.ok) {
+          throw new Error('Failed to extract text from file');
+        }
+        
+        const extractData = await extractResponse.json();
+        inputText = extractData.extractedText || text.trim();
       }
 
-      // 120 second timeout for Claude analysis
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 120000);
+      // Store input in localStorage for the flow
+      localStorage.setItem(`strategic-input-${sessionId}`, inputText);
 
-      const response = await fetch('/api/strategic-consultant/analyze', {
-        method: 'POST',
-        body: formData,
-        signal: controller.signal
-      });
-
-      clearTimeout(timeout);
       clearInterval(progressInterval);
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Analysis failed');
-      }
-
-      const data = await response.json();
-      
-      if (!data.success) {
-        throw new Error(data.message || 'Analysis failed');
-      }
-
       setProgress(100);
 
-      // Navigate to analysis page
+      // Navigate to WhysTreePage (new flow)
       setTimeout(() => {
-        setLocation(`/strategic-consultant/analysis/${sessionId}`);
-      }, 500);
+        setLocation(`/strategic-consultant/whys-tree/${sessionId}`);
+      }, 300);
 
     } catch (error: any) {
       clearInterval(progressInterval);
       
-      if (error.name === 'AbortError') {
-        toast({
-          title: "Analysis timeout",
-          description: "The analysis took longer than expected (>120s). Please try with a shorter input or contact support.",
-          variant: "destructive"
-        });
-      } else {
-        toast({
-          title: "Analysis failed",
-          description: error.message || "An unexpected error occurred. Please try again.",
-          variant: "destructive"
-        });
-      }
+      toast({
+        title: "Processing failed",
+        description: error.message || "An unexpected error occurred. Please try again.",
+        variant: "destructive"
+      });
     } finally {
       setIsAnalyzing(false);
       setProgress(0);
@@ -239,12 +217,12 @@ export default function InputPage() {
               {isAnalyzing && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Analyzing with Claude Sonnet 4...</span>
+                    <span className="text-muted-foreground">Preparing strategic analysis...</span>
                     <span className="font-medium">{progress}%</span>
                   </div>
                   <Progress value={progress} data-testid="progress-analysis" />
                   <p className="text-xs text-muted-foreground">
-                    This may take up to 2 minutes for comprehensive analysis
+                    Processing your input and preparing the analysis workflow
                   </p>
                 </div>
               )}
@@ -259,10 +237,10 @@ export default function InputPage() {
                 {isAnalyzing ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Analyzing Strategy...
+                    Starting Analysis...
                   </>
                 ) : (
-                  'Analyze Strategy'
+                  'Start Strategic Analysis'
                 )}
               </Button>
             </form>
