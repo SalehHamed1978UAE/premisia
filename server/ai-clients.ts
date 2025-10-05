@@ -27,22 +27,55 @@ interface AIClientResponse {
 }
 
 export class AIClients {
-  private openai: OpenAI;
-  private anthropic: Anthropic;
-  private gemini: GoogleGenAI;
+  private openai: OpenAI | null = null;
+  private anthropic: Anthropic | null = null;
+  private gemini: GoogleGenAI | null = null;
 
   constructor() {
-    this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    this.anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    this.gemini = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+    // Lazy initialization - only create clients when API keys are available
+  }
+
+  private getOpenAI(): OpenAI {
+    if (!this.openai) {
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        throw new Error("OPENAI_API_KEY environment variable is not set");
+      }
+      this.openai = new OpenAI({ apiKey });
+    }
+    return this.openai;
+  }
+
+  private getAnthropic(): Anthropic {
+    if (!this.anthropic) {
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) {
+        throw new Error("ANTHROPIC_API_KEY environment variable is not set");
+      }
+      this.anthropic = new Anthropic({ apiKey });
+    }
+    return this.anthropic;
+  }
+
+  private getGemini(): GoogleGenAI {
+    if (!this.gemini) {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error("GEMINI_API_KEY environment variable is not set");
+      }
+      this.gemini = new GoogleGenAI({ apiKey });
+    }
+    return this.gemini;
   }
 
   async callOpenAI(request: AIClientRequest): Promise<AIClientResponse> {
     const { systemPrompt, userMessage, maxTokens = 8192 } = request;
 
+    const openai = this.getOpenAI();
+
     // OpenAI gpt-5 doesn't support temperature parameter
     // Use max_completion_tokens instead of max_tokens for gpt-5
-    const response = await this.openai.chat.completions.create({
+    const response = await openai.chat.completions.create({
       model: OPENAI_MODEL,
       messages: [
         { role: "system", content: systemPrompt },
@@ -62,7 +95,9 @@ export class AIClients {
   async callAnthropic(request: AIClientRequest): Promise<AIClientResponse> {
     const { systemPrompt, userMessage, maxTokens = 8192 } = request;
 
-    const response = await this.anthropic.messages.create({
+    const anthropic = this.getAnthropic();
+
+    const response = await anthropic.messages.create({
       model: ANTHROPIC_MODEL,
       system: systemPrompt,
       max_tokens: maxTokens,
@@ -85,20 +120,24 @@ export class AIClients {
   async callGemini(request: AIClientRequest): Promise<AIClientResponse> {
     const { systemPrompt, userMessage, responseSchema } = request;
 
+    const gemini = this.getGemini();
+
+    // Build config with optional schema enforcement
     const config: any = {
       systemInstruction: systemPrompt,
     };
 
-    // Add schema if provided
+    // Add JSON schema enforcement if provided
     if (responseSchema) {
       config.responseMimeType = "application/json";
       config.responseSchema = responseSchema;
     }
 
-    const response = await this.gemini.models.generateContent({
+    // Generate content using the @google/genai API
+    const response = await gemini.models.generateContent({
       model: GEMINI_MODEL,
-      config,
       contents: userMessage,
+      config,
     });
 
     return {

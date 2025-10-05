@@ -2,9 +2,10 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
-import { insertProgramSchema, insertWorkstreamSchema, insertStageGateSchema, insertTaskSchema, insertKpiSchema, insertRiskSchema, insertBenefitSchema, insertFundingSourceSchema, insertExpenseSchema, insertResourceSchema, insertSessionContextSchema } from "@shared/schema";
+import { insertProgramSchema, insertWorkstreamSchema, insertStageGateSchema, insertTaskSchema, insertKpiSchema, insertRiskSchema, insertBenefitSchema, insertFundingSourceSchema, insertExpenseSchema, insertResourceSchema, insertSessionContextSchema, orchestratorTaskSchema } from "@shared/schema";
 import { ontologyService } from "./ontology-service";
 import { assessmentService } from "./assessment-service";
+import { Orchestrator } from "./orchestrator";
 
 export function registerRoutes(app: Express): Server {
   // Setup authentication routes
@@ -727,6 +728,34 @@ export function registerRoutes(app: Express): Server {
       res.json(assessment);
     } catch (error) {
       res.status(500).json({ message: "Failed to assess KPI" });
+    }
+  });
+
+  // AI Orchestration Routes
+  const orchestrator = new Orchestrator(storage);
+
+  app.post("/api/orchestrator/task", requireAuth, requireRole(['Admin', 'Editor']), async (req, res) => {
+    try {
+      const validatedTask = orchestratorTaskSchema.parse(req.body);
+      const result = await orchestrator.processTask(validatedTask);
+      res.status(201).json(result);
+    } catch (error) {
+      res.status(400).json({ 
+        message: "Failed to process orchestration task", 
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  app.get("/api/orchestrator/task/:id", requireAuth, async (req, res) => {
+    try {
+      const session = await storage.getSessionContextById(req.params.id);
+      if (!session) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+      res.json(session);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch task" });
     }
   });
 

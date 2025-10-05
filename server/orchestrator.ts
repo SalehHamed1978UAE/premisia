@@ -33,11 +33,17 @@ export class Orchestrator {
     });
 
     try {
-      // 2. SELECT PROVIDER: Choose AI provider
+      // 2. SELECT PROVIDER: Check provider availability first
+      const availableProviders = aiClients.getAvailableProviders();
+      if (availableProviders.length === 0) {
+        throw new Error("No AI providers available. Please configure at least one API key (OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY).");
+      }
+
+      // Choose provider
       const provider = aiClients.selectProvider(task.preferredProvider);
       await this.executiveAgent.logDecision({
         decision: `Selected AI provider: ${provider}`,
-        rationale: `Provider ${provider} is available and ${task.preferredProvider ? 'matches user preference' : 'selected by default priority'}`,
+        rationale: `Provider ${provider} is available (from ${availableProviders.join(', ')}) and ${task.preferredProvider ? 'matches user preference' : 'selected by default priority'}`,
         alternatives: task.preferredProvider ? [`Use ${task.preferredProvider}`] : ['Use OpenAI', 'Use Anthropic', 'Use Gemini'],
         confidence: 'high',
         ontologyRulesChecked: []
