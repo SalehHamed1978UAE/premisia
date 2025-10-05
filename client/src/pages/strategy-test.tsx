@@ -137,7 +137,7 @@ export default function StrategyTest() {
                 <span className="font-semibold">Budget Range</span>
               </div>
               <div className="text-2xl font-bold" data-testid="text-budget-range">
-                ${tests.costEstimate.min.toLocaleString()}M - ${tests.costEstimate.max.toLocaleString()}M
+                ${(tests.costEstimate.min / 1000000).toFixed(2)}M - ${(tests.costEstimate.max / 1000000).toFixed(2)}M
               </div>
             </div>
             <div className="space-y-2" data-testid="section-timeline">
@@ -186,7 +186,7 @@ export default function StrategyTest() {
                 </div>
                 <div className="text-right" data-testid={`text-workstream-cost-${idx}`}>
                   <div className="font-semibold">
-                    ${ws.estimated_cost.min}k - ${ws.estimated_cost.max}k
+                    ${(ws.estimated_cost.min / 1000).toFixed(0)}k - ${(ws.estimated_cost.max / 1000).toFixed(0)}k
                   </div>
                 </div>
               </div>
