@@ -487,3 +487,83 @@ export type OntologyDomainTerm = typeof ontologyDomainTerms.$inferSelect;
 export type OntologyFrameworkMapping = typeof ontologyFrameworkMappings.$inferSelect;
 export type SessionContext = typeof sessionContext.$inferSelect;
 export type InsertSessionContext = z.infer<typeof insertSessionContextSchema>;
+
+// AI Orchestration Types
+
+export const aiProviderSchema = z.enum(['openai', 'anthropic', 'gemini']);
+export type AIProvider = z.infer<typeof aiProviderSchema>;
+
+export const codeArtifactSchema = z.object({
+  filePath: z.string(),
+  content: z.string(),
+  description: z.string(),
+});
+export type CodeArtifact = z.infer<typeof codeArtifactSchema>;
+
+export const requirementFulfillmentSchema = z.object({
+  requirement: z.string(),
+  satisfied: z.boolean(),
+  notes: z.string(),
+});
+export type RequirementFulfillment = z.infer<typeof requirementFulfillmentSchema>;
+
+export const decisionLogSchema = z.object({
+  decision: z.string(),
+  rationale: z.string(),
+  alternatives: z.array(z.string()).optional(),
+  confidence: z.number().min(0).max(100),
+});
+export type DecisionLog = z.infer<typeof decisionLogSchema>;
+
+export const builderResponseSchema = z.object({
+  approach: z.string(),
+  artifacts: z.array(codeArtifactSchema),
+  confidence: z.number().min(0).max(100),
+  requirements: z.array(requirementFulfillmentSchema),
+  unmetRequirements: z.array(z.string()),
+  decisions: z.array(decisionLogSchema),
+});
+export type BuilderResponse = z.infer<typeof builderResponseSchema>;
+
+export const qaIssueSchema = z.object({
+  category: z.enum(['gap', 'bug', 'edge-case', 'security', 'quality']),
+  severity: z.enum(['critical', 'major', 'minor']),
+  description: z.string(),
+  location: z.string().optional(),
+  recommendation: z.string(),
+});
+export type QAIssue = z.infer<typeof qaIssueSchema>;
+
+export const qaReviewSchema = z.object({
+  verdict: z.enum(['PASS', 'FAIL']),
+  confidence: z.number().min(0).max(100),
+  requirementsVerification: z.array(requirementFulfillmentSchema),
+  issues: z.array(qaIssueSchema),
+  criticalBlockers: z.array(z.string()),
+  recommendations: z.array(z.string()),
+  summary: z.string(),
+});
+export type QAReview = z.infer<typeof qaReviewSchema>;
+
+export const orchestratorTaskSchema = z.object({
+  taskDescription: z.string(),
+  requirements: z.array(z.string()),
+  entity: z.string().optional(),
+  constraints: z.array(z.string()).optional(),
+  preferredProvider: aiProviderSchema.optional(),
+  maxRetries: z.number().min(0).max(5).default(2),
+});
+export type OrchestratorTask = z.infer<typeof orchestratorTaskSchema>;
+
+export const orchestratorResponseSchema = z.object({
+  taskId: z.string(),
+  builderResponse: builderResponseSchema,
+  qaReview: qaReviewSchema,
+  verdict: z.enum(['PASS', 'FAIL']),
+  iterations: z.number(),
+  finalCode: z.array(codeArtifactSchema).optional(),
+  provider: aiProviderSchema,
+  error: z.string().optional(),
+  timestamp: z.string(),
+});
+export type OrchestratorResponse = z.infer<typeof orchestratorResponseSchema>;
