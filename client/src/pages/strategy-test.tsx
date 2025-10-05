@@ -260,7 +260,7 @@ export default function StrategyTest() {
               <div data-testid="section-decision-cost">
                 <span className="text-sm text-muted-foreground">Budget Range:</span>
                 <div className="font-semibold" data-testid="text-decision-budget">
-                  ${tests.decisionOptions.cost.total_budget.min}M - ${tests.decisionOptions.cost.total_budget.max}M
+                  ${(tests.decisionOptions.cost.min / 1000000).toFixed(1)}M - ${(tests.decisionOptions.cost.max / 1000000).toFixed(1)}M
                 </div>
               </div>
               <div data-testid="section-decision-workstreams">
