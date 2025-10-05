@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { pdf } from 'pdf-parse';
+import pdf from 'pdf-parse';
 import mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
 import { readFileSync } from 'fs';
