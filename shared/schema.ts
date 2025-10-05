@@ -330,9 +330,12 @@ export const strategyVersions = pgTable("strategy_versions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id),
   sessionId: varchar("session_id").references(() => sessionContext.id),
-  version: integer("version").notNull(),
+  versionNumber: integer("version_number").notNull(),
   versionLabel: varchar("version_label", { length: 100 }),
   inputSummary: text("input_summary"),
+  analysisData: jsonb("analysis_data"),
+  decisionsData: jsonb("decisions_data"),
+  selectedDecisions: jsonb("selected_decisions"),
   strategicApproach: varchar("strategic_approach", { length: 100 }),
   marketContext: varchar("market_context", { length: 100 }),
   costMin: integer("cost_min"),
@@ -341,14 +344,17 @@ export const strategyVersions = pgTable("strategy_versions", {
   teamSizeMin: integer("team_size_min"),
   teamSizeMax: integer("team_size_max"),
   decisions: jsonb("decisions").notNull().default(sql`'[]'::jsonb`),
-  programStructure: jsonb("program_structure").notNull().default(sql`'{}'::jsonb`),
+  programStructure: jsonb("program_structure"),
   status: strategyStatusEnum("status").notNull().default('draft'),
   convertedProgramId: varchar("converted_program_id").references(() => programs.id),
+  finalizedAt: timestamp("finalized_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  createdBy: varchar("created_by").notNull(),
 }, (table) => ({
   userIdIdx: index("idx_strategy_versions_user_id").on(table.userId),
   statusIdx: index("idx_strategy_versions_status").on(table.status),
+  sessionVersionIdx: index("idx_strategy_versions_session_version").on(table.sessionId, table.versionNumber),
 }));
 
 export const strategicDecisions = pgTable("strategic_decisions", {

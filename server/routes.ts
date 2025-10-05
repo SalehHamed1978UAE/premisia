@@ -6,10 +6,14 @@ import { insertProgramSchema, insertWorkstreamSchema, insertStageGateSchema, ins
 import { ontologyService } from "./ontology-service";
 import { assessmentService } from "./assessment-service";
 import { Orchestrator } from "./orchestrator";
+import strategicConsultantRoutes from "./routes/strategic-consultant";
 
 export function registerRoutes(app: Express): Server {
   // Setup authentication routes
   setupAuth(app);
+
+  // Strategic Consultant routes
+  app.use("/api/strategic-consultant", strategicConsultantRoutes);
 
   // Middleware to check authentication
   const requireAuth = (req: any, res: any, next: any) => {

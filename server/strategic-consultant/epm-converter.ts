@@ -422,4 +422,56 @@ Return ONLY valid JSON (no markdown):
       warnings,
     };
   }
+
+  async validateAgainstOntology(program: EPMProgram): Promise<{
+    valid: boolean;
+    validation: any;
+    completeness: any;
+    recommendations: string[];
+  }> {
+    const programData = {
+      title: program.title,
+      description: program.description,
+      objectives: program.objectives,
+      budget: program.cost_estimate.total_max,
+      timelineDays: program.timeline.total_months * 30,
+      status: 'planning',
+      successCriteria: program.success_criteria,
+    };
+
+    const [validation, completeness] = await Promise.all([
+      ontologyService.validateEntityData('Program', programData),
+      ontologyService.checkCompleteness('Program', programData),
+    ]);
+
+    const recommendations: string[] = [];
+
+    const completenessPercentage = completeness.maxScore > 0 
+      ? Math.round((completeness.score / completeness.maxScore) * 100) 
+      : 0;
+
+    if (completenessPercentage < 70) {
+      recommendations.push('Consider adding more detail to improve completeness (currently ' + completenessPercentage + '%)');
+    }
+
+    if (completeness.missingFields && completeness.missingFields.length > 0) {
+      const critical = completeness.missingFields.filter((f: any) => f.importance === 'critical');
+      if (critical.length > 0) {
+        recommendations.push(`Add critical fields: ${critical.map((f: any) => f.field).join(', ')}`);
+      }
+    }
+
+    if (validation.warnings && validation.warnings.length > 0) {
+      validation.warnings.forEach((w: any) => {
+        recommendations.push(`Warning: ${w.message}`);
+      });
+    }
+
+    return {
+      valid: validation.isValid,
+      validation,
+      completeness,
+      recommendations,
+    };
+  }
 }
