@@ -51,7 +51,7 @@ export default function AnalysisPage() {
   const [, setLocation] = useLocation();
   const sessionId = params?.sessionId;
 
-  const { data, isLoading, error } = useQuery<{ analysis: AnalysisData; versionNumber: number }>({
+  const { data, isLoading, error } = useQuery<{ version: { analysis: AnalysisData; versionNumber: number } }>({
     queryKey: ['/api/strategic-consultant/versions', sessionId, 1],
     enabled: !!sessionId,
   });
@@ -79,7 +79,7 @@ export default function AnalysisPage() {
     );
   }
 
-  if (error || !data || !data.analysis) {
+  if (error || !data || !data.version || !data.version.analysis) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-8">
         <Alert variant="destructive" className="max-w-md">
@@ -93,7 +93,7 @@ export default function AnalysisPage() {
     );
   }
 
-  const analysis = data.analysis;
+  const analysis = data.version.analysis;
   const hasFiveWhys = !!analysis?.five_whys;
   const hasPorters = !!analysis?.porters_five_forces;
 
@@ -108,7 +108,7 @@ export default function AnalysisPage() {
             <p className="text-sm text-muted-foreground" data-testid="text-session-id">Session: {sessionId}</p>
           </div>
           <Button
-            onClick={() => setLocation(`/strategic-consultant/decisions/${sessionId}/${data.versionNumber}`)}
+            onClick={() => setLocation(`/strategic-consultant/decisions/${sessionId}/${data.version.versionNumber}`)}
             data-testid="button-proceed-decisions"
           >
             Proceed to Decisions <ArrowRight className="ml-2 h-4 w-4" />
@@ -244,7 +244,7 @@ export default function AnalysisPage() {
         <div className="flex justify-end">
           <Button
             size="lg"
-            onClick={() => setLocation(`/strategic-consultant/decisions/${sessionId}/${data.versionNumber}`)}
+            onClick={() => setLocation(`/strategic-consultant/decisions/${sessionId}/${data.version.versionNumber}`)}
             data-testid="button-proceed-decisions-bottom"
           >
             Proceed to Strategic Decisions <ArrowRight className="ml-2 h-4 w-4" />
