@@ -118,7 +118,7 @@ export function AIOrchestrator() {
       taskDescription: taskDescription.trim(),
       requirements: filteredReqs,
       constraints: constraints.length > 0 ? constraints : undefined,
-      entity: entity.trim() || undefined,
+      entity: entity.trim() && entity !== 'none' ? entity.trim() : undefined,
       preferredProvider: provider as any,
       maxRetries: 2,
     };
@@ -405,7 +405,7 @@ export function AIOrchestrator() {
                 <SelectValue placeholder="Select entity for ontology context..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="" data-testid="select-entity-none">None</SelectItem>
+                <SelectItem value="none" data-testid="select-entity-none">None</SelectItem>
                 <SelectItem value="program" data-testid="select-entity-program">Program</SelectItem>
                 <SelectItem value="workstream" data-testid="select-entity-workstream">Workstream</SelectItem>
                 <SelectItem value="task" data-testid="select-entity-task">Task</SelectItem>
