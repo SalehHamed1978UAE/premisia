@@ -5,6 +5,7 @@ import { StrategyAnalyzer } from '../strategic-consultant/strategy-analyzer';
 import { DecisionGenerator } from '../strategic-consultant/decision-generator';
 import { VersionManager } from '../strategic-consultant/version-manager';
 import { EPMConverter } from '../strategic-consultant/epm-converter';
+import { EPMIntegrator } from '../strategic-consultant/epm-integrator';
 import { storage } from '../storage';
 import { unlink } from 'fs/promises';
 
@@ -19,6 +20,7 @@ const strategyAnalyzer = new StrategyAnalyzer();
 const decisionGenerator = new DecisionGenerator();
 const versionManager = new VersionManager(storage);
 const epmConverter = new EPMConverter();
+const epmIntegrator = new EPMIntegrator();
 
 router.post('/analyze', upload.single('file'), async (req: Request, res: Response) => {
   try {
@@ -245,6 +247,75 @@ router.post('/versions/compare', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error in /versions/compare:', error);
     res.status(500).json({ error: error.message || 'Version comparison failed' });
+  }
+});
+
+router.post('/integrate/:sessionId/:versionNumber', async (req: Request, res: Response) => {
+  try {
+    const { sessionId, versionNumber } = req.params;
+    const userId = (req.user as any)?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    // Fetch the version
+    const version = await storage.getStrategyVersion(sessionId, parseInt(versionNumber));
+
+    if (!version) {
+      return res.status(404).json({ error: 'Version not found' });
+    }
+
+    if (!version.programStructure) {
+      return res.status(400).json({ 
+        error: 'No EPM program structure found. Please convert decisions to EPM program first.' 
+      });
+    }
+
+    // Check if already integrated (idempotency check)
+    if (version.status === 'converted_to_program' || version.convertedProgramId) {
+      return res.status(400).json({
+        error: 'This version has already been integrated into the EPM Suite',
+        programId: version.convertedProgramId
+      });
+    }
+
+    // Mark version as in-progress to prevent concurrent integrations
+    await storage.updateStrategyVersion(version.id, {
+      status: 'converting',
+    });
+
+    try {
+      // Integrate to EPM Suite
+      const result = await epmIntegrator.integrateToEPMSuite(
+        version.programStructure as any,
+        userId,
+        sessionId,
+        version.id
+      );
+
+      // Mark version as successfully integrated (programId was already set in integrator)
+      await storage.updateStrategyVersion(version.id, {
+        status: 'converted_to_program',
+      });
+
+      res.json({
+        success: true,
+        programId: result.programId,
+        summary: result.summary,
+        message: 'Strategic Consultant program successfully integrated into EPM Suite',
+      });
+    } catch (error: any) {
+      // Rollback status on failure
+      await storage.updateStrategyVersion(version.id, {
+        status: version.status,
+      });
+      throw error;
+    }
+
+  } catch (error: any) {
+    console.error('Error in /integrate:', error);
+    res.status(500).json({ error: error.message || 'Integration failed' });
   }
 });
 

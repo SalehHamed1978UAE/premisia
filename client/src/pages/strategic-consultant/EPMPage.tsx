@@ -58,11 +58,45 @@ export default function EPMPage() {
   const versionNumber = params?.versionNumber ? parseInt(params.versionNumber) : 1;
 
   const [isConverting, setIsConverting] = useState(false);
+  const [isIntegrating, setIsIntegrating] = useState(false);
 
   const { data, isLoading, error } = useQuery<EPMData>({
     queryKey: ['/api/strategic-consultant/versions', sessionId, versionNumber],
     enabled: !!sessionId && !isConverting,
     retry: false
+  });
+
+  const integrateMutation = useMutation({
+    mutationFn: async () => {
+      setIsIntegrating(true);
+      const response = await fetch(`/api/strategic-consultant/integrate/${sessionId}/${versionNumber}`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Integration failed');
+      }
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      setIsIntegrating(false);
+      toast({
+        title: "EPM Integration Complete!",
+        description: `Program created successfully with ${data.summary.workstreamsCreated} workstreams, ${data.summary.tasksCreated} tasks, ${data.summary.stageGatesCreated} stage gates, ${data.summary.kpisCreated} KPIs, and more.`,
+      });
+      // Invalidate both queries to refresh the UI
+      queryClient.invalidateQueries({ queryKey: ['/api/programs'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/strategic-consultant/versions', sessionId, versionNumber] });
+    },
+    onError: (error: any) => {
+      setIsIntegrating(false);
+      toast({
+        title: "Integration failed",
+        description: error.message || "Failed to integrate program into EPM Suite",
+        variant: "destructive"
+      });
+    }
   });
 
   const convertMutation = useMutation({
@@ -182,13 +216,42 @@ export default function EPMPage() {
               </Badge>
             </div>
           </div>
-          <Button
-            onClick={() => setLocation(`/strategic-consultant/versions/${sessionId}`)}
-            variant="outline"
-            data-testid="button-view-versions"
-          >
-            View All Versions
-          </Button>
+          <div className="flex items-center gap-3">
+            {data.version.status !== 'converted_to_program' && (
+              <Button
+                onClick={() => integrateMutation.mutate()}
+                disabled={isIntegrating || integrateMutation.isPending}
+                size="lg"
+                className="bg-green-600 hover:bg-green-700"
+                data-testid="button-integrate-epm"
+              >
+                {isIntegrating || integrateMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Integrating to EPM Suite...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Integrate to EPM Suite
+                  </>
+                )}
+              </Button>
+            )}
+            {data.version.status === 'converted_to_program' && (
+              <Badge variant="default" className="bg-green-600 text-lg px-4 py-2">
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Integrated to EPM Suite
+              </Badge>
+            )}
+            <Button
+              onClick={() => setLocation(`/strategic-consultant/versions/${sessionId}`)}
+              variant="outline"
+              data-testid="button-view-versions"
+            >
+              View All Versions
+            </Button>
+          </div>
         </div>
 
         {hasValidation && completeness && (
