@@ -76,6 +76,12 @@ const navigation = [
     description: 'Team management'
   },
   { 
+    id: 'strategies' as ViewType, 
+    label: 'Strategic Decisions', 
+    icon: Sparkles,
+    description: 'Strategy analysis & EPM'
+  },
+  { 
     id: 'ai-orchestrator' as ViewType, 
     label: 'AI Orchestrator', 
     icon: Bot,

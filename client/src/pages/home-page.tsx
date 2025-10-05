@@ -10,8 +10,9 @@ import { Benefits } from "@/components/benefits/benefits";
 import { Funding } from "@/components/funding/funding";
 import { Resources } from "@/components/resources/resources";
 import { AIOrchestrator } from "@/components/orchestrator/ai-orchestrator";
+import { Strategies } from "@/components/strategies/strategies";
 
-export type ViewType = 'dashboard' | 'timeline' | 'stage-gates' | 'kpis' | 'risks' | 'benefits' | 'funding' | 'resources' | 'ai-orchestrator';
+export type ViewType = 'dashboard' | 'timeline' | 'stage-gates' | 'kpis' | 'risks' | 'benefits' | 'funding' | 'resources' | 'strategies' | 'ai-orchestrator';
 
 export default function HomePage() {
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
@@ -35,6 +36,8 @@ export default function HomePage() {
         return <Funding />;
       case 'resources':
         return <Resources />;
+      case 'strategies':
+        return <Strategies />;
       case 'ai-orchestrator':
         return <AIOrchestrator />;
       default:
@@ -60,6 +63,8 @@ export default function HomePage() {
         return { title: 'Funding & Budget', subtitle: 'Track budget allocation and expenditures' };
       case 'resources':
         return { title: 'Resource Management', subtitle: 'Manage team members and resource allocation' };
+      case 'strategies':
+        return { title: 'Strategic Decisions', subtitle: 'Review strategic analysis and EPM program structures' };
       case 'ai-orchestrator':
         return { title: 'AI Orchestrator', subtitle: 'Multi-agent AI system for code generation and review' };
       default:

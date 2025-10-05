@@ -526,6 +526,13 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(strategyVersions.versionNumber));
   }
 
+  async getAllStrategyVersionsByUser(userId: string): Promise<StrategyVersion[]> {
+    return await db.select()
+      .from(strategyVersions)
+      .where(eq(strategyVersions.userId, userId))
+      .orderBy(desc(strategyVersions.createdAt));
+  }
+
   async getStrategyVersion(sessionId: string, versionNumber: number): Promise<StrategyVersion | undefined> {
     const [version] = await db.select()
       .from(strategyVersions)
