@@ -13,7 +13,7 @@ export const riskImpactEnum = pgEnum('risk_impact', ['Very Low', 'Low', 'Medium'
 export const riskPriorityEnum = pgEnum('risk_priority', ['Low', 'Medium', 'High', 'Critical']);
 export const gateStatusEnum = pgEnum('gate_status', ['Pending', 'In Review', 'Passed', 'Failed', 'On Hold']);
 export const benefitStatusEnum = pgEnum('benefit_status', ['Not Started', 'In Progress', 'Realized', 'At Risk']);
-export const strategyStatusEnum = pgEnum('strategy_status', ['draft', 'finalized', 'converted_to_program']);
+export const strategyStatusEnum = pgEnum('strategy_status', ['draft', 'finalized', 'converting', 'converted_to_program']);
 
 // Users table
 export const users = pgTable("users", {
