@@ -281,6 +281,29 @@ class StrategyOntologyService {
       coherence
     };
   }
+
+  allocateWorkstreams(
+    approachId: string,
+    marketId: string,
+    context?: Record<string, any>
+  ): Array<{ id: string; label: string; cost_allocation: number; team_size: number }> {
+    const workstreams = this.calculateWorkstreamAllocations(approachId, marketId, context);
+    const costEstimate = this.calculateCostEstimate(approachId, marketId, context);
+    
+    const avgTeamSize = costEstimate ? Math.floor((costEstimate.team_size.min + costEstimate.team_size.max) / 2) : 5;
+    
+    return workstreams.map((ws, index) => {
+      const avgCost = (ws.estimated_cost.min + ws.estimated_cost.max) / 2;
+      const teamSize = Math.max(1, Math.floor((avgCost / 150000) * avgTeamSize / workstreams.length));
+      
+      return {
+        id: `ws_${index + 1}`,
+        label: ws.name,
+        cost_allocation: Math.floor((ws.estimated_cost.min + ws.estimated_cost.max) / 2),
+        team_size: teamSize
+      };
+    });
+  }
 }
 
 export const strategyOntologyService = new StrategyOntologyService();

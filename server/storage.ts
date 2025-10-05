@@ -2,12 +2,12 @@ import { db } from "./db";
 import { 
   users, programs, workstreams, resources, stageGates, stageGateReviews, 
   tasks, taskDependencies, kpis, kpiMeasurements, risks, riskMitigations,
-  benefits, fundingSources, expenses, sessionContext
+  benefits, fundingSources, expenses, sessionContext, strategyVersions
 } from "@shared/schema";
 import type { 
   User, InsertUser, Program, Workstream, Resource, StageGate, StageGateReview,
   Task, TaskDependency, Kpi, KpiMeasurement, Risk, RiskMitigation,
-  Benefit, FundingSource, Expense, SessionContext, InsertSessionContext
+  Benefit, FundingSource, Expense, SessionContext, InsertSessionContext, StrategyVersion
 } from "@shared/schema";
 import { eq, desc, and } from "drizzle-orm";
 import session from "express-session";
@@ -515,6 +515,37 @@ export class DatabaseStorage implements IStorage {
       .where(eq(sessionContext.id, id))
       .returning();
 
+    return updated;
+  }
+
+  // Strategy Versions
+  async getStrategyVersionsBySession(sessionId: string): Promise<StrategyVersion[]> {
+    return await db.select()
+      .from(strategyVersions)
+      .where(eq(strategyVersions.sessionId, sessionId))
+      .orderBy(desc(strategyVersions.versionNumber));
+  }
+
+  async getStrategyVersion(sessionId: string, versionNumber: number): Promise<StrategyVersion | undefined> {
+    const [version] = await db.select()
+      .from(strategyVersions)
+      .where(and(
+        eq(strategyVersions.sessionId, sessionId),
+        eq(strategyVersions.versionNumber, versionNumber)
+      ));
+    return version || undefined;
+  }
+
+  async createStrategyVersion(version: any): Promise<StrategyVersion> {
+    const [newVersion] = await db.insert(strategyVersions).values(version).returning();
+    return newVersion;
+  }
+
+  async updateStrategyVersion(id: string, data: any): Promise<StrategyVersion> {
+    const [updated] = await db.update(strategyVersions)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(strategyVersions.id, id))
+      .returning();
     return updated;
   }
 }
