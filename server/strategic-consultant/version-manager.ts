@@ -34,7 +34,7 @@ export class VersionManager {
     sessionId: string,
     analysis: StrategyAnalysis,
     decisions: GeneratedDecisions,
-    userId: string
+    userId: string | null
   ): Promise<StrategyVersionData> {
     const existingVersions = await this.storage.getStrategyVersionsBySession(sessionId);
     const versionNumber = existingVersions.length + 1;

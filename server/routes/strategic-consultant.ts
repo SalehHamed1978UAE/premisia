@@ -67,7 +67,7 @@ router.post('/analyze', upload.single('file'), async (req: Request, res: Respons
       });
     }
 
-    const userId = req.user?.id || 'anonymous';
+    const userId = req.user?.id || null;
     const version = await versionManager.createVersion(sessionId, analysis, decisions, userId);
 
     res.json({
