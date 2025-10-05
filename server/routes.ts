@@ -773,19 +773,23 @@ export function registerRoutes(app: Express): Server {
       
       // Test: Get cost estimate for cost_leadership in UAE
       const costEstimate = strategyOntologyService.calculateCostEstimate('cost_leadership', 'uae');
+      console.log('Cost Estimate Result:', costEstimate);
       
       // Test: Get workstream allocations
       const workstreams = strategyOntologyService.calculateWorkstreamAllocations('cost_leadership', 'uae');
+      console.log('Workstreams Result:', workstreams);
       
       // Test: Validate coherence
       const coherence = strategyOntologyService.validateStrategicCoherence('cost_leadership', 'uae', { 
         has_regulatory_requirements: true 
       });
+      console.log('Coherence Result:', coherence);
       
       // Test: Get decision options
       const decisionOptions = strategyOntologyService.getDecisionOptions('differentiation_service', 'usa');
+      console.log('Decision Options Result:', decisionOptions);
       
-      res.json({
+      const responseData = {
         status: 'success',
         tests: {
           approaches,
@@ -800,11 +804,16 @@ export function registerRoutes(app: Express): Server {
             coherence: decisionOptions.coherence
           } : null
         }
-      });
+      };
+      
+      console.log('Full Response Data:', JSON.stringify(responseData, null, 2));
+      res.json(responseData);
     } catch (error) {
+      console.error('Strategy Test Error:', error);
       res.status(500).json({ 
         status: 'error',
-        message: error instanceof Error ? error.message : String(error)
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
       });
     }
   });

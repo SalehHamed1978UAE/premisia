@@ -51,17 +51,31 @@ export default function StrategyTest() {
     );
   }
 
-  if (error || !data) {
+  if (error || !data || !data.tests) {
     return (
       <div className="container mx-auto p-6" data-testid="container-error">
         <Alert variant="destructive">
-          <AlertDescription>Failed to load strategy ontology test</AlertDescription>
+          <AlertDescription>
+            {error ? 'Failed to load strategy ontology test' : 'Invalid response data'}
+          </AlertDescription>
         </Alert>
       </div>
     );
   }
 
   const tests = data.tests;
+
+  if (!tests.costEstimate || !tests.approaches || !tests.workstreams || !tests.coherence) {
+    return (
+      <div className="container mx-auto p-6" data-testid="container-error">
+        <Alert variant="destructive">
+          <AlertDescription>
+            Strategy ontology test returned incomplete data. Check server logs.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-6 space-y-6" data-testid="container-strategy-test">
