@@ -33,7 +33,7 @@ The system incorporates a multi-agent AI architecture:
 - **Executive Agent**: Manages session context, prevents goal drift, logs decisions, and tracks progress. It queries the ontology before decisions and validates outcomes against success criteria.
 - **Builder Specialist Agent**: Generates code based on task requirements, assessing feasibility, calculating confidence levels, and tracking requirement fulfillment. It integrates with the Executive Agent for session management and decision logging.
 - **QA Specialist Agent**: Performs adversarial code reviews, verifying requirements, detecting gaps, bugs, edge cases, and security issues. It provides a PASS/FAIL verdict with detailed rationale and recommendations, integrating with the Executive Agent.
-- **Multi-Agent Orchestrator**: Coordinates the Builder-QA workflow, supporting multiple AI providers (OpenAI, Anthropic, Gemini) with lazy initialization and provider selection logic. It implements retry mechanisms with QA feedback and integrates fully with the Executive Agent.
+- **Multi-Agent Orchestrator**: Coordinates the Builder-QA workflow, supporting multiple AI providers (OpenAI gpt-5, Anthropic claude-sonnet-4, Gemini gemini-2.5-pro) with lazy initialization and provider selection logic. It implements retry mechanisms with QA feedback and integrates fully with the Executive Agent. Features a complete web UI for task submission and result viewing with editable forms, real-time status updates, and comprehensive test coverage.
 
 ## External Dependencies
 
