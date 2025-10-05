@@ -520,6 +520,73 @@ router.post('/research', async (req: Request, res: Response) => {
   }
 });
 
+router.post('/analyze-enhanced', async (req: Request, res: Response) => {
+  try {
+    const { sessionId, rootCause, whysPath, versionNumber } = req.body;
+
+    if (!sessionId || !rootCause || !whysPath) {
+      return res.status(400).json({ 
+        error: 'sessionId, rootCause, and whysPath are required' 
+      });
+    }
+
+    let targetVersionNumber: number;
+    let version;
+
+    if (versionNumber) {
+      targetVersionNumber = versionNumber;
+      version = await storage.getStrategyVersion(sessionId, targetVersionNumber);
+      
+      if (!version) {
+        return res.status(404).json({ error: 'Version not found' });
+      }
+    } else {
+      const versions = await storage.getStrategyVersionsBySession(sessionId);
+      if (versions.length === 0) {
+        return res.status(404).json({ error: 'No versions found for this session' });
+      }
+      version = versions[versions.length - 1];
+      targetVersionNumber = version.versionNumber;
+    }
+
+    const existingAnalysisData = version.analysisData as any || {};
+    
+    if (!existingAnalysisData.research) {
+      return res.status(400).json({ 
+        error: 'No research findings available. Please conduct research first.' 
+      });
+    }
+
+    let input = '';
+    if (version.inputSummary) {
+      input = version.inputSummary;
+    }
+
+    const enhancedAnalysis = await strategyAnalyzer.analyzeWithResearch(
+      sessionId,
+      rootCause,
+      whysPath,
+      existingAnalysisData.research,
+      input
+    );
+
+    await storage.updateStrategyVersion(version.id, {
+      analysisData: {
+        ...existingAnalysisData,
+        enhanced_analysis: enhancedAnalysis,
+      },
+    });
+
+    res.json({
+      analysis: enhancedAnalysis,
+      versionNumber: targetVersionNumber,
+    });
+  } catch (error: any) {
+    console.error('Error in /analyze-enhanced:', error);
+    res.status(500).json({ error: error.message || 'Enhanced analysis failed' });
+  }
+});
+
 router.get('/health', (req: Request, res: Response) => {
   res.json({
     success: true,

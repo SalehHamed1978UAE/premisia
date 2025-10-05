@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { strategyOntologyService } from '../ontology/strategy-ontology-service';
+import { ResearchFindings, Source, Finding } from './market-researcher';
 
 export interface FiveWhysAnalysis {
   problem_statement: string;
@@ -48,6 +49,41 @@ export interface StrategyAnalysis {
   recommended_approaches: string[];
   recommended_market: string;
   executive_summary: string;
+}
+
+export interface PorterForceWithCitations {
+  level: 'low' | 'medium' | 'high';
+  factors: Array<{
+    factor: string;
+    citations: string[];
+  }>;
+  strategic_response: string;
+  confidence: 'high' | 'medium' | 'low';
+  insufficientData?: boolean;
+}
+
+export interface PortersWithCitations {
+  competitive_rivalry: PorterForceWithCitations;
+  supplier_power: PorterForceWithCitations;
+  buyer_power: PorterForceWithCitations;
+  threat_of_substitution: PorterForceWithCitations;
+  threat_of_new_entry: PorterForceWithCitations;
+  overall_attractiveness: 'low' | 'medium' | 'high';
+}
+
+export interface Recommendation {
+  text: string;
+  rationale: string;
+  citations: string[];
+}
+
+export interface EnhancedAnalysisResult {
+  executiveSummary: string;
+  portersAnalysis: PortersWithCitations;
+  recommendations: Recommendation[];
+  researchBased: true;
+  confidenceScore: number;
+  citations: Source[];
 }
 
 export class StrategyAnalyzer {
@@ -265,5 +301,238 @@ Return ONLY valid JSON (no markdown, no explanation):
       recommended_market: recommendation.recommended_market,
       executive_summary: recommendation.executive_summary,
     };
+  }
+
+  async analyzeWithResearch(
+    sessionId: string,
+    rootCause: string,
+    whysPath: string[],
+    research: ResearchFindings,
+    input: string
+  ): Promise<EnhancedAnalysisResult> {
+    const formatFindings = (findings: Finding[]) => 
+      findings.map(f => `- ${f.fact} [Citation: ${f.citation}] (Confidence: ${f.confidence})`).join('\n');
+
+    const researchSummary = `
+MARKET DYNAMICS:
+${formatFindings(research.market_dynamics)}
+
+COMPETITIVE LANDSCAPE:
+${formatFindings(research.competitive_landscape)}
+
+LANGUAGE/CULTURAL PREFERENCES:
+${formatFindings(research.language_preferences)}
+
+BUYER BEHAVIOR:
+${formatFindings(research.buyer_behavior)}
+
+REGULATORY FACTORS:
+${formatFindings(research.regulatory_factors)}
+
+AVAILABLE SOURCES:
+${research.sources.map(s => `- ${s.title} (${s.url}) - Relevance: ${s.relevance_score}`).join('\n')}
+`;
+
+    const response = await this.anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 6000,
+      temperature: 0.3,
+      messages: [
+        {
+          role: 'user',
+          content: `You are a strategic consultant performing a research-backed Porter's Five Forces analysis.
+
+CRITICAL INSTRUCTIONS:
+1. Do NOT make assumptions - only use validated data from the research findings below
+2. Cite specific research findings for EVERY statement using the citation URLs
+3. If research is inconclusive or missing for any aspect, explicitly state "Insufficient data" and note what additional research is needed
+4. Base confidence levels on the quality and quantity of research available
+5. All factors and responses must be grounded in the research provided
+
+STRATEGIC CONTEXT:
+Root Cause: ${rootCause}
+
+Original Input: ${input.substring(0, 1500)}
+
+Analysis Path (5 Whys):
+${whysPath.map((w, i) => `${i + 1}. ${w}`).join('\n')}
+
+RESEARCH FINDINGS:
+${researchSummary}
+
+ANALYSIS REQUIREMENTS:
+
+For each of Porter's Five Forces, provide:
+1. Level assessment (low/medium/high) based on research
+2. Key factors with specific citations from research findings
+3. Strategic response grounded in research insights
+4. Confidence level (high/medium/low) based on research quality
+5. insufficientData flag if research is lacking
+
+Also generate:
+1. Executive summary (3-4 sentences) incorporating root cause and key recommendations
+2. Strategic recommendations (4-6 actionable recommendations based on Porter's analysis + research)
+3. Each recommendation must include text, rationale, and citations
+
+Return ONLY valid JSON with this exact structure (no markdown, no explanation):
+
+{
+  "portersAnalysis": {
+    "competitive_rivalry": {
+      "level": "low|medium|high",
+      "factors": [
+        {
+          "factor": "Specific factor description",
+          "citations": ["https://citation-url-1.com", "https://citation-url-2.com"]
+        }
+      ],
+      "strategic_response": "Research-backed strategic response",
+      "confidence": "high|medium|low",
+      "insufficientData": false
+    },
+    "supplier_power": {
+      "level": "low|medium|high",
+      "factors": [
+        {
+          "factor": "Specific factor description",
+          "citations": ["https://citation-url.com"]
+        }
+      ],
+      "strategic_response": "Research-backed strategic response",
+      "confidence": "high|medium|low",
+      "insufficientData": false
+    },
+    "buyer_power": {
+      "level": "low|medium|high",
+      "factors": [
+        {
+          "factor": "Specific factor description",
+          "citations": ["https://citation-url.com"]
+        }
+      ],
+      "strategic_response": "Research-backed strategic response",
+      "confidence": "high|medium|low",
+      "insufficientData": false
+    },
+    "threat_of_substitution": {
+      "level": "low|medium|high",
+      "factors": [
+        {
+          "factor": "Specific factor description",
+          "citations": ["https://citation-url.com"]
+        }
+      ],
+      "strategic_response": "Research-backed strategic response",
+      "confidence": "high|medium|low",
+      "insufficientData": false
+    },
+    "threat_of_new_entry": {
+      "level": "low|medium|high",
+      "factors": [
+        {
+          "factor": "Specific factor description",
+          "citations": ["https://citation-url.com"]
+        }
+      ],
+      "strategic_response": "Research-backed strategic response",
+      "confidence": "high|medium|low",
+      "insufficientData": false
+    },
+    "overall_attractiveness": "low|medium|high"
+  },
+  "recommendations": [
+    {
+      "text": "Specific actionable recommendation",
+      "rationale": "Why this recommendation is important based on analysis",
+      "citations": ["https://citation-url.com"]
+    }
+  ],
+  "executiveSummary": "3-4 sentence executive summary incorporating root cause and key strategic recommendations"
+}`,
+        },
+      ],
+    });
+
+    const textContent = response.content
+      .filter((block) => block.type === 'text')
+      .map((block) => (block as Anthropic.TextBlock).text)
+      .join('\n');
+
+    const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('Failed to extract JSON from research-backed analysis response');
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+
+    const confidenceScore = this.calculateOverallConfidence(parsed.portersAnalysis, research);
+
+    return {
+      executiveSummary: parsed.executiveSummary,
+      portersAnalysis: parsed.portersAnalysis,
+      recommendations: parsed.recommendations,
+      researchBased: true,
+      confidenceScore,
+      citations: research.sources,
+    };
+  }
+
+  private calculateOverallConfidence(porters: PortersWithCitations, research: ResearchFindings): number {
+    const confidenceMap = { high: 100, medium: 60, low: 30 };
+    
+    const forceConfidences = [
+      porters.competitive_rivalry.confidence,
+      porters.supplier_power.confidence,
+      porters.buyer_power.confidence,
+      porters.threat_of_substitution.confidence,
+      porters.threat_of_new_entry.confidence,
+    ];
+
+    const avgForceConfidence = forceConfidences.reduce((sum, c) => sum + confidenceMap[c], 0) / forceConfidences.length;
+
+    const totalFindings = 
+      research.market_dynamics.length +
+      research.competitive_landscape.length +
+      research.language_preferences.length +
+      research.buyer_behavior.length +
+      research.regulatory_factors.length;
+
+    const highConfidenceFindings = [
+      ...research.market_dynamics,
+      ...research.competitive_landscape,
+      ...research.language_preferences,
+      ...research.buyer_behavior,
+      ...research.regulatory_factors,
+    ].filter(f => f.confidence === 'high').length;
+
+    const researchQuality = totalFindings > 0 ? (highConfidenceFindings / totalFindings) * 100 : 0;
+
+    const insufficientDataPenalty = [
+      porters.competitive_rivalry.insufficientData,
+      porters.supplier_power.insufficientData,
+      porters.buyer_power.insufficientData,
+      porters.threat_of_substitution.insufficientData,
+      porters.threat_of_new_entry.insufficientData,
+    ].filter(Boolean).length * 10;
+
+    const baseScore = (avgForceConfidence * 0.6) + (researchQuality * 0.4);
+    const finalScore = Math.max(0, Math.min(100, baseScore - insufficientDataPenalty));
+
+    return Math.round(finalScore);
+  }
+
+  private createExecutiveSummary(
+    rootCause: string,
+    recommendations: Recommendation[],
+    research: ResearchFindings
+  ): string {
+    const topRecommendations = recommendations.slice(0, 3).map(r => r.text).join('; ');
+    
+    const keyInsights = [
+      research.market_dynamics[0]?.fact,
+      research.competitive_landscape[0]?.fact,
+    ].filter(Boolean).join('. ');
+
+    return `Based on the root cause of "${rootCause}" and comprehensive market research, the strategic analysis reveals: ${keyInsights}. Key recommendations include: ${topRecommendations}.`;
   }
 }
