@@ -43,12 +43,14 @@ export default function VersionsPage() {
   const [compareVersion2, setCompareVersion2] = useState<number | null>(null);
   const [showComparison, setShowComparison] = useState(false);
 
-  const { data: versions, isLoading, error } = useQuery<Version[]>({
+  const { data: response, isLoading, error } = useQuery<{ success: boolean; versions: Version[] }>({
     queryKey: ['/api/strategic-consultant/versions', sessionId],
     enabled: !!sessionId,
   });
 
-  const { data: comparison, isLoading: isComparing } = useQuery<ComparisonData>({
+  const versions = response?.versions || [];
+
+  const { data: comparisonResponse, isLoading: isComparing } = useQuery<{ success: boolean; comparison: ComparisonData }>({
     queryKey: ['/api/strategic-consultant/versions/compare', sessionId, compareVersion1, compareVersion2],
     enabled: showComparison && !!sessionId && compareVersion1 !== null && compareVersion2 !== null,
     queryFn: async () => {
@@ -70,6 +72,8 @@ export default function VersionsPage() {
       return response.json();
     }
   });
+
+  const comparison = comparisonResponse?.comparison;
 
   const handleCompare = () => {
     if (compareVersion1 === null || compareVersion2 === null) {
@@ -116,7 +120,7 @@ export default function VersionsPage() {
     );
   }
 
-  if (error || !versions) {
+  if (error || !response) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-8">
         <Alert variant="destructive" className="max-w-md">
