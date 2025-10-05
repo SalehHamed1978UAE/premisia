@@ -48,6 +48,11 @@ The Strategic Consultant is a velocity tool that converts executive input into A
   - Integrated programs are accessible from Dashboard and all EPM module pages
 - **Version Management**: Unlimited strategy versions with full comparison capabilities
 - **Ontology Validation**: Validates all outputs against 35 EPM ontology rules for data quality
+- **Strategic Decisions Module**: New main EPM navigation item provides persistent access to all strategy versions
+  - Lists all user's strategic decisions with status badges (Integrated, Finalized, Converting)
+  - "View Strategy" button navigates to full strategy details (analysis, decisions, EPM program)
+  - "View Program" button for integrated strategies links to EPM program
+  - Solves the navigation gap - users can always return to review their strategies
 
 ## External Dependencies
 

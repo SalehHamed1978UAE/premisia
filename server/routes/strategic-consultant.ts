@@ -177,17 +177,13 @@ router.post('/convert-to-epm', async (req: Request, res: Response) => {
 // Get all strategy versions for current user (MUST be before /versions/:sessionId)
 router.get('/versions/all', async (req: Request, res: Response) => {
   try {
-    console.log('[STRATEGIC-CONSULTANT] Hit /versions/all endpoint');
     const userId = (req.user as any)?.id;
 
     if (!userId) {
-      console.log('[STRATEGIC-CONSULTANT] No userId found, returning 401');
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
-    console.log(`[STRATEGIC-CONSULTANT] Fetching versions for userId: ${userId}`);
     const versions = await storage.getAllStrategyVersionsByUser(userId);
-    console.log(`[STRATEGIC-CONSULTANT] Found ${versions.length} versions, returning array`);
     res.json(versions);
 
   } catch (error: any) {
@@ -198,8 +194,7 @@ router.get('/versions/all', async (req: Request, res: Response) => {
 
 router.get('/versions/:sessionId', async (req: Request, res: Response) => {
   try {
-    const { sessionId } = req.params;
-    console.log(`[STRATEGIC-CONSULTANT] Hit /versions/:sessionId with sessionId: ${sessionId}`);
+    const { sessionId} = req.params;
     const versions = await versionManager.listVersions(sessionId);
 
     res.json({
