@@ -10,6 +10,7 @@ import {
   Trophy, 
   DollarSign, 
   Users, 
+  Bot,
   Settings,
   LogOut,
   X
@@ -71,6 +72,12 @@ const navigation = [
     label: 'Resources', 
     icon: Users,
     description: 'Team management'
+  },
+  { 
+    id: 'ai-orchestrator' as ViewType, 
+    label: 'AI Orchestrator', 
+    icon: Bot,
+    description: 'Multi-agent AI system'
   },
 ];
 

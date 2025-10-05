@@ -9,8 +9,9 @@ import { Risks } from "@/components/risks/risks";
 import { Benefits } from "@/components/benefits/benefits";
 import { Funding } from "@/components/funding/funding";
 import { Resources } from "@/components/resources/resources";
+import { AIOrchestrator } from "@/components/orchestrator/ai-orchestrator";
 
-export type ViewType = 'dashboard' | 'timeline' | 'stage-gates' | 'kpis' | 'risks' | 'benefits' | 'funding' | 'resources';
+export type ViewType = 'dashboard' | 'timeline' | 'stage-gates' | 'kpis' | 'risks' | 'benefits' | 'funding' | 'resources' | 'ai-orchestrator';
 
 export default function HomePage() {
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
@@ -34,6 +35,8 @@ export default function HomePage() {
         return <Funding />;
       case 'resources':
         return <Resources />;
+      case 'ai-orchestrator':
+        return <AIOrchestrator />;
       default:
         return <Dashboard />;
     }
@@ -57,6 +60,8 @@ export default function HomePage() {
         return { title: 'Funding & Budget', subtitle: 'Track budget allocation and expenditures' };
       case 'resources':
         return { title: 'Resource Management', subtitle: 'Manage team members and resource allocation' };
+      case 'ai-orchestrator':
+        return { title: 'AI Orchestrator', subtitle: 'Multi-agent AI system for code generation and review' };
       default:
         return { title: 'Program Dashboard', subtitle: 'Overview of QData Enterprise Program Management' };
     }
