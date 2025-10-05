@@ -23,6 +23,65 @@ export interface EPMProgram {
   workstreams: EPMWorkstream[];
   success_criteria: string[];
   key_risks: string[];
+  stage_gates: StageGate[];
+  kpis: KPI[];
+  benefits: Benefit[];
+  risks: Risk[];
+  funding: FundingPlan;
+  resources: ResourceRequirement[];
+}
+
+export interface StageGate {
+  gate: string;
+  name: string;
+  criteria: string[];
+  deliverables: string[];
+}
+
+export interface KPI {
+  name: string;
+  description: string;
+  target: string;
+  measurement_frequency: string;
+  owner: string;
+}
+
+export interface Benefit {
+  category: string;
+  description: string;
+  quantified_value?: string;
+  realization_timeline: string;
+}
+
+export interface Risk {
+  description: string;
+  likelihood: 'low' | 'medium' | 'high';
+  impact: 'low' | 'medium' | 'high';
+  mitigation_strategy: string;
+}
+
+export interface FundingPlan {
+  sources: FundingSource[];
+  timeline: FundingTimeline[];
+}
+
+export interface FundingSource {
+  source: string;
+  amount: number;
+  terms?: string;
+}
+
+export interface FundingTimeline {
+  phase: string;
+  amount: number;
+  timing: string;
+}
+
+export interface ResourceRequirement {
+  role: string;
+  count: number;
+  skillset: string[];
+  duration_months: number;
 }
 
 export interface EPMWorkstream {
@@ -69,7 +128,7 @@ export class EPMConverter {
     selectedDecisions: Record<string, string>
   ): Promise<EPMProgram> {
     const selectedApproach = this.extractSelectedApproach(analysis, selectedDecisions);
-    const selectedMarket = analysis.recommended_market;
+    const selectedMarket = this.normalizeMarket(analysis.recommended_market);
 
     const workstreams = strategyOntologyService.allocateWorkstreams(
       selectedApproach,
@@ -91,12 +150,22 @@ export class EPMConverter {
     const enrichedWorkstreams = await this.enrichWorkstreamsWithTasks(
       workstreams,
       analysis,
-      selectedApproach
+      selectedApproach,
+      costEstimate
     );
 
     const objectives = this.extractObjectives(analysis);
     const successCriteria = this.extractSuccessCriteria(analysis);
     const keyRisks = this.extractKeyRisks(analysis);
+
+    const [stageGates, kpis, benefits, risks, funding, resources] = await Promise.all([
+      this.generateStageGates(analysis, selectedApproach),
+      this.generateKPIs(analysis, objectives),
+      this.generateBenefits(analysis, costEstimate),
+      this.generateRisks(analysis),
+      this.generateFundingPlan(costEstimate),
+      this.generateResourceRequirements(workstreams, costEstimate),
+    ]);
 
     return {
       title: programTitle,
@@ -115,7 +184,27 @@ export class EPMConverter {
       workstreams: enrichedWorkstreams,
       success_criteria: successCriteria,
       key_risks: keyRisks,
+      stage_gates: stageGates,
+      kpis,
+      benefits,
+      risks,
+      funding,
+      resources,
     };
+  }
+
+  private normalizeMarket(recommendedMarket: string): string {
+    const marketLower = recommendedMarket.toLowerCase();
+    
+    if (marketLower.includes('uae') || marketLower.includes('emirates') || marketLower.includes('dubai')) {
+      return 'uae';
+    }
+    
+    if (marketLower.includes('usa') || marketLower.includes('united states') || marketLower.includes('america')) {
+      return 'usa';
+    }
+    
+    return 'usa';
   }
 
   private extractSelectedApproach(
@@ -209,7 +298,8 @@ Return ONLY the description, nothing else.`,
   private async enrichWorkstreamsWithTasks(
     workstreams: Array<{ id: string; label: string; cost_allocation: number; team_size: number }>,
     analysis: StrategyAnalysis,
-    approach: string
+    approach: string,
+    costEstimate: any
   ): Promise<EPMWorkstream[]> {
     const enrichedWorkstreams: EPMWorkstream[] = [];
 
@@ -225,7 +315,7 @@ Return ONLY the description, nothing else.`,
           min: Math.round(ws.cost_allocation * 0.8),
           max: Math.round(ws.cost_allocation * 1.2),
         },
-        timeline_months: 6,
+        timeline_months: costEstimate?.timeline_months || 12,
         required_team: this.estimateTeamSize(ws),
         tasks,
       });
@@ -378,6 +468,307 @@ Return ONLY valid JSON (no markdown):
     return risks.length > 0 ? risks : ['Market dynamics may shift', 'Resource constraints', 'Execution challenges'];
   }
 
+  private async generateStageGates(analysis: StrategyAnalysis, approach: string): Promise<StageGate[]> {
+    const response = await this.anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2000,
+      temperature: 0.3,
+      messages: [
+        {
+          role: 'user',
+          content: `Generate 5 stage gates (G0-G4) for this strategic program:
+
+APPROACH: ${approach.replace('_', ' ')}
+ROOT CAUSE: ${analysis.five_whys.root_cause}
+
+For each gate, provide:
+- name: Clear gate name
+- criteria: 3-5 specific pass/fail criteria
+- deliverables: 3-5 required deliverables
+
+Return ONLY valid JSON:
+
+{
+  "stage_gates": [
+    {
+      "gate": "G0",
+      "name": "Program Initiation",
+      "criteria": ["criterion 1", "criterion 2"],
+      "deliverables": ["deliverable 1", "deliverable 2"]
+    }
+  ]
+}`,
+        },
+      ],
+    });
+
+    const textContent = response.content
+      .filter((block) => block.type === 'text')
+      .map((block) => (block as Anthropic.TextBlock).text)
+      .join('\n');
+
+    const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        return parsed.stage_gates || this.getDefaultStageGates();
+      } catch {
+        return this.getDefaultStageGates();
+      }
+    }
+    return this.getDefaultStageGates();
+  }
+
+  private getDefaultStageGates(): StageGate[] {
+    return [
+      { gate: 'G0', name: 'Program Initiation', criteria: ['Business case approved', 'Resources allocated'], deliverables: ['Program charter', 'Initial plan'] },
+      { gate: 'G1', name: 'Planning Complete', criteria: ['Detailed plan approved', 'Risks identified'], deliverables: ['Program plan', 'Risk register'] },
+      { gate: 'G2', name: 'Design Complete', criteria: ['Solution designed', 'Architecture approved'], deliverables: ['Design documentation', 'Technical specifications'] },
+      { gate: 'G3', name: 'Implementation Complete', criteria: ['All features delivered', 'Testing passed'], deliverables: ['Implemented solution', 'Test reports'] },
+      { gate: 'G4', name: 'Program Closure', criteria: ['Benefits realized', 'Lessons captured'], deliverables: ['Final report', 'Lessons learned'] },
+    ];
+  }
+
+  private async generateKPIs(analysis: StrategyAnalysis, objectives: string[]): Promise<KPI[]> {
+    const response = await this.anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1500,
+      temperature: 0.3,
+      messages: [
+        {
+          role: 'user',
+          content: `Generate 5-7 KPIs aligned with these strategic objectives:
+
+OBJECTIVES:
+${objectives.map((o, i) => `${i + 1}. ${o}`).join('\n')}
+
+ROOT CAUSE: ${analysis.five_whys.root_cause}
+
+Each KPI should have:
+- name: Concise KPI name
+- description: What it measures
+- target: Specific measurable target
+- measurement_frequency: How often measured
+- owner: Who owns this KPI
+
+Return ONLY valid JSON:
+
+{
+  "kpis": [
+    {
+      "name": "Revenue Growth",
+      "description": "Year-over-year revenue increase",
+      "target": "25% increase",
+      "measurement_frequency": "Monthly",
+      "owner": "CFO"
+    }
+  ]
+}`,
+        },
+      ],
+    });
+
+    const textContent = response.content
+      .filter((block) => block.type === 'text')
+      .map((block) => (block as Anthropic.TextBlock).text)
+      .join('\n');
+
+    const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        return parsed.kpis || this.getDefaultKPIs();
+      } catch {
+        return this.getDefaultKPIs();
+      }
+    }
+    return this.getDefaultKPIs();
+  }
+
+  private getDefaultKPIs(): KPI[] {
+    return [
+      { name: 'Program ROI', description: 'Return on investment', target: '>200%', measurement_frequency: 'Quarterly', owner: 'Program Manager' },
+      { name: 'Budget Variance', description: 'Actual vs planned spend', target: '<5%', measurement_frequency: 'Monthly', owner: 'Finance Lead' },
+      { name: 'Milestone Achievement', description: 'On-time delivery rate', target: '>90%', measurement_frequency: 'Monthly', owner: 'Program Manager' },
+    ];
+  }
+
+  private async generateBenefits(analysis: StrategyAnalysis, costEstimate: any): Promise<Benefit[]> {
+    const response = await this.anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1500,
+      temperature: 0.3,
+      messages: [
+        {
+          role: 'user',
+          content: `Generate 4-6 quantified benefits for this program:
+
+ROOT CAUSE: ${analysis.five_whys.root_cause}
+EXECUTIVE SUMMARY: ${analysis.executive_summary}
+PROGRAM INVESTMENT: $${costEstimate?.min?.toLocaleString() || '2M'} - $${costEstimate?.max?.toLocaleString() || '4M'}
+
+Benefits should be:
+- Category: Financial, Operational, Strategic, Customer, or Risk
+- Description: Clear benefit statement
+- Quantified value: Specific dollar or % value where possible
+- Realization timeline: When benefit will be realized
+
+Return ONLY valid JSON:
+
+{
+  "benefits": [
+    {
+      "category": "Financial",
+      "description": "Revenue increase from new market",
+      "quantified_value": "$5M annual recurring revenue",
+      "realization_timeline": "Month 12-18"
+    }
+  ]
+}`,
+        },
+      ],
+    });
+
+    const textContent = response.content
+      .filter((block) => block.type === 'text')
+      .map((block) => (block as Anthropic.TextBlock).text)
+      .join('\n');
+
+    const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        return parsed.benefits || this.getDefaultBenefits();
+      } catch {
+        return this.getDefaultBenefits();
+      }
+    }
+    return this.getDefaultBenefits();
+  }
+
+  private getDefaultBenefits(): Benefit[] {
+    return [
+      { category: 'Financial', description: 'Revenue growth', quantified_value: '25% increase', realization_timeline: 'Month 12' },
+      { category: 'Operational', description: 'Efficiency improvement', quantified_value: '30% cost reduction', realization_timeline: 'Month 6' },
+      { category: 'Strategic', description: 'Market position', realization_timeline: 'Month 18' },
+    ];
+  }
+
+  private async generateRisks(analysis: StrategyAnalysis): Promise<Risk[]> {
+    const response = await this.anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1500,
+      temperature: 0.3,
+      messages: [
+        {
+          role: 'user',
+          content: `Generate 5-7 program risks with mitigation strategies:
+
+PORTER'S FIVE FORCES:
+- Competitive Rivalry: ${analysis.porters_five_forces.competitive_rivalry.level}
+- Buyer Power: ${analysis.porters_five_forces.buyer_power.level}
+- Supplier Power: ${analysis.porters_five_forces.supplier_power.level}
+
+ROOT CAUSE: ${analysis.five_whys.root_cause}
+
+For each risk:
+- description: Clear risk description
+- likelihood: low/medium/high
+- impact: low/medium/high
+- mitigation_strategy: Specific mitigation approach
+
+Return ONLY valid JSON:
+
+{
+  "risks": [
+    {
+      "description": "Market conditions change unexpectedly",
+      "likelihood": "medium",
+      "impact": "high",
+      "mitigation_strategy": "Quarterly market reviews and adaptive planning"
+    }
+  ]
+}`,
+        },
+      ],
+    });
+
+    const textContent = response.content
+      .filter((block) => block.type === 'text')
+      .map((block) => (block as Anthropic.TextBlock).text)
+      .join('\n');
+
+    const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        return parsed.risks || this.getDefaultRisks();
+      } catch {
+        return this.getDefaultRisks();
+      }
+    }
+    return this.getDefaultRisks();
+  }
+
+  private getDefaultRisks(): Risk[] {
+    return [
+      { description: 'Resource availability', likelihood: 'medium', impact: 'high', mitigation_strategy: 'Maintain backup resource pool' },
+      { description: 'Technical complexity', likelihood: 'medium', impact: 'medium', mitigation_strategy: 'Phased implementation approach' },
+      { description: 'Market dynamics shift', likelihood: 'low', impact: 'high', mitigation_strategy: 'Regular market monitoring' },
+    ];
+  }
+
+  private async generateFundingPlan(costEstimate: any): Promise<FundingPlan> {
+    const totalCost = costEstimate?.max || 2000000;
+    const timeline = costEstimate?.timeline_months || 12;
+
+    return {
+      sources: [
+        { source: 'Operating Budget', amount: Math.floor(totalCost * 0.6) },
+        { source: 'Capital Investment', amount: Math.floor(totalCost * 0.4) },
+      ],
+      timeline: [
+        { phase: 'Initiation', amount: Math.floor(totalCost * 0.2), timing: 'Month 1' },
+        { phase: 'Execution', amount: Math.floor(totalCost * 0.6), timing: `Months 2-${Math.floor(timeline * 0.8)}` },
+        { phase: 'Closure', amount: Math.floor(totalCost * 0.2), timing: `Month ${timeline}` },
+      ],
+    };
+  }
+
+  private async generateResourceRequirements(
+    workstreams: Array<{ id: string; label: string; cost_allocation: number; team_size: number }>,
+    costEstimate: any
+  ): Promise<ResourceRequirement[]> {
+    const resources: ResourceRequirement[] = [
+      {
+        role: 'Program Manager',
+        count: 1,
+        skillset: ['Program management', 'Stakeholder engagement', 'Risk management'],
+        duration_months: costEstimate?.timeline_months || 12,
+      },
+    ];
+
+    const totalTeamSize = workstreams.reduce((sum, ws) => sum + ws.team_size, 0);
+    
+    if (totalTeamSize > 10) {
+      resources.push({
+        role: 'Workstream Leads',
+        count: workstreams.length,
+        skillset: ['Domain expertise', 'Team leadership', 'Delivery management'],
+        duration_months: costEstimate?.timeline_months || 12,
+      });
+    }
+
+    resources.push({
+      role: 'Specialists',
+      count: Math.max(totalTeamSize - workstreams.length - 1, 5),
+      skillset: ['Technical delivery', 'Subject matter expertise'],
+      duration_months: costEstimate?.timeline_months || 12,
+    });
+
+    return resources;
+  }
+
   async validateEPMStructure(program: EPMProgram): Promise<{
     valid: boolean;
     issues: string[];
@@ -437,27 +828,84 @@ Return ONLY valid JSON (no markdown):
       timelineDays: program.timeline.total_months * 30,
       status: 'planning',
       successCriteria: program.success_criteria,
+      workstreams: program.workstreams,
+      stage_gates: program.stage_gates,
+      kpis: program.kpis,
+      benefits: program.benefits,
+      risks: program.risks,
+      funding: program.funding,
+      resources: program.resources,
     };
 
-    const [validation, completeness] = await Promise.all([
+    const [validation, baseCompleteness] = await Promise.all([
       ontologyService.validateEntityData('Program', programData),
       ontologyService.checkCompleteness('Program', programData),
     ]);
 
+    const criticalChecks = {
+      passed: 0,
+      total: 4,
+      fields: [
+        { check: program.workstreams.length > 0, description: 'Programs must have defined work (tasks or workstreams)' },
+        { check: program.stage_gates.length >= 5, description: 'Programs must have all standard stage gates (G0-G4)' },
+        { check: program.benefits.length > 0, description: 'Programs must define expected benefits' },
+        { check: program.funding.sources.length > 0, description: 'Programs must have identified funding sources' },
+      ]
+    };
+
+    const importantChecks = {
+      passed: 0,
+      total: 3,
+      fields: [
+        { check: program.kpis.length >= 3 && program.kpis.length <= 7, description: 'Programs should have 3-7 KPIs to measure success' },
+        { check: program.risks.length > 0, description: 'Programs should conduct risk assessment' },
+        { check: program.resources.length > 0, description: 'Programs should have allocated resources' },
+      ]
+    };
+
+    criticalChecks.passed = criticalChecks.fields.filter(f => f.check).length;
+    importantChecks.passed = importantChecks.fields.filter(f => f.check).length;
+
+    const totalScore = (criticalChecks.passed * 3) + (importantChecks.passed * 2);
+    const maxScore = (criticalChecks.total * 3) + (importantChecks.total * 2);
+
+    const missingFields = [
+      ...criticalChecks.fields.filter(f => !f.check).map(f => ({ importance: 'critical', description: f.description })),
+      ...importantChecks.fields.filter(f => !f.check).map(f => ({ importance: 'important', description: f.description })),
+    ];
+
+    const completeness = {
+      score: totalScore,
+      maxScore: maxScore,
+      critical: {
+        passed: criticalChecks.passed,
+        total: criticalChecks.total,
+      },
+      important: {
+        passed: importantChecks.passed,
+        total: importantChecks.total,
+      },
+      niceToHave: {
+        passed: 0,
+        total: 0,
+      },
+      missingFields,
+    };
+
     const recommendations: string[] = [];
 
-    const completenessPercentage = completeness.maxScore > 0 
-      ? Math.round((completeness.score / completeness.maxScore) * 100) 
+    const completenessPercentage = maxScore > 0 
+      ? Math.round((totalScore / maxScore) * 100) 
       : 0;
 
-    if (completenessPercentage < 70) {
-      recommendations.push('Consider adding more detail to improve completeness (currently ' + completenessPercentage + '%)');
+    if (completenessPercentage < 100) {
+      recommendations.push(`Consider adding more detail to improve completeness (currently ${completenessPercentage}%)`);
     }
 
-    if (completeness.missingFields && completeness.missingFields.length > 0) {
-      const critical = completeness.missingFields.filter((f: any) => f.importance === 'critical');
+    if (missingFields.length > 0) {
+      const critical = missingFields.filter((f: any) => f.importance === 'critical');
       if (critical.length > 0) {
-        recommendations.push(`Add critical fields: ${critical.map((f: any) => f.field).join(', ')}`);
+        recommendations.push(`Add critical fields: ${critical.map((f: any) => f.description.split(' ')[3] || '').join(', ')}`);
       }
     }
 
@@ -468,7 +916,7 @@ Return ONLY valid JSON (no markdown):
     }
 
     return {
-      valid: validation.isValid,
+      valid: validation.isValid && criticalChecks.passed === criticalChecks.total,
       validation,
       completeness,
       recommendations,
