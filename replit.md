@@ -35,6 +35,20 @@ The system incorporates a multi-agent AI architecture:
 - **QA Specialist Agent**: Performs adversarial code reviews, verifying requirements, detecting gaps, bugs, edge cases, and security issues. It provides a PASS/FAIL verdict with detailed rationale and recommendations, integrating with the Executive Agent.
 - **Multi-Agent Orchestrator**: Coordinates the Builder-QA workflow, supporting multiple AI providers (OpenAI gpt-5, Anthropic claude-sonnet-4, Gemini gemini-2.5-pro) with lazy initialization and provider selection logic. It implements retry mechanisms with QA feedback and integrates fully with the Executive Agent. Features a complete web UI for task submission and result viewing with editable forms, real-time status updates, and comprehensive test coverage.
 
+### Strategic Consultant & EPM Integration
+
+The Strategic Consultant is a velocity tool that converts executive input into AI-analyzed strategic decisions and complete EPM program structures:
+- **Multi-Modal Input**: Supports text, PDF, DOCX, Excel, and image uploads (50MB limit)
+- **AI Analysis**: Claude Sonnet 4 analyzes input and generates strategic decisions with rationale
+- **EPM Conversion**: Converts decisions into complete program structures (workstreams, tasks, stage gates, KPIs, benefits, risks, funding sources, resources)
+- **Database Integration**: Atomic, concurrency-safe integration into main EPM Suite database with idempotency guarantees
+  - Uses `tryStartIntegration()` method with SQL WHERE clause for atomic check-and-set operation
+  - Sets `convertedProgramId` immediately after program creation to prevent duplicate programs on retry
+  - Prevents concurrent integrations through database-level locking
+  - Integrated programs are accessible from Dashboard and all EPM module pages
+- **Version Management**: Unlimited strategy versions with full comparison capabilities
+- **Ontology Validation**: Validates all outputs against 35 EPM ontology rules for data quality
+
 ## External Dependencies
 
 - **Database Service**: Neon serverless PostgreSQL (`@neondatabase/serverless`)
