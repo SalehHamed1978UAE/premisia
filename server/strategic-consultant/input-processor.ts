@@ -1,8 +1,11 @@
 import Anthropic from '@anthropic-ai/sdk';
-import pdf from 'pdf-parse';
 import mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
 import { readFileSync } from 'fs';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const pdf = require('pdf-parse');
 
 export interface ProcessedInput {
   type: 'text' | 'pdf' | 'docx' | 'xlsx' | 'image';

@@ -75,9 +75,9 @@ router.post('/analyze', upload.single('file'), async (req: Request, res: Respons
       analysis,
       decisions,
       version: {
-        version_number: version.version_number,
+        versionNumber: version.versionNumber,
         status: version.status,
-        created_at: version.created_at,
+        createdAt: version.createdAt,
       },
       metadata: processedInput.metadata,
     });
@@ -106,9 +106,9 @@ router.post('/decisions/select', async (req: Request, res: Response) => {
     res.json({
       success: true,
       version: {
-        version_number: updated.version_number,
+        versionNumber: updated.versionNumber,
         status: updated.status,
-        selected_decisions: updated.selected_decisions,
+        selectedDecisions: updated.selectedDecisions,
       },
     });
   } catch (error: any) {
@@ -161,9 +161,9 @@ router.post('/convert-to-epm', async (req: Request, res: Response) => {
         ontology: ontologyValidation,
       },
       version: {
-        version_number: finalized.version_number,
+        versionNumber: finalized.versionNumber,
         status: finalized.status,
-        finalized_at: finalized.finalized_at,
+        finalizedAt: finalized.finalizedAt,
       },
     });
   } catch (error: any) {
@@ -180,12 +180,12 @@ router.get('/versions/:sessionId', async (req: Request, res: Response) => {
     res.json({
       success: true,
       versions: versions.map(v => ({
-        version_number: v.version_number,
+        versionNumber: v.versionNumber,
         status: v.status,
-        created_at: v.created_at,
-        finalized_at: v.finalized_at,
-        has_selected_decisions: !!v.selected_decisions,
-        has_program: !!v.program_structure,
+        createdAt: v.createdAt,
+        finalizedAt: v.finalizedAt,
+        hasSelectedDecisions: !!v.selectedDecisions,
+        hasProgram: !!v.programStructure,
       })),
     });
   } catch (error: any) {
@@ -206,14 +206,14 @@ router.get('/versions/:sessionId/:versionNumber', async (req: Request, res: Resp
     res.json({
       success: true,
       version: {
-        version_number: version.versionNumber,
+        versionNumber: version.versionNumber,
         status: version.status,
         analysis: version.analysisData,
         decisions: version.decisionsData,
-        selected_decisions: version.selectedDecisions,
+        selectedDecisions: version.selectedDecisions,
         program: version.programStructure,
-        created_at: version.createdAt,
-        finalized_at: version.finalizedAt,
+        createdAt: version.createdAt,
+        finalizedAt: version.finalizedAt,
       },
     });
   } catch (error: any) {

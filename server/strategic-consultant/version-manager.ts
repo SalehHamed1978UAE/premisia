@@ -3,15 +3,15 @@ import type { StrategyAnalysis } from './strategy-analyzer';
 import type { GeneratedDecisions } from './decision-generator';
 
 export interface StrategyVersionData {
-  version_number: number;
+  versionNumber: number;
   analysis: StrategyAnalysis;
   decisions: GeneratedDecisions;
-  selected_decisions?: Record<string, string>; 
-  program_structure?: any;
+  selectedDecisions?: Record<string, string>; 
+  programStructure?: any;
   status: 'draft' | 'in_review' | 'finalized';
-  created_by: string;
-  created_at?: Date;
-  finalized_at?: Date;
+  createdBy: string;
+  createdAt?: Date;
+  finalizedAt?: Date;
 }
 
 export interface VersionComparison {
@@ -39,27 +39,29 @@ export class VersionManager {
     const existingVersions = await this.storage.getStrategyVersionsBySession(sessionId);
     const versionNumber = existingVersions.length + 1;
 
-    const versionData: StrategyVersionData = {
-      version_number: versionNumber,
-      analysis,
-      decisions,
-      status: 'draft',
-      created_by: userId,
-      created_at: new Date(),
-    };
-
     const version = await this.storage.createStrategyVersion({
-      session_id: sessionId,
-      version_number: versionNumber,
-      analysis_data: analysis,
-      decisions_data: decisions,
-      selected_decisions: null,
-      program_structure: null,
+      sessionId: sessionId,
+      versionNumber: versionNumber,
+      analysisData: analysis,
+      decisionsData: decisions,
+      selectedDecisions: null,
+      programStructure: null,
       status: 'draft',
-      created_by: userId,
+      createdBy: userId,
+      userId: userId,
     });
 
-    return versionData;
+    return {
+      versionNumber: version.versionNumber,
+      analysis: version.analysisData as StrategyAnalysis,
+      decisions: version.decisionsData as GeneratedDecisions,
+      selectedDecisions: version.selectedDecisions as Record<string, string> | undefined,
+      programStructure: version.programStructure,
+      status: version.status as 'draft' | 'in_review' | 'finalized',
+      createdBy: version.createdBy,
+      createdAt: version.createdAt || undefined,
+      finalizedAt: version.finalizedAt || undefined,
+    };
   }
 
   async updateVersion(
@@ -78,20 +80,20 @@ export class VersionManager {
     }
 
     const updated = await this.storage.updateStrategyVersion(version.id, {
-      selected_decisions: selectedDecisions,
+      selectedDecisions: selectedDecisions,
       status: 'in_review',
     });
 
     return {
-      version_number: updated.version_number,
-      analysis: updated.analysis_data as StrategyAnalysis,
-      decisions: updated.decisions_data as GeneratedDecisions,
-      selected_decisions: updated.selected_decisions as Record<string, string>,
-      program_structure: updated.program_structure,
+      versionNumber: updated.versionNumber,
+      analysis: updated.analysisData as StrategyAnalysis,
+      decisions: updated.decisionsData as GeneratedDecisions,
+      selectedDecisions: updated.selectedDecisions as Record<string, string>,
+      programStructure: updated.programStructure,
       status: updated.status as 'draft' | 'in_review' | 'finalized',
-      created_by: updated.created_by,
-      created_at: updated.created_at,
-      finalized_at: updated.finalized_at || undefined,
+      createdBy: updated.createdBy,
+      createdAt: updated.createdAt || undefined,
+      finalizedAt: updated.finalizedAt || undefined,
     };
   }
 
@@ -110,26 +112,26 @@ export class VersionManager {
       throw new Error('Version already finalized');
     }
 
-    if (!version.selected_decisions || Object.keys(version.selected_decisions as Record<string, unknown>).length === 0) {
+    if (!version.selectedDecisions || Object.keys(version.selectedDecisions as Record<string, unknown>).length === 0) {
       throw new Error('Cannot finalize version without selected decisions');
     }
 
     const updated = await this.storage.updateStrategyVersion(version.id, {
-      program_structure: programStructure,
+      programStructure: programStructure,
       status: 'finalized',
-      finalized_at: new Date(),
+      finalizedAt: new Date(),
     });
 
     return {
-      version_number: updated.version_number,
-      analysis: updated.analysis_data as StrategyAnalysis,
-      decisions: updated.decisions_data as GeneratedDecisions,
-      selected_decisions: updated.selected_decisions as Record<string, string>,
-      program_structure: updated.program_structure,
+      versionNumber: updated.versionNumber,
+      analysis: updated.analysisData as StrategyAnalysis,
+      decisions: updated.decisionsData as GeneratedDecisions,
+      selectedDecisions: updated.selectedDecisions as Record<string, string>,
+      programStructure: updated.programStructure,
       status: updated.status as 'draft' | 'in_review' | 'finalized',
-      created_by: updated.created_by,
-      created_at: updated.created_at,
-      finalized_at: updated.finalized_at || undefined,
+      createdBy: updated.createdBy,
+      createdAt: updated.createdAt || undefined,
+      finalizedAt: updated.finalizedAt || undefined,
     };
   }
 
@@ -147,10 +149,10 @@ export class VersionManager {
       throw new Error('One or both versions not found');
     }
 
-    const analysisA = vA.analysis_data as StrategyAnalysis;
-    const analysisB = vB.analysis_data as StrategyAnalysis;
-    const decisionsA = vA.decisions_data as GeneratedDecisions;
-    const decisionsB = vB.decisions_data as GeneratedDecisions;
+    const analysisA = vA.analysisData as StrategyAnalysis;
+    const analysisB = vB.analysisData as StrategyAnalysis;
+    const decisionsA = vA.decisionsData as GeneratedDecisions;
+    const decisionsB = vB.decisionsData as GeneratedDecisions;
 
     const approachChanged = JSON.stringify(analysisA.recommended_approaches) !== JSON.stringify(analysisB.recommended_approaches);
     const marketChanged = analysisA.recommended_market !== analysisB.recommended_market;
@@ -172,9 +174,9 @@ export class VersionManager {
     let costDelta = null;
     let timelineDelta = null;
 
-    if (vA.selected_decisions && vB.selected_decisions) {
-      const selectedA = vA.selected_decisions as Record<string, string>;
-      const selectedB = vB.selected_decisions as Record<string, string>;
+    if (vA.selectedDecisions && vB.selectedDecisions) {
+      const selectedA = vA.selectedDecisions as Record<string, string>;
+      const selectedB = vB.selectedDecisions as Record<string, string>;
       
       let totalCostMinA = 0, totalCostMaxA = 0, totalTimelineA = 0;
       let totalCostMinB = 0, totalCostMaxB = 0, totalTimelineB = 0;
@@ -237,15 +239,15 @@ export class VersionManager {
     const versions = await this.storage.getStrategyVersionsBySession(sessionId);
     
     return versions.map(v => ({
-      version_number: v.version_number,
-      analysis: v.analysis_data as StrategyAnalysis,
-      decisions: v.decisions_data as GeneratedDecisions,
-      selected_decisions: v.selected_decisions as Record<string, string> | undefined,
-      program_structure: v.program_structure,
+      versionNumber: v.versionNumber,
+      analysis: v.analysisData as StrategyAnalysis,
+      decisions: v.decisionsData as GeneratedDecisions,
+      selectedDecisions: v.selectedDecisions as Record<string, string> | undefined,
+      programStructure: v.programStructure,
       status: v.status as 'draft' | 'in_review' | 'finalized',
-      created_by: v.created_by,
-      created_at: v.created_at,
-      finalized_at: v.finalized_at || undefined,
+      createdBy: v.createdBy,
+      createdAt: v.createdAt || undefined,
+      finalizedAt: v.finalizedAt || undefined,
     }));
   }
 
@@ -253,7 +255,7 @@ export class VersionManager {
     const versions = await this.listVersions(sessionId);
     if (versions.length === 0) return null;
     
-    return versions.sort((a, b) => b.version_number - a.version_number)[0];
+    return versions.sort((a, b) => b.versionNumber - a.versionNumber)[0];
   }
 
   async getFinalizedVersion(sessionId: string): Promise<StrategyVersionData | null> {
