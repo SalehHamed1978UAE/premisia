@@ -16,20 +16,29 @@ interface DecisionOption {
   id: string;
   label: string;
   description: string;
-  cost_impact: string;
-  implications: string[];
+  estimated_cost?: { min: number; max: number };
+  estimated_timeline_months?: number;
+  pros: string[];
+  cons: string[];
+  recommended?: boolean;
 }
 
 interface Decision {
   id: string;
+  title: string;
   question: string;
   context: string;
   options: DecisionOption[];
+  impact_areas: string[];
 }
 
 interface DecisionsData {
   version: {
-    decisions: Decision[];
+    decisions: {
+      decisions: Decision[];
+      decision_flow: string;
+      estimated_completion_time_minutes: number;
+    };
     versionNumber: number;
   };
 }
@@ -89,9 +98,9 @@ export default function DecisionPage() {
   };
 
   const handleProceed = () => {
-    if (!data?.version?.decisions) return;
+    if (!data?.version?.decisions?.decisions) return;
 
-    const allSelected = data.version.decisions.every(d => selectedDecisions[d.id]);
+    const allSelected = data.version.decisions.decisions.every(d => selectedDecisions[d.id]);
     
     if (!allSelected) {
       toast({
@@ -128,7 +137,7 @@ export default function DecisionPage() {
     );
   }
 
-  if (error || !data?.version?.decisions || !Array.isArray(data.version.decisions)) {
+  if (error || !data?.version?.decisions?.decisions || !Array.isArray(data.version.decisions.decisions)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-8">
         <Alert variant="destructive" className="max-w-md">
@@ -142,7 +151,7 @@ export default function DecisionPage() {
     );
   }
 
-  const decisions = data.version.decisions;
+  const decisions = data.version.decisions.decisions;
   const allSelected = decisions.every(d => selectedDecisions[d.id]);
   const selectionCount = Object.keys(selectedDecisions).length;
 
@@ -225,21 +234,45 @@ export default function DecisionPage() {
                           <p className="text-sm text-muted-foreground">{option.description}</p>
                           
                           <div className="flex items-center gap-4 text-xs">
-                            <Badge variant="outline" className="font-normal">
-                              {option.cost_impact}
-                            </Badge>
+                            {option.estimated_cost && (
+                              <Badge variant="outline" className="font-normal">
+                                ${(option.estimated_cost.min / 1000000).toFixed(1)}M - ${(option.estimated_cost.max / 1000000).toFixed(1)}M
+                              </Badge>
+                            )}
+                            {option.estimated_timeline_months && (
+                              <Badge variant="outline" className="font-normal">
+                                {option.estimated_timeline_months} months
+                              </Badge>
+                            )}
+                            {option.recommended && (
+                              <Badge variant="default" className="font-normal">
+                                Recommended
+                              </Badge>
+                            )}
                           </div>
 
-                          {option.implications.length > 0 && (
-                            <div className="pt-2">
-                              <p className="text-xs font-medium text-muted-foreground mb-1">Implications:</p>
-                              <ul className="list-disc list-inside text-xs text-muted-foreground space-y-0.5">
-                                {option.implications.map((implication, idx) => (
-                                  <li key={idx}>{implication}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
+                          <div className="grid grid-cols-2 gap-4 pt-2">
+                            {option.pros && option.pros.length > 0 && (
+                              <div>
+                                <p className="text-xs font-medium text-green-600 dark:text-green-400 mb-1">Pros:</p>
+                                <ul className="list-disc list-inside text-xs text-muted-foreground space-y-0.5">
+                                  {option.pros.map((pro, idx) => (
+                                    <li key={idx}>{pro}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {option.cons && option.cons.length > 0 && (
+                              <div>
+                                <p className="text-xs font-medium text-red-600 dark:text-red-400 mb-1">Cons:</p>
+                                <ul className="list-disc list-inside text-xs text-muted-foreground space-y-0.5">
+                                  {option.cons.map((con, idx) => (
+                                    <li key={idx}>{con}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
