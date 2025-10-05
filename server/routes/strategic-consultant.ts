@@ -7,6 +7,7 @@ import { VersionManager } from '../strategic-consultant/version-manager';
 import { EPMConverter } from '../strategic-consultant/epm-converter';
 import { EPMIntegrator } from '../strategic-consultant/epm-integrator';
 import { WhysTreeGenerator } from '../strategic-consultant/whys-tree-generator';
+import { MarketResearcher } from '../strategic-consultant/market-researcher';
 import { storage } from '../storage';
 import { unlink } from 'fs/promises';
 
@@ -23,6 +24,7 @@ const versionManager = new VersionManager(storage);
 const epmConverter = new EPMConverter();
 const epmIntegrator = new EPMIntegrator();
 const whysTreeGenerator = new WhysTreeGenerator();
+const marketResearcher = new MarketResearcher();
 
 router.post('/analyze', upload.single('file'), async (req: Request, res: Response) => {
   try {
@@ -449,6 +451,72 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error in /whys-tree/finalize:', error);
     res.status(500).json({ error: error.message || 'Whys tree finalization failed' });
+  }
+});
+
+router.post('/research', async (req: Request, res: Response) => {
+  try {
+    const { sessionId, rootCause, whysPath, input, versionNumber } = req.body;
+
+    if (!sessionId || !rootCause || !whysPath || !input) {
+      return res.status(400).json({ 
+        error: 'sessionId, rootCause, whysPath, and input are required' 
+      });
+    }
+
+    const startTime = Date.now();
+
+    const findings = await marketResearcher.conductResearch(
+      sessionId,
+      rootCause,
+      input,
+      whysPath
+    );
+
+    const endTime = Date.now();
+    const timeElapsedMs = endTime - startTime;
+    const timeElapsed = `${(timeElapsedMs / 1000).toFixed(1)}s`;
+
+    let targetVersionNumber: number;
+    let version;
+
+    if (versionNumber) {
+      targetVersionNumber = versionNumber;
+      version = await storage.getStrategyVersion(sessionId, targetVersionNumber);
+      
+      if (!version) {
+        return res.status(404).json({ error: 'Version not found' });
+      }
+    } else {
+      const versions = await storage.getStrategyVersionsBySession(sessionId);
+      if (versions.length === 0) {
+        return res.status(404).json({ error: 'No versions found for this session' });
+      }
+      version = versions[versions.length - 1];
+      targetVersionNumber = version.versionNumber;
+    }
+
+    const existingAnalysisData = version.analysisData as any || {};
+    await storage.updateStrategyVersion(version.id, {
+      analysisData: {
+        ...existingAnalysisData,
+        research: findings,
+      },
+    });
+
+    const searchQueriesUsed = findings.sources.map(s => s.title);
+    const sourcesAnalyzed = findings.sources.length;
+
+    res.json({
+      findings,
+      searchQueriesUsed,
+      sourcesAnalyzed,
+      timeElapsed,
+      versionNumber: targetVersionNumber,
+    });
+  } catch (error: any) {
+    console.error('Error in /research:', error);
+    res.status(500).json({ error: error.message || 'Research failed' });
   }
 });
 
