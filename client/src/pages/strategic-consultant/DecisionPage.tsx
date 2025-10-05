@@ -28,8 +28,10 @@ interface Decision {
 }
 
 interface DecisionsData {
-  decisions: Decision[];
-  versionNumber: number;
+  version: {
+    decisions: Decision[];
+    versionNumber: number;
+  };
 }
 
 export default function DecisionPage() {
@@ -87,9 +89,9 @@ export default function DecisionPage() {
   };
 
   const handleProceed = () => {
-    if (!data?.decisions) return;
+    if (!data?.version?.decisions) return;
 
-    const allSelected = data.decisions.every(d => selectedDecisions[d.id]);
+    const allSelected = data.version.decisions.every(d => selectedDecisions[d.id]);
     
     if (!allSelected) {
       toast({
@@ -126,7 +128,7 @@ export default function DecisionPage() {
     );
   }
 
-  if (error || !data?.decisions) {
+  if (error || !data?.version?.decisions || !Array.isArray(data.version.decisions)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-8">
         <Alert variant="destructive" className="max-w-md">
@@ -140,7 +142,8 @@ export default function DecisionPage() {
     );
   }
 
-  const allSelected = data.decisions.every(d => selectedDecisions[d.id]);
+  const decisions = data.version.decisions;
+  const allSelected = decisions.every(d => selectedDecisions[d.id]);
   const selectionCount = Object.keys(selectedDecisions).length;
 
   return (
@@ -157,7 +160,7 @@ export default function DecisionPage() {
           </div>
           <div className="text-right">
             <div className="text-sm text-muted-foreground mb-2" data-testid="text-selection-progress">
-              {selectionCount} / {data.decisions.length} selected
+              {selectionCount} / {decisions.length} selected
             </div>
             <Button
               onClick={handleProceed}
@@ -179,7 +182,7 @@ export default function DecisionPage() {
         </div>
 
         <div className="space-y-6">
-          {data.decisions.map((decision, index) => (
+          {decisions.map((decision, index) => (
             <Card key={decision.id} data-testid={`card-decision-${decision.id}`}>
               <CardHeader>
                 <div className="flex items-start justify-between gap-4">

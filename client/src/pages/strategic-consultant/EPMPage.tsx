@@ -28,8 +28,13 @@ interface EPMProgram {
 }
 
 interface EPMData {
-  program: EPMProgram;
-  validation: {
+  version: {
+    program: EPMProgram | null;
+    versionNumber: number;
+    status: string;
+    finalizedAt?: string;
+  };
+  validation?: {
     structure: { valid: boolean };
     ontology: {
       valid: boolean;
@@ -42,11 +47,7 @@ interface EPMData {
       };
     };
   };
-  version: {
-    versionNumber: number;
-    status: string;
-    finalizedAt?: string;
-  };
+  program?: EPMProgram;
 }
 
 export default function EPMPage() {
@@ -59,7 +60,7 @@ export default function EPMPage() {
   const [isConverting, setIsConverting] = useState(false);
 
   const { data, isLoading, error } = useQuery<EPMData>({
-    queryKey: ['/api/strategic-consultant/epm', sessionId, versionNumber],
+    queryKey: ['/api/strategic-consultant/versions', sessionId, versionNumber],
     enabled: !!sessionId && !isConverting,
     retry: false
   });
@@ -95,7 +96,7 @@ export default function EPMPage() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/strategic-consultant/epm', sessionId, versionNumber] });
+      queryClient.invalidateQueries({ queryKey: ['/api/strategic-consultant/versions', sessionId, versionNumber] });
       setIsConverting(false);
       toast({
         title: "EPM Program Generated",
@@ -112,8 +113,8 @@ export default function EPMPage() {
     }
   });
 
-  // Auto-trigger conversion if no data
-  if (!isLoading && !data && !error && !isConverting && sessionId) {
+  // Auto-trigger conversion if no program data
+  if (!isLoading && data && !data.version?.program && !error && !isConverting && sessionId) {
     convertMutation.mutate();
   }
 
@@ -141,7 +142,7 @@ export default function EPMPage() {
     );
   }
 
-  if (error || !data) {
+  if (error || !data || !data.version?.program) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-8">
         <Alert variant="destructive" className="max-w-md">
@@ -155,10 +156,11 @@ export default function EPMPage() {
     );
   }
 
-  const program = data.program;
+  const program = data.program || data.version.program!;
   const validation = data.validation;
-  const completeness = validation.ontology.completeness;
-  const completenessPercent = (completeness.score / completeness.maxScore) * 100;
+  const hasValidation = !!validation;
+  const completeness = hasValidation ? validation!.ontology.completeness : null;
+  const completenessPercent = completeness ? (completeness.score / completeness.maxScore) * 100 : 0;
 
   return (
     <AppLayout
@@ -187,22 +189,23 @@ export default function EPMPage() {
           </Button>
         </div>
 
-        <Card className="bg-primary/5 border-primary/20">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-primary" />
-              Program Quality Score
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium">Completeness</span>
-                <span className="font-bold" data-testid="text-completeness-score">
-                  {completeness.score} / {completeness.maxScore}
-                </span>
-              </div>
-              <Progress value={completenessPercent} className="h-2" data-testid="progress-completeness" />
+        {hasValidation && completeness && (
+          <Card className="bg-primary/5 border-primary/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-primary" />
+                Program Quality Score
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">Completeness</span>
+                  <span className="font-bold" data-testid="text-completeness-score">
+                    {completeness.score} / {completeness.maxScore}
+                  </span>
+                </div>
+                <Progress value={completenessPercent} className="h-2" data-testid="progress-completeness" />
             </div>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
@@ -224,6 +227,7 @@ export default function EPMPage() {
             )}
           </CardContent>
         </Card>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
