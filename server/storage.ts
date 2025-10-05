@@ -86,6 +86,12 @@ export interface IStorage {
   deactivateSessionContext(id: string): Promise<void>;
   addDecisionToContext(id: string, decision: any): Promise<SessionContext>;
 
+  // Strategy Versions
+  getStrategyVersionsBySession(sessionId: string): Promise<any[]>;
+  getStrategyVersion(sessionId: string, versionNumber: number): Promise<any | undefined>;
+  createStrategyVersion(version: any): Promise<any>;
+  updateStrategyVersion(id: string, data: any): Promise<any>;
+
   sessionStore: Store;
 }
 
