@@ -79,7 +79,7 @@ export default function AnalysisPage() {
     );
   }
 
-  if (error || !data) {
+  if (error || !data || !data.analysis) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-8">
         <Alert variant="destructive" className="max-w-md">
@@ -94,8 +94,8 @@ export default function AnalysisPage() {
   }
 
   const analysis = data.analysis;
-  const hasFiveWhys = !!analysis.five_whys;
-  const hasPorters = !!analysis.porters_five_forces;
+  const hasFiveWhys = !!analysis?.five_whys;
+  const hasPorters = !!analysis?.porters_five_forces;
 
   return (
     <AppLayout
