@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -114,9 +114,11 @@ export default function EPMPage() {
   });
 
   // Auto-trigger conversion if no program data
-  if (!isLoading && data && !data.version?.program && !error && !isConverting && sessionId) {
-    convertMutation.mutate();
-  }
+  useEffect(() => {
+    if (!isLoading && data && !data.version?.program && !error && !isConverting && sessionId) {
+      convertMutation.mutate();
+    }
+  }, [isLoading, data, error, isConverting, sessionId]);
 
   if (!sessionId) {
     return (
