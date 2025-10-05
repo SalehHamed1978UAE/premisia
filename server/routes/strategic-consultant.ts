@@ -6,6 +6,7 @@ import { DecisionGenerator } from '../strategic-consultant/decision-generator';
 import { VersionManager } from '../strategic-consultant/version-manager';
 import { EPMConverter } from '../strategic-consultant/epm-converter';
 import { EPMIntegrator } from '../strategic-consultant/epm-integrator';
+import { WhysTreeGenerator } from '../strategic-consultant/whys-tree-generator';
 import { storage } from '../storage';
 import { unlink } from 'fs/promises';
 
@@ -21,6 +22,7 @@ const decisionGenerator = new DecisionGenerator();
 const versionManager = new VersionManager(storage);
 const epmConverter = new EPMConverter();
 const epmIntegrator = new EPMIntegrator();
+const whysTreeGenerator = new WhysTreeGenerator();
 
 router.post('/analyze', upload.single('file'), async (req: Request, res: Response) => {
   try {
@@ -342,6 +344,111 @@ router.post('/integrate/:sessionId/:versionNumber', async (req: Request, res: Re
   } catch (error: any) {
     console.error('Error in /integrate:', error);
     res.status(500).json({ error: error.message || 'Integration failed' });
+  }
+});
+
+router.post('/whys-tree/generate', async (req: Request, res: Response) => {
+  try {
+    const { sessionId, input } = req.body;
+
+    if (!sessionId || !input) {
+      return res.status(400).json({ error: 'sessionId and input are required' });
+    }
+
+    const tree = await whysTreeGenerator.generateTree(input, sessionId);
+
+    res.json({
+      tree,
+      estimatedTime: '20s',
+    });
+  } catch (error: any) {
+    console.error('Error in /whys-tree/generate:', error);
+    res.status(500).json({ error: error.message || 'Whys tree generation failed' });
+  }
+});
+
+router.post('/whys-tree/expand', async (req: Request, res: Response) => {
+  try {
+    const { sessionId, nodeId, selectedPath, currentDepth, parentQuestion, input } = req.body;
+
+    if (!sessionId || !nodeId || !selectedPath || currentDepth === undefined || !parentQuestion || !input) {
+      return res.status(400).json({ 
+        error: 'sessionId, nodeId, selectedPath, currentDepth, parentQuestion, and input are required' 
+      });
+    }
+
+    const expandedBranches = await whysTreeGenerator.expandBranch(
+      nodeId,
+      selectedPath,
+      input,
+      sessionId,
+      currentDepth,
+      parentQuestion
+    );
+
+    res.json({
+      expandedBranches,
+    });
+  } catch (error: any) {
+    console.error('Error in /whys-tree/expand:', error);
+    res.status(500).json({ error: error.message || 'Branch expansion failed' });
+  }
+});
+
+router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
+  try {
+    const { sessionId, selectedPath, rootCause, versionNumber, input } = req.body;
+
+    if (!sessionId || !selectedPath || !rootCause) {
+      return res.status(400).json({ 
+        error: 'sessionId, selectedPath, and rootCause are required' 
+      });
+    }
+
+    let targetVersionNumber: number;
+    if (versionNumber) {
+      targetVersionNumber = versionNumber;
+    } else {
+      const versions = await storage.getStrategyVersionsBySession(sessionId);
+      if (versions.length === 0) {
+        return res.status(404).json({ error: 'No versions found for this session' });
+      }
+      targetVersionNumber = versions[versions.length - 1].versionNumber;
+    }
+
+    const version = await storage.getStrategyVersion(sessionId, targetVersionNumber);
+    if (!version) {
+      return res.status(404).json({ error: 'Version not found' });
+    }
+
+    const insights = await whysTreeGenerator.analyzePathInsights(input, selectedPath.map((option: string, index: number) => ({
+      id: `node-${index}`,
+      question: '',
+      option,
+      depth: index + 1,
+      isLeaf: false,
+    })));
+
+    const existingAnalysisData = version.analysisData as any || {};
+    await storage.updateStrategyVersion(version.id, {
+      analysisData: {
+        ...existingAnalysisData,
+        whysPath: selectedPath,
+        rootCause,
+        strategicImplications: insights.strategic_implications,
+        recommendedActions: insights.recommended_actions,
+      },
+    });
+
+    res.json({
+      rootCause,
+      fullPath: selectedPath,
+      strategicImplication: insights.strategic_implications.join('; '),
+      versionNumber: version.versionNumber,
+    });
+  } catch (error: any) {
+    console.error('Error in /whys-tree/finalize:', error);
+    res.status(500).json({ error: error.message || 'Whys tree finalization failed' });
   }
 });
 
