@@ -13,6 +13,7 @@ export const riskImpactEnum = pgEnum('risk_impact', ['Very Low', 'Low', 'Medium'
 export const riskPriorityEnum = pgEnum('risk_priority', ['Low', 'Medium', 'High', 'Critical']);
 export const gateStatusEnum = pgEnum('gate_status', ['Pending', 'In Review', 'Passed', 'Failed', 'On Hold']);
 export const benefitStatusEnum = pgEnum('benefit_status', ['Not Started', 'In Progress', 'Realized', 'At Risk']);
+export const strategyStatusEnum = pgEnum('strategy_status', ['draft', 'finalized', 'converted_to_program']);
 
 // Users table
 export const users = pgTable("users", {
@@ -324,6 +325,52 @@ export const sessionContext = pgTable("session_context", {
   isActiveIdx: index("idx_session_context_is_active").on(table.isActive),
 }));
 
+// Strategic Consultant tables
+export const strategyVersions = pgTable("strategy_versions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  sessionId: varchar("session_id").references(() => sessionContext.id),
+  version: integer("version").notNull(),
+  versionLabel: varchar("version_label", { length: 100 }),
+  inputSummary: text("input_summary"),
+  strategicApproach: varchar("strategic_approach", { length: 100 }),
+  marketContext: varchar("market_context", { length: 100 }),
+  costMin: integer("cost_min"),
+  costMax: integer("cost_max"),
+  timelineMonths: integer("timeline_months"),
+  teamSizeMin: integer("team_size_min"),
+  teamSizeMax: integer("team_size_max"),
+  decisions: jsonb("decisions").notNull().default(sql`'[]'::jsonb`),
+  programStructure: jsonb("program_structure").notNull().default(sql`'{}'::jsonb`),
+  status: strategyStatusEnum("status").notNull().default('draft'),
+  convertedProgramId: varchar("converted_program_id").references(() => programs.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("idx_strategy_versions_user_id").on(table.userId),
+  statusIdx: index("idx_strategy_versions_status").on(table.status),
+}));
+
+export const strategicDecisions = pgTable("strategic_decisions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  strategyVersionId: varchar("strategy_version_id").notNull().references(() => strategyVersions.id),
+  decisionPoint: varchar("decision_point", { length: 200 }).notNull(),
+  optionSelected: varchar("option_selected", { length: 100 }).notNull(),
+  rationale: text("rationale"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const strategyInsights = pgTable("strategy_insights", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  context: jsonb("context").notNull(),
+  observation: text("observation").notNull(),
+  patternDetected: varchar("pattern_detected", { length: 200 }),
+  confidence: decimal("confidence", { precision: 3, scale: 2 }),
+  validated: boolean("validated").default(false),
+  createdFromSession: varchar("created_from_session").references(() => strategyVersions.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   programs: many(programs),
@@ -460,6 +507,9 @@ export const insertOntologyCascadeImpactSchema = createInsertSchema(ontologyCasc
 export const insertOntologyDomainTermSchema = createInsertSchema(ontologyDomainTerms).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOntologyFrameworkMappingSchema = createInsertSchema(ontologyFrameworkMappings).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertSessionContextSchema = createInsertSchema(sessionContext).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertStrategyVersionSchema = createInsertSchema(strategyVersions).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertStrategicDecisionSchema = createInsertSchema(strategicDecisions).omit({ id: true, createdAt: true });
+export const insertStrategyInsightSchema = createInsertSchema(strategyInsights).omit({ id: true, createdAt: true });
 
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -487,6 +537,12 @@ export type OntologyDomainTerm = typeof ontologyDomainTerms.$inferSelect;
 export type OntologyFrameworkMapping = typeof ontologyFrameworkMappings.$inferSelect;
 export type SessionContext = typeof sessionContext.$inferSelect;
 export type InsertSessionContext = z.infer<typeof insertSessionContextSchema>;
+export type StrategyVersion = typeof strategyVersions.$inferSelect;
+export type InsertStrategyVersion = z.infer<typeof insertStrategyVersionSchema>;
+export type StrategicDecision = typeof strategicDecisions.$inferSelect;
+export type InsertStrategicDecision = z.infer<typeof insertStrategicDecisionSchema>;
+export type StrategyInsight = typeof strategyInsights.$inferSelect;
+export type InsertStrategyInsight = z.infer<typeof insertStrategyInsightSchema>;
 
 // AI Orchestration Types
 
