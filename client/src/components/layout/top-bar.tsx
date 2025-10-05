@@ -31,12 +31,12 @@ export function TopBar({ title, subtitle, onToggleSidebar }: TopBarProps) {
           </div>
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           {!isLoading && programs.length > 0 && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 bg-accent/50 px-3 py-1.5 rounded-md">
               <FolderKanban className="h-4 w-4 text-muted-foreground" />
               <Select value={selectedProgramId || ""} onValueChange={setSelectedProgramId}>
-                <SelectTrigger className="w-[200px]" data-testid="select-program">
+                <SelectTrigger className="w-[200px] border-0 bg-transparent focus:ring-0 focus:ring-offset-0" data-testid="select-program">
                   <SelectValue placeholder="Select program" />
                 </SelectTrigger>
                 <SelectContent>
@@ -52,7 +52,7 @@ export function TopBar({ title, subtitle, onToggleSidebar }: TopBarProps) {
           <Button
             variant="outline"
             size="icon"
-            className="relative"
+            className="relative hidden sm:flex"
             data-testid="button-notifications"
           >
             <Bell className="h-4 w-4" />
@@ -61,6 +61,7 @@ export function TopBar({ title, subtitle, onToggleSidebar }: TopBarProps) {
           <Button
             variant="outline"
             size="icon"
+            className="hidden sm:flex"
             data-testid="button-search"
           >
             <Search className="h-4 w-4" />
