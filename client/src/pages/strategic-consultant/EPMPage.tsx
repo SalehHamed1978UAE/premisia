@@ -202,6 +202,7 @@ export default function EPMPage() {
     <AppLayout
       title={program.title}
       subtitle="Complete EPM program with metadata and validation"
+      onViewChange={(view) => setLocation('/')}
     >
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-start justify-between gap-4">
