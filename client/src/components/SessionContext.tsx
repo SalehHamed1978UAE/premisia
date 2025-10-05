@@ -10,7 +10,7 @@ import { ChevronLeft, ChevronRight, Plus, X, Check } from "lucide-react";
 import type { SessionContext } from "@shared/schema";
 
 export function SessionContextPanel() {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [newGoal, setNewGoal] = useState("");
   const [newCriteria, setNewCriteria] = useState("");
@@ -93,9 +93,9 @@ export function SessionContextPanel() {
     <>
       {/* Toggle Button */}
       <Button
-        variant="ghost"
+        variant="outline"
         size="icon"
-        className="fixed right-4 top-20 z-50 bg-surface border border-border shadow-lg"
+        className="fixed right-4 top-20 z-50 bg-background hover:bg-accent shadow-lg"
         onClick={() => setIsOpen(!isOpen)}
         data-testid="button-toggle-session-context"
       >
@@ -104,7 +104,7 @@ export function SessionContextPanel() {
 
       {/* Session Context Panel */}
       <div
-        className={`fixed right-0 top-16 h-[calc(100vh-4rem)] w-80 bg-surface border-l border-border transition-transform duration-200 ease-in-out z-40 ${
+        className={`fixed right-0 top-16 h-[calc(100vh-4rem)] w-80 bg-background border-l border-border shadow-xl transition-transform duration-200 ease-in-out z-40 ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
