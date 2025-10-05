@@ -101,6 +101,7 @@ export default function AnalysisPage() {
     <AppLayout
       title="Strategic Analysis"
       subtitle="AI-powered strategic insights and recommendations"
+      onViewChange={(view) => setLocation('/')}
     >
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex items-center justify-between">

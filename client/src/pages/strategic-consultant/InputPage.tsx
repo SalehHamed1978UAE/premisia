@@ -159,6 +159,7 @@ export default function InputPage() {
     <AppLayout
       title="Strategic Consultant Agent"
       subtitle="Transform executive input into AI-analyzed strategic decisions"
+      onViewChange={(view) => setLocation('/')}
     >
       <div className="max-w-4xl mx-auto">
         <Card>
