@@ -1,6 +1,7 @@
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useLocation } from "wouter";
 import { 
   LayoutDashboard, 
   Calendar, 
@@ -13,7 +14,8 @@ import {
   Bot,
   Settings,
   LogOut,
-  X
+  X,
+  Sparkles
 } from "lucide-react";
 import type { ViewType } from "@/pages/home-page";
 
@@ -83,6 +85,7 @@ const navigation = [
 
 export function Sidebar({ currentView, onViewChange, isOpen, onToggle }: SidebarProps) {
   const { user, logoutMutation } = useAuth();
+  const [, setLocation] = useLocation();
 
   return (
     <>
@@ -152,33 +155,55 @@ export function Sidebar({ currentView, onViewChange, isOpen, onToggle }: Sidebar
 
         {/* Navigation */}
         <nav className="flex-1 p-4 overflow-y-auto">
-          <div className="space-y-1">
-            {navigation.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Button
-                  key={item.id}
-                  variant={currentView === item.id ? "default" : "ghost"}
-                  className={cn(
-                    "w-full justify-start h-auto p-3",
-                    currentView === item.id && "bg-primary text-primary-foreground"
-                  )}
-                  onClick={() => {
-                    onViewChange(item.id);
-                    if (window.innerWidth < 1024) {
-                      onToggle();
-                    }
-                  }}
-                  data-testid={`nav-${item.id}`}
-                >
-                  <Icon className="h-5 w-5 mr-3 flex-shrink-0" />
-                  <div className="text-left">
-                    <div className="font-medium">{item.label}</div>
-                    <div className="text-xs opacity-70">{item.description}</div>
-                  </div>
-                </Button>
-              );
-            })}
+          <div className="space-y-4">
+            <div className="space-y-1">
+              {navigation.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Button
+                    key={item.id}
+                    variant={currentView === item.id ? "default" : "ghost"}
+                    className={cn(
+                      "w-full justify-start h-auto p-3",
+                      currentView === item.id && "bg-primary text-primary-foreground"
+                    )}
+                    onClick={() => {
+                      onViewChange(item.id);
+                      if (window.innerWidth < 1024) {
+                        onToggle();
+                      }
+                    }}
+                    data-testid={`nav-${item.id}`}
+                  >
+                    <Icon className="h-5 w-5 mr-3 flex-shrink-0" />
+                    <div className="text-left">
+                      <div className="font-medium">{item.label}</div>
+                      <div className="text-xs opacity-70">{item.description}</div>
+                    </div>
+                  </Button>
+                );
+              })}
+            </div>
+
+            <div className="pt-4 border-t border-border">
+              <Button
+                variant="outline"
+                className="w-full justify-start h-auto p-3 border-primary/50 hover:bg-primary/10"
+                onClick={() => {
+                  setLocation('/strategic-consultant/input');
+                  if (window.innerWidth < 1024) {
+                    onToggle();
+                  }
+                }}
+                data-testid="nav-strategic-consultant"
+              >
+                <Sparkles className="h-5 w-5 mr-3 flex-shrink-0 text-primary" />
+                <div className="text-left">
+                  <div className="font-medium">Strategic Consultant</div>
+                  <div className="text-xs opacity-70">AI-powered strategy</div>
+                </div>
+              </Button>
+            </div>
           </div>
         </nav>
 
