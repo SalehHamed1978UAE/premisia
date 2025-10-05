@@ -34,6 +34,12 @@ const navigation = [
     description: 'Program overview'
   },
   { 
+    id: 'strategies' as ViewType, 
+    label: 'Strategic Decisions', 
+    icon: Sparkles,
+    description: 'Strategy analysis & EPM'
+  },
+  { 
     id: 'timeline' as ViewType, 
     label: 'Timeline', 
     icon: Calendar,
@@ -74,12 +80,6 @@ const navigation = [
     label: 'Resources', 
     icon: Users,
     description: 'Team management'
-  },
-  { 
-    id: 'strategies' as ViewType, 
-    label: 'Strategic Decisions', 
-    icon: Sparkles,
-    description: 'Strategy analysis & EPM'
   },
   { 
     id: 'ai-orchestrator' as ViewType, 
