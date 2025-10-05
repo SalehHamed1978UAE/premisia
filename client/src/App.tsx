@@ -8,6 +8,7 @@ import { ProgramProvider } from "./contexts/ProgramContext";
 import { SessionContextPanel } from "@/components/SessionContext";
 import HomePage from "@/pages/home-page";
 import ProgramsPage from "@/pages/programs-page";
+import StrategyTest from "@/pages/strategy-test";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
 import { ProtectedRoute } from "./lib/protected-route";
@@ -18,6 +19,7 @@ function Router() {
       <Switch>
         <ProtectedRoute path="/" component={HomePage} />
         <ProtectedRoute path="/programs" component={ProgramsPage} />
+        <ProtectedRoute path="/strategy/test" component={StrategyTest} />
         <Route path="/auth" component={AuthPage} />
         <Route component={NotFound} />
       </Switch>

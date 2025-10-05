@@ -759,6 +759,56 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Strategic Consultant Test Endpoint
+  app.get("/api/strategy/test", requireAuth, async (req, res) => {
+    try {
+      const { strategyOntologyService } = await import("./ontology/strategy-ontology-service");
+      
+      // Test: Get all approaches
+      const approachesRecord = strategyOntologyService.getStrategicApproaches();
+      const approaches = Object.entries(approachesRecord).map(([id, approach]) => ({ 
+        id, 
+        name: approach.label 
+      }));
+      
+      // Test: Get cost estimate for cost_leadership in UAE
+      const costEstimate = strategyOntologyService.calculateCostEstimate('cost_leadership', 'uae');
+      
+      // Test: Get workstream allocations
+      const workstreams = strategyOntologyService.calculateWorkstreamAllocations('cost_leadership', 'uae');
+      
+      // Test: Validate coherence
+      const coherence = strategyOntologyService.validateStrategicCoherence('cost_leadership', 'uae', { 
+        has_regulatory_requirements: true 
+      });
+      
+      // Test: Get decision options
+      const decisionOptions = strategyOntologyService.getDecisionOptions('differentiation_service', 'usa');
+      
+      res.json({
+        status: 'success',
+        tests: {
+          approaches,
+          costEstimate,
+          workstreams: workstreams.slice(0, 3),
+          coherence,
+          decisionOptions: decisionOptions ? {
+            approach: decisionOptions.approach.label,
+            market: decisionOptions.market.label,
+            cost: decisionOptions.cost_estimate,
+            workstreamCount: decisionOptions.workstreams.length,
+            coherence: decisionOptions.coherence
+          } : null
+        }
+      });
+    } catch (error) {
+      res.status(500).json({ 
+        status: 'error',
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
