@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, ArrowRight, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useQuery } from "@tanstack/react-query";
+import { AppLayout } from "@/components/layout/AppLayout";
 
 interface FiveWhys {
   problem_statement: string;
@@ -97,11 +98,13 @@ export default function AnalysisPage() {
   const hasPorters = !!analysis.porters_five_forces;
 
   return (
-    <div className="min-h-screen bg-background p-8">
+    <AppLayout
+      title="Strategic Analysis"
+      subtitle="AI-powered strategic insights and recommendations"
+    >
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold mb-2" data-testid="heading-analysis">Strategic Analysis</h1>
             <p className="text-sm text-muted-foreground" data-testid="text-session-id">Session: {sessionId}</p>
           </div>
           <Button
@@ -248,6 +251,6 @@ export default function AnalysisPage() {
           </Button>
         </div>
       </div>
-    </div>
+    </AppLayout>
   );
 }

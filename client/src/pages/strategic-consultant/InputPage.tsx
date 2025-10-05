@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Upload, Loader2, FileText, Image, FileSpreadsheet, X } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AppLayout } from "@/components/layout/AppLayout";
 
 const SUPPORTED_FORMATS = {
   'application/pdf': '.pdf',
@@ -155,15 +156,11 @@ export default function InputPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-8">
+    <AppLayout
+      title="Strategic Consultant Agent"
+      subtitle="Transform executive input into AI-analyzed strategic decisions"
+    >
       <div className="max-w-4xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2" data-testid="heading-strategic-consultant">Strategic Consultant Agent</h1>
-          <p className="text-muted-foreground" data-testid="text-subtitle">
-            Transform executive input into AI-analyzed strategic decisions in under 2 minutes
-          </p>
-        </div>
-
         <Card>
           <CardHeader>
             <CardTitle>Strategic Input</CardTitle>
@@ -266,6 +263,6 @@ export default function InputPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </AppLayout>
   );
 }

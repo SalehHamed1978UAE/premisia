@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { AppLayout } from "@/components/layout/AppLayout";
 
 interface Version {
   versionNumber: number;
@@ -130,10 +131,12 @@ export default function VersionsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-8">
+    <AppLayout
+      title="Strategy Versions"
+      subtitle="Manage and compare strategy versions"
+    >
       <div className="max-w-7xl mx-auto space-y-6">
         <div>
-          <h1 className="text-3xl font-bold mb-2" data-testid="heading-versions">Strategy Versions</h1>
           <p className="text-sm text-muted-foreground" data-testid="text-session-id">Session: {sessionId}</p>
         </div>
 
@@ -354,6 +357,6 @@ export default function VersionsPage() {
           </TabsContent>
         </Tabs>
       </div>
-    </div>
+    </AppLayout>
   );
 }

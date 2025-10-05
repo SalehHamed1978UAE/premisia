@@ -10,6 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { AppLayout } from "@/components/layout/AppLayout";
 
 interface DecisionOption {
   id: string;
@@ -143,11 +144,13 @@ export default function DecisionPage() {
   const selectionCount = Object.keys(selectedDecisions).length;
 
   return (
-    <div className="min-h-screen bg-background p-8">
+    <AppLayout
+      title="Strategic Decisions"
+      subtitle="Select strategic options for your EPM program"
+    >
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold mb-2" data-testid="heading-decisions">Strategic Decisions</h1>
             <p className="text-sm text-muted-foreground">
               Session: {sessionId} | Version: {versionNumber}
             </p>
@@ -264,6 +267,6 @@ export default function DecisionPage() {
           </Button>
         </div>
       </div>
-    </div>
+    </AppLayout>
   );
 }

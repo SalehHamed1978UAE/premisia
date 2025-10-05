@@ -10,6 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { AppLayout } from "@/components/layout/AppLayout";
 
 interface EPMProgram {
   title: string;
@@ -160,11 +161,13 @@ export default function EPMPage() {
   const completenessPercent = (completeness.score / completeness.maxScore) * 100;
 
   return (
-    <div className="min-h-screen bg-background p-8">
+    <AppLayout
+      title={program.title}
+      subtitle="Complete EPM program with metadata and validation"
+    >
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
-            <h1 className="text-3xl font-bold mb-2" data-testid="heading-epm">{program.title}</h1>
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <span>Session: {sessionId}</span>
               <span>•</span>
@@ -468,6 +471,6 @@ export default function EPMPage() {
           </TabsContent>
         </Tabs>
       </div>
-    </div>
+    </AppLayout>
   );
 }
