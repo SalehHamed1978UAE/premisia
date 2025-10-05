@@ -82,6 +82,11 @@ export default function InputPage() {
     // Generate session ID
     const sessionId = `session-${Date.now()}`;
 
+    // Store input in localStorage for whys-tree analysis
+    if (text.trim()) {
+      localStorage.setItem(`strategic-input-${sessionId}`, text);
+    }
+
     try {
       const formData = new FormData();
       formData.append('sessionId', sessionId);
