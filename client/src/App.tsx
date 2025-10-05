@@ -11,6 +11,11 @@ import ProgramsPage from "@/pages/programs-page";
 import StrategyTest from "@/pages/strategy-test";
 import NotFound from "@/pages/not-found";
 import AuthPage from "@/pages/auth-page";
+import InputPage from "@/pages/strategic-consultant/InputPage";
+import AnalysisPage from "@/pages/strategic-consultant/AnalysisPage";
+import DecisionPage from "@/pages/strategic-consultant/DecisionPage";
+import EPMPage from "@/pages/strategic-consultant/EPMPage";
+import VersionsPage from "@/pages/strategic-consultant/VersionsPage";
 import { ProtectedRoute } from "./lib/protected-route";
 
 function Router() {
@@ -20,6 +25,11 @@ function Router() {
         <ProtectedRoute path="/" component={HomePage} />
         <ProtectedRoute path="/programs" component={ProgramsPage} />
         <ProtectedRoute path="/strategy/test" component={StrategyTest} />
+        <ProtectedRoute path="/strategic-consultant/input" component={InputPage} />
+        <ProtectedRoute path="/strategic-consultant/analysis/:sessionId" component={AnalysisPage} />
+        <ProtectedRoute path="/strategic-consultant/decisions/:sessionId/:versionNumber" component={DecisionPage} />
+        <ProtectedRoute path="/strategic-consultant/epm/:sessionId/:versionNumber" component={EPMPage} />
+        <ProtectedRoute path="/strategic-consultant/versions/:sessionId" component={VersionsPage} />
         <Route path="/auth" component={AuthPage} />
         <Route component={NotFound} />
       </Switch>
