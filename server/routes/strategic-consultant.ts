@@ -416,9 +416,9 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
   try {
     const { sessionId, selectedPath, rootCause, versionNumber, input } = req.body;
 
-    if (!sessionId || !selectedPath || !rootCause) {
+    if (!sessionId || !selectedPath || !rootCause || !input) {
       return res.status(400).json({ 
-        error: 'sessionId, selectedPath, and rootCause are required' 
+        error: 'sessionId, selectedPath, rootCause, and input are required' 
       });
     }
 
