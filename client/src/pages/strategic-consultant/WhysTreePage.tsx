@@ -9,6 +9,7 @@ import ReactFlow, {
   useEdgesState,
   MarkerType,
   Position,
+  Handle,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { Button } from "@/components/ui/button";
@@ -45,59 +46,63 @@ const CustomNode = ({ data }: { data: any }) => {
   const isRootCauseCandidate = data.isRootCauseCandidate;
 
   return (
-    <Card
-      className={`min-w-[250px] max-w-[300px] transition-all cursor-pointer ${
-        isSelected
-          ? 'border-blue-500 bg-blue-50 dark:bg-blue-950 shadow-lg'
-          : isInPath
-          ? 'border-blue-300 bg-blue-25 dark:bg-blue-900/30'
-          : 'border-gray-300 bg-white dark:bg-gray-800 opacity-60'
-      }`}
-      onClick={data.onClick}
-      data-testid={`node-${data.id}`}
-    >
-      <CardContent className="p-4 space-y-2">
-        <div className="flex items-start justify-between gap-2">
-          <p className="text-sm font-medium leading-tight">{data.label}</p>
-          {isSelected && (
-            <Badge variant="default" className="text-xs shrink-0">Selected</Badge>
+    <>
+      <Handle type="target" position={Position.Top} />
+      <Card
+        className={`min-w-[250px] max-w-[300px] transition-all cursor-pointer ${
+          isSelected
+            ? 'border-blue-500 bg-blue-50 dark:bg-blue-950 shadow-lg'
+            : isInPath
+            ? 'border-blue-300 bg-blue-25 dark:bg-blue-900/30'
+            : 'border-gray-300 bg-white dark:bg-gray-800 opacity-60'
+        }`}
+        onClick={data.onClick}
+        data-testid={`node-${data.id}`}
+      >
+        <CardContent className="p-4 space-y-2">
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-sm font-medium leading-tight">{data.label}</p>
+            {isSelected && (
+              <Badge variant="default" className="text-xs shrink-0">Selected</Badge>
+            )}
+          </div>
+          
+          {data.question && (
+            <p className="text-xs text-muted-foreground italic">{data.question}</p>
           )}
-        </div>
-        
-        {data.question && (
-          <p className="text-xs text-muted-foreground italic">{data.question}</p>
-        )}
 
-        {isExpandable && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="w-full mt-2"
-            onClick={(e) => {
-              e.stopPropagation();
-              data.onExpand();
-            }}
-            data-testid={`button-expand-${data.id}`}
-          >
-            Expand Branch
-          </Button>
-        )}
+          {isExpandable && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full mt-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                data.onExpand();
+              }}
+              data-testid={`button-expand-${data.id}`}
+            >
+              Expand Branch
+            </Button>
+          )}
 
-        {isRootCauseCandidate && (
-          <Button
-            size="sm"
-            className="w-full mt-2"
-            onClick={(e) => {
-              e.stopPropagation();
-              data.onFinalize();
-            }}
-            data-testid={`button-finalize-${data.id}`}
-          >
-            This is my root cause
-          </Button>
-        )}
-      </CardContent>
-    </Card>
+          {isRootCauseCandidate && (
+            <Button
+              size="sm"
+              className="w-full mt-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                data.onFinalize();
+              }}
+              data-testid={`button-finalize-${data.id}`}
+            >
+              This is my root cause
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+      <Handle type="source" position={Position.Bottom} />
+    </>
   );
 };
 
