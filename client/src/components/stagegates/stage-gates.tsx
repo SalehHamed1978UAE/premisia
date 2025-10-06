@@ -140,7 +140,7 @@ export function StageGates() {
                 const reviewDate = getGateReviewDate(gate.code);
                 
                 return (
-                  <div key={gate.code} className="relative flex flex-col items-center z-10">
+                  <div key={`gate-progress-${gate.code}-${index}`} className="relative flex flex-col items-center z-10">
                     <div className={`w-16 h-16 rounded-full border-4 border-background flex items-center justify-center mb-3 shadow-lg ${
                       status === 'Passed' ? 'bg-green-500' :
                       status === 'In Review' ? 'bg-blue-500' :
@@ -181,7 +181,7 @@ export function StageGates() {
           const reviewDate = getGateReviewDate(gate.code);
           
           return (
-            <Card key={gate.code} data-testid={`gate-card-${gate.code}`}>
+            <Card key={`gate-card-${gate.code}-${index}`} data-testid={`gate-card-${gate.code}`}>
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex items-center space-x-3">

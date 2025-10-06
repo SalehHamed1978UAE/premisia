@@ -287,9 +287,9 @@ export function Risks() {
                       </div>
                     ))}
                     
-                    {likelihoodLevels.reverse().map((likelihood) => (
-                      <>
-                        <div key={likelihood} className="flex items-center justify-end text-xs font-medium text-muted-foreground pr-2">
+                    {likelihoodLevels.reverse().map((likelihood, likelihoodIdx) => (
+                      <div key={`likelihood-row-${likelihoodIdx}`} className="contents">
+                        <div className="flex items-center justify-end text-xs font-medium text-muted-foreground pr-2">
                           {likelihood}
                         </div>
                         {impactLevels.map((impact) => {
@@ -316,7 +316,7 @@ export function Risks() {
                             </div>
                           );
                         })}
-                      </>
+                      </div>
                     ))}
                   </div>
                 </div>
