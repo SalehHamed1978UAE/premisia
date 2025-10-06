@@ -83,30 +83,46 @@ export default function InputPage() {
       // Generate session ID
       const sessionId = `session-${Date.now()}`;
 
-      // Prepare input text (extract from file if uploaded)
+      let analyzeResponse;
       let inputText = text.trim();
       
       if (file) {
-        // For files, we'll send them for extraction
+        // For files, send them for extraction and analysis
         const formData = new FormData();
         formData.append('file', file);
         formData.append('sessionId', sessionId);
         
-        const extractResponse = await fetch('/api/strategic-consultant/analyze', {
+        analyzeResponse = await fetch('/api/strategic-consultant/analyze', {
           method: 'POST',
           body: formData
         });
-        
-        if (!extractResponse.ok) {
-          throw new Error('Failed to extract text from file');
-        }
-        
-        const extractData = await extractResponse.json();
-        inputText = extractData.extractedText || text.trim();
+      } else {
+        // For text-only input, send JSON to analyze endpoint
+        analyzeResponse = await fetch('/api/strategic-consultant/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: inputText,
+            sessionId
+          })
+        });
       }
-
-      // Store input in localStorage for the flow
-      localStorage.setItem(`strategic-input-${sessionId}`, inputText);
+      
+      if (!analyzeResponse.ok) {
+        const errorData = await analyzeResponse.json();
+        throw new Error(errorData.error || 'Analysis failed');
+      }
+      
+      const analyzeData = await analyzeResponse.json();
+      
+      // Store the processed input content with fallback to original text
+      const storedInput = analyzeData.inputContent || inputText;
+      
+      if (!storedInput) {
+        throw new Error('No valid input text could be extracted');
+      }
+      
+      localStorage.setItem(`strategic-input-${sessionId}`, storedInput);
 
       clearInterval(progressInterval);
       setProgress(100);

@@ -40,7 +40,12 @@ export default function WhysTreePage() {
 
   const generateTreeMutation = useMutation({
     mutationFn: async () => {
-      const input = localStorage.getItem(`strategic-input-${sessionId}`) || '';
+      const input = localStorage.getItem(`strategic-input-${sessionId}`);
+      
+      if (!input) {
+        throw new Error('No strategic input found. Please start from the input page.');
+      }
+      
       const response = await apiRequest('POST', '/api/strategic-consultant/whys-tree/generate', {
         sessionId,
         input,
@@ -65,7 +70,12 @@ export default function WhysTreePage() {
       parentQuestion: string;
       currentDepth: number;
     }) => {
-      const input = localStorage.getItem(`strategic-input-${sessionId}`) || '';
+      const input = localStorage.getItem(`strategic-input-${sessionId}`);
+      
+      if (!input) {
+        throw new Error('Strategic input data missing. Please restart from the input page.');
+      }
+      
       const pathOptions = selectedPath.map(p => p.option);
       const response = await apiRequest('POST', '/api/strategic-consultant/whys-tree/expand', {
         sessionId,
@@ -110,7 +120,12 @@ export default function WhysTreePage() {
 
   const finalizeMutation = useMutation({
     mutationFn: async ({ rootCause, completePath }: { rootCause: string; completePath: string[] }) => {
-      const input = localStorage.getItem(`strategic-input-${sessionId}`) || '';
+      const input = localStorage.getItem(`strategic-input-${sessionId}`);
+      
+      if (!input) {
+        throw new Error('Strategic input data missing. Please restart from the input page.');
+      }
+      
       const response = await apiRequest('POST', '/api/strategic-consultant/whys-tree/finalize', {
         sessionId,
         selectedPath: completePath,

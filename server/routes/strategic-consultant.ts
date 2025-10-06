@@ -86,6 +86,7 @@ router.post('/analyze', upload.single('file'), async (req: Request, res: Respons
         createdAt: version.createdAt,
       },
       metadata: processedInput.metadata,
+      inputContent: processedInput.content,
     });
   } catch (error: any) {
     console.error('Error in /analyze:', error);
