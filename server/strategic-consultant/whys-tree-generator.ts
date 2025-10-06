@@ -9,6 +9,7 @@ export interface WhyNode {
   branches?: WhyNode[];
   isLeaf: boolean;
   parentId?: string;
+  isCustom?: boolean;
 }
 
 export interface WhyTree {
@@ -201,6 +202,30 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
       { input, previousAnswers: selectedPath },
       nextDepth,
       nodeId
+    );
+
+    return branches;
+  }
+
+  async generateCustomBranches(
+    customOption: string,
+    selectedPath: string[],
+    input: string,
+    sessionId: string,
+    currentDepth: number
+  ): Promise<WhyNode[]> {
+    if (currentDepth >= this.maxDepth) {
+      throw new Error('Cannot expand beyond maximum depth');
+    }
+
+    // Generate a follow-up question based on the custom option
+    const nextQuestion = `Why is this? (${customOption})`;
+    
+    const nextDepth = currentDepth + 1;
+    const branches = await this.generateLevelInParallel(
+      nextQuestion,
+      { input, previousAnswers: [...selectedPath, customOption] },
+      nextDepth
     );
 
     return branches;

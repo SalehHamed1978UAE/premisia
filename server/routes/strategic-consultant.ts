@@ -372,7 +372,7 @@ router.post('/whys-tree/generate', async (req: Request, res: Response) => {
 
 router.post('/whys-tree/expand', async (req: Request, res: Response) => {
   try {
-    const { sessionId, nodeId, selectedPath, currentDepth, parentQuestion, input } = req.body;
+    const { sessionId, nodeId, selectedPath, currentDepth, parentQuestion, input, isCustom, customOption } = req.body;
 
     if (!sessionId || !nodeId || !selectedPath || currentDepth === undefined || !parentQuestion || !input) {
       return res.status(400).json({ 
@@ -380,14 +380,28 @@ router.post('/whys-tree/expand', async (req: Request, res: Response) => {
       });
     }
 
-    const expandedBranches = await whysTreeGenerator.expandBranch(
-      nodeId,
-      selectedPath,
-      input,
-      sessionId,
-      currentDepth,
-      parentQuestion
-    );
+    let expandedBranches;
+
+    if (isCustom && customOption) {
+      // For custom options, generate fresh branches using the custom option as context
+      expandedBranches = await whysTreeGenerator.generateCustomBranches(
+        customOption,
+        selectedPath,
+        input,
+        sessionId,
+        currentDepth
+      );
+    } else {
+      // For AI-generated options, use normal expand logic
+      expandedBranches = await whysTreeGenerator.expandBranch(
+        nodeId,
+        selectedPath,
+        input,
+        sessionId,
+        currentDepth,
+        parentQuestion
+      );
+    }
 
     res.json({
       expandedBranches,
