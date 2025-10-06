@@ -109,7 +109,18 @@ export class VersionManager {
     }
 
     if (version.status === 'finalized') {
-      throw new Error('Version already finalized');
+      // Already finalized - return existing data (idempotent operation)
+      return {
+        versionNumber: version.versionNumber,
+        analysis: version.analysisData as StrategyAnalysis,
+        decisions: version.decisionsData as GeneratedDecisions,
+        selectedDecisions: version.selectedDecisions as Record<string, string>,
+        programStructure: version.programStructure,
+        status: version.status as 'draft' | 'in_review' | 'finalized',
+        createdBy: version.createdBy,
+        createdAt: version.createdAt || undefined,
+        finalizedAt: version.finalizedAt || undefined,
+      };
     }
 
     if (!version.selectedDecisions || Object.keys(version.selectedDecisions as Record<string, unknown>).length === 0) {

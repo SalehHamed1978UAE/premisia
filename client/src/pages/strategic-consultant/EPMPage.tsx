@@ -147,14 +147,15 @@ export default function EPMPage() {
     }
   });
 
-  // Auto-trigger conversion if no program data AND decisions are selected
+  // Auto-trigger conversion if no program data AND decisions are selected AND not already finalized
   useEffect(() => {
     if (!isLoading && data && !data.version?.program && !error && !isConverting && sessionId) {
       const version = data.version as any;
       const hasSelectedDecisions = version?.selectedDecisions && 
         Object.keys(version.selectedDecisions).length > 0;
+      const isNotFinalized = version?.status !== 'finalized';
       
-      if (hasSelectedDecisions) {
+      if (hasSelectedDecisions && isNotFinalized) {
         convertMutation.mutate();
       }
     }
