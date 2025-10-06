@@ -120,10 +120,11 @@ export default function WhysTreePage() {
   const generateTreeMutation = useMutation({
     mutationFn: async () => {
       const input = localStorage.getItem(`strategic-input-${sessionId}`) || '';
-      return apiRequest('POST', '/api/strategic-consultant/whys-tree/generate', {
+      const response = await apiRequest('POST', '/api/strategic-consultant/whys-tree/generate', {
         sessionId,
         input,
       });
+      return response.json();
     },
     onSuccess: (data: any) => {
       setTree(data.tree);
@@ -144,7 +145,7 @@ export default function WhysTreePage() {
       currentDepth: number;
     }) => {
       const input = localStorage.getItem(`strategic-input-${sessionId}`) || '';
-      return apiRequest('POST', '/api/strategic-consultant/whys-tree/expand', {
+      const response = await apiRequest('POST', '/api/strategic-consultant/whys-tree/expand', {
         sessionId,
         nodeId,
         selectedPath,
@@ -152,6 +153,7 @@ export default function WhysTreePage() {
         parentQuestion,
         input,
       });
+      return response.json();
     },
     onSuccess: (data: any, variables) => {
       if (data.expandedBranches && tree) {
@@ -186,12 +188,13 @@ export default function WhysTreePage() {
   const finalizeMutation = useMutation({
     mutationFn: async (rootCause: string) => {
       const input = localStorage.getItem(`strategic-input-${sessionId}`) || '';
-      return apiRequest('POST', '/api/strategic-consultant/whys-tree/finalize', {
+      const response = await apiRequest('POST', '/api/strategic-consultant/whys-tree/finalize', {
         sessionId,
         selectedPath,
         rootCause,
         input,
       });
+      return response.json();
     },
     onSuccess: (data: any) => {
       toast({
