@@ -143,7 +143,10 @@ export default function WhysTreePage() {
       });
       return response.json();
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data: any, variables) => {
+      localStorage.setItem(`strategic-rootCause-${sessionId}`, variables.rootCause);
+      localStorage.setItem(`strategic-whysPath-${sessionId}`, JSON.stringify(variables.completePath));
+      
       toast({
         title: "Root cause identified",
         description: "Proceeding to research phase",
