@@ -147,10 +147,16 @@ export default function EPMPage() {
     }
   });
 
-  // Auto-trigger conversion if no program data
+  // Auto-trigger conversion if no program data AND decisions are selected
   useEffect(() => {
     if (!isLoading && data && !data.version?.program && !error && !isConverting && sessionId) {
-      convertMutation.mutate();
+      const version = data.version as any;
+      const hasSelectedDecisions = version?.selectedDecisions && 
+        Object.keys(version.selectedDecisions).length > 0;
+      
+      if (hasSelectedDecisions) {
+        convertMutation.mutate();
+      }
     }
   }, [isLoading, data, error, isConverting, sessionId]);
 
@@ -179,6 +185,31 @@ export default function EPMPage() {
   }
 
   if (error || !data || !data.version?.program) {
+    const version = data?.version as any;
+    const hasSelectedDecisions = version?.selectedDecisions && 
+      Object.keys(version.selectedDecisions).length > 0;
+    
+    if (!error && !hasSelectedDecisions) {
+      return (
+        <div className="min-h-screen bg-background flex items-center justify-center p-8">
+          <Alert className="max-w-md">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Decisions Not Selected</AlertTitle>
+            <AlertDescription className="space-y-4">
+              <p>This strategy version needs decisions to be selected before it can be converted to an EPM program.</p>
+              <Button 
+                onClick={() => setLocation(`/strategic-consultant/decisions/${sessionId}/${versionNumber}`)}
+                className="w-full"
+                data-testid="button-select-decisions"
+              >
+                Select Decisions
+              </Button>
+            </AlertDescription>
+          </Alert>
+        </div>
+      );
+    }
+    
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-8">
         <Alert variant="destructive" className="max-w-md">
