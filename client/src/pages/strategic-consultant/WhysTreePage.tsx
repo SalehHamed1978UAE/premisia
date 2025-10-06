@@ -283,7 +283,19 @@ export default function WhysTreePage() {
         )}
 
         {/* Main Option Card (Carousel) */}
-        {currentOption ? (
+        {expandBranchMutation.isPending ? (
+          <Card className="border-2">
+            <CardContent className="py-12">
+              <div className="flex flex-col items-center justify-center gap-4 text-center">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                <div>
+                  <p className="text-lg font-semibold">Generating next level of Whys...</p>
+                  <p className="text-sm text-muted-foreground mt-1">This usually takes 10-15 seconds</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : currentOption ? (
           <Card className="border-2" data-testid={`option-card-${currentOption.id}`}>
             <CardHeader>
               <div className="flex items-start justify-between gap-4">
@@ -330,42 +342,31 @@ export default function WhysTreePage() {
 
               {/* Action Buttons */}
               <div className="pt-4 border-t space-y-3">
-                {expandBranchMutation.isPending && (
-                  <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-4">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>Generating next level of analysis (10-15 seconds)...</span>
-                  </div>
+                {!showOnlyFinalize && canShowContinueButton && (
+                  <Button
+                    className="w-full"
+                    size="lg"
+                    onClick={handleSelectAndContinue}
+                    disabled={finalizeMutation.isPending}
+                    data-testid="button-continue"
+                  >
+                    <ArrowRight className="h-5 w-5 mr-2" />
+                    Continue to next Why
+                  </Button>
                 )}
 
-                {!expandBranchMutation.isPending && (
-                  <>
-                    {!showOnlyFinalize && canShowContinueButton && (
-                      <Button
-                        className="w-full"
-                        size="lg"
-                        onClick={handleSelectAndContinue}
-                        disabled={finalizeMutation.isPending}
-                        data-testid="button-continue"
-                      >
-                        <ArrowRight className="h-5 w-5 mr-2" />
-                        Continue to next Why
-                      </Button>
-                    )}
-
-                    {canShowRootCauseButton && (
-                      <Button
-                        variant={showOnlyFinalize ? "default" : "secondary"}
-                        className="w-full"
-                        size="lg"
-                        onClick={handleFinalize}
-                        disabled={finalizeMutation.isPending}
-                        data-testid="button-finalize"
-                      >
-                        <CheckCircle2 className="h-5 w-5 mr-2" />
-                        {finalizeMutation.isPending ? "Processing..." : "This is my root cause"}
-                      </Button>
-                    )}
-                  </>
+                {canShowRootCauseButton && (
+                  <Button
+                    variant={showOnlyFinalize ? "default" : "secondary"}
+                    className="w-full"
+                    size="lg"
+                    onClick={handleFinalize}
+                    disabled={finalizeMutation.isPending}
+                    data-testid="button-finalize"
+                  >
+                    <CheckCircle2 className="h-5 w-5 mr-2" />
+                    {finalizeMutation.isPending ? "Processing..." : "This is my root cause"}
+                  </Button>
                 )}
               </div>
             </CardContent>
