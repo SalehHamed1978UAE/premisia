@@ -40,7 +40,7 @@ interface DashboardSummary {
 }
 
 export function Dashboard() {
-  const { selectedProgramId } = useProgram();
+  const { selectedProgramId, isLoading: programsLoading } = useProgram();
   const { data: summary, isLoading, error } = useQuery<DashboardSummary>({
     queryKey: ['/api/dashboard/summary', selectedProgramId],
     queryFn: async () => {
@@ -54,7 +54,7 @@ export function Dashboard() {
     enabled: !!selectedProgramId,
   });
 
-  if (isLoading) {
+  if (programsLoading || isLoading) {
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
