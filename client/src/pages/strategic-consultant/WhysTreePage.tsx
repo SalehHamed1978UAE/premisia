@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, ChevronLeft, ChevronRight, ArrowRight, CheckCircle2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Loader2, ChevronLeft, ChevronRight, ArrowRight, CheckCircle2, Edit, Plus } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -18,6 +19,7 @@ interface WhyNode {
   branches?: WhyNode[];
   isLeaf: boolean;
   parentId?: string;
+  isCustom?: boolean;
 }
 
 interface WhyTree {
@@ -37,6 +39,9 @@ export default function WhysTreePage() {
   const [selectedPath, setSelectedPath] = useState<{ nodeId: string; option: string; depth: number }[]>([]);
   const [currentLevel, setCurrentLevel] = useState(1);
   const [currentOptionIndex, setCurrentOptionIndex] = useState(0);
+  const [customWhyText, setCustomWhyText] = useState("");
+  const [isEditingWhy, setIsEditingWhy] = useState(false);
+  const [editedWhyText, setEditedWhyText] = useState("");
 
   const generateTreeMutation = useMutation({
     mutationFn: async () => {
@@ -65,10 +70,12 @@ export default function WhysTreePage() {
   });
 
   const expandBranchMutation = useMutation({
-    mutationFn: async ({ nodeId, parentQuestion, currentDepth }: {
+    mutationFn: async ({ nodeId, parentQuestion, currentDepth, isCustom, customOption }: {
       nodeId: string;
       parentQuestion: string;
       currentDepth: number;
+      isCustom?: boolean;
+      customOption?: string;
     }) => {
       const input = localStorage.getItem(`strategic-input-${sessionId}`);
       
@@ -84,6 +91,8 @@ export default function WhysTreePage() {
         currentDepth,
         parentQuestion,
         input,
+        isCustom: isCustom || false,
+        customOption,
       });
       return response.json();
     },
@@ -199,10 +208,13 @@ export default function WhysTreePage() {
       setCurrentLevel(prev => prev + 1);
       setCurrentOptionIndex(0);
     } else {
+      // If custom option, pass isCustom flag to expand mutation
       expandBranchMutation.mutate({
         nodeId: currentOption.id,
         parentQuestion: currentOption.question,
         currentDepth: currentOption.depth,
+        isCustom: currentOption.isCustom || false,
+        customOption: currentOption.isCustom ? currentOption.option : undefined,
       });
     }
   };
@@ -221,6 +233,103 @@ export default function WhysTreePage() {
       rootCause: currentOption.option,
       completePath: pathOptions
     });
+  };
+
+  const handleAddCustomWhy = () => {
+    if (!customWhyText.trim() || !tree) return;
+
+    const customNodeId = `custom-${Date.now()}`;
+    const customNode: WhyNode = {
+      id: customNodeId,
+      question: `Why is this? (${customWhyText})`,
+      option: customWhyText.trim(),
+      depth: currentLevel,
+      isLeaf: false,
+      isCustom: true,
+    };
+
+    // Add custom option to current level
+    if (currentLevel === 1) {
+      setTree({
+        ...tree,
+        branches: [...tree.branches, customNode],
+      });
+      setCurrentOptionIndex(tree.branches.length); // Select the new custom option
+    } else {
+      // Navigate to the custom option's parent and add it there
+      const updateTreeWithCustom = (nodes: WhyNode[]): WhyNode[] => {
+        return nodes.map(node => {
+          if (selectedPath.length > 0 && node.id === selectedPath[selectedPath.length - 1].nodeId) {
+            return {
+              ...node,
+              branches: [...(node.branches || []), customNode],
+            };
+          }
+          if (node.branches) {
+            return { ...node, branches: updateTreeWithCustom(node.branches) };
+          }
+          return node;
+        });
+      };
+      
+      setTree({
+        ...tree,
+        branches: updateTreeWithCustom(tree.branches),
+      });
+      const currentOptionsLength = getCurrentOptions().length;
+      setCurrentOptionIndex(currentOptionsLength); // Select the new custom option
+    }
+
+    setCustomWhyText("");
+    toast({
+      title: "Custom Why added",
+      description: "You can now select and continue with your custom option",
+    });
+  };
+
+  const handleEditWhy = () => {
+    if (!currentOption || !editedWhyText.trim() || !tree) return;
+
+    const updateNodeOption = (nodes: WhyNode[]): WhyNode[] => {
+      return nodes.map(node => {
+        if (node.id === currentOption.id) {
+          return {
+            ...node,
+            option: editedWhyText.trim(),
+            question: `Why is this? (${editedWhyText.trim()})`,
+            isCustom: true, // Mark as custom after editing
+          };
+        }
+        if (node.branches) {
+          return { ...node, branches: updateNodeOption(node.branches) };
+        }
+        return node;
+      });
+    };
+
+    setTree({
+      ...tree,
+      branches: updateNodeOption(tree.branches),
+    });
+
+    setIsEditingWhy(false);
+    setEditedWhyText("");
+    toast({
+      title: "Why updated",
+      description: "The option has been updated with your changes",
+    });
+  };
+
+  const handleStartEdit = () => {
+    if (currentOption) {
+      setEditedWhyText(currentOption.option);
+      setIsEditingWhy(true);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingWhy(false);
+    setEditedWhyText("");
   };
 
   const canShowRootCauseButton = currentLevel >= 3;
@@ -355,41 +464,122 @@ export default function WhysTreePage() {
                 </Button>
               </div>
 
-              {/* Action Buttons */}
-              <div className="pt-4 border-t space-y-3">
-                {!showOnlyFinalize && canShowContinueButton && (
-                  <Button
-                    className="w-full"
-                    size="lg"
-                    onClick={handleSelectAndContinue}
-                    disabled={finalizeMutation.isPending}
-                    data-testid="button-continue"
-                  >
-                    <ArrowRight className="h-5 w-5 mr-2" />
-                    Continue to next Why
-                  </Button>
-                )}
+              {/* Edit Why Section */}
+              {isEditingWhy ? (
+                <div className="pt-4 border-t space-y-3">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Edit this Why</label>
+                    <Textarea
+                      value={editedWhyText}
+                      onChange={(e) => setEditedWhyText(e.target.value)}
+                      placeholder="Edit your Why statement..."
+                      rows={3}
+                      data-testid="textarea-edit-why"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      className="flex-1"
+                      onClick={handleEditWhy}
+                      disabled={!editedWhyText.trim()}
+                      data-testid="button-save-edit"
+                    >
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      Save Changes
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleCancelEdit}
+                      data-testid="button-cancel-edit"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Edit Button */}
+                  <div className="pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleStartEdit}
+                      className="w-full"
+                      data-testid="button-start-edit"
+                    >
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit this Why
+                    </Button>
+                  </div>
 
-                {canShowRootCauseButton && (
-                  <Button
-                    variant={showOnlyFinalize ? "default" : "secondary"}
-                    className="w-full"
-                    size="lg"
-                    onClick={handleFinalize}
-                    disabled={finalizeMutation.isPending}
-                    data-testid="button-finalize"
-                  >
-                    <CheckCircle2 className="h-5 w-5 mr-2" />
-                    {finalizeMutation.isPending ? "Processing..." : "This is my root cause"}
-                  </Button>
-                )}
-              </div>
+                  {/* Action Buttons */}
+                  <div className="pt-2 space-y-3">
+                    {!showOnlyFinalize && canShowContinueButton && (
+                      <Button
+                        className="w-full"
+                        size="lg"
+                        onClick={handleSelectAndContinue}
+                        disabled={finalizeMutation.isPending}
+                        data-testid="button-continue"
+                      >
+                        <ArrowRight className="h-5 w-5 mr-2" />
+                        Continue to next Why
+                      </Button>
+                    )}
+
+                    {canShowRootCauseButton && (
+                      <Button
+                        variant={showOnlyFinalize ? "default" : "secondary"}
+                        className="w-full"
+                        size="lg"
+                        onClick={handleFinalize}
+                        disabled={finalizeMutation.isPending}
+                        data-testid="button-finalize"
+                      >
+                        <CheckCircle2 className="h-5 w-5 mr-2" />
+                        {finalizeMutation.isPending ? "Processing..." : "This is my root cause"}
+                      </Button>
+                    )}
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         ) : (
           <Alert>
             <AlertDescription>No options available at this level</AlertDescription>
           </Alert>
+        )}
+
+        {/* Custom Why Input Section */}
+        {!expandBranchMutation.isPending && (
+          <Card className="border-dashed">
+            <CardContent className="p-4">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Plus className="h-4 w-4 text-muted-foreground" />
+                  <label className="text-sm font-medium">Add your own Why</label>
+                </div>
+                <Textarea
+                  value={customWhyText}
+                  onChange={(e) => setCustomWhyText(e.target.value)}
+                  placeholder="If none of the options fit, type your own Why statement here..."
+                  rows={2}
+                  data-testid="textarea-custom-why"
+                />
+                <Button
+                  variant="outline"
+                  onClick={handleAddCustomWhy}
+                  disabled={!customWhyText.trim()}
+                  className="w-full"
+                  data-testid="button-add-custom-why"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Custom Why
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Mini Thumbnails (Optional visual aid) */}
