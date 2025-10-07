@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { setupAuth } from "./auth";
+import { setupAuth, isAuthenticated } from "./replitAuth";
 import { storage } from "./storage";
 import { insertProgramSchema, insertWorkstreamSchema, insertStageGateSchema, insertTaskSchema, insertKpiSchema, insertRiskSchema, insertBenefitSchema, insertFundingSourceSchema, insertExpenseSchema, insertResourceSchema, insertSessionContextSchema, orchestratorTaskSchema } from "@shared/schema";
 import { ontologyService } from "./ontology-service";
@@ -8,27 +8,43 @@ import { assessmentService } from "./assessment-service";
 import { Orchestrator } from "./orchestrator";
 import strategicConsultantRoutes from "./routes/strategic-consultant";
 
-export function registerRoutes(app: Express): Server {
-  // Setup authentication routes
-  setupAuth(app);
+export async function registerRoutes(app: Express): Promise<Server> {
+  // Setup Replit Auth
+  await setupAuth(app);
+
+  // Auth user endpoint for Replit Auth
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
 
   // Strategic Consultant routes
   app.use("/api/strategic-consultant", strategicConsultantRoutes);
 
-  // Middleware to check authentication
-  const requireAuth = (req: any, res: any, next: any) => {
-    if (!req.isAuthenticated()) {
+  // Middleware to check authentication (using Replit Auth)
+  const requireAuth = isAuthenticated;
+
+  // Middleware to check roles (updated for Replit Auth)
+  const requireRole = (roles: string[]) => async (req: any, res: any, next: any) => {
+    if (!req.user?.claims?.sub) {
       return res.status(401).json({ message: "Authentication required" });
     }
-    next();
-  };
-
-  // Middleware to check roles
-  const requireRole = (roles: string[]) => (req: any, res: any, next: any) => {
-    if (!req.user || !roles.includes(req.user.role)) {
-      return res.status(403).json({ message: "Insufficient permissions" });
+    
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (!user || !roles.includes(user.role)) {
+        return res.status(403).json({ message: "Insufficient permissions" });
+      }
+      next();
+    } catch (error) {
+      return res.status(500).json({ message: "Failed to verify permissions" });
     }
-    next();
   };
 
   // Programs

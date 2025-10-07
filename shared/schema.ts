@@ -15,14 +15,27 @@ export const gateStatusEnum = pgEnum('gate_status', ['Pending', 'In Review', 'Pa
 export const benefitStatusEnum = pgEnum('benefit_status', ['Not Started', 'In Progress', 'Realized', 'At Risk']);
 export const strategyStatusEnum = pgEnum('strategy_status', ['draft', 'finalized', 'converting', 'converted_to_program']);
 
-// Users table
+// Session storage table for Replit Auth
+export const sessions = pgTable(
+  "sessions",
+  {
+    sid: varchar("sid").primaryKey(),
+    sess: jsonb("sess").notNull(),
+    expire: timestamp("expire").notNull(),
+  },
+  (table) => [index("IDX_session_expire").on(table.expire)],
+);
+
+// Users table - Updated for Replit Auth
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
-  email: text("email"),
+  email: varchar("email").unique(),
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  profileImageUrl: varchar("profile_image_url"),
   role: roleEnum("role").notNull().default('Viewer'),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Programs table
@@ -490,7 +503,7 @@ export const benefitsRelations = relations(benefits, ({ one }) => ({
 }));
 
 // Insert schemas
-export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
+export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertProgramSchema = createInsertSchema(programs).omit({ id: true, createdAt: true });
 export const insertWorkstreamSchema = createInsertSchema(workstreams).omit({ id: true, createdAt: true });
 export const insertResourceSchema = createInsertSchema(resources).omit({ id: true, createdAt: true });
@@ -519,6 +532,7 @@ export const insertStrategyInsightSchema = createInsertSchema(strategyInsights).
 
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type UpsertUser = typeof users.$inferInsert;  // For Replit Auth
 export type User = typeof users.$inferSelect;
 export type Program = typeof programs.$inferSelect;
 export type Workstream = typeof workstreams.$inferSelect;

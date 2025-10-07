@@ -5,7 +5,7 @@ import {
   benefits, fundingSources, expenses, sessionContext, strategyVersions
 } from "@shared/schema";
 import type { 
-  User, InsertUser, Program, Workstream, Resource, StageGate, StageGateReview,
+  User, InsertUser, UpsertUser, Program, Workstream, Resource, StageGate, StageGateReview,
   Task, TaskDependency, Kpi, KpiMeasurement, Risk, RiskMitigation,
   Benefit, FundingSource, Expense, SessionContext, InsertSessionContext, StrategyVersion
 } from "@shared/schema";
@@ -24,6 +24,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  upsertUser(user: UpsertUser): Promise<User>; // For Replit Auth
   
   // Program management
   getPrograms(): Promise<Program[]>;
@@ -152,12 +153,28 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
-    return user || undefined;
+    // Legacy method - kept for backward compatibility
+    return undefined;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
+    return user;
+  }
+
+  // Replit Auth user upsert
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
     return user;
   }
 
