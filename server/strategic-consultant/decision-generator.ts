@@ -209,9 +209,6 @@ Buyer Behavior: ${buyerBehavior || 'No specific insights'}
 PORTER'S FIVE FORCES STRATEGIC RESPONSES:
 ${strategicResponses.join('\n')}
 
-KEY STRATEGIC PRIORITIES FROM PORTER'S ANALYSIS:
-${portersAnalysis.key_strategic_priorities.join(', ')}
-
 RULES FOR DECISION OPTIONS:
 1. If research CONTRADICTS an assumption from the original input, DO NOT recommend options based on that assumption
 2. Prioritize options that align with research findings and Porter's strategic responses
