@@ -68,6 +68,10 @@ export class MarketResearcher {
     input: string,
     whysPath: string[]
   ): Promise<ResearchQuery[]> {
+    // Detect language and cultural differentiation keywords
+    const mentionsLanguageDiff = /arabic|language|multilingual|localization|translation/i.test(input);
+    const mentionsCulturalDiff = /cultural|culture|islamic|traditional|local customs|regional preferences/i.test(input);
+
     const response = await this.anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 2000,
@@ -136,7 +140,45 @@ Example for "Arabic language differentiates our enterprise software in UAE":
     }
 
     const parsed = JSON.parse(jsonMatch[0]);
-    return parsed.queries;
+    const queries = parsed.queries;
+
+    // Add additional challenging queries based on keyword detection
+    if (mentionsLanguageDiff) {
+      // Extract market/region from input (simple extraction)
+      const marketMatch = input.match(/\b(UAE|Saudi|Qatar|Kuwait|Bahrain|MENA|Middle East|GCC)\b/i);
+      const market = marketMatch ? marketMatch[0] : 'UAE';
+      
+      queries.push({
+        query: `English vs Arabic ${market} business language statistics`,
+        purpose: 'Challenge language differentiation assumption with data',
+        type: 'challenging'
+      });
+      
+      queries.push({
+        query: `successful English-only software ${market} market`,
+        purpose: 'Test if language localization is necessary for success',
+        type: 'challenging'
+      });
+    }
+
+    if (mentionsCulturalDiff) {
+      const marketMatch = input.match(/\b(UAE|Saudi|Qatar|Kuwait|Bahrain|MENA|Middle East|GCC)\b/i);
+      const market = marketMatch ? marketMatch[0] : 'UAE';
+      
+      queries.push({
+        query: `${market} enterprise software buyer preferences data`,
+        purpose: 'Get actual buyer behavior data vs cultural assumptions',
+        type: 'challenging'
+      });
+      
+      queries.push({
+        query: `multinational company software standards ${market}`,
+        purpose: 'Test if global standards override local cultural preferences',
+        type: 'challenging'
+      });
+    }
+
+    return queries;
   }
 
   async performSingleWebSearch(query: ResearchQuery): Promise<any> {
