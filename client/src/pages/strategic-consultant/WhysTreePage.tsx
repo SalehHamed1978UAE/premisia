@@ -3,9 +3,19 @@ import { useRoute, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, ChevronLeft, ChevronRight, ArrowRight, CheckCircle2, Edit, Plus } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Loader2, ChevronLeft, ChevronRight, ArrowRight, CheckCircle2, Edit, Plus, ChevronDown, Lightbulb } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -20,6 +30,9 @@ interface WhyNode {
   isLeaf: boolean;
   parentId?: string;
   isCustom?: boolean;
+  supporting_evidence: string[];
+  counter_arguments: string[];
+  consideration: string;
 }
 
 interface WhyTree {
@@ -42,6 +55,8 @@ export default function WhysTreePage() {
   const [customWhyText, setCustomWhyText] = useState("");
   const [isEditingWhy, setIsEditingWhy] = useState(false);
   const [editedWhyText, setEditedWhyText] = useState("");
+  const [showValidationWarning, setShowValidationWarning] = useState(false);
+  const [validationMessage, setValidationMessage] = useState("");
 
   const generateTreeMutation = useMutation({
     mutationFn: async () => {
@@ -124,6 +139,15 @@ export default function WhysTreePage() {
         description: error.message || "Failed to expand branch",
         variant: "destructive",
       });
+    },
+  });
+
+  const validateRootCauseMutation = useMutation({
+    mutationFn: async (rootCauseText: string) => {
+      const response = await apiRequest('POST', '/api/strategic-consultant/whys-tree/validate-root-cause', {
+        rootCauseText,
+      });
+      return response.json();
     },
   });
 
@@ -222,20 +246,39 @@ export default function WhysTreePage() {
     }
   };
 
-  const handleFinalize = () => {
+  const handleFinalize = async () => {
     if (!currentOption) return;
     
-    const finalPath = [...selectedPath, {
-      nodeId: currentOption.id,
-      option: currentOption.option,
-      depth: currentOption.depth
-    }];
-    
-    const pathOptions = finalPath.map(p => p.option);
-    finalizeMutation.mutate({
-      rootCause: currentOption.option,
-      completePath: pathOptions
-    });
+    // Validate root cause first
+    try {
+      const validation = await validateRootCauseMutation.mutateAsync(currentOption.option);
+      
+      if (!validation.valid) {
+        // Show warning modal if validation fails
+        setValidationMessage(validation.message || 'This root cause contains cultural observations instead of business problems.');
+        setShowValidationWarning(true);
+        return;
+      }
+      
+      // If validation passes, proceed with finalization
+      const finalPath = [...selectedPath, {
+        nodeId: currentOption.id,
+        option: currentOption.option,
+        depth: currentOption.depth
+      }];
+      
+      const pathOptions = finalPath.map(p => p.option);
+      finalizeMutation.mutate({
+        rootCause: currentOption.option,
+        completePath: pathOptions
+      });
+    } catch (error: any) {
+      toast({
+        title: "Validation failed",
+        description: error.message || "Failed to validate root cause",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleAddCustomWhy = () => {
@@ -249,6 +292,9 @@ export default function WhysTreePage() {
       depth: currentLevel,
       isLeaf: false,
       isCustom: true,
+      supporting_evidence: [],
+      counter_arguments: [],
+      consideration: 'Custom option - evidence will be generated when expanded',
     };
 
     // Add custom option to current level
@@ -440,6 +486,71 @@ export default function WhysTreePage() {
               )}
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Consideration Section (Always Visible) */}
+              {currentOption.consideration && (
+                <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4" data-testid="consideration-section">
+                  <div className="flex items-start gap-3">
+                    <Lightbulb className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                    <p className="text-sm text-blue-900 dark:text-blue-100">{currentOption.consideration}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Evidence Sections (Collapsible) */}
+              {(currentOption.supporting_evidence?.length > 0 || currentOption.counter_arguments?.length > 0) && (
+                <div className="space-y-3">
+                  {/* Supporting Evidence */}
+                  {currentOption.supporting_evidence?.length > 0 && (
+                    <Collapsible>
+                      <CollapsibleTrigger className="w-full" data-testid="trigger-supporting-evidence">
+                        <div className="flex items-center justify-between w-full p-3 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 hover:bg-green-100 dark:hover:bg-green-950/50 transition-colors">
+                          <span className="font-medium text-green-900 dark:text-green-100 flex items-center gap-2">
+                            <span className="text-lg">✅</span>
+                            Supporting Evidence
+                          </span>
+                          <ChevronDown className="h-4 w-4 text-green-700 dark:text-green-300" />
+                        </div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="mt-2 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg p-4" data-testid="content-supporting-evidence">
+                        <ul className="space-y-2">
+                          {currentOption.supporting_evidence.map((point, i) => (
+                            <li key={i} className="text-sm text-green-900 dark:text-green-100 flex gap-2">
+                              <span className="text-green-600 dark:text-green-400 mt-1">•</span>
+                              <span>{point}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  )}
+
+                  {/* Counter-Arguments */}
+                  {currentOption.counter_arguments?.length > 0 && (
+                    <Collapsible>
+                      <CollapsibleTrigger className="w-full" data-testid="trigger-counter-arguments">
+                        <div className="flex items-center justify-between w-full p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors">
+                          <span className="font-medium text-amber-900 dark:text-amber-100 flex items-center gap-2">
+                            <span className="text-lg">⚠️</span>
+                            Counter-Arguments
+                          </span>
+                          <ChevronDown className="h-4 w-4 text-amber-700 dark:text-amber-300" />
+                        </div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="mt-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4" data-testid="content-counter-arguments">
+                        <ul className="space-y-2">
+                          {currentOption.counter_arguments.map((point, i) => (
+                            <li key={i} className="text-sm text-amber-900 dark:text-amber-100 flex gap-2">
+                              <span className="text-amber-600 dark:text-amber-400 mt-1">•</span>
+                              <span>{point}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  )}
+                </div>
+              )}
+
               {/* Navigation Buttons */}
               <div className="flex items-center justify-between gap-4">
                 <Button
@@ -605,6 +716,26 @@ export default function WhysTreePage() {
           </div>
         )}
       </div>
+
+      {/* Validation Warning Modal */}
+      <AlertDialog open={showValidationWarning} onOpenChange={setShowValidationWarning}>
+        <AlertDialogContent data-testid="dialog-validation-warning">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cultural Observation Detected</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>{validationMessage}</p>
+              <p className="text-sm mt-2">
+                Please select a different branch that focuses on market dynamics, competitive positioning, or product-market fit.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setShowValidationWarning(false)} data-testid="button-go-back">
+              Go Back
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }

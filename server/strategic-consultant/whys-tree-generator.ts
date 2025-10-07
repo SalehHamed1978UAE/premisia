@@ -10,6 +10,9 @@ export interface WhyNode {
   isLeaf: boolean;
   parentId?: string;
   isCustom?: boolean;
+  supporting_evidence: string[];
+  counter_arguments: string[];
+  consideration: string;
 }
 
 export interface WhyTree {
@@ -117,7 +120,56 @@ Example: "Why is there a need to enter the renewable energy market?"`,
       messages: [
         {
           role: 'user',
-          content: `You are a strategic consultant conducting a "5 Whys" analysis. Generate 3-4 distinct causal explanations.
+          content: `You are a strategic business consultant performing a 5 Whys root cause analysis for BUSINESS STRATEGY.
+
+STRICT REQUIREMENT: Use ONLY business strategy reasoning. Cultural/anthropological analysis is FORBIDDEN.
+
+FORBIDDEN TOPICS (DO NOT USE):
+- Cultural dynamics, hierarchical respect, face-saving, indirect communication
+- Power imbalances, organizational culture theory
+- Cultural identity, traditions, or anthropological concepts
+- Social norms, cultural preferences, or societal behavior patterns
+- Traditional values or cultural accommodation strategies
+
+REQUIRED TOPICS (MUST USE):
+- Market saturation and competitive positioning
+- Product-market fit and feature differentiation
+- Pricing pressure and customer acquisition costs
+- Resource constraints and go-to-market strategy
+- Market dynamics and competitive advantage
+- Sales cycle efficiency and conversion metrics
+- Customer churn and retention economics
+- Competitive moats and barriers to entry
+
+Each "Why?" must explore BUSINESS LOGIC:
+- Why does this business decision make competitive sense?
+- What market conditions drive this strategy?
+- How does this create competitive advantage?
+- What are the economic/resource constraints?
+- What customer pain points drive demand?
+- What are the unit economics or financial drivers?
+
+EXAMPLES OF CORRECT BUSINESS REASONING:
+✅ "Market shows 40% YoY growth with only 3 established players"
+✅ "Addresses unmet need costing customers $50K annually per enterprise"
+✅ "Competitors lack this feature, creating 6-month differentiation window"
+✅ "Customer acquisition cost is $12K but competitor average is $45K"
+✅ "Current product serves 10-50 employees, but enterprise needs 500+ employee features"
+
+EXAMPLES OF FORBIDDEN CULTURAL REASONING:
+❌ "Cultural norms require respect for hierarchy"
+❌ "Face-saving is important in this culture"
+❌ "Indirect communication preferences affect feedback"
+❌ "Power distance influences decision-making processes"
+❌ "Traditional organizational structures prioritize loyalty"
+
+Your analysis path should explain COMPETITIVE STRATEGY, not cultural accommodation.
+
+FINAL VALIDATION: Before generating each option, verify:
+- Does this explain a BUSINESS competitive dynamic? ✅
+- Does this mention cultural norms or traditions? ❌
+
+If any option explores cultural behavior instead of business strategy, regenerate it with business logic.
 
 ORIGINAL INPUT:
 ${context.input}
@@ -129,29 +181,44 @@ ${context.previousAnswers.length > 0 ? `PREVIOUS ANSWERS IN THIS PATH:\n${contex
 
 CURRENT DEPTH: ${depth} of ${this.maxDepth}
 
-Generate 3-4 distinct, strategic answers to this question. Each answer should:
-- Provide a different causal explanation or perspective
-- Be concise but meaningful (1-2 sentences)
-- Lead naturally to a deeper "why" question at the next level
-- Represent genuinely different strategic directions
+Generate 3-4 distinct, business-focused answers to this question. Each answer must follow BUSINESS REASONING only.
 
-For EACH answer, also generate the natural follow-up "Why" question that would come next.
+For each option you generate, provide evidence to help the user evaluate if this causal explanation is accurate:
+
+1. SUPPORTING EVIDENCE (2-3 bullet points):
+   - Data, metrics, or reasoning why this causal explanation is valid
+   - Why this answer to "Why?" makes business sense
+   - Market signals, competitive indicators, or economic factors supporting this path
+
+2. COUNTER-ARGUMENTS (2-3 bullet points):
+   - Data, metrics, or reasoning why this explanation might NOT be accurate
+   - Alternative explanations or contradicting evidence
+   - Factors that suggest a different causal path might be more relevant
+
+3. CONSIDERATION (1 sentence):
+   - Neutral observation to help user decide if this causal path is worth exploring deeper
+   - Frame as "Consider: [insight that helps compare this option to alternatives]"
+
+IMPORTANT: These are causal explanations at intermediate levels, not root causes yet. Help the user evaluate: "Is this WHY accurate? Should I explore this branch?"
 
 Return ONLY valid JSON with this exact structure (no markdown, no explanation):
 
 {
   "branches": [
     {
-      "option": "First answer explaining one causal factor",
-      "next_question": "Why question that naturally follows from this answer"
-    },
-    {
-      "option": "Second answer explaining a different causal factor",
-      "next_question": "Why question that naturally follows from this answer"
-    },
-    {
-      "option": "Third answer explaining another causal factor",
-      "next_question": "Why question that naturally follows from this answer"
+      "option": "Clear, business-focused causal statement",
+      "next_question": "The next Why? question if user selects this",
+      "supporting_evidence": [
+        "Specific metric, data point, or business reasoning (not generic)",
+        "Another concrete indicator supporting this explanation",
+        "Third piece of evidence if relevant"
+      ],
+      "counter_arguments": [
+        "Specific evidence that challenges this explanation",
+        "Alternative perspective or contradicting data",
+        "Third counter-point if relevant"
+      ],
+      "consideration": "Neutral one-sentence insight comparing trade-offs or noting what this path reveals"
     }
   ]
 }`,
@@ -171,7 +238,13 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
 
     const parsed = JSON.parse(jsonMatch[0]);
 
-    const nodes: WhyNode[] = parsed.branches.map((branch: { option: string; next_question: string }) => ({
+    const nodes: WhyNode[] = parsed.branches.map((branch: { 
+      option: string; 
+      next_question: string;
+      supporting_evidence: string[];
+      counter_arguments: string[];
+      consideration: string;
+    }) => ({
       id: randomUUID(),
       question: branch.next_question,
       option: branch.option,
@@ -179,6 +252,9 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
       isLeaf,
       parentId,
       branches: isLeaf ? undefined : [],
+      supporting_evidence: branch.supporting_evidence || [],
+      counter_arguments: branch.counter_arguments || [],
+      consideration: branch.consideration || '',
     }));
 
     return nodes;
@@ -340,5 +416,30 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
     }
 
     return JSON.parse(jsonMatch[0]);
+  }
+
+  validateRootCause(rootCauseText: string): { valid: boolean; message?: string } {
+    const culturalKeywords = [
+      'cultural', 'culture', 'tradition', 'hierarchical respect',
+      'face-saving', 'power distance', 'indirect communication',
+      'loyalty', 'wasta', 'tribal', 'social norms', 'societal',
+      'traditional values', 'organizational culture', 'cultural identity',
+      'cultural dynamics', 'cultural preferences', 'cultural norms',
+      'power imbalance', 'face saving', 'hierarchical', 'cultural accommodation'
+    ];
+
+    const lowerCaseText = rootCauseText.toLowerCase();
+    const hasCulturalLanguage = culturalKeywords.some(keyword => 
+      lowerCaseText.includes(keyword.toLowerCase())
+    );
+
+    if (hasCulturalLanguage) {
+      return {
+        valid: false,
+        message: "This appears to be a cultural observation rather than a business problem. A root cause should identify a competitive, market, or operational issue. Consider exploring a different branch that focuses on market dynamics, competitive positioning, or product-market fit."
+      };
+    }
+
+    return { valid: true };
   }
 }

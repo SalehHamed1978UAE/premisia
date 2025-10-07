@@ -469,6 +469,23 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
   }
 });
 
+router.post('/whys-tree/validate-root-cause', async (req: Request, res: Response) => {
+  try {
+    const { rootCauseText } = req.body;
+
+    if (!rootCauseText) {
+      return res.status(400).json({ error: 'rootCauseText is required' });
+    }
+
+    const validation = whysTreeGenerator.validateRootCause(rootCauseText);
+
+    res.json(validation);
+  } catch (error: any) {
+    console.error('Error in /whys-tree/validate-root-cause:', error);
+    res.status(500).json({ error: error.message || 'Root cause validation failed' });
+  }
+});
+
 router.get('/research/stream/:sessionId', async (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
