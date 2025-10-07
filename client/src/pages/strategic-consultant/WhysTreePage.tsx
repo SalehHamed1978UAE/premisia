@@ -57,6 +57,7 @@ export default function WhysTreePage() {
   const [editedWhyText, setEditedWhyText] = useState("");
   const [showValidationWarning, setShowValidationWarning] = useState(false);
   const [validationMessage, setValidationMessage] = useState("");
+  const [isLongGeneration, setIsLongGeneration] = useState(false);
 
   const generateTreeMutation = useMutation({
     mutationFn: async () => {
@@ -191,6 +192,26 @@ export default function WhysTreePage() {
       generateTreeMutation.mutate();
     }
   }, [sessionId]);
+
+  // Timeout handler for long-running tree generation
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout | null = null;
+
+    if (generateTreeMutation.isPending) {
+      setIsLongGeneration(false);
+      timeoutId = setTimeout(() => {
+        setIsLongGeneration(true);
+      }, 30000); // 30 seconds
+    } else {
+      setIsLongGeneration(false);
+    }
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [generateTreeMutation.isPending]);
 
   const getCurrentOptions = (): WhyNode[] => {
     if (!tree) return [];
@@ -401,7 +422,16 @@ export default function WhysTreePage() {
         <div className="text-center space-y-4">
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
           <p className="text-muted-foreground">Generating Five Whys analysis...</p>
-          <p className="text-sm text-muted-foreground">This may take 20-30 seconds</p>
+          {isLongGeneration ? (
+            <>
+              <p className="text-sm text-amber-600 dark:text-amber-400 font-medium">
+                Generated Level 1 completely, Level 2 generating...
+              </p>
+              <p className="text-xs text-muted-foreground">This is taking longer than usual, please wait</p>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">This may take 20-30 seconds</p>
+          )}
         </div>
       </div>
     );
