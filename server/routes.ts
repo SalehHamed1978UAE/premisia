@@ -24,11 +24,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Strategic Consultant routes
-  app.use("/api/strategic-consultant", strategicConsultantRoutes);
-
   // Middleware to check authentication (using Replit Auth)
   const requireAuth = isAuthenticated;
+
+  // Strategic Consultant routes (protected with auth)
+  app.use("/api/strategic-consultant", requireAuth, strategicConsultantRoutes);
 
   // Middleware to check roles (updated for Replit Auth)
   const requireRole = (roles: string[]) => async (req: any, res: any, next: any) => {

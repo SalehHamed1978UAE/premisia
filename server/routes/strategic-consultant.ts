@@ -73,7 +73,7 @@ router.post('/analyze', upload.single('file'), async (req: Request, res: Respons
       });
     }
 
-    const userId = req.user?.id || null;
+    const userId = (req.user as any)?.claims?.sub || null;
     const version = await versionManager.createVersion(sessionId, analysis, decisions, userId);
 
     res.json({
@@ -182,7 +182,7 @@ router.post('/convert-to-epm', async (req: Request, res: Response) => {
 // Get all strategy versions for current user (MUST be before /versions/:sessionId)
 router.get('/versions/all', async (req: Request, res: Response) => {
   try {
-    const userId = (req.user as any)?.id;
+    const userId = (req.user as any)?.claims?.sub;
 
     if (!userId) {
       return res.status(401).json({ error: 'User not authenticated' });
@@ -276,7 +276,7 @@ router.post('/versions/compare', async (req: Request, res: Response) => {
 router.post('/integrate/:sessionId/:versionNumber', async (req: Request, res: Response) => {
   try {
     const { sessionId, versionNumber } = req.params;
-    const userId = (req.user as any)?.id;
+    const userId = (req.user as any)?.claims?.sub;
 
     if (!userId) {
       return res.status(401).json({ error: 'User not authenticated' });
