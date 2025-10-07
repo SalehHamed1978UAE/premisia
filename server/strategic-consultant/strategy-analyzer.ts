@@ -105,37 +105,51 @@ export class StrategyAnalyzer {
       messages: [
         {
           role: 'user',
-          content: `You are a strategic consultant performing a 5 Whys root cause analysis.
+          content: `You are a strategic business consultant performing a 5 Whys root cause analysis.
+
+CRITICAL: Focus on PRACTICAL BUSINESS REASONING, not cultural anthropology or academic analysis.
+
+Each "Why?" should probe these BUSINESS dimensions:
+- Market conditions and dynamics
+- Competitive positioning and dynamics
+- Product capabilities and differentiation
+- Customer needs and pain points
+- Resource constraints and capabilities
 
 INPUT:
 ${input}
 
-Perform a systematic 5 Whys analysis to identify the root problem being solved. Return ONLY valid JSON with this exact structure (no markdown, no explanation):
+Perform a systematic 5 Whys analysis using business-focused causal reasoning. Each answer should address practical business factors, NOT cultural or anthropological theories.
+
+WRONG: "Arabic reflects deep cultural identity and power structures..."
+RIGHT: "Arabic language support addresses a market gap where 60% of regional buyers prefer native-language interfaces..."
+
+Return ONLY valid JSON with this exact structure (no markdown, no explanation):
 
 {
-  "problem_statement": "The core problem statement",
+  "problem_statement": "The core business problem statement",
   "why_1": {
-    "question": "Why question 1",
-    "answer": "Answer 1"
+    "question": "Why question 1 (focused on business/market factors)",
+    "answer": "Business-focused answer (market conditions, competitive dynamics, customer needs)"
   },
   "why_2": {
-    "question": "Why question 2",
-    "answer": "Answer 2"
+    "question": "Why question 2 (focused on business/market factors)",
+    "answer": "Business-focused answer (product capabilities, resource constraints)"
   },
   "why_3": {
-    "question": "Why question 3",
-    "answer": "Answer 3"
+    "question": "Why question 3 (focused on business/market factors)",
+    "answer": "Business-focused answer (competitive positioning, market dynamics)"
   },
   "why_4": {
-    "question": "Why question 4",
-    "answer": "Answer 4"
+    "question": "Why question 4 (focused on business/market factors)",
+    "answer": "Business-focused answer (customer needs, market opportunities)"
   },
   "why_5": {
-    "question": "Why question 5",
-    "answer": "Answer 5"
+    "question": "Why question 5 (focused on business/market factors)",
+    "answer": "Business-focused answer (strategic positioning, market fit)"
   },
-  "root_cause": "The fundamental root cause identified",
-  "strategic_implications": ["implication 1", "implication 2", "implication 3"]
+  "root_cause": "The fundamental business problem or opportunity identified",
+  "strategic_implications": ["business implication 1", "business implication 2", "business implication 3"]
 }`,
         },
       ],
