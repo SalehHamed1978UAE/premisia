@@ -821,7 +821,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; QDataEPM/1.0; +http://qdata.com)'
+          'User-Agent': 'Mozilla/5.0 (compatible; QgenticEPM/1.0; +https://qgentic.com)'
         }
       });
 

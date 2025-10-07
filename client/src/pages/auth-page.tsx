@@ -1,39 +1,16 @@
-import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Redirect } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, AlertCircle, CheckCircle, ShieldCheck } from "lucide-react";
+import { Loader2, CheckCircle, ShieldCheck } from "lucide-react";
+import { SiGoogle } from "react-icons/si";
 
 export default function AuthPage() {
-  const { user, isLoading, loginMutation, registerMutation } = useAuth();
-  const [loginForm, setLoginForm] = useState({ username: "", password: "" });
-  const [registerForm, setRegisterForm] = useState({ 
-    username: "", 
-    password: "", 
-    email: "",
-    role: "Viewer" as "Admin" | "Editor" | "Viewer"
-  });
+  const { user, isLoading } = useAuth();
 
-  // Redirect if already logged in
   if (user && !isLoading) {
     return <Redirect to="/" />;
   }
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    loginMutation.mutate(loginForm);
-  };
-
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    registerMutation.mutate(registerForm);
-  };
 
   if (isLoading) {
     return (
@@ -53,8 +30,8 @@ export default function AuthPage() {
               <ShieldCheck className="h-8 w-8" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">QData EPM</h1>
-              <p className="text-primary-foreground/80">Enterprise Program Management</p>
+              <h1 className="text-2xl font-bold">Qgentic EPM</h1>
+              <p className="text-primary-foreground/80">Intelligent Strategic EPM</p>
             </div>
           </div>
           <div className="space-y-6">
@@ -107,7 +84,7 @@ export default function AuthPage() {
           </div>
         </div>
         <div className="text-sm text-primary-foreground/60">
-          © 2024 QData Enterprise Solutions. All rights reserved.
+          © 2024 Qgentic. All rights reserved.
         </div>
       </div>
 
@@ -121,142 +98,35 @@ export default function AuthPage() {
                 <p className="text-muted-foreground">Access your program management dashboard</p>
               </div>
 
-              <Tabs defaultValue="login" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 mb-6">
-                  <TabsTrigger value="login">Login</TabsTrigger>
-                  <TabsTrigger value="register">Register</TabsTrigger>
-                </TabsList>
+              <div className="space-y-4">
+                <Button 
+                  onClick={() => window.location.href = '/api/login'}
+                  className="w-full h-12 text-base"
+                  data-testid="button-login"
+                >
+                  <SiGoogle className="mr-2 h-5 w-5" />
+                  Sign in with Replit
+                </Button>
 
-                <TabsContent value="login">
-                  <form onSubmit={handleLogin} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="login-username">Username</Label>
-                      <Input
-                        id="login-username"
-                        type="text"
-                        placeholder="Enter your username"
-                        value={loginForm.username}
-                        onChange={(e) => setLoginForm(prev => ({ ...prev, username: e.target.value }))}
-                        required
-                        data-testid="input-login-username"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="login-password">Password</Label>
-                      <Input
-                        id="login-password"
-                        type="password"
-                        placeholder="Enter your password"
-                        value={loginForm.password}
-                        onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
-                        required
-                        data-testid="input-login-password"
-                      />
-                    </div>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">
+                      Secure authentication via Replit
+                    </span>
+                  </div>
+                </div>
 
-                    {loginMutation.isError && (
-                      <Alert variant="destructive">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertDescription>
-                          {loginMutation.error?.message || "Login failed"}
-                        </AlertDescription>
-                      </Alert>
-                    )}
-
-                    <Button 
-                      type="submit" 
-                      className="w-full" 
-                      disabled={loginMutation.isPending}
-                      data-testid="button-login"
-                    >
-                      {loginMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Sign In
-                    </Button>
-                  </form>
-                </TabsContent>
-
-                <TabsContent value="register">
-                  <form onSubmit={handleRegister} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="register-username">Username</Label>
-                      <Input
-                        id="register-username"
-                        type="text"
-                        placeholder="Choose a username"
-                        value={registerForm.username}
-                        onChange={(e) => setRegisterForm(prev => ({ ...prev, username: e.target.value }))}
-                        required
-                        data-testid="input-register-username"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="register-email">Email</Label>
-                      <Input
-                        id="register-email"
-                        type="email"
-                        placeholder="Enter your email"
-                        value={registerForm.email}
-                        onChange={(e) => setRegisterForm(prev => ({ ...prev, email: e.target.value }))}
-                        data-testid="input-register-email"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="register-password">Password</Label>
-                      <Input
-                        id="register-password"
-                        type="password"
-                        placeholder="Choose a password"
-                        value={registerForm.password}
-                        onChange={(e) => setRegisterForm(prev => ({ ...prev, password: e.target.value }))}
-                        required
-                        data-testid="input-register-password"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="register-role">Role</Label>
-                      <Select 
-                        value={registerForm.role}
-                        onValueChange={(value) => setRegisterForm(prev => ({ ...prev, role: value as "Admin" | "Editor" | "Viewer" }))}
-                      >
-                        <SelectTrigger id="register-role" data-testid="select-register-role">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Admin" data-testid="option-role-admin">Admin - Full access to all features</SelectItem>
-                          <SelectItem value="Editor" data-testid="option-role-editor">Editor - Can modify program data</SelectItem>
-                          <SelectItem value="Viewer" data-testid="option-role-viewer">Viewer - Read-only access</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {registerMutation.isError && (
-                      <Alert variant="destructive">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertDescription>
-                          {registerMutation.error?.message || "Registration failed"}
-                        </AlertDescription>
-                      </Alert>
-                    )}
-
-                    <Button 
-                      type="submit" 
-                      className="w-full" 
-                      disabled={registerMutation.isPending}
-                      data-testid="button-register"
-                    >
-                      {registerMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Create Account
-                    </Button>
-                  </form>
-                </TabsContent>
-              </Tabs>
-
-              <div className="mt-8 p-4 bg-muted rounded-lg">
-                <h4 className="text-sm font-semibold text-foreground mb-2">Demo Access</h4>
-                <div className="space-y-1 text-xs text-muted-foreground">
-                  <p><strong>Admin:</strong> Full access to all features</p>
-                  <p><strong>Editor:</strong> Can modify program data</p>
-                  <p><strong>Viewer:</strong> Read-only access</p>
+                <div className="mt-6 p-4 bg-muted rounded-lg">
+                  <h4 className="text-sm font-semibold text-foreground mb-2">Easy Access</h4>
+                  <div className="space-y-1 text-xs text-muted-foreground">
+                    <p>• Click "Sign in with Replit" to authenticate</p>
+                    <p>• Supports Google login through Replit</p>
+                    <p>• Secure OAuth 2.0 / OIDC authentication</p>
+                    <p>• Perfect for sharing demos and collaborating</p>
+                  </div>
                 </div>
               </div>
             </CardContent>

@@ -90,7 +90,7 @@ const navigation = [
 ];
 
 export function Sidebar({ currentView, onViewChange, isOpen, onToggle }: SidebarProps) {
-  const { user, logoutMutation } = useAuth();
+  const { user } = useAuth();
   const [, setLocation] = useLocation();
 
   return (
@@ -117,8 +117,8 @@ export function Sidebar({ currentView, onViewChange, isOpen, onToggle }: Sidebar
                 <LayoutDashboard className="h-6 w-6 text-primary-foreground" />
               </div>
               <div>
-                <h2 className="font-bold text-foreground">QData EPM</h2>
-                <p className="text-xs text-muted-foreground">Enterprise PM</p>
+                <h2 className="font-bold text-foreground">Qgentic EPM</h2>
+                <p className="text-xs text-muted-foreground">Strategic EPM</p>
               </div>
             </div>
             <Button
@@ -136,14 +136,22 @@ export function Sidebar({ currentView, onViewChange, isOpen, onToggle }: Sidebar
         {/* User Info */}
         <div className="p-4 border-b border-border">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-              <span className="text-primary font-semibold text-sm">
-                {user?.username?.substring(0, 2).toUpperCase() || 'U'}
-              </span>
-            </div>
+            {user?.profileImageUrl ? (
+              <img 
+                src={user.profileImageUrl} 
+                alt="Profile" 
+                className="w-10 h-10 rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                <span className="text-primary font-semibold text-sm">
+                  {user?.firstName?.substring(0, 1)?.toUpperCase() || user?.email?.substring(0, 1)?.toUpperCase() || 'U'}
+                </span>
+              </div>
+            )}
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-foreground truncate">
-                {user?.username || 'User'}
+                {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.email || 'User'}
               </p>
               <p className="text-xs text-muted-foreground truncate">
                 <span className={cn(
@@ -226,8 +234,7 @@ export function Sidebar({ currentView, onViewChange, isOpen, onToggle }: Sidebar
           <Button
             variant="ghost"
             className="w-full justify-start text-destructive hover:text-destructive"
-            onClick={() => logoutMutation.mutate()}
-            disabled={logoutMutation.isPending}
+            onClick={() => window.location.href = '/api/logout'}
             data-testid="button-logout"
           >
             <LogOut className="h-5 w-5 mr-3" />

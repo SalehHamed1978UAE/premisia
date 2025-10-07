@@ -48,7 +48,7 @@ export default function HomePage() {
   const getViewTitle = () => {
     switch (currentView) {
       case 'dashboard':
-        return { title: 'Program Dashboard', subtitle: 'Overview of QData Enterprise Program Management' };
+        return { title: 'Program Dashboard', subtitle: 'Overview of Qgentic Intelligent Strategic EPM' };
       case 'timeline':
         return { title: 'Timeline & Schedule', subtitle: 'Gantt chart view with task dependencies' };
       case 'stage-gates':
@@ -68,7 +68,7 @@ export default function HomePage() {
       case 'ai-orchestrator':
         return { title: 'AI Orchestrator', subtitle: 'Multi-agent AI system for code generation and review' };
       default:
-        return { title: 'Program Dashboard', subtitle: 'Overview of QData Enterprise Program Management' };
+        return { title: 'Program Dashboard', subtitle: 'Overview of Qgentic Intelligent Strategic EPM' };
     }
   };
 

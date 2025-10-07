@@ -1,8 +1,8 @@
-# QData Enterprise Program Management (EPM) System
+# Qgentic Intelligent Strategic EPM System
 
 ## Overview
 
-QData EPM is a comprehensive full-stack web application designed for enterprise program management, integrating AI intelligence. It enables organizations to manage programs, workstreams, tasks, resources, risks, benefits, KPIs, and financial tracking through an intuitive dashboard. The system provides role-based access control and supports the complete program lifecycle, including stage gate reviews and dependency tracking. A core feature is its real-time AI intelligence, powered by a multi-agent architecture and a formal ontology foundation, which continuously monitors and provides expert guidance for decision-making.
+Qgentic Intelligent Strategic EPM is a comprehensive full-stack web application designed for enterprise program management, integrating AI intelligence. It enables organizations to manage programs, workstreams, tasks, resources, risks, benefits, KPIs, and financial tracking through an intuitive dashboard. The system provides role-based access control and supports the complete program lifecycle, including stage gate reviews and dependency tracking. A core feature is its real-time AI intelligence, powered by a multi-agent architecture and a formal ontology foundation, which continuously monitors and provides expert guidance for decision-making.
 
 ## User Preferences
 

@@ -1,4 +1,4 @@
-# QData EPM System - Design Guidelines
+# Qgentic Intelligent Strategic EPM - Design Guidelines
 
 ## Design Approach: Modern Enterprise Dashboard System
 **Selected Framework:** Linear-inspired data-focused design with Material Design principles for information density
