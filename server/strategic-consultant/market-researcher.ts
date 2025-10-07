@@ -307,13 +307,20 @@ Example for "Arabic language differentiates our enterprise software in UAE":
       messages: [
         {
           role: 'user',
-          content: `You are a strategic market research analyst synthesizing findings for a business strategy.
+          content: `You are an OBJECTIVE market research analyst synthesizing findings for a business strategy.
 
-CRITICAL INSTRUCTIONS:
-- Every statement MUST cite a specific research finding from the full article content below
-- DO NOT make assumptions or use general knowledge
-- Only include facts that are explicitly stated in the source content
-- If sources lack information on a category, return fewer findings for that category
+CRITICAL INSTRUCTIONS - ANTI-CONFIRMATION BIAS:
+1. Every statement MUST cite a specific research finding from the full article content below
+2. DO NOT make assumptions or use general knowledge
+3. PRIORITIZE contradictory findings over confirming evidence
+4. If research contradicts input assumptions, HIGHLIGHT that contradiction clearly
+5. Weight disconfirming evidence HIGHER than confirming evidence
+6. Only include facts that are explicitly stated in the source content
+7. If sources lack information on a category, return fewer findings for that category
+
+ANTI-BIAS EXAMPLE:
+If input claims "Arabic differentiation" but research shows "English dominates UAE business (95% of contracts)", 
+you MUST include the English dominance finding and give it HIGH confidence.
 
 ROOT CAUSE:
 ${rootCause}
@@ -334,14 +341,16 @@ TOP SOURCES:
 ${topSources.map(s => `- ${s.title} (${s.url}) - Relevance: ${s.relevance_score}`).join('\n')}
 
 Based on the FULL ARTICLE CONTENT above, generate findings across 5 categories. Each finding must:
-- fact: Quote or paraphrase a SPECIFIC statement from the full content
+- fact: Quote or paraphrase a SPECIFIC statement from the full content. If it CONTRADICTS the input, state that clearly.
 - citation: The exact source URL where this fact was found
 - confidence: 'high' if from article content, 'medium' if from snippets, 'low' if uncertain
+
+PRIORITIZATION RULE: If research contradicts any claim in the input, include those contradictory findings FIRST and with HIGHEST confidence.
 
 Generate findings ONLY for information explicitly found in sources:
 1. Market Dynamics (market size, growth, trends)
 2. Competitive Landscape (key players, positioning, market share)
-3. Language/Cultural Preferences (business language, localization needs)
+3. Language/Cultural Preferences (business language, localization needs - INCLUDE contradictions to input claims)
 4. Buyer Behavior (decision patterns, preferences, pain points)
 5. Regulatory/Compliance Factors (regulations, standards, requirements)
 
@@ -364,7 +373,7 @@ Return ONLY valid JSON (no markdown, no explanation):
   ],
   "language_preferences": [
     {
-      "fact": "Specific language/cultural insight from article content",
+      "fact": "Specific language/cultural insight from article content (include contradictions to input)",
       "citation": "https://source-url-from-top-sources.com",
       "confidence": "high"
     }
