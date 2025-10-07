@@ -465,12 +465,39 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
 
     const parsed = JSON.parse(jsonMatch[0]);
 
-    const confidenceScore = this.calculateOverallConfidence(parsed.portersAnalysis, research);
+    // Normalize citations - ensure all factors have citations array
+    const normalizeForce = (force: any): PorterForceWithCitations => ({
+      level: force.level,
+      factors: (force.factors || []).map((f: any) => ({
+        factor: typeof f === 'string' ? f : f.factor,
+        citations: Array.isArray(f.citations) ? f.citations : []
+      })),
+      strategic_response: force.strategic_response,
+      confidence: force.confidence || 'medium',
+      insufficientData: force.insufficientData || false
+    });
+
+    const normalizedPorters: PortersWithCitations = {
+      competitive_rivalry: normalizeForce(parsed.portersAnalysis.competitive_rivalry),
+      supplier_power: normalizeForce(parsed.portersAnalysis.supplier_power),
+      buyer_power: normalizeForce(parsed.portersAnalysis.buyer_power),
+      threat_of_substitution: normalizeForce(parsed.portersAnalysis.threat_of_substitution),
+      threat_of_new_entry: normalizeForce(parsed.portersAnalysis.threat_of_new_entry),
+      overall_attractiveness: parsed.portersAnalysis.overall_attractiveness || 'medium'
+    };
+
+    const normalizedRecommendations: Recommendation[] = (parsed.recommendations || []).map((r: any) => ({
+      text: r.text,
+      rationale: r.rationale,
+      citations: Array.isArray(r.citations) ? r.citations : []
+    }));
+
+    const confidenceScore = this.calculateOverallConfidence(normalizedPorters, research);
 
     return {
       executiveSummary: parsed.executiveSummary,
-      portersAnalysis: parsed.portersAnalysis,
-      recommendations: parsed.recommendations,
+      portersAnalysis: normalizedPorters,
+      recommendations: normalizedRecommendations,
       researchBased: true,
       confidenceScore,
       citations: research.sources,

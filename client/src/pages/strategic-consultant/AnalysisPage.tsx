@@ -307,7 +307,7 @@ export default function AnalysisPage() {
                               <div className="flex items-start gap-2">
                                 <span className="flex-1">{factorObj.factor}</span>
                                 <div className="flex gap-1">
-                                  {factorObj.citations.map((citation, citIdx) => (
+                                  {(factorObj.citations || []).map((citation, citIdx) => (
                                     <a
                                       key={citIdx}
                                       href={citation}
@@ -353,7 +353,7 @@ export default function AnalysisPage() {
                           <p className="text-sm text-muted-foreground mb-2">{rec.rationale}</p>
                         </div>
                         <div className="flex gap-1">
-                          {rec.citations.map((citation, citIdx) => (
+                          {(rec.citations || []).map((citation, citIdx) => (
                             <a
                               key={citIdx}
                               href={citation}
