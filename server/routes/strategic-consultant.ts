@@ -469,28 +469,71 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
   }
 });
 
-router.post('/research', async (req: Request, res: Response) => {
+router.get('/research/stream/:sessionId', async (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  const sessionId = req.params.sessionId;
+  const rootCause = req.query.rootCause as string;
+  const whysPath = JSON.parse(req.query.whysPath as string || '[]');
+  const input = req.query.input as string;
+  const versionNumber = req.query.versionNumber ? parseInt(req.query.versionNumber as string) : undefined;
+
+  if (!sessionId || !rootCause || !whysPath || !input) {
+    res.write(`data: ${JSON.stringify({ error: 'Missing required parameters' })}\n\n`);
+    res.end();
+    return;
+  }
+
   try {
-    const { sessionId, rootCause, whysPath, input, versionNumber } = req.body;
-
-    if (!sessionId || !rootCause || !whysPath || !input) {
-      return res.status(400).json({ 
-        error: 'sessionId, rootCause, whysPath, and input are required' 
-      });
-    }
-
     const startTime = Date.now();
 
-    const findings = await marketResearcher.conductResearch(
-      sessionId,
+    res.write(`data: ${JSON.stringify({ type: 'progress', message: 'Generating research queries...', progress: 10 })}\n\n`);
+
+    const queries = await marketResearcher.generateResearchQueries(rootCause, input, whysPath);
+    
+    res.write(`data: ${JSON.stringify({ type: 'progress', message: `Generated ${queries.length} research queries`, progress: 20 })}\n\n`);
+
+    res.write(`data: ${JSON.stringify({ type: 'progress', message: 'Executing web searches...', progress: 30 })}\n\n`);
+
+    const searchResults = [];
+    for (let i = 0; i < queries.length; i++) {
+      const query = queries[i];
+      res.write(`data: ${JSON.stringify({ 
+        type: 'query', 
+        message: `Searching: ${query.query}`, 
+        progress: 30 + (i + 1) * (30 / queries.length) 
+      })}\n\n`);
+
+      const result = await marketResearcher.performSingleWebSearch(query);
+      searchResults.push(result);
+    }
+
+    res.write(`data: ${JSON.stringify({ type: 'progress', message: 'Selecting top sources...', progress: 65 })}\n\n`);
+
+    const topSources = marketResearcher.selectTopSourcesPublic(searchResults);
+
+    res.write(`data: ${JSON.stringify({ type: 'progress', message: 'Fetching article content...', progress: 70 })}\n\n`);
+
+    const sourceContents = await marketResearcher.fetchSourceContentPublic(topSources.slice(0, 3));
+
+    res.write(`data: ${JSON.stringify({ type: 'progress', message: 'Synthesizing research findings...', progress: 85 })}\n\n`);
+
+    const findings = await marketResearcher.synthesizeFindingsPublic(
       rootCause,
       input,
-      whysPath
+      whysPath,
+      searchResults,
+      topSources,
+      sourceContents
     );
 
     const endTime = Date.now();
     const timeElapsedMs = endTime - startTime;
     const timeElapsed = `${(timeElapsedMs / 1000).toFixed(1)}s`;
+
+    res.write(`data: ${JSON.stringify({ type: 'progress', message: 'Saving research data...', progress: 95 })}\n\n`);
 
     let targetVersionNumber: number;
     let version;
@@ -522,16 +565,23 @@ router.post('/research', async (req: Request, res: Response) => {
     const searchQueriesUsed = findings.sources.map(s => s.title);
     const sourcesAnalyzed = findings.sources.length;
 
-    res.json({
-      findings,
-      searchQueriesUsed,
-      sourcesAnalyzed,
-      timeElapsed,
-      versionNumber: targetVersionNumber,
-    });
+    res.write(`data: ${JSON.stringify({ 
+      type: 'complete', 
+      data: {
+        findings,
+        searchQueriesUsed,
+        sourcesAnalyzed,
+        timeElapsed,
+        versionNumber: targetVersionNumber,
+      },
+      progress: 100 
+    })}\n\n`);
+    
+    res.end();
   } catch (error: any) {
-    console.error('Error in /research:', error);
-    res.status(500).json({ error: error.message || 'Research failed' });
+    console.error('Error in /research/stream:', error);
+    res.write(`data: ${JSON.stringify({ type: 'error', error: error.message || 'Research failed' })}\n\n`);
+    res.end();
   }
 });
 

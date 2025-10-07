@@ -67,65 +67,83 @@ export default function ResearchPage() {
   const sessionId = params?.sessionId;
 
   const [progress, setProgress] = useState(0);
+  const [currentQuery, setCurrentQuery] = useState<string>('');
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [isResearching, setIsResearching] = useState(false);
+  const [researchData, setResearchData] = useState<ResearchResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [autoNavigateCountdown, setAutoNavigateCountdown] = useState<number | null>(null);
 
-  const researchMutation = useMutation({
-    mutationFn: async () => {
-      const rootCause = localStorage.getItem(`strategic-rootCause-${sessionId}`) || '';
-      const whysPathStr = localStorage.getItem(`strategic-whysPath-${sessionId}`) || '[]';
-      const whysPath = JSON.parse(whysPathStr);
-      const input = localStorage.getItem(`strategic-input-${sessionId}`) || '';
-
-      if (!rootCause || !whysPath.length || !input) {
-        throw new Error('Missing required data from previous steps');
-      }
-
-      const response = await apiRequest('POST', '/api/strategic-consultant/research', {
-        sessionId,
-        rootCause,
-        whysPath,
-        input,
-      });
-      return await response.json();
-    },
-    onSuccess: (data) => {
-      localStorage.setItem(`strategic-versionNumber-${sessionId}`, data.versionNumber.toString());
-      toast({
-        title: "Research complete",
-        description: `Analyzed ${data.sourcesAnalyzed} sources in ${data.timeElapsed}`,
-      });
-      setAutoNavigateCountdown(3);
-    },
-    onError: (error) => {
-      toast({
-        title: "Research failed",
-        description: error.message || "Failed to conduct market research",
-        variant: "destructive",
-      });
-    },
-  });
-
   useEffect(() => {
-    if (sessionId) {
-      researchMutation.mutate();
+    if (!sessionId) return;
+
+    const rootCause = localStorage.getItem(`strategic-rootCause-${sessionId}`) || '';
+    const whysPathStr = localStorage.getItem(`strategic-whysPath-${sessionId}`) || '[]';
+    const whysPath = JSON.parse(whysPathStr);
+    const input = localStorage.getItem(`strategic-input-${sessionId}`) || '';
+
+    if (!rootCause || !whysPath.length || !input) {
+      setError('Missing required data from previous steps');
+      return;
     }
+
+    setIsResearching(true);
+    const startTime = Date.now();
+
+    const params = new URLSearchParams({
+      rootCause,
+      whysPath: JSON.stringify(whysPath),
+      input,
+    });
+
+    const eventSource = new EventSource(`/api/strategic-consultant/research/stream/${sessionId}?${params.toString()}`);
+
+    eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      if (data.type === 'progress' || data.type === 'query') {
+        setProgress(data.progress || 0);
+        setCurrentQuery(data.message || '');
+      } else if (data.type === 'complete') {
+        setProgress(100);
+        setResearchData(data.data);
+        setIsResearching(false);
+        localStorage.setItem(`strategic-versionNumber-${sessionId}`, data.data.versionNumber.toString());
+        toast({
+          title: "Research complete",
+          description: `Analyzed ${data.data.sourcesAnalyzed} sources in ${data.data.timeElapsed}`,
+        });
+        setAutoNavigateCountdown(3);
+        eventSource.close();
+      } else if (data.type === 'error') {
+        setError(data.error || 'Research failed');
+        setIsResearching(false);
+        toast({
+          title: "Research failed",
+          description: data.error || "Failed to conduct market research",
+          variant: "destructive",
+        });
+        eventSource.close();
+      }
+    };
+
+    eventSource.onerror = () => {
+      setError('Connection to research stream failed');
+      setIsResearching(false);
+      eventSource.close();
+    };
+
+    const timerInterval = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
+
+    return () => {
+      eventSource.close();
+      clearInterval(timerInterval);
+    };
   }, [sessionId]);
 
-  useEffect(() => {
-    if (researchMutation.isPending) {
-      const interval = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= 95) return 95;
-          return prev + 1;
-        });
-      }, 300);
-
-      return () => clearInterval(interval);
-    } else if (researchMutation.isSuccess) {
-      setProgress(100);
-    }
-  }, [researchMutation.isPending, researchMutation.isSuccess]);
 
   useEffect(() => {
     if (autoNavigateCountdown === null) return;
@@ -148,8 +166,7 @@ export default function ResearchPage() {
   };
 
   const handleRetry = () => {
-    setProgress(0);
-    researchMutation.mutate();
+    window.location.reload();
   };
 
   const toggleSection = (key: string) => {
@@ -168,11 +185,68 @@ export default function ResearchPage() {
     );
   }
 
-  if (researchMutation.isPending) {
+  if (isResearching) {
     return (
       <AppLayout
         title="Market Research"
         subtitle="Conducting comprehensive market analysis"
+        onViewChange={(view) => setLocation('/')}
+      >
+        <div className="max-w-4xl mx-auto space-y-8 py-12">
+          <Card>
+            <CardHeader className="text-center">
+              <div className="flex justify-center mb-4">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" />
+              </div>
+              <CardTitle className="text-2xl" data-testid="text-research-status">
+                Researching market conditions...
+              </CardTitle>
+              <CardDescription data-testid="text-current-query">{currentQuery}</CardDescription>
+              <CardDescription className="mt-2 text-sm text-muted-foreground">
+                Time elapsed: {elapsedSeconds}s
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Progress value={progress} className="h-2" data-testid="progress-research" />
+              <p className="text-center mt-4 text-sm text-muted-foreground" data-testid="text-progress-percentage">
+                {progress.toFixed(0)}% complete
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <AppLayout
+        title="Market Research"
+        subtitle="Research failed"
+        onViewChange={(view) => setLocation('/')}
+      >
+        <div className="max-w-4xl mx-auto space-y-8 py-12">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Research Failed</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+          <div className="flex justify-center">
+            <Button onClick={handleRetry} data-testid="button-retry-research">
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Retry Research
+            </Button>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (!researchData) {
+    return (
+      <AppLayout
+        title="Market Research"
+        subtitle="Loading..."
         onViewChange={(view) => setLocation('/')}
       >
         <div className="max-w-4xl mx-auto space-y-8 py-12">
@@ -205,34 +279,7 @@ export default function ResearchPage() {
     );
   }
 
-  if (researchMutation.isError) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-8">
-        <Alert variant="destructive" className="max-w-md">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Research Failed</AlertTitle>
-          <AlertDescription className="space-y-4">
-            <p>{researchMutation.error?.message || "Failed to conduct market research"}</p>
-            <Button
-              onClick={handleRetry}
-              variant="outline"
-              className="w-full"
-              data-testid="button-retry"
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Retry Research
-            </Button>
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
-
-  if (!researchMutation.data) {
-    return null;
-  }
-
-  const { findings, sourcesAnalyzed, timeElapsed } = researchMutation.data;
+  const { findings, sourcesAnalyzed, timeElapsed } = researchData;
 
   return (
     <AppLayout

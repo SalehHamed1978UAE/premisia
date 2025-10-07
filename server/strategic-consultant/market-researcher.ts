@@ -127,6 +127,37 @@ Example queries:
     return parsed.queries;
   }
 
+  async performSingleWebSearch(query: ResearchQuery): Promise<any> {
+    try {
+      const response = await fetch('http://localhost:5000/api/web-search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query: query.query }),
+      });
+
+      if (!response.ok) {
+        console.error(`Search failed for query "${query.query}": ${response.status}`);
+        return { query: query.query, results: [] };
+      }
+
+      const data = await response.json();
+      
+      const results = (data.organic || []).map((result: any) => ({
+        url: result.link,
+        title: result.title,
+        snippet: result.snippet || '',
+        relevance: result.position ? 1 / result.position : 0.5,
+      }));
+
+      return { query: query.query, results };
+    } catch (error) {
+      console.error(`Error searching for "${query.query}":`, error);
+      return { query: query.query, results: [] };
+    }
+  }
+
   private async performWebSearch(queries: ResearchQuery[]): Promise<any[]> {
     const searchPromises = queries.map(async (queryObj) => {
       try {
@@ -198,6 +229,25 @@ Example queries:
 
     await Promise.all(fetchPromises);
     return contentMap;
+  }
+
+  selectTopSourcesPublic(searchResults: any[]): Source[] {
+    return this.selectTopSources(searchResults);
+  }
+
+  async fetchSourceContentPublic(sources: Source[]): Promise<Map<string, string>> {
+    return this.fetchSourceContent(sources);
+  }
+
+  async synthesizeFindingsPublic(
+    rootCause: string,
+    input: string,
+    whysPath: string[],
+    searchResults: any[],
+    topSources: Source[],
+    sourceContents: Map<string, string>
+  ): Promise<ResearchFindings> {
+    return this.synthesizeFindings(rootCause, input, whysPath, searchResults, topSources, sourceContents);
   }
 
   private selectTopSources(searchResults: any[]): Source[] {
