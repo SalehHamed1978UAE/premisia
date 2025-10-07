@@ -45,16 +45,19 @@ export class MarketResearcher {
   ): Promise<ResearchFindings> {
     const queries = await this.generateResearchQueries(rootCause, input, whysPath);
     
-    const searchResults = await this.simulateWebSearch(queries, input, rootCause, whysPath);
+    const searchResults = await this.performWebSearch(queries);
     
     const topSources = this.selectTopSources(searchResults);
+    
+    const sourceContents = await this.fetchSourceContent(topSources.slice(0, 3));
     
     const findings = await this.synthesizeFindings(
       rootCause,
       input,
       whysPath,
       searchResults,
-      topSources
+      topSources,
+      sourceContents
     );
 
     return findings;
@@ -124,62 +127,77 @@ Example queries:
     return parsed.queries;
   }
 
-  private async simulateWebSearch(
-    queries: ResearchQuery[],
-    input: string,
-    rootCause: string,
-    whysPath: string[]
-  ): Promise<any[]> {
+  private async performWebSearch(queries: ResearchQuery[]): Promise<any[]> {
     const searchPromises = queries.map(async (queryObj) => {
-      const response = await this.anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 3000,
-        temperature: 0.7,
-        messages: [
-          {
-            role: 'user',
-            content: `You are simulating a web search result for the query: "${queryObj.query}"
-
-Based on your knowledge and the context below, generate realistic search results with:
-- 3-5 relevant URLs (use realistic formats like company websites, industry reports, news sites)
-- Brief snippets/descriptions for each
-- Relevance scores (0.0-1.0)
-
-CONTEXT:
-Root Cause: ${rootCause}
-Input: ${input.substring(0, 800)}
-Analysis Path: ${whysPath.slice(0, 3).join(' → ')}
-
-Return ONLY valid JSON (no markdown, no explanation):
-
-{
-  "query": "${queryObj.query}",
-  "results": [
-    {
-      "url": "https://example.com/relevant-page",
-      "title": "Page Title",
-      "snippet": "Brief description or excerpt",
-      "relevance": 0.85
-    }
-  ]
-}`,
+      try {
+        const response = await fetch('http://localhost:5000/api/web-search', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
           },
-        ],
-      });
+          body: JSON.stringify({ query: queryObj.query }),
+        });
 
-      const textContent = response.content
-        .filter((block) => block.type === 'text')
-        .map((block) => (block as Anthropic.TextBlock).text)
-        .join('\n');
+        if (!response.ok) {
+          console.error(`Search failed for query "${queryObj.query}": ${response.status}`);
+          return { query: queryObj.query, organic: [] };
+        }
 
-      const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
+        const data = await response.json();
+        
+        const results = (data.organic || []).map((result: any) => ({
+          url: result.link,
+          title: result.title,
+          snippet: result.snippet || '',
+          relevance: result.position ? 1 / result.position : 0.5,
+        }));
+
+        return { query: queryObj.query, results };
+      } catch (error) {
+        console.error(`Error searching for "${queryObj.query}":`, error);
+        return { query: queryObj.query, results: [] };
       }
-      return { query: queryObj.query, results: [] };
     });
 
     return Promise.all(searchPromises);
+  }
+
+  private async fetchSourceContent(sources: Source[]): Promise<Map<string, string>> {
+    const contentMap = new Map<string, string>();
+    
+    const fetchPromises = sources.map(async (source) => {
+      try {
+        const response = await fetch('http://localhost:5000/api/web-fetch', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ url: source.url }),
+        });
+
+        if (!response.ok) {
+          console.error(`Failed to fetch ${source.url}: ${response.status}`);
+          return;
+        }
+
+        const data = await response.json();
+        
+        const textContent = data.content
+          .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+          .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .substring(0, 5000);
+
+        contentMap.set(source.url, textContent);
+      } catch (error) {
+        console.error(`Error fetching content from ${source.url}:`, error);
+      }
+    });
+
+    await Promise.all(fetchPromises);
+    return contentMap;
   }
 
   private selectTopSources(searchResults: any[]): Source[] {
@@ -209,11 +227,16 @@ Return ONLY valid JSON (no markdown, no explanation):
     input: string,
     whysPath: string[],
     searchResults: any[],
-    topSources: Source[]
+    topSources: Source[],
+    sourceContents: Map<string, string>
   ): Promise<ResearchFindings> {
     const searchSummary = searchResults.map(sr => 
       `Query: ${sr.query}\nResults: ${sr.results?.map((r: any) => `- ${r.title}: ${r.snippet}`).join('\n') || 'No results'}`
     ).join('\n\n');
+
+    const fullContentSummary = Array.from(sourceContents.entries())
+      .map(([url, content]) => `URL: ${url}\nContent Excerpt: ${content.substring(0, 2000)}...`)
+      .join('\n\n---\n\n');
 
     const response = await this.anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
@@ -224,6 +247,12 @@ Return ONLY valid JSON (no markdown, no explanation):
           role: 'user',
           content: `You are a strategic market research analyst synthesizing findings for a business strategy.
 
+CRITICAL INSTRUCTIONS:
+- Every statement MUST cite a specific research finding from the full article content below
+- DO NOT make assumptions or use general knowledge
+- Only include facts that are explicitly stated in the source content
+- If sources lack information on a category, return fewer findings for that category
+
 ROOT CAUSE:
 ${rootCause}
 
@@ -233,58 +262,61 @@ ${input.substring(0, 1500)}
 ANALYSIS PATH:
 ${whysPath.map((w, i) => `${i + 1}. ${w}`).join('\n')}
 
-RESEARCH DATA:
+SEARCH RESULTS SNIPPETS:
 ${searchSummary}
+
+FULL ARTICLE CONTENT:
+${fullContentSummary}
 
 TOP SOURCES:
 ${topSources.map(s => `- ${s.title} (${s.url}) - Relevance: ${s.relevance_score}`).join('\n')}
 
-Based on this research, generate comprehensive findings across 5 categories. Each finding must include:
-- fact: A specific, actionable insight
-- citation: The source URL from the top sources list above
-- confidence: 'high', 'medium', or 'low' based on source quality
+Based on the FULL ARTICLE CONTENT above, generate findings across 5 categories. Each finding must:
+- fact: Quote or paraphrase a SPECIFIC statement from the full content
+- citation: The exact source URL where this fact was found
+- confidence: 'high' if from article content, 'medium' if from snippets, 'low' if uncertain
 
-Generate:
-1. Market Dynamics (3-5 findings about market size, growth, trends)
-2. Competitive Landscape (3-5 findings about key players, positioning, market share)
-3. Language/Cultural Preferences (2-4 findings about business language, localization needs)
-4. Buyer Behavior (3-5 findings about decision patterns, preferences, pain points)
-5. Regulatory/Compliance Factors (2-4 findings about regulations, standards, requirements)
+Generate findings ONLY for information explicitly found in sources:
+1. Market Dynamics (market size, growth, trends)
+2. Competitive Landscape (key players, positioning, market share)
+3. Language/Cultural Preferences (business language, localization needs)
+4. Buyer Behavior (decision patterns, preferences, pain points)
+5. Regulatory/Compliance Factors (regulations, standards, requirements)
 
 Return ONLY valid JSON (no markdown, no explanation):
 
 {
   "market_dynamics": [
     {
-      "fact": "Specific market insight",
+      "fact": "Specific market insight from article content",
       "citation": "https://source-url-from-top-sources.com",
       "confidence": "high"
     }
   ],
   "competitive_landscape": [
     {
-      "fact": "Specific competitive insight",
+      "fact": "Specific competitive insight from article content",
       "citation": "https://source-url-from-top-sources.com",
-      "confidence": "medium"
+      "confidence": "high"
     }
   ],
   "language_preferences": [
     {
-      "fact": "Specific language/cultural insight",
+      "fact": "Specific language/cultural insight from article content",
       "citation": "https://source-url-from-top-sources.com",
       "confidence": "high"
     }
   ],
   "buyer_behavior": [
     {
-      "fact": "Specific buyer behavior insight",
+      "fact": "Specific buyer behavior insight from article content",
       "citation": "https://source-url-from-top-sources.com",
-      "confidence": "medium"
+      "confidence": "high"
     }
   ],
   "regulatory_factors": [
     {
-      "fact": "Specific regulatory insight",
+      "fact": "Specific regulatory insight from article content",
       "citation": "https://source-url-from-top-sources.com",
       "confidence": "high"
     }
