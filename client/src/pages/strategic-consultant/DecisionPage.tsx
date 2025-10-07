@@ -21,6 +21,8 @@ interface DecisionOption {
   pros: string[];
   cons: string[];
   recommended?: boolean;
+  warning?: string;
+  reasoning?: string;
 }
 
 interface Decision {
@@ -234,7 +236,27 @@ export default function DecisionPage() {
                           </Label>
                           <p className="text-sm text-muted-foreground">{option.description}</p>
                           
-                          <div className="flex items-center gap-4 text-xs">
+                          {option.warning && (
+                            <Alert variant="destructive" className="mt-2">
+                              <AlertCircle className="h-4 w-4" />
+                              <AlertDescription>
+                                <span className="font-semibold">{option.warning}</span>
+                                {option.reasoning && (
+                                  <p className="mt-1 text-sm">{option.reasoning}</p>
+                                )}
+                              </AlertDescription>
+                            </Alert>
+                          )}
+                          
+                          {option.reasoning && !option.warning && (
+                            <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-950/30 rounded border border-blue-200 dark:border-blue-800">
+                              <p className="text-xs text-blue-900 dark:text-blue-100">
+                                <span className="font-semibold">Research insight:</span> {option.reasoning}
+                              </p>
+                            </div>
+                          )}
+                          
+                          <div className="flex items-center gap-4 text-xs flex-wrap">
                             {option.estimated_cost && (
                               <Badge variant="outline" className="font-normal">
                                 ${(option.estimated_cost.min / 1000000).toFixed(1)}M - ${(option.estimated_cost.max / 1000000).toFixed(1)}M
@@ -245,9 +267,14 @@ export default function DecisionPage() {
                                 {option.estimated_timeline_months} months
                               </Badge>
                             )}
-                            {option.recommended && (
+                            {option.recommended && !option.warning && (
                               <Badge variant="default" className="font-normal">
-                                Recommended
+                                ✓ Recommended
+                              </Badge>
+                            )}
+                            {option.warning && (
+                              <Badge variant="destructive" className="font-normal">
+                                ⚠ Not Recommended
                               </Badge>
                             )}
                           </div>

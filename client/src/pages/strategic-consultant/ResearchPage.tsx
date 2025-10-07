@@ -74,6 +74,8 @@ export default function ResearchPage() {
   const [error, setError] = useState<string | null>(null);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [autoNavigateCountdown, setAutoNavigateCountdown] = useState<number | null>(null);
+  const [isUpdatingDecisions, setIsUpdatingDecisions] = useState(false);
+  const [decisionsUpdated, setDecisionsUpdated] = useState(false);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -111,10 +113,9 @@ export default function ResearchPage() {
         setIsResearching(false);
         localStorage.setItem(`strategic-versionNumber-${sessionId}`, data.data.versionNumber.toString());
         toast({
-          title: "Research complete",
+          title: "Research complete ✓",
           description: `Analyzed ${data.data.sourcesAnalyzed} sources in ${data.data.timeElapsed}`,
         });
-        setAutoNavigateCountdown(3);
         eventSource.close();
       } else if (data.type === 'error') {
         setError(data.error || 'Research failed');
@@ -144,6 +145,69 @@ export default function ResearchPage() {
     };
   }, [sessionId]);
 
+  // After research completes, run enhanced analysis and regenerate decisions
+  useEffect(() => {
+    if (!researchData || !sessionId) return;
+    if (isUpdatingDecisions || decisionsUpdated) return;
+
+    const rootCause = localStorage.getItem(`strategic-rootCause-${sessionId}`) || '';
+    const whysPathStr = localStorage.getItem(`strategic-whysPath-${sessionId}`) || '[]';
+    const whysPath = JSON.parse(whysPathStr);
+    const versionNumber = researchData.versionNumber;
+
+    const updateDecisions = async () => {
+      setIsUpdatingDecisions(true);
+
+      try {
+        // Step 1: Run enhanced analysis (Porter's)
+        toast({
+          title: "⟳ Updating strategic decisions...",
+          description: "Running Porter's Five Forces analysis based on research findings",
+        });
+
+        await apiRequest('POST', '/api/strategic-consultant/analyze-enhanced', {
+          sessionId,
+          rootCause,
+          whysPath,
+          versionNumber
+        });
+
+        // Step 2: Regenerate decisions with research
+        toast({
+          title: "⟳ Regenerating decisions...",
+          description: "Updating recommendations to reflect research insights",
+        });
+
+        await apiRequest('POST', '/api/strategic-consultant/decisions/generate-with-research', {
+          sessionId,
+          versionNumber
+        });
+
+        setDecisionsUpdated(true);
+        setIsUpdatingDecisions(false);
+
+        toast({
+          title: "✓ Decisions updated",
+          description: "Recommendations now reflect research insights",
+        });
+
+        // Start auto-navigate countdown after decisions are updated
+        setAutoNavigateCountdown(3);
+      } catch (error: any) {
+        console.error('Failed to update decisions:', error);
+        setIsUpdatingDecisions(false);
+        toast({
+          title: "Warning: Decision update failed",
+          description: "Continuing with original decisions. " + (error.message || ''),
+          variant: "destructive",
+        });
+        // Still navigate even if decision update fails
+        setAutoNavigateCountdown(3);
+      }
+    };
+
+    updateDecisions();
+  }, [researchData, sessionId, isUpdatingDecisions, decisionsUpdated, toast]);
 
   useEffect(() => {
     if (autoNavigateCountdown === null) return;
@@ -290,15 +354,42 @@ export default function ResearchPage() {
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <CheckCircle2 className="h-6 w-6 text-green-500" data-testid="icon-complete" />
+            {isUpdatingDecisions ? (
+              <Loader2 className="h-6 w-6 animate-spin text-primary" data-testid="icon-updating" />
+            ) : (
+              <CheckCircle2 className="h-6 w-6 text-green-500" data-testid="icon-complete" />
+            )}
             <div>
-              <h2 className="text-xl font-semibold" data-testid="text-research-complete">
-                Research complete ✓
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Sources analyzed: <span className="font-medium" data-testid="text-sources-count">{sourcesAnalyzed}</span> • 
-                Time: <span className="font-medium" data-testid="text-time-elapsed">{timeElapsed}</span>
-              </p>
+              {isUpdatingDecisions ? (
+                <>
+                  <h2 className="text-xl font-semibold" data-testid="text-updating-decisions">
+                    ⟳ Updating strategic decisions based on research findings...
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    Running Porter's analysis and regenerating recommendations
+                  </p>
+                </>
+              ) : decisionsUpdated ? (
+                <>
+                  <h2 className="text-xl font-semibold text-green-600" data-testid="text-decisions-updated">
+                    ✓ Decisions updated - recommendations now reflect research insights
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    Sources analyzed: <span className="font-medium" data-testid="text-sources-count">{sourcesAnalyzed}</span> • 
+                    Time: <span className="font-medium" data-testid="text-time-elapsed">{timeElapsed}</span>
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h2 className="text-xl font-semibold" data-testid="text-research-complete">
+                    ✓ Research complete
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    Sources analyzed: <span className="font-medium" data-testid="text-sources-count">{sourcesAnalyzed}</span> • 
+                    Time: <span className="font-medium" data-testid="text-time-elapsed">{timeElapsed}</span>
+                  </p>
+                </>
+              )}
             </div>
           </div>
           {autoNavigateCountdown !== null && (

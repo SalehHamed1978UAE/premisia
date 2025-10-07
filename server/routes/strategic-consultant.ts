@@ -669,6 +669,90 @@ router.post('/analyze-enhanced', async (req: Request, res: Response) => {
   }
 });
 
+router.post('/decisions/generate-with-research', async (req: Request, res: Response) => {
+  try {
+    const { sessionId, versionNumber } = req.body;
+
+    if (!sessionId) {
+      return res.status(400).json({ error: 'sessionId is required' });
+    }
+
+    let targetVersionNumber: number;
+    let version;
+
+    if (versionNumber) {
+      targetVersionNumber = versionNumber;
+      version = await storage.getStrategyVersion(sessionId, targetVersionNumber);
+      
+      if (!version) {
+        return res.status(404).json({ error: 'Version not found' });
+      }
+    } else {
+      const versions = await storage.getStrategyVersionsBySession(sessionId);
+      if (versions.length === 0) {
+        return res.status(404).json({ error: 'No versions found for this session' });
+      }
+      version = versions[versions.length - 1];
+      targetVersionNumber = version.versionNumber;
+    }
+
+    const existingAnalysisData = version.analysisData as any || {};
+    
+    if (!existingAnalysisData.research) {
+      return res.status(400).json({ 
+        error: 'No research findings available. Please conduct research first.' 
+      });
+    }
+
+    if (!existingAnalysisData.enhanced_analysis) {
+      return res.status(400).json({ 
+        error: 'No Porter\'s analysis available. Please run enhanced analysis first.' 
+      });
+    }
+
+    // Get the original analysis data
+    const originalAnalysis = version.analysisData as any;
+    if (!originalAnalysis) {
+      return res.status(400).json({ error: 'No analysis data found in version' });
+    }
+
+    // Extract original input
+    let originalInput = version.inputSummary || '';
+
+    // Generate research-informed decisions
+    const researchInformedDecisions = await decisionGenerator.generateDecisionsWithResearch(
+      originalAnalysis,
+      originalInput,
+      existingAnalysisData.research,
+      existingAnalysisData.enhanced_analysis.porters_analysis
+    );
+
+    // Validate the generated decisions
+    const validationResult = await decisionGenerator.validateDecisions(researchInformedDecisions);
+    if (!validationResult.valid) {
+      return res.status(400).json({ 
+        error: 'Generated decisions are invalid',
+        issues: validationResult.issues 
+      });
+    }
+
+    // Update version with research-informed decisions
+    await storage.updateStrategyVersion(version.id, {
+      decisionsData: researchInformedDecisions,
+    });
+
+    res.json({
+      success: true,
+      decisions: researchInformedDecisions,
+      versionNumber: targetVersionNumber,
+      message: 'Decisions successfully updated with research findings'
+    });
+  } catch (error: any) {
+    console.error('Error in /decisions/generate-with-research:', error);
+    res.status(500).json({ error: error.message || 'Research-informed decision generation failed' });
+  }
+});
+
 router.get('/health', (req: Request, res: Response) => {
   res.json({
     success: true,
