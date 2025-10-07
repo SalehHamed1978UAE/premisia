@@ -83,6 +83,7 @@ export interface EnhancedAnalysisResult {
   recommendations: Recommendation[];
   researchBased: true;
   confidenceScore: number;
+  confidenceExplanation: string;
   citations: Source[];
 }
 
@@ -507,6 +508,7 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
     }));
 
     const confidenceScore = this.calculateOverallConfidence(normalizedPorters, research);
+    const confidenceExplanation = this.generateConfidenceExplanation(confidenceScore, normalizedPorters, research, input);
 
     return {
       executiveSummary: parsed.executiveSummary,
@@ -514,6 +516,7 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
       recommendations: normalizedRecommendations,
       researchBased: true,
       confidenceScore,
+      confidenceExplanation,
       citations: research.sources,
     };
   }
@@ -560,6 +563,88 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
     const finalScore = Math.max(0, Math.min(100, baseScore - insufficientDataPenalty));
 
     return Math.round(finalScore);
+  }
+
+  private generateConfidenceExplanation(
+    score: number,
+    porters: PortersWithCitations,
+    research: ResearchFindings,
+    originalInput: string
+  ): string {
+    const explanationParts: string[] = [];
+
+    // Overall assessment
+    if (score < 40) {
+      explanationParts.push(`Low confidence (${score}%) due to:`);
+    } else if (score < 70) {
+      explanationParts.push(`Moderate confidence (${score}%) due to:`);
+    } else {
+      explanationParts.push(`High confidence (${score}%) due to:`);
+    }
+
+    // Research quality assessment
+    const totalFindings = 
+      research.market_dynamics.length +
+      research.competitive_landscape.length +
+      research.language_preferences.length +
+      research.buyer_behavior.length +
+      research.regulatory_factors.length;
+
+    const highConfidenceFindings = [
+      ...research.market_dynamics,
+      ...research.competitive_landscape,
+      ...research.language_preferences,
+      ...research.buyer_behavior,
+      ...research.regulatory_factors,
+    ].filter(f => f.confidence === 'high').length;
+
+    if (totalFindings < 10) {
+      explanationParts.push(`- Limited research data (only ${totalFindings} findings)`);
+    }
+
+    if (highConfidenceFindings < totalFindings * 0.5) {
+      explanationParts.push(`- Low research quality (only ${highConfidenceFindings}/${totalFindings} high-confidence findings)`);
+    }
+
+    // Check for insufficient data flags
+    const insufficientDataCount = [
+      porters.competitive_rivalry.insufficientData,
+      porters.supplier_power.insufficientData,
+      porters.buyer_power.insufficientData,
+      porters.threat_of_substitution.insufficientData,
+      porters.threat_of_new_entry.insufficientData,
+    ].filter(Boolean).length;
+
+    if (insufficientDataCount > 0) {
+      explanationParts.push(`- ${insufficientDataCount} of 5 Porter's forces lack sufficient research data`);
+    }
+
+    // Check for contradictions to input assumptions
+    const inputLower = originalInput.toLowerCase();
+    const contradictions: string[] = [];
+
+    // Check language preferences for contradictions
+    research.language_preferences.forEach(finding => {
+      const factLower = finding.fact.toLowerCase();
+      
+      // If input mentions Arabic but research shows English dominance
+      if ((inputLower.includes('arabic') || inputLower.includes('عربي')) && 
+          (factLower.includes('english') && (factLower.includes('dominat') || factLower.includes('prefer') || factLower.includes('primary')))) {
+        contradictions.push(`Research shows English dominance, contradicting any Arabic differentiation assumption: "${finding.fact}"`);
+      }
+      
+      // Generic contradiction detection
+      if (inputLower.includes('differentiat') && factLower.includes('not') && factLower.includes('differentiat')) {
+        contradictions.push(`Research questions differentiation assumption: "${finding.fact}"`);
+      }
+    });
+
+    if (contradictions.length > 0) {
+      explanationParts.push(`\n\nKEY CONTRADICTIONS TO INPUT:`);
+      contradictions.forEach(c => explanationParts.push(`- ${c}`));
+    }
+
+    return explanationParts.join('\n');
   }
 
   private createExecutiveSummary(

@@ -81,6 +81,7 @@ interface EnhancedAnalysisResult {
   recommendations: Recommendation[];
   researchBased: true;
   confidenceScore: number;
+  confidenceExplanation: string;
   citations: Source[];
 }
 
@@ -262,6 +263,17 @@ export default function AnalysisPage() {
                 <div className="mt-2">
                   <Progress value={enhancedAnalysis.confidenceScore} className="h-2" data-testid="progress-confidence" />
                 </div>
+                {enhancedAnalysis.confidenceExplanation && (
+                  <Alert className="mt-4 bg-muted/50" data-testid="alert-confidence-explanation">
+                    <AlertTitle className="flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4" />
+                      Confidence Assessment
+                    </AlertTitle>
+                    <AlertDescription className="mt-2 whitespace-pre-line text-sm">
+                      {enhancedAnalysis.confidenceExplanation}
+                    </AlertDescription>
+                  </Alert>
+                )}
               </CardContent>
             </Card>
 
