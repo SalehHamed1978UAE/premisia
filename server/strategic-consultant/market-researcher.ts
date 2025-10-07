@@ -75,7 +75,9 @@ export class MarketResearcher {
       messages: [
         {
           role: 'user',
-          content: `You are a market research specialist creating search queries for strategic analysis.
+          content: `You are a critical market research specialist creating UNBIASED search queries for strategic analysis.
+
+CRITICAL: Avoid confirmation bias. For ANY claim or assumption in the input, generate queries that BOTH validate AND challenge it.
 
 ROOT CAUSE IDENTIFIED:
 ${rootCause}
@@ -86,9 +88,19 @@ ${input.substring(0, 1500)}
 ANALYSIS PATH:
 ${whysPath.map((w, i) => `${i + 1}. ${w}`).join('\n')}
 
-Extract key elements from the input (market, industry, product type, competitors) and generate 4-5 targeted research queries. Each query should:
+Generate 6-8 targeted research queries following this structure:
+
+1. BASELINE QUERIES (2-3 queries): General market/industry context
+2. VALIDATING QUERIES (2 queries): Search for evidence that SUPPORTS any claims in the input
+3. CHALLENGING QUERIES (2-3 queries): Search for evidence that CONTRADICTS or questions the input assumptions
+
+For any differentiation claim (e.g., "Arabic language differentiation"):
+- Validating query: "Arabic software demand UAE enterprises"
+- Challenging query: "English vs Arabic UAE business language statistics"
+- Alternative challenge: "successful English-only software UAE market"
+
+Each query should:
 - Be specific and actionable for web search
-- Focus on different aspects (market analysis, competition, preferences, strategy)
 - Include current year (2025) where relevant for recent data
 - Be concise (5-10 words)
 
@@ -98,17 +110,17 @@ Return ONLY valid JSON with this structure (no markdown, no explanation):
   "queries": [
     {
       "query": "specific search query text",
-      "purpose": "what this query aims to discover"
+      "purpose": "what this query aims to discover",
+      "type": "baseline|validating|challenging"
     }
   ]
 }
 
-Example queries:
-- "{market} {industry} market analysis 2025"
-- "{product_type} competitive landscape {market}"
-- "{market} business language preferences enterprise software"
-- "{rootCause} strategy examples"
-- "top {industry} companies {market} 2025"`,
+Example for "Arabic language differentiates our enterprise software in UAE":
+- {"query": "UAE enterprise software market 2025", "purpose": "market size and trends", "type": "baseline"}
+- {"query": "Arabic enterprise software UAE demand", "purpose": "validate Arabic demand", "type": "validating"}
+- {"query": "English vs Arabic UAE business language statistics", "purpose": "challenge language assumption", "type": "challenging"}
+- {"query": "successful English-only enterprise software UAE", "purpose": "test if Arabic is necessary", "type": "challenging"}`,
         },
       ],
     });
