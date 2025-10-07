@@ -763,6 +763,67 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  app.post("/api/web-search", async (req, res) => {
+    try {
+      const { query } = req.body;
+      
+      if (!query || typeof query !== 'string') {
+        return res.status(400).json({ error: 'Query parameter is required' });
+      }
+
+      const response = await fetch('https://google.serper.dev/search', {
+        method: 'POST',
+        headers: {
+          'X-API-KEY': process.env.SERPER_API_KEY || '',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ q: query })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Serper API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error('Web search error:', error);
+      res.status(500).json({ 
+        error: 'Failed to perform web search',
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  app.post("/api/web-fetch", async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url || typeof url !== 'string') {
+        return res.status(400).json({ error: 'URL parameter is required' });
+      }
+
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; QDataEPM/1.0; +http://qdata.com)'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`);
+      }
+
+      const content = await response.text();
+      res.json({ content, url });
+    } catch (error) {
+      console.error('Web fetch error:', error);
+      res.status(500).json({ 
+        error: 'Failed to fetch URL',
+        message: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
   // Strategic Consultant Test Endpoint
   app.get("/api/strategy/test", requireAuth, async (req, res) => {
     try {
