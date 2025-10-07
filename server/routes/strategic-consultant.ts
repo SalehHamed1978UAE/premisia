@@ -724,7 +724,7 @@ router.post('/decisions/generate-with-research', async (req: Request, res: Respo
       originalAnalysis,
       originalInput,
       existingAnalysisData.research,
-      existingAnalysisData.enhanced_analysis.porters_analysis
+      existingAnalysisData.enhanced_analysis.portersAnalysis
     );
 
     // Validate the generated decisions
