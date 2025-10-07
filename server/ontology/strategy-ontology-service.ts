@@ -1,9 +1,4 @@
-import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import ontologyData from './strategy-ontology.json';
 
 interface StrategyOntology {
   strategic_approaches: Record<string, StrategicApproach>;
@@ -64,9 +59,7 @@ class StrategyOntologyService {
   private ontology: StrategyOntology;
 
   constructor() {
-    const ontologyPath = join(__dirname, 'strategy-ontology.json');
-    const ontologyData = readFileSync(ontologyPath, 'utf-8');
-    this.ontology = JSON.parse(ontologyData);
+    this.ontology = ontologyData as StrategyOntology;
   }
 
   getStrategicApproaches(): Record<string, StrategicApproach> {
