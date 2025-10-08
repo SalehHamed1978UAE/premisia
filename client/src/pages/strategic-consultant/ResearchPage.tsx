@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Loader2, CheckCircle2, ExternalLink, ChevronDown, AlertCircle, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +17,16 @@ interface Finding {
   fact: string;
   citation: string;
   confidence: 'high' | 'medium' | 'low';
+}
+
+interface ValidationResult {
+  claim: string;
+  strength: 'STRONG' | 'MODERATE' | 'WEAK';
+  sourceCount: number;
+  recencyMonths: number;
+  hasCounterEvidence: boolean;
+  contradicts: boolean;
+  details: string;
 }
 
 interface ResearchFindings {
@@ -29,6 +40,7 @@ interface ResearchFindings {
     title: string;
     relevance_score: number;
   }>;
+  validation?: ValidationResult[];
 }
 
 interface ResearchResponse {
@@ -50,6 +62,30 @@ const getConfidenceBadgeVariant = (confidence: string) => {
     default:
       return 'outline';
   }
+};
+
+const getValidationIndicator = (strength: 'STRONG' | 'MODERATE' | 'WEAK') => {
+  switch (strength) {
+    case 'STRONG':
+      return '🟢';
+    case 'MODERATE':
+      return '🟡';
+    case 'WEAK':
+      return '🔴';
+    default:
+      return '⚪';
+  }
+};
+
+const findValidationForClaim = (claim: string, validation?: ValidationResult[]): ValidationResult | null => {
+  if (!validation) return null;
+  
+  const claimLower = claim.toLowerCase().replace(/[^\w\s]/g, '').trim();
+  
+  return validation.find(v => {
+    const vClaimLower = v.claim.toLowerCase().replace(/[^\w\s]/g, '').trim();
+    return claimLower.includes(vClaimLower) || vClaimLower.includes(claimLower);
+  }) || null;
 };
 
 const categoryConfig = [
@@ -463,34 +499,63 @@ export default function ResearchPage() {
                   </CardHeader>
                   <CollapsibleContent>
                     <CardContent className="space-y-4">
-                      {findings_list.map((finding, idx) => (
-                        <div
-                          key={idx}
-                          className="p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
-                          data-testid={`finding-${key}-${idx}`}
-                        >
-                          <div className="flex items-start justify-between gap-4">
-                            <p className="text-sm flex-1">{finding.fact}</p>
-                            <Badge
-                              variant={getConfidenceBadgeVariant(finding.confidence)}
-                              className="shrink-0"
-                              data-testid={`badge-confidence-${key}-${idx}`}
-                            >
-                              {finding.confidence}
-                            </Badge>
-                          </div>
-                          <a
-                            href={finding.citation}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-1 mt-2 text-xs text-blue-600 hover:underline"
-                            data-testid={`link-citation-${key}-${idx}`}
+                      {findings_list.map((finding, idx) => {
+                        const validation = findValidationForClaim(finding.fact, findings.validation);
+                        
+                        return (
+                          <div
+                            key={idx}
+                            className="p-4 border rounded-lg bg-card hover:bg-accent/50 transition-colors"
+                            data-testid={`finding-${key}-${idx}`}
                           >
-                            <ExternalLink className="h-3 w-3" />
-                            View source
-                          </a>
-                        </div>
-                      ))}
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex items-start gap-2 flex-1">
+                                {validation && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span 
+                                          className="text-lg cursor-help mt-0.5"
+                                          data-testid={`validation-indicator-${key}-${idx}`}
+                                        >
+                                          {getValidationIndicator(validation.strength)}
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent className="max-w-xs">
+                                        <p className="font-semibold">{validation.strength}</p>
+                                        <p className="text-xs mt-1">{validation.details}</p>
+                                        {validation.contradicts && (
+                                          <p className="text-xs mt-1 text-amber-500">
+                                            ⚠️ Contradictory evidence found
+                                          </p>
+                                        )}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                                <p className="text-sm flex-1">{finding.fact}</p>
+                              </div>
+                              <Badge
+                                variant={getConfidenceBadgeVariant(finding.confidence)}
+                                className="shrink-0"
+                                data-testid={`badge-confidence-${key}-${idx}`}
+                              >
+                                {finding.confidence}
+                              </Badge>
+                            </div>
+                            <a
+                              href={finding.citation}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 mt-2 text-xs text-blue-600 hover:underline"
+                              data-testid={`link-citation-${key}-${idx}`}
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              View source
+                            </a>
+                          </div>
+                        );
+                      })}
                     </CardContent>
                   </CollapsibleContent>
                 </Collapsible>
