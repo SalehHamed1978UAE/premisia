@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { SourceValidator, type ValidationResult } from './source-validator';
 
 export interface Finding {
   fact: string;
@@ -19,6 +20,7 @@ export interface ResearchFindings {
   buyer_behavior: Finding[];
   regulatory_factors: Finding[];
   sources: Source[];
+  validation?: ValidationResult[];
 }
 
 export interface ResearchQuery {
@@ -28,6 +30,7 @@ export interface ResearchQuery {
 
 export class MarketResearcher {
   private anthropic: Anthropic;
+  private validator: SourceValidator;
 
   constructor() {
     const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -35,6 +38,7 @@ export class MarketResearcher {
       throw new Error('ANTHROPIC_API_KEY environment variable is required');
     }
     this.anthropic = new Anthropic({ apiKey });
+    this.validator = new SourceValidator();
   }
 
   async conductResearch(
@@ -60,7 +64,20 @@ export class MarketResearcher {
       sourceContents
     );
 
-    return findings;
+    const allFindings = [
+      ...findings.market_dynamics,
+      ...findings.competitive_landscape,
+      ...findings.language_preferences,
+      ...findings.buyer_behavior,
+      ...findings.regulatory_factors,
+    ];
+
+    const validation = await this.validator.validateFindings(allFindings, findings.sources);
+
+    return {
+      ...findings,
+      validation,
+    };
   }
 
   async generateResearchQueries(
