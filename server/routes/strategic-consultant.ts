@@ -546,6 +546,23 @@ router.get('/research/stream/:sessionId', async (req: Request, res: Response) =>
       sourceContents
     );
 
+    res.write(`data: ${JSON.stringify({ type: 'progress', message: 'Validating research sources...', progress: 88 })}\n\n`);
+
+    const allFindings = [
+      ...findings.market_dynamics,
+      ...findings.competitive_landscape,
+      ...findings.language_preferences,
+      ...findings.buyer_behavior,
+      ...findings.regulatory_factors,
+    ];
+
+    const validation = await marketResearcher.validateFindingsPublic(allFindings, findings.sources);
+
+    const findingsWithValidation = {
+      ...findings,
+      validation,
+    };
+
     const endTime = Date.now();
     const timeElapsedMs = endTime - startTime;
     const timeElapsed = `${(timeElapsedMs / 1000).toFixed(1)}s`;
@@ -575,17 +592,17 @@ router.get('/research/stream/:sessionId', async (req: Request, res: Response) =>
     await storage.updateStrategyVersion(version.id, {
       analysisData: {
         ...existingAnalysisData,
-        research: findings,
+        research: findingsWithValidation,
       },
     });
 
-    const searchQueriesUsed = findings.sources.map(s => s.title);
-    const sourcesAnalyzed = findings.sources.length;
+    const searchQueriesUsed = findingsWithValidation.sources.map(s => s.title);
+    const sourcesAnalyzed = findingsWithValidation.sources.length;
 
     res.write(`data: ${JSON.stringify({ 
       type: 'complete', 
       data: {
-        findings,
+        findings: findingsWithValidation,
         searchQueriesUsed,
         sourcesAnalyzed,
         timeElapsed,

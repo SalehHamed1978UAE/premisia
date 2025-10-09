@@ -321,6 +321,10 @@ Example for "Arabic language differentiates our enterprise software in UAE":
     return this.synthesizeFindings(rootCause, input, whysPath, searchResults, topSources, sourceContents);
   }
 
+  async validateFindingsPublic(allFindings: Finding[], sources: Source[]): Promise<ValidationResult[]> {
+    return await this.validator.validateFindings(allFindings, sources);
+  }
+
   private selectTopSources(searchResults: any[]): Source[] {
     const allResults: Source[] = [];
     
