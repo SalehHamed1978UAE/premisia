@@ -325,8 +325,35 @@ Return ONLY valid JSON (no markdown, no explanation):
     research: ResearchFindings,
     input: string
   ): Promise<EnhancedAnalysisResult> {
+    const findValidation = (fact: string) => {
+      if (!research.validation) return null;
+      const factLower = fact.toLowerCase().replace(/[^\w\s]/g, '').trim();
+      return research.validation.find(v => {
+        const vClaimLower = v.claim.toLowerCase().replace(/[^\w\s]/g, '').trim();
+        return factLower.includes(vClaimLower) || vClaimLower.includes(factLower);
+      });
+    };
+
     const formatFindings = (findings: Finding[]) => 
-      findings.map(f => `- ${f.fact} [Citation: ${f.citation}] (Confidence: ${f.confidence})`).join('\n');
+      findings.map(f => {
+        const validation = findValidation(f.fact);
+        let validationNote = '';
+        if (validation) {
+          if (validation.strength === 'WEAK') {
+            validationNote = ` [⚠️ WEAK VALIDATION: ${validation.details}]`;
+          } else if (validation.strength === 'MODERATE') {
+            validationNote = ` [⚡ MODERATE VALIDATION: ${validation.details}]`;
+          }
+        }
+        return `- ${f.fact}${validationNote} [Citation: ${f.citation}] (Confidence: ${f.confidence})`;
+      }).join('\n');
+
+    const validationSummary = research.validation && research.validation.length > 0 
+      ? `\nVALIDATION WARNINGS:\n${research.validation
+          .filter(v => v.strength !== 'STRONG')
+          .map(v => `- ${v.claim}: ${v.strength} (${v.details})`)
+          .join('\n')}`
+      : '';
 
     const researchSummary = `
 MARKET DYNAMICS:
@@ -343,6 +370,7 @@ ${formatFindings(research.buyer_behavior)}
 
 REGULATORY FACTORS:
 ${formatFindings(research.regulatory_factors)}
+${validationSummary}
 
 AVAILABLE SOURCES:
 ${research.sources.map(s => `- ${s.title} (${s.url}) - Relevance: ${s.relevance_score}`).join('\n')}
@@ -363,6 +391,16 @@ CRITICAL INSTRUCTIONS:
 3. If research is inconclusive or missing for any aspect, explicitly state "Insufficient data" and note what additional research is needed
 4. Base confidence levels on the quality and quantity of research available
 5. All factors and responses must be grounded in the research provided
+
+VALIDATION-AWARE ANALYSIS:
+6. Research findings are marked with validation strength: ⚠️ WEAK or ⚡ MODERATE
+7. When using WEAK findings, use qualifying language:
+   - Instead of: "95% of AI projects are failing"
+   - Write: "Some older studies from 2021 suggest high failure rates (95%), though this data is contested and may be outdated"
+   - Or: "Contested research indicates potential challenges with AI project success"
+8. WEAK validation means: outdated data (>2 years old), single-source claims, or contradicted by other evidence
+9. Never state WEAK claims as definitive facts - always qualify them with appropriate caveats
+10. Lower confidence scores for analysis based primarily on WEAK validation findings
 
 STRATEGIC CONTEXT:
 Root Cause: ${rootCause}
