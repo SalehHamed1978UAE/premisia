@@ -163,11 +163,31 @@ Return ONLY valid JSON (no markdown, no explanation):
 
     const marketInfo = markets[analysis.recommended_market];
 
-    // Extract key research insights
-    const languageInsights = researchFindings.language_preferences.map(f => f.fact).join('; ');
-    const marketDynamics = researchFindings.market_dynamics.map(f => f.fact).join('; ');
-    const competitiveInsights = researchFindings.competitive_landscape.map(f => f.fact).join('; ');
-    const buyerBehavior = researchFindings.buyer_behavior.map(f => f.fact).join('; ');
+    // Helper function to find validation for a research finding
+    const findValidation = (fact: string) => {
+      if (!researchFindings.validation) return null;
+      const factLower = fact.toLowerCase().replace(/[^\w\s]/g, '').trim();
+      return researchFindings.validation.find(v => {
+        const vClaimLower = v.claim.toLowerCase().replace(/[^\w\s]/g, '').trim();
+        return factLower.includes(vClaimLower) || vClaimLower.includes(factLower);
+      });
+    };
+
+    // Format findings with validation indicators
+    const formatWithValidation = (findings: typeof researchFindings.market_dynamics) => 
+      findings.map(f => {
+        const validation = findValidation(f.fact);
+        if (validation && validation.strength !== 'STRONG') {
+          return `${f.fact} [${validation.strength}: ${validation.details}]`;
+        }
+        return f.fact;
+      }).join('; ');
+
+    // Extract key research insights WITH validation indicators
+    const languageInsights = formatWithValidation(researchFindings.language_preferences);
+    const marketDynamics = formatWithValidation(researchFindings.market_dynamics);
+    const competitiveInsights = formatWithValidation(researchFindings.competitive_landscape);
+    const buyerBehavior = formatWithValidation(researchFindings.buyer_behavior);
 
     // Extract Porter's strategic responses
     const strategicResponses = [
