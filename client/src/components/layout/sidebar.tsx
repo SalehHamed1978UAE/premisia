@@ -167,57 +167,55 @@ export function Sidebar({ currentView, onViewChange, isOpen, onToggle }: Sidebar
           </div>
         </div>
 
+        {/* Strategic Consultant - Prominent CTA */}
+        <div className="p-4 pb-0">
+          <Button
+            className="w-full justify-start h-auto p-4 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-200"
+            onClick={() => {
+              setLocation('/strategic-consultant/input');
+              if (window.innerWidth < 1024) {
+                onToggle();
+              }
+            }}
+            data-testid="nav-strategic-consultant"
+          >
+            <Sparkles className="h-6 w-6 mr-3 flex-shrink-0" />
+            <div className="text-left">
+              <div className="font-semibold text-base">Strategic Consultant</div>
+              <div className="text-xs opacity-90">✨ AI-powered strategy</div>
+            </div>
+          </Button>
+        </div>
+
         {/* Navigation */}
         <nav className="flex-1 p-4 overflow-y-auto">
-          <div className="space-y-4">
-            <div className="space-y-1">
-              {navigation.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Button
-                    key={item.id}
-                    variant={currentView === item.id ? "default" : "ghost"}
-                    className={cn(
-                      "w-full justify-start h-auto p-3",
-                      currentView === item.id && "bg-primary text-primary-foreground"
-                    )}
-                    onClick={() => {
-                      onViewChange(item.id);
-                      if (window.innerWidth < 1024) {
-                        onToggle();
-                      }
-                    }}
-                    data-testid={`nav-${item.id}`}
-                  >
-                    <Icon className="h-5 w-5 mr-3 flex-shrink-0" />
-                    <div className="text-left">
-                      <div className="font-medium">{item.label}</div>
-                      <div className="text-xs opacity-70">{item.description}</div>
-                    </div>
-                  </Button>
-                );
-              })}
-            </div>
-
-            <div className="pt-4 border-t border-border">
-              <Button
-                variant="outline"
-                className="w-full justify-start h-auto p-3 border-primary/50 hover:bg-primary/10"
-                onClick={() => {
-                  setLocation('/strategic-consultant/input');
-                  if (window.innerWidth < 1024) {
-                    onToggle();
-                  }
-                }}
-                data-testid="nav-strategic-consultant"
-              >
-                <Sparkles className="h-5 w-5 mr-3 flex-shrink-0 text-primary" />
-                <div className="text-left">
-                  <div className="font-medium">Strategic Consultant</div>
-                  <div className="text-xs opacity-70">AI-powered strategy</div>
-                </div>
-              </Button>
-            </div>
+          <div className="space-y-1">
+            {navigation.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Button
+                  key={item.id}
+                  variant={currentView === item.id ? "default" : "ghost"}
+                  className={cn(
+                    "w-full justify-start h-auto p-3",
+                    currentView === item.id && "bg-primary text-primary-foreground"
+                  )}
+                  onClick={() => {
+                    onViewChange(item.id);
+                    if (window.innerWidth < 1024) {
+                      onToggle();
+                    }
+                  }}
+                  data-testid={`nav-${item.id}`}
+                >
+                  <Icon className="h-5 w-5 mr-3 flex-shrink-0" />
+                  <div className="text-left">
+                    <div className="font-medium">{item.label}</div>
+                    <div className="text-xs opacity-70">{item.description}</div>
+                  </div>
+                </Button>
+              );
+            })}
           </div>
         </nav>
 
