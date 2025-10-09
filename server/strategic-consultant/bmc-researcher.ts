@@ -269,4 +269,108 @@ Include 3-6 findings. Set confidence to:
     const average = scores.reduce((sum, score) => sum + score, 0) / scores.length;
     return Math.round(average * 100) / 100;
   }
+
+  async synthesizeOverallBMC(
+    blocks: BMCBlockFindings[],
+    originalInput: string
+  ): Promise<{
+    viability: string;
+    keyInsights: string[];
+    criticalGaps: string[];
+    consistencyChecks: any[];
+    recommendations: any[];
+  }> {
+    const customerBlock = blocks.find(b => b.blockType === 'customer_segments');
+    const valueBlock = blocks.find(b => b.blockType === 'value_propositions');
+    const revenueBlock = blocks.find(b => b.blockType === 'revenue_streams');
+
+    const blockSummary = blocks.map(b => 
+      `${b.blockName} (${b.confidence} confidence):\n${b.description}\nGaps: ${b.gaps.join(', ') || 'None identified'}`
+    ).join('\n\n');
+
+    const response = await this.anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 3000,
+      temperature: 0.3,
+      messages: [
+        {
+          role: 'user',
+          content: `You are a Business Model Canvas expert conducting overall viability analysis.
+
+ORIGINAL INPUT:
+${originalInput.substring(0, 1500)}
+
+RESEARCH FINDINGS FOR 3 BMC BLOCKS:
+${blockSummary}
+
+Based on these findings, provide comprehensive BMC viability analysis:
+
+1. **Cross-Block Consistency**: Do customer segments align with value propositions? Do value propositions support the revenue model?
+2. **Overall Viability**: Can this business model work based on research evidence?
+3. **Key Insights**: What are the most important strategic insights across all blocks?
+4. **Critical Gaps**: What critical information is missing or uncertain?
+5. **Recommendations**: What should be prioritized or validated?
+
+Return ONLY valid JSON (no markdown, no explanation):
+
+{
+  "viability": "strong|moderate|weak",
+  "keyInsights": [
+    "Cross-block insight 1 (2-3 sentences)",
+    "Cross-block insight 2 (2-3 sentences)",
+    "Cross-block insight 3 (2-3 sentences)"
+  ],
+  "criticalGaps": [
+    "Critical gap 1",
+    "Critical gap 2"
+  ],
+  "consistencyChecks": [
+    {
+      "aspect": "Customer-Value Alignment",
+      "status": "aligned|misaligned|uncertain",
+      "explanation": "Brief explanation of consistency"
+    },
+    {
+      "aspect": "Value-Revenue Alignment",
+      "status": "aligned|misaligned|uncertain",
+      "explanation": "Brief explanation of consistency"
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "high|medium|low",
+      "action": "Specific recommendation",
+      "rationale": "Why this matters"
+    }
+  ]
+}
+
+Viability criteria:
+- "strong": All blocks have moderate-strong confidence, good alignment, clear path to revenue
+- "moderate": Some uncertainty but core model appears viable with validation
+- "weak": Significant gaps, misalignment, or fundamental viability concerns`,
+        },
+      ],
+    });
+
+    const textContent = response.content
+      .filter((block) => block.type === 'text')
+      .map((block) => (block as Anthropic.TextBlock).text)
+      .join('\n');
+
+    const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('Failed to extract JSON from overall BMC synthesis');
+    }
+
+    const synthesized = JSON.parse(jsonMatch[0]);
+
+    return {
+      viability: synthesized.viability || 'weak',
+      keyInsights: synthesized.keyInsights || [],
+      criticalGaps: synthesized.criticalGaps || [],
+      consistencyChecks: synthesized.consistencyChecks || [],
+      recommendations: synthesized.recommendations || [],
+    };
+  }
 }
