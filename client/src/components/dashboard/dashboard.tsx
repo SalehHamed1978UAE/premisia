@@ -4,7 +4,10 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { useProgram } from "@/contexts/ProgramContext";
+import { WelcomeModal } from "@/components/onboarding/WelcomeModal";
+import { useLocation } from "wouter";
 import { 
   Calendar, 
   DollarSign, 
@@ -14,7 +17,10 @@ import {
   Users,
   Target,
   Activity,
-  AlertCircle
+  AlertCircle,
+  Sparkles,
+  ArrowRight,
+  Lightbulb
 } from "lucide-react";
 
 interface DashboardSummary {
@@ -41,6 +47,7 @@ interface DashboardSummary {
 
 export function Dashboard() {
   const { selectedProgramId, isLoading: programsLoading } = useProgram();
+  const [, setLocation] = useLocation();
   const { data: summary, isLoading, error } = useQuery<DashboardSummary>({
     queryKey: ['/api/dashboard/summary', selectedProgramId],
     queryFn: async () => {
@@ -85,14 +92,84 @@ export function Dashboard() {
 
   if (!summary) {
     return (
-      <div className="space-y-6">
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            No program data available. Please create a program to get started.
-          </AlertDescription>
-        </Alert>
-      </div>
+      <>
+        <WelcomeModal />
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Card className="max-w-2xl w-full shadow-lg" data-testid="card-empty-state">
+            <CardContent className="pt-8 pb-8">
+              <div className="text-center space-y-6">
+                <div className="flex justify-center">
+                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg">
+                    <Sparkles className="h-10 w-10 text-white" />
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-bold text-foreground">
+                    Welcome to Qgentic!
+                  </h2>
+                  <p className="text-muted-foreground text-lg">
+                    Turn your strategic ideas into actionable enterprise programs
+                  </p>
+                </div>
+
+                <div className="bg-primary/5 dark:bg-primary/10 rounded-lg p-6 space-y-4 text-left">
+                  <div className="flex items-start space-x-3">
+                    <Lightbulb className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-foreground mb-1">
+                        Start with Strategic Consultant
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Share your business idea, upload strategy documents, or describe a challenge. Our AI will analyze it, guide you through root cause analysis, and help you build a complete program structure.
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start space-x-3">
+                    <TrendingUp className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-foreground mb-1">
+                        AI-Powered Analysis
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Get strategic decisions backed by market research, competitive analysis, and evidence-based insights from Claude Sonnet 4.
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start space-x-3">
+                    <Target className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-foreground mb-1">
+                        Auto-Generate Programs
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Convert your finalized strategy into workstreams, tasks, KPIs, risks, benefits, and resource plans automatically.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <Button
+                  size="lg"
+                  onClick={() => setLocation("/strategic-consultant/input")}
+                  className="bg-gradient-to-r from-primary to-primary/80 shadow-lg text-lg px-8 py-6 h-auto"
+                  data-testid="button-get-started"
+                >
+                  <Sparkles className="mr-2 h-5 w-5" />
+                  Get Started with Strategic Consultant
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Button>
+
+                <p className="text-xs text-muted-foreground">
+                  Look for the <span className="font-semibold text-primary">Strategic Consultant</span> button at the top of the sidebar
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </>
     );
   }
 
