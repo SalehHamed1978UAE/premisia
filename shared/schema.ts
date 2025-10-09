@@ -14,6 +14,19 @@ export const riskPriorityEnum = pgEnum('risk_priority', ['Low', 'Medium', 'High'
 export const gateStatusEnum = pgEnum('gate_status', ['Pending', 'In Review', 'Passed', 'Failed', 'On Hold']);
 export const benefitStatusEnum = pgEnum('benefit_status', ['Not Started', 'In Progress', 'Realized', 'At Risk']);
 export const strategyStatusEnum = pgEnum('strategy_status', ['draft', 'finalized', 'converting', 'converted_to_program']);
+export const bmcBlockTypeEnum = pgEnum('bmc_block_type', [
+  'customer_segments', 
+  'value_propositions', 
+  'revenue_streams',
+  'channels',
+  'customer_relationships',
+  'key_resources',
+  'key_activities',
+  'key_partnerships',
+  'cost_structure'
+]);
+export const bmcConfidenceEnum = pgEnum('bmc_confidence', ['weak', 'moderate', 'strong']);
+export const frameworkTypeEnum = pgEnum('framework_type', ['porters_five_forces', 'business_model_canvas', 'user_choice']);
 
 // Session storage table for Replit Auth
 export const sessions = pgTable(
@@ -390,6 +403,67 @@ export const strategyInsights = pgTable("strategy_insights", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Business Model Canvas tables
+export const frameworkSelections = pgTable("framework_selections", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().references(() => sessionContext.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  selectedFramework: frameworkTypeEnum("selected_framework").notNull(),
+  confidence: decimal("confidence", { precision: 3, scale: 2 }),
+  signals: jsonb("signals").notNull(), // Keywords, business stage, query type
+  reasoning: text("reasoning").notNull(),
+  userOverride: boolean("user_override").default(false),
+  alternativeFramework: frameworkTypeEnum("alternative_framework"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  sessionIdx: index("idx_framework_selections_session").on(table.sessionId),
+  userIdx: index("idx_framework_selections_user").on(table.userId),
+}));
+
+export const bmcAnalyses = pgTable("bmc_analyses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  strategyVersionId: varchar("strategy_version_id").notNull().references(() => strategyVersions.id),
+  viability: varchar("viability", { length: 20 }).notNull(), // strong, moderate, weak
+  overallConfidence: decimal("overall_confidence", { precision: 3, scale: 2 }),
+  keyInsights: text("key_insights").array().notNull().default(sql`ARRAY[]::text[]`),
+  criticalGaps: text("critical_gaps").array().notNull().default(sql`ARRAY[]::text[]`),
+  consistencyChecks: jsonb("consistency_checks").notNull().default(sql`'[]'::jsonb`),
+  recommendations: jsonb("recommendations").notNull().default(sql`'[]'::jsonb`),
+  researchSources: jsonb("research_sources").notNull().default(sql`'[]'::jsonb`),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  strategyVersionIdx: index("idx_bmc_analyses_strategy_version").on(table.strategyVersionId),
+}));
+
+export const bmcBlocks = pgTable("bmc_blocks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  bmcAnalysisId: varchar("bmc_analysis_id").notNull().references(() => bmcAnalyses.id),
+  blockType: bmcBlockTypeEnum("block_type").notNull(),
+  description: text("description").notNull(),
+  confidence: bmcConfidenceEnum("confidence").notNull(),
+  strategicImplications: text("strategic_implications"),
+  gaps: text("gaps").array().notNull().default(sql`ARRAY[]::text[]`),
+  researchQueries: text("research_queries").array().notNull().default(sql`ARRAY[]::text[]`),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  bmcAnalysisIdx: index("idx_bmc_blocks_analysis").on(table.bmcAnalysisId),
+  blockTypeIdx: index("idx_bmc_blocks_type").on(table.blockType),
+}));
+
+export const bmcFindings = pgTable("bmc_findings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  bmcBlockId: varchar("bmc_block_id").notNull().references(() => bmcBlocks.id),
+  finding: text("finding").notNull(),
+  validationStrength: varchar("validation_strength", { length: 20 }).notNull(), // STRONG, MODERATE, WEAK
+  validationDetails: text("validation_details").notNull(),
+  sources: jsonb("sources").notNull().default(sql`'[]'::jsonb`),
+  contradictsInput: boolean("contradicts_input").default(false),
+  contradictionDetails: text("contradiction_details"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  blockIdx: index("idx_bmc_findings_block").on(table.bmcBlockId),
+}));
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   programs: many(programs),
@@ -529,6 +603,10 @@ export const insertSessionContextSchema = createInsertSchema(sessionContext).omi
 export const insertStrategyVersionSchema = createInsertSchema(strategyVersions).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertStrategicDecisionSchema = createInsertSchema(strategicDecisions).omit({ id: true, createdAt: true });
 export const insertStrategyInsightSchema = createInsertSchema(strategyInsights).omit({ id: true, createdAt: true });
+export const insertFrameworkSelectionSchema = createInsertSchema(frameworkSelections).omit({ id: true, createdAt: true });
+export const insertBMCAnalysisSchema = createInsertSchema(bmcAnalyses).omit({ id: true, createdAt: true });
+export const insertBMCBlockSchema = createInsertSchema(bmcBlocks).omit({ id: true, createdAt: true });
+export const insertBMCFindingSchema = createInsertSchema(bmcFindings).omit({ id: true, createdAt: true });
 
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -563,6 +641,14 @@ export type StrategicDecision = typeof strategicDecisions.$inferSelect;
 export type InsertStrategicDecision = z.infer<typeof insertStrategicDecisionSchema>;
 export type StrategyInsight = typeof strategyInsights.$inferSelect;
 export type InsertStrategyInsight = z.infer<typeof insertStrategyInsightSchema>;
+export type FrameworkSelection = typeof frameworkSelections.$inferSelect;
+export type InsertFrameworkSelection = z.infer<typeof insertFrameworkSelectionSchema>;
+export type BMCAnalysis = typeof bmcAnalyses.$inferSelect;
+export type InsertBMCAnalysis = z.infer<typeof insertBMCAnalysisSchema>;
+export type BMCBlock = typeof bmcBlocks.$inferSelect;
+export type InsertBMCBlock = z.infer<typeof insertBMCBlockSchema>;
+export type BMCFinding = typeof bmcFindings.$inferSelect;
+export type InsertBMCFinding = z.infer<typeof insertBMCFindingSchema>;
 
 // AI Orchestration Types
 
