@@ -163,20 +163,18 @@ Return ONLY valid JSON (no markdown, no explanation):
 
     const marketInfo = markets[analysis.recommended_market];
 
-    // Helper function to find validation for a research finding
-    const findValidation = (fact: string) => {
-      if (!researchFindings.validation) return null;
-      const factLower = fact.toLowerCase().replace(/[^\w\s]/g, '').trim();
-      return researchFindings.validation.find(v => {
-        const vClaimLower = v.claim.toLowerCase().replace(/[^\w\s]/g, '').trim();
-        return factLower.includes(vClaimLower) || vClaimLower.includes(factLower);
-      });
-    };
+    // Build validation map keyed by exact claim text for precise matching
+    const validationMap = new Map<string, { claim: string; strength: string; details: string }>();
+    if (researchFindings.validation) {
+      for (const v of researchFindings.validation) {
+        validationMap.set(v.claim, v);
+      }
+    }
 
-    // Format findings with validation indicators
+    // Format findings with validation indicators - use exact text match
     const formatWithValidation = (findings: typeof researchFindings.market_dynamics) => 
       findings.map(f => {
-        const validation = findValidation(f.fact);
+        const validation = validationMap.get(f.fact);
         if (validation && validation.strength !== 'STRONG') {
           return `${f.fact} [${validation.strength}: ${validation.details}]`;
         }
@@ -228,6 +226,29 @@ Buyer Behavior: ${buyerBehavior || 'No specific insights'}
 
 PORTER'S FIVE FORCES STRATEGIC RESPONSES:
 ${strategicResponses.join('\n')}
+
+CRITICAL VALIDATION RULES:
+
+🔴 WEAK EVIDENCE HANDLING:
+- NEVER use WEAK evidence as the PRIMARY reason to mark options as "❌ Not Recommended"
+- If a strategic option conflicts with WEAK evidence, mark it as "⚠️ Requires validation" or "Approach with caution"
+- In the reasoning field, explicitly state: "This recommendation is based on contested data [citation]. Further validation recommended before commitment."
+
+Example (WRONG):
+Finding: "95% AI pilots fail [WEAK: Single 2021 source, contradicted by recent studies]"
+Decision: ❌ Not Recommended - High risk based on 95% failure rate
+
+Example (CORRECT):
+Finding: "95% AI pilots fail [WEAK: Single 2021 source, contradicted by recent studies]"
+Decision: ⚠️ Approach with caution - Earlier studies suggested high failure rates, but this data is contested. Recent evidence shows 53-67% success rates with proper implementation. Recommend pilot program with clear success metrics.
+
+🟡 MODERATE EVIDENCE:
+- Use as supporting evidence, but acknowledge limitations
+- Example: "Research suggests X [MODERATE: 2 sources, 18 months old], though conditions may have evolved"
+
+🟢 STRONG EVIDENCE (no validation warning shown):
+- Use confidently as primary decision basis
+- Multiple recent sources, no contradictions
 
 RULES FOR DECISION OPTIONS:
 1. If research CONTRADICTS an assumption from the original input, DO NOT recommend options based on that assumption
