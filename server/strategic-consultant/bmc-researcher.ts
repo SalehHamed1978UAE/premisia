@@ -17,6 +17,11 @@ export interface BMCResearchResult {
   blocks: BMCBlockFindings[];
   sources: Source[];
   overallConfidence: number;
+  viability: string;
+  keyInsights: string[];
+  criticalGaps: string[];
+  consistencyChecks: any[];
+  recommendations: any[];
 }
 
 export class BMCResearcher {
@@ -89,10 +94,17 @@ export class BMCResearcher {
     const blocks = [customerBlock, valueBlock, revenueBlock];
     const overallConfidence = this.calculateOverallConfidence(blocks);
 
+    const synthesis = await this.synthesizeOverallBMC(blocks, input);
+
     return {
       blocks,
       sources: topSources,
       overallConfidence,
+      viability: synthesis.viability,
+      keyInsights: synthesis.keyInsights,
+      criticalGaps: synthesis.criticalGaps,
+      consistencyChecks: synthesis.consistencyChecks,
+      recommendations: synthesis.recommendations,
     };
   }
 

@@ -88,6 +88,51 @@ The Strategic Consultant is a velocity tool that converts executive input into A
   - "View Strategy" button navigates to full strategy details (analysis, decisions, EPM program)
   - "View Program" button for integrated strategies links to EPM program
   - Solves the navigation gap - users can always return to review their strategies
+- **Intelligent Framework Selection**: AI-powered routing between Business Model Canvas and Porter's Five Forces
+  - **FrameworkSelector**: Keyword-based detection with Claude analysis (>70% accuracy target)
+    - BMC keywords: business model, revenue, customers, value proposition, pivot, startup, monetization, etc.
+    - Porter's keywords: competitive, competitors, market forces, industry analysis, rivalry, etc.
+    - Business stage detection: early_stage, pivoting, scaling
+    - Query type detection: strategic_planning, analysis, competitive
+    - Confidence scoring with user override option
+    - Zod schema validation for Claude responses
+  - **Framework Selection UI**: Transparent reasoning display with user control
+    - Visual indicators for selected framework (icon, color, description)
+    - Confidence progress bar and badge (high/moderate/low)
+    - AI reasoning displayed in alert format
+    - Detected signals organized by type (keywords, stage, query type)
+    - Alternative framework suggestion when confidence < 80%
+    - User override buttons for manual framework selection
+- **Business Model Canvas (BMC) Analysis**: 3-block MVP for new ventures and pivots
+  - **BMC Blocks Implemented**: Customer Segments, Value Propositions, Revenue Streams
+  - **BMCQueryGenerator**: Block-specific query templates with anti-bias patterns
+    - Customer Segments: WHO queries (demographics, pain points, needs, behavior)
+    - Value Propositions: WHAT queries (benefits, features, differentiation, value drivers)
+    - Revenue Streams: HOW queries (pricing models, monetization, willingness to pay)
+    - Baseline, validating, and challenging queries for each block
+  - **BMCResearcher**: Parallel research execution for all blocks (<2 minute target)
+    - Concurrent web search across all block queries
+    - Source deduplication and ranking
+    - Block-level synthesis using Claude with confidence assessment
+    - Overall viability analysis with cross-block consistency checks
+  - **BMCValidator**: Block-specific validation extending SourceValidator
+    - Customer Segments: Validates demographics/firmographics, pain points, quantitative data
+    - Value Propositions: Validates benefits, differentiation, customer value linkage
+    - Revenue Streams: Validates pricing models, price points, market data, recency
+    - 3-check validation system (multi-source, recency, counter-evidence)
+  - **Comprehensive Synthesis**: Overall BMC viability assessment
+    - Cross-block consistency checks (Customer-Value, Value-Revenue alignment)
+    - Overall viability: strong/moderate/weak with clear criteria
+    - Key insights synthesized across all blocks
+    - Critical gaps aggregation
+    - Prioritized strategic recommendations
+  - **BMC Canvas UI**: Responsive visualization with validation indicators
+    - Desktop: 3-column grid layout for blocks
+    - Mobile: Accordion layout with full parity
+    - Confidence indicators per block and overall
+    - Validation strength indicators (🟢 STRONG, 🟡 MODERATE, 🔴 WEAK)
+    - Expandable findings with strategic implications
+    - Consistency checks and recommendations display
 
 ## External Dependencies
 
