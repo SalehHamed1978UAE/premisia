@@ -74,10 +74,15 @@ export default function InputPage() {
     setIsAnalyzing(true);
     setProgress(0);
 
-    // Simulate progress
+    // Simulate progress with logarithmic easing (slows down naturally)
+    let currentProgress = 0;
     const progressInterval = setInterval(() => {
-      setProgress(prev => Math.min(prev + 1, 90));
-    }, 50);
+      currentProgress += 1;
+      // Use logarithmic curve: fast at start, very slow near end
+      // This reaches ~85% after 60 seconds, ~90% after 2 minutes
+      const targetProgress = 95 * (1 - Math.exp(-currentProgress / 100));
+      setProgress(Math.floor(targetProgress));
+    }, 300); // Update every 300ms for smoother feel
 
     try {
       // Generate session ID
