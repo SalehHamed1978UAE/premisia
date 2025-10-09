@@ -103,7 +103,7 @@ export class SourceValidator {
   private async validate(claim: Claim, allSources: Source[]): Promise<ValidationResult> {
     const [sourceCount, recency, counterEvidence] = await Promise.all([
       this.checkSourceCount(claim, allSources),
-      this.checkRecency(claim),
+      this.checkRecency(claim, allSources),
       this.findCounterEvidence(claim),
     ]);
 
@@ -140,7 +140,7 @@ export class SourceValidator {
     return claimSources.size;
   }
 
-  private async checkRecency(claim: Claim): Promise<RecencyCheck> {
+  private async checkRecency(claim: Claim, allSources: Source[]): Promise<RecencyCheck> {
     const recencyThresholds: Record<string, number> = {
       'AI': 6,
       'technology': 12,
@@ -150,6 +150,32 @@ export class SourceValidator {
     };
 
     const threshold = recencyThresholds[claim.domain] || recencyThresholds['default'];
+    
+    let mostRecentDate: Date | null = null;
+    
+    for (const source of allSources) {
+      if (claim.sources.some(citedUrl => source.url.includes(citedUrl) || citedUrl.includes(source.url))) {
+        if (source.publication_date) {
+          const pubDate = new Date(source.publication_date);
+          if (!isNaN(pubDate.getTime())) {
+            if (!mostRecentDate || pubDate > mostRecentDate) {
+              mostRecentDate = pubDate;
+            }
+          }
+        }
+      }
+    }
+    
+    if (mostRecentDate) {
+      const now = new Date();
+      const monthsSince = Math.floor((now.getTime() - mostRecentDate.getTime()) / (1000 * 60 * 60 * 24 * 30));
+      
+      return {
+        months: monthsSince,
+        threshold,
+        isRecent: monthsSince <= threshold,
+      };
+    }
     
     const yearMatch = claim.text.match(/\b(202[0-5]|201[0-9])\b/);
     if (!yearMatch) {

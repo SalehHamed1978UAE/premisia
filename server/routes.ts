@@ -811,6 +811,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  function extractPublicationDate(html: string): string | null {
+    function extractDateFromObject(obj: any): string | null {
+      const dateFields = ['datePublished', 'publishedDate', 'dateCreated', 'dateModified'];
+      for (const field of dateFields) {
+        if (obj[field]) {
+          const parsedDate = new Date(obj[field]);
+          if (!isNaN(parsedDate.getTime())) {
+            return parsedDate.toISOString();
+          }
+        }
+      }
+      return null;
+    }
+
+    function walkJsonLd(obj: any): string | null {
+      if (!obj || typeof obj !== 'object') return null;
+      
+      const typeCheck = obj['@type'];
+      if (typeCheck) {
+        const types = Array.isArray(typeCheck) ? typeCheck : [typeCheck];
+        const hasRelevantType = types.some((t: string) =>
+          t && (
+            t.includes('Article') || 
+            t.includes('NewsArticle') || 
+            t.includes('BlogPosting') ||
+            t.includes('ScholarlyArticle') ||
+            t.includes('CreativeWork')
+          )
+        );
+        if (hasRelevantType) {
+          const date = extractDateFromObject(obj);
+          if (date) return date;
+        }
+      }
+      
+      if (Array.isArray(obj['@graph'])) {
+        for (const item of obj['@graph']) {
+          const date = walkJsonLd(item);
+          if (date) return date;
+        }
+      }
+      
+      for (const key of Object.keys(obj)) {
+        if (Array.isArray(obj[key])) {
+          for (const item of obj[key]) {
+            const date = walkJsonLd(item);
+            if (date) return date;
+          }
+        } else if (typeof obj[key] === 'object') {
+          const date = walkJsonLd(obj[key]);
+          if (date) return date;
+        }
+      }
+      
+      return null;
+    }
+
+    const jsonLdMatches = Array.from(html.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi));
+    for (const match of jsonLdMatches) {
+      try {
+        const jsonLd = JSON.parse(match[1]);
+        const date = walkJsonLd(jsonLd);
+        if (date) return date;
+      } catch (e) {
+        // JSON parsing failed, continue
+      }
+    }
+
+    const metaPatterns = [
+      /<meta[^>]*property=["']article:published_time["'][^>]*content=["']([^"']+)["']/i,
+      /<meta[^>]*name=["'](?:publish|publication)(?:_|-)?date["'][^>]*content=["']([^"']+)["']/i,
+      /<meta[^>]*name=["']date["'][^>]*content=["']([^"']+)["']/i,
+      /<time[^>]*datetime=["']([^"']+)["']/i,
+      /<meta[^>]*property=["']datePublished["'][^>]*content=["']([^"']+)["']/i,
+    ];
+
+    for (const pattern of metaPatterns) {
+      const match = html.match(pattern);
+      if (match && match[1]) {
+        const dateStr = match[1];
+        const parsedDate = new Date(dateStr);
+        if (!isNaN(parsedDate.getTime())) {
+          return parsedDate.toISOString();
+        }
+      }
+    }
+
+    return null;
+  }
+
   app.post("/api/web-fetch", async (req, res) => {
     try {
       const { url } = req.body;
@@ -830,7 +920,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const content = await response.text();
-      res.json({ content, url });
+      const publicationDate = extractPublicationDate(content);
+      
+      res.json({ 
+        content, 
+        url,
+        metadata: {
+          publicationDate
+        }
+      });
     } catch (error) {
       console.error('Web fetch error:', error);
       res.status(500).json({ 

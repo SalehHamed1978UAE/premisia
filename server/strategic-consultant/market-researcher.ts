@@ -11,6 +11,7 @@ export interface Source {
   url: string;
   title: string;
   relevance_score: number;
+  publication_date?: string | null;
 }
 
 export interface ResearchFindings {
@@ -283,6 +284,10 @@ Example for "Arabic language differentiates our enterprise software in UAE":
         }
 
         const data = await response.json();
+        
+        if (data.metadata?.publicationDate) {
+          source.publication_date = data.metadata.publicationDate;
+        }
         
         const textContent = data.content
           .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
