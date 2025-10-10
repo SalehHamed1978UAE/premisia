@@ -137,7 +137,7 @@ export default function BMCTestPage() {
             <Button
               data-testid="button-select-framework"
               onClick={handleSelectFramework}
-              disabled={isSelectingFramework || !input.trim()}
+              disabled={isSelectingFramework || !input.trim() || !!frameworkSelection}
               className="w-full"
             >
               {isSelectingFramework ? (
@@ -145,6 +145,8 @@ export default function BMCTestPage() {
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Analyzing Query...
                 </>
+              ) : frameworkSelection ? (
+                'Framework Selected ✓'
               ) : (
                 'Select Framework'
               )}
@@ -161,7 +163,7 @@ export default function BMCTestPage() {
                 AI-powered routing between BMC and Porter's Five Forces
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <FrameworkSelection
                 selection={frameworkSelection}
                 onConfirm={handleConfirmFramework}
@@ -169,22 +171,29 @@ export default function BMCTestPage() {
               />
               
               {frameworkSelection.selectedFramework === 'business_model_canvas' && (
-                <div className="mt-4">
-                  <Button
-                    data-testid="button-conduct-bmc-research"
-                    onClick={handleConductBMCResearch}
-                    disabled={isResearching}
-                    className="w-full"
-                  >
-                    {isResearching ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Conducting BMC Research...
-                      </>
-                    ) : (
-                      'Conduct BMC Research'
-                    )}
-                  </Button>
+                <Button
+                  data-testid="button-conduct-bmc-research"
+                  onClick={handleConductBMCResearch}
+                  disabled={isResearching}
+                  className="w-full"
+                  size="lg"
+                >
+                  {isResearching ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Conducting BMC Research...
+                    </>
+                  ) : (
+                    'Next: Conduct BMC Research →'
+                  )}
+                </Button>
+              )}
+              
+              {frameworkSelection.selectedFramework === 'porters_five_forces' && (
+                <div className="p-4 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg">
+                  <p className="text-sm text-amber-800 dark:text-amber-200">
+                    Porter's Five Forces was selected. Use the override button above to switch to Business Model Canvas if needed.
+                  </p>
                 </div>
               )}
             </CardContent>
