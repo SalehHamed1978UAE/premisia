@@ -82,16 +82,19 @@ export class FrameworkSelector {
     
     const analysis = await this.analyzeWithClaude(input, signals);
 
-    await db.insert(frameworkSelections).values({
-      sessionId,
-      userId,
-      selectedFramework: analysis.selectedFramework,
-      confidence: analysis.confidence.toFixed(2),
-      signals: signals as any,
-      reasoning: analysis.reasoning,
-      userOverride: false,
-      alternativeFramework: analysis.alternativeFramework || null,
-    });
+    // Only save to database if not a test session
+    if (!sessionId.startsWith('test-')) {
+      await db.insert(frameworkSelections).values({
+        sessionId,
+        userId,
+        selectedFramework: analysis.selectedFramework,
+        confidence: analysis.confidence.toFixed(2),
+        signals: signals as any,
+        reasoning: analysis.reasoning,
+        userOverride: false,
+        alternativeFramework: analysis.alternativeFramework || null,
+      });
+    }
 
     return analysis;
   }
