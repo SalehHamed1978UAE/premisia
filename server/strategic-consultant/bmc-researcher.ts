@@ -58,6 +58,12 @@ export class BMCResearcher {
       ...querySet.customer_segments,
       ...querySet.value_propositions,
       ...querySet.revenue_streams,
+      ...querySet.channels,
+      ...querySet.customer_relationships,
+      ...querySet.key_resources,
+      ...querySet.key_activities,
+      ...querySet.key_partnerships,
+      ...querySet.cost_structure,
       ...assumptionQueries.map(aq => ({ 
         query: aq.query, 
         purpose: `Assumption check: ${aq.assumption}`,
@@ -87,7 +93,17 @@ export class BMCResearcher {
     console.log(`Detected ${contradictionResult.contradictions.length} contradictions BEFORE block synthesis`);
 
     // Step 6: Synthesize blocks WITH contradiction awareness
-    const [customerBlock, valueBlock, revenueBlock] = await Promise.all([
+    const [
+      customerBlock, 
+      valueBlock, 
+      revenueBlock,
+      channelsBlock,
+      relationshipsBlock,
+      resourcesBlock,
+      activitiesBlock,
+      partnersBlock,
+      costBlock
+    ] = await Promise.all([
       this.synthesizeBlock(
         'customer_segments',
         'Customer Segments',
@@ -121,9 +137,85 @@ export class BMCResearcher {
         input,
         contradictionResult.contradictions
       ),
+      this.synthesizeBlock(
+        'channels',
+        'Channels',
+        querySet.channels,
+        searchResults.filter(r => 
+          querySet.channels.some(q => q.query === r.query)
+        ),
+        sourceContents,
+        input,
+        contradictionResult.contradictions
+      ),
+      this.synthesizeBlock(
+        'customer_relationships',
+        'Customer Relationships',
+        querySet.customer_relationships,
+        searchResults.filter(r => 
+          querySet.customer_relationships.some(q => q.query === r.query)
+        ),
+        sourceContents,
+        input,
+        contradictionResult.contradictions
+      ),
+      this.synthesizeBlock(
+        'key_resources',
+        'Key Resources',
+        querySet.key_resources,
+        searchResults.filter(r => 
+          querySet.key_resources.some(q => q.query === r.query)
+        ),
+        sourceContents,
+        input,
+        contradictionResult.contradictions
+      ),
+      this.synthesizeBlock(
+        'key_activities',
+        'Key Activities',
+        querySet.key_activities,
+        searchResults.filter(r => 
+          querySet.key_activities.some(q => q.query === r.query)
+        ),
+        sourceContents,
+        input,
+        contradictionResult.contradictions
+      ),
+      this.synthesizeBlock(
+        'key_partnerships',
+        'Key Partnerships',
+        querySet.key_partnerships,
+        searchResults.filter(r => 
+          querySet.key_partnerships.some(q => q.query === r.query)
+        ),
+        sourceContents,
+        input,
+        contradictionResult.contradictions
+      ),
+      this.synthesizeBlock(
+        'cost_structure',
+        'Cost Structure',
+        querySet.cost_structure,
+        searchResults.filter(r => 
+          querySet.cost_structure.some(q => q.query === r.query)
+        ),
+        sourceContents,
+        input,
+        contradictionResult.contradictions
+      ),
     ]);
 
-    const blocks = [customerBlock, valueBlock, revenueBlock];
+    const blocks = [
+      customerBlock, 
+      valueBlock, 
+      revenueBlock,
+      channelsBlock,
+      relationshipsBlock,
+      resourcesBlock,
+      activitiesBlock,
+      partnersBlock,
+      costBlock
+    ];
     const overallConfidence = this.calculateOverallConfidence(blocks);
 
     // Step 6: Synthesize overall BMC with contradiction awareness
@@ -231,6 +323,30 @@ export class BMCResearcher {
         focus: 'HOW the business generates revenue and monetizes value',
         outputGuidance: 'Describe revenue models and pricing strategies based on research',
       },
+      channels: {
+        focus: 'HOW the company reaches and communicates with customer segments to deliver value',
+        outputGuidance: 'Describe distribution/sales channels and delivery methods based on research',
+      },
+      customer_relationships: {
+        focus: 'WHAT type of relationship is established and maintained with each customer segment',
+        outputGuidance: 'Describe customer engagement and support models based on research',
+      },
+      key_resources: {
+        focus: 'WHAT critical assets are required to create and deliver value',
+        outputGuidance: 'Describe essential resources (human, intellectual, physical, financial) based on research',
+      },
+      key_activities: {
+        focus: 'WHAT key actions must be performed to operate successfully',
+        outputGuidance: 'Describe core operational activities and priorities based on research',
+      },
+      key_partnerships: {
+        focus: 'WHO are the key partners and suppliers needed',
+        outputGuidance: 'Describe strategic partnerships and supplier relationships based on research',
+      },
+      cost_structure: {
+        focus: 'WHAT are the major costs required to operate the business model',
+        outputGuidance: 'Describe cost drivers and structure (fixed/variable) based on research',
+      },
     };
 
     const context = blockContext[blockType];
@@ -336,10 +452,6 @@ Include 3-6 findings. Set confidence to:
     consistencyChecks: any[];
     recommendations: any[];
   }> {
-    const customerBlock = blocks.find(b => b.blockType === 'customer_segments');
-    const valueBlock = blocks.find(b => b.blockType === 'value_propositions');
-    const revenueBlock = blocks.find(b => b.blockType === 'revenue_streams');
-
     const blockSummary = blocks.map(b => 
       `${b.blockName} (${b.confidence} confidence):\n${b.description}\nGaps: ${b.gaps.join(', ') || 'None identified'}`
     ).join('\n\n');
@@ -357,12 +469,18 @@ Include 3-6 findings. Set confidence to:
 ORIGINAL INPUT:
 ${originalInput.substring(0, 1500)}
 
-RESEARCH FINDINGS FOR 3 BMC BLOCKS:
+RESEARCH FINDINGS FOR ALL 9 BMC BLOCKS:
 ${blockSummary}${contradictionSummary}
 
 Based on these findings, provide comprehensive BMC viability analysis:
 
-1. **Cross-Block Consistency**: Do customer segments align with value propositions? Do value propositions support the revenue model?
+1. **Cross-Block Consistency**: Analyze alignment across all blocks. Key relationships to check:
+   - Do customer segments align with value propositions?
+   - Do channels effectively reach customer segments?
+   - Do customer relationships match segment expectations?
+   - Do key resources and activities support value delivery?
+   - Do key partners fill critical gaps?
+   - Does cost structure align with revenue streams?
 2. **Overall Viability**: Can this business model work based on research evidence?
 3. **Key Insights**: What are the most important strategic insights across all blocks?
 4. **Critical Gaps**: What critical information is missing or uncertain? PRIORITIZE contradicted assumptions!
