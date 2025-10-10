@@ -27,24 +27,27 @@ export class FrameworkSelector {
 
   private bmcKeywords = [
     'business model',
-    'revenue',
+    'revenue', 'ARR', 'MRR',
     'customer', 'customers', 'client', 'clients',
     'value proposition', 'value propositions',
     'pivot', 'pivoting', 'pivoted',
     'new venture', 'startup', 'startups', 'early stage',
     'monetize', 'monetization', 'monetizing',
     'customer segment', 'customer segments',
-    'revenue stream', 'revenue streams',
+    'revenue stream', 'revenue streams', 'revenue target', 'revenue goal',
     'key resource', 'key resources',
     'cost structure', 'costs',
     'channel', 'channels', 'distribution',
     'partnership', 'partnerships', 'partner', 'partners',
-    'launch', 'launching',
+    'launch', 'launching', 'expanding',
     'go-to-market', 'GTM',
     'product-market fit', 'PMF',
     'scaling', 'scale', 'growth',
     'pricing model', 'pricing strategy',
     'business design',
+    'localization', 'market entry', 'market expansion',
+    'investment', 'invest', 'investing',
+    'target market', 'positioning strategy',
   ];
 
   private portersKeywords = [
@@ -180,9 +183,10 @@ DETECTED SIGNALS:
 - Query type: ${signals.queryType}
 
 SELECTION CRITERIA:
-- Choose BMC if: Input focuses on business model design, revenue models, customer segments, value propositions, or pivoting/new ventures
-- Choose Porter's if: Input focuses on competitive dynamics, market forces, competitor analysis, or industry positioning
-- If both apply, select the PRIMARY focus and note the alternative
+- Choose BMC if: Input focuses on business model design, revenue models, customer segments, value propositions, market entry/expansion strategy, investment decisions, or go-to-market planning
+- Choose Porter's if: Input focuses on competitive dynamics, market forces, competitor analysis, industry structure analysis, or competitive positioning
+- If both apply, prioritize BMC when discussing revenue targets, customer acquisition, value delivery, or investment strategy
+- If both apply, prioritize Porter's when discussing competitive threats, industry barriers, or supplier/buyer power
 
 Return ONLY valid JSON (no markdown, no explanation):
 
