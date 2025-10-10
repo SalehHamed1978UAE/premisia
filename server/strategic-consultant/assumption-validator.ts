@@ -41,6 +41,7 @@ const querySchema = z.object({
 const contradictionSchema = z.object({
   contradictions: z.array(z.object({
     assumption: z.string(),
+    matchedAssumptionClaim: z.string(), // EXACT quote from assumptions list
     contradictedBy: z.array(z.string()),
     validationStrength: z.enum(['STRONG', 'MODERATE', 'WEAK']),
     impact: z.enum(['HIGH', 'MEDIUM', 'LOW']),
@@ -48,6 +49,7 @@ const contradictionSchema = z.object({
   })),
   validations: z.array(z.object({
     assumption: z.string(),
+    matchedAssumptionClaim: z.string(), // EXACT quote from assumptions list
     supportedBy: z.array(z.string()),
     validationStrength: z.enum(['STRONG', 'MODERATE', 'WEAK']),
   })),
@@ -189,12 +191,18 @@ For each assumption, determine if research:
 - Reference the research findings
 - Consider investment amounts in recommendations
 
+**CRITICAL: Exact Assumption Matching**
+- For "assumption" field: You may rephrase/summarize for clarity
+- For "matchedAssumptionClaim" field: MUST be an EXACT copy-paste from the assumptions list above
+- This ensures investment amounts transfer correctly
+
 Return ONLY valid JSON (no markdown, no explanation):
 
 {
   "contradictions": [
     {
       "assumption": "Hindi localization is critical for enterprise adoption in India",
+      "matchedAssumptionClaim": "Hindi localization is critical for enterprise adoption in India",
       "contradictedBy": [
         "English is the dominant language for enterprise software in India (75% of B2B SaaS)",
         "Indian enterprise decision-makers expect English interfaces as standard"
@@ -207,6 +215,7 @@ Return ONLY valid JSON (no markdown, no explanation):
   "validations": [
     {
       "assumption": "Indian market has high growth potential",
+      "matchedAssumptionClaim": "Indian market has high growth potential",
       "supportedBy": [
         "Indian enterprise software market growing at 15% CAGR",
         "Digital transformation accelerating in Indian enterprises"
@@ -236,10 +245,27 @@ Return ONLY valid JSON (no markdown, no explanation):
     const validated = contradictionSchema.parse(parsed);
 
     // Add investment amounts and categories from original assumptions
-    // Use fuzzy matching to handle LLM wording variations
+    // Primary: exact matching on matchedAssumptionClaim (Claude provides exact quote)
+    // Fallback: fuzzy matching if exact match fails
     const result: ContradictionResult = {
       contradictions: validated.contradictions.map(c => {
-        const original = this.findBestAssumptionMatch(c.assumption, assumptions);
+        // Try exact match first (should work when Claude follows instructions)
+        // Normalize whitespace to tolerate formatting artifacts
+        const normalizedMatch = c.matchedAssumptionClaim?.trim();
+        let original = assumptions.find(a => a.claim.trim() === normalizedMatch);
+        
+        // Fallback to fuzzy matching if exact match fails
+        if (!original) {
+          console.warn(`[AssumptionValidator] Exact match failed for "${c.matchedAssumptionClaim}", falling back to fuzzy matching`);
+          original = this.findBestAssumptionMatch(c.assumption, assumptions);
+          
+          if (original) {
+            console.log(`[AssumptionValidator] Fuzzy match found: "${original.claim}"`);
+          } else {
+            console.error(`[AssumptionValidator] No match found for contradiction: "${c.assumption}"`);
+          }
+        }
+        
         return {
           ...c,
           assumptionCategory: original?.category || 'unknown',
@@ -333,8 +359,9 @@ Return ONLY valid JSON (no markdown, no explanation):
 
       // Entity-based boosting: if key entities match, boost score significantly
       if (targetEntities.size > 0 && claimEntities.size > 0) {
-        const entityIntersection = new Set([...targetEntities].filter(e => claimEntities.has(e)));
-        const entityUnion = new Set([...targetEntities, ...claimEntities]);
+        const targetEntitiesArr = Array.from(targetEntities);
+        const entityIntersection = new Set(targetEntitiesArr.filter(e => claimEntities.has(e)));
+        const entityUnion = new Set([...targetEntitiesArr, ...Array.from(claimEntities)]);
         
         if (entityUnion.size > 0) {
           const entityScore = entityIntersection.size / entityUnion.size;
