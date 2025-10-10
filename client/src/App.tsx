@@ -18,6 +18,7 @@ import WhysTreePage from "@/pages/strategic-consultant/WhysTreePage";
 import ResearchPage from "@/pages/strategic-consultant/ResearchPage";
 import EPMPage from "@/pages/strategic-consultant/EPMPage";
 import VersionsPage from "@/pages/strategic-consultant/VersionsPage";
+import BMCTestPage from "@/pages/BMCTestPage";
 import { ProtectedRoute } from "./lib/protected-route";
 
 function Router() {
@@ -27,6 +28,7 @@ function Router() {
         <ProtectedRoute path="/" component={HomePage} />
         <ProtectedRoute path="/programs" component={ProgramsPage} />
         <ProtectedRoute path="/strategy/test" component={StrategyTest} />
+        <ProtectedRoute path="/bmc/test" component={BMCTestPage} />
         <ProtectedRoute path="/strategic-consultant/input" component={InputPage} />
         <ProtectedRoute path="/strategic-consultant/analysis/:sessionId" component={AnalysisPage} />
         <ProtectedRoute path="/strategic-consultant/decisions/:sessionId/:versionNumber" component={DecisionPage} />
