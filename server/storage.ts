@@ -164,6 +164,29 @@ export class DatabaseStorage implements IStorage {
 
   // Replit Auth user upsert
   async upsertUser(userData: UpsertUser): Promise<User> {
+    // Check if user exists by email (to handle email unique constraint)
+    if (userData.email) {
+      const existing = await db
+        .select()
+        .from(users)
+        .where(eq(users.email, userData.email))
+        .limit(1);
+
+      if (existing.length > 0) {
+        // Update existing user by their current ID
+        const [user] = await db
+          .update(users)
+          .set({
+            ...userData,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, existing[0].id))
+          .returning();
+        return user;
+      }
+    }
+
+    // Insert new user or update if ID conflicts
     const [user] = await db
       .insert(users)
       .values(userData)
