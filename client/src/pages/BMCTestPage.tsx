@@ -105,16 +105,6 @@ export default function BMCTestPage() {
     });
   };
 
-  const sampleQueries = [
-    {
-      name: 'India CRM Case (BMC)',
-      text: 'We are launching a CRM software for small businesses in India. We need to understand our customer segments, value propositions, and revenue streams to validate our business model.',
-    },
-    {
-      name: 'Competitive Analysis (Porter\'s)',
-      text: 'Analyze the competitive landscape and market forces in the enterprise CRM industry. What are the key threats, bargaining power dynamics, and competitive rivalry factors?',
-    },
-  ];
 
   return (
     <div className="container mx-auto p-6 max-w-7xl">
@@ -137,26 +127,12 @@ export default function BMCTestPage() {
           <CardContent className="space-y-4">
             <Textarea
               data-testid="input-strategic-query"
-              placeholder="Example: We are launching a new product for small businesses in India..."
+              placeholder="Paste your strategic query here..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              rows={4}
+              rows={6}
               className="w-full"
             />
-            
-            <div className="flex flex-wrap gap-2">
-              {sampleQueries.map((sample) => (
-                <Button
-                  key={sample.name}
-                  data-testid={`button-sample-${sample.name.toLowerCase().replace(/[^a-z]+/g, '-')}`}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setInput(sample.text)}
-                >
-                  {sample.name}
-                </Button>
-              ))}
-            </div>
 
             <Button
               data-testid="button-select-framework"
