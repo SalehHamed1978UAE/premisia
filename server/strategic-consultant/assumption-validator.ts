@@ -236,9 +236,10 @@ Return ONLY valid JSON (no markdown, no explanation):
     const validated = contradictionSchema.parse(parsed);
 
     // Add investment amounts and categories from original assumptions
+    // Use fuzzy matching to handle LLM wording variations
     const result: ContradictionResult = {
       contradictions: validated.contradictions.map(c => {
-        const original = assumptions.find(a => a.claim === c.assumption);
+        const original = this.findBestAssumptionMatch(c.assumption, assumptions);
         return {
           ...c,
           assumptionCategory: original?.category || 'unknown',
@@ -250,5 +251,105 @@ Return ONLY valid JSON (no markdown, no explanation):
     };
 
     return result;
+  }
+
+  // Helper: Fuzzy match to handle LLM wording variations
+  private findBestAssumptionMatch(
+    contradictionText: string,
+    assumptions: Assumption[]
+  ): Assumption | undefined {
+    if (assumptions.length === 0) return undefined;
+
+    // First try exact match
+    const exactMatch = assumptions.find(a => a.claim === contradictionText);
+    if (exactMatch) return exactMatch;
+
+    // Normalize text for fuzzy matching
+    const normalize = (text: string) => 
+      text.toLowerCase()
+        .replace(/[^\w\s$]/g, ' ') // Keep $ for amounts, replace other punctuation with space
+        .replace(/\s+/g, ' ')       // Normalize whitespace
+        .trim();
+
+    // Extract key entities (dollar amounts, countries, specific terms)
+    const extractEntities = (text: string) => {
+      const entities: Set<string> = new Set();
+      
+      // Money amounts: $500K, $1.5M, etc.
+      const moneyMatches = text.match(/\$[\d.,]+[KMB]?/gi);
+      if (moneyMatches) moneyMatches.forEach(m => entities.add(m.toLowerCase()));
+      
+      // Countries/regions
+      const geoTerms = ['india', 'indian', 'china', 'chinese', 'usa', 'american', 'europe', 'european'];
+      geoTerms.forEach(term => {
+        if (text.toLowerCase().includes(term)) entities.add(term);
+      });
+      
+      // Product/tech terms (generalized for reuse)
+      const techTerms = ['hindi', 'english', 'localization', 'enterprise', 'sme', 'saas', 'crm'];
+      techTerms.forEach(term => {
+        if (text.toLowerCase().includes(term)) entities.add(term);
+      });
+      
+      return entities;
+    };
+
+    const normalizedTarget = normalize(contradictionText);
+    const targetEntities = extractEntities(contradictionText);
+
+    // Find best match using multi-factor scoring
+    let bestMatch: Assumption | undefined;
+    let highestScore = 0;
+
+    for (const assumption of assumptions) {
+      const normalizedClaim = normalize(assumption.claim);
+      const claimEntities = extractEntities(assumption.claim);
+      
+      // Calculate base similarity score
+      let score = 0;
+      
+      // Exact normalized match = 1.0
+      if (normalizedClaim === normalizedTarget) {
+        score = 1.0;
+      }
+      // Substring match = 0.8
+      else if (normalizedClaim.includes(normalizedTarget) || normalizedTarget.includes(normalizedClaim)) {
+        score = 0.8;
+      }
+      // Word overlap using Jaccard similarity
+      else {
+        const targetWords = normalizedTarget.split(' ').filter(w => w.length > 2); // Filter short words
+        const claimWords = normalizedClaim.split(' ').filter(w => w.length > 2);
+        const claimWordsSet = new Set(claimWords);
+        
+        // Calculate Jaccard similarity: intersection / union
+        const intersection = targetWords.filter(w => claimWordsSet.has(w));
+        const union = Array.from(new Set([...targetWords, ...claimWords]));
+        
+        if (union.length > 0) {
+          score = intersection.length / union.length;
+        }
+      }
+
+      // Entity-based boosting: if key entities match, boost score significantly
+      if (targetEntities.size > 0 && claimEntities.size > 0) {
+        const entityIntersection = new Set([...targetEntities].filter(e => claimEntities.has(e)));
+        const entityUnion = new Set([...targetEntities, ...claimEntities]);
+        
+        if (entityUnion.size > 0) {
+          const entityScore = entityIntersection.size / entityUnion.size;
+          // Boost the score if entities match well (weight entity matching at 40%)
+          score = (score * 0.6) + (entityScore * 0.4);
+        }
+      }
+
+      // Lowered threshold to 0.25 + entity boosting handles morphological variants
+      if (score > highestScore && score >= 0.25) {
+        highestScore = score;
+        bestMatch = assumption;
+      }
+    }
+
+    return bestMatch;
   }
 }

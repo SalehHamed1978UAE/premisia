@@ -68,7 +68,7 @@ export class BMCResearcher {
       ...assumptionQueries.map(aq => ({ 
         query: aq.query, 
         purpose: `Assumption check: ${aq.assumption}`,
-        type: aq.purpose === 'validate' ? 'validating' : 'challenging',
+        type: (aq.purpose === 'validate' ? 'validating' : 'challenging') as 'validating' | 'challenging' | 'baseline',
         blockType: 'customer_segments' as BMCBlockType // Assumption queries apply to all blocks
       })),
     ];
@@ -82,6 +82,18 @@ export class BMCResearcher {
       topSources.slice(0, 3)
     );
 
+    // Step 5: CRITICAL FIX - Detect contradictions BEFORE block synthesis
+    // Extract raw findings from search results to identify contradictions early
+    const rawFindings = searchResults.flatMap(sr => 
+      (sr.results || []).map((r: any) => `${r.title}: ${r.snippet}`)
+    );
+    const contradictionResult = await this.assumptionValidator.detectContradictions(
+      assumptions,
+      rawFindings
+    );
+    console.log(`Detected ${contradictionResult.contradictions.length} contradictions BEFORE block synthesis`);
+
+    // Step 6: Synthesize blocks WITH contradiction awareness
     const [customerBlock, valueBlock, revenueBlock] = await Promise.all([
       this.synthesizeBlock(
         'customer_segments',
@@ -91,7 +103,8 @@ export class BMCResearcher {
           querySet.customer_segments.some(q => q.query === r.query)
         ),
         sourceContents,
-        input
+        input,
+        contradictionResult.contradictions
       ),
       this.synthesizeBlock(
         'value_propositions',
@@ -101,7 +114,8 @@ export class BMCResearcher {
           querySet.value_propositions.some(q => q.query === r.query)
         ),
         sourceContents,
-        input
+        input,
+        contradictionResult.contradictions
       ),
       this.synthesizeBlock(
         'revenue_streams',
@@ -111,20 +125,13 @@ export class BMCResearcher {
           querySet.revenue_streams.some(q => q.query === r.query)
         ),
         sourceContents,
-        input
+        input,
+        contradictionResult.contradictions
       ),
     ]);
 
     const blocks = [customerBlock, valueBlock, revenueBlock];
     const overallConfidence = this.calculateOverallConfidence(blocks);
-
-    // Step 5: Detect contradictions between assumptions and research findings
-    const allFindings = blocks.flatMap(b => b.findings.map(f => f.fact));
-    const contradictionResult = await this.assumptionValidator.detectContradictions(
-      assumptions,
-      allFindings
-    );
-    console.log(`Detected ${contradictionResult.contradictions.length} contradictions`);
 
     // Step 6: Synthesize overall BMC with contradiction awareness
     const synthesis = await this.synthesizeOverallBMC(blocks, input, contradictionResult.contradictions);
@@ -207,7 +214,8 @@ export class BMCResearcher {
     queries: BMCQuery[],
     searchResults: any[],
     sourceContents: Map<string, string>,
-    originalInput: string
+    originalInput: string,
+    contradictions: Contradiction[] = []
   ): Promise<BMCBlockFindings> {
     const searchSummary = searchResults.map(sr => 
       `Query: ${sr.query}\nResults: ${sr.results?.map((r: any) => `- ${r.title}: ${r.snippet}`).join('\n') || 'No results'}`
@@ -234,6 +242,18 @@ export class BMCResearcher {
 
     const context = blockContext[blockType];
 
+    // Build contradiction warning section
+    const contradictionWarning = contradictions.length > 0
+      ? `\n\n🚨 CRITICAL - CONTRADICTED ASSUMPTIONS:
+Research has contradicted the following user assumptions. DO NOT validate these in your synthesis:
+
+${contradictions.map(c => 
+  `❌ "${c.assumption}" - Research shows: ${c.contradictedBy.slice(0, 2).join('; ')}`
+).join('\n')}
+
+IMPORTANT: If your findings relate to these contradicted assumptions, acknowledge the contradiction rather than validating the assumption.`
+      : '';
+
     const response = await this.anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 3000,
@@ -255,7 +275,7 @@ SEARCH RESULTS:
 ${searchSummary}
 
 FULL CONTENT FROM TOP SOURCES:
-${fullContentSummary}
+${fullContentSummary}${contradictionWarning}
 
 Based on the research above, synthesize findings for the ${blockName} block.
 
