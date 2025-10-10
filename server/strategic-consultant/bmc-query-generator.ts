@@ -15,7 +15,7 @@ export interface BMCQuery {
   query: string;
   purpose: string;
   type: 'baseline' | 'validating' | 'challenging';
-  blockType: BMCBlockType;
+  blockType?: BMCBlockType; // Optional: assumption queries apply to all blocks
 }
 
 export interface BMCQuerySet {

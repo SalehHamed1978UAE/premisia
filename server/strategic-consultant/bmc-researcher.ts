@@ -53,8 +53,8 @@ export class BMCResearcher {
     const assumptionQueries = await this.assumptionValidator.generateAssumptionQueries(assumptions);
     console.log(`Generated ${assumptionQueries.length} assumption validation queries`);
 
-    // Step 4: Combine all queries (BMC blocks + assumption validation)
-    const allQueries: BMCQuery[] = [
+    // Step 4: Separate BMC block queries from assumption queries
+    const bmcQueries: BMCQuery[] = [
       ...querySet.customer_segments,
       ...querySet.value_propositions,
       ...querySet.revenue_streams,
@@ -64,15 +64,24 @@ export class BMCResearcher {
       ...querySet.key_activities,
       ...querySet.key_partnerships,
       ...querySet.cost_structure,
-      ...assumptionQueries.map(aq => ({ 
-        query: aq.query, 
-        purpose: `Assumption check: ${aq.assumption}`,
-        type: (aq.purpose === 'validate' ? 'validating' : 'challenging') as 'validating' | 'challenging' | 'baseline',
-        blockType: 'customer_segments' as BMCBlockType // Assumption queries apply to all blocks
-      })),
     ];
 
+    // Assumption queries are separate - they validate across ALL blocks, not tied to one
+    const assumptionOnlyQueries = assumptionQueries.map(aq => ({ 
+      query: aq.query, 
+      purpose: `Assumption check: ${aq.assumption}`,
+      type: (aq.purpose === 'validate' ? 'validating' : 'challenging') as 'validating' | 'challenging' | 'baseline',
+    }));
+
+    const allQueries = [...bmcQueries, ...assumptionOnlyQueries];
+
     const searchResults = await this.performParallelWebSearch(allQueries);
+    
+    // Separate assumption search results - these apply to ALL blocks
+    const assumptionResults = searchResults.filter(r => 
+      assumptionOnlyQueries.some(q => q.query === r.query)
+    );
+    console.log(`Found ${assumptionResults.length} assumption-related search results to share across all blocks`);
     
     const allSources = this.extractUniqueSources(searchResults);
     const topSources = allSources.slice(0, 10);
@@ -108,9 +117,12 @@ export class BMCResearcher {
         'customer_segments',
         'Customer Segments',
         querySet.customer_segments,
-        searchResults.filter(r => 
-          querySet.customer_segments.some(q => q.query === r.query)
-        ),
+        [
+          ...searchResults.filter(r => 
+            querySet.customer_segments.some(q => q.query === r.query)
+          ),
+          ...assumptionResults // Include assumption findings in all blocks
+        ],
         sourceContents,
         input,
         contradictionResult.contradictions
@@ -119,9 +131,12 @@ export class BMCResearcher {
         'value_propositions',
         'Value Propositions',
         querySet.value_propositions,
-        searchResults.filter(r => 
-          querySet.value_propositions.some(q => q.query === r.query)
-        ),
+        [
+          ...searchResults.filter(r => 
+            querySet.value_propositions.some(q => q.query === r.query)
+          ),
+          ...assumptionResults
+        ],
         sourceContents,
         input,
         contradictionResult.contradictions
@@ -130,9 +145,12 @@ export class BMCResearcher {
         'revenue_streams',
         'Revenue Streams',
         querySet.revenue_streams,
-        searchResults.filter(r => 
-          querySet.revenue_streams.some(q => q.query === r.query)
-        ),
+        [
+          ...searchResults.filter(r => 
+            querySet.revenue_streams.some(q => q.query === r.query)
+          ),
+          ...assumptionResults
+        ],
         sourceContents,
         input,
         contradictionResult.contradictions
@@ -141,9 +159,12 @@ export class BMCResearcher {
         'channels',
         'Channels',
         querySet.channels,
-        searchResults.filter(r => 
-          querySet.channels.some(q => q.query === r.query)
-        ),
+        [
+          ...searchResults.filter(r => 
+            querySet.channels.some(q => q.query === r.query)
+          ),
+          ...assumptionResults
+        ],
         sourceContents,
         input,
         contradictionResult.contradictions
@@ -152,9 +173,12 @@ export class BMCResearcher {
         'customer_relationships',
         'Customer Relationships',
         querySet.customer_relationships,
-        searchResults.filter(r => 
-          querySet.customer_relationships.some(q => q.query === r.query)
-        ),
+        [
+          ...searchResults.filter(r => 
+            querySet.customer_relationships.some(q => q.query === r.query)
+          ),
+          ...assumptionResults
+        ],
         sourceContents,
         input,
         contradictionResult.contradictions
@@ -163,9 +187,12 @@ export class BMCResearcher {
         'key_resources',
         'Key Resources',
         querySet.key_resources,
-        searchResults.filter(r => 
-          querySet.key_resources.some(q => q.query === r.query)
-        ),
+        [
+          ...searchResults.filter(r => 
+            querySet.key_resources.some(q => q.query === r.query)
+          ),
+          ...assumptionResults
+        ],
         sourceContents,
         input,
         contradictionResult.contradictions
@@ -174,9 +201,12 @@ export class BMCResearcher {
         'key_activities',
         'Key Activities',
         querySet.key_activities,
-        searchResults.filter(r => 
-          querySet.key_activities.some(q => q.query === r.query)
-        ),
+        [
+          ...searchResults.filter(r => 
+            querySet.key_activities.some(q => q.query === r.query)
+          ),
+          ...assumptionResults
+        ],
         sourceContents,
         input,
         contradictionResult.contradictions
@@ -185,9 +215,12 @@ export class BMCResearcher {
         'key_partnerships',
         'Key Partnerships',
         querySet.key_partnerships,
-        searchResults.filter(r => 
-          querySet.key_partnerships.some(q => q.query === r.query)
-        ),
+        [
+          ...searchResults.filter(r => 
+            querySet.key_partnerships.some(q => q.query === r.query)
+          ),
+          ...assumptionResults
+        ],
         sourceContents,
         input,
         contradictionResult.contradictions
@@ -196,9 +229,12 @@ export class BMCResearcher {
         'cost_structure',
         'Cost Structure',
         querySet.cost_structure,
-        searchResults.filter(r => 
-          querySet.cost_structure.some(q => q.query === r.query)
-        ),
+        [
+          ...searchResults.filter(r => 
+            querySet.cost_structure.some(q => q.query === r.query)
+          ),
+          ...assumptionResults
+        ],
         sourceContents,
         input,
         contradictionResult.contradictions
