@@ -8,6 +8,8 @@ import { EPMConverter } from '../strategic-consultant/epm-converter';
 import { EPMIntegrator } from '../strategic-consultant/epm-integrator';
 import { WhysTreeGenerator } from '../strategic-consultant/whys-tree-generator';
 import { MarketResearcher } from '../strategic-consultant/market-researcher';
+import { FrameworkSelector } from '../strategic-consultant/framework-selector';
+import { BMCResearcher } from '../strategic-consultant/bmc-researcher';
 import { storage } from '../storage';
 import { unlink } from 'fs/promises';
 
@@ -25,6 +27,8 @@ const epmConverter = new EPMConverter();
 const epmIntegrator = new EPMIntegrator();
 const whysTreeGenerator = new WhysTreeGenerator();
 const marketResearcher = new MarketResearcher();
+const frameworkSelector = new FrameworkSelector();
+const bmcResearcher = new BMCResearcher();
 
 router.post('/analyze', upload.single('file'), async (req: Request, res: Response) => {
   try {
@@ -767,6 +771,69 @@ router.post('/decisions/generate-with-research', async (req: Request, res: Respo
   } catch (error: any) {
     console.error('Error in /decisions/generate-with-research:', error);
     res.status(500).json({ error: error.message || 'Research-informed decision generation failed' });
+  }
+});
+
+router.post('/select-framework', async (req: Request, res: Response) => {
+  try {
+    const { input, sessionId } = req.body;
+    const userId = (req.user as any)?.claims?.sub;
+
+    if (!input) {
+      return res.status(400).json({ error: 'Input text is required' });
+    }
+
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Session ID is required' });
+    }
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const selection = await frameworkSelector.selectFramework(sessionId, userId, input);
+
+    res.json({
+      success: true,
+      selection,
+    });
+  } catch (error: any) {
+    console.error('Error in /select-framework:', error);
+    res.status(500).json({ error: error.message || 'Framework selection failed' });
+  }
+});
+
+router.post('/bmc-research', async (req: Request, res: Response) => {
+  try {
+    const { input, sessionId, versionNumber } = req.body;
+
+    if (!input) {
+      return res.status(400).json({ error: 'Input text is required' });
+    }
+
+    const result = await bmcResearcher.conductBMCResearch(input);
+
+    if (sessionId && versionNumber) {
+      const version = await storage.getStrategyVersion(sessionId, versionNumber);
+      
+      if (version) {
+        const existingAnalysisData = version.analysisData as any || {};
+        await storage.updateStrategyVersion(version.id, {
+          analysisData: {
+            ...existingAnalysisData,
+            bmc_research: result,
+          },
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      result,
+    });
+  } catch (error: any) {
+    console.error('Error in /bmc-research:', error);
+    res.status(500).json({ error: error.message || 'BMC research failed' });
   }
 });
 
