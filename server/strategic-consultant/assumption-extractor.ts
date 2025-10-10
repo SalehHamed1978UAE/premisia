@@ -1,5 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
+import { aiClients } from '../ai-clients';
 
 export interface Assumption {
   claim: string;
@@ -24,25 +24,14 @@ const assumptionSchema = z.object({
 });
 
 export class AssumptionExtractor {
-  private anthropic: Anthropic;
-
   constructor() {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY environment variable is required');
-    }
-    this.anthropic = new Anthropic({ apiKey });
+    // No initialization needed - using shared AIClients
   }
 
   async extractAssumptions(userInput: string): Promise<AssumptionExtractionResult> {
-    const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2000,
-      temperature: 0.3,
-      messages: [
-        {
-          role: 'user',
-          content: `You are an assumption extraction expert. Extract ALL strategic assumptions from the user's input - both explicit and implicit. BE THOROUGH - aim for 5-10 assumptions when evidence supports it, but extract only genuine, testable claims.
+    const systemPrompt = `You are an assumption extraction expert. Return ONLY valid JSON (no markdown, no explanation).`;
+    
+    const userMessage = `Extract ALL strategic assumptions from the user's input - both explicit and implicit. BE THOROUGH - aim for 5-10 assumptions when evidence supports it, but extract only genuine, testable claims.
 
 USER INPUT:
 ${userInput}
@@ -112,19 +101,17 @@ Return ONLY valid JSON (no markdown, no explanation):
       "source": "target 100 enterprise clients in 18 months"
     }
   ]
-}`,
-        },
-      ],
-    });
+}`;
 
-    const content = response.content[0];
-    if (content.type !== 'text') {
-      throw new Error('Unexpected response type from Claude');
-    }
+    const response = await aiClients.callWithFallback({
+      systemPrompt,
+      userMessage,
+      maxTokens: 2000,
+    }, "anthropic");
 
-    const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+    const jsonMatch = response.content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      throw new Error('No JSON found in Claude response');
+      throw new Error('No JSON found in AI response');
     }
 
     const parsed = JSON.parse(jsonMatch[0]);

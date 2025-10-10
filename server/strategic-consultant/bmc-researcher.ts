@@ -1,8 +1,8 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { BMCQueryGenerator, type BMCQuery, type BMCBlockType } from './bmc-query-generator';
 import { MarketResearcher, type Finding, type Source } from './market-researcher';
 import { AssumptionExtractor, type Assumption } from './assumption-extractor';
 import { AssumptionValidator, type Contradiction } from './assumption-validator';
+import { aiClients } from '../ai-clients';
 
 export interface BMCBlockFindings {
   blockType: BMCBlockType;
@@ -31,7 +31,6 @@ export interface BMCResearchResult {
 export class BMCResearcher {
   private queryGenerator: BMCQueryGenerator;
   private marketResearcher: MarketResearcher;
-  private anthropic: Anthropic;
   private assumptionExtractor: AssumptionExtractor;
   private assumptionValidator: AssumptionValidator;
 
@@ -40,12 +39,6 @@ export class BMCResearcher {
     this.marketResearcher = new MarketResearcher();
     this.assumptionExtractor = new AssumptionExtractor();
     this.assumptionValidator = new AssumptionValidator();
-    
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY environment variable is required');
-    }
-    this.anthropic = new Anthropic({ apiKey });
   }
 
   async conductBMCResearch(input: string): Promise<BMCResearchResult> {
@@ -254,14 +247,9 @@ ${contradictions.map(c =>
 IMPORTANT: If your findings relate to these contradicted assumptions, acknowledge the contradiction rather than validating the assumption.`
       : '';
 
-    const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 3000,
-      temperature: 0.3,
-      messages: [
-        {
-          role: 'user',
-          content: `You are a Business Model Canvas analyst synthesizing research for the "${blockName}" block.
+    const systemPrompt = `You are a Business Model Canvas analyst. Return ONLY valid JSON (no markdown, no explanation).`;
+    
+    const userMessage = `Synthesize research for the "${blockName}" block.
 
 BLOCK FOCUS: ${context.focus}
 
@@ -301,15 +289,15 @@ Return ONLY valid JSON (no markdown, no explanation):
 Include 3-6 findings. Set confidence to:
 - "strong" if multiple high-quality sources confirm insights
 - "moderate" if some sources support insights
-- "weak" if limited or uncertain evidence`,
-        },
-      ],
-    });
+- "weak" if limited or uncertain evidence`;
 
-    const textContent = response.content
-      .filter((block) => block.type === 'text')
-      .map((block) => (block as Anthropic.TextBlock).text)
-      .join('\n');
+    const response = await aiClients.callWithFallback({
+      systemPrompt,
+      userMessage,
+      maxTokens: 3000,
+    }, "anthropic");
+
+    const textContent = response.content;
 
     const jsonMatch = textContent.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
@@ -362,14 +350,9 @@ Include 3-6 findings. Set confidence to:
         ).join('\n')}`
       : '';
 
-    const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 3000,
-      temperature: 0.3,
-      messages: [
-        {
-          role: 'user',
-          content: `You are a Business Model Canvas expert conducting overall viability analysis.
+    const systemPrompt = `You are a Business Model Canvas expert. Return ONLY valid JSON (no markdown, no explanation).`;
+    
+    const userMessage = `Conduct overall viability analysis.
 
 ORIGINAL INPUT:
 ${originalInput.substring(0, 1500)}
@@ -422,15 +405,15 @@ Return ONLY valid JSON (no markdown, no explanation):
 Viability criteria:
 - "strong": All blocks have moderate-strong confidence, good alignment, clear path to revenue
 - "moderate": Some uncertainty but core model appears viable with validation
-- "weak": Significant gaps, misalignment, or fundamental viability concerns`,
-        },
-      ],
-    });
+- "weak": Significant gaps, misalignment, or fundamental viability concerns`;
 
-    const textContent = response.content
-      .filter((block) => block.type === 'text')
-      .map((block) => (block as Anthropic.TextBlock).text)
-      .join('\n');
+    const response = await aiClients.callWithFallback({
+      systemPrompt,
+      userMessage,
+      maxTokens: 3000,
+    }, "anthropic");
+
+    const textContent = response.content;
 
     const jsonMatch = textContent.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {

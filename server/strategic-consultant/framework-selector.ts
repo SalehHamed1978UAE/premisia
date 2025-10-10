@@ -1,8 +1,8 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { db } from '../db';
 import { frameworkSelections } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod';
+import { aiClients } from '../ai-clients';
 
 export type FrameworkType = 'business_model_canvas' | 'porters_five_forces' | 'user_choice';
 
@@ -23,8 +23,6 @@ export interface FrameworkSelectionResult {
 }
 
 export class FrameworkSelector {
-  private anthropic: Anthropic;
-
   private bmcKeywords = [
     'business model',
     'revenue', 'ARR', 'MRR',
@@ -69,11 +67,7 @@ export class FrameworkSelector {
   ];
 
   constructor() {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY environment variable is required');
-    }
-    this.anthropic = new Anthropic({ apiKey });
+    // No initialization needed - using shared AIClients
   }
 
   async selectFramework(
@@ -160,14 +154,9 @@ export class FrameworkSelector {
     input: string,
     signals: FrameworkSignals
   ): Promise<FrameworkSelectionResult> {
-    const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1500,
-      temperature: 0.3,
-      messages: [
-        {
-          role: 'user',
-          content: `You are a strategic framework selection expert. Analyze the user's input and select the most appropriate framework.
+    const systemPrompt = `You are a strategic framework selection expert. Return ONLY valid JSON (no markdown, no explanation).`;
+    
+    const userMessage = `Analyze the user's input and select the most appropriate framework.
 
 FRAMEWORKS:
 1. Business Model Canvas (BMC): Best for designing/redesigning business models, understanding revenue/customers/value
@@ -201,15 +190,15 @@ Confidence scale:
 - 0.9-1.0: Very clear single framework focus
 - 0.7-0.89: Clear primary framework with some secondary signals
 - 0.5-0.69: Mixed signals but one framework is more appropriate
-- <0.5: Unclear, may need user choice`,
-        },
-      ],
-    });
+- <0.5: Unclear, may need user choice`;
 
-    const textContent = response.content
-      .filter((block) => block.type === 'text')
-      .map((block) => (block as Anthropic.TextBlock).text)
-      .join('\n');
+    const response = await aiClients.callWithFallback({
+      systemPrompt,
+      userMessage,
+      maxTokens: 1500,
+    }, "anthropic");
+
+    const textContent = response.content;
 
     const ClaudeResponseSchema = z.object({
       selectedFramework: z.enum(['business_model_canvas', 'porters_five_forces']),

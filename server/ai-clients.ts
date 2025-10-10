@@ -197,6 +197,39 @@ export class AIClients {
     if (this.isProviderAvailable("anthropic")) return "anthropic";
     return "gemini";
   }
+
+  async callWithFallback(request: AIClientRequest, preferredProvider?: AIProvider): Promise<AIClientResponse> {
+    // Priority order: Anthropic (Claude) → OpenAI (GPT-4o) → Gemini
+    const providerOrder: AIProvider[] = preferredProvider 
+      ? [preferredProvider, ...["anthropic", "openai", "gemini"].filter(p => p !== preferredProvider) as AIProvider[]]
+      : ["anthropic", "openai", "gemini"];
+
+    const errors: { provider: AIProvider; error: string }[] = [];
+
+    for (const provider of providerOrder) {
+      if (!this.isProviderAvailable(provider)) {
+        continue;
+      }
+
+      try {
+        console.log(`[AIClients] Attempting provider: ${provider}`);
+        const response = await this.call(provider, request);
+        console.log(`[AIClients] ✓ Success with provider: ${provider} (model: ${response.model})`);
+        return response;
+      } catch (error: any) {
+        const errorMsg = error.message || String(error);
+        console.warn(`[AIClients] ✗ Provider ${provider} failed: ${errorMsg}`);
+        errors.push({ provider, error: errorMsg });
+        
+        // Continue to next provider
+        continue;
+      }
+    }
+
+    // All providers failed
+    const errorDetails = errors.map(e => `${e.provider}: ${e.error}`).join('; ');
+    throw new Error(`All AI providers failed. Errors: ${errorDetails}`);
+  }
 }
 
 export const aiClients = new AIClients();

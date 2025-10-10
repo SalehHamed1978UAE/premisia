@@ -1,5 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
+import { aiClients } from '../ai-clients';
 import type { Assumption } from './assumption-extractor';
 
 export interface AssumptionQuery {
@@ -57,14 +57,8 @@ const contradictionSchema = z.object({
 });
 
 export class AssumptionValidator {
-  private anthropic: Anthropic;
-
   constructor() {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY environment variable is required');
-    }
-    this.anthropic = new Anthropic({ apiKey });
+    // No initialization needed - using shared AIClients
   }
 
   async generateAssumptionQueries(assumptions: Assumption[]): Promise<AssumptionQuery[]> {
@@ -72,14 +66,9 @@ export class AssumptionValidator {
       return [];
     }
 
-    const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2000,
-      temperature: 0.3,
-      messages: [
-        {
-          role: 'user',
-          content: `You are a research query generator. For each assumption, generate 2-3 targeted web search queries designed to validate OR contradict it.
+    const systemPrompt = `You are a research query generator. Return ONLY valid JSON (no markdown, no explanation).`;
+    
+    const userMessage = `For each assumption, generate 2-3 targeted web search queries designed to validate OR contradict it.
 
 ASSUMPTIONS TO RESEARCH:
 ${assumptions.map((a, i) => `${i + 1}. "${a.claim}" (${a.category})`).join('\n')}
@@ -119,19 +108,17 @@ Return ONLY valid JSON (no markdown, no explanation):
       "purpose": "contradict"
     }
   ]
-}`,
-        },
-      ],
-    });
+}`;
 
-    const content = response.content[0];
-    if (content.type !== 'text') {
-      throw new Error('Unexpected response type from Claude');
-    }
+    const response = await aiClients.callWithFallback({
+      systemPrompt,
+      userMessage,
+      maxTokens: 2000,
+    }, "anthropic");
 
-    const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+    const jsonMatch = response.content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      throw new Error('No JSON found in Claude response');
+      throw new Error('No JSON found in AI response');
     }
 
     const parsed = JSON.parse(jsonMatch[0]);
@@ -148,14 +135,9 @@ Return ONLY valid JSON (no markdown, no explanation):
       return { contradictions: [], validations: [], insufficient: [] };
     }
 
-    const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 3000,
-      temperature: 0.3,
-      messages: [
-        {
-          role: 'user',
-          content: `You are a contradiction detection expert. Compare user assumptions to research findings and identify contradictions, validations, and data gaps.
+    const systemPrompt = `You are a contradiction detection expert. Return ONLY valid JSON (no markdown, no explanation).`;
+    
+    const userMessage = `Compare user assumptions to research findings and identify contradictions, validations, and data gaps.
 
 USER ASSUMPTIONS:
 ${assumptions.map((a, i) => `${i + 1}. "${a.claim}" (${a.category}${a.investmentAmount ? `, Investment: ${a.investmentAmount}` : ''})`).join('\n')}
@@ -226,19 +208,17 @@ Return ONLY valid JSON (no markdown, no explanation):
   "insufficient": [
     "Assumption about X - not enough research data found"
   ]
-}`,
-        },
-      ],
-    });
+}`;
 
-    const content = response.content[0];
-    if (content.type !== 'text') {
-      throw new Error('Unexpected response type from Claude');
-    }
+    const response = await aiClients.callWithFallback({
+      systemPrompt,
+      userMessage,
+      maxTokens: 3000,
+    }, "anthropic");
 
-    const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+    const jsonMatch = response.content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      throw new Error('No JSON found in Claude response');
+      throw new Error('No JSON found in AI response');
     }
 
     const parsed = JSON.parse(jsonMatch[0]);

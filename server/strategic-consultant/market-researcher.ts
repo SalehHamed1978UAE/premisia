@@ -1,5 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { SourceValidator, type ValidationResult } from './source-validator';
+import { aiClients } from '../ai-clients';
 
 export interface Finding {
   fact: string;
@@ -30,15 +30,9 @@ export interface ResearchQuery {
 }
 
 export class MarketResearcher {
-  private anthropic: Anthropic;
   private validator: SourceValidator;
 
   constructor() {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY environment variable is required');
-    }
-    this.anthropic = new Anthropic({ apiKey });
     this.validator = new SourceValidator();
   }
 
@@ -90,14 +84,9 @@ export class MarketResearcher {
     const mentionsLanguageDiff = /arabic|language|multilingual|localization|translation/i.test(input);
     const mentionsCulturalDiff = /cultural|culture|islamic|traditional|local customs|regional preferences/i.test(input);
 
-    const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2000,
-      temperature: 0.5,
-      messages: [
-        {
-          role: 'user',
-          content: `You are a critical market research specialist creating UNBIASED search queries for strategic analysis.
+    const systemPrompt = `You are a critical market research specialist. Return ONLY valid JSON (no markdown, no explanation).`;
+    
+    const userMessage = `Create UNBIASED search queries for strategic analysis.
 
 CRITICAL: Avoid confirmation bias. For ANY claim or assumption in the input, generate queries that BOTH validate AND challenge it.
 
@@ -142,15 +131,15 @@ Example for "Arabic language differentiates our enterprise software in UAE":
 - {"query": "UAE enterprise software market 2025", "purpose": "market size and trends", "type": "baseline"}
 - {"query": "Arabic enterprise software UAE demand", "purpose": "validate Arabic demand", "type": "validating"}
 - {"query": "English vs Arabic UAE business language statistics", "purpose": "challenge language assumption", "type": "challenging"}
-- {"query": "successful English-only enterprise software UAE", "purpose": "test if Arabic is necessary", "type": "challenging"}`,
-        },
-      ],
-    });
+- {"query": "successful English-only enterprise software UAE", "purpose": "test if Arabic is necessary", "type": "challenging"}`;
 
-    const textContent = response.content
-      .filter((block) => block.type === 'text')
-      .map((block) => (block as Anthropic.TextBlock).text)
-      .join('\n');
+    const response = await aiClients.callWithFallback({
+      systemPrompt,
+      userMessage,
+      maxTokens: 2000,
+    }, "anthropic");
+
+    const textContent = response.content;
 
     const jsonMatch = textContent.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
@@ -368,14 +357,9 @@ Example for "Arabic language differentiates our enterprise software in UAE":
       .map(([url, content]) => `URL: ${url}\nContent Excerpt: ${content.substring(0, 2000)}...`)
       .join('\n\n---\n\n');
 
-    const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4000,
-      temperature: 0.3,
-      messages: [
-        {
-          role: 'user',
-          content: `You are an OBJECTIVE market research analyst synthesizing findings for a business strategy.
+    const systemPrompt = `You are an OBJECTIVE market research analyst. Return ONLY valid JSON (no markdown, no explanation).`;
+    
+    const userMessage = `Synthesize findings for a business strategy.
 
 CRITICAL INSTRUCTIONS - ANTI-CONFIRMATION BIAS:
 1. Every statement MUST cite a specific research finding from the full article content below
@@ -460,15 +444,15 @@ Return ONLY valid JSON (no markdown, no explanation):
       "confidence": "high"
     }
   ]
-}`,
-        },
-      ],
-    });
+}`;
 
-    const textContent = response.content
-      .filter((block) => block.type === 'text')
-      .map((block) => (block as Anthropic.TextBlock).text)
-      .join('\n');
+    const response = await aiClients.callWithFallback({
+      systemPrompt,
+      userMessage,
+      maxTokens: 4000,
+    }, "anthropic");
+
+    const textContent = response.content;
 
     const jsonMatch = textContent.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
