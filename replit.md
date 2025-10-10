@@ -38,6 +38,9 @@ The frontend uses React with TypeScript and Vite, employing Shadcn/ui (Radix UI,
     - **Strategic Decisions Module**: Provides persistent access to all strategy versions and integrated programs.
     - **Intelligent Framework Selection**: AI-powered routing between Business Model Canvas and Porter's Five Forces based on input analysis.
     - **Business Model Canvas (BMC) Analysis**: Focuses on Customer Segments, Value Propositions, Revenue Streams with block-specific query generation, parallel research, and validation. Includes a proactive assumption challenge system for extracting, validating, and detecting contradictions in user assumptions, with clear UI indicators for validation strength and contradictions.
+        - **Architectural Fix (Oct 2025)**: Reordered research flow to detect contradictions BEFORE block synthesis, preventing blocks from validating contradicted assumptions. Block synthesis prompts now explicitly acknowledge contradictions.
+        - **Investment Amount Transfer (Oct 2025)**: Implemented two-tier matching system for assumption-to-contradiction investment transfer: (1) Primary path uses exact matching on LLM-provided `matchedAssumptionClaim`, (2) Fallback uses entity-based fuzzy matching (dollar amounts, countries, tech terms) with 60/40 weighted scoring and 0.25 threshold. Includes whitespace normalization and comprehensive logging.
+        - **Enhanced Assumption Extraction (Oct 2025)**: Extracts up to 10 assumptions per input (explicit + implicit), including quantitative claims, temporal assumptions, market dynamics, and ROI expectations. Prioritizes quality over quantity.
 
 ## External Dependencies
 
@@ -49,4 +52,5 @@ The frontend uses React with TypeScript and Vite, employing Shadcn/ui (Radix UI,
 - **Build Tools**: Vite (frontend), esbuild (server-side)
 - **AI Providers**: OpenAI, Anthropic, Gemini
 - **ORM**: Drizzle ORM
-- **Authentication**: Passport.js
+- **Authentication**: Passport.js with Replit OIDC
+    - **Auth Bug Fix (Oct 2025)**: Updated `upsertUser` to handle email unique constraint violations by checking for existing users by email before insert, preventing crashes on duplicate email logins.
