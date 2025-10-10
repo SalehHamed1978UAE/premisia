@@ -32,6 +32,22 @@ export interface BMCBlock {
   gaps: string[];
 }
 
+export interface Assumption {
+  assumption: string;
+  confidence: 'high' | 'medium' | 'low';
+  category: string;
+  impact: 'critical' | 'high' | 'medium' | 'low';
+  investmentAmount?: string;
+}
+
+export interface Contradiction {
+  assumption: string;
+  contradictedBy: string[];
+  impact: 'critical' | 'high' | 'medium' | 'low';
+  recommendation: string;
+  investmentAmount?: string;
+}
+
 export interface BMCAnalysis {
   blocks: BMCBlock[];
   viability: string;
@@ -48,6 +64,8 @@ export interface BMCAnalysis {
     action: string;
     rationale: string;
   }>;
+  assumptions?: Assumption[];
+  contradictions?: Contradiction[];
 }
 
 interface BMCCanvasProps {
@@ -73,7 +91,7 @@ const VALIDATION_INDICATORS = {
 };
 
 export function BMCCanvas({ analysis }: BMCCanvasProps) {
-  const { blocks, viability, overallConfidence, keyInsights, criticalGaps, consistencyChecks, recommendations } = analysis;
+  const { blocks, viability, overallConfidence, keyInsights, criticalGaps, consistencyChecks, recommendations, assumptions, contradictions } = analysis;
   const [expandedFindings, setExpandedFindings] = useState<Record<string, boolean>>({});
 
   const toggleFindings = (blockType: string) => {
@@ -295,6 +313,45 @@ export function BMCCanvas({ analysis }: BMCCanvasProps) {
           );
         })}
       </Accordion>
+
+      {/* Contradictions Alert */}
+      {contradictions && contradictions.length > 0 && (
+        <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950" data-testid="contradictions-alert">
+          <AlertCircle className="h-4 w-4 text-amber-600" />
+          <AlertDescription>
+            <div className="space-y-3">
+              <p className="font-semibold text-amber-900 dark:text-amber-100">
+                🚨 {contradictions.length} Assumption{contradictions.length > 1 ? 's' : ''} Contradicted by Research
+              </p>
+              <div className="space-y-2">
+                {contradictions.map((contradiction, i) => (
+                  <div key={i} className="bg-white dark:bg-gray-900 p-3 rounded-md border border-amber-200 dark:border-amber-800">
+                    <div className="flex items-start gap-2 mb-2">
+                      <Badge variant="destructive" className="text-xs">
+                        {contradiction.impact} impact
+                      </Badge>
+                      {contradiction.investmentAmount && contradiction.investmentAmount.trim() !== '' && (
+                        <Badge variant="outline" className="text-xs bg-red-50 dark:bg-red-950 border-red-300 dark:border-red-700">
+                          ⚠️ ${contradiction.investmentAmount} at risk
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">
+                      "{contradiction.assumption}"
+                    </p>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      <strong>Research found:</strong> {contradiction.contradictedBy.join('; ')}
+                    </p>
+                    <p className="text-xs text-amber-800 dark:text-amber-200">
+                      <strong>💡 Recommendation:</strong> {contradiction.recommendation}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Consistency Checks & Recommendations */}
       {(consistencyChecks || recommendations) && (

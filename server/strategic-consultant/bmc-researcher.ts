@@ -1,6 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { BMCQueryGenerator, type BMCQuery, type BMCBlockType } from './bmc-query-generator';
 import { MarketResearcher, type Finding, type Source } from './market-researcher';
+import { AssumptionExtractor, type Assumption } from './assumption-extractor';
+import { AssumptionValidator, type Contradiction } from './assumption-validator';
 
 export interface BMCBlockFindings {
   blockType: BMCBlockType;
@@ -22,16 +24,22 @@ export interface BMCResearchResult {
   criticalGaps: string[];
   consistencyChecks: any[];
   recommendations: any[];
+  assumptions?: Assumption[];
+  contradictions?: Contradiction[];
 }
 
 export class BMCResearcher {
   private queryGenerator: BMCQueryGenerator;
   private marketResearcher: MarketResearcher;
   private anthropic: Anthropic;
+  private assumptionExtractor: AssumptionExtractor;
+  private assumptionValidator: AssumptionValidator;
 
   constructor() {
     this.queryGenerator = new BMCQueryGenerator();
     this.marketResearcher = new MarketResearcher();
+    this.assumptionExtractor = new AssumptionExtractor();
+    this.assumptionValidator = new AssumptionValidator();
     
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
@@ -41,12 +49,28 @@ export class BMCResearcher {
   }
 
   async conductBMCResearch(input: string): Promise<BMCResearchResult> {
+    // Step 1: Extract assumptions from user input
+    const { assumptions } = await this.assumptionExtractor.extractAssumptions(input);
+    console.log(`Extracted ${assumptions.length} assumptions from input`);
+
+    // Step 2: Generate BMC block queries
     const querySet = await this.queryGenerator.generateQueriesForAllBlocks(input);
 
-    const allQueries = [
+    // Step 3: Generate assumption-specific queries
+    const assumptionQueries = await this.assumptionValidator.generateAssumptionQueries(assumptions);
+    console.log(`Generated ${assumptionQueries.length} assumption validation queries`);
+
+    // Step 4: Combine all queries (BMC blocks + assumption validation)
+    const allQueries: BMCQuery[] = [
       ...querySet.customer_segments,
       ...querySet.value_propositions,
       ...querySet.revenue_streams,
+      ...assumptionQueries.map(aq => ({ 
+        query: aq.query, 
+        purpose: `Assumption check: ${aq.assumption}`,
+        type: aq.purpose === 'validate' ? 'validating' : 'challenging',
+        blockType: 'customer_segments' as BMCBlockType // Assumption queries apply to all blocks
+      })),
     ];
 
     const searchResults = await this.performParallelWebSearch(allQueries);
@@ -94,7 +118,16 @@ export class BMCResearcher {
     const blocks = [customerBlock, valueBlock, revenueBlock];
     const overallConfidence = this.calculateOverallConfidence(blocks);
 
-    const synthesis = await this.synthesizeOverallBMC(blocks, input);
+    // Step 5: Detect contradictions between assumptions and research findings
+    const allFindings = blocks.flatMap(b => b.findings.map(f => f.fact));
+    const contradictionResult = await this.assumptionValidator.detectContradictions(
+      assumptions,
+      allFindings
+    );
+    console.log(`Detected ${contradictionResult.contradictions.length} contradictions`);
+
+    // Step 6: Synthesize overall BMC with contradiction awareness
+    const synthesis = await this.synthesizeOverallBMC(blocks, input, contradictionResult.contradictions);
 
     return {
       blocks,
@@ -105,6 +138,8 @@ export class BMCResearcher {
       criticalGaps: synthesis.criticalGaps,
       consistencyChecks: synthesis.consistencyChecks,
       recommendations: synthesis.recommendations,
+      assumptions,
+      contradictions: contradictionResult.contradictions,
     };
   }
 
@@ -284,7 +319,8 @@ Include 3-6 findings. Set confidence to:
 
   async synthesizeOverallBMC(
     blocks: BMCBlockFindings[],
-    originalInput: string
+    originalInput: string,
+    contradictions: Contradiction[] = []
   ): Promise<{
     viability: string;
     keyInsights: string[];
@@ -300,6 +336,12 @@ Include 3-6 findings. Set confidence to:
       `${b.blockName} (${b.confidence} confidence):\n${b.description}\nGaps: ${b.gaps.join(', ') || 'None identified'}`
     ).join('\n\n');
 
+    const contradictionSummary = contradictions.length > 0
+      ? `\n\n🚨 CONTRADICTED ASSUMPTIONS:\n${contradictions.map(c => 
+          `- "${c.assumption}" (${c.impact} impact${c.investmentAmount ? `, Investment: ${c.investmentAmount}` : ''})\n  Research found: ${c.contradictedBy.join('; ')}\n  Recommendation: ${c.recommendation}`
+        ).join('\n')}`
+      : '';
+
     const response = await this.anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 3000,
@@ -313,15 +355,15 @@ ORIGINAL INPUT:
 ${originalInput.substring(0, 1500)}
 
 RESEARCH FINDINGS FOR 3 BMC BLOCKS:
-${blockSummary}
+${blockSummary}${contradictionSummary}
 
 Based on these findings, provide comprehensive BMC viability analysis:
 
 1. **Cross-Block Consistency**: Do customer segments align with value propositions? Do value propositions support the revenue model?
 2. **Overall Viability**: Can this business model work based on research evidence?
 3. **Key Insights**: What are the most important strategic insights across all blocks?
-4. **Critical Gaps**: What critical information is missing or uncertain?
-5. **Recommendations**: What should be prioritized or validated?
+4. **Critical Gaps**: What critical information is missing or uncertain? PRIORITIZE contradicted assumptions!
+5. **Recommendations**: What should be prioritized or validated? ALWAYS flag contradicted assumptions as HIGH priority!
 
 Return ONLY valid JSON (no markdown, no explanation):
 

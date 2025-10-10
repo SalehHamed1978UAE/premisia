@@ -1,0 +1,199 @@
+Prompt for Replit: Fix Assumption Extraction and Targeted Research
+CRITICAL BUG FIX REQUIRED: Assumption Extraction and Challenge Logic
+
+## Problem Identified
+
+The BMC implementation is conducting generic market research but NOT extracting and challenging user assumptions from input. This defeats the core purpose of the validation system.
+
+## Test Case That Revealed the Bug
+
+User Input:
+"We are expanding our enterprise CRM software into the Indian market with a $5M investment. 
+
+Strategic assumptions:
+- Hindi localization is critical for enterprise adoption in India
+- Indian enterprises prefer local vendors over Western software
+- We need India-specific features
+
+Investment breakdown: $1.5M for Hindi localization, $2M for local sales team, $1M for marketing, $500K for compliance
+
+Key question: Should we invest heavily in Hindi localization and India-specific positioning?"
+
+### What SHOULD Have Happened:
+- System extracts assumption: "Hindi localization is critical"
+- Generates targeted query: "Indian enterprise software language preferences English Hindi"
+- Finds research: "English dominates Indian B2B software (70-85%)"
+- CONTRADICTS assumption in output: "Research shows English is preferred in Indian enterprise software, not Hindi. Consider redirecting the $1.5M Hindi investment."
+
+### What ACTUALLY Happened:
+- Generic CRM market research (digital adoption rates, pricing sensitivity)
+- NO mention of language preferences
+- NO challenge to Hindi assumption
+- NO targeted research on English vs Hindi
+
+## Root Cause
+
+The research queries are too generic. When researching for BMC blocks, the system isn't:
+1. Extracting explicit assumptions from user input
+2. Generating assumption-specific research queries
+3. Comparing research findings to assumptions
+4. Flagging contradictions in the output
+
+## Required Implementation
+
+### Phase 1: Add Assumption Extraction Step
+
+**Location:** In the BMC research flow, BEFORE conducting market research
+
+**New function needed:** `extractAssumptions(userInput: string)`
+
+**What it should do:**
+```typescript
+// Parse user input for assumptions - both explicit and implicit
+// Look for patterns like:
+// - "We assume..."
+// - "X is critical/essential/important for..."
+// - "Y prefer/need/want..."
+// - Investment breakdowns that imply priorities
+// - Strategic beliefs stated as facts
+
+// Return structure:
+{
+  assumptions: [
+    {
+      claim: "Hindi localization is critical for enterprise adoption",
+      category: "product", // product, market, customer, competitive
+      confidence: "explicit", // explicit or implicit
+      investmentAmount: "$1.5M" // if mentioned
+    },
+    {
+      claim: "Indian enterprises prefer local vendors",
+      category: "customer",
+      confidence: "explicit",
+      investmentAmount: null
+    }
+  ]
+}
+Phase 2: Generate Targeted Research Queries
+Location: After assumption extraction, BEFORE general market research
+New function needed: generateAssumptionQueries(assumptions: Assumption[])
+What it should do:
+typescript// For each assumption, generate 2-3 specific research queries designed to validate or contradict it
+
+// Example:
+Assumption: "Hindi localization is critical for enterprise adoption"
+Queries:
+- "Indian enterprise software language requirements English Hindi"
+- "B2B SaaS language preferences India"
+- "Indian CRM adoption language barriers"
+
+Assumption: "Indian enterprises prefer local vendors"
+Queries:
+- "Indian enterprise software vendor preferences local vs international"
+- "foreign software adoption India B2B"
+- "Indian companies international SaaS adoption"
+
+// These should be ADDED to the research queue alongside general market queries
+Phase 3: Contradiction Detection
+Location: After research synthesis, BEFORE generating BMC blocks
+New function needed: detectContradictions(assumptions: Assumption[], findings: ResearchFinding[])
+What it should do:
+typescript// Compare each assumption to relevant research findings
+// Look for findings that contradict the assumption
+
+// Return structure:
+{
+  contradictions: [
+    {
+      assumption: "Hindi localization is critical",
+      contradictedBy: [
+        "English is the dominant language for enterprise software in India (75% of B2B SaaS)",
+        "Indian enterprise decision-makers expect English interfaces as standard"
+      ],
+      validationStrength: "STRONG", // from existing validation system
+      impact: "HIGH", // based on investment amount
+      recommendation: "Reconsider $1.5M Hindi investment. Research suggests English prioritization."
+    }
+  ],
+  validations: [
+    // Assumptions that were confirmed by research
+  ],
+  insufficient: [
+    // Assumptions with insufficient research data
+  ]
+}
+Phase 4: Surface Contradictions in BMC Blocks
+Location: In BMC block generation (Customer Segments, Value Propositions, Revenue Streams)
+What needs to change:
+typescript// When generating each block, check for relevant contradictions
+// Add a new section in blocks where contradictions exist:
+
+"⚠️ Assumption Challenge:
+Your input assumed [ASSUMPTION]. However, research found [CONTRADICTION]. 
+[RECOMMENDATION based on research]"
+
+// Example in Customer Segments block:
+"⚠️ Assumption Challenge:
+Your input assumed Hindi localization is critical for Indian enterprise adoption, with $1.5M allocated. 
+However, research found English is the dominant language for enterprise software in India (75% of B2B SaaS use English interfaces). 
+Consider: Redirect Hindi investment to English product quality and Indian English localization (currency, tax, local integrations)."
+Phase 5: Update Critical Gaps Section
+Location: In the "Critical Gaps Identified" section shown at top of BMC results
+What needs to change:
+typescript// Add a new priority category for contradicted assumptions:
+
+"🚨 Contradicted Assumptions:
+- Hindi localization investment ($1.5M) - Research shows English dominates Indian enterprise software
+- [Any other contradicted assumptions]
+
+Recommendation: Validate these assumptions before proceeding with investments."
+Implementation Checklist
+Create these new files/functions:
+
+ assumption-extractor.ts - Extracts assumptions from user input
+ assumption-validator.ts - Generates queries and detects contradictions
+ Update market-researcher.ts - Add assumption-specific queries to research flow
+ Update bmc-generator.ts - Surface contradictions in block output
+ Update BMC UI - Show assumption challenges prominently
+
+Testing Criteria
+After implementation, re-run the India CRM test case (input provided above).
+Must Pass:
+✅ Extracts "Hindi localization is critical" assumption from input
+✅ Generates query about Indian enterprise language preferences
+✅ Finds research showing English dominance in Indian B2B
+✅ Flags contradiction in Customer Segments or Value Propositions block
+✅ Shows warning about $1.5M Hindi investment
+✅ Recommends reconsidering based on English preference research
+Success looks like:
+User sees: "⚠️ Assumption Challenge: Your input assumed Hindi localization is critical, but research shows English is dominant in Indian enterprise software (75% of B2B SaaS). Consider redirecting the $1.5M Hindi investment to English product optimization."
+Examples of Good Assumption Extraction
+Input 1: "We assume Arabic support is critical for UAE market"
+→ Extract: "Arabic support critical for UAE"
+→ Query: "UAE enterprise software language Arabic English"
+→ Find: "English dominates UAE business software"
+→ Contradict: "Research shows English is dominant in UAE B2B, not Arabic"
+Input 2: "We believe remote work reduces productivity by 25% based on 2020 study"
+→ Extract: "Remote work reduces productivity 25%"
+→ Query: "remote work productivity 2024 recent studies"
+→ Find: "2024 Microsoft analysis shows 13% productivity increase"
+→ Contradict: "Your 2020 study is outdated. Recent research shows productivity gains from remote work"
+Input 3: "Industry whitepapers claim blockchain reduces costs by 75%"
+→ Extract: "Blockchain reduces costs 75%"
+→ Query: "blockchain cost reduction independent studies vendor bias"
+→ Find: "Vendor-funded studies show 70-80% reduction; independent studies show 15-25%"
+→ Contradict: "Industry whitepapers are vendor-funded. Independent research shows much lower cost reduction"
+Integration Points
+This fix should integrate with your existing:
+
+✅ SourceValidator (multi-source, recency, counter-evidence checks)
+✅ MarketResearcher (real web_search and web_fetch)
+✅ Validation strength indicators (🟢🟡🔴)
+✅ BMC block structure (Customer Segments, Value Propositions, Revenue Streams)
+
+The assumption extraction should ENHANCE these systems by making research queries more targeted.
+Priority
+BLOCKER - Do not expand to 9-block BMC until this is fixed and tested.
+This is the core differentiator of the platform: challenging bad assumptions with research. Without it, the system is just a generic research aggregator.
+Estimated implementation time: 3-5 days
+After fix: Re-test with India CRM case before expanding to full BMC.
