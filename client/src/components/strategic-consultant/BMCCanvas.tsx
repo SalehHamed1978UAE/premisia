@@ -9,7 +9,13 @@ import {
   AlertCircle,
   Info,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Radio,
+  Heart,
+  Package,
+  Zap,
+  Handshake,
+  TrendingDown
 } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Progress } from "@/components/ui/progress";
@@ -76,6 +82,12 @@ const BLOCK_ICONS = {
   customer_segments: { icon: Users, color: "text-blue-600 dark:text-blue-400", bgColor: "bg-blue-50 dark:bg-blue-950" },
   value_propositions: { icon: Lightbulb, color: "text-purple-600 dark:text-purple-400", bgColor: "bg-purple-50 dark:bg-purple-950" },
   revenue_streams: { icon: DollarSign, color: "text-green-600 dark:text-green-400", bgColor: "bg-green-50 dark:bg-green-950" },
+  channels: { icon: Radio, color: "text-cyan-600 dark:text-cyan-400", bgColor: "bg-cyan-50 dark:bg-cyan-950" },
+  customer_relationships: { icon: Heart, color: "text-pink-600 dark:text-pink-400", bgColor: "bg-pink-50 dark:bg-pink-950" },
+  key_resources: { icon: Package, color: "text-orange-600 dark:text-orange-400", bgColor: "bg-orange-50 dark:bg-orange-950" },
+  key_activities: { icon: Zap, color: "text-yellow-600 dark:text-yellow-400", bgColor: "bg-yellow-50 dark:bg-yellow-950" },
+  key_partnerships: { icon: Handshake, color: "text-indigo-600 dark:text-indigo-400", bgColor: "bg-indigo-50 dark:bg-indigo-950" },
+  cost_structure: { icon: TrendingDown, color: "text-red-600 dark:text-red-400", bgColor: "bg-red-50 dark:bg-red-950" },
 };
 
 const CONFIDENCE_COLORS = {
@@ -162,7 +174,7 @@ export function BMCCanvas({ analysis }: BMCCanvasProps) {
         </CardContent>
       </Card>
 
-      {/* Desktop: Grid Layout, Mobile: Accordion */}
+      {/* Desktop: Grid Layout (3x3), Mobile: Accordion */}
       <div className="hidden md:grid md:grid-cols-3 gap-4" data-testid="bmc-blocks-grid">
         {blocks.map((block) => {
           const blockInfo = BLOCK_ICONS[block.blockType as keyof typeof BLOCK_ICONS];
