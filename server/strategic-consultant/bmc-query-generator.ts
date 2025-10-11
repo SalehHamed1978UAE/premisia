@@ -254,7 +254,10 @@ Balance:
     const response = await aiClients.callWithFallback({
       systemPrompt: `You are a Business Model Canvas research specialist generating search queries for the "${blockConfig.focus}" block.
 
-CRITICAL: Avoid confirmation bias. Generate queries that BOTH validate AND challenge assumptions in the input.`,
+CRITICAL RULES:
+1. Avoid confirmation bias - Generate queries that BOTH validate AND challenge assumptions
+2. PRESERVE CONTEXT - Keep specific entities, numbers, timelines, and details from the user's claim
+3. DO NOT abstract or generalize - If user mentions "Asana for 25 employees in 2-4 weeks", query should include "Asana", "25 employees", "2-4 weeks"`,
       userMessage: `BUSINESS CONTEXT:
 ${input.substring(0, 1500)}
 
