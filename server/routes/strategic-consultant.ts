@@ -822,6 +822,7 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
     // Progress callback to send updates to client
     const sendProgress = (message: string, step?: number, totalSteps?: number) => {
       const data = JSON.stringify({ message, step, totalSteps });
+      console.log(`[SSE] Sending progress: ${message} (${step}/${totalSteps})`);
       res.write(`data: ${data}\n\n`);
     };
 

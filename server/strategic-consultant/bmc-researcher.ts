@@ -94,12 +94,14 @@ export class BMCResearcher {
     sessionId?: string,
     onProgress?: (message: string, step?: number, totalSteps?: number) => void
   ): Promise<BMCResearchResult> {
+    console.log(`[BMCResearcher] onProgress callback provided: ${!!onProgress}`);
     const totalSteps = 8;
     let currentStep = 0;
     
     // Helper to emit progress
     const progress = (message: string) => {
       currentStep++;
+      console.log(`[BMCResearcher] progress() called: ${message}, onProgress=${!!onProgress}`);
       if (onProgress) {
         onProgress(message, currentStep, totalSteps);
       }
