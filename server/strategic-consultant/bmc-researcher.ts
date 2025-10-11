@@ -149,13 +149,15 @@ export class BMCResearcher {
     );
 
     // Step 5: CRITICAL FIX - Detect contradictions BEFORE block synthesis
-    // Extract raw findings from search results to identify contradictions early
-    const rawFindings = searchResults.flatMap(sr => 
+    // Extract raw findings from ASSUMPTION-SPECIFIC queries only (preserves context)
+    // Use assumptionResults instead of all searchResults to ensure evidence matches assumption context
+    // E.g., "Asana" contradiction should have "Asana" evidence, not generic "software modernization" evidence
+    const assumptionFindings = assumptionResults.flatMap(sr => 
       (sr.results || []).map((r: any) => `${r.title}: ${r.snippet}`)
     );
     const contradictionResult = await this.assumptionValidator.detectContradictions(
       assumptions,
-      rawFindings
+      assumptionFindings  // Context-preserved findings
     );
     console.log(`Detected ${contradictionResult.contradictions.length} contradictions BEFORE block synthesis`);
 
