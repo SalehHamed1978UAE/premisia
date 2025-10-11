@@ -91,24 +91,9 @@ export class BMCResearcher {
 
   async conductBMCResearch(
     input: string, 
-    sessionId?: string,
-    onProgress?: (message: string, step?: number, totalSteps?: number) => void
+    sessionId?: string
   ): Promise<BMCResearchResult> {
-    console.log(`[BMCResearcher] onProgress callback provided: ${!!onProgress}`);
-    const totalSteps = 8;
-    let currentStep = 0;
-    
-    // Helper to emit progress
-    const progress = (message: string) => {
-      currentStep++;
-      console.log(`[BMCResearcher] progress() called: ${message}, onProgress=${!!onProgress}`);
-      if (onProgress) {
-        onProgress(message, currentStep, totalSteps);
-      }
-    };
-
     // Step 1: Extract understanding from user input using knowledge graph
-    progress('🔍 Analyzing your input and extracting strategic insights...');
     
     const effectiveSessionId = sessionId || `bmc-${Date.now()}`;
     console.log(`[BMCResearcher] Using StrategicUnderstandingService for session: ${effectiveSessionId}`);
@@ -125,7 +110,6 @@ export class BMCResearcher {
     console.log(`[BMCResearcher] Converted to ${assumptions.length} assumptions for BMC flow`);
 
     // Step 2: Generate BMC block queries
-    progress('💡 Generating research queries across all 9 Business Model Canvas blocks...');
     const querySet = await this.queryGenerator.generateQueriesForAllBlocks(input);
 
     // Step 3: Generate assumption-specific queries
@@ -154,7 +138,6 @@ export class BMCResearcher {
 
     const allQueries = [...bmcQueries, ...assumptionOnlyQueries];
 
-    progress('🌐 Searching global markets for real-world data and industry insights...');
     const searchResults = await this.performParallelWebSearch(allQueries);
     
     // Separate assumption search results - these apply to ALL blocks
@@ -171,7 +154,6 @@ export class BMCResearcher {
     );
 
     // Step 5: CRITICAL FIX - Detect contradictions BEFORE block synthesis
-    progress('🎯 Detecting strategic gaps and contradictions - this is where the biggest value lies!');
     
     // Extract raw findings from ASSUMPTION-SPECIFIC queries only (preserves context)
     // Use assumptionResults instead of all searchResults to ensure evidence matches assumption context
@@ -186,7 +168,6 @@ export class BMCResearcher {
     console.log(`Detected ${contradictionResult.contradictions.length} contradictions BEFORE block synthesis`);
 
     // Step 6: Synthesize blocks WITH contradiction awareness
-    progress('🧩 Synthesizing insights across all Business Model Canvas blocks...');
     const [
       customerBlock, 
       valueBlock, 
@@ -340,14 +321,10 @@ export class BMCResearcher {
     const overallConfidence = this.calculateOverallConfidence(blocks);
 
     // Step 6: Synthesize overall BMC with contradiction awareness
-    progress('📊 Performing cross-block consistency validation and viability analysis...');
     const synthesis = await this.synthesizeOverallBMC(blocks, input, contradictionResult.contradictions);
 
     // Step 7 (Task 17): Store BMC findings back into knowledge graph
-    progress('💾 Saving insights to knowledge graph for progressive learning...');
     await this.storeBMCFindingsInGraph(understandingId, entities, blocks, contradictionResult.contradictions, synthesis.criticalGaps);
-
-    progress('✨ Analysis complete! Generating strategic recommendations...');
     
     return {
       blocks,

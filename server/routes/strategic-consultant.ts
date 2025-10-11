@@ -819,15 +819,134 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
-    // Progress callback to send updates to client
-    const sendProgress = (message: string, step?: number, totalSteps?: number) => {
-      const data = JSON.stringify({ message, step, totalSteps });
-      console.log(`[SSE] Sending progress: ${message} (${step}/${totalSteps})`);
-      res.write(`data: ${data}\n\n`);
-    };
+    // Timer-based progress messages: 420s / 8 categories = 52.5s per category
+    // Emit message every 5s = 10.5 messages per category
+    // 4 categories with 11 messages + 4 categories with 10 messages = 84 total × 5s = 420s
+    const progressMessages = [
+      // Category 1: Analyzing (0-55s) - 11 messages
+      { message: '🔍 Analyzing your business concept and strategic context...', step: 1, totalSteps: 8 },
+      { message: '🔍 Extracting key assumptions from your input...', step: 1, totalSteps: 8 },
+      { message: '🔍 Identifying explicit and implicit strategic claims...', step: 1, totalSteps: 8 },
+      { message: '🔍 Building knowledge graph of your business model...', step: 1, totalSteps: 8 },
+      { message: '🔍 Categorizing assumptions by confidence level...', step: 1, totalSteps: 8 },
+      { message: '🔍 Mapping relationships between strategic elements...', step: 1, totalSteps: 8 },
+      { message: '🔍 Validating source attribution for all claims...', step: 1, totalSteps: 8 },
+      { message: '🔍 Preparing comprehensive analysis framework...', step: 1, totalSteps: 8 },
+      { message: '🔍 Structuring insights for deep research...', step: 1, totalSteps: 8 },
+      { message: '🔍 Finalizing assumption categorization...', step: 1, totalSteps: 8 },
+      { message: '🔍 Analysis foundation complete, moving to components...', step: 1, totalSteps: 8 },
+      
+      // Category 2: Breaking down (55-105s) - 10 messages
+      { message: '🧩 Breaking down Business Model Canvas components...', step: 2, totalSteps: 8 },
+      { message: '🧩 Generating queries for Customer Segments...', step: 2, totalSteps: 8 },
+      { message: '🧩 Creating Value Proposition research queries...', step: 2, totalSteps: 8 },
+      { message: '🧩 Developing Revenue Streams investigation plan...', step: 2, totalSteps: 8 },
+      { message: '🧩 Building Channels distribution analysis...', step: 2, totalSteps: 8 },
+      { message: '🧩 Structuring Customer Relationships queries...', step: 2, totalSteps: 8 },
+      { message: '🧩 Preparing Key Resources research framework...', step: 2, totalSteps: 8 },
+      { message: '🧩 Designing Key Activities validation approach...', step: 2, totalSteps: 8 },
+      { message: '🧩 Creating Key Partnerships research strategy...', step: 2, totalSteps: 8 },
+      { message: '🧩 Finalizing Cost Structure analysis queries...', step: 2, totalSteps: 8 },
+      
+      // Category 3: Searching markets (105-160s) - 11 messages
+      { message: '🌐 Searching global markets for industry insights...', step: 3, totalSteps: 8 },
+      { message: '🌐 Gathering real-world customer segment data...', step: 3, totalSteps: 8 },
+      { message: '🌐 Researching competitive landscape and alternatives...', step: 3, totalSteps: 8 },
+      { message: '🌐 Analyzing market size and growth trends...', step: 3, totalSteps: 8 },
+      { message: '🌐 Discovering customer pain points and needs...', step: 3, totalSteps: 8 },
+      { message: '🌐 Exploring regional market variations...', step: 3, totalSteps: 8 },
+      { message: '🌐 Investigating industry-specific challenges...', step: 3, totalSteps: 8 },
+      { message: '🌐 Collecting case studies and success stories...', step: 3, totalSteps: 8 },
+      { message: '🌐 Examining market entry barriers and opportunities...', step: 3, totalSteps: 8 },
+      { message: '🌐 Evaluating competitive positioning opportunities...', step: 3, totalSteps: 8 },
+      { message: '🌐 Synthesizing market intelligence findings...', step: 3, totalSteps: 8 },
+      
+      // Category 4: Researching pricing (160-210s) - 10 messages
+      { message: '💰 Researching pricing models and revenue strategies...', step: 4, totalSteps: 8 },
+      { message: '💰 Analyzing competitor pricing structures...', step: 4, totalSteps: 8 },
+      { message: '💰 Investigating subscription vs. one-time models...', step: 4, totalSteps: 8 },
+      { message: '💰 Examining price sensitivity in target market...', step: 4, totalSteps: 8 },
+      { message: '💰 Discovering hidden cost factors and margins...', step: 4, totalSteps: 8 },
+      { message: '💰 Evaluating pricing tier effectiveness...', step: 4, totalSteps: 8 },
+      { message: '💰 Researching revenue per customer benchmarks...', step: 4, totalSteps: 8 },
+      { message: '💰 Analyzing monetization strategy alternatives...', step: 4, totalSteps: 8 },
+      { message: '💰 Assessing pricing power and elasticity...', step: 4, totalSteps: 8 },
+      { message: '💰 Consolidating revenue model insights...', step: 4, totalSteps: 8 },
+      
+      // Category 5: Investigating partnerships (210-265s) - 11 messages
+      { message: '🤝 Investigating partnership and channel strategies...', step: 5, totalSteps: 8 },
+      { message: '🤝 Researching distribution channel effectiveness...', step: 5, totalSteps: 8 },
+      { message: '🤝 Analyzing direct vs. partner sales models...', step: 5, totalSteps: 8 },
+      { message: '🤝 Exploring strategic alliance opportunities...', step: 5, totalSteps: 8 },
+      { message: '🤝 Investigating customer acquisition channels...', step: 5, totalSteps: 8 },
+      { message: '🤝 Examining partner program structures...', step: 5, totalSteps: 8 },
+      { message: '🤝 Researching integration partner ecosystems...', step: 5, totalSteps: 8 },
+      { message: '🤝 Analyzing relationship management approaches...', step: 5, totalSteps: 8 },
+      { message: '🤝 Discovering channel conflict and solutions...', step: 5, totalSteps: 8 },
+      { message: '🤝 Assessing customer success team requirements...', step: 5, totalSteps: 8 },
+      { message: '🤝 Compiling partnership strategy findings...', step: 5, totalSteps: 8 },
+      
+      // Category 6: Analyzing costs (265-315s) - 10 messages
+      { message: '📊 Analyzing cost structures and resource needs...', step: 6, totalSteps: 8 },
+      { message: '📊 Researching key resource requirements...', step: 6, totalSteps: 8 },
+      { message: '📊 Investigating critical activities and processes...', step: 6, totalSteps: 8 },
+      { message: '📊 Examining operational cost benchmarks...', step: 6, totalSteps: 8 },
+      { message: '📊 Analyzing fixed vs. variable cost ratios...', step: 6, totalSteps: 8 },
+      { message: '📊 Discovering hidden implementation costs...', step: 6, totalSteps: 8 },
+      { message: '📊 Researching resource optimization strategies...', step: 6, totalSteps: 8 },
+      { message: '📊 Evaluating economies of scale potential...', step: 6, totalSteps: 8 },
+      { message: '📊 Assessing cost efficiency opportunities...', step: 6, totalSteps: 8 },
+      { message: '📊 Synthesizing cost structure insights...', step: 6, totalSteps: 8 },
+      
+      // Category 7: Detecting contradictions (315-370s) - 11 messages
+      { message: '🎯 Detecting strategic gaps and contradictions...', step: 7, totalSteps: 8 },
+      { message: '🎯 Cross-validating assumptions against evidence...', step: 7, totalSteps: 8 },
+      { message: '🎯 Identifying inconsistencies in business logic...', step: 7, totalSteps: 8 },
+      { message: '🎯 Discovering conflicting market signals...', step: 7, totalSteps: 8 },
+      { message: '🎯 Analyzing assumption-reality mismatches...', step: 7, totalSteps: 8 },
+      { message: '🎯 Validating timeline and budget feasibility...', step: 7, totalSteps: 8 },
+      { message: '🎯 Examining cross-block consistency issues...', step: 7, totalSteps: 8 },
+      { message: '🎯 Identifying critical missing components...', step: 7, totalSteps: 8 },
+      { message: '🎯 Highlighting strategic blind spots...', step: 7, totalSteps: 8 },
+      { message: '🎯 Prioritizing risk factors and mitigation strategies...', step: 7, totalSteps: 8 },
+      { message: '🎯 Compiling contradiction analysis results...', step: 7, totalSteps: 8 },
+      
+      // Category 8: Finalizing (370-420s) - 10 messages
+      { message: '✨ Finalizing Business Model Canvas analysis...', step: 8, totalSteps: 8 },
+      { message: '✨ Synthesizing insights across all components...', step: 8, totalSteps: 8 },
+      { message: '✨ Performing viability assessment...', step: 8, totalSteps: 8 },
+      { message: '✨ Calculating overall confidence scores...', step: 8, totalSteps: 8 },
+      { message: '✨ Generating strategic recommendations...', step: 8, totalSteps: 8 },
+      { message: '✨ Prioritizing critical action items...', step: 8, totalSteps: 8 },
+      { message: '✨ Creating executive summary...', step: 8, totalSteps: 8 },
+      { message: '✨ Persisting insights to knowledge graph...', step: 8, totalSteps: 8 },
+      { message: '✨ Preparing final deliverables...', step: 8, totalSteps: 8 },
+      { message: '✨ Analysis complete! Review your strategic insights...', step: 8, totalSteps: 8 },
+    ];
 
-    // Conduct research with progress updates
-    const result = await bmcResearcher.conductBMCResearch(input, sessionId, sendProgress);
+    let messageIndex = 0;
+    let progressInterval: NodeJS.Timeout | null = null;
+
+    // Start timer: emit message every 5 seconds
+    progressInterval = setInterval(() => {
+      if (messageIndex < progressMessages.length) {
+        const msg = progressMessages[messageIndex];
+        res.write(`data: ${JSON.stringify(msg)}\n\n`);
+        messageIndex++;
+      }
+    }, 5000);
+
+    // Send initial message immediately
+    res.write(`data: ${JSON.stringify(progressMessages[0])}\n\n`);
+    messageIndex = 1;
+
+    // Conduct research WITHOUT progress callback
+    const result = await bmcResearcher.conductBMCResearch(input, sessionId);
+
+    // Stop timer
+    if (progressInterval) {
+      clearInterval(progressInterval);
+    }
 
     // Save to version if provided
     if (sessionId && versionNumber) {
@@ -844,7 +963,11 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
       }
     }
 
-    // Send final result
+    // Send final completion message
+    const finalMessage = progressMessages[progressMessages.length - 1];
+    res.write(`data: ${JSON.stringify(finalMessage)}\n\n`);
+    
+    // Send result
     res.write(`data: ${JSON.stringify({ complete: true, result })}\n\n`);
     res.end();
   } catch (error: any) {
