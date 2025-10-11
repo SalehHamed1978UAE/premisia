@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, decimal, boolean, pgEnum, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, decimal, boolean, pgEnum, jsonb, index, vector } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -27,6 +27,40 @@ export const bmcBlockTypeEnum = pgEnum('bmc_block_type', [
 ]);
 export const bmcConfidenceEnum = pgEnum('bmc_confidence', ['weak', 'moderate', 'strong']);
 export const frameworkTypeEnum = pgEnum('framework_type', ['porters_five_forces', 'business_model_canvas', 'user_choice']);
+
+// Strategic Understanding (Knowledge Graph) Enums
+export const entityTypeEnum = pgEnum('entity_type', [
+  'explicit_assumption',
+  'implicit_implication', 
+  'inferred_reasoning',
+  'research_finding',
+  'business_model_gap',
+  'root_cause',
+  'competitive_force',
+  'risk',
+  'opportunity',
+  'constraint'
+]);
+export const relationshipTypeEnum = pgEnum('relationship_type', [
+  'contradicts',
+  'supports',
+  'implies',
+  'causes',
+  'blocks',
+  'enables',
+  'validates',
+  'challenges',
+  'relates_to'
+]);
+export const confidenceLevelEnum = pgEnum('confidence_level', ['high', 'medium', 'low']);
+export const discoveredByEnum = pgEnum('discovered_by', [
+  'user_input',
+  'bmc_agent',
+  '5whys_agent',
+  'porters_agent',
+  'trends_agent',
+  'system'
+]);
 
 // Session storage table for Replit Auth
 export const sessions = pgTable(
@@ -420,6 +454,76 @@ export const frameworkSelections = pgTable("framework_selections", {
   userIdx: index("idx_framework_selections_user").on(table.userId),
 }));
 
+// Strategic Understanding (Knowledge Graph) Tables
+export const strategicUnderstanding = pgTable("strategic_understanding", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull().unique().references(() => sessionContext.id),
+  userInput: text("user_input").notNull(),
+  companyContext: jsonb("company_context"),
+  graphVersion: integer("graph_version").default(1),
+  lastEnrichedBy: varchar("last_enriched_by", { length: 50 }),
+  lastEnrichedAt: timestamp("last_enriched_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  sessionIdx: index("idx_strategic_understanding_session").on(table.sessionId),
+}));
+
+export const strategicEntities = pgTable("strategic_entities", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  understandingId: varchar("understanding_id").notNull().references(() => strategicUnderstanding.id, { onDelete: 'cascade' }),
+  type: entityTypeEnum("type").notNull(),
+  claim: text("claim").notNull(),
+  confidence: confidenceLevelEnum("confidence"),
+  embedding: vector("embedding", { dimensions: 1536 }),
+  source: text("source").notNull(),
+  evidence: text("evidence"),
+  category: varchar("category", { length: 50 }),
+  subcategory: varchar("subcategory", { length: 50 }),
+  investmentAmount: integer("investment_amount"),
+  discoveredBy: discoveredByEnum("discovered_by").notNull(),
+  discoveredAt: timestamp("discovered_at").defaultNow(),
+  validFrom: timestamp("valid_from").defaultNow(),
+  validTo: timestamp("valid_to"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  understandingIdx: index("idx_strategic_entities_understanding").on(table.understandingId),
+  typeIdx: index("idx_strategic_entities_type").on(table.type),
+  discoveredByIdx: index("idx_strategic_entities_discovered_by").on(table.discoveredBy),
+  validFromIdx: index("idx_strategic_entities_valid_from").on(table.validFrom),
+  embeddingIdx: index("idx_strategic_entities_embedding").using(
+    'ivfflat',
+    table.embedding.op('vector_cosine_ops')
+  ).with({ lists: 100 }),
+  textSearchIdx: index("idx_strategic_entities_text_search").using(
+    'gin',
+    sql`to_tsvector('english', ${table.claim} || ' ' || COALESCE(${table.source}, '') || ' ' || COALESCE(${table.evidence}, ''))`
+  ),
+}));
+
+export const strategicRelationships = pgTable("strategic_relationships", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  fromEntityId: varchar("from_entity_id").notNull().references(() => strategicEntities.id, { onDelete: 'cascade' }),
+  toEntityId: varchar("to_entity_id").notNull().references(() => strategicEntities.id, { onDelete: 'cascade' }),
+  relationshipType: relationshipTypeEnum("relationship_type").notNull(),
+  confidence: confidenceLevelEnum("confidence"),
+  evidence: text("evidence"),
+  discoveredBy: discoveredByEnum("discovered_by").notNull(),
+  discoveredAt: timestamp("discovered_at").defaultNow(),
+  validFrom: timestamp("valid_from").defaultNow(),
+  validTo: timestamp("valid_to"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  fromEntityIdx: index("idx_strategic_relationships_from").on(table.fromEntityId),
+  toEntityIdx: index("idx_strategic_relationships_to").on(table.toEntityId),
+  relationshipTypeIdx: index("idx_strategic_relationships_type").on(table.relationshipType),
+  discoveredByIdx: index("idx_strategic_relationships_discovered_by").on(table.discoveredBy),
+}));
+
 export const bmcAnalyses = pgTable("bmc_analyses", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   strategyVersionId: varchar("strategy_version_id").notNull().references(() => strategyVersions.id),
@@ -608,6 +712,11 @@ export const insertBMCAnalysisSchema = createInsertSchema(bmcAnalyses).omit({ id
 export const insertBMCBlockSchema = createInsertSchema(bmcBlocks).omit({ id: true, createdAt: true });
 export const insertBMCFindingSchema = createInsertSchema(bmcFindings).omit({ id: true, createdAt: true });
 
+// Strategic Understanding (Knowledge Graph) insert schemas
+export const insertStrategicUnderstandingSchema = createInsertSchema(strategicUnderstanding).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertStrategicEntitySchema = createInsertSchema(strategicEntities).omit({ id: true, createdAt: true, updatedAt: true, discoveredAt: true });
+export const insertStrategicRelationshipSchema = createInsertSchema(strategicRelationships).omit({ id: true, createdAt: true, updatedAt: true, discoveredAt: true });
+
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UpsertUser = typeof users.$inferInsert;  // For Replit Auth
@@ -649,6 +758,14 @@ export type BMCBlock = typeof bmcBlocks.$inferSelect;
 export type InsertBMCBlock = z.infer<typeof insertBMCBlockSchema>;
 export type BMCFinding = typeof bmcFindings.$inferSelect;
 export type InsertBMCFinding = z.infer<typeof insertBMCFindingSchema>;
+
+// Strategic Understanding (Knowledge Graph) types
+export type StrategicUnderstanding = typeof strategicUnderstanding.$inferSelect;
+export type InsertStrategicUnderstanding = z.infer<typeof insertStrategicUnderstandingSchema>;
+export type StrategicEntity = typeof strategicEntities.$inferSelect;
+export type InsertStrategicEntity = z.infer<typeof insertStrategicEntitySchema>;
+export type StrategicRelationship = typeof strategicRelationships.$inferSelect;
+export type InsertStrategicRelationship = z.infer<typeof insertStrategicRelationshipSchema>;
 
 // AI Orchestration Types
 
