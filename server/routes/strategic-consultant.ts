@@ -820,7 +820,10 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
     res.flushHeaders();
+    
+    console.log('[BMC-RESEARCH] SSE headers set, starting to send messages...');
 
     // Timer-based progress messages: 420s / 8 categories = 52.5s per category
     // Emit message every 5s = 10.5 messages per category
@@ -934,12 +937,14 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
     progressInterval = setInterval(() => {
       if (messageIndex < progressMessages.length) {
         const msg = progressMessages[messageIndex];
+        console.log(`[BMC-RESEARCH] Sending message ${messageIndex}/${progressMessages.length}:`, msg.message);
         res.write(`data: ${JSON.stringify(msg)}\n\n`);
         messageIndex++;
       }
     }, 5000);
 
     // Send initial message immediately
+    console.log('[BMC-RESEARCH] Sending initial message:', progressMessages[0].message);
     res.write(`data: ${JSON.stringify(progressMessages[0])}\n\n`);
     messageIndex = 1;
 

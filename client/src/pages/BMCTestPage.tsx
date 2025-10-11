@@ -115,18 +115,21 @@ export default function BMCTestPage() {
             let data;
             try {
               data = JSON.parse(line.slice(6));
+              console.log('[BMC-FRONTEND] Received SSE message:', data);
             } catch (parseError) {
-              console.error('Failed to parse SSE message:', line, parseError);
+              console.error('[BMC-FRONTEND] Failed to parse SSE message:', line, parseError);
               continue;
             }
             
             // Handle error events - propagate to outer catch
             if (data.error) {
+              console.error('[BMC-FRONTEND] Error in SSE:', data.error);
               throw new Error(data.error);
             }
             
             // Handle completion
             if (data.complete) {
+              console.log('[BMC-FRONTEND] Research complete!', data.result);
               setBmcAnalysis(data.result);
               setProgressMessage('✅ Research complete!');
               toast({
@@ -136,6 +139,7 @@ export default function BMCTestPage() {
             } 
             // Handle progress updates
             else if (data.message) {
+              console.log('[BMC-FRONTEND] Updating progress:', data.message);
               setProgressMessage(data.message);
               if (data.step !== undefined) setProgressStep(data.step);
               if (data.totalSteps !== undefined) setProgressTotal(data.totalSteps);
