@@ -958,11 +958,24 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
 
     // Save to version - ALWAYS persist results
     if (sessionId) {
+      const userId = (req.user as any)?.claims?.sub || 'system';
       let version;
       
       if (versionNumber) {
-        // Use provided version
+        // Get or create the specified version
         version = await storage.getStrategyVersion(sessionId, versionNumber);
+        
+        if (!version) {
+          // Create the specified version if it doesn't exist
+          version = await storage.createStrategyVersion({
+            sessionId,
+            versionNumber,
+            status: 'in_progress',
+            analysisData: {},
+            userId,
+            createdBy: userId,
+          });
+        }
       } else {
         // Get or create version 1 as default
         version = await storage.getStrategyVersion(sessionId, 1);
@@ -974,6 +987,8 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
             versionNumber: 1,
             status: 'in_progress',
             analysisData: {},
+            userId,
+            createdBy: userId,
           });
         }
       }

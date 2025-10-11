@@ -73,6 +73,7 @@ export default function BMCTestPage() {
 
     console.log('[BMC-FRONTEND] Starting research, making fetch request...');
     setIsResearching(true);
+    setResearchCompleted(false);
     setProgressMessage('Starting research...');
     setProgressStep(0);
     setProgressTotal(0);
@@ -132,10 +133,11 @@ export default function BMCTestPage() {
             
             // Handle completion
             if (data.complete) {
-              console.log('[BMC-FRONTEND] Research complete!', data.result);
+              console.log('[BMC-FRONTEND] Research complete! Setting researchCompleted=true', data.result);
               setBmcAnalysis(data.result);
               setProgressMessage('✅ Research complete!');
               setResearchCompleted(true);
+              console.log('[BMC-FRONTEND] researchCompleted state should now be true');
               toast({
                 title: 'Research Complete',
                 description: `Analyzed ${data.result.blocks.length} BMC blocks. Results saved to database.`,
@@ -299,7 +301,10 @@ export default function BMCTestPage() {
                   {researchCompleted && (
                     <Button
                       data-testid="button-view-results"
-                      onClick={() => setLocation(`/bmc/results/${sessionId}/1`)}
+                      onClick={() => {
+                        console.log('[BMC-FRONTEND] Navigating to results page:', `/bmc/results/${sessionId}/1`);
+                        setLocation(`/bmc/results/${sessionId}/1`);
+                      }}
                       className="w-full gap-2"
                       variant="outline"
                     >
