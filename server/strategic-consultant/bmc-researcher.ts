@@ -4,6 +4,7 @@ import { AssumptionExtractor, type Assumption } from './assumption-extractor';
 import { AssumptionValidator, type Contradiction } from './assumption-validator';
 import { aiClients } from '../ai-clients';
 import { strategicUnderstandingService } from '../strategic-understanding-service';
+import { RequestThrottler } from '../utils/request-throttler';
 
 export interface BMCBlockFindings {
   blockType: BMCBlockType;
@@ -620,7 +621,14 @@ Are these about the SAME concept such that one could contradict the other?`;
   }
 
   private async performParallelWebSearch(queries: BMCQuery[]): Promise<any[]> {
-    const searchPromises = queries.map(async (queryObj) => {
+    const throttler = new RequestThrottler({
+      maxConcurrent: 5,
+      delayBetweenBatches: 200,
+      maxRetries: 3,
+      initialRetryDelay: 1000,
+    });
+
+    const searchTasks = queries.map((queryObj) => async () => {
       try {
         const response = await fetch('http://localhost:5000/api/web-search', {
           method: 'POST',
@@ -631,8 +639,9 @@ Are these about the SAME concept such that one could contradict the other?`;
         });
 
         if (!response.ok) {
-          console.error(`Search failed for query "${queryObj.query}": ${response.status}`);
-          return { query: queryObj.query, results: [] };
+          const error: any = new Error(`Search failed: ${response.status}`);
+          error.status = response.status;
+          throw error;
         }
 
         const data = await response.json();
@@ -645,13 +654,19 @@ Are these about the SAME concept such that one could contradict the other?`;
         }));
 
         return { query: queryObj.query, results };
-      } catch (error) {
+      } catch (error: any) {
+        if (error.status === 429 || error.message?.includes('429')) {
+          throw error;
+        }
         console.error(`Error searching for "${queryObj.query}":`, error);
         return { query: queryObj.query, results: [] };
       }
     });
 
-    return Promise.all(searchPromises);
+    return throttler.throttleAll(
+      searchTasks, 
+      (taskIndex) => ({ query: queries[taskIndex].query, results: [] })
+    );
   }
 
   private extractUniqueSources(searchResults: any[]): Source[] {
