@@ -34,6 +34,8 @@ export interface ExtractedEvidence {
   isTranslated: boolean;
   originalLanguage?: string;
   isRTL?: boolean;
+  corroborationCount?: number; // Number of sources supporting this claim
+  isCorroborated?: boolean; // True if 2+ sources or high authority
 }
 
 interface DocumentOverview {
@@ -314,6 +316,150 @@ Extract 3-8 claims. Return only the JSON array, no other text.`;
     }
 
     return Math.min(1, confidence);
+  }
+
+  /**
+   * Calculate semantic similarity between two claims (0-1)
+   */
+  private calculateClaimSimilarity(claim1: string, claim2: string): number {
+    const c1 = claim1.toLowerCase().trim();
+    const c2 = claim2.toLowerCase().trim();
+
+    // Exact match
+    if (c1 === c2) return 1;
+
+    // Token-based similarity (Jaccard coefficient)
+    const tokens1 = new Set(c1.split(/\s+/));
+    const tokens2 = new Set(c2.split(/\s+/));
+
+    const intersection = new Set(Array.from(tokens1).filter(x => tokens2.has(x)));
+    const union = new Set([...Array.from(tokens1), ...Array.from(tokens2)]);
+
+    const jaccardSimilarity = intersection.size / union.size;
+
+    // Substring similarity
+    const substringScore = c1.includes(c2) || c2.includes(c1) ? 0.3 : 0;
+
+    return Math.min(1, jaccardSimilarity + substringScore);
+  }
+
+  /**
+   * Corroborate evidence across sources
+   * Groups similar claims and identifies which are supported by 2+ sources
+   */
+  async corroborateEvidence(evidence: ExtractedEvidence[]): Promise<ExtractedEvidence[]> {
+    const corroborated: ExtractedEvidence[] = [];
+    const processed = new Set<number>();
+
+    for (let i = 0; i < evidence.length; i++) {
+      if (processed.has(i)) continue;
+
+      const current = evidence[i];
+      const similarClaims: ExtractedEvidence[] = [current];
+      processed.add(i);
+
+      // Find similar claims from different sources
+      for (let j = i + 1; j < evidence.length; j++) {
+        if (processed.has(j)) continue;
+
+        const other = evidence[j];
+
+        // Skip if same source
+        if (other.source.url === current.source.url) continue;
+
+        // Check if claims are similar (threshold: 0.6)
+        const similarity = this.calculateClaimSimilarity(current.claim, other.claim);
+        if (similarity >= 0.6) {
+          similarClaims.push(other);
+          processed.add(j);
+        }
+      }
+
+      // Count unique sources
+      const uniqueSources = new Set(similarClaims.map(c => c.source.url));
+      const corroborationCount = uniqueSources.size;
+
+      // High authority (Tier 1) sources can stand alone
+      const isHighAuthority = current.authorityMatch?.tier === 1;
+      const isCorroborated = corroborationCount >= 2 || isHighAuthority;
+
+      // Update confidence based on corroboration
+      let finalConfidence = current.confidence;
+      if (isCorroborated) {
+        // Boost confidence for corroborated claims
+        if (corroborationCount >= 3) {
+          finalConfidence = Math.min(1, finalConfidence + 0.2);
+        } else if (corroborationCount === 2) {
+          finalConfidence = Math.min(1, finalConfidence + 0.1);
+        }
+      } else {
+        // Reduce confidence for uncorroborated non-high-authority claims
+        if (!isHighAuthority) {
+          finalConfidence = Math.max(0.3, finalConfidence - 0.2);
+        }
+      }
+
+      // Add all claims with same corroboration metadata and confidence logic
+      for (const claim of similarClaims) {
+        // Calculate confidence adjustments for each claim
+        let adjustedConfidence = claim.confidence;
+        
+        if (isCorroborated) {
+          // Boost confidence for corroborated claims
+          if (corroborationCount >= 3) {
+            adjustedConfidence = Math.min(1, adjustedConfidence + 0.2);
+          } else if (corroborationCount === 2) {
+            adjustedConfidence = Math.min(1, adjustedConfidence + 0.1);
+          }
+        } else {
+          // Reduce confidence for uncorroborated non-high-authority claims
+          const claimIsHighAuthority = claim.authorityMatch?.tier === 1;
+          if (!claimIsHighAuthority) {
+            adjustedConfidence = Math.max(0.3, adjustedConfidence - 0.2);
+          }
+        }
+
+        corroborated.push({
+          ...claim,
+          corroborationCount,
+          isCorroborated,
+          confidence: adjustedConfidence,
+        });
+      }
+    }
+
+    return corroborated;
+  }
+
+  /**
+   * Score evidence confidence based on authority, corroboration, and other factors
+   */
+  scoreConfidence(
+    evidence: ExtractedEvidence,
+    allEvidence: ExtractedEvidence[]
+  ): number {
+    let score = evidence.confidence;
+
+    // Factor in corroboration
+    if (evidence.isCorroborated) {
+      if (evidence.corroborationCount! >= 3) {
+        score = Math.min(1, score + 0.15);
+      } else if (evidence.corroborationCount! === 2) {
+        score = Math.min(1, score + 0.1);
+      }
+    }
+
+    // Penalize uncorroborated low-authority claims
+    if (!evidence.isCorroborated && evidence.authorityMatch?.tier !== 1) {
+      score = Math.max(0.2, score - 0.3);
+    }
+
+    // Bonus for translation from reputable source
+    if (evidence.isTranslated && evidence.authorityMatch?.tier === 1) {
+      score = Math.min(1, score + 0.05);
+    }
+
+    return Math.min(1, Math.max(0, score));
   }
 }
 
