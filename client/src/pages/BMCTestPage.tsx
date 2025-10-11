@@ -1,8 +1,9 @@
 import { useState } from 'react';
+import { useLocation } from 'wouter';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ExternalLink } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { FrameworkSelection, type FrameworkSelectionData } from '@/components/strategic-consultant/FrameworkSelection';
 import { BMCCanvas, type BMCAnalysis } from '@/components/strategic-consultant/BMCCanvas';
@@ -10,12 +11,14 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 
 export default function BMCTestPage() {
+  const [, setLocation] = useLocation();
   const [input, setInput] = useState('');
   const [sessionId] = useState(() => `test-${Date.now()}`);
   const [frameworkSelection, setFrameworkSelection] = useState<FrameworkSelectionData | null>(null);
   const [bmcAnalysis, setBmcAnalysis] = useState<BMCAnalysis | null>(null);
   const [isSelectingFramework, setIsSelectingFramework] = useState(false);
   const [isResearching, setIsResearching] = useState(false);
+  const [researchCompleted, setResearchCompleted] = useState(false);
   const [progressMessage, setProgressMessage] = useState('');
   const [progressStep, setProgressStep] = useState(0);
   const [progressTotal, setProgressTotal] = useState(0);
@@ -132,9 +135,10 @@ export default function BMCTestPage() {
               console.log('[BMC-FRONTEND] Research complete!', data.result);
               setBmcAnalysis(data.result);
               setProgressMessage('✅ Research complete!');
+              setResearchCompleted(true);
               toast({
                 title: 'Research Complete',
-                description: `Analyzed ${data.result.blocks.length} BMC blocks`,
+                description: `Analyzed ${data.result.blocks.length} BMC blocks. Results saved to database.`,
               });
             } 
             // Handle progress updates
@@ -290,6 +294,18 @@ export default function BMCTestPage() {
                         </div>
                       )}
                     </div>
+                  )}
+                  
+                  {researchCompleted && (
+                    <Button
+                      data-testid="button-view-results"
+                      onClick={() => setLocation(`/bmc/results/${sessionId}/1`)}
+                      className="w-full gap-2"
+                      variant="outline"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      View Saved Results & Download
+                    </Button>
                   )}
                 </div>
               )}

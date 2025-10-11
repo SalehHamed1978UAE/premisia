@@ -956,9 +956,27 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
       clearInterval(progressInterval);
     }
 
-    // Save to version if provided
-    if (sessionId && versionNumber) {
-      const version = await storage.getStrategyVersion(sessionId, versionNumber);
+    // Save to version - ALWAYS persist results
+    if (sessionId) {
+      let version;
+      
+      if (versionNumber) {
+        // Use provided version
+        version = await storage.getStrategyVersion(sessionId, versionNumber);
+      } else {
+        // Get or create version 1 as default
+        version = await storage.getStrategyVersion(sessionId, 1);
+        
+        if (!version) {
+          // Create version 1 if it doesn't exist
+          version = await storage.createStrategyVersion({
+            sessionId,
+            versionNumber: 1,
+            status: 'in_progress',
+            analysisData: {},
+          });
+        }
+      }
       
       if (version) {
         const existingAnalysisData = version.analysisData as any || {};
@@ -968,6 +986,7 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
             bmc_research: result,
           },
         });
+        console.log(`[BMC-RESEARCH] Saved results to version ${version.versionNumber} for session ${sessionId}`);
       }
     }
 
