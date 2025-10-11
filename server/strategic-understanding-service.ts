@@ -272,11 +272,40 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
 
     // Persist user input entities to database with discovered_by='user_input'
     console.log(`[StrategicUnderstanding] Persisting ${validEntities.length} user input entities...`);
+    
+    // Generate embeddings in batch to avoid timeouts
+    const claims = validEntities.map(e => e.claim);
+    const embeddings = await this.generateEmbeddingsBatch(claims);
+    
     const persistedEntities: StrategicEntity[] = [];
     
-    for (const entity of validEntities) {
-      const persisted = await this.createEntity(understanding.id, entity, 'user_input');
-      persistedEntities.push(persisted);
+    for (let i = 0; i < validEntities.length; i++) {
+      const entity = validEntities[i];
+      const embedding = embeddings[i];
+      
+      const entityData: InsertStrategicEntity = {
+        understandingId: understanding.id,
+        type: entity.type as any,
+        claim: entity.claim,
+        confidence: entity.confidence,
+        embedding: embedding as any,
+        source: entity.source,
+        evidence: entity.evidence || null,
+        category: entity.category || null,
+        subcategory: entity.subcategory || null,
+        investmentAmount: entity.investmentAmount || null,
+        discoveredBy: 'user_input' as any,
+        validFrom: new Date(),
+        validTo: null,
+        metadata: null,
+      };
+
+      const inserted = await db
+        .insert(strategicEntities)
+        .values(entityData)
+        .returning();
+      
+      persistedEntities.push(inserted[0]);
     }
     
     console.log(`[StrategicUnderstanding] ✓ Persisted ${persistedEntities.length} user entities with discovered_by='user_input'`);
