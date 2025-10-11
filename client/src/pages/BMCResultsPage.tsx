@@ -30,14 +30,16 @@ interface BMCResult {
 }
 
 interface Version {
-  id: string;
-  sessionId: string;
   versionNumber: number;
   status: string;
   createdAt: string;
-  analysisData?: {
+  finalizedAt?: string;
+  analysis?: {
     bmc_research?: BMCResult;
   };
+  decisions?: any;
+  selectedDecisions?: any;
+  program?: any;
 }
 
 export default function BMCResultsPage() {
@@ -47,12 +49,13 @@ export default function BMCResultsPage() {
   const sessionId = params?.sessionId || '';
   const versionNumber = params?.versionNumber ? parseInt(params.versionNumber) : 1;
 
-  const { data: response, isLoading, error } = useQuery<Version>({
+  const { data: response, isLoading, error } = useQuery<{ success: boolean; version: Version }>({
     queryKey: ['/api/strategic-consultant/versions', sessionId, versionNumber],
     enabled: !!sessionId,
   });
 
-  const bmcResult = response?.analysisData?.bmc_research;
+  const versionData = response?.version;
+  const bmcResult = versionData?.analysis?.bmc_research;
 
   const handleDownloadJSON = () => {
     if (!bmcResult) return;
