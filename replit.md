@@ -1,72 +1,41 @@
-## Overview
+### Overview
 
-Qgentic Intelligent Strategic EPM is a full-stack web application for enterprise program management, enhanced with AI. It provides tools for managing programs, workstreams, tasks, resources, risks, benefits, KPIs, and financial tracking via an intuitive dashboard. The system features role-based access, supports the full program lifecycle, and includes real-time AI intelligence through a multi-agent architecture and formal ontology for expert guidance and decision-making. The project aims to provide a comprehensive solution for strategic decision-making and EPM integration, offering capabilities like multi-modal input analysis, anti-bias research, and conversion of strategic decisions into actionable EPM program structures.
+Qgentic Intelligent Strategic EPM is an AI-enhanced, full-stack web application for comprehensive enterprise program management. It provides tools for managing programs, workstreams, tasks, resources, risks, benefits, KPIs, and financial tracking via an intuitive dashboard, supporting the full program lifecycle. Key features include role-based access, real-time AI intelligence through a multi-agent architecture, and a formal ontology for expert guidance and decision-making. The project's ambition is to deliver a holistic solution for strategic decision-making and EPM integration, offering capabilities like multi-modal input analysis, anti-bias research, and conversion of strategic decisions into actionable EPM program structures.
 
-## User Preferences
+### User Preferences
 
 Preferred communication style: Simple, everyday language.
 
-## System Architecture
+### System Architecture
 
-### UI/UX Decisions
+#### UI/UX Decisions
 
-The frontend uses React with TypeScript and Vite, employing Shadcn/ui (Radix UI, Tailwind CSS) for a consistent "New York" style UI, including theming. It prioritizes a single-page application experience, mobile responsiveness, skeleton loading, and toast notifications.
+The frontend is built with React, TypeScript, and Vite, utilizing Shadcn/ui (Radix UI, Tailwind CSS) to achieve a "New York" style UI with theming. It focuses on a single-page application experience, mobile responsiveness, skeleton loading, and toast notifications.
 
-### Technical Implementations
+#### Technical Implementations
 
 - **Frontend**: React, TypeScript, Vite, TanStack Query for state management, Wouter for client-side routing.
-- **Backend**: Node.js with Express.js (ES modules), Passport.js for authentication (Local Strategy, scrypt hashing), Express sessions, RESTful API with role-based middleware.
-- **Data Storage**: PostgreSQL with Neon serverless driver, Drizzle ORM for type-safe schema and Zod validation. `connect-pg-simple` for session storage.
+- **Backend**: Node.js with Express.js (ES modules), Passport.js for session-based authentication (Local Strategy, scrypt hashing), Express sessions, and a RESTful API with role-based middleware.
+- **Data Storage**: PostgreSQL with Neon serverless driver, Drizzle ORM for type-safe schema and Zod validation. `connect-pg-simple` handles session storage.
 - **Authentication/Authorization**: Session-based authentication using Passport.js, HTTP-only cookies, and a three-tier role system (Admin, Editor, Viewer).
 
-### Feature Specifications
+#### Feature Specifications
 
-- **AI Multi-Agent System**:
-    - **Ontology Foundation**: 9 core entities, 19 relationship mappings, 36 validation rules, 13 domain terms for AI reasoning and data validation.
-    - **Executive Agent**: Manages session context, prevents goal drift, logs decisions, and tracks progress.
-    - **Builder Specialist Agent**: Generates code, assesses feasibility, tracks requirements.
-    - **QA Specialist Agent**: Performs adversarial code reviews, verifies requirements, detects issues, provides PASS/FAIL verdict.
-    - **Multi-Agent Orchestrator**: Coordinates Builder-QA workflow, supports multiple AI providers (OpenAI, Anthropic, Gemini) with retry mechanisms and a web UI.
+- **AI Multi-Agent System**: Features an ontology foundation (9 core entities, 19 relationship mappings, 36 validation rules, 13 domain terms) for AI reasoning. Includes an Executive Agent for context management, a Builder Specialist Agent for code generation, a QA Specialist Agent for adversarial reviews, and a Multi-Agent Orchestrator for workflow coordination and multi-provider AI support (OpenAI, Anthropic, Gemini).
 - **Strategic Consultant & EPM Integration**:
-    - Converts executive input into AI-analyzed strategic decisions and EPM program structures.
-    - Supports multi-modal input (text, PDF, DOCX, Excel, image).
-    - **Five Whys Carousel Interface**: Interactive root cause analysis with anti-bias mechanisms (business-focused analysis, evidence-based decision support, cultural keyword blocking).
-    - **Anti-Confirmation Bias Research**: Generates both validating and challenging web search queries, prioritizes contradictory findings.
-    - **EPM Conversion**: Converts decisions into program structures (workstreams, tasks, KPIs, etc.) with atomic, concurrency-safe database integration.
-    - **Version Management**: Unlimited strategy versions with comparison capabilities.
+    - Converts executive input into AI-analyzed strategic decisions and EPM program structures, supporting multi-modal input (text, PDF, DOCX, Excel, image).
+    - **Five Whys Carousel Interface**: Interactive root cause analysis with anti-bias mechanisms.
+    - **Anti-Confirmation Bias Research**: Generates validating and challenging web search queries, prioritizing contradictory findings.
+    - **EPM Conversion**: Transforms decisions into program structures (workstreams, tasks, KPIs) with atomic, concurrency-safe database integration.
+    - **Version Management**: Supports unlimited strategy versions with comparison features.
     - **Ontology Validation**: Validates outputs against 35 EPM ontology rules.
     - **Strategic Decisions Module**: Provides persistent access to all strategy versions and integrated programs.
     - **Intelligent Framework Selection**: AI-powered routing between Business Model Canvas and Porter's Five Forces based on input analysis.
-    - **Business Model Canvas (BMC) Analysis**: Full 9-block implementation covering all BMC components (Customer Segments, Value Propositions, Revenue Streams, Channels, Customer Relationships, Key Resources, Key Activities, Key Partnerships, Cost Structure) with block-specific query generation, parallel research, and cross-block consistency validation. Includes proactive assumption challenge system with clear UI indicators for validation strength and contradictions.
-        - **9-Block Implementation (Oct 2025)**: Extended from 3 to 9 blocks with parallel synthesis, cross-block consistency checks (Cost vs Revenue, Resources vs Activities, Partners vs Activities, Channels vs Segments), and distinct icon/color scheme for each block. Database schema updated with bmcBlockTypeEnum supporting all 9 blocks (enum: key_partnerships).
-        - **Multi-Provider AI Fallback (Oct 2025)**: Centralized AIClients with Anthropic → OpenAI → Gemini fallback chain for all strategic consultant modules (FrameworkSelector, AssumptionExtractor, AssumptionValidator, BMCResearcher, MarketResearcher, BMCQueryGenerator). Includes comprehensive provider logging for cost tracking and outage resilience.
-        - **Assumption-Query Separation (Oct 2025)**: Fixed assumption validation queries to distribute across ALL blocks instead of forcing to customer_segments. Assumption findings now shared with all 9 blocks to prevent synthesis skew and ensure contradictions surface across the entire business model.
-        - **Architectural Fix (Oct 2025)**: Reordered research flow to detect contradictions BEFORE block synthesis, preventing blocks from validating contradicted assumptions. Block synthesis prompts now explicitly acknowledge contradictions.
-        - **Investment Amount Transfer (Oct 2025)**: Implemented two-tier matching system for assumption-to-contradiction investment transfer: (1) Primary path uses exact matching on LLM-provided `matchedAssumptionClaim`, (2) Fallback uses entity-based fuzzy matching (dollar amounts, countries, tech terms) with 60/40 weighted scoring and 0.25 threshold. Includes whitespace normalization and comprehensive logging.
-        - **Enhanced Assumption Extraction (Oct 2025)**: Extracts up to 10 assumptions per input (explicit + implicit), including quantitative claims, temporal assumptions, market dynamics, and ROI expectations. Prioritizes quality over quantity.
-    - **Strategic Understanding Service (Knowledge Graph Architecture - Oct 2025)**:
-        - **Hallucination Fix**: Replaced AssumptionExtractor with knowledge graph-based StrategicUnderstandingService using strict 3-tier categorization and source validation to prevent AI from inventing facts.
-        - **Database Foundation**: PostgreSQL with pgvector extension, 3 knowledge graph tables (strategic_understanding, strategic_entities, strategic_relationships), 4 enums (entity_type, relationship_type, confidence_level, discovered_by), hybrid search indexes (IVFFlat vector cosine similarity, GIN full-text search, B-tree for filtering).
-        - **3-Tier Entity Categorization**:
-            - **Explicit (high confidence)**: User directly stated facts with exact quotes (e.g., "expand to India" → "India market expansion is planned")
-            - **Implicit (medium confidence)**: Direct logical implications with evidence field explaining reasoning chain
-            - **Inferred (low confidence)**: Exploratory/speculative insights marked as low confidence
-        - **Source Validation**: Every entity's source field validated as substring in user input (case-insensitive, whitespace-normalized), empty sources rejected, invalid entities filtered out with logging.
-        - **Embeddings**: OpenAI text-embedding-3-small (1536 dimensions) with caching for duplicate claims, batch generation support (prevents timeouts), stored as pgvector for semantic search.
-        - **Checkpoint 1 Results (Oct 2025)**: Asana test case verified 6 grounded entities (3 explicit, 2 implicit, 1 inferred), 0 hallucinations, 100% source validation pass rate, correct investment amount extraction ($500K), embeddings functional.
-        - **BMC Integration Complete (Tasks 16-17, Oct 2025)**: BMCResearcher integrated with knowledge graph, user entities persist with `discovered_by='user_input'`, BMC findings persist with `discovered_by='bmc_agent'`, contradiction relationships created successfully. Critical fixes: batch embedding generation (prevents OpenAI timeout), query persisted entities before relationship creation (prevents null foreign key errors). Verified: contradictions reference specific user values ($500, 2-4 weeks).
-        - **Semantic Validation for Contradictions (Oct 2025)**: Prevents false contradictions from semantically different claims (e.g., "PM software" vs "PM discipline"). LLM-based validation checks if user claim and research finding are about the SAME concept before creating "contradicts" relationship. Batch validation with Promise.all, stores metadata (reasoning, provider, model) in relationship.metadata JSON. Soft-fail error handling: skip relationship on validation failure with warning logs. Test coverage: 5/5 cases passed including PM software/discipline, market entry/research, hiring costs/process.
-            - **Timeout Prevention (Oct 2025)**: Refactored to separate LLM validation from DB operations. validateAllContradictions() method does all semantic validations upfront (no DB connection), then fast DB writes with pre-validated results. Prevents Neon connection timeout during long LLM operations (reduced DB connection time from 60+ seconds to ~700ms).
-        - **Context-Grounded Query Generation (Oct 2025)**: Fixed semantic drift at the source by updating BMCQueryGenerator prompt to explicitly preserve user specifics (tool names, numbers, timelines, locations) in research queries. Prevents abstraction of "Asana for 25 employees in 2-4 weeks" → "software implementation timelines". Simple prompt change: "PRESERVE CONTEXT - Keep specific entities, numbers, timelines, and details from the user's claim. Do NOT abstract or generalize." Test verified: All 5 entities (Asana, 25 employees, 2-4 weeks, $50K, San Francisco) now preserved in queries, ensuring research finds specific data instead of generic statistics.
-        - **Contradiction Persistence Fix (Oct 2025)**: Fixed critical bug where contradictions were computed by BMC but not persisted to database. Root cause: matching logic between user entities and BMC contradictions was too strict (substring matching failed when wording differed). Solution: Implemented concept extraction from original-casing strings to match on: (1) Numbers/currency ($500, 25, 10), (2) Timeframes (2-4 weeks, 3 months), (3) Product/tool names (Asana), (4) Keywords (implementation, deployment, timeline). Now "Implementation timeline is expected to be 2-4 weeks" (user entity) successfully matches "Asana implementation achievable in 2-4 weeks" (BMC contradiction) despite different phrasing. Enables progressive learning: 5 Whys can now query contradictions discovered by BMC.
-        - **Evidence Collection Fix (Oct 2025)**: Changed contradiction detection to use assumption-specific search results instead of all BMC block search results. This preserves context throughout the pipeline: context-preserved queries → assumption-specific research → filtered evidence → semantic validation. Ensures contradiction evidence matches the assumption context (e.g., "Asana" contradictions have "Asana" evidence, not generic "software modernization" findings).
-        - **BMC Research Timeout Fix (Oct 2025)**: Extended socket timeout to 10 minutes (600000ms) using `req.socket.setTimeout(600000)` on `/api/strategic-consultant/bmc-research` endpoint. BMC research takes 5-6 minutes (web searches, LLM calls, block synthesis, contradiction detection) and was timing out with BodyTimeoutError after ~5 minutes. Socket timeout extension ensures connection stays alive during entire processing duration.
-        - **Request Throttling (Oct 2025)**: Implemented RequestThrottler utility to prevent web search API rate limiting (429 errors). Features: batch processing (5 concurrent requests), 200ms inter-batch delays, exponential backoff retry (1s→2s→4s) on 429 errors, context-preserving fallbacks. Reduced API errors from 50+ to ~5 per BMC research session.
-        - **Semantic Validation Logic Fix (Oct 2025)**: Fixed inverted contradiction detection logic. Previous bug: validation checked only "same concept" → rejected contradictions. Corrected to two-step validation: (1) Same concept? (2) Different values? Creates contradiction ONLY if BOTH true. Example: "$500 monthly" vs "$624.75 monthly" now correctly detected as CONTRADICTION (same concept=recurring cost, different values=$500≠$624.75). LLM prompt explicitly returns isSameConcept + valuesConflict + isContradiction for debugging.
-        - **Future UX Enhancement**: Progress messaging during BMC research. Current implementation takes 5-6 minutes without feedback, appearing frozen to users. Planned: Server-Sent Events (SSE) to stream progress updates with exciting, value-focused messages at regular intervals (e.g., "🌐 Searching global markets for real-world data...", "💡 Discovering insights you might have missed...", "🎯 Detecting strategic gaps and contradictions - this is where the biggest value lies!"). Shows users the sophistication and value being created during long-running research.
-        - **Pending**: Semantic/keyword/graph search (Tasks 11-14), framework metadata + temporal queries (Tasks 19-21), Checkpoint 2.
+    - **Business Model Canvas (BMC) Analysis**: Full 9-block implementation covering all BMC components with block-specific query generation, parallel research, cross-block consistency validation, and a proactive assumption challenge system.
+    - **Strategic Understanding Service (Knowledge Graph Architecture)**: Replaces simpler assumption extraction with a knowledge graph using PostgreSQL with `pgvector` for robust, source-validated entity categorization (Explicit, Implicit, Inferred) and relationship mapping. Incorporates embeddings for semantic search and includes semantic validation for contradictions to ensure accuracy and prevent false positives. This service is integrated with BMC research to persist user and agent-discovered entities and contradictions, featuring context-grounded query generation to preserve specific details in research.
+    - **Robustness and Performance**: Includes mechanisms for multi-provider AI fallback, extended socket timeouts for long-running research tasks, and request throttling with exponential backoff to manage external API rate limits.
 
-## External Dependencies
+### External Dependencies
 
 - **Database Service**: Neon serverless PostgreSQL (`@neondatabase/serverless`)
 - **Session Store**: `connect-pg-simple`
@@ -77,4 +46,3 @@ The frontend uses React with TypeScript and Vite, employing Shadcn/ui (Radix UI,
 - **AI Providers**: OpenAI, Anthropic, Gemini
 - **ORM**: Drizzle ORM
 - **Authentication**: Passport.js with Replit OIDC
-    - **Auth Bug Fix (Oct 2025)**: Updated `upsertUser` to handle email unique constraint violations by checking for existing users by email before insert, preventing crashes on duplicate email logins.
