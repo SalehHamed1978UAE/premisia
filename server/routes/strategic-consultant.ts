@@ -804,6 +804,8 @@ router.post('/select-framework', async (req: Request, res: Response) => {
 });
 
 router.post('/bmc-research', async (req: Request, res: Response) => {
+  req.socket.setTimeout(600000);
+  
   try {
     const { input, sessionId, versionNumber } = req.body;
 
