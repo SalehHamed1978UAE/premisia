@@ -1,5 +1,6 @@
 import { authorityRegistryService } from './authority-registry-service.ts';
 import { aiClients } from './ai-clients.ts';
+import { translationService } from './translation-service.ts';
 
 export interface DocumentInput {
   url: string;
@@ -15,6 +16,7 @@ export interface DocumentInput {
 export interface ExtractedEvidence {
   claim: string;
   excerpt: string;
+  originalExcerpt?: string; // Preserved original before translation
   source: {
     url: string;
     publisher: string;
@@ -164,6 +166,63 @@ Extract 3-8 claims. Return only the JSON array, no other text.`;
   }
 
   /**
+   * Translate evidence if needed
+   */
+  private async translateEvidence(
+    claim: string,
+    excerpt: string,
+    sourceLanguage?: string
+  ): Promise<{
+    translatedClaim: string;
+    translatedExcerpt: string;
+    isTranslated: boolean;
+    detectedLanguage: string;
+    isRTL: boolean;
+  }> {
+    // Detect language if not provided
+    let language = sourceLanguage;
+    if (!language) {
+      language = await translationService.detectLanguage(excerpt);
+    }
+
+    // If English or unknown, no translation needed
+    if (language === 'en' || language === 'unknown') {
+      return {
+        translatedClaim: claim,
+        translatedExcerpt: excerpt,
+        isTranslated: false,
+        detectedLanguage: language,
+        isRTL: false,
+      };
+    }
+
+    // Translate claim and excerpt to English
+    try {
+      const [claimResult, excerptResult] = await Promise.all([
+        translationService.translate(claim, 'en'),
+        translationService.translate(excerpt, 'en'),
+      ]);
+
+      return {
+        translatedClaim: claimResult.translatedText,
+        translatedExcerpt: excerptResult.translatedText,
+        isTranslated: claimResult.wasTranslated || excerptResult.wasTranslated,
+        detectedLanguage: claimResult.detectedLanguage,
+        isRTL: claimResult.isRTL || excerptResult.isRTL,
+      };
+    } catch (error) {
+      console.error('Translation failed, using original text:', error);
+      return {
+        translatedClaim: claim,
+        translatedExcerpt: excerpt,
+        isTranslated: false,
+        detectedLanguage: language,
+        isRTL: false,
+      };
+    }
+  }
+
+  /**
    * Extract evidence from a single document
    */
   async extractFromDocument(document: DocumentInput): Promise<ExtractedEvidence[]> {
@@ -180,22 +239,33 @@ Extract 3-8 claims. Return only the JSON array, no other text.`;
       industry: document.industry,
     });
 
-    // Build evidence objects
-    const evidence: ExtractedEvidence[] = claims.map(claim => ({
-      claim: claim.claim,
-      excerpt: claim.excerpt,
-      source: {
-        url: document.url,
-        publisher: document.publisher,
-        title: document.title,
-        publishDate: document.publishDate,
-      },
-      authorityMatch: sourceScore.bestMatch,
-      confidence: this.calculateConfidence(sourceScore.bestMatch),
-      isTranslated: false, // Will be updated in Phase 3.4.2
-      originalLanguage: document.language,
-      isRTL: false, // Will be updated in Phase 3.4.2
-    }));
+    // Translate evidence if needed
+    const evidence: ExtractedEvidence[] = [];
+    
+    for (const claim of claims) {
+      const translation = await this.translateEvidence(
+        claim.claim,
+        claim.excerpt,
+        document.language
+      );
+
+      evidence.push({
+        claim: translation.translatedClaim,
+        excerpt: translation.translatedExcerpt,
+        originalExcerpt: translation.isTranslated ? claim.excerpt : undefined,
+        source: {
+          url: document.url,
+          publisher: document.publisher,
+          title: document.title,
+          publishDate: document.publishDate,
+        },
+        authorityMatch: sourceScore.bestMatch,
+        confidence: this.calculateConfidence(sourceScore.bestMatch),
+        isTranslated: translation.isTranslated,
+        originalLanguage: translation.detectedLanguage,
+        isRTL: translation.isRTL,
+      });
+    }
 
     return evidence;
   }
