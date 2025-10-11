@@ -270,6 +270,17 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
 
     console.log(`[StrategicUnderstanding] Final: ${validEntities.length} valid entities (${rejectedEntities.length} rejected)`);
 
+    // Persist user input entities to database with discovered_by='user_input'
+    console.log(`[StrategicUnderstanding] Persisting ${validEntities.length} user input entities...`);
+    const persistedEntities: StrategicEntity[] = [];
+    
+    for (const entity of validEntities) {
+      const persisted = await this.createEntity(understanding.id, entity, 'user_input');
+      persistedEntities.push(persisted);
+    }
+    
+    console.log(`[StrategicUnderstanding] ✓ Persisted ${persistedEntities.length} user entities with discovered_by='user_input'`);
+
     return {
       understandingId: understanding.id,
       entities: validEntities,
@@ -321,7 +332,11 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
     return embeddings;
   }
 
-  async createEntity(understandingId: string, entity: EntityExtractionResult): Promise<StrategicEntity> {
+  async createEntity(
+    understandingId: string, 
+    entity: EntityExtractionResult,
+    discoveredBy: 'user_input' | 'bmc_agent' | '5whys_agent' | 'porters_agent' | 'trends_agent' | 'system' = 'system'
+  ): Promise<StrategicEntity> {
     const embedding = await this.generateEmbedding(entity.claim);
 
     const entityData: InsertStrategicEntity = {
@@ -335,7 +350,7 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
       category: entity.category || null,
       subcategory: entity.subcategory || null,
       investmentAmount: entity.investmentAmount || null,
-      discoveredBy: "system",
+      discoveredBy: discoveredBy as any,
       validFrom: new Date(),
       validTo: null,
       metadata: null,
@@ -354,7 +369,8 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
     toEntityId: string,
     relationshipType: string,
     confidence: "high" | "medium" | "low",
-    evidence?: string
+    evidence?: string,
+    discoveredBy: 'user_input' | 'bmc_agent' | '5whys_agent' | 'porters_agent' | 'trends_agent' | 'system' = 'system'
   ): Promise<StrategicRelationship> {
     const relationshipData: InsertStrategicRelationship = {
       fromEntityId,
@@ -362,7 +378,7 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
       relationshipType: relationshipType as any,
       confidence,
       evidence: evidence || null,
-      discoveredBy: "system",
+      discoveredBy: discoveredBy as any,
       validFrom: new Date(),
       validTo: null,
       metadata: null,

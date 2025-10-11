@@ -356,7 +356,7 @@ export class BMCResearcher {
             confidence: block.confidence === 'strong' ? 'high' : block.confidence === 'moderate' ? 'medium' : 'low',
             source: finding.citation,
             evidence: `BMC ${block.blockName} research finding`,
-          });
+          }, 'bmc_agent');
           findingEntities.push(entity);
         }
       }
@@ -378,7 +378,7 @@ export class BMCResearcher {
             confidence: contradiction.validationStrength === 'STRONG' ? 'high' : contradiction.validationStrength === 'MODERATE' ? 'medium' : 'low',
             source: 'BMC research',
             evidence: `Contradicts: ${contradiction.assumption}. Impact: ${contradiction.impact}`,
-          });
+          }, 'bmc_agent');
 
           // Create relationship: sourceEntity --[contradicts]--> contradictionEntity
           await strategicUnderstandingService.createRelationship(
@@ -386,7 +386,8 @@ export class BMCResearcher {
             contradictionEntity.id,
             'contradicts',
             contradiction.validationStrength === 'STRONG' ? 'high' : contradiction.validationStrength === 'MODERATE' ? 'medium' : 'low',
-            contradiction.recommendation
+            contradiction.recommendation,
+            'bmc_agent'
           );
         }
       }
@@ -400,7 +401,7 @@ export class BMCResearcher {
           confidence: 'medium',
           source: 'BMC analysis synthesis',
           evidence: 'Identified during Business Model Canvas research and synthesis',
-        });
+        }, 'bmc_agent');
       }
       console.log(`[BMCResearcher] Stored ${criticalGaps.length} critical gaps`);
 
