@@ -122,8 +122,11 @@ export class StrategicUnderstandingService {
     return inserted[0];
   }
 
-  async extractUnderstanding(options: ExtractUnderstandingOptions): Promise<EntityExtractionResult[]> {
+  async extractUnderstanding(options: ExtractUnderstandingOptions): Promise<{ understandingId: string; entities: EntityExtractionResult[] }> {
     const { sessionId, userInput, companyContext } = options;
+    
+    // Get or create the strategic understanding record
+    const understanding = await this.getOrCreateUnderstanding(sessionId, userInput, companyContext);
 
     const systemPrompt = `You are a strategic insight extraction expert. Your ONLY job is to extract verifiable insights from user input. Return ONLY valid JSON (no markdown, no explanation).
 
@@ -267,7 +270,10 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
 
     console.log(`[StrategicUnderstanding] Final: ${validEntities.length} valid entities (${rejectedEntities.length} rejected)`);
 
-    return validEntities;
+    return {
+      understandingId: understanding.id,
+      entities: validEntities,
+    };
   }
 
   async generateEmbedding(text: string): Promise<number[]> {

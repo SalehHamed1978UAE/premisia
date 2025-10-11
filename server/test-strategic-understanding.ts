@@ -11,12 +11,13 @@ async function testAsanaCase() {
   try {
     console.log("Step 1: Extracting understanding...\n");
     
-    const entities = await strategicUnderstandingService.extractUnderstanding({
+    const { understandingId, entities } = await strategicUnderstandingService.extractUnderstanding({
       sessionId: "test-session-001",
       userInput: testInput,
     });
 
     console.log("\n=== EXTRACTION RESULTS ===\n");
+    console.log(`Understanding ID: ${understandingId}`);
     console.log(`Total entities extracted: ${entities.length}`);
     console.log(`Expected: 3-6 entities (quality over quantity)\n`);
 

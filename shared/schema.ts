@@ -457,7 +457,7 @@ export const frameworkSelections = pgTable("framework_selections", {
 // Strategic Understanding (Knowledge Graph) Tables
 export const strategicUnderstanding = pgTable("strategic_understanding", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  sessionId: varchar("session_id").notNull().unique().references(() => sessionContext.id),
+  sessionId: varchar("session_id").notNull().unique(),
   userInput: text("user_input").notNull(),
   companyContext: jsonb("company_context"),
   graphVersion: integer("graph_version").default(1),

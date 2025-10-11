@@ -3,6 +3,7 @@ import { MarketResearcher, type Finding, type Source } from './market-researcher
 import { AssumptionExtractor, type Assumption } from './assumption-extractor';
 import { AssumptionValidator, type Contradiction } from './assumption-validator';
 import { aiClients } from '../ai-clients';
+import { strategicUnderstandingService } from '../strategic-understanding-service';
 
 export interface BMCBlockFindings {
   blockType: BMCBlockType;
@@ -41,10 +42,67 @@ export class BMCResearcher {
     this.assumptionValidator = new AssumptionValidator();
   }
 
-  async conductBMCResearch(input: string): Promise<BMCResearchResult> {
-    // Step 1: Extract assumptions from user input
-    const { assumptions } = await this.assumptionExtractor.extractAssumptions(input);
-    console.log(`Extracted ${assumptions.length} assumptions from input`);
+  /**
+   * Convert StrategicUnderstandingService entities to Assumption format for backward compatibility
+   */
+  private entitiesToAssumptions(entities: any[]): Assumption[] {
+    return entities.map(entity => {
+      // Map entity type to assumption category
+      let category: 'product' | 'market' | 'customer' | 'competitive' | 'operational' = 'market';
+      
+      if (entity.claim.toLowerCase().includes('localization') || 
+          entity.claim.toLowerCase().includes('feature') ||
+          entity.claim.toLowerCase().includes('product')) {
+        category = 'product';
+      } else if (entity.claim.toLowerCase().includes('customer') || 
+                 entity.claim.toLowerCase().includes('enterprise') ||
+                 entity.claim.toLowerCase().includes('segment')) {
+        category = 'customer';
+      } else if (entity.claim.toLowerCase().includes('competitive') || 
+                 entity.claim.toLowerCase().includes('vendor')) {
+        category = 'competitive';
+      } else if (entity.claim.toLowerCase().includes('timeline') || 
+                 entity.claim.toLowerCase().includes('achievable') ||
+                 entity.claim.toLowerCase().includes('feasible')) {
+        category = 'operational';
+      }
+
+      // Map entity type to confidence
+      let confidence: 'explicit' | 'implicit' = 'implicit';
+      if (entity.type === 'explicit_assumption') {
+        confidence = 'explicit';
+      }
+
+      // Convert investment amount to string format for backward compatibility
+      const investmentAmount = entity.investmentAmount 
+        ? `$${entity.investmentAmount.toLocaleString()}`
+        : null;
+
+      return {
+        claim: entity.claim,
+        category,
+        confidence,
+        investmentAmount,
+        source: entity.source,
+      };
+    });
+  }
+
+  async conductBMCResearch(input: string, sessionId?: string): Promise<BMCResearchResult> {
+    // Step 1: Extract understanding from user input using knowledge graph
+    const effectiveSessionId = sessionId || `bmc-${Date.now()}`;
+    console.log(`[BMCResearcher] Using StrategicUnderstandingService for session: ${effectiveSessionId}`);
+    
+    const { understandingId, entities } = await strategicUnderstandingService.extractUnderstanding({
+      sessionId: effectiveSessionId,
+      userInput: input,
+    });
+    console.log(`[BMCResearcher] Extracted ${entities.length} entities (knowledge graph replaces AssumptionExtractor)`);
+    console.log(`[BMCResearcher] Understanding ID: ${understandingId}`);
+
+    // Convert entities to Assumption format for backward compatibility with existing flow
+    const assumptions = this.entitiesToAssumptions(entities);
+    console.log(`[BMCResearcher] Converted to ${assumptions.length} assumptions for BMC flow`);
 
     // Step 2: Generate BMC block queries
     const querySet = await this.queryGenerator.generateQueriesForAllBlocks(input);
@@ -257,6 +315,9 @@ export class BMCResearcher {
     // Step 6: Synthesize overall BMC with contradiction awareness
     const synthesis = await this.synthesizeOverallBMC(blocks, input, contradictionResult.contradictions);
 
+    // Step 7 (Task 17): Store BMC findings back into knowledge graph
+    await this.storeBMCFindingsInGraph(understandingId, entities, blocks, contradictionResult.contradictions, synthesis.criticalGaps);
+
     return {
       blocks,
       sources: topSources,
@@ -269,6 +330,85 @@ export class BMCResearcher {
       assumptions,
       contradictions: contradictionResult.contradictions,
     };
+  }
+
+  /**
+   * Task 17: Store BMC research findings back into the knowledge graph
+   * Maps: research findings → entities, contradictions → relationships, gaps → entities
+   */
+  private async storeBMCFindingsInGraph(
+    understandingId: string,
+    sourceEntities: any[],
+    blocks: BMCBlockFindings[],
+    contradictions: Contradiction[],
+    criticalGaps: string[]
+  ): Promise<void> {
+    console.log(`[BMCResearcher] Storing BMC findings in knowledge graph for understanding: ${understandingId}`);
+
+    try {
+      // 1. Store research findings as entities (type: research_finding)
+      const findingEntities: any[] = [];
+      for (const block of blocks) {
+        for (const finding of block.findings.slice(0, 3)) { // Top 3 findings per block
+          const entity = await strategicUnderstandingService.createEntity(understandingId, {
+            type: 'research_finding',
+            claim: finding.fact,
+            confidence: block.confidence === 'strong' ? 'high' : block.confidence === 'moderate' ? 'medium' : 'low',
+            source: finding.citation,
+            evidence: `BMC ${block.blockName} research finding`,
+          });
+          findingEntities.push(entity);
+        }
+      }
+      console.log(`[BMCResearcher] Stored ${findingEntities.length} research findings`);
+
+      // 2. Store contradictions as relationships (type: contradicts)
+      for (const contradiction of contradictions) {
+        // Find the source entity that matches the assumption
+        const sourceEntity = sourceEntities.find(e => 
+          e.claim.toLowerCase().includes(contradiction.assumption.toLowerCase().substring(0, 30)) ||
+          contradiction.assumption.toLowerCase().includes(e.claim.toLowerCase().substring(0, 30))
+        );
+
+        if (sourceEntity && contradiction.contradictedBy.length > 0) {
+          // Create a contradiction entity for the evidence
+          const contradictionEntity = await strategicUnderstandingService.createEntity(understandingId, {
+            type: 'research_finding',
+            claim: contradiction.contradictedBy.join('; '),
+            confidence: contradiction.validationStrength === 'STRONG' ? 'high' : contradiction.validationStrength === 'MODERATE' ? 'medium' : 'low',
+            source: 'BMC research',
+            evidence: `Contradicts: ${contradiction.assumption}. Impact: ${contradiction.impact}`,
+          });
+
+          // Create relationship: sourceEntity --[contradicts]--> contradictionEntity
+          await strategicUnderstandingService.createRelationship(
+            sourceEntity.id,
+            contradictionEntity.id,
+            'contradicts',
+            contradiction.validationStrength === 'STRONG' ? 'high' : contradiction.validationStrength === 'MODERATE' ? 'medium' : 'low',
+            contradiction.recommendation
+          );
+        }
+      }
+      console.log(`[BMCResearcher] Stored ${contradictions.length} contradiction relationships`);
+
+      // 3. Store critical gaps as entities (type: business_model_gap)
+      for (const gap of criticalGaps.slice(0, 5)) { // Top 5 critical gaps
+        await strategicUnderstandingService.createEntity(understandingId, {
+          type: 'business_model_gap',
+          claim: gap,
+          confidence: 'medium',
+          source: 'BMC analysis synthesis',
+          evidence: 'Identified during Business Model Canvas research and synthesis',
+        });
+      }
+      console.log(`[BMCResearcher] Stored ${criticalGaps.length} critical gaps`);
+
+      console.log(`[BMCResearcher] ✓ Knowledge graph enriched with BMC findings`);
+    } catch (error: any) {
+      console.error(`[BMCResearcher] Error storing BMC findings in graph:`, error.message);
+      // Don't throw - BMC research should complete even if graph storage fails
+    }
   }
 
   private async performParallelWebSearch(queries: BMCQuery[]): Promise<any[]> {
