@@ -825,9 +825,9 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
     
     console.log('[BMC-RESEARCH] SSE headers set, starting to send messages...');
 
-    // Timer-based progress messages: 420s / 8 categories = 52.5s per category
-    // Emit message every 5s = 10.5 messages per category
-    // 4 categories with 11 messages + 4 categories with 10 messages = 84 total × 5s = 420s
+    // Timer-based progress messages: 120s / 84 messages = ~1.4s per message
+    // Research typically completes in ~2 minutes, so send all 84 messages every 1.4 seconds
+    // 4 categories with 11 messages + 4 categories with 10 messages = 84 total × 1.4s = ~120s
     const progressMessages = [
       // Category 1: Analyzing (0-55s) - 11 messages
       { message: '🔍 Analyzing your business concept and strategic context...', step: 1, totalSteps: 8 },
@@ -933,7 +933,7 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
     let messageIndex = 0;
     let progressInterval: NodeJS.Timeout | null = null;
 
-    // Start timer: emit message every 5 seconds
+    // Start timer: emit message every 1.4 seconds (fits 84 messages in ~120 seconds)
     progressInterval = setInterval(() => {
       if (messageIndex < progressMessages.length) {
         const msg = progressMessages[messageIndex];
@@ -941,7 +941,7 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
         res.write(`data: ${JSON.stringify(msg)}\n\n`);
         messageIndex++;
       }
-    }, 5000);
+    }, 1400);
 
     // Send initial message immediately
     console.log('[BMC-RESEARCH] Sending initial message:', progressMessages[0].message);
