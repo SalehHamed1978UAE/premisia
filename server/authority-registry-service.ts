@@ -483,6 +483,193 @@ class AuthorityRegistryService {
 
     return matches;
   }
+
+  /**
+   * Get source guidance for a specific domain
+   * Returns recommended authorities with tier-based guidance
+   */
+  async getSourceGuidance(domain: {
+    industry?: string;
+    geography?: string;
+    language?: string;
+  }): Promise<{
+    tier1Sources: Array<{ id: string; name: string; url: string }>;
+    tier2Sources: Array<{ id: string; name: string; url: string }>;
+    tier3Sources: Array<{ id: string; name: string; url: string }>;
+    guidance: {
+      minimumSourceCount: number;
+      preferredTiers: number[];
+      requireCorroboration: boolean;
+      highAuthorityWhitelist: string[]; // Authority IDs that can stand alone
+    };
+  }> {
+    await this.ensureSeeded();
+
+    // Get filtered authorities by industry and geography
+    const authorities = await this.getFilteredAuthorities(
+      domain.industry,
+      domain.geography
+    );
+
+    // Sort authorities by tier and hits (popularity)
+    const sortedAuthorities = authorities.sort((a, b) => {
+      if (a.tier !== b.tier) return a.tier - b.tier; // Lower tier number = higher priority
+      return (b.hits || 0) - (a.hits || 0); // Higher hits = more popular
+    });
+
+    // Group by tier
+    const tier1Sources = sortedAuthorities
+      .filter(a => a.tier === 1)
+      .map(a => ({ id: a.id, name: a.name, url: a.url }));
+
+    const tier2Sources = sortedAuthorities
+      .filter(a => a.tier === 2)
+      .map(a => ({ id: a.id, name: a.name, url: a.url }));
+
+    const tier3Sources = sortedAuthorities
+      .filter(a => a.tier === 3)
+      .map(a => ({ id: a.id, name: a.name, url: a.url }));
+
+    // Build guidance
+    const guidance = {
+      minimumSourceCount: 2, // Evidence-first principle: 2+ source corroboration
+      preferredTiers: [1, 2], // Prefer tier 1 and 2 sources
+      requireCorroboration: true,
+      highAuthorityWhitelist: tier1Sources.map(s => s.id), // Tier 1 can stand alone
+    };
+
+    return {
+      tier1Sources,
+      tier2Sources,
+      tier3Sources,
+      guidance,
+    };
+  }
+
+  /**
+   * Score a document against available authorities
+   * Returns scored matches sorted by relevance
+   */
+  async scoreSource(
+    document: {
+      publisher: string;
+      countryISO?: string;
+      industry?: string;
+    },
+    authorities?: Array<{
+      id: string;
+      name: string;
+      tier: number;
+      countries: string[];
+      industries: string[];
+    }>
+  ): Promise<{
+    bestMatch: {
+      authorityId: string;
+      name: string;
+      tier: number;
+      matchScore: number;
+      matchType: 'exact' | 'contains' | 'fuzzy' | 'none';
+    } | null;
+    allMatches: Array<{
+      authorityId: string;
+      name: string;
+      tier: number;
+      matchScore: number;
+      matchType: 'exact' | 'contains' | 'fuzzy' | 'none';
+    }>;
+    isHighAuthority: boolean;
+    requiresCorroboration: boolean;
+  }> {
+    await this.ensureSeeded();
+
+    // Use provided authorities or get all
+    const authoritiesToScore = authorities || await this.getAllAuthorities();
+
+    const allMatches: Array<{
+      authorityId: string;
+      name: string;
+      tier: number;
+      matchScore: number;
+      matchType: 'exact' | 'contains' | 'fuzzy' | 'none';
+    }> = [];
+
+    // Score against each authority
+    for (const authority of authoritiesToScore) {
+      const nameScore = this.fuzzyMatchScore(document.publisher, authority.name);
+
+      // Geographic bonus
+      let geoBonus = 0;
+      if (document.countryISO && authority.countries.includes(document.countryISO)) {
+        geoBonus = 0.1;
+      } else if (authority.countries.includes('XX') || authority.countries.length >= 5) {
+        geoBonus = 0.05;
+      }
+
+      // Industry bonus (specific match gets priority over 'all')
+      let industryBonus = 0;
+      if (document.industry) {
+        const industryLower = document.industry.toLowerCase().trim();
+        
+        const hasSpecificMatch = authority.industries.some(ind => {
+          const authIndLower = ind.toLowerCase().trim();
+          if (authIndLower === 'all') return false;
+          return authIndLower === industryLower || 
+                 new RegExp(`\\b${authIndLower}\\b`).test(industryLower);
+        });
+
+        if (hasSpecificMatch) {
+          industryBonus = 0.1;
+        } else if (authority.industries.includes('all')) {
+          industryBonus = 0.05;
+        }
+      }
+
+      // Calculate final score BEFORE filtering
+      const finalScore = Math.min(1, nameScore + geoBonus + industryBonus);
+
+      // Skip only if final score is too low (allow geo/industry bonuses to lift weak name matches)
+      if (finalScore < 0.5) continue;
+      
+      // Determine match type based on name score
+      let matchType: 'exact' | 'contains' | 'fuzzy' | 'none' = 'none';
+      if (nameScore === 1) {
+        matchType = 'exact';
+      } else if (nameScore >= 0.9) {
+        matchType = 'contains';
+      } else if (nameScore >= 0.7) {
+        matchType = 'fuzzy';
+      }
+
+      allMatches.push({
+        authorityId: authority.id,
+        name: authority.name,
+        tier: authority.tier,
+        matchScore: finalScore,
+        matchType,
+      });
+    }
+
+    // Sort by score (descending) then by tier (ascending - lower is better)
+    allMatches.sort((a, b) => {
+      if (b.matchScore !== a.matchScore) return b.matchScore - a.matchScore;
+      return a.tier - b.tier;
+    });
+
+    const bestMatch = allMatches.length > 0 ? allMatches[0] : null;
+
+    // Track hit if match found
+    if (bestMatch && bestMatch.matchScore >= 0.7) {
+      await this.recordHit(bestMatch.authorityId);
+    }
+
+    return {
+      bestMatch,
+      allMatches,
+      isHighAuthority: bestMatch ? bestMatch.tier === 1 : false,
+      requiresCorroboration: bestMatch ? bestMatch.tier > 1 : true, // Tier 1 can stand alone
+    };
+  }
 }
 
 export const authorityRegistryService = new AuthorityRegistryService();
