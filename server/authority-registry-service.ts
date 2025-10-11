@@ -275,6 +275,214 @@ class AuthorityRegistryService {
 
     return stats[0];
   }
+
+  /**
+   * Calculate Levenshtein distance for fuzzy string matching
+   */
+  private levenshteinDistance(str1: string, str2: string): number {
+    const s1 = str1.toLowerCase();
+    const s2 = str2.toLowerCase();
+
+    const matrix: number[][] = [];
+
+    for (let i = 0; i <= s2.length; i++) {
+      matrix[i] = [i];
+    }
+
+    for (let j = 0; j <= s1.length; j++) {
+      matrix[0][j] = j;
+    }
+
+    for (let i = 1; i <= s2.length; i++) {
+      for (let j = 1; j <= s1.length; j++) {
+        if (s2.charAt(i - 1) === s1.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1];
+        } else {
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j - 1] + 1, // substitution
+            matrix[i][j - 1] + 1, // insertion
+            matrix[i - 1][j] + 1 // deletion
+          );
+        }
+      }
+    }
+
+    return matrix[s2.length][s1.length];
+  }
+
+  /**
+   * Calculate fuzzy match score (0-1, higher is better)
+   */
+  private fuzzyMatchScore(str1: string, str2: string): number {
+    if (!str1 || !str2) return 0;
+
+    const s1 = str1.toLowerCase().trim();
+    const s2 = str2.toLowerCase().trim();
+
+    // Exact match
+    if (s1 === s2) return 1;
+
+    // Check if one contains the other
+    if (s1.includes(s2) || s2.includes(s1)) return 0.9;
+
+    // Levenshtein distance based score
+    const distance = this.levenshteinDistance(s1, s2);
+    const maxLength = Math.max(s1.length, s2.length);
+    const score = 1 - distance / maxLength;
+
+    return Math.max(0, score);
+  }
+
+  /**
+   * Match document publisher to authority sources
+   */
+  async matchDocumentToAuthority(
+    publisherName: string,
+    countryISO?: string,
+    industry?: string
+  ): Promise<{
+    authorityId: string;
+    name: string;
+    tier: number;
+    matchScore: number;
+    matchType: 'exact' | 'contains' | 'fuzzy' | 'none';
+  } | null> {
+    await this.ensureSeeded();
+
+    const authorities = await this.getAllAuthorities();
+
+    let bestMatch: {
+      authorityId: string;
+      name: string;
+      tier: number;
+      matchScore: number;
+      matchType: 'exact' | 'contains' | 'fuzzy' | 'none';
+    } | null = null;
+
+    for (const authority of authorities) {
+      // Calculate name match score
+      const nameScore = this.fuzzyMatchScore(publisherName, authority.name);
+      
+      // Determine match type
+      let matchType: 'exact' | 'contains' | 'fuzzy' | 'none' = 'none';
+      if (nameScore === 1) {
+        matchType = 'exact';
+      } else if (nameScore >= 0.9) {
+        matchType = 'contains';
+      } else if (nameScore >= 0.7) {
+        matchType = 'fuzzy';
+      }
+
+      // Skip if name match is too poor
+      if (nameScore < 0.7) continue;
+
+      // Check geographic coverage
+      let geoBonus = 0;
+      if (countryISO && authority.countries.includes(countryISO)) {
+        geoBonus = 0.1;
+      } else if (authority.countries.includes('XX') || authority.countries.length >= 5) {
+        // Global coverage
+        geoBonus = 0.05;
+      }
+
+      // Check industry coverage (exact match gets priority over 'all')
+      let industryBonus = 0;
+      if (industry) {
+        const industryLower = industry.toLowerCase().trim();
+        
+        // Check for specific industry match first (higher bonus)
+        const hasSpecificMatch = authority.industries.some(ind => {
+          const authIndLower = ind.toLowerCase().trim();
+          // Skip 'all' - we'll check it later
+          if (authIndLower === 'all') return false;
+          // Exact match or industry is a multi-word phrase containing the authority industry as whole word
+          return authIndLower === industryLower || 
+                 new RegExp(`\\b${authIndLower}\\b`).test(industryLower);
+        });
+
+        if (hasSpecificMatch) {
+          industryBonus = 0.1; // Specific industry match
+        } else if (authority.industries.includes('all')) {
+          industryBonus = 0.05; // Global coverage fallback
+        }
+      }
+
+      // Calculate final score (name match + geo + industry bonuses)
+      const finalScore = Math.min(1, nameScore + geoBonus + industryBonus);
+
+      // Update best match if this is better
+      if (!bestMatch || finalScore > bestMatch.matchScore) {
+        bestMatch = {
+          authorityId: authority.id,
+          name: authority.name,
+          tier: authority.tier,
+          matchScore: finalScore,
+          matchType,
+        };
+      }
+    }
+
+    // Record hit if match found
+    if (bestMatch && bestMatch.matchScore >= 0.7) {
+      await this.recordHit(bestMatch.authorityId);
+    }
+
+    return bestMatch;
+  }
+
+  /**
+   * Get authorities filtered by industry and geography
+   */
+  async getFilteredAuthorities(
+    industryFilter?: string,
+    countryFilter?: string
+  ) {
+    await this.ensureSeeded();
+
+    const allAuthorities = await this.getAllAuthorities();
+
+    // Filter by industry if provided
+    let filtered = allAuthorities;
+    if (industryFilter) {
+      filtered = filtered.filter(auth => 
+        auth.industries.includes('all') || 
+        auth.industries.some(ind => ind.toLowerCase() === industryFilter.toLowerCase())
+      );
+    }
+
+    // Filter by country if provided
+    if (countryFilter) {
+      filtered = filtered.filter(auth => 
+        auth.countries.includes(countryFilter.toUpperCase())
+      );
+    }
+
+    return filtered;
+  }
+
+  /**
+   * Batch match multiple documents to authorities
+   */
+  async batchMatchDocuments(
+    documents: Array<{
+      publisher: string;
+      countryISO?: string;
+      industry?: string;
+    }>
+  ) {
+    const matches = [];
+
+    for (const doc of documents) {
+      const match = await this.matchDocumentToAuthority(
+        doc.publisher,
+        doc.countryISO,
+        doc.industry
+      );
+      matches.push(match);
+    }
+
+    return matches;
+  }
 }
 
 export const authorityRegistryService = new AuthorityRegistryService();
