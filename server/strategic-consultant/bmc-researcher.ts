@@ -354,11 +354,54 @@ export class BMCResearcher {
     const results = await Promise.all(
       contradictions.map(async (contradiction) => {
         // Find the source entity that matches the assumption
+        // Use flexible matching: check for key concept overlaps (numbers, product names, timelines)
         const sourceEntity = userInputEntities.find(e => {
-          const entityClaim = e.claim.toLowerCase();
-          const assumptionClaim = contradiction.assumption.toLowerCase();
-          return entityClaim.includes(assumptionClaim.substring(0, 30)) ||
-                 assumptionClaim.includes(entityClaim.substring(0, 30));
+          const entityClaim = e.claim;
+          const assumptionClaim = contradiction.assumption;
+          
+          // Try multiple matching strategies:
+          // 1. Direct substring matching (case-insensitive)
+          const entityLower = entityClaim.toLowerCase();
+          const assumptionLower = assumptionClaim.toLowerCase();
+          if (entityLower.includes(assumptionLower.substring(0, 30)) ||
+              assumptionLower.includes(entityLower.substring(0, 30))) {
+            console.log(`[BMCResearcher] Matched via substring`);
+            return true;
+          }
+          
+          // 2. Extract key concepts (numbers, products, timelines) from ORIGINAL casing
+          const extractConcepts = (text: string) => {
+            const concepts = new Set<string>();
+            // Numbers (including currency and percentages)
+            const numbers = text.match(/\$?\d+[\d,]*\.?\d*[%]?/g) || [];
+            numbers.forEach(n => concepts.add(n.replace(/,/g, '').toLowerCase()));
+            // Timeframes (weeks, months, years, days)
+            const timeframes = text.match(/\d+[-–]\d+\s*(week|month|year|day)s?/gi) || [];
+            timeframes.forEach(t => concepts.add(t.toLowerCase()));
+            // Product/tool names (capitalized words) - extract BEFORE lowercasing
+            const products = text.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*/g) || [];
+            products.forEach(p => concepts.add(p.toLowerCase()));
+            // Keywords (implementation, deployment, rollout, etc.)
+            const keywords = ['implementation', 'deployment', 'rollout', 'timeline', 'budget', 'investment'];
+            keywords.forEach(kw => {
+              if (text.toLowerCase().includes(kw)) {
+                concepts.add(kw);
+              }
+            });
+            return concepts;
+          };
+          
+          const entityConcepts = extractConcepts(entityClaim);
+          const assumptionConcepts = extractConcepts(assumptionClaim);
+          
+          // Check for concept overlap (at least 1 shared concept)
+          const sharedConcepts = Array.from(entityConcepts).filter(c => assumptionConcepts.has(c));
+          if (sharedConcepts.length >= 1) {
+            console.log(`[BMCResearcher] Matched via concepts: ${sharedConcepts.join(', ')}`);
+            return true;
+          }
+          
+          return false;
         });
 
         if (!sourceEntity || contradiction.contradictedBy.length === 0) {
