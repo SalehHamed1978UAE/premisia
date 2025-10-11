@@ -813,8 +813,22 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Input text is required' });
     }
 
-    const result = await bmcResearcher.conductBMCResearch(input);
+    // Set up Server-Sent Events
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
 
+    // Progress callback to send updates to client
+    const sendProgress = (message: string, step?: number, totalSteps?: number) => {
+      const data = JSON.stringify({ message, step, totalSteps });
+      res.write(`data: ${data}\n\n`);
+    };
+
+    // Conduct research with progress updates
+    const result = await bmcResearcher.conductBMCResearch(input, sessionId, sendProgress);
+
+    // Save to version if provided
     if (sessionId && versionNumber) {
       const version = await storage.getStrategyVersion(sessionId, versionNumber);
       
@@ -829,13 +843,13 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
       }
     }
 
-    res.json({
-      success: true,
-      result,
-    });
+    // Send final result
+    res.write(`data: ${JSON.stringify({ complete: true, result })}\n\n`);
+    res.end();
   } catch (error: any) {
     console.error('Error in /bmc-research:', error);
-    res.status(500).json({ error: error.message || 'BMC research failed' });
+    res.write(`data: ${JSON.stringify({ error: error.message || 'BMC research failed' })}\n\n`);
+    res.end();
   }
 });
 

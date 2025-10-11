@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 import { FrameworkSelection, type FrameworkSelectionData } from '@/components/strategic-consultant/FrameworkSelection';
 import { BMCCanvas, type BMCAnalysis } from '@/components/strategic-consultant/BMCCanvas';
 import { useToast } from '@/hooks/use-toast';
@@ -15,6 +16,9 @@ export default function BMCTestPage() {
   const [bmcAnalysis, setBmcAnalysis] = useState<BMCAnalysis | null>(null);
   const [isSelectingFramework, setIsSelectingFramework] = useState(false);
   const [isResearching, setIsResearching] = useState(false);
+  const [progressMessage, setProgressMessage] = useState('');
+  const [progressStep, setProgressStep] = useState(0);
+  const [progressTotal, setProgressTotal] = useState(0);
   const { toast } = useToast();
 
   const handleSelectFramework = async () => {
@@ -62,18 +66,80 @@ export default function BMCTestPage() {
     }
 
     setIsResearching(true);
+    setProgressMessage('Starting research...');
+    setProgressStep(0);
+    setProgressTotal(0);
     
     try {
-      const response = await apiRequest('POST', '/api/strategic-consultant/bmc-research', { input, sessionId, versionNumber: 1 });
-
-      const data = await response.json();
-      setBmcAnalysis(data.result);
-
-      toast({
-        title: 'Research Complete',
-        description: `Analyzed ${data.result.blocks.length} BMC blocks`,
+      const response = await fetch('/api/strategic-consultant/bmc-research', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ input, sessionId, versionNumber: 1 }),
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to start BMC research');
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      let buffer = ''; // Rolling buffer for partial lines
+
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) break;
+        
+        // Decode chunk and append to buffer
+        buffer += decoder.decode(value, { stream: true });
+        
+        // Split by newlines but keep last partial line in buffer
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            let data;
+            try {
+              data = JSON.parse(line.slice(6));
+            } catch (parseError) {
+              console.error('Failed to parse SSE message:', line, parseError);
+              continue;
+            }
+            
+            // Handle error events - propagate to outer catch
+            if (data.error) {
+              throw new Error(data.error);
+            }
+            
+            // Handle completion
+            if (data.complete) {
+              setBmcAnalysis(data.result);
+              setProgressMessage('✅ Research complete!');
+              toast({
+                title: 'Research Complete',
+                description: `Analyzed ${data.result.blocks.length} BMC blocks`,
+              });
+            } 
+            // Handle progress updates
+            else if (data.message) {
+              setProgressMessage(data.message);
+              if (data.step !== undefined) setProgressStep(data.step);
+              if (data.totalSteps !== undefined) setProgressTotal(data.totalSteps);
+            }
+          }
+        }
+      }
     } catch (error: any) {
+      setProgressMessage(''); // Clear on error
       toast({
         title: 'Research Failed',
         description: error.message || 'Failed to conduct BMC research',
@@ -81,6 +147,7 @@ export default function BMCTestPage() {
       });
     } finally {
       setIsResearching(false);
+      // Don't clear progress message on success - keep "Research complete!" visible
     }
   };
 
@@ -171,22 +238,51 @@ export default function BMCTestPage() {
               />
               
               {frameworkSelection.selectedFramework === 'business_model_canvas' && (
-                <Button
-                  data-testid="button-conduct-bmc-research"
-                  onClick={handleConductBMCResearch}
-                  disabled={isResearching}
-                  className="w-full"
-                  size="lg"
-                >
-                  {isResearching ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Conducting BMC Research...
-                    </>
-                  ) : (
-                    'Next: Conduct BMC Research →'
+                <div className="space-y-4">
+                  <Button
+                    data-testid="button-conduct-bmc-research"
+                    onClick={handleConductBMCResearch}
+                    disabled={isResearching}
+                    className="w-full"
+                    size="lg"
+                  >
+                    {isResearching ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Conducting BMC Research...
+                      </>
+                    ) : (
+                      'Next: Conduct BMC Research →'
+                    )}
+                  </Button>
+
+                  {progressMessage && (
+                    <div className="space-y-2 p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        {isResearching ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-blue-600 dark:text-blue-400" />
+                        ) : (
+                          <span className="text-lg">✅</span>
+                        )}
+                        <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                          {progressMessage}
+                        </p>
+                      </div>
+                      {isResearching && progressTotal > 0 && (
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-xs text-blue-700 dark:text-blue-300">
+                            <span>Step {progressStep} of {progressTotal}</span>
+                            <span>{Math.round((progressStep / progressTotal) * 100)}%</span>
+                          </div>
+                          <Progress 
+                            value={(progressStep / progressTotal) * 100} 
+                            className="h-2"
+                          />
+                        </div>
+                      )}
+                    </div>
                   )}
-                </Button>
+                </div>
               )}
               
               {frameworkSelection.selectedFramework === 'porters_five_forces' && (
