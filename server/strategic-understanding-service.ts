@@ -76,6 +76,24 @@ export class StrategicUnderstandingService {
     return this.openai;
   }
 
+  private normalizeText(text: string): string {
+    return text
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, ' ');
+  }
+
+  private validateSource(source: string, userInput: string): boolean {
+    const normalizedSource = this.normalizeText(source);
+    const normalizedInput = this.normalizeText(userInput);
+    
+    if (normalizedSource.length === 0) {
+      return false;
+    }
+    
+    return normalizedInput.includes(normalizedSource);
+  }
+
   async getOrCreateUnderstanding(sessionId: string, userInput: string, companyContext?: any): Promise<StrategicUnderstanding> {
     const existing = await db
       .select()
@@ -227,12 +245,29 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
     const parsed = JSON.parse(jsonMatch[0]);
     const validated = entityExtractionSchema.parse(parsed);
 
-    console.log(`[StrategicUnderstanding] Extracted ${validated.entities.length} entities from user input`);
-    validated.entities.forEach((entity, idx) => {
-      console.log(`  ${idx + 1}. [${entity.type}] ${entity.claim} (confidence: ${entity.confidence})`);
-    });
+    console.log(`[StrategicUnderstanding] AI extracted ${validated.entities.length} entities, validating sources...`);
+    
+    const validEntities: EntityExtractionResult[] = [];
+    const rejectedEntities: EntityExtractionResult[] = [];
 
-    return validated.entities;
+    for (const entity of validated.entities) {
+      if (this.validateSource(entity.source, userInput)) {
+        validEntities.push(entity);
+        console.log(`  ✓ [${entity.type}] ${entity.claim.substring(0, 60)}...`);
+      } else {
+        rejectedEntities.push(entity);
+        console.warn(`  ✗ REJECTED [${entity.type}] ${entity.claim.substring(0, 60)}...`);
+        console.warn(`    Invalid source: "${entity.source}" not found in input`);
+      }
+    }
+
+    if (rejectedEntities.length > 0) {
+      console.warn(`[StrategicUnderstanding] Rejected ${rejectedEntities.length} entities with invalid sources`);
+    }
+
+    console.log(`[StrategicUnderstanding] Final: ${validEntities.length} valid entities (${rejectedEntities.length} rejected)`);
+
+    return validEntities;
   }
 
   async generateEmbedding(text: string): Promise<number[]> {
