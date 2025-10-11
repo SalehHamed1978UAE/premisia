@@ -17,7 +17,15 @@ The frontend is built with React, TypeScript, and Vite, utilizing Shadcn/ui (Rad
 - **Frontend**: React, TypeScript, Vite, TanStack Query for state management, Wouter for client-side routing.
 - **Backend**: Node.js with Express.js (ES modules), Passport.js for session-based authentication (Local Strategy, scrypt hashing), Express sessions, and a RESTful API with role-based middleware.
 - **Data Storage**: PostgreSQL with Neon serverless driver, Drizzle ORM for type-safe schema and Zod validation. `connect-pg-simple` handles session storage.
-- **Authentication/Authorization**: Session-based authentication using Passport.js, HTTP-only cookies, and a three-tier role system (Admin, Editor, Viewer).
+- **Authentication/Authorization**: 
+  - Session-based authentication using Passport.js with Replit OIDC integration
+  - HTTP-only cookies and three-tier role system (Admin, Editor, Viewer)
+  - **Development Auth Bypass** (Oct 2025): Secure local development mode that injects synthetic user when:
+    - `DEV_AUTH_BYPASS=true` environment variable is explicitly set, AND
+    - Request originates from true loopback address (127.0.0.1, ::1, or ::ffff:127.0.0.1)
+    - Uses socket remote address (cannot be spoofed via headers)
+    - Blocks and alerts if DEV_AUTH_BYPASS is set on non-loopback connections
+    - Must remain disabled (`DEV_AUTH_BYPASS=false` or unset) in production
 
 #### Feature Specifications
 

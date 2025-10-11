@@ -139,7 +139,60 @@ export async function setupAuth(app: Express) {
 export const isAuthenticated: RequestHandler = async (req, res, next) => {
   const user = req.user as any;
 
-  if (!req.isAuthenticated() || !user.expires_at) {
+  // Development mode bypass: inject synthetic user when Replit Auth is unavailable
+  if (!req.isAuthenticated() || !user?.expires_at) {
+    // SECURITY: Development bypass requires EXPLICIT opt-in via DEV_AUTH_BYPASS=true
+    // This prevents accidental auth bypass in production environments
+    const isExplicitDevMode = process.env.DEV_AUTH_BYPASS === 'true';
+    
+    // SECURITY: Use actual socket address, NOT hostname headers (which can be spoofed)
+    // Only allow bypass from true loopback connections
+    const remoteAddress = req.socket.remoteAddress || '';
+    const isLoopback = remoteAddress === '127.0.0.1' || 
+                       remoteAddress === '::1' ||
+                       remoteAddress === '::ffff:127.0.0.1';
+    
+    // Only bypass if BOTH conditions are met: explicit flag AND loopback connection
+    const shouldBypass = isExplicitDevMode && isLoopback;
+    
+    if (shouldBypass) {
+      console.warn('⚠️  [Auth] DEV AUTH BYPASS ACTIVE - Synthetic user injected');
+      console.warn('⚠️  [Auth] Remote address:', remoteAddress, '| DEV_AUTH_BYPASS:', process.env.DEV_AUTH_BYPASS);
+      
+      // Create a synthetic user for development
+      const syntheticUser = {
+        claims: {
+          sub: 'dev-user-123',
+          email: 'dev@example.com',
+          first_name: 'Dev',
+          last_name: 'User',
+          exp: Math.floor(Date.now() / 1000) + 86400, // 24 hours from now
+        },
+        access_token: 'dev-token',
+        refresh_token: 'dev-refresh-token',
+        expires_at: Math.floor(Date.now() / 1000) + 86400,
+      };
+      
+      // Attach synthetic user to request
+      (req as any).user = syntheticUser;
+      
+      // Upsert dev user to database
+      try {
+        await upsertUser(syntheticUser.claims);
+      } catch (error) {
+        console.error('[Auth] Failed to upsert dev user:', error);
+      }
+      
+      return next();
+    }
+    
+    // Security alert: if DEV_AUTH_BYPASS is set but connection is NOT from loopback
+    if (isExplicitDevMode && !isLoopback) {
+      console.error('🚨 [Auth] SECURITY ALERT: DEV_AUTH_BYPASS=true but request from:', remoteAddress);
+      console.error('🚨 [Auth] Auth bypass BLOCKED - Only loopback connections allowed!');
+      console.error('🚨 [Auth] Set DEV_AUTH_BYPASS=false in production deployments!');
+    }
+    
     return res.status(401).json({ message: "Unauthorized" });
   }
 

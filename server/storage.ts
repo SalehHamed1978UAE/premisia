@@ -174,10 +174,12 @@ export class DatabaseStorage implements IStorage {
 
       if (existing.length > 0) {
         // Update existing user by their current ID
+        // CRITICAL: Never update the ID field to avoid FK constraint violations
+        const { id, ...updateData } = userData;
         const [user] = await db
           .update(users)
           .set({
-            ...userData,
+            ...updateData,
             updatedAt: new Date(),
           })
           .where(eq(users.id, existing[0].id))
@@ -187,13 +189,15 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Insert new user or update if ID conflicts
+    // CRITICAL: Never update the ID field to avoid FK constraint violations
+    const { id: _, ...updateData } = userData;
     const [user] = await db
       .insert(users)
       .values(userData)
       .onConflictDoUpdate({
         target: users.id,
         set: {
-          ...userData,
+          ...updateData,
           updatedAt: new Date(),
         },
       })
