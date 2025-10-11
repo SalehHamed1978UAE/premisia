@@ -44,6 +44,17 @@ The frontend uses React with TypeScript and Vite, employing Shadcn/ui (Radix UI,
         - **Architectural Fix (Oct 2025)**: Reordered research flow to detect contradictions BEFORE block synthesis, preventing blocks from validating contradicted assumptions. Block synthesis prompts now explicitly acknowledge contradictions.
         - **Investment Amount Transfer (Oct 2025)**: Implemented two-tier matching system for assumption-to-contradiction investment transfer: (1) Primary path uses exact matching on LLM-provided `matchedAssumptionClaim`, (2) Fallback uses entity-based fuzzy matching (dollar amounts, countries, tech terms) with 60/40 weighted scoring and 0.25 threshold. Includes whitespace normalization and comprehensive logging.
         - **Enhanced Assumption Extraction (Oct 2025)**: Extracts up to 10 assumptions per input (explicit + implicit), including quantitative claims, temporal assumptions, market dynamics, and ROI expectations. Prioritizes quality over quantity.
+    - **Strategic Understanding Service (Knowledge Graph Architecture - Oct 2025)**:
+        - **Hallucination Fix**: Replaced AssumptionExtractor with knowledge graph-based StrategicUnderstandingService using strict 3-tier categorization and source validation to prevent AI from inventing facts.
+        - **Database Foundation**: PostgreSQL with pgvector extension, 3 knowledge graph tables (strategic_understanding, strategic_entities, strategic_relationships), 4 enums (entity_type, relationship_type, confidence_level, discovered_by), hybrid search indexes (IVFFlat vector cosine similarity, GIN full-text search, B-tree for filtering).
+        - **3-Tier Entity Categorization**:
+            - **Explicit (high confidence)**: User directly stated facts with exact quotes (e.g., "expand to India" → "India market expansion is planned")
+            - **Implicit (medium confidence)**: Direct logical implications with evidence field explaining reasoning chain
+            - **Inferred (low confidence)**: Exploratory/speculative insights marked as low confidence
+        - **Source Validation**: Every entity's source field validated as substring in user input (case-insensitive, whitespace-normalized), empty sources rejected, invalid entities filtered out with logging.
+        - **Embeddings**: OpenAI text-embedding-3-small (1536 dimensions) with caching for duplicate claims, batch generation support, stored as pgvector for semantic search.
+        - **Checkpoint 1 Results (Oct 2025)**: Asana test case verified 6 grounded entities (3 explicit, 2 implicit, 1 inferred), 0 hallucinations, 100% source validation pass rate, correct investment amount extraction ($500K), embeddings functional.
+        - **Pending Integration**: Tasks 16-17 will integrate BMCResearcher with StrategicUnderstandingService to use knowledge graph instead of direct assumption extraction. Semantic/keyword/graph search (Tasks 11-14) deferred until BMC integration complete.
 
 ## External Dependencies
 
