@@ -423,19 +423,20 @@ export class BMCResearcher {
           )
         );
 
-        // Only valid if ALL evidence items are semantically equivalent
-        const allValid = validationResults.every(v => v.isContradiction);
+        // Valid if AT LEAST ONE evidence item is a contradiction
+        const anyValid = validationResults.some(v => v.isContradiction);
+        const validCount = validationResults.filter(v => v.isContradiction).length;
         const validationReasons = validationResults.map(v => v.reasoning);
 
         return {
           contradiction,
           sourceEntity,
-          isValid: allValid,
+          isValid: anyValid,
           validation: {
-            isContradiction: allValid,
-            reasoning: allValid 
-              ? `All ${validationResults.length} evidence items validated as same concept: ${validationReasons.join('; ')}`
-              : `Some evidence items are different concepts: ${validationReasons.join('; ')}`,
+            isContradiction: anyValid,
+            reasoning: anyValid 
+              ? `${validCount}/${validationResults.length} evidence items validated as contradictions: ${validationReasons.join('; ')}`
+              : `No evidence items validated as contradictions: ${validationReasons.join('; ')}`,
             provider: validationResults[0]?.provider,
             model: validationResults[0]?.model
           }
