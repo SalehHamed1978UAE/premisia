@@ -52,9 +52,10 @@ The frontend uses React with TypeScript and Vite, employing Shadcn/ui (Radix UI,
             - **Implicit (medium confidence)**: Direct logical implications with evidence field explaining reasoning chain
             - **Inferred (low confidence)**: Exploratory/speculative insights marked as low confidence
         - **Source Validation**: Every entity's source field validated as substring in user input (case-insensitive, whitespace-normalized), empty sources rejected, invalid entities filtered out with logging.
-        - **Embeddings**: OpenAI text-embedding-3-small (1536 dimensions) with caching for duplicate claims, batch generation support, stored as pgvector for semantic search.
+        - **Embeddings**: OpenAI text-embedding-3-small (1536 dimensions) with caching for duplicate claims, batch generation support (prevents timeouts), stored as pgvector for semantic search.
         - **Checkpoint 1 Results (Oct 2025)**: Asana test case verified 6 grounded entities (3 explicit, 2 implicit, 1 inferred), 0 hallucinations, 100% source validation pass rate, correct investment amount extraction ($500K), embeddings functional.
-        - **Pending Integration**: Tasks 16-17 will integrate BMCResearcher with StrategicUnderstandingService to use knowledge graph instead of direct assumption extraction. Semantic/keyword/graph search (Tasks 11-14) deferred until BMC integration complete.
+        - **BMC Integration Complete (Tasks 16-17, Oct 2025)**: BMCResearcher integrated with knowledge graph, user entities persist with `discovered_by='user_input'`, BMC findings persist with `discovered_by='bmc_agent'`, contradiction relationships created successfully. Critical fixes: batch embedding generation (prevents OpenAI timeout), query persisted entities before relationship creation (prevents null foreign key errors). Verified: contradictions reference specific user values ($500, 2-4 weeks).
+        - **Pending**: Semantic/keyword/graph search (Tasks 11-14), framework metadata + temporal queries (Tasks 19-21), Checkpoint 2.
 
 ## External Dependencies
 

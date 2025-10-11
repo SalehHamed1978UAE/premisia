@@ -346,6 +346,10 @@ export class BMCResearcher {
     console.log(`[BMCResearcher] Storing BMC findings in knowledge graph for understanding: ${understandingId}`);
 
     try {
+      // Get persisted user_input entities from database (with IDs)
+      const persistedUserEntities = await strategicUnderstandingService.getEntitiesByUnderstanding(understandingId);
+      const userInputEntities = persistedUserEntities.filter(e => e.discoveredBy === 'user_input');
+      console.log(`[BMCResearcher] Found ${userInputEntities.length} persisted user_input entities for contradiction matching`);
       // 1. Store research findings as entities (type: research_finding)
       const findingEntities: any[] = [];
       for (const block of blocks) {
@@ -364,13 +368,23 @@ export class BMCResearcher {
 
       // 2. Store contradictions as relationships (type: contradicts)
       for (const contradiction of contradictions) {
-        // Find the source entity that matches the assumption
-        const sourceEntity = sourceEntities.find(e => 
-          e.claim.toLowerCase().includes(contradiction.assumption.toLowerCase().substring(0, 30)) ||
-          contradiction.assumption.toLowerCase().includes(e.claim.toLowerCase().substring(0, 30))
-        );
+        // Find the source entity that matches the assumption (from persisted entities with IDs)
+        const sourceEntity = userInputEntities.find(e => {
+          const entityClaim = e.claim.toLowerCase();
+          const assumptionClaim = contradiction.assumption.toLowerCase();
+          
+          // Try substring matching (more flexible)
+          const match = entityClaim.includes(assumptionClaim.substring(0, 30)) ||
+                       assumptionClaim.includes(entityClaim.substring(0, 30));
+          
+          if (match) {
+            console.log(`[BMCResearcher] Matched contradiction "${contradiction.assumption}" to entity "${e.claim}"`);
+          }
+          return match;
+        });
 
         if (sourceEntity && contradiction.contradictedBy.length > 0) {
+          console.log(`[BMCResearcher] Creating contradiction relationship from entity ID: ${sourceEntity.id}`);
           // Create a contradiction entity for the evidence
           const contradictionEntity = await strategicUnderstandingService.createEntity(understandingId, {
             type: 'research_finding',
