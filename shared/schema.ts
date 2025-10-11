@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, decimal, boolean, pgEnum, jsonb, index, vector } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, decimal, boolean, pgEnum, jsonb, index, vector, primaryKey } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -524,6 +524,94 @@ export const strategicRelationships = pgTable("strategic_relationships", {
   discoveredByIdx: index("idx_strategic_relationships_discovered_by").on(table.discoveredBy),
 }));
 
+// Trend Analysis Agent Tables (Phase 3)
+// Authority Sources Registry - Main table with normalized junction tables
+export const authoritySources = pgTable("authority_sources", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull().unique(),
+  url: text("url"),
+  lastSeen: timestamp("last_seen").notNull().defaultNow(),
+  hits: integer("hits").notNull().default(0),
+  corroborations: integer("corroborations").notNull().default(0),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  nameIdx: index("idx_authority_sources_name").on(table.name),
+}));
+
+export const authoritySourceIndustries = pgTable("authority_source_industries", {
+  authorityId: varchar("authority_id").notNull().references(() => authoritySources.id, { onDelete: 'cascade' }),
+  industry: text("industry").notNull(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.authorityId, table.industry] }),
+  industryIdx: index("idx_auth_industry").on(table.industry),
+}));
+
+export const authoritySourceCountries = pgTable("authority_source_countries", {
+  authorityId: varchar("authority_id").notNull().references(() => authoritySources.id, { onDelete: 'cascade' }),
+  countryIso2: varchar("country_iso2", { length: 2 }).notNull(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.authorityId, table.countryIso2] }),
+  countryIdx: index("idx_auth_country").on(table.countryIso2),
+}));
+
+export const authoritySourceLanguages = pgTable("authority_source_languages", {
+  authorityId: varchar("authority_id").notNull().references(() => authoritySources.id, { onDelete: 'cascade' }),
+  language: text("language").notNull(),
+}, (table) => ({
+  pk: primaryKey({ columns: [table.authorityId, table.language] }),
+  languageIdx: index("idx_auth_language").on(table.language),
+}));
+
+// Trend Analysis Claims Cache (optional, feature-flagged)
+export const trendClaimsCache = pgTable("trend_claims_cache", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  claimText: text("claim_text").notNull(),
+  pestleDomain: varchar("pestle_domain", { length: 50 }).notNull(),
+  industries: text("industries").array().notNull(),
+  geographies: text("geographies").array().notNull(),
+  metrics: jsonb("metrics"),
+  evidence: jsonb("evidence").notNull(),
+  agreement: varchar("agreement", { length: 20 }).notNull(),
+  confidence: varchar("confidence", { length: 20 }).notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  expiresAt: timestamp("expires_at").notNull(),
+}, (table) => ({
+  geographiesIdx: index("idx_claims_cache_geo").using('gin', table.geographies),
+  expiresAtIdx: index("idx_claims_cache_expires").on(table.expiresAt),
+}));
+
+// Trend Analysis Jobs (for idempotency and job orchestration)
+export const trendAnalysisJobs = pgTable("trend_analysis_jobs", {
+  jobId: varchar("job_id").primaryKey().default(sql`gen_random_uuid()`),
+  idempotencyKey: text("idempotency_key").notNull().unique(),
+  understandingId: varchar("understanding_id").notNull(),
+  status: varchar("status", { length: 20 }).notNull(),
+  data: jsonb("data"),
+  result: jsonb("result"),
+  error: text("error"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+}, (table) => ({
+  idempotencyKeyIdx: index("idx_trend_jobs_idempotency").on(table.idempotencyKey),
+  understandingIdx: index("idx_trend_jobs_understanding").on(table.understandingId),
+  statusIdx: index("idx_trend_jobs_status").on(table.status),
+}));
+
+// Framework Insights - Generic storage for framework analysis results
+export const frameworkInsights = pgTable("framework_insights", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  understandingId: varchar("understanding_id").notNull().references(() => strategicUnderstanding.id, { onDelete: 'cascade' }),
+  frameworkName: varchar("framework_name", { length: 50 }).notNull(),
+  frameworkVersion: varchar("framework_version", { length: 20 }),
+  insights: jsonb("insights").notNull(),
+  telemetry: jsonb("telemetry"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  understandingIdx: index("idx_framework_insights_understanding").on(table.understandingId),
+  frameworkIdx: index("idx_framework_insights_framework").on(table.frameworkName),
+}));
+
 export const bmcAnalyses = pgTable("bmc_analyses", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   strategyVersionId: varchar("strategy_version_id").notNull().references(() => strategyVersions.id),
@@ -717,6 +805,15 @@ export const insertStrategicUnderstandingSchema = createInsertSchema(strategicUn
 export const insertStrategicEntitySchema = createInsertSchema(strategicEntities).omit({ id: true, createdAt: true, updatedAt: true, discoveredAt: true });
 export const insertStrategicRelationshipSchema = createInsertSchema(strategicRelationships).omit({ id: true, createdAt: true, updatedAt: true, discoveredAt: true });
 
+// Trend Analysis insert schemas
+export const insertAuthoritySourceSchema = createInsertSchema(authoritySources).omit({ id: true, createdAt: true });
+export const insertAuthoritySourceIndustrySchema = createInsertSchema(authoritySourceIndustries);
+export const insertAuthoritySourceCountrySchema = createInsertSchema(authoritySourceCountries);
+export const insertAuthoritySourceLanguageSchema = createInsertSchema(authoritySourceLanguages);
+export const insertTrendClaimsCacheSchema = createInsertSchema(trendClaimsCache).omit({ id: true, createdAt: true });
+export const insertTrendAnalysisJobSchema = createInsertSchema(trendAnalysisJobs).omit({ jobId: true, createdAt: true });
+export const insertFrameworkInsightSchema = createInsertSchema(frameworkInsights).omit({ id: true, createdAt: true });
+
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UpsertUser = typeof users.$inferInsert;  // For Replit Auth
@@ -766,6 +863,22 @@ export type StrategicEntity = typeof strategicEntities.$inferSelect;
 export type InsertStrategicEntity = z.infer<typeof insertStrategicEntitySchema>;
 export type StrategicRelationship = typeof strategicRelationships.$inferSelect;
 export type InsertStrategicRelationship = z.infer<typeof insertStrategicRelationshipSchema>;
+
+// Trend Analysis types
+export type AuthoritySource = typeof authoritySources.$inferSelect;
+export type InsertAuthoritySource = z.infer<typeof insertAuthoritySourceSchema>;
+export type AuthoritySourceIndustry = typeof authoritySourceIndustries.$inferSelect;
+export type InsertAuthoritySourceIndustry = z.infer<typeof insertAuthoritySourceIndustrySchema>;
+export type AuthoritySourceCountry = typeof authoritySourceCountries.$inferSelect;
+export type InsertAuthoritySourceCountry = z.infer<typeof insertAuthoritySourceCountrySchema>;
+export type AuthoritySourceLanguage = typeof authoritySourceLanguages.$inferSelect;
+export type InsertAuthoritySourceLanguage = z.infer<typeof insertAuthoritySourceLanguageSchema>;
+export type TrendClaimsCache = typeof trendClaimsCache.$inferSelect;
+export type InsertTrendClaimsCache = z.infer<typeof insertTrendClaimsCacheSchema>;
+export type TrendAnalysisJob = typeof trendAnalysisJobs.$inferSelect;
+export type InsertTrendAnalysisJob = z.infer<typeof insertTrendAnalysisJobSchema>;
+export type FrameworkInsight = typeof frameworkInsights.$inferSelect;
+export type InsertFrameworkInsight = z.infer<typeof insertFrameworkInsightSchema>;
 
 // AI Orchestration Types
 
@@ -846,3 +959,171 @@ export const orchestratorResponseSchema = z.object({
   timestamp: z.string(),
 });
 export type OrchestratorResponse = z.infer<typeof orchestratorResponseSchema>;
+
+// Trend Analysis Agent Types (Phase 3)
+export interface Geography {
+  country: string;
+  countryISO2: string;
+  region?: string;
+  regionISO?: string;
+  city?: string;
+  cityGeoNameId?: string;
+  scope: 'local' | 'regional' | 'national' | 'international';
+}
+
+export interface Domain {
+  industry: string;
+  subDomain?: string;
+  geography: Geography;
+  language: {
+    primary: string;
+    secondary?: string[];
+  };
+  regulatory: {
+    framework: string;
+    jurisdiction?: string;
+  };
+  context: {
+    decisionType: string;
+    horizon: string;
+    segment: string;
+    companySize: string;
+  };
+}
+
+export interface AuthoritySourceData {
+  name: string;
+  industries: string[];
+  countries: string[];
+  languages: string[];
+  url?: string;
+}
+
+export interface SourceGuidance {
+  tier1: AuthoritySourceData[];
+  tier2: AuthoritySourceData[];
+  tier3: AuthoritySourceData[];
+  avoid: string[];
+}
+
+export interface Evidence {
+  sourceId: string;
+  sourceUrl: string;
+  sourceTitle: string;
+  sourceName: string;
+  publishDate: string;
+  excerpt: string;
+  originalExcerpt?: string;
+  language: string;
+  isTranslated: boolean;
+  originalLanguage?: string;
+  isRTL?: boolean;
+}
+
+export interface Claim {
+  id: string;
+  text: string;
+  pestleDomain: 'POLITICAL' | 'ECONOMIC' | 'SOCIAL' | 'TECHNOLOGICAL' | 'LEGAL' | 'ENVIRONMENTAL';
+  industries: string[];
+  geographies: string[];
+  timeHorizon: 'current' | 'short_term' | 'medium_term' | 'long_term';
+  metrics?: Record<string, number>;
+  evidence: Evidence[];
+  agreement: 'full' | 'partial' | 'conflicting';
+  confidence: 'high' | 'medium' | 'low';
+  created: string;
+}
+
+export interface PESTLEFactors {
+  POLITICAL: Claim[];
+  ECONOMIC: Claim[];
+  SOCIAL: Claim[];
+  TECHNOLOGICAL: Claim[];
+  LEGAL: Claim[];
+  ENVIRONMENTAL: Claim[];
+}
+
+export interface AssumptionComparison {
+  type: 'validates' | 'contradicts';
+  userEntityId: string;
+  trendClaim: Claim;
+  evidence: string;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export interface TrendTelemetry {
+  latency_ms: number;
+  tokens: {
+    input: number;
+    output: number;
+    by_step: Record<string, { input: number; output: number }>;
+  };
+  cache_hits: {
+    authority: number;
+    documents: number;
+    claims: number;
+  };
+  documents_by_tier: {
+    tier1: number;
+    tier2: number;
+    tier3: number;
+  };
+  retries_used: number;
+  external_api_calls: {
+    azure_translator: number;
+    geonames: number;
+    web_search: number;
+    web_fetch: number;
+  };
+  external_api_failures: {
+    azure_translator: number;
+    geonames: number;
+  };
+}
+
+export interface TrendResult {
+  version: string;
+  domain: Domain;
+  pestleFactors: PESTLEFactors;
+  validatedClaims: Claim[];
+  comparisons: AssumptionComparison[];
+  synthesis: string;
+  telemetry?: TrendTelemetry;
+}
+
+export interface Document {
+  id: string;
+  url: string;
+  title: string;
+  publisher: string;
+  publishDateISO: string;
+  content: string;
+  abstract?: string;
+  language: string;
+  wasTranslated?: boolean;
+  originalLanguage?: string;
+  originalExcerpt?: string;
+  isPaywalled?: boolean;
+  hasAbstract?: boolean;
+  isGlobal?: boolean;
+  coversMultipleCountries?: boolean;
+}
+
+export interface Source {
+  name: string;
+  url?: string;
+  industries?: string[];
+  countries?: string[];
+  language?: string;
+  publishDateISO?: string;
+  hasQuantitativeData?: boolean;
+  citesPrimaryResearch?: boolean;
+  showsMethodology?: boolean;
+  matches(authorityName: string): boolean;
+  coversCountryByISO(iso: string): boolean;
+  coversRegionByISO(iso: string): boolean;
+  coversCityByGeoNameId(id: string): boolean;
+  isGlobalWithCountryData(iso: string): boolean;
+  isGlobalGeneric(): boolean;
+  coversRegulatoryFramework(framework: string): boolean;
+}

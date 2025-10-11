@@ -156,7 +156,7 @@ ENTITY TYPES & CATEGORIZATION:
   - "Need Hindi localization" → "Non-Hindi speakers are potential customers" (implicit)
   - "$500K investment" → "Expects ROI from this investment" (implicit)
 - Source: Quote the text that implies it
-- Evidence: Explain the logical chain briefly
+- Evidence: Explain the logical chain briefly.
 
 **3. INFERRED_REASONING (confidence: low)**
 - Exploratory/speculative insights:
