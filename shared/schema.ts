@@ -530,12 +530,14 @@ export const authoritySources = pgTable("authority_sources", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull().unique(),
   url: text("url"),
+  tier: integer("tier").notNull(), // 1 = high, 2 = medium, 3 = low authority
   lastSeen: timestamp("last_seen").notNull().defaultNow(),
   hits: integer("hits").notNull().default(0),
   corroborations: integer("corroborations").notNull().default(0),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
   nameIdx: index("idx_authority_sources_name").on(table.name),
+  tierIdx: index("idx_authority_sources_tier").on(table.tier),
 }));
 
 export const authoritySourceIndustries = pgTable("authority_source_industries", {
