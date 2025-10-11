@@ -56,7 +56,10 @@ export default function BMCTestPage() {
   };
 
   const handleConductBMCResearch = async () => {
+    console.log('[BMC-FRONTEND] Button clicked!');
+    
     if (!frameworkSelection || frameworkSelection.selectedFramework !== 'business_model_canvas') {
+      console.log('[BMC-FRONTEND] Framework not BMC:', frameworkSelection);
       toast({
         title: 'BMC Not Selected',
         description: 'Business Model Canvas must be selected first',
@@ -65,12 +68,14 @@ export default function BMCTestPage() {
       return;
     }
 
+    console.log('[BMC-FRONTEND] Starting research, making fetch request...');
     setIsResearching(true);
     setProgressMessage('Starting research...');
     setProgressStep(0);
     setProgressTotal(0);
     
     try {
+      console.log('[BMC-FRONTEND] Fetching:', '/api/strategic-consultant/bmc-research');
       const response = await fetch('/api/strategic-consultant/bmc-research', {
         method: 'POST',
         headers: {

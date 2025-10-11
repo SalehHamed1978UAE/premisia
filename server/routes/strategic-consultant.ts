@@ -804,6 +804,7 @@ router.post('/select-framework', async (req: Request, res: Response) => {
 });
 
 router.post('/bmc-research', async (req: Request, res: Response) => {
+  console.log('[BMC-RESEARCH] Endpoint called! sessionId:', req.body.sessionId);
   req.socket.setTimeout(600000);
   
   try {
@@ -812,6 +813,8 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
     if (!input) {
       return res.status(400).json({ error: 'Input text is required' });
     }
+    
+    console.log('[BMC-RESEARCH] Starting SSE stream for session:', sessionId);
 
     // Set up Server-Sent Events
     res.setHeader('Content-Type', 'text/event-stream');
