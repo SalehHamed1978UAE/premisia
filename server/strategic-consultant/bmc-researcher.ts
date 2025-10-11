@@ -333,6 +333,74 @@ export class BMCResearcher {
   }
 
   /**
+   * Validate ALL contradictions upfront (prevents DB timeout by doing LLM calls separately)
+   */
+  private async validateAllContradictions(
+    contradictions: Contradiction[],
+    userInputEntities: any[]
+  ): Promise<Array<{
+    contradiction: Contradiction;
+    sourceEntity: any;
+    isValid: boolean;
+    validation: {
+      isContradiction: boolean;
+      reasoning: string;
+      provider?: string;
+      model?: string;
+    }
+  }>> {
+    console.log(`[BMCResearcher] Validating ${contradictions.length} potential contradictions...`);
+    
+    const results = await Promise.all(
+      contradictions.map(async (contradiction) => {
+        // Find the source entity that matches the assumption
+        const sourceEntity = userInputEntities.find(e => {
+          const entityClaim = e.claim.toLowerCase();
+          const assumptionClaim = contradiction.assumption.toLowerCase();
+          return entityClaim.includes(assumptionClaim.substring(0, 30)) ||
+                 assumptionClaim.includes(entityClaim.substring(0, 30));
+        });
+
+        if (!sourceEntity || contradiction.contradictedBy.length === 0) {
+          return {
+            contradiction,
+            sourceEntity: null,
+            isValid: false,
+            validation: { isContradiction: false, reasoning: 'No matching entity found' }
+          };
+        }
+
+        // Semantic validation: Check EACH evidence item separately
+        const validationResults = await Promise.all(
+          contradiction.contradictedBy.map(evidence => 
+            this.validateContradiction(sourceEntity.claim, evidence)
+          )
+        );
+
+        // Only valid if ALL evidence items are semantically equivalent
+        const allValid = validationResults.every(v => v.isContradiction);
+        const validationReasons = validationResults.map(v => v.reasoning);
+
+        return {
+          contradiction,
+          sourceEntity,
+          isValid: allValid,
+          validation: {
+            isContradiction: allValid,
+            reasoning: allValid 
+              ? `All ${validationResults.length} evidence items validated as same concept: ${validationReasons.join('; ')}`
+              : `Some evidence items are different concepts: ${validationReasons.join('; ')}`,
+            provider: validationResults[0]?.provider,
+            model: validationResults[0]?.model
+          }
+        };
+      })
+    );
+
+    return results;
+  }
+
+  /**
    * Semantic validation: Check if user claim and research finding are about the same concept
    * Prevents false contradictions from semantically different claims (e.g., "PM software" vs "PM discipline")
    */
@@ -406,10 +474,17 @@ Are these about the SAME concept such that one could contradict the other?`;
     console.log(`[BMCResearcher] Storing BMC findings in knowledge graph for understanding: ${understandingId}`);
 
     try {
-      // Get persisted user_input entities from database (with IDs)
+      // STEP 1: Get DB entities ONCE (minimize DB connection time)
       const persistedUserEntities = await strategicUnderstandingService.getEntitiesByUnderstanding(understandingId);
       const userInputEntities = persistedUserEntities.filter(e => e.discoveredBy === 'user_input');
       console.log(`[BMCResearcher] Found ${userInputEntities.length} persisted user_input entities for contradiction matching`);
+      
+      // STEP 2: Do ALL semantic validations BEFORE touching DB again (prevents timeout)
+      console.log(`[BMCResearcher] Performing semantic validation (no DB operations)...`);
+      const validatedContradictions = await this.validateAllContradictions(contradictions, userInputEntities);
+      console.log(`[BMCResearcher] Validation complete: ${validatedContradictions.filter(v => v.isValid).length}/${validatedContradictions.length} contradictions validated`);
+      
+      // STEP 3: Now do fast DB operations with pre-validated results
       // 1. Store research findings as entities (type: research_finding)
       const findingEntities: any[] = [];
       for (const block of blocks) {
@@ -426,63 +501,15 @@ Are these about the SAME concept such that one could contradict the other?`;
       }
       console.log(`[BMCResearcher] Stored ${findingEntities.length} research findings`);
 
-      // 2. Store contradictions as relationships (type: contradicts) with semantic validation
-      console.log(`[BMCResearcher] Validating ${contradictions.length} potential contradictions...`);
-      
-      // Batch semantic validation for all contradictions
-      const validationResults = await Promise.all(
-        contradictions.map(async (contradiction) => {
-          // Find the source entity that matches the assumption (from persisted entities with IDs)
-          const sourceEntity = userInputEntities.find(e => {
-            const entityClaim = e.claim.toLowerCase();
-            const assumptionClaim = contradiction.assumption.toLowerCase();
-            
-            // Try substring matching (more flexible)
-            const match = entityClaim.includes(assumptionClaim.substring(0, 30)) ||
-                         assumptionClaim.includes(entityClaim.substring(0, 30));
-            
-            if (match) {
-              console.log(`[BMCResearcher] Matched contradiction "${contradiction.assumption}" to entity "${e.claim}"`);
-            }
-            return match;
-          });
-
-          if (!sourceEntity || contradiction.contradictedBy.length === 0) {
-            return null;
-          }
-
-          // Semantic validation: Check EACH evidence item separately (prevent false positives from mixed evidence)
-          const validationResults = await Promise.all(
-            contradiction.contradictedBy.map(evidence => 
-              this.validateContradiction(sourceEntity.claim, evidence)
-            )
-          );
-
-          // Only valid if ALL evidence items are semantically equivalent to user claim
-          const allValid = validationResults.every(v => v.isContradiction);
-          const validationReasons = validationResults.map(v => v.reasoning);
-
-          return {
-            contradiction,
-            sourceEntity,
-            validation: {
-              isContradiction: allValid,
-              reasoning: allValid 
-                ? `All ${validationResults.length} evidence items validated as same concept: ${validationReasons.join('; ')}`
-                : `Some evidence items are different concepts: ${validationReasons.join('; ')}`,
-              provider: validationResults[0]?.provider,
-              model: validationResults[0]?.model
-            }
-          };
-        })
-      );
-
-      // Filter and create only validated contradictions
+      // 2. Store only validated contradictions (pre-validated to prevent timeout)
       let createdCount = 0;
       let skippedCount = 0;
       
-      for (const result of validationResults) {
-        if (!result) continue;
+      for (const result of validatedContradictions) {
+        if (!result.isValid || !result.sourceEntity) {
+          skippedCount++;
+          continue;
+        }
 
         const { contradiction, sourceEntity, validation } = result;
 
