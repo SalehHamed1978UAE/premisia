@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { z } from "zod";
 import { db } from "./db";
 import { 
   strategicUnderstanding, 
@@ -14,6 +15,7 @@ import type {
   StrategicRelationship
 } from "@shared/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
+import { aiClients } from "./ai-clients";
 
 const EMBEDDING_MODEL = "text-embedding-3-small";
 const EMBEDDING_DIMENSIONS = 1536;
@@ -34,6 +36,26 @@ export interface EntityExtractionResult {
   investmentAmount?: number;
   evidence?: string;
 }
+
+const entityExtractionSchema = z.object({
+  entities: z.array(z.object({
+    type: z.enum([
+      'explicit_assumption',
+      'implicit_implication', 
+      'inferred_reasoning',
+      'constraint',
+      'opportunity',
+      'risk'
+    ]),
+    claim: z.string(),
+    source: z.string(),
+    confidence: z.enum(['high', 'medium', 'low']),
+    category: z.string().optional(),
+    subcategory: z.string().optional(),
+    investmentAmount: z.number().optional(),
+    evidence: z.string().optional(),
+  })),
+});
 
 export class StrategicUnderstandingService {
   private openai: OpenAI | null = null;
@@ -80,6 +102,137 @@ export class StrategicUnderstandingService {
       .returning();
 
     return inserted[0];
+  }
+
+  async extractUnderstanding(options: ExtractUnderstandingOptions): Promise<EntityExtractionResult[]> {
+    const { sessionId, userInput, companyContext } = options;
+
+    const systemPrompt = `You are a strategic insight extraction expert. Your ONLY job is to extract verifiable insights from user input. Return ONLY valid JSON (no markdown, no explanation).
+
+CRITICAL GROUNDING RULES:
+1. EXPLICIT entities: User DIRECTLY stated them - require exact quote in source field
+2. IMPLICIT entities: Direct logical implications with clear reasoning chain
+3. INFERRED entities: Exploratory reasoning (mark as low confidence)
+4. NEVER invent facts not grounded in the input
+5. Source field MUST contain actual text from input (exact substring match required)`;
+
+    const userMessage = `Extract strategic entities from user input using STRICT 3-tier categorization. Only extract what can be VALIDATED.
+
+USER INPUT:
+${userInput}
+
+ENTITY TYPES & CATEGORIZATION:
+
+**1. EXPLICIT_ASSUMPTION (confidence: high)**
+- User DIRECTLY states: "We assume X", "X is critical", "We need Y", "Plan to do Z"
+- Investment amounts: "$500K for Hindi" → "Hindi localization is a priority" (explicit, investment=$500000)
+- Targets: "100 clients in 18 months" → "100 clients within 18 months is the goal" (explicit)
+- Source: EXACT quote where user stated it
+
+**2. IMPLICIT_IMPLICATION (confidence: medium)**
+- DIRECT logical implications only:
+  - "Expand to India" → "India market entry is planned" (implicit)
+  - "Need Hindi localization" → "Non-Hindi speakers are potential customers" (implicit)
+  - "$500K investment" → "Expects ROI from this investment" (implicit)
+- Source: Quote the text that implies it
+- Evidence: Explain the logical chain briefly
+
+**3. INFERRED_REASONING (confidence: low)**
+- Exploratory/speculative insights:
+  - "Target enterprises" → MIGHT imply "SMB market is deprioritized" (inferred)
+  - "18-month timeline" → COULD suggest "Speed is competitive advantage" (inferred)
+- Mark confidence as LOW
+- Evidence: Explain the reasoning
+
+**4. CONSTRAINT, OPPORTUNITY, RISK**
+- CONSTRAINT: "Budget is $500K" (explicit limit)
+- OPPORTUNITY: "Indian market is growing" (if stated)
+- RISK: "Competition is intense" (if stated)
+
+EXTRACTION RULES:
+1. Extract 3-8 entities (quality over quantity)
+2. Source MUST be actual text from input (will be validated)
+3. Explicit entities require HIGH confidence + exact quote
+4. Implicit entities need clear logical chain in evidence
+5. Inferred entities have LOW confidence + reasoning explanation
+6. Extract investment amounts as numbers (e.g., 500000 for "$500K")
+7. Add category/subcategory for organization (e.g., "market_entry", "localization")
+
+EXAMPLE:
+
+Input: "We want to expand Asana to India with Hindi localization ($500K investment) to target 100 enterprise clients in 18 months."
+
+Extract:
+{
+  "entities": [
+    {
+      "type": "explicit_assumption",
+      "claim": "India market expansion is planned",
+      "source": "expand Asana to India",
+      "confidence": "high",
+      "category": "market_entry"
+    },
+    {
+      "type": "explicit_assumption",
+      "claim": "Hindi localization requires $500K investment",
+      "source": "Hindi localization ($500K investment)",
+      "confidence": "high",
+      "category": "localization",
+      "investmentAmount": 500000
+    },
+    {
+      "type": "explicit_assumption",
+      "claim": "Target is 100 enterprise clients within 18 months",
+      "source": "target 100 enterprise clients in 18 months",
+      "confidence": "high",
+      "category": "growth_target"
+    },
+    {
+      "type": "implicit_implication",
+      "claim": "Enterprise segment is the primary target in India",
+      "source": "target 100 enterprise clients",
+      "confidence": "medium",
+      "evidence": "Specific focus on enterprise clients implies prioritization of this segment"
+    },
+    {
+      "type": "implicit_implication",
+      "claim": "18-month timeline is considered achievable",
+      "source": "in 18 months",
+      "confidence": "medium",
+      "evidence": "Setting a specific timeline implies feasibility assessment"
+    },
+    {
+      "type": "inferred_reasoning",
+      "claim": "Speed to market may be a competitive factor",
+      "source": "in 18 months",
+      "confidence": "low",
+      "evidence": "The specific 18-month timeline could suggest urgency driven by competitive pressure, but this is speculative"
+    }
+  ]
+}
+
+Now extract entities from the provided user input. Return ONLY valid JSON:`;
+
+    const response = await aiClients.callWithFallback({
+      systemPrompt,
+      userMessage,
+      maxTokens: 3000,
+    }, "anthropic");
+
+    const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('No JSON found in AI response');
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    const validated = entityExtractionSchema.parse(parsed);
+
+    console.log(`[StrategicUnderstanding] Extracted ${validated.entities.length} entities from user input`);
+    validated.entities.forEach((entity, idx) => {
+      console.log(`  ${idx + 1}. [${entity.type}] ${entity.claim} (confidence: ${entity.confidence})`);
+    });
+
+    return validated.entities;
   }
 
   async generateEmbedding(text: string): Promise<number[]> {
