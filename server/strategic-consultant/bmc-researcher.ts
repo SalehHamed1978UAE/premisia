@@ -447,34 +447,43 @@ export class BMCResearcher {
   }
 
   /**
-   * Semantic validation: Check if user claim and research finding are about the same concept
+   * Semantic validation: Check if user claim and research finding contradict each other
+   * Two-step check: (1) Same concept? (2) Different values?
    * Prevents false contradictions from semantically different claims (e.g., "PM software" vs "PM discipline")
    */
   private async validateContradiction(
     userClaim: string,
     researchFinding: string
   ): Promise<{isContradiction: boolean, reasoning: string, provider?: string, model?: string}> {
-    const systemPrompt = `You are a semantic analysis expert. Your job is to determine if two statements are about the SAME concept such that one could contradict the other.
+    const systemPrompt = `You are a contradiction detection expert. Your job is to determine if two statements CONTRADICT each other.
 
-IMPORTANT: Both statements can be factually true if they refer to DIFFERENT concepts.
+CRITICAL TWO-STEP CHECK:
+Step 1: Are they about the SAME concept/topic?
+Step 2: If same concept, do the values/claims DIFFER?
+
+CONTRADICTION = SAME CONCEPT + DIFFERENT VALUES
 
 Examples:
-- "PM software implementation takes 2-4 weeks" vs "PM discipline adoption takes 6 months" → DIFFERENT (software vs discipline)
-- "Asana deployment takes 2 weeks" vs "Asana implementation takes 6 months" → SAME (both about Asana rollout)
-- "Hiring engineers costs $500" vs "Hiring process costs $1000" → DIFFERENT (salaries vs recruitment process)
-- "India market entry" vs "India market research" → DIFFERENT (entering vs researching)
-- "Monthly cost is $500" vs "Monthly subscription is $800" → SAME (both about recurring cost)
+- "Monthly cost is $500" vs "Monthly subscription is $624.75" → SAME concept (recurring cost) + DIFFERENT values ($500 ≠ $624.75) → CONTRADICTION ✓
+- "Implementation takes 2-4 weeks" vs "Implementation takes 6 months" → SAME concept (timeline) + DIFFERENT values (weeks vs months) → CONTRADICTION ✓
+- "PM software implementation takes 2-4 weeks" vs "PM discipline adoption takes 6 months" → DIFFERENT concepts (software vs discipline) → NOT A CONTRADICTION ✗
+- "Asana deployment takes 2 weeks" vs "Asana implementation takes 6 months" → SAME concept (Asana rollout) + DIFFERENT values (2 weeks vs 6 months) → CONTRADICTION ✓
+- "Hiring engineers costs $500" vs "Hiring process costs $1000" → DIFFERENT concepts (salaries vs recruitment process) → NOT A CONTRADICTION ✗
+- "India market entry" vs "India market research" → DIFFERENT concepts (entering vs researching) → NOT A CONTRADICTION ✗
 
 Return ONLY valid JSON with this exact structure:
 {
   "isSameConcept": true/false,
-  "reasoning": "Brief explanation of why they are the same or different concepts"
+  "valuesConflict": true/false,
+  "isContradiction": true/false,
+  "reasoning": "Brief explanation of your analysis"
 }`;
 
     const userMessage = `User claimed: "${userClaim}"
 Research found: "${researchFinding}"
 
-Are these about the SAME concept such that one could contradict the other?`;
+Do these statements contradict each other?
+Step 1: Same concept? Step 2: Different values?`;
 
     try {
       const response = await aiClients.callWithFallback({
@@ -491,10 +500,16 @@ Are these about the SAME concept such that one could contradict the other?`;
 
       const result = JSON.parse(jsonMatch[0]);
       
-      console.log(`[BMCResearcher] Semantic validation: "${userClaim.substring(0, 50)}..." vs "${researchFinding.substring(0, 50)}..." → ${result.isSameConcept ? 'SAME CONCEPT' : 'DIFFERENT CONCEPTS'}`);
+      const status = result.isContradiction 
+        ? `CONTRADICTION (same concept, different values)` 
+        : result.isSameConcept 
+          ? `NOT CONTRADICTION (same concept, same values)` 
+          : `NOT CONTRADICTION (different concepts)`;
+      
+      console.log(`[BMCResearcher] Semantic validation: "${userClaim.substring(0, 50)}..." vs "${researchFinding.substring(0, 50)}..." → ${status}`);
       
       return {
-        isContradiction: result.isSameConcept === true,
+        isContradiction: result.isContradiction === true,
         reasoning: result.reasoning || 'No reasoning provided',
         provider: response.provider,
         model: response.model
