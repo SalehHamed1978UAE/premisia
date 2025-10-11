@@ -333,6 +333,66 @@ export class BMCResearcher {
   }
 
   /**
+   * Semantic validation: Check if user claim and research finding are about the same concept
+   * Prevents false contradictions from semantically different claims (e.g., "PM software" vs "PM discipline")
+   */
+  private async validateContradiction(
+    userClaim: string,
+    researchFinding: string
+  ): Promise<{isContradiction: boolean, reasoning: string, provider?: string, model?: string}> {
+    const systemPrompt = `You are a semantic analysis expert. Your job is to determine if two statements are about the SAME concept such that one could contradict the other.
+
+IMPORTANT: Both statements can be factually true if they refer to DIFFERENT concepts.
+
+Examples:
+- "PM software implementation takes 2-4 weeks" vs "PM discipline adoption takes 6 months" → DIFFERENT (software vs discipline)
+- "Asana deployment takes 2 weeks" vs "Asana implementation takes 6 months" → SAME (both about Asana rollout)
+- "Hiring engineers costs $500" vs "Hiring process costs $1000" → DIFFERENT (salaries vs recruitment process)
+- "India market entry" vs "India market research" → DIFFERENT (entering vs researching)
+- "Monthly cost is $500" vs "Monthly subscription is $800" → SAME (both about recurring cost)
+
+Return ONLY valid JSON with this exact structure:
+{
+  "isSameConcept": true/false,
+  "reasoning": "Brief explanation of why they are the same or different concepts"
+}`;
+
+    const userMessage = `User claimed: "${userClaim}"
+Research found: "${researchFinding}"
+
+Are these about the SAME concept such that one could contradict the other?`;
+
+    try {
+      const response = await aiClients.callWithFallback({
+        systemPrompt,
+        userMessage,
+        maxTokens: 500,
+      }, "anthropic");
+
+      const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.warn('[BMCResearcher] Semantic validation: No JSON found in response');
+        return { isContradiction: false, reasoning: 'Validation failed - no JSON response' };
+      }
+
+      const result = JSON.parse(jsonMatch[0]);
+      
+      console.log(`[BMCResearcher] Semantic validation: "${userClaim.substring(0, 50)}..." vs "${researchFinding.substring(0, 50)}..." → ${result.isSameConcept ? 'SAME CONCEPT' : 'DIFFERENT CONCEPTS'}`);
+      
+      return {
+        isContradiction: result.isSameConcept === true,
+        reasoning: result.reasoning || 'No reasoning provided',
+        provider: response.provider,
+        model: response.model
+      };
+    } catch (error) {
+      console.error('[BMCResearcher] Semantic validation error:', error);
+      // Soft fail: Skip contradiction creation on validation error
+      return { isContradiction: false, reasoning: `Validation error: ${error}` };
+    }
+  }
+
+  /**
    * Task 17: Store BMC research findings back into the knowledge graph
    * Maps: research findings → entities, contradictions → relationships, gaps → entities
    */
@@ -366,25 +426,69 @@ export class BMCResearcher {
       }
       console.log(`[BMCResearcher] Stored ${findingEntities.length} research findings`);
 
-      // 2. Store contradictions as relationships (type: contradicts)
-      for (const contradiction of contradictions) {
-        // Find the source entity that matches the assumption (from persisted entities with IDs)
-        const sourceEntity = userInputEntities.find(e => {
-          const entityClaim = e.claim.toLowerCase();
-          const assumptionClaim = contradiction.assumption.toLowerCase();
-          
-          // Try substring matching (more flexible)
-          const match = entityClaim.includes(assumptionClaim.substring(0, 30)) ||
-                       assumptionClaim.includes(entityClaim.substring(0, 30));
-          
-          if (match) {
-            console.log(`[BMCResearcher] Matched contradiction "${contradiction.assumption}" to entity "${e.claim}"`);
-          }
-          return match;
-        });
+      // 2. Store contradictions as relationships (type: contradicts) with semantic validation
+      console.log(`[BMCResearcher] Validating ${contradictions.length} potential contradictions...`);
+      
+      // Batch semantic validation for all contradictions
+      const validationResults = await Promise.all(
+        contradictions.map(async (contradiction) => {
+          // Find the source entity that matches the assumption (from persisted entities with IDs)
+          const sourceEntity = userInputEntities.find(e => {
+            const entityClaim = e.claim.toLowerCase();
+            const assumptionClaim = contradiction.assumption.toLowerCase();
+            
+            // Try substring matching (more flexible)
+            const match = entityClaim.includes(assumptionClaim.substring(0, 30)) ||
+                         assumptionClaim.includes(entityClaim.substring(0, 30));
+            
+            if (match) {
+              console.log(`[BMCResearcher] Matched contradiction "${contradiction.assumption}" to entity "${e.claim}"`);
+            }
+            return match;
+          });
 
-        if (sourceEntity && contradiction.contradictedBy.length > 0) {
-          console.log(`[BMCResearcher] Creating contradiction relationship from entity ID: ${sourceEntity.id}`);
+          if (!sourceEntity || contradiction.contradictedBy.length === 0) {
+            return null;
+          }
+
+          // Semantic validation: Check EACH evidence item separately (prevent false positives from mixed evidence)
+          const validationResults = await Promise.all(
+            contradiction.contradictedBy.map(evidence => 
+              this.validateContradiction(sourceEntity.claim, evidence)
+            )
+          );
+
+          // Only valid if ALL evidence items are semantically equivalent to user claim
+          const allValid = validationResults.every(v => v.isContradiction);
+          const validationReasons = validationResults.map(v => v.reasoning);
+
+          return {
+            contradiction,
+            sourceEntity,
+            validation: {
+              isContradiction: allValid,
+              reasoning: allValid 
+                ? `All ${validationResults.length} evidence items validated as same concept: ${validationReasons.join('; ')}`
+                : `Some evidence items are different concepts: ${validationReasons.join('; ')}`,
+              provider: validationResults[0]?.provider,
+              model: validationResults[0]?.model
+            }
+          };
+        })
+      );
+
+      // Filter and create only validated contradictions
+      let createdCount = 0;
+      let skippedCount = 0;
+      
+      for (const result of validationResults) {
+        if (!result) continue;
+
+        const { contradiction, sourceEntity, validation } = result;
+
+        if (validation.isContradiction) {
+          console.log(`[BMCResearcher] ✓ Validated contradiction - creating relationship from entity ID: ${sourceEntity.id}`);
+          
           // Create a contradiction entity for the evidence
           const contradictionEntity = await strategicUnderstandingService.createEntity(understandingId, {
             type: 'research_finding',
@@ -394,18 +498,35 @@ export class BMCResearcher {
             evidence: `Contradicts: ${contradiction.assumption}. Impact: ${contradiction.impact}`,
           }, 'bmc_agent');
 
-          // Create relationship: sourceEntity --[contradicts]--> contradictionEntity
+          // Create relationship with validation metadata
           await strategicUnderstandingService.createRelationship(
             sourceEntity.id,
             contradictionEntity.id,
             'contradicts',
             contradiction.validationStrength === 'STRONG' ? 'high' : contradiction.validationStrength === 'MODERATE' ? 'medium' : 'low',
             contradiction.recommendation,
-            'bmc_agent'
+            'bmc_agent',
+            {
+              semanticValidation: {
+                reasoning: validation.reasoning,
+                provider: validation.provider,
+                model: validation.model,
+                validatedAt: new Date().toISOString()
+              },
+              contradictionImpact: contradiction.impact,
+              contradictionRecommendation: contradiction.recommendation
+            }
           );
+          
+          createdCount++;
+        } else {
+          console.log(`[BMCResearcher] ✗ Skipped false contradiction: "${sourceEntity.claim}" vs "${contradiction.contradictedBy[0].substring(0, 60)}..."`);
+          console.log(`[BMCResearcher]   Reason: ${validation.reasoning}`);
+          skippedCount++;
         }
       }
-      console.log(`[BMCResearcher] Stored ${contradictions.length} contradiction relationships`);
+      
+      console.log(`[BMCResearcher] Contradiction results: ${createdCount} created, ${skippedCount} skipped (semantic validation)`);
 
       // 3. Store critical gaps as entities (type: business_model_gap)
       for (const gap of criticalGaps.slice(0, 5)) { // Top 5 critical gaps

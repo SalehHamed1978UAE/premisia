@@ -399,7 +399,8 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
     relationshipType: string,
     confidence: "high" | "medium" | "low",
     evidence?: string,
-    discoveredBy: 'user_input' | 'bmc_agent' | '5whys_agent' | 'porters_agent' | 'trends_agent' | 'system' = 'system'
+    discoveredBy: 'user_input' | 'bmc_agent' | '5whys_agent' | 'porters_agent' | 'trends_agent' | 'system' = 'system',
+    metadata?: any
   ): Promise<StrategicRelationship> {
     const relationshipData: InsertStrategicRelationship = {
       fromEntityId,
@@ -410,7 +411,7 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
       discoveredBy: discoveredBy as any,
       validFrom: new Date(),
       validTo: null,
-      metadata: null,
+      metadata: metadata || null,
     };
 
     const inserted = await db
