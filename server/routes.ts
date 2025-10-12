@@ -7,6 +7,7 @@ import { ontologyService } from "./ontology-service";
 import { assessmentService } from "./assessment-service";
 import { Orchestrator } from "./orchestrator";
 import strategicConsultantRoutes from "./routes/strategic-consultant";
+import trendAnalysisRoutes from "./routes/trend-analysis";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup Replit Auth
@@ -29,6 +30,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Strategic Consultant routes (protected with auth)
   app.use("/api/strategic-consultant", requireAuth, strategicConsultantRoutes);
+  
+  // Trend Analysis routes (protected with auth)
+  app.use("/api/trend-analysis", requireAuth, trendAnalysisRoutes);
 
   // Middleware to check roles (updated for Replit Auth)
   const requireRole = (roles: string[]) => async (req: any, res: any, next: any) => {
