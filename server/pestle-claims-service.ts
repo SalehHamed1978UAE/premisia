@@ -39,8 +39,9 @@ export interface PESTLEFactors {
 export class PESTLEClaimsService {
   /**
    * Generate PESTLE claims based on domain context
+   * Returns claims and provider used for telemetry
    */
-  async generateClaims(domain: DomainContext): Promise<PESTLEFactors> {
+  async generateClaims(domain: DomainContext): Promise<{ claims: PESTLEFactors; provider: string }> {
     const userMessage = this.buildPESTLEPrompt(domain);
     
     const systemPrompt = `You are a strategic analyst specializing in PESTLE analysis. Your role is to identify macro-environmental factors that could impact businesses based on their industry, geography, and context.
@@ -81,7 +82,10 @@ Output must be valid JSON in this exact structure:
       // Parse LLM response
       const parsed = this.parsePESTLEResponse(response.content);
       
-      return parsed;
+      return {
+        claims: parsed,
+        provider: response.provider
+      };
     } catch (error) {
       console.error('Error generating PESTLE claims:', error);
       throw new Error('Failed to generate PESTLE claims');

@@ -25,38 +25,41 @@ export interface AssumptionComparison {
 export class AssumptionComparisonService {
   /**
    * Compare PESTLE claims with assumptions from strategic understanding
+   * Returns comparisons and provider info for telemetry
    */
   async compareWithAssumptions(
-    understandingId: number,
+    understandingId: string,
     claims: PESTLEClaim[]
-  ): Promise<AssumptionComparison[]> {
+  ): Promise<{ comparisons: AssumptionComparison[]; providers: string[] }> {
     // Load assumptions from strategic_entities
     const assumptions = await this.loadAssumptions(understandingId);
     
     if (assumptions.length === 0) {
       console.log('[AssumptionComparison] No assumptions found for understanding', understandingId);
-      return [];
+      return { comparisons: [], providers: [] };
     }
     
     // Compare each assumption with all claims
     const comparisons: AssumptionComparison[] = [];
+    const providers: string[] = [];
     
     for (const assumption of assumptions) {
-      const comparison = await this.compareAssumptionWithClaims(assumption, claims);
-      comparisons.push(comparison);
+      const result = await this.compareAssumptionWithClaims(assumption, claims);
+      comparisons.push(result.comparison);
+      providers.push(result.provider);
     }
     
-    return comparisons;
+    return { comparisons, providers };
   }
 
   /**
    * Load assumptions from strategic_entities
    */
-  private async loadAssumptions(understandingId: number) {
+  private async loadAssumptions(understandingId: string) {
     const entities = await db
       .select()
       .from(strategicEntities)
-      .where(eq(strategicEntities.understandingId, understandingId.toString()));
+      .where(eq(strategicEntities.understandingId, understandingId));
     
     return entities
       .filter(e => e.type === 'explicit_assumption' || e.type === 'implicit_implication')
@@ -70,11 +73,12 @@ export class AssumptionComparisonService {
 
   /**
    * Compare a single assumption with all PESTLE claims
+   * Returns comparison and provider for telemetry
    */
   private async compareAssumptionWithClaims(
     assumption: { id: string; claim: string; type: string },
     claims: PESTLEClaim[]
-  ): Promise<AssumptionComparison> {
+  ): Promise<{ comparison: AssumptionComparison; provider: string }> {
     // Use LLM to identify relationships
     const systemPrompt = `You are an expert at analyzing strategic assumptions and trend data. Your task is to compare a business assumption with macro-environmental trends and identify relationships.
 
@@ -140,24 +144,30 @@ Compare the assumption with each trend claim and identify relationships.`;
       }
       
       return {
-        assumptionId: assumption.id,
-        assumption: assumption.claim,
-        relationship,
-        relatedClaims: parsed.relatedClaims.map((rc: any) => ({
-          claim: rc.claim,
-          evidence: rc.evidence,
-          confidence: rc.confidence
-        }))
+        comparison: {
+          assumptionId: assumption.id,
+          assumption: assumption.claim,
+          relationship,
+          relatedClaims: parsed.relatedClaims.map((rc: any) => ({
+            claim: rc.claim,
+            evidence: rc.evidence,
+            confidence: rc.confidence
+          }))
+        },
+        provider: response.provider
       };
     } catch (error) {
       console.error('[AssumptionComparison] Error comparing assumption:', error);
       
       // Return neutral comparison on error
       return {
-        assumptionId: assumption.id,
-        assumption: assumption.claim,
-        relationship: 'neutral',
-        relatedClaims: []
+        comparison: {
+          assumptionId: assumption.id,
+          assumption: assumption.claim,
+          relationship: 'neutral',
+          relatedClaims: []
+        },
+        provider: 'unknown' // Error case
       };
     }
   }
