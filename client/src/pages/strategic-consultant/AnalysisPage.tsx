@@ -554,10 +554,10 @@ export default function AnalysisPage() {
         <div className="flex justify-end">
           <Button
             size="lg"
-            onClick={() => setLocation(`/strategic-consultant/decisions/${sessionId}/${data.version.versionNumber}`)}
-            data-testid="button-proceed-decisions-bottom"
+            onClick={() => setLocation(`/strategic-consultant/trend-analysis/${sessionId}/${data.version.versionNumber}`)}
+            data-testid="button-proceed-trend-analysis"
           >
-            Proceed to Strategic Decisions <ArrowRight className="ml-2 h-4 w-4" />
+            Next: PESTLE Trend Analysis <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </div>
       </div>

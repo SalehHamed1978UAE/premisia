@@ -12,6 +12,9 @@ import { FrameworkSelector } from '../strategic-consultant/framework-selector';
 import { BMCResearcher } from '../strategic-consultant/bmc-researcher';
 import { storage } from '../storage';
 import { unlink } from 'fs/promises';
+import { db } from '../db';
+import { strategicUnderstanding } from '@shared/schema';
+import { eq } from 'drizzle-orm';
 
 const router = Router();
 const upload = multer({ 
@@ -1016,6 +1019,37 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
     console.error('Error in /bmc-research:', error);
     res.write(`data: ${JSON.stringify({ error: error.message || 'BMC research failed' })}\n\n`);
     res.end();
+  }
+});
+
+// Get understanding ID by session ID
+router.get('/understanding/:sessionId', async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.params;
+    
+    const result = await db
+      .select()
+      .from(strategicUnderstanding)
+      .where(eq(strategicUnderstanding.sessionId, sessionId))
+      .limit(1);
+    
+    if (result.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Strategic understanding not found for this session' 
+      });
+    }
+    
+    res.json({
+      success: true,
+      understandingId: result[0].id,
+    });
+  } catch (error: any) {
+    console.error('Error fetching understanding ID:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message || 'Failed to fetch understanding ID' 
+    });
   }
 });
 
