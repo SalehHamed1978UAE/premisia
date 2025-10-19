@@ -63,6 +63,32 @@ router.get('/statements', async (req, res) => {
   }
 });
 
+router.delete('/analyses/:analysisId', async (req, res) => {
+  try {
+    const { analysisId } = req.params;
+
+    // First check if the analysis exists
+    const [analysis] = await db
+      .select()
+      .from(frameworkInsights)
+      .where(eq(frameworkInsights.id, analysisId));
+
+    if (!analysis) {
+      return res.status(404).json({ error: 'Analysis not found' });
+    }
+
+    // Delete the analysis - this will cascade delete related data
+    await db
+      .delete(frameworkInsights)
+      .where(eq(frameworkInsights.id, analysisId));
+
+    res.json({ success: true, message: 'Analysis deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting analysis:', error);
+    res.status(500).json({ error: 'Failed to delete analysis' });
+  }
+});
+
 router.get('/statements/:understandingId', async (req, res) => {
   try {
     const { understandingId } = req.params;
