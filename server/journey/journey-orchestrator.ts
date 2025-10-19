@@ -15,6 +15,8 @@ import {
 } from './strategic-context-accumulator';
 import { getJourney, isJourneyAvailable } from './journey-registry';
 import { applyWhysToBMCBridge } from './bridges/whys-to-bmc-bridge';
+import { WhysTreeGenerator } from '../strategic-consultant/whys-tree-generator';
+import { BMCResearcher } from '../strategic-consultant/bmc-researcher';
 
 export class JourneyOrchestrator {
   /**
@@ -202,54 +204,109 @@ export class JourneyOrchestrator {
 
   /**
    * Execute Five Whys framework
-   * NOTE: This is a simplified version - the actual implementation should call the real framework
    */
   private async executeFiveWhys(context: StrategicContext): Promise<any> {
-    // This is a placeholder - in the real implementation, this would:
-    // 1. Call the WhysTreeGenerator
-    // 2. Run the analysis
-    // 3. Return the results
+    console.log('[Journey] Executing Five Whys with AI...');
     
-    // For now, return a mock result
+    const generator = new WhysTreeGenerator();
+    const sessionId = context.sessionId;
+    const userInput = context.userInput;
+    
+    // Generate the complete Five Whys tree
+    const whysTree = await generator.generateTree(userInput, sessionId);
+    
+    console.log(`[Journey] Five Whys completed - generated tree with ${whysTree.branches.length} root branches`);
+    
+    // Extract root causes and paths from the tree
+    // Navigate through branches to find deepest answers (root causes)
+    const rootCauses: string[] = [];
+    const whysPath: string[] = [whysTree.rootQuestion];
+    
+    // Extract from each branch - for now, take first branch to build a path
+    if (whysTree.branches && whysTree.branches.length > 0) {
+      let currentLevel = whysTree.branches;
+      
+      // Traverse the first branch to build a complete path
+      while (currentLevel && currentLevel.length > 0) {
+        const node = currentLevel[0];
+        whysPath.push(node.question);
+        
+        // If we're at a leaf node (deepest level), this is a root cause
+        if (!node.branches || node.branches.length === 0) {
+          rootCauses.push(node.option || node.question);
+        }
+        
+        currentLevel = node.branches || [];
+      }
+      
+      // Also collect root causes from other branches
+      for (const branch of whysTree.branches) {
+        const deepestAnswer = this.findDeepestAnswer(branch);
+        if (deepestAnswer && !rootCauses.includes(deepestAnswer)) {
+          rootCauses.push(deepestAnswer);
+        }
+      }
+    }
+    
+    // Generate strategic implications from root causes
+    const strategicImplications = rootCauses.map(cause => 
+      `Strategic implication: The business model must address ${cause}`
+    );
+    
+    // Return data in the format expected by the accumulator
     return {
-      rootCause: 'Placeholder root cause',
-      rootCauses: ['Root cause 1'],
-      whysPath: ['Why 1', 'Why 2', 'Why 3'],
-      selectedPath: ['Level 1', 'Level 2', 'Level 3'],
-      strategicImplications: ['Implication 1', 'Implication 2'],
+      rootCauses: rootCauses.length > 0 ? rootCauses : ['No root causes identified'],
+      whysPath,
+      strategicImplications,
+      tree: whysTree, // Also include the full tree for reference
     };
+  }
+  
+  /**
+   * Helper to find the deepest answer in a branch
+   */
+  private findDeepestAnswer(node: any): string | null {
+    if (!node.branches || node.branches.length === 0) {
+      return node.option || node.question;
+    }
+    
+    // Recurse to find deepest
+    for (const branch of node.branches) {
+      const deep = this.findDeepestAnswer(branch);
+      if (deep) return deep;
+    }
+    
+    return node.option || node.question;
   }
 
   /**
    * Execute Business Model Canvas framework
-   * NOTE: This is a simplified version - the actual implementation should call the real framework
    */
   private async executeBMC(context: StrategicContext): Promise<any> {
+    console.log('[Journey] Executing BMC with AI...');
+    
     // Extract BMC constraints from context (provided by Five Whys bridge)
     const constraints = context.insights.bmcDesignConstraints;
-
-    // This is a placeholder - in the real implementation, this would:
-    // 1. Call the BMCAnalyzer with the constraints
-    // 2. Use the problemsToSolve, mustHaveCapabilities, designPrinciples
-    // 3. Run the analysis with contextualBackground
-    // 4. Return the results
-
-    // For now, log that we have the constraints and return mock data
+    
     if (constraints) {
-      console.log('[BMC] Received constraints from Five Whys bridge:', {
+      console.log('[Journey] BMC constraints from Five Whys:', {
         problems: constraints.problemsToSolve.length,
         capabilities: constraints.mustHaveCapabilities.length,
         principles: constraints.designPrinciples.length,
       });
     }
 
-    return {
-      blocks: {},
-      criticalGaps: constraints?.problemsToSolve || [],
-      contradictions: [],
-      // Include constraints in output to verify they were received
-      receivedConstraints: constraints ? true : false,
-    };
+    const researcher = new BMCResearcher();
+    const sessionId = context.sessionId;
+    const userInput = context.userInput;
+    
+    // For now, conduct BMC research with the original input
+    // TODO: Incorporate constraints into the BMC analysis
+    const bmcResults = await researcher.conductBMCResearch(userInput, sessionId);
+    
+    console.log(`[Journey] BMC analysis completed - generated ${Object.keys(bmcResults.blocks || {}).length} blocks`);
+    
+    return bmcResults;
   }
 
   /**
