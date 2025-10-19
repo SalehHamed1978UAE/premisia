@@ -1,0 +1,120 @@
+/**
+ * Journey Registry
+ * Defines the 6 pre-planned strategic journeys with their framework sequences
+ */
+
+import { JourneyDefinition, JourneyType } from '@shared/journey-types';
+
+export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
+  /**
+   * Business Model Innovation Journey
+   * For rethinking business models, revenue streams, and value creation
+   * AVAILABLE: Five Whys → BMC fully implemented
+   */
+  business_model_innovation: {
+    type: 'business_model_innovation',
+    name: 'Business Model Innovation',
+    description: 'Reimagine your business model by identifying root causes of problems, then designing innovative value propositions, revenue streams, and partnerships',
+    frameworks: ['five_whys', 'bmc'],
+    estimatedDuration: '12-18 minutes',
+    available: true, // FULLY IMPLEMENTED
+  },
+
+  /**
+   * Market Entry Strategy Journey
+   * For entering new markets or launching new products
+   * NOT YET IMPLEMENTED: Placeholder only
+   */
+  market_entry: {
+    type: 'market_entry',
+    name: 'Market Entry Strategy',
+    description: 'Analyze market dynamics, competitive forces, and trends to craft a successful market entry plan',
+    frameworks: ['pestle', 'porters', 'swot'],
+    estimatedDuration: '15-20 minutes',
+    available: false, // Placeholder - not implemented
+  },
+
+  /**
+   * Competitive Strategy Journey
+   * For competitive positioning and differentiation
+   * NOT YET IMPLEMENTED: Placeholder only
+   */
+  competitive_strategy: {
+    type: 'competitive_strategy',
+    name: 'Competitive Strategy',
+    description: 'Understand competitive forces, identify strategic gaps, and develop differentiation strategies',
+    frameworks: ['porters', 'bmc', 'blue_ocean'],
+    estimatedDuration: '15-22 minutes',
+    available: false, // Placeholder - not implemented
+  },
+
+  /**
+   * Digital Transformation Journey
+   * For technology-driven change initiatives
+   * NOT YET IMPLEMENTED: Placeholder only
+   */
+  digital_transformation: {
+    type: 'digital_transformation',
+    name: 'Digital Transformation',
+    description: 'Navigate digital disruption by analyzing tech trends, redesigning operating models, and planning growth',
+    frameworks: ['pestle', 'bmc', 'ansoff'],
+    estimatedDuration: '18-25 minutes',
+    available: false, // Placeholder - not implemented
+  },
+
+  /**
+   * Crisis Recovery Journey
+   * For turnaround and crisis management
+   * NOT YET IMPLEMENTED: Placeholder only
+   */
+  crisis_recovery: {
+    type: 'crisis_recovery',
+    name: 'Crisis Recovery',
+    description: 'Diagnose root causes of crisis, assess internal strengths/weaknesses, and rebuild business model',
+    frameworks: ['five_whys', 'swot', 'bmc'],
+    estimatedDuration: '14-20 minutes',
+    available: false, // Placeholder - not implemented
+  },
+
+  /**
+   * Growth Strategy Journey
+   * For expansion and scaling strategies
+   * NOT YET IMPLEMENTED: Placeholder only
+   */
+  growth_strategy: {
+    type: 'growth_strategy',
+    name: 'Growth Strategy',
+    description: 'Explore growth opportunities through market trends, expansion options, and business model optimization',
+    frameworks: ['pestle', 'ansoff', 'bmc'],
+    estimatedDuration: '16-23 minutes',
+    available: false, // Placeholder - not implemented
+  },
+};
+
+/**
+ * Get a journey definition by type
+ */
+export function getJourney(type: JourneyType): JourneyDefinition {
+  return JOURNEYS[type];
+}
+
+/**
+ * Get all available (implemented) journeys
+ */
+export function getAvailableJourneys(): JourneyDefinition[] {
+  return Object.values(JOURNEYS).filter(j => j.available);
+}
+
+/**
+ * Get all journeys (including unavailable placeholders)
+ */
+export function getAllJourneys(): JourneyDefinition[] {
+  return Object.values(JOURNEYS);
+}
+
+/**
+ * Check if a journey is available
+ */
+export function isJourneyAvailable(type: JourneyType): boolean {
+  return JOURNEYS[type]?.available ?? false;
+}
