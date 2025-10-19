@@ -5,7 +5,7 @@
  */
 
 import { db } from '../db';
-import { journeySessions, strategicUnderstanding } from '@shared/schema';
+import { journeySessions, strategicUnderstanding, frameworkInsights } from '@shared/schema';
 import { StrategicContext, JourneyType, FrameworkResult, JourneyProgress } from '@shared/journey-types';
 import { eq } from 'drizzle-orm';
 import {
@@ -112,6 +112,16 @@ export class JourneyOrchestrator {
 
         // Add result to context
         context = addFrameworkResult(context, result);
+
+        // ✅ NEW: Persist framework result to framework_insights table
+        try {
+          console.log(`[Journey] Attempting to save ${result.frameworkName} insights for understanding ${context.understandingId}`);
+          await this.saveFrameworkInsight(context.understandingId, result);
+          console.log(`[Journey] Successfully saved ${result.frameworkName} insights to framework_insights table`);
+        } catch (error) {
+          console.error(`[Journey] ERROR saving ${result.frameworkName} insights:`, error);
+          // Don't throw - allow journey to continue even if persistence fails
+        }
 
         // Apply bridge if needed (between frameworks)
         if (frameworkName === 'five_whys' && journey.frameworks[i + 1] === 'bmc') {
@@ -307,6 +317,28 @@ export class JourneyOrchestrator {
     console.log(`[Journey] BMC analysis completed - generated ${Object.keys(bmcResults.blocks || {}).length} blocks`);
     
     return bmcResults;
+  }
+
+  /**
+   * Save framework insight to framework_insights table
+   * This makes the result visible in the Analysis Repository
+   */
+  private async saveFrameworkInsight(
+    understandingId: string,
+    result: FrameworkResult
+  ): Promise<void> {
+    await db
+      .insert(frameworkInsights)
+      .values({
+        understandingId,
+        frameworkName: result.frameworkName,
+        frameworkVersion: '1.0',
+        insights: result.data as any,
+        telemetry: {
+          duration: result.duration,
+          executedAt: result.executedAt,
+        } as any,
+      });
   }
 
   /**
