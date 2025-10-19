@@ -11,10 +11,15 @@ import { formatDistanceToNow } from 'date-fns';
 import type { StatementSummary } from '@/types/repository';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
+import { DeleteAnalysisDialog } from '@/components/DeleteAnalysisDialog';
 
 export default function RepositoryBrowser() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteUnderstandingId, setDeleteUnderstandingId] = useState<string | null>(null);
 
   const { data: statements, isLoading, error } = useQuery<StatementSummary[]>({
     queryKey: ['/api/repository/statements'],
@@ -28,15 +33,18 @@ export default function RepositoryBrowser() {
     });
   };
 
-  const handleDelete = async (e: React.MouseEvent, understandingId: string) => {
+  const handleDeleteClick = (e: React.MouseEvent, understandingId: string) => {
     e.stopPropagation();
-    
-    if (!confirm('Are you sure you want to delete this statement and all its analyses? This cannot be undone.')) {
-      return;
-    }
+    setDeleteUnderstandingId(understandingId);
+    setShowDeleteDialog(true);
+  };
 
+  const handleDeleteConfirm = async () => {
+    if (!deleteUnderstandingId) return;
+
+    setIsDeleting(true);
     try {
-      await apiRequest('DELETE', `/api/repository/statements/${understandingId}`);
+      await apiRequest('DELETE', `/api/repository/statements/${deleteUnderstandingId}`);
       
       toast({
         title: 'Statement deleted',
@@ -51,6 +59,10 @@ export default function RepositoryBrowser() {
         description: error instanceof Error ? error.message : 'Could not delete statement',
         variant: 'destructive',
       });
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
+      setDeleteUnderstandingId(null);
     }
   };
 
@@ -157,7 +169,7 @@ export default function RepositoryBrowser() {
                       <Button
                         size="icon"
                         variant="ghost"
-                        onClick={(e) => handleDelete(e, statement.understandingId)}
+                        onClick={(e) => handleDeleteClick(e, statement.understandingId)}
                         data-testid={`button-delete-${statement.understandingId}`}
                         title="Delete statement"
                       >
@@ -233,6 +245,15 @@ export default function RepositoryBrowser() {
             </div>
           </Card>
         )}
+
+        {/* Delete Confirmation Dialog */}
+        <DeleteAnalysisDialog
+          open={showDeleteDialog}
+          onOpenChange={setShowDeleteDialog}
+          onConfirm={handleDeleteConfirm}
+          frameworkName="Statement and All Analyses"
+          isDeleting={isDeleting}
+        />
       </div>
     </AppLayout>
   );
