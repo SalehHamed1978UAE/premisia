@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, AlertCircle, ArrowRight } from "lucide-react";
+import { Loader2, AlertCircle, ArrowRight, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -11,6 +11,8 @@ import { PESTLEFactorsView } from "@/components/trend-analysis/PESTLEFactorsView
 import { AssumptionComparisonView } from "@/components/trend-analysis/AssumptionComparisonView";
 import { TrendSynthesisView } from "@/components/trend-analysis/TrendSynthesisView";
 import { TrendAnalysisResult, TrendProgressMessage } from "@/types/trend-analysis";
+import { DeleteAnalysisDialog } from "@/components/DeleteAnalysisDialog";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export default function TrendAnalysisPage() {
   const [, params] = useRoute("/strategic-consultant/trend-analysis/:sessionId/:versionNumber");
@@ -26,6 +28,9 @@ export default function TrendAnalysisPage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [totalSteps, setTotalSteps] = useState(4);
   const [analysisResult, setAnalysisResult] = useState<TrendAnalysisResult | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [analysisId, setAnalysisId] = useState<string | null>(null);
 
   // Get understanding ID from strategic understanding table
   const { data: understandingData } = useQuery<{ understandingId: string }>({
@@ -46,8 +51,40 @@ export default function TrendAnalysisPage() {
     if (existingAnalysis?.data) {
       setAnalysisResult(existingAnalysis.data);
       setAnalysisComplete(true);
+      setAnalysisId(existingAnalysis.data.insightId);
     }
   }, [existingAnalysis]);
+
+  const handleDeleteAnalysis = async () => {
+    if (!analysisId) return;
+
+    setIsDeleting(true);
+    try {
+      await apiRequest('DELETE', `/api/repository/analyses/${analysisId}`);
+      
+      toast({
+        title: 'Analysis deleted',
+        description: 'Your PESTLE analysis has been permanently deleted',
+      });
+
+      // Invalidate cache
+      await queryClient.invalidateQueries({ queryKey: ['/api/trend-analysis', understandingId] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/repository/statements'] });
+      
+      // Navigate back to repository
+      setLocation('/repository');
+    } catch (error) {
+      console.error('Error deleting analysis:', error);
+      toast({
+        title: 'Failed to delete',
+        description: error instanceof Error ? error.message : 'Could not delete analysis',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
+    }
+  };
 
   const handleStartAnalysis = async () => {
     if (!understandingId) {
@@ -237,8 +274,17 @@ export default function TrendAnalysisPage() {
               telemetry={analysisResult.telemetry}
             />
 
-            {/* Proceed to Decisions */}
-            <div className="flex justify-end">
+            {/* Action Buttons */}
+            <div className="flex justify-between items-center">
+              <Button
+                variant="destructive"
+                size="lg"
+                onClick={() => setShowDeleteDialog(true)}
+                data-testid="button-delete-analysis"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete Analysis
+              </Button>
               <Button
                 size="lg"
                 onClick={() => setLocation(`/strategic-consultant/decisions/${sessionId}/${versionNumber}`)}
@@ -249,6 +295,15 @@ export default function TrendAnalysisPage() {
             </div>
           </>
         )}
+
+        {/* Delete Confirmation Dialog */}
+        <DeleteAnalysisDialog
+          open={showDeleteDialog}
+          onOpenChange={setShowDeleteDialog}
+          onConfirm={handleDeleteAnalysis}
+          frameworkName="PESTLE"
+          isDeleting={isDeleting}
+        />
       </div>
     </AppLayout>
   );
