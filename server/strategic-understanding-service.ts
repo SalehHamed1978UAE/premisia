@@ -105,9 +105,21 @@ export class StrategicUnderstandingService {
       return existing[0];
     }
 
+    // Generate title for new statement
+    let title: string | null = null;
+    try {
+      const { generateTitle } = await import('./services/title-generator.js');
+      title = await generateTitle(userInput);
+    } catch (error) {
+      console.warn('[StrategicUnderstanding] Failed to generate title:', error);
+      // Fallback to truncated input
+      title = userInput.substring(0, 60).trim() + (userInput.length > 60 ? '...' : '');
+    }
+
     const understanding: InsertStrategicUnderstanding = {
       sessionId,
       userInput,
+      title,
       companyContext: companyContext || null,
       graphVersion: 1,
       lastEnrichedBy: null,
