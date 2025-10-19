@@ -42,6 +42,14 @@ export interface StrategicContext {
     criticalRisks?: string[];
     keyOpportunities?: string[];
     strategicConstraints?: string[];
+    
+    // Bridge outputs - passed between frameworks
+    bmcDesignConstraints?: {
+      problemsToSolve: string[];
+      mustHaveCapabilities: string[];
+      designPrinciples: string[];
+      contextualBackground: string;
+    };
   };
   
   // Shared market research (reused across frameworks)

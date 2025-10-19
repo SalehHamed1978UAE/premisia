@@ -63,6 +63,14 @@ The frontend is built with React, TypeScript, and Vite, utilizing Shadcn/ui (Rad
       - **Auto-Seeding**: Authorities auto-seed on first request with ensureSeeded() pattern (12 pre-defined tier-based sources).
       - **Dual Storage Pattern**: framework_insights (detailed queryable) AND strategic_versions.analysisData (version history).
       - **Hardening Integrated**: 40-hour production implementation with versioning, request throttling, exponential backoff, and multi-provider AI fallback.
+    - **Journey-Based Strategic Analysis (Oct 2025 - IN PROGRESS)**: Multi-framework sequential analysis system:
+      - **Core Architecture**: Combines strategic frameworks as LEGO-like building blocks, executing them in sequence with accumulated context
+      - **Phase 0 (COMPLETED ✅)**: Bug fix - Five Whys now creates `strategic_understanding` records immediately, repository cards appear instantly with AI-generated titles
+      - **Phase 1 (COMPLETED ✅, Architect-Reviewed)**: Foundation layer with journey type system (StrategicContext envelope, JourneyDefinition registry), journey_sessions database table, strategic context accumulator for insights aggregation, and reusable market research engine extracted from BMC MarketResearcher
+      - **Phase 2 Core (COMPLETED ✅, Architect-Reviewed)**: Journey orchestration with Five Whys → BMC bridge (transforms root causes into BMC design constraints: problemsToSolve, mustHaveCapabilities, designPrinciples, contextualBackground), journey orchestrator (coordinates multi-framework execution, progress tracking, JSONB context persistence, pause/resume support), verified data flow (Five Whys outputs → Bridge transformation → Context enrichment → BMC consumption)
+      - **6 Pre-Planned Journeys**: Market Entry, Business Model Innovation (Five Whys→BMC, AVAILABLE), Competitive Strategy, Digital Transformation, Crisis Recovery, Growth Strategy (5 placeholders)
+      - **Key Features**: Framework-agnostic bridges for context transformation, shared market research across frameworks, progress callbacks for real-time UI updates, database persistence with pause/resume capability
+      - **Remaining Implementation**: API endpoints for journey execution, journey selection UI, progress visualization page, E2E journey testing
 
 ### External Dependencies
 
