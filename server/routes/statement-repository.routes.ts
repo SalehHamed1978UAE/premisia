@@ -12,6 +12,7 @@ router.get('/statements', async (req, res) => {
         understandingId: strategicUnderstanding.id,
         sessionId: strategicUnderstanding.sessionId,
         statement: strategicUnderstanding.userInput,
+        title: strategicUnderstanding.title,
         createdAt: strategicUnderstanding.createdAt,
       })
       .from(strategicUnderstanding)
@@ -46,6 +47,7 @@ router.get('/statements', async (req, res) => {
           understandingId: stmt.understandingId,
           sessionId: stmt.sessionId,
           statement: stmt.statement,
+          title: stmt.title,
           createdAt: stmt.createdAt,
           analyses: analysisSummary,
           totalAnalyses: analyses.length,
@@ -123,6 +125,7 @@ router.get('/statements/:understandingId', async (req, res) => {
       understandingId: understanding.id,
       sessionId: understanding.sessionId,
       statement: understanding.userInput,
+      title: understanding.title,
       companyContext: understanding.companyContext,
       createdAt: understanding.createdAt,
       analyses: groupedAnalyses,

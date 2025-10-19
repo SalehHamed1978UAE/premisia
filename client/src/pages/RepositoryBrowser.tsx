@@ -97,7 +97,7 @@ export default function RepositoryBrowser() {
               >
                 <CardHeader>
                   <CardTitle className="text-lg line-clamp-2" data-testid={`statement-title-${statement.understandingId}`}>
-                    {statement.statement}
+                    {statement.title || statement.statement}
                   </CardTitle>
                   <CardDescription className="flex items-center gap-2">
                     <Calendar className="h-3 w-3" />

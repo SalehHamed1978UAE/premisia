@@ -2,6 +2,7 @@ export interface StatementSummary {
   understandingId: string;
   sessionId: string;
   statement: string;
+  title?: string;
   createdAt: Date | string;
   analyses: Record<string, { count: number; latestVersion: string }>;
   totalAnalyses: number;
@@ -22,6 +23,7 @@ export interface StatementDetail {
   understandingId: string;
   sessionId: string;
   statement: string;
+  title?: string;
   companyContext?: any;
   createdAt: Date | string;
   analyses: Record<string, AnalysisInfo[]>;
