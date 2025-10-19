@@ -89,56 +89,43 @@ export default function InputPage() {
     }, 300); // Update every 300ms for smoother feel
 
     try {
-      // Generate session ID
-      const sessionId = `session-${Date.now()}`;
-
-      let analyzeResponse;
       let inputText = text.trim();
       
+      // For files, extract text first (you could add file support to /understanding later)
       if (file) {
-        // For files, send them for extraction and analysis
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('sessionId', sessionId);
-        
-        analyzeResponse = await fetch('/api/strategic-consultant/analyze', {
-          method: 'POST',
-          body: formData
+        toast({
+          title: "File upload not yet supported",
+          description: "Please paste the content as text for now",
+          variant: "destructive"
         });
-      } else {
-        // For text-only input, send JSON to analyze endpoint
-        analyzeResponse = await fetch('/api/strategic-consultant/analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: inputText,
-            sessionId
-          })
-        });
+        clearInterval(progressInterval);
+        setIsAnalyzing(false);
+        return;
+      }
+
+      // Create understanding record immediately
+      const understandingResponse = await fetch('/api/strategic-consultant/understanding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: inputText })
+      });
+      
+      if (!understandingResponse.ok) {
+        const errorData = await understandingResponse.json();
+        throw new Error(errorData.error || 'Failed to create understanding');
       }
       
-      if (!analyzeResponse.ok) {
-        const errorData = await analyzeResponse.json();
-        throw new Error(errorData.error || 'Analysis failed');
-      }
+      const { understandingId, sessionId } = await understandingResponse.json();
       
-      const analyzeData = await analyzeResponse.json();
-      
-      // Store the processed input content with fallback to original text
-      const storedInput = analyzeData.inputContent || inputText;
-      
-      if (!storedInput) {
-        throw new Error('No valid input text could be extracted');
-      }
-      
-      localStorage.setItem(`strategic-input-${sessionId}`, storedInput);
+      // Store the input for reference
+      localStorage.setItem(`strategic-input-${sessionId}`, inputText);
 
       clearInterval(progressInterval);
       setProgress(100);
 
-      // Navigate to WhysTreePage (new flow)
+      // Navigate to WhysTreePage with understandingId
       setTimeout(() => {
-        setLocation(`/strategic-consultant/whys-tree/${sessionId}`);
+        setLocation(`/strategic-consultant/whys-tree/${understandingId}`);
       }, 300);
 
     } catch (error: any) {
