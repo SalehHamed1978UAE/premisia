@@ -246,7 +246,7 @@ export default function StatementDetailView() {
                 </p>
               </div>
               <Button
-                onClick={() => setLocation(`/strategic-consultant/input`)}
+                onClick={() => setLocation(`/strategic-consultant/input?text=${encodeURIComponent(statement.statement)}`)}
                 className="mt-4"
                 data-testid="button-run-analysis"
               >
