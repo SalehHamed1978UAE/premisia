@@ -118,3 +118,14 @@ export function getAllJourneys(): JourneyDefinition[] {
 export function isJourneyAvailable(type: JourneyType): boolean {
   return JOURNEYS[type]?.available ?? false;
 }
+
+/**
+ * Journey Registry object for convenient access to all journey functions
+ */
+export const journeyRegistry = {
+  getJourney,
+  getAvailableJourneys,
+  getAllJourneys,
+  isJourneyAvailable,
+  JOURNEYS,
+};

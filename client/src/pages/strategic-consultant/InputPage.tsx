@@ -123,9 +123,9 @@ export default function InputPage() {
       clearInterval(progressInterval);
       setProgress(100);
 
-      // Navigate to WhysTreePage with understandingId
+      // Navigate to Journey Selection page with understandingId
       setTimeout(() => {
-        setLocation(`/strategic-consultant/whys-tree/${understandingId}`);
+        setLocation(`/strategic-consultant/journey-selection/${understandingId}`);
       }, 300);
 
     } catch (error: any) {
