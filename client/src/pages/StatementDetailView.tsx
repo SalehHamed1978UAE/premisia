@@ -178,9 +178,17 @@ export default function StatementDetailView() {
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Repository
             </Button>
-            <h1 className="text-3xl font-bold text-foreground mb-2" data-testid="statement-text">
-              {statement.statement}
+            <h1 className="text-3xl font-bold text-foreground mb-2" data-testid="statement-title">
+              {statement.title || statement.statement}
             </h1>
+            {statement.title && (
+              <div className="mb-4 p-4 bg-muted/50 rounded-lg border border-border">
+                <h2 className="text-sm font-semibold text-muted-foreground mb-1">Original Input</h2>
+                <p className="text-base text-foreground" data-testid="statement-original-input">
+                  {statement.statement}
+                </p>
+              </div>
+            )}
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <div className="flex items-center gap-1">
                 <Calendar className="h-4 w-4" />
