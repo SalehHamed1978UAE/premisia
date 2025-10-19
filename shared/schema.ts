@@ -62,6 +62,32 @@ export const discoveredByEnum = pgEnum('discovered_by', [
   'system'
 ]);
 
+// Journey enums
+export const journeyTypeEnum = pgEnum('journey_type', [
+  'market_entry',
+  'business_model_innovation',
+  'competitive_strategy',
+  'digital_transformation',
+  'crisis_recovery',
+  'growth_strategy'
+]);
+export const journeyStatusEnum = pgEnum('journey_status', [
+  'initializing',
+  'in_progress',
+  'paused',
+  'completed',
+  'failed'
+]);
+export const frameworkNameEnum = pgEnum('framework_name', [
+  'five_whys',
+  'bmc',
+  'porters',
+  'pestle',
+  'swot',
+  'ansoff',
+  'blue_ocean'
+]);
+
 // Session storage table for Replit Auth
 export const sessions = pgTable(
   "sessions",
@@ -470,6 +496,25 @@ export const strategicUnderstanding = pgTable("strategic_understanding", {
   sessionIdx: index("idx_strategic_understanding_session").on(table.sessionId),
 }));
 
+// Journey Sessions - Tracks multi-framework strategic journeys
+export const journeySessions = pgTable("journey_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  understandingId: varchar("understanding_id").notNull().references(() => strategicUnderstanding.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  journeyType: journeyTypeEnum("journey_type").notNull(),
+  status: journeyStatusEnum("status").notNull().default('initializing'),
+  currentFrameworkIndex: integer("current_framework_index").default(0),
+  completedFrameworks: frameworkNameEnum("completed_frameworks").array().default(sql`ARRAY[]::framework_name[]`),
+  accumulatedContext: jsonb("accumulated_context").notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+}, (table) => ({
+  understandingIdx: index("idx_journey_sessions_understanding").on(table.understandingId),
+  userIdx: index("idx_journey_sessions_user").on(table.userId),
+  statusIdx: index("idx_journey_sessions_status").on(table.status),
+}));
+
 export const strategicEntities = pgTable("strategic_entities", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   understandingId: varchar("understanding_id").notNull().references(() => strategicUnderstanding.id, { onDelete: 'cascade' }),
@@ -805,6 +850,7 @@ export const insertBMCFindingSchema = createInsertSchema(bmcFindings).omit({ id:
 
 // Strategic Understanding (Knowledge Graph) insert schemas
 export const insertStrategicUnderstandingSchema = createInsertSchema(strategicUnderstanding).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertJourneySessionSchema = createInsertSchema(journeySessions).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertStrategicEntitySchema = createInsertSchema(strategicEntities).omit({ id: true, createdAt: true, updatedAt: true, discoveredAt: true });
 export const insertStrategicRelationshipSchema = createInsertSchema(strategicRelationships).omit({ id: true, createdAt: true, updatedAt: true, discoveredAt: true });
 
@@ -862,6 +908,8 @@ export type InsertBMCFinding = z.infer<typeof insertBMCFindingSchema>;
 // Strategic Understanding (Knowledge Graph) types
 export type StrategicUnderstanding = typeof strategicUnderstanding.$inferSelect;
 export type InsertStrategicUnderstanding = z.infer<typeof insertStrategicUnderstandingSchema>;
+export type JourneySession = typeof journeySessions.$inferSelect;
+export type InsertJourneySession = z.infer<typeof insertJourneySessionSchema>;
 export type StrategicEntity = typeof strategicEntities.$inferSelect;
 export type InsertStrategicEntity = z.infer<typeof insertStrategicEntitySchema>;
 export type StrategicRelationship = typeof strategicRelationships.$inferSelect;
