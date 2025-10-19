@@ -27,11 +27,15 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 export default function InputPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Get pre-filled text from URL parameter
+  const urlParams = new URLSearchParams(window.location.search);
+  const prefilledText = urlParams.get('text') || '';
+  const [text, setText] = useState(prefilledText);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
