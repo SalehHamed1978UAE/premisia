@@ -486,22 +486,6 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
       });
     }
 
-    let targetVersionNumber: number;
-    if (versionNumber) {
-      targetVersionNumber = versionNumber;
-    } else {
-      const versions = await storage.getStrategyVersionsBySession(sessionId);
-      if (versions.length === 0) {
-        return res.status(404).json({ error: 'No versions found for this session' });
-      }
-      targetVersionNumber = versions[versions.length - 1].versionNumber;
-    }
-
-    const version = await storage.getStrategyVersion(sessionId, targetVersionNumber);
-    if (!version) {
-      return res.status(404).json({ error: 'Version not found' });
-    }
-
     const insights = await whysTreeGenerator.analyzePathInsights(input, selectedPath.map((option: string, index: number) => ({
       id: `node-${index}`,
       question: '',
@@ -510,16 +494,56 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
       isLeaf: false,
     })));
 
-    const existingAnalysisData = version.analysisData as any || {};
-    await storage.updateStrategyVersion(version.id, {
-      analysisData: {
-        ...existingAnalysisData,
-        whysPath: selectedPath,
-        rootCause,
-        strategicImplications: insights.strategic_implications,
-        recommendedActions: insights.recommended_actions,
-      },
-    });
+    const analysisData = {
+      whysPath: selectedPath,
+      rootCause,
+      strategicImplications: insights.strategic_implications,
+      recommendedActions: insights.recommended_actions,
+      framework: 'five_whys',
+      // Add fields expected by downstream pages to prevent crashes
+      recommended_approaches: [],
+      strategic_options: [],
+      risks: [],
+      porters_analysis: null,
+    };
+
+    let version;
+    const userId = (req.user as any)?.claims?.sub || null;
+
+    // Check if version already exists
+    let targetVersionNumber: number | undefined;
+    if (versionNumber) {
+      targetVersionNumber = versionNumber;
+    } else {
+      const versions = await storage.getStrategyVersionsBySession(sessionId);
+      if (versions.length > 0) {
+        targetVersionNumber = versions[versions.length - 1].versionNumber;
+      }
+    }
+
+    if (targetVersionNumber) {
+      // Update existing version
+      version = await storage.getStrategyVersion(sessionId, targetVersionNumber);
+      if (!version) {
+        return res.status(404).json({ error: 'Version not found' });
+      }
+
+      const existingAnalysisData = version.analysisData as any || {};
+      await storage.updateStrategyVersion(version.id, {
+        analysisData: {
+          ...existingAnalysisData,
+          ...analysisData,
+        },
+      });
+    } else {
+      // Create new version (Five Whys flow without pre-existing analysis)
+      version = await versionManager.createVersion(
+        sessionId,
+        analysisData,
+        { decisions: [] }, // Empty decisions for now
+        userId
+      );
+    }
 
     res.json({
       rootCause,

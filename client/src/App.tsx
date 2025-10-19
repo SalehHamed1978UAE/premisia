@@ -34,11 +34,12 @@ function Router() {
         <ProtectedRoute path="/strategy/test" component={StrategyTest} />
         <ProtectedRoute path="/bmc/test" component={BMCTestPage} />
         <ProtectedRoute path="/bmc/results/:sessionId/:versionNumber" component={BMCResultsPage} />
+        <ProtectedRoute path="/strategic-consultant" component={InputPage} />
         <ProtectedRoute path="/strategic-consultant/input" component={InputPage} />
         <ProtectedRoute path="/strategic-consultant/analysis/:sessionId" component={AnalysisPage} />
         <ProtectedRoute path="/strategic-consultant/trend-analysis/:sessionId/:versionNumber" component={TrendAnalysisPage} />
         <ProtectedRoute path="/strategic-consultant/decisions/:sessionId/:versionNumber" component={DecisionPage} />
-        <ProtectedRoute path="/strategic-consultant/whys-tree/:sessionId" component={WhysTreePage} />
+        <ProtectedRoute path="/strategic-consultant/whys-tree/:understandingId" component={WhysTreePage} />
         <ProtectedRoute path="/strategic-consultant/research/:sessionId" component={ResearchPage} />
         <ProtectedRoute path="/strategic-consultant/epm/:sessionId/:versionNumber" component={EPMPage} />
         <ProtectedRoute path="/strategic-consultant/versions/:sessionId" component={VersionsPage} />
