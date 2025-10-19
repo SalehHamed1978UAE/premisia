@@ -1,6 +1,70 @@
 ### Overview
 
-Qgentic Intelligent Strategic EPM is an AI-enhanced, full-stack web application designed for comprehensive enterprise program management. It supports the entire program lifecycle, offering tools for managing programs, workstreams, tasks, resources, risks, benefits, KPIs, and financial tracking via an intuitive dashboard. The project aims to provide a holistic solution for strategic decision-making and EPM integration, featuring real-time AI intelligence, a multi-agent architecture, and a formal ontology for expert guidance. Capabilities include multi-modal input analysis, anti-bias research, and conversion of strategic decisions into actionable EPM program structures.
+Qgentic Intelligent Strategic EPM is an AI-enhanced, full-stack web application designed for comprehensive enterprise program management.
+
+---
+
+## 🚨 CRITICAL: Journey Architecture Principles
+
+**JOURNEYS ARE INTERACTIVE PAGE SEQUENCES, NOT AUTOMATED BACKEND EXECUTION**
+
+### What Journeys ARE:
+- **Interactive user experiences** where users progress through multiple framework pages
+- **Client-side navigation** through a predefined sequence of interactive pages
+- **User-driven**: User clicks, selects options, and controls the flow at each step
+- Each page handles its own AI calls, interactions, and navigation to the next page
+
+### What Journeys are NOT:
+- ❌ NOT automated backend processes that execute everything server-side
+- ❌ NOT one-shot API calls that return completed results
+- ❌ NOT bypassing interactive pages (Five Whys carousel, Research streaming, etc.)
+
+### How to Build a New Journey:
+
+1. **Define page sequence** in `server/journey/journey-registry.ts`:
+   ```typescript
+   my_new_journey: {
+     type: 'my_new_journey',
+     frameworks: ['framework1', 'framework2'],
+     pageSequence: [
+       '/strategic-consultant/interactive-page-1/:understandingId',
+       '/strategic-consultant/interactive-page-2/:sessionId',
+     ],
+     available: true,
+   }
+   ```
+
+2. **Journey execution** (`/journeys/execute` endpoint):
+   - Creates journey session for tracking
+   - Returns `navigationUrl` pointing to first page
+   - Frontend navigates to that page
+   - **DOES NOT** execute AI services or frameworks
+
+3. **Each interactive page**:
+   - Handles its own user interactions
+   - Makes its own API calls when needed
+   - Saves results to database
+   - Navigates to next page in sequence when complete
+
+### Example: Business Model Innovation Journey
+
+**Page Sequence:**
+1. **WhysTreePage** (`/whys-tree/:understandingId`)
+   - Interactive carousel for Five Whys
+   - User selects options at each level
+   - On finalize → navigates to ResearchPage
+
+2. **ResearchPage** (`/research/:sessionId`)
+   - SSE streaming shows real-time research progress
+   - Auto-navigates to AnalysisPage when complete
+
+3. **AnalysisPage** (`/analysis/:sessionId`)
+   - Displays BMC results
+   - User can view/download analysis
+
+**Flow:** Input → Journey Selection → WhysTreePage → ResearchPage → AnalysisPage
+
+--- It supports the entire program lifecycle, offering tools for managing programs, workstreams, tasks, resources, risks, benefits, KPIs, and financial tracking via an intuitive dashboard. The project aims to provide a holistic solution for strategic decision-making and EPM integration, featuring real-time AI intelligence, a multi-agent architecture, and a formal ontology for expert guidance. Capabilities include multi-modal input analysis, anti-bias research, and conversion of strategic decisions into actionable EPM program structures.
 
 ### User Preferences
 
