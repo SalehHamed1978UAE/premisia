@@ -145,9 +145,9 @@ export default function JourneySelectionPage() {
         description: `Completed ${result.completedFrameworks.length} frameworks successfully.`,
       });
 
-      // Navigate to results page
+      // Navigate to results page with journey session ID
       setTimeout(() => {
-        setLocation(`/strategic-consultant/journey-results/${understanding.sessionId}`);
+        setLocation(`/strategic-consultant/journey-results/${result.journeySessionId}`);
       }, 1000);
 
     } catch (error: any) {

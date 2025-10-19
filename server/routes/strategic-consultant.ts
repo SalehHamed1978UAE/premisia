@@ -13,7 +13,7 @@ import { BMCResearcher } from '../strategic-consultant/bmc-researcher';
 import { storage } from '../storage';
 import { unlink } from 'fs/promises';
 import { db } from '../db';
-import { strategicUnderstanding } from '@shared/schema';
+import { strategicUnderstanding, journeySessions } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 import { strategicUnderstandingService } from '../strategic-understanding-service';
 import { JourneyOrchestrator } from '../journey/journey-orchestrator';
@@ -222,10 +222,46 @@ router.post('/journeys/execute', async (req: Request, res: Response) => {
       context: finalContext,
       journeyType,
       completedFrameworks: finalContext.completedFrameworks,
+      journeySessionId,
     });
   } catch (error: any) {
     console.error('Error in /journeys/execute:', error);
     res.status(500).json({ error: error.message || 'Journey execution failed' });
+  }
+});
+
+router.get('/journeys/:sessionId/results', async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.params;
+
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Session ID is required' });
+    }
+
+    // Fetch journey session from database
+    const session = await db
+      .select()
+      .from(journeySessions)
+      .where(eq(journeySessions.id, sessionId))
+      .limit(1);
+
+    if (session.length === 0) {
+      return res.status(404).json({ error: 'Journey session not found' });
+    }
+
+    const journeySession = session[0];
+
+    res.json({
+      success: true,
+      journeyType: journeySession.journeyType,
+      status: journeySession.status,
+      completedFrameworks: journeySession.completedFrameworks,
+      context: journeySession.accumulatedContext,
+      completedAt: journeySession.completedAt,
+    });
+  } catch (error: any) {
+    console.error('Error in /journeys/:sessionId/results:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch journey results' });
   }
 });
 

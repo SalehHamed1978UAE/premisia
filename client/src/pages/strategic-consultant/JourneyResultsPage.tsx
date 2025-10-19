@@ -1,22 +1,82 @@
+import { useEffect, useState } from "react";
 import { useLocation, useParams } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { CheckCircle2, ArrowRight } from "lucide-react";
+import { CheckCircle2, ArrowRight, Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-
-interface JourneyResultsProps {
-  context: any;
-  journeyType: string;
-}
+import { FiveWhysResults } from "@/components/strategic-consultant/FiveWhysResults";
+import { BMCResults } from "@/components/strategic-consultant/BMCResults";
 
 export default function JourneyResultsPage() {
   const [, setLocation] = useLocation();
   const { sessionId } = useParams<{ sessionId: string }>();
 
-  // In real implementation, fetch journey results from API
-  // For now, this is a placeholder
+  // Fetch journey results from API
+  const { data: journeyResults, isLoading, error } = useQuery({
+    queryKey: ['/api/strategic-consultant/journeys', sessionId, 'results'],
+    enabled: !!sessionId,
+  });
+
+  if (isLoading) {
+    return (
+      <AppLayout
+        title="Journey Complete"
+        subtitle="Loading your results..."
+        onViewChange={() => setLocation('/')}
+      >
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center space-y-4">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+            <p className="text-sm text-muted-foreground">Loading journey results...</p>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (error || !journeyResults) {
+    return (
+      <AppLayout
+        title="Journey Complete"
+        subtitle="Error loading results"
+        onViewChange={() => setLocation('/')}
+      >
+        <div className="max-w-2xl mx-auto">
+          <Card className="border-destructive">
+            <CardContent className="pt-6">
+              <p className="text-sm text-destructive">
+                {(error as any)?.message || 'Failed to load journey results'}
+              </p>
+              <Button
+                variant="outline"
+                onClick={() => setLocation('/strategic-consultant/input')}
+                className="mt-4"
+              >
+                Start New Analysis
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  const completedFrameworks = (journeyResults as any)?.completedFrameworks || [];
+  const context = (journeyResults as any)?.context || {};
+  const journeyType = (journeyResults as any)?.journeyType;
+  const status = (journeyResults as any)?.status;
+  const insights = context.insights || {};
+
+  // Map framework names to display names
+  const frameworkDisplayNames: Record<string, string> = {
+    'five_whys': 'Five Whys',
+    'bmc': 'Business Model Canvas',
+    'porters': "Porter's Five Forces",
+    'pestle': 'PESTLE Analysis',
+  };
 
   return (
     <AppLayout
@@ -43,53 +103,41 @@ export default function JourneyResultsPage() {
         </Card>
 
         {/* Frameworks Completed */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Frameworks Completed</CardTitle>
-            <CardDescription>
-              Your analysis was processed through the following strategic frameworks
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="default" className="text-sm">
-                <CheckCircle2 className="h-3 w-3 mr-1" />
-                Five Whys
-              </Badge>
-              <Badge variant="default" className="text-sm">
-                <CheckCircle2 className="h-3 w-3 mr-1" />
-                Business Model Canvas
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
+        {completedFrameworks.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Frameworks Completed</CardTitle>
+              <CardDescription>
+                Your analysis was processed through the following strategic frameworks
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                {completedFrameworks.map((framework: string) => (
+                  <Badge key={framework} variant="default" className="text-sm">
+                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                    {frameworkDisplayNames[framework] || framework}
+                  </Badge>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-        {/* Key Insights */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Strategic Insights</CardTitle>
-            <CardDescription>
-              Accumulated insights from your journey
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <h4 className="text-sm font-semibold mb-2">Root Causes Identified</h4>
-              <p className="text-sm text-muted-foreground">
-                Analysis revealed fundamental issues affecting your business model...
-              </p>
-            </div>
-            
-            <Separator />
-            
-            <div>
-              <h4 className="text-sm font-semibold mb-2">Business Model Insights</h4>
-              <p className="text-sm text-muted-foreground">
-                Key gaps and opportunities were identified across value propositions, customer segments, and revenue streams...
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Dynamic Framework Results */}
+        <div className="space-y-6">
+          {completedFrameworks.includes('five_whys') && (
+            <FiveWhysResults data={insights} />
+          )}
+
+          {completedFrameworks.includes('bmc') && (
+            <BMCResults data={insights} />
+          )}
+
+          {/* Add more framework components as they become available */}
+          {/* {completedFrameworks.includes('porters') && <PortersResults data={insights} />} */}
+          {/* {completedFrameworks.includes('pestle') && <PESTLEResults data={insights} />} */}
+        </div>
 
         {/* Next Steps */}
         <Card>
