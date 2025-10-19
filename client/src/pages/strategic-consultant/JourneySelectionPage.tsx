@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocation, useParams } from "wouter";
+import { useLocation, useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,10 +8,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, CheckCircle2, Clock, ArrowRight } from "lucide-react";
 
-// Journey definitions (should match server-side registry)
+// Journey definitions (MUST match server-side registry exactly)
 const JOURNEYS = [
   {
-    type: 'BUSINESS_MODEL_INNOVATION',
+    type: 'business_model_innovation',
     name: 'Business Model Innovation',
     description: 'Identify root problems using Five Whys, then design solutions with Business Model Canvas',
     frameworks: ['Five Whys', 'Business Model Canvas'],
@@ -19,7 +19,7 @@ const JOURNEYS = [
     available: true,
   },
   {
-    type: 'MARKET_ENTRY',
+    type: 'market_entry',
     name: 'Market Entry Strategy',
     description: 'Analyze market dynamics and competitive forces to plan market entry',
     frameworks: ['Market Research', 'Porter\'s Five Forces', 'Business Model Canvas'],
@@ -27,7 +27,7 @@ const JOURNEYS = [
     available: false,
   },
   {
-    type: 'COMPETITIVE_STRATEGY',
+    type: 'competitive_strategy',
     name: 'Competitive Strategy',
     description: 'Deep-dive into competitive landscape and strategic positioning',
     frameworks: ['Porter\'s Five Forces', 'PESTLE Analysis', 'Strategic Options'],
@@ -35,7 +35,7 @@ const JOURNEYS = [
     available: false,
   },
   {
-    type: 'DIGITAL_TRANSFORMATION',
+    type: 'digital_transformation',
     name: 'Digital Transformation',
     description: 'Roadmap for technology adoption and organizational change',
     frameworks: ['Current State Analysis', 'Technology Assessment', 'Change Management'],
@@ -43,7 +43,7 @@ const JOURNEYS = [
     available: false,
   },
   {
-    type: 'CRISIS_RECOVERY',
+    type: 'crisis_recovery',
     name: 'Crisis Recovery',
     description: 'Fast-track problem identification and recovery planning',
     frameworks: ['Five Whys', 'Risk Assessment', 'Action Planning'],
@@ -51,7 +51,7 @@ const JOURNEYS = [
     available: false,
   },
   {
-    type: 'GROWTH_STRATEGY',
+    type: 'growth_strategy',
     name: 'Growth Strategy',
     description: 'Comprehensive growth planning with market and financial analysis',
     frameworks: ['Market Opportunity', 'Financial Modeling', 'Growth Roadmap'],
@@ -61,10 +61,30 @@ const JOURNEYS = [
 ];
 
 export default function JourneySelectionPage() {
-  const { understandingId } = useParams<{ understandingId: string }>();
+  const [, params] = useRoute("/strategic-consultant/journey-selection/:understandingId");
+  const understandingId = params?.understandingId;
   const [, setLocation] = useLocation();
-  const { toast } = useToast();
+  const { toast} = useToast();
   const [executingJourney, setExecutingJourney] = useState<string | null>(null);
+
+  // Debug: Log params to understand routing issue
+  console.log('[JourneySelection] URL params:', params);
+  console.log('[JourneySelection] understandingId:', understandingId);
+
+  // If no understandingId, show error state
+  if (!understandingId) {
+    return (
+      <AppLayout
+        title="Select Your Journey"
+        subtitle="Choose the strategic analysis approach that fits your challenge"
+        onViewChange={() => setLocation('/')}
+      >
+        <div className="flex items-center justify-center h-64">
+          <p className="text-destructive">Error: No understanding ID found in URL. Please start a new analysis.</p>
+        </div>
+      </AppLayout>
+    );
+  }
 
   // Fetch understanding data
   const { data: understanding, isLoading } = useQuery({
@@ -78,6 +98,16 @@ export default function JourneySelectionPage() {
   });
 
   const handleJourneySelect = async (journeyType: string) => {
+    // Ensure understandingId is available
+    if (!understandingId) {
+      toast({
+        title: "Error",
+        description: "Understanding ID not found. Please try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!JOURNEYS.find(j => j.type === journeyType)?.available) {
       toast({
         title: "Journey not available",
@@ -90,13 +120,17 @@ export default function JourneySelectionPage() {
     setExecutingJourney(journeyType);
 
     try {
+      const payload = {
+        journeyType,
+        understandingId,
+      };
+      
+      console.log('[JourneySelection] Executing journey:', payload);
+
       const response = await fetch('/api/strategic-consultant/journeys/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          journeyType,
-          understandingId,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {

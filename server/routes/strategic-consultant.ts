@@ -196,15 +196,20 @@ router.post('/journeys/execute', async (req: Request, res: Response) => {
 
     const userId = (req.user as any)?.claims?.sub || null;
 
-    const finalContext = await journeyOrchestrator.executeJourney({
-      journeyType: journeyType as JourneyType,
-      understandingId: understanding[0].id,
-      userInput: understanding[0].userInput,
-      userId,
-      onProgress: (stage, framework, message) => {
-        console.log(`[Journey ${journeyType}] ${stage}:${framework} - ${message}`);
-      },
-    });
+    // Step 1: Create journey session
+    const journeySessionId = await journeyOrchestrator.startJourney(
+      understanding[0].id,
+      journeyType as JourneyType,
+      userId
+    );
+
+    // Step 2: Execute the journey
+    const finalContext = await journeyOrchestrator.executeJourney(
+      journeySessionId,
+      (progress) => {
+        console.log(`[Journey ${journeyType}] ${progress.status} (${progress.percentComplete}%)`);
+      }
+    );
 
     res.json({
       success: true,
