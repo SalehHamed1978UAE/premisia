@@ -43,11 +43,12 @@ interface WhyTree {
 }
 
 export default function WhysTreePage() {
-  const [, params] = useRoute("/strategic-consultant/whys-tree/:sessionId");
+  const [, params] = useRoute("/strategic-consultant/whys-tree/:understandingId");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const sessionId = params?.sessionId;
+  const understandingId = params?.understandingId;
 
+  const [understanding, setUnderstanding] = useState<{ id: string; sessionId: string; userInput: string } | null>(null);
   const [tree, setTree] = useState<WhyTree | null>(null);
   const [selectedPath, setSelectedPath] = useState<{ nodeId: string; option: string; depth: number }[]>([]);
   const [currentLevel, setCurrentLevel] = useState(1);
@@ -61,15 +62,13 @@ export default function WhysTreePage() {
 
   const generateTreeMutation = useMutation({
     mutationFn: async () => {
-      const input = localStorage.getItem(`strategic-input-${sessionId}`);
-      
-      if (!input) {
-        throw new Error('No strategic input found. Please start from the input page.');
+      if (!understanding) {
+        throw new Error('Understanding data not loaded. Please wait...');
       }
       
       const response = await apiRequest('POST', '/api/strategic-consultant/whys-tree/generate', {
-        sessionId,
-        input,
+        sessionId: understanding.sessionId,
+        input: understanding.userInput,
       });
       return response.json();
     },
@@ -93,20 +92,18 @@ export default function WhysTreePage() {
       isCustom?: boolean;
       customOption?: string;
     }) => {
-      const input = localStorage.getItem(`strategic-input-${sessionId}`);
-      
-      if (!input) {
-        throw new Error('Strategic input data missing. Please restart from the input page.');
+      if (!understanding) {
+        throw new Error('Understanding data not loaded. Please wait...');
       }
       
       const pathOptions = selectedPath.map(p => p.option);
       const response = await apiRequest('POST', '/api/strategic-consultant/whys-tree/expand', {
-        sessionId,
+        sessionId: understanding.sessionId,
         nodeId,
         selectedPath: pathOptions,
         currentDepth,
         parentQuestion,
-        input,
+        input: understanding.userInput,
         isCustom: isCustom || false,
         customOption,
       });
@@ -154,29 +151,29 @@ export default function WhysTreePage() {
 
   const finalizeMutation = useMutation({
     mutationFn: async ({ rootCause, completePath }: { rootCause: string; completePath: string[] }) => {
-      const input = localStorage.getItem(`strategic-input-${sessionId}`);
-      
-      if (!input) {
-        throw new Error('Strategic input data missing. Please restart from the input page.');
+      if (!understanding) {
+        throw new Error('Understanding data not loaded. Please wait...');
       }
       
       const response = await apiRequest('POST', '/api/strategic-consultant/whys-tree/finalize', {
-        sessionId,
+        sessionId: understanding.sessionId,
         selectedPath: completePath,
         rootCause,
-        input,
+        input: understanding.userInput,
       });
       return response.json();
     },
     onSuccess: (data: any, variables) => {
-      localStorage.setItem(`strategic-rootCause-${sessionId}`, variables.rootCause);
-      localStorage.setItem(`strategic-whysPath-${sessionId}`, JSON.stringify(variables.completePath));
+      if (!understanding) return;
+      
+      localStorage.setItem(`strategic-rootCause-${understanding.sessionId}`, variables.rootCause);
+      localStorage.setItem(`strategic-whysPath-${understanding.sessionId}`, JSON.stringify(variables.completePath));
       
       toast({
         title: "Root cause identified",
         description: "Proceeding to research phase",
       });
-      setLocation(`/strategic-consultant/research/${sessionId}`);
+      setLocation(`/strategic-consultant/research/${understanding.sessionId}`);
     },
     onError: (error: any) => {
       toast({
@@ -188,10 +185,33 @@ export default function WhysTreePage() {
   });
 
   useEffect(() => {
-    if (sessionId) {
+    const fetchUnderstanding = async () => {
+      if (!understandingId) return;
+      
+      try {
+        const response = await fetch(`/api/strategic-consultant/understanding/${understandingId}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch understanding');
+        }
+        const data = await response.json();
+        setUnderstanding(data);
+      } catch (error: any) {
+        toast({
+          title: "Failed to load data",
+          description: error.message || "Could not load strategic understanding",
+          variant: "destructive",
+        });
+      }
+    };
+    
+    fetchUnderstanding();
+  }, [understandingId]);
+
+  useEffect(() => {
+    if (understanding) {
       generateTreeMutation.mutate();
     }
-  }, [sessionId]);
+  }, [understanding]);
 
   // Timeout handler for long-running tree generation
   useEffect(() => {
@@ -406,11 +426,11 @@ export default function WhysTreePage() {
   const canShowContinueButton = currentLevel < 5;
   const showOnlyFinalize = currentLevel === 5;
 
-  if (!sessionId) {
+  if (!understandingId) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-8">
         <Alert variant="destructive" className="max-w-md">
-          <AlertDescription>No session ID provided</AlertDescription>
+          <AlertDescription>No understanding ID provided</AlertDescription>
         </Alert>
       </div>
     );

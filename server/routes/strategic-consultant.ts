@@ -129,6 +129,35 @@ router.post('/understanding', async (req: Request, res: Response) => {
   }
 });
 
+router.get('/understanding/:understandingId', async (req: Request, res: Response) => {
+  try {
+    const { understandingId } = req.params;
+
+    if (!understandingId) {
+      return res.status(400).json({ error: 'Understanding ID is required' });
+    }
+
+    const understanding = await db
+      .select()
+      .from(strategicUnderstanding)
+      .where(eq(strategicUnderstanding.id, understandingId))
+      .limit(1);
+
+    if (understanding.length === 0) {
+      return res.status(404).json({ error: 'Understanding not found' });
+    }
+
+    res.json({
+      id: understanding[0].id,
+      sessionId: understanding[0].sessionId,
+      userInput: understanding[0].userInput,
+    });
+  } catch (error: any) {
+    console.error('Error in /understanding/:understandingId:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch understanding' });
+  }
+});
+
 router.post('/decisions/select', async (req: Request, res: Response) => {
   try {
     const { sessionId, versionNumber, selectedDecisions } = req.body;
