@@ -15,7 +15,8 @@ import {
   Settings,
   LogOut,
   X,
-  Sparkles
+  Sparkles,
+  Archive
 } from "lucide-react";
 import type { ViewType } from "@/pages/home-page";
 
@@ -168,7 +169,7 @@ export function Sidebar({ currentView, onViewChange, isOpen, onToggle }: Sidebar
         </div>
 
         {/* Strategic Consultant - Prominent CTA */}
-        <div className="p-4 pb-0">
+        <div className="p-4 pb-2">
           <Button
             className="w-full justify-start h-auto p-4 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-200"
             onClick={() => {
@@ -183,6 +184,27 @@ export function Sidebar({ currentView, onViewChange, isOpen, onToggle }: Sidebar
             <div className="text-left">
               <div className="font-semibold text-base">Strategic Consultant</div>
               <div className="text-xs opacity-90">✨ AI-powered strategy</div>
+            </div>
+          </Button>
+        </div>
+
+        {/* Analysis Repository */}
+        <div className="px-4 pb-0">
+          <Button
+            variant="outline"
+            className="w-full justify-start h-auto p-3 border-2 hover:bg-accent"
+            onClick={() => {
+              setLocation('/repository');
+              if (window.innerWidth < 1024) {
+                onToggle();
+              }
+            }}
+            data-testid="nav-repository"
+          >
+            <Archive className="h-5 w-5 mr-3 flex-shrink-0" />
+            <div className="text-left">
+              <div className="font-medium text-sm">Analysis Repository</div>
+              <div className="text-xs opacity-70">Browse all analyses</div>
             </div>
           </Button>
         </div>
