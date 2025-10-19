@@ -202,27 +202,24 @@ router.post('/journeys/execute', async (req: Request, res: Response) => {
 
     const userId = (req.user as any)?.claims?.sub || null;
 
-    // Step 1: Create journey session
+    // Create journey session to track progress
     const journeySessionId = await journeyOrchestrator.startJourney(
       understanding[0].id,
       journeyType as JourneyType,
       userId
     );
 
-    // Step 2: Execute the journey
-    const finalContext = await journeyOrchestrator.executeJourney(
-      journeySessionId,
-      (progress) => {
-        console.log(`[Journey ${journeyType}] ${progress.status} (${progress.percentComplete}%)`);
-      }
-    );
+    // Return the first page in the journey sequence for client-side navigation
+    const firstPage = (journey as any).pageSequence?.[0] || '/strategic-consultant/whys-tree/:understandingId';
+    const navigationUrl = firstPage.replace(':understandingId', understandingId).replace(':sessionId', understanding[0].sessionId);
 
     res.json({
       success: true,
-      context: finalContext,
-      journeyType,
-      completedFrameworks: finalContext.completedFrameworks,
       journeySessionId,
+      journeyType,
+      message: 'Journey initialized successfully',
+      navigationUrl,
+      totalSteps: journey.frameworks.length,
     });
   } catch (error: any) {
     console.error('Error in /journeys/execute:', error);

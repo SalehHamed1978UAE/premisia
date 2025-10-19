@@ -113,8 +113,9 @@ export interface JourneyDefinition {
   name: string;
   description: string;
   frameworks: FrameworkName[];
-  estimatedDuration: string; // e.g., "10-15 minutes"
-  available: boolean;         // Whether this journey is implemented
+  pageSequence?: string[];    // Optional: Interactive pages for this journey
+  estimatedDuration: string;  // e.g., "10-15 minutes"
+  available: boolean;          // Whether this journey is implemented
 }
 
 /**

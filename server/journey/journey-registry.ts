@@ -16,6 +16,11 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
     name: 'Business Model Innovation',
     description: 'Reimagine your business model by identifying root causes of problems, then designing innovative value propositions, revenue streams, and partnerships',
     frameworks: ['five_whys', 'bmc'],
+    pageSequence: [
+      '/strategic-consultant/whys-tree/:understandingId',
+      '/strategic-consultant/research/:sessionId',
+      '/strategic-consultant/analysis/:sessionId',
+    ],
     estimatedDuration: '12-18 minutes',
     available: true, // FULLY IMPLEMENTED
   },

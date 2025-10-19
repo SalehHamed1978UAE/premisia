@@ -34,7 +34,14 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI, Tailwin
     - **Strategic Understanding Service (Knowledge Graph Architecture)**: Employs a knowledge graph with PostgreSQL and `pgvector` for source-validated entity categorization (Explicit, Implicit, Inferred) and relationship mapping, using embeddings for semantic search and contradiction validation.
     - **Robustness and Performance**: Implements multi-provider AI fallback, extended socket timeouts, and request throttling with exponential backoff.
     - **Trend Analysis Agent**: Provides production-ready PESTLE analysis with an evidence-first architecture, including database schema, external services (Azure Translator, GeoNames), authority registry, evidence extraction, domain extraction, PESTLE claims generation, assumption comparison, and trend synthesis services. Features a job queue, API routes with SSE progress streaming, and a comprehensive frontend UI with 5 components. Fully tested for multilingual support, geography awareness, idempotency, and security.
-    - **Journey-Based Strategic Analysis**: A multi-framework sequential analysis system that combines strategic frameworks as LEGO-like building blocks. Features a journey type system, journey sessions, strategic context accumulation, and reusable market research. Includes journey orchestration with framework-agnostic bridges for context transformation (e.g., Five Whys to BMC), JSONB context persistence, and pause/resume support. Six pre-planned journeys are defined, with Market Entry and Business Model Innovation (Five Whys→BMC) currently available.
+    - **Journey-Based Strategic Analysis**: A multi-framework sequential analysis system where "journeys" are interactive page sequences that guide users through strategic frameworks. Each journey is a series of interactive pages (not automated backend execution). Features include:
+      - Journey type system with 6 pre-planned journeys (Business Model Innovation is available)
+      - Interactive pages: WhysTreePage (carousel selection), ResearchPage (SSE streaming), BMCResultsPage (analysis display)
+      - Journey sessions track user progress through page sequences
+      - Strategic context accumulation persists data as users complete each interactive step
+      - Framework-agnostic bridges transform context between pages (e.g., Five Whys → BMC)
+      - JSONB context persistence and pause/resume support
+      - Navigation is client-side, routing users through the defined page sequence
 
 ### External Dependencies
 

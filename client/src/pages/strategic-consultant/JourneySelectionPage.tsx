@@ -141,14 +141,14 @@ export default function JourneySelectionPage() {
       const result = await response.json();
 
       toast({
-        title: "Journey completed!",
-        description: `Completed ${result.completedFrameworks.length} frameworks successfully.`,
+        title: "Journey started!",
+        description: `${result.message}`,
       });
 
-      // Navigate to results page with journey session ID
+      // Navigate to first page in the journey
       setTimeout(() => {
-        setLocation(`/strategic-consultant/journey-results/${result.journeySessionId}`);
-      }, 1000);
+        setLocation(result.navigationUrl);
+      }, 500);
 
     } catch (error: any) {
       toast({
