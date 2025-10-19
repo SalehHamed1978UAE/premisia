@@ -16,8 +16,8 @@ export default function StatementDetailView() {
   const [match, params] = useRoute('/repository/:understandingId');
   const understandingId = params?.understandingId;
 
-  const { data: statement, isLoading } = useQuery<StatementDetail>({
-    queryKey: ['/api/repository/statements', understandingId],
+  const { data: statement, isLoading, error } = useQuery<StatementDetail>({
+    queryKey: [`/api/repository/statements/${understandingId}`],
     enabled: !!understandingId,
   });
 
@@ -60,7 +60,36 @@ export default function StatementDetailView() {
     );
   }
 
-  if (!statement) {
+  // Check for 404 specifically - error format is "404: message" from queryClient
+  const is404 = error && (error as any)?.message?.startsWith('404');
+
+  if (error && !is404) {
+    return (
+      <AppLayout
+        title="Error"
+        subtitle="Failed to load statement"
+        onViewChange={(view) => setLocation('/')}
+      >
+        <div className="max-w-6xl mx-auto p-6">
+          <Alert variant="destructive">
+            <AlertDescription>
+              {error instanceof Error ? error.message : 'Failed to load statement details. Please try again.'}
+            </AlertDescription>
+          </Alert>
+          <div className="flex gap-4 mt-4">
+            <Button onClick={() => window.location.reload()} data-testid="button-retry">
+              Retry
+            </Button>
+            <Button onClick={() => setLocation('/repository')} variant="outline" data-testid="button-back">
+              Back to Repository
+            </Button>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (!statement || is404) {
     return (
       <AppLayout
         title="Not Found"
@@ -73,7 +102,7 @@ export default function StatementDetailView() {
               The requested statement could not be found.
             </AlertDescription>
           </Alert>
-          <Button onClick={() => setLocation('/repository')} className="mt-4">
+          <Button onClick={() => setLocation('/repository')} className="mt-4" data-testid="button-back-404">
             Back to Repository
           </Button>
         </div>

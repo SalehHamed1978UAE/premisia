@@ -5,14 +5,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Archive, Calendar, TrendingUp, FileText } from 'lucide-react';
+import { Archive, Calendar, TrendingUp, FileText, AlertTriangle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { StatementSummary } from '@/types/repository';
 
 export default function RepositoryBrowser() {
   const [, setLocation] = useLocation();
 
-  const { data: statements, isLoading } = useQuery<StatementSummary[]>({
+  const { data: statements, isLoading, error } = useQuery<StatementSummary[]>({
     queryKey: ['/api/repository/statements'],
   });
 
@@ -53,7 +53,26 @@ export default function RepositoryBrowser() {
           </div>
         </div>
 
-        {isLoading ? (
+        {error ? (
+          <Card className="p-12 text-center border-destructive">
+            <div className="flex flex-col items-center gap-4">
+              <AlertTriangle className="h-16 w-16 text-destructive" />
+              <div>
+                <h3 className="text-xl font-semibold text-foreground">Failed to load analyses</h3>
+                <p className="text-muted-foreground mt-2">
+                  {error instanceof Error ? error.message : 'An unexpected error occurred'}
+                </p>
+              </div>
+              <Button
+                onClick={() => window.location.reload()}
+                className="mt-4"
+                data-testid="button-retry"
+              >
+                Retry
+              </Button>
+            </div>
+          </Card>
+        ) : isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <Card key={i} className="hover:shadow-lg transition-shadow">
