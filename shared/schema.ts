@@ -459,6 +459,7 @@ export const strategicUnderstanding = pgTable("strategic_understanding", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   sessionId: varchar("session_id").notNull().unique(),
   userInput: text("user_input").notNull(),
+  title: varchar("title", { length: 200 }),
   companyContext: jsonb("company_context"),
   graphVersion: integer("graph_version").default(1),
   lastEnrichedBy: varchar("last_enriched_by", { length: 50 }),
