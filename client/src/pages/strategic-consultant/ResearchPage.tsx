@@ -181,16 +181,29 @@ export default function ResearchPage() {
     };
   }, [sessionId]);
 
-  // After research completes, run enhanced analysis and regenerate decisions
+  // After research completes, run framework-specific post-processing
   useEffect(() => {
     if (!researchData || !sessionId) return;
     if (isUpdatingDecisions || decisionsUpdated) return;
 
+    const journeyType = localStorage.getItem(`journey-type-${sessionId}`);
     const rootCause = localStorage.getItem(`strategic-rootCause-${sessionId}`) || '';
     const whysPathStr = localStorage.getItem(`strategic-whysPath-${sessionId}`) || '[]';
     const whysPath = JSON.parse(whysPathStr);
     const versionNumber = researchData.versionNumber;
 
+    // BMC journeys don't need Porter's analysis or decision generation
+    if (journeyType === 'business_model_innovation') {
+      toast({
+        title: "✓ Research complete",
+        description: "BMC analysis ready for review",
+      });
+      setDecisionsUpdated(true); // Skip Porter's-specific processing
+      setAutoNavigateCountdown(3);
+      return;
+    }
+
+    // For Porter's-based journeys (competitive_strategy, market_entry, etc.)
     const updateDecisions = async () => {
       setIsUpdatingDecisions(true);
 

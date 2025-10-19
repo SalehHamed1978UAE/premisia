@@ -216,6 +216,7 @@ router.post('/journeys/execute', async (req: Request, res: Response) => {
     res.json({
       success: true,
       journeySessionId,
+      sessionId: understanding[0].sessionId, // Session ID used in navigation URLs
       journeyType,
       message: 'Journey initialized successfully',
       navigationUrl,
