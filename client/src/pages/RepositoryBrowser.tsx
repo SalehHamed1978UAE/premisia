@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -5,16 +6,53 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Archive, Calendar, TrendingUp, FileText, AlertTriangle } from 'lucide-react';
+import { Archive, Calendar, TrendingUp, FileText, AlertTriangle, Trash2, ArchiveIcon } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { StatementSummary } from '@/types/repository';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 
 export default function RepositoryBrowser() {
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
 
   const { data: statements, isLoading, error } = useQuery<StatementSummary[]>({
     queryKey: ['/api/repository/statements'],
   });
+
+  const handleArchive = async (e: React.MouseEvent, understandingId: string) => {
+    e.stopPropagation();
+    toast({
+      title: 'Archive feature',
+      description: 'Archive functionality coming soon',
+    });
+  };
+
+  const handleDelete = async (e: React.MouseEvent, understandingId: string) => {
+    e.stopPropagation();
+    
+    if (!confirm('Are you sure you want to delete this statement and all its analyses? This cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await apiRequest('DELETE', `/api/repository/statements/${understandingId}`);
+      
+      toast({
+        title: 'Statement deleted',
+        description: 'The statement and all its analyses have been permanently deleted',
+      });
+
+      await queryClient.invalidateQueries({ queryKey: ['/api/repository/statements'] });
+    } catch (error) {
+      console.error('Error deleting statement:', error);
+      toast({
+        title: 'Failed to delete',
+        description: error instanceof Error ? error.message : 'Could not delete statement',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const getFrameworkBadgeColor = (framework: string) => {
     const colors: Record<string, string> = {
@@ -96,13 +134,37 @@ export default function RepositoryBrowser() {
                 data-testid={`statement-card-${statement.understandingId}`}
               >
                 <CardHeader>
-                  <CardTitle className="text-lg line-clamp-2" data-testid={`statement-title-${statement.understandingId}`}>
-                    {statement.title || statement.statement}
-                  </CardTitle>
-                  <CardDescription className="flex items-center gap-2">
-                    <Calendar className="h-3 w-3" />
-                    {formatDistanceToNow(new Date(statement.createdAt), { addSuffix: true })}
-                  </CardDescription>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-lg line-clamp-2" data-testid={`statement-title-${statement.understandingId}`}>
+                        {statement.title || statement.statement}
+                      </CardTitle>
+                      <CardDescription className="flex items-center gap-2 mt-2">
+                        <Calendar className="h-3 w-3" />
+                        {formatDistanceToNow(new Date(statement.createdAt), { addSuffix: true })}
+                      </CardDescription>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={(e) => handleArchive(e, statement.understandingId)}
+                        data-testid={`button-archive-${statement.understandingId}`}
+                        title="Archive statement"
+                      >
+                        <ArchiveIcon className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={(e) => handleDelete(e, statement.understandingId)}
+                        data-testid={`button-delete-${statement.understandingId}`}
+                        title="Delete statement"
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive hover:text-destructive/80" />
+                      </Button>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {/* Analysis badges */}

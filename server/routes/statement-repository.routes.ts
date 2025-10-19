@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db';
-import { strategicUnderstanding, frameworkInsights } from '@shared/schema';
+import { strategicUnderstanding, frameworkInsights, strategicEntities } from '@shared/schema';
 import { eq, desc, sql } from 'drizzle-orm';
 
 const router = Router();
@@ -60,6 +60,42 @@ router.get('/statements', async (req, res) => {
   } catch (error) {
     console.error('Error fetching statements:', error);
     res.status(500).json({ error: 'Failed to fetch statements' });
+  }
+});
+
+router.delete('/statements/:understandingId', async (req, res) => {
+  try {
+    const { understandingId } = req.params;
+
+    // First check if the statement exists
+    const [understanding] = await db
+      .select()
+      .from(strategicUnderstanding)
+      .where(eq(strategicUnderstanding.id, understandingId));
+
+    if (!understanding) {
+      return res.status(404).json({ error: 'Statement not found' });
+    }
+
+    // Delete all related framework insights
+    await db
+      .delete(frameworkInsights)
+      .where(eq(frameworkInsights.understandingId, understandingId));
+
+    // Delete all related strategic entities
+    await db
+      .delete(strategicEntities)
+      .where(eq(strategicEntities.understandingId, understandingId));
+
+    // Delete the strategic understanding record
+    await db
+      .delete(strategicUnderstanding)
+      .where(eq(strategicUnderstanding.id, understandingId));
+
+    res.json({ success: true, message: 'Statement and all analyses deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting statement:', error);
+    res.status(500).json({ error: 'Failed to delete statement' });
   }
 });
 
