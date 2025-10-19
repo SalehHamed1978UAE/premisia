@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation, useRoute } from 'wouter';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -7,14 +8,23 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { ArrowLeft, Calendar, Clock, TrendingUp, FileText, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Calendar, Clock, TrendingUp, FileText, ExternalLink, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { StatementDetail } from '@/types/repository';
+import { DeleteAnalysisDialog } from '@/components/DeleteAnalysisDialog';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
 
 export default function StatementDetailView() {
   const [, setLocation] = useLocation();
   const [match, params] = useRoute('/repository/:understandingId');
   const understandingId = params?.understandingId;
+  const { toast } = useToast();
+  
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteAnalysisId, setDeleteAnalysisId] = useState<string | null>(null);
+  const [deleteFramework, setDeleteFramework] = useState<string>('');
 
   const { data: statement, isLoading, error } = useQuery<StatementDetail>({
     queryKey: [`/api/repository/statements/${understandingId}`],
@@ -42,6 +52,42 @@ export default function StatementDetailView() {
   const handleViewFullReport = (framework: string, sessionId: string) => {
     if (framework === 'PESTLE') {
       setLocation(`/strategic-consultant/trend-analysis/${sessionId}/1`);
+    }
+  };
+
+  const handleDeleteClick = (analysisId: string, framework: string) => {
+    setDeleteAnalysisId(analysisId);
+    setDeleteFramework(framework);
+    setShowDeleteDialog(true);
+  };
+
+  const handleDeleteAnalysis = async () => {
+    if (!deleteAnalysisId) return;
+
+    setIsDeleting(true);
+    try {
+      await apiRequest('DELETE', `/api/repository/analyses/${deleteAnalysisId}`);
+      
+      toast({
+        title: 'Analysis deleted',
+        description: `Your ${deleteFramework} analysis has been permanently deleted`,
+      });
+
+      // Invalidate cache to refresh the statement details
+      await queryClient.invalidateQueries({ queryKey: [`/api/repository/statements/${understandingId}`] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/repository/statements'] });
+    } catch (error) {
+      console.error('Error deleting analysis:', error);
+      toast({
+        title: 'Failed to delete',
+        description: error instanceof Error ? error.message : 'Could not delete analysis',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteDialog(false);
+      setDeleteAnalysisId(null);
+      setDeleteFramework('');
     }
   };
 
@@ -190,14 +236,24 @@ export default function StatementDetailView() {
                             )}
                           </CardDescription>
                         </div>
-                        <Button
-                          onClick={() => handleViewFullReport(framework, statement.sessionId)}
-                          variant="default"
-                          data-testid={`button-view-report-${framework}-${index}`}
-                        >
-                          <ExternalLink className="h-4 w-4 mr-2" />
-                          View Full Report
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={() => handleDeleteClick(analysis.id, framework)}
+                            variant="ghost"
+                            size="icon"
+                            data-testid={`button-delete-${framework}-${index}`}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                          <Button
+                            onClick={() => handleViewFullReport(framework, statement.sessionId)}
+                            variant="default"
+                            data-testid={`button-view-report-${framework}-${index}`}
+                          >
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            View Full Report
+                          </Button>
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -255,6 +311,15 @@ export default function StatementDetailView() {
             </div>
           </Card>
         )}
+
+        {/* Delete Confirmation Dialog */}
+        <DeleteAnalysisDialog
+          open={showDeleteDialog}
+          onOpenChange={setShowDeleteDialog}
+          onConfirm={handleDeleteAnalysis}
+          frameworkName={deleteFramework}
+          isDeleting={isDeleting}
+        />
       </div>
     </AppLayout>
   );
