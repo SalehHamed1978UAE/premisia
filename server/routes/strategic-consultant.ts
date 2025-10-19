@@ -16,6 +16,9 @@ import { db } from '../db';
 import { strategicUnderstanding } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 import { strategicUnderstandingService } from '../strategic-understanding-service';
+import { JourneyOrchestrator } from '../journey/journey-orchestrator';
+import { journeyRegistry } from '../journey/journey-registry';
+import type { JourneyType } from '@shared/journey-types';
 
 const router = Router();
 const upload = multer({ 
@@ -33,6 +36,7 @@ const whysTreeGenerator = new WhysTreeGenerator();
 const marketResearcher = new MarketResearcher();
 const frameworkSelector = new FrameworkSelector();
 const bmcResearcher = new BMCResearcher();
+const journeyOrchestrator = new JourneyOrchestrator();
 
 router.post('/analyze', upload.single('file'), async (req: Request, res: Response) => {
   try {
@@ -155,6 +159,62 @@ router.get('/understanding/:understandingId', async (req: Request, res: Response
   } catch (error: any) {
     console.error('Error in /understanding/:understandingId:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch understanding' });
+  }
+});
+
+router.post('/journeys/execute', async (req: Request, res: Response) => {
+  try {
+    const { journeyType, understandingId } = req.body;
+
+    if (!journeyType || !understandingId) {
+      return res.status(400).json({ 
+        error: 'Both journeyType and understandingId are required' 
+      });
+    }
+
+    const understanding = await db
+      .select()
+      .from(strategicUnderstanding)
+      .where(eq(strategicUnderstanding.id, understandingId))
+      .limit(1);
+
+    if (understanding.length === 0) {
+      return res.status(404).json({ error: 'Understanding not found' });
+    }
+
+    const journey = journeyRegistry.getJourney(journeyType as JourneyType);
+    if (!journey) {
+      return res.status(404).json({ error: 'Journey not found' });
+    }
+
+    if (!journey.available) {
+      return res.status(400).json({ 
+        error: 'This journey is not yet available',
+        journeyName: journey.name
+      });
+    }
+
+    const userId = (req.user as any)?.claims?.sub || null;
+
+    const finalContext = await journeyOrchestrator.executeJourney({
+      journeyType: journeyType as JourneyType,
+      understandingId: understanding[0].id,
+      userInput: understanding[0].userInput,
+      userId,
+      onProgress: (stage, framework, message) => {
+        console.log(`[Journey ${journeyType}] ${stage}:${framework} - ${message}`);
+      },
+    });
+
+    res.json({
+      success: true,
+      context: finalContext,
+      journeyType,
+      completedFrameworks: finalContext.completedFrameworks,
+    });
+  } catch (error: any) {
+    console.error('Error in /journeys/execute:', error);
+    res.status(500).json({ error: error.message || 'Journey execution failed' });
   }
 });
 
