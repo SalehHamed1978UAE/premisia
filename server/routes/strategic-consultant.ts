@@ -116,16 +116,22 @@ router.post('/understanding', async (req: Request, res: Response) => {
 
     const sessionId = `session-${Date.now()}-${Math.random().toString(36).substring(7)}`;
     
-    const understanding = await strategicUnderstandingService.getOrCreateUnderstanding(
+    console.log('[Understanding] Starting Strategic Understanding analysis with ontology/knowledge graph...');
+    
+    // Run full Strategic Understanding analysis with entity extraction
+    const result = await strategicUnderstandingService.extractUnderstanding({
       sessionId,
-      input.trim(),
-      null
-    );
+      userInput: input.trim(),
+      companyContext: null,
+    });
+
+    console.log(`[Understanding] Analysis complete - extracted ${result.entities.length} entities`);
 
     res.json({
       success: true,
-      understandingId: understanding.id,
-      sessionId: understanding.sessionId,
+      understandingId: result.understandingId,
+      sessionId: sessionId,
+      entitiesExtracted: result.entities.length,
     });
   } catch (error: any) {
     console.error('Error in /understanding:', error);
