@@ -139,6 +139,9 @@ export default function JourneySelectionPage() {
       }
 
       const result = await response.json();
+      
+      // Store journey type in localStorage for downstream pages to know which results page to navigate to
+      localStorage.setItem(`journey-type-${result.sessionId}`, journeyType);
 
       toast({
         title: "Journey started!",

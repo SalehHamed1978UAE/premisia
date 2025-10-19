@@ -249,7 +249,13 @@ export default function ResearchPage() {
     if (autoNavigateCountdown === null) return;
 
     if (autoNavigateCountdown === 0) {
-      setLocation(`/strategic-consultant/analysis/${sessionId}`);
+      // Determine which results page to navigate to based on journey type
+      const journeyType = localStorage.getItem(`journey-type-${sessionId}`);
+      const resultsUrl = journeyType === 'business_model_innovation'
+        ? `/bmc/results/${sessionId}/1`
+        : `/strategic-consultant/analysis/${sessionId}`;
+      
+      setLocation(resultsUrl);
       return;
     }
 
@@ -262,7 +268,14 @@ export default function ResearchPage() {
 
   const handleContinue = () => {
     setAutoNavigateCountdown(null);
-    setLocation(`/strategic-consultant/analysis/${sessionId}`);
+    
+    // Determine which results page to navigate to based on journey type
+    const journeyType = localStorage.getItem(`journey-type-${sessionId}`);
+    const resultsUrl = journeyType === 'business_model_innovation'
+      ? `/bmc/results/${sessionId}/1`
+      : `/strategic-consultant/analysis/${sessionId}`;
+    
+    setLocation(resultsUrl);
   };
 
   const handleRetry = () => {
