@@ -15,6 +15,7 @@ import { unlink } from 'fs/promises';
 import { db } from '../db';
 import { strategicUnderstanding } from '@shared/schema';
 import { eq } from 'drizzle-orm';
+import { strategicUnderstandingService } from '../strategic-understanding-service';
 
 const router = Router();
 const upload = multer({ 
@@ -98,6 +99,33 @@ router.post('/analyze', upload.single('file'), async (req: Request, res: Respons
   } catch (error: any) {
     console.error('Error in /analyze:', error);
     res.status(500).json({ error: error.message || 'Analysis failed' });
+  }
+});
+
+router.post('/understanding', async (req: Request, res: Response) => {
+  try {
+    const { input } = req.body;
+
+    if (!input || !input.trim()) {
+      return res.status(400).json({ error: 'Input text is required' });
+    }
+
+    const sessionId = `session-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    
+    const understanding = await strategicUnderstandingService.getOrCreateUnderstanding(
+      sessionId,
+      input.trim(),
+      null
+    );
+
+    res.json({
+      success: true,
+      understandingId: understanding.id,
+      sessionId: understanding.sessionId,
+    });
+  } catch (error: any) {
+    console.error('Error in /understanding:', error);
+    res.status(500).json({ error: error.message || 'Failed to create understanding' });
   }
 });
 
