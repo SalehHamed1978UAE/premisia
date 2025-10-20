@@ -466,7 +466,7 @@ export default function ResearchPage() {
           )}
         </div>
 
-        {findings.sources.length > 0 && (
+        {findings && findings.sources && findings.sources.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Research Sources</CardTitle>
@@ -503,7 +503,7 @@ export default function ResearchPage() {
         )}
 
         <div className="space-y-4">
-          {categoryConfig.map(({ key, label, icon }) => {
+          {findings && categoryConfig.map(({ key, label, icon }) => {
             const findings_list = findings[key as keyof typeof findings] as Finding[];
             if (!Array.isArray(findings_list) || findings_list.length === 0) return null;
 

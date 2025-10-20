@@ -25,7 +25,7 @@ const BMCRenderer: FC<FrameworkRendererProps<BMCFrameworkResult>> = ({ data }) =
             <p className="text-sm text-muted-foreground" data-testid="text-viability">{data.viability}</p>
           </div>
 
-          {data.contradictions && data.contradictions.length > 0 && (
+          {Array.isArray(data.contradictions) && data.contradictions.length > 0 && (
             <Alert variant="destructive" data-testid="alert-contradictions">
               <AlertTriangle className="h-4 w-4" />
               <AlertTitle>Contradictions Detected</AlertTitle>
@@ -38,7 +38,7 @@ const BMCRenderer: FC<FrameworkRendererProps<BMCFrameworkResult>> = ({ data }) =
       </Card>
 
       {/* Key Insights */}
-      {data.keyInsights && data.keyInsights.length > 0 && (
+      {Array.isArray(data.keyInsights) && data.keyInsights.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Key Insights</CardTitle>
@@ -54,7 +54,7 @@ const BMCRenderer: FC<FrameworkRendererProps<BMCFrameworkResult>> = ({ data }) =
       )}
 
       {/* Recommendations */}
-      {data.recommendations && data.recommendations.length > 0 && (
+      {Array.isArray(data.recommendations) && data.recommendations.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Strategic Recommendations</CardTitle>
@@ -86,7 +86,7 @@ const BMCRenderer: FC<FrameworkRendererProps<BMCFrameworkResult>> = ({ data }) =
                 <CardDescription className="mt-2">{block.description}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {block.keyFindings && block.keyFindings.length > 0 && (
+                {Array.isArray(block.keyFindings) && block.keyFindings.length > 0 && (
                   <div>
                     <h4 className="font-semibold text-sm mb-2">Key Findings</h4>
                     <ul className="list-disc list-inside space-y-1">
@@ -97,7 +97,7 @@ const BMCRenderer: FC<FrameworkRendererProps<BMCFrameworkResult>> = ({ data }) =
                   </div>
                 )}
 
-                {block.strategicImplications && block.strategicImplications.length > 0 && (
+                {Array.isArray(block.strategicImplications) && block.strategicImplications.length > 0 && (
                   <div>
                     <h4 className="font-semibold text-sm mb-2">Strategic Implications</h4>
                     <ul className="list-disc list-inside space-y-1">
@@ -108,7 +108,7 @@ const BMCRenderer: FC<FrameworkRendererProps<BMCFrameworkResult>> = ({ data }) =
                   </div>
                 )}
 
-                {block.identifiedGaps && block.identifiedGaps.length > 0 && (
+                {Array.isArray(block.identifiedGaps) && block.identifiedGaps.length > 0 && (
                   <div>
                     <h4 className="font-semibold text-sm mb-2 text-amber-600">Identified Gaps</h4>
                     <ul className="list-disc list-inside space-y-1">
@@ -125,7 +125,7 @@ const BMCRenderer: FC<FrameworkRendererProps<BMCFrameworkResult>> = ({ data }) =
       </div>
 
       {/* Critical Gaps */}
-      {data.criticalGaps && data.criticalGaps.length > 0 && (
+      {Array.isArray(data.criticalGaps) && data.criticalGaps.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-amber-600">Critical Gaps to Address</CardTitle>
