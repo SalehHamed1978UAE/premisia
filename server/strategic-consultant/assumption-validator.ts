@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { aiClients } from '../ai-clients';
 import type { Assumption } from './assumption-extractor';
+import { parseAIJson } from '../utils/parse-ai-json';
 
 export interface AssumptionQuery {
   assumption: string;
@@ -116,12 +117,7 @@ Return ONLY valid JSON (no markdown, no explanation):
       maxTokens: 2000,
     }, "anthropic");
 
-    const jsonMatch = response.content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON found in AI response');
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]);
+    const parsed = parseAIJson(response.content, 'assumption validator query generation');
     const validated = querySchema.parse(parsed);
 
     return validated.queries;
@@ -216,12 +212,7 @@ Return ONLY valid JSON (no markdown, no explanation):
       maxTokens: 3000,
     }, "anthropic");
 
-    const jsonMatch = response.content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON found in AI response');
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]);
+    const parsed = parseAIJson(response.content, 'assumption validator contradiction detection');
     const validated = contradictionSchema.parse(parsed);
 
     // Add investment amounts and categories from original assumptions

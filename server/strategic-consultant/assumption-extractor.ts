@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { aiClients } from '../ai-clients';
+import { parseAIJson } from '../utils/parse-ai-json';
 
 export interface Assumption {
   claim: string;
@@ -109,12 +110,7 @@ Return ONLY valid JSON (no markdown, no explanation):
       maxTokens: 2000,
     }, "anthropic");
 
-    const jsonMatch = response.content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON found in AI response');
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]);
+    const parsed = parseAIJson(response.content, 'assumption extractor');
     const validated = assumptionSchema.parse(parsed);
 
     return validated;

@@ -1,4 +1,5 @@
 import { aiClients } from '../ai-clients';
+import { parseAIJson } from '../utils/parse-ai-json';
 
 export type BMCBlockType = 
   | 'customer_segments' 
@@ -292,12 +293,7 @@ Generate 5-6 queries following the baseline/validating/challenging balance speci
 
     const textContent = response.content;
 
-    const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error(`Failed to extract JSON from ${blockType} query generation`);
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]);
+    const parsed = parseAIJson(textContent, `BMC ${blockType} query generation`);
     const queries: BMCQuery[] = parsed.queries.map((q: any) => ({
       ...q,
       blockType,
