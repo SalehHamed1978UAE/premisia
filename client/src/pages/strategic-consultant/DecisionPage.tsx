@@ -94,6 +94,15 @@ export default function DecisionPage() {
     }
   });
 
+  // Helper to get decisions array from response
+  const getDecisions = (data: DecisionsData | undefined): Decision[] => {
+    if (!data?.version?.decisions) return [];
+    const decisionsData = data.version.decisions;
+    return Array.isArray(decisionsData?.decisions) 
+      ? decisionsData.decisions 
+      : (Array.isArray(decisionsData) ? decisionsData : []);
+  };
+
   const handleDecisionChange = (decisionId: string, optionId: string) => {
     setSelectedDecisions(prev => ({
       ...prev,
@@ -102,9 +111,10 @@ export default function DecisionPage() {
   };
 
   const handleProceed = () => {
-    if (!data?.version?.decisions?.decisions) return;
+    const currentDecisions = getDecisions(data);
+    if (currentDecisions.length === 0) return;
 
-    const allSelected = data.version.decisions.decisions.every(d => selectedDecisions[d.id]);
+    const allSelected = currentDecisions.every(d => selectedDecisions[d.id]);
     
     if (!allSelected) {
       toast({
@@ -141,13 +151,10 @@ export default function DecisionPage() {
     );
   }
 
-  // Handle both flat decisionsData and nested structure for backward compatibility
-  const decisionsData = data?.version?.decisions;
-  const decisions = Array.isArray(decisionsData?.decisions) 
-    ? decisionsData.decisions 
-    : (Array.isArray(decisionsData) ? decisionsData : []);
+  // Extract decisions array using helper
+  const decisions = getDecisions(data);
 
-  if (error || !decisionsData || decisions.length === 0) {
+  if (error || decisions.length === 0) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-8">
         <Alert variant="destructive" className="max-w-md">
