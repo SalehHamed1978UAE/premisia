@@ -235,21 +235,38 @@ export default function StrategyResultsPage() {
         )}
 
         {/* Actions */}
-        <div className="flex gap-4">
-          <Button 
-            variant="outline"
-            onClick={() => setLocation('/strategic-consultant')}
-            data-testid="button-new-analysis"
-          >
-            Start New Analysis
-          </Button>
-          <Button 
-            variant="outline"
-            onClick={() => setLocation(`/strategic-consultant/decisions/${sessionId}/${versionNumber}`)}
-            data-testid="button-view-decisions"
-          >
-            View Strategic Decisions
-          </Button>
+        <div className="space-y-4">
+          <div className="p-6 border-2 border-primary rounded-lg bg-primary/5">
+            <h3 className="text-lg font-semibold mb-2">Next Step: Strategic Decision Making</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Review the analysis above and make key strategic decisions to generate your complete EPM program
+            </p>
+            <Button 
+              size="lg"
+              onClick={() => setLocation(`/strategy-workspace/decisions/${sessionId}`)}
+              data-testid="button-review-decide"
+              className="w-full"
+            >
+              Review Results & Make Strategic Decisions
+            </Button>
+          </div>
+          
+          <div className="flex gap-4">
+            <Button 
+              variant="outline"
+              onClick={() => setLocation('/strategic-consultant')}
+              data-testid="button-new-analysis"
+            >
+              Start New Analysis
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={() => setLocation(`/strategic-consultant/decisions/${sessionId}/${versionNumber}`)}
+              data-testid="button-view-decisions"
+            >
+              View AI Decisions (Old Flow)
+            </Button>
+          </div>
         </div>
       </div>
     </AppLayout>

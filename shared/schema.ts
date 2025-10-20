@@ -88,6 +88,12 @@ export const frameworkNameEnum = pgEnum('framework_name', [
   'blue_ocean'
 ]);
 
+// Strategy Workspace enums
+export const riskToleranceEnum = pgEnum('risk_tolerance', ['conservative', 'balanced', 'aggressive']);
+export const timelinePreferenceEnum = pgEnum('timeline_preference', ['fast_growth', 'sustainable_pace', 'deliberate']);
+export const goDecisionEnum = pgEnum('go_decision', ['proceed', 'pivot', 'abandon']);
+export const epmStatusEnum = pgEnum('epm_status', ['draft', 'finalized']);
+
 // Session storage table for Replit Auth
 export const sessions = pgTable(
   "sessions",
@@ -515,6 +521,84 @@ export const journeySessions = pgTable("journey_sessions", {
   statusIdx: index("idx_journey_sessions_status").on(table.status),
 }));
 
+// Strategy Decisions table
+export const strategyDecisions = pgTable("strategy_decisions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  journeySessionId: varchar("journey_session_id").notNull().references(() => journeySessions.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  
+  // Strategic Choices
+  primaryCustomerSegment: text("primary_customer_segment"),
+  revenueModel: text("revenue_model"),
+  channelPriorities: text("channel_priorities").array().default(sql`ARRAY[]::text[]`),
+  partnershipStrategy: text("partnership_strategy"),
+  
+  // Risk & Investment
+  riskTolerance: riskToleranceEnum("risk_tolerance").notNull().default('balanced'),
+  investmentCapacityMin: integer("investment_capacity_min"),
+  investmentCapacityMax: integer("investment_capacity_max"),
+  timelinePreference: timelinePreferenceEnum("timeline_preference").notNull().default('sustainable_pace'),
+  successMetricsPriority: text("success_metrics_priority").array().default(sql`ARRAY[]::text[]`),
+  
+  // Assumptions
+  validatedAssumptions: jsonb("validated_assumptions").default(sql`'[]'::jsonb`),
+  concerns: text("concerns").array().default(sql`ARRAY[]::text[]`),
+  
+  // Priorities & Decision
+  topPriorities: text("top_priorities").array().default(sql`ARRAY[]::text[]`),
+  goDecision: goDecisionEnum("go_decision").notNull(),
+  decisionRationale: text("decision_rationale"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  journeySessionIdx: index("idx_strategy_decisions_journey").on(table.journeySessionId),
+  userIdx: index("idx_strategy_decisions_user").on(table.userId),
+}));
+
+// EPM Programs table
+export const epmPrograms = pgTable("epm_programs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  journeySessionId: varchar("journey_session_id").notNull().references(() => journeySessions.id, { onDelete: 'cascade' }),
+  strategyDecisionId: varchar("strategy_decision_id").references(() => strategyDecisions.id, { onDelete: 'set null' }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  frameworkType: varchar("framework_type", { length: 50 }).notNull(),
+  
+  // 14 EPM Components (JSONB for flexibility)
+  executiveSummary: jsonb("executive_summary").notNull(),
+  workstreams: jsonb("workstreams").notNull(),
+  timeline: jsonb("timeline").notNull(),
+  resourcePlan: jsonb("resource_plan").notNull(),
+  financialPlan: jsonb("financial_plan").notNull(),
+  benefitsRealization: jsonb("benefits_realization").notNull(),
+  riskRegister: jsonb("risk_register").notNull(),
+  stageGates: jsonb("stage_gates").notNull(),
+  kpis: jsonb("kpis").notNull(),
+  stakeholderMap: jsonb("stakeholder_map").notNull(),
+  governance: jsonb("governance").notNull(),
+  qaPlan: jsonb("qa_plan").notNull(),
+  procurement: jsonb("procurement").notNull(),
+  exitStrategy: jsonb("exit_strategy").notNull(),
+  
+  // Confidence tracking
+  componentConfidence: jsonb("component_confidence").notNull(),
+  overallConfidence: decimal("overall_confidence", { precision: 5, scale: 4 }).notNull(),
+  
+  // Edit tracking
+  editTracking: jsonb("edit_tracking").notNull().default(sql`'{}'::jsonb`),
+  
+  status: epmStatusEnum("status").notNull().default('draft'),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  finalizedAt: timestamp("finalized_at"),
+}, (table) => ({
+  journeySessionIdx: index("idx_epm_programs_journey").on(table.journeySessionId),
+  strategyDecisionIdx: index("idx_epm_programs_decision").on(table.strategyDecisionId),
+  userIdx: index("idx_epm_programs_user").on(table.userId),
+  statusIdx: index("idx_epm_programs_status").on(table.status),
+}));
+
 export const strategicEntities = pgTable("strategic_entities", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   understandingId: varchar("understanding_id").notNull().references(() => strategicUnderstanding.id, { onDelete: 'cascade' }),
@@ -851,6 +935,8 @@ export const insertBMCFindingSchema = createInsertSchema(bmcFindings).omit({ id:
 // Strategic Understanding (Knowledge Graph) insert schemas
 export const insertStrategicUnderstandingSchema = createInsertSchema(strategicUnderstanding).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertJourneySessionSchema = createInsertSchema(journeySessions).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertStrategyDecisionSchema = createInsertSchema(strategyDecisions).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertEpmProgramSchema = createInsertSchema(epmPrograms).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertStrategicEntitySchema = createInsertSchema(strategicEntities).omit({ id: true, createdAt: true, updatedAt: true, discoveredAt: true });
 export const insertStrategicRelationshipSchema = createInsertSchema(strategicRelationships).omit({ id: true, createdAt: true, updatedAt: true, discoveredAt: true });
 

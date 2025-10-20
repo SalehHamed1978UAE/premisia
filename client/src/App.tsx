@@ -26,6 +26,8 @@ import BMCTestPage from "@/pages/BMCTestPage";
 import BMCResultsPage from "@/pages/BMCResultsPage";
 import RepositoryBrowser from "@/pages/RepositoryBrowser";
 import StatementDetailView from "@/pages/StatementDetailView";
+import DecisionSummaryPage from "@/pages/strategy-workspace/DecisionSummaryPage";
+import EPMProgramView from "@/pages/strategy-workspace/EPMProgramView";
 import { ProtectedRoute } from "./lib/protected-route";
 
 function Router() {
@@ -49,6 +51,8 @@ function Router() {
         <ProtectedRoute path="/strategic-consultant/research/:sessionId" component={ResearchPage} />
         <ProtectedRoute path="/strategic-consultant/epm/:sessionId/:versionNumber" component={EPMPage} />
         <ProtectedRoute path="/strategic-consultant/versions/:sessionId" component={VersionsPage} />
+        <ProtectedRoute path="/strategy-workspace/decisions/:sessionId" component={DecisionSummaryPage} />
+        <ProtectedRoute path="/strategy-workspace/epm/:id" component={EPMProgramView} />
         <ProtectedRoute path="/repository" component={RepositoryBrowser} />
         <ProtectedRoute path="/repository/:understandingId" component={StatementDetailView} />
         <Route path="/auth" component={AuthPage} />
