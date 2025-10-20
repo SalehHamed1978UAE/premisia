@@ -795,21 +795,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Query parameter is required' });
       }
 
-      const response = await fetch('https://google.serper.dev/search', {
-        method: 'POST',
+      const apiKey = process.env.BRAVE_SEARCH_API_KEY;
+      if (!apiKey) {
+        throw new Error('BRAVE_SEARCH_API_KEY environment variable is not set');
+      }
+
+      const searchUrl = new URL('https://api.search.brave.com/res/v1/web/search');
+      searchUrl.searchParams.append('q', query);
+      searchUrl.searchParams.append('count', '10');
+
+      const response = await fetch(searchUrl.toString(), {
+        method: 'GET',
         headers: {
-          'X-API-KEY': process.env.SERPER_API_KEY || '',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ q: query })
+          'X-Subscription-Token': apiKey,
+          'Accept': 'application/json'
+        }
       });
 
       if (!response.ok) {
-        throw new Error(`Serper API error: ${response.status} ${response.statusText}`);
+        const errorText = await response.text();
+        console.error(`Brave Search API error: ${response.status} ${response.statusText}`, errorText);
+        throw new Error(`Brave Search API error: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
-      res.json(data);
+      
+      // Transform Brave Search response to match expected format (Serper-like)
+      const transformedData = {
+        organic: (data.web?.results || []).map((result: any, index: number) => ({
+          title: result.title || '',
+          link: result.url || '',
+          snippet: result.description || '',
+          position: index + 1
+        }))
+      };
+
+      res.json(transformedData);
     } catch (error) {
       console.error('Web search error:', error);
       res.status(500).json({ 
