@@ -7,6 +7,19 @@ import { AlertTriangle } from "lucide-react";
 import type { FrameworkRendererProps } from './index';
 
 const BMCRenderer: FC<FrameworkRendererProps<BMCFrameworkResult>> = ({ data }) => {
+  // Helper function to map confidence strings to display
+  const getConfidenceDisplay = (confidence: string | number): { label: string; variant: "default" | "secondary" | "outline" } => {
+    if (typeof confidence === 'string') {
+      const lowerConf = confidence.toLowerCase();
+      if (lowerConf === 'strong' || lowerConf === 'high') return { label: 'Strong', variant: 'default' };
+      if (lowerConf === 'moderate' || lowerConf === 'medium') return { label: 'Moderate', variant: 'secondary' };
+      return { label: 'Weak', variant: 'outline' };
+    }
+    // Numeric confidence (0-1)
+    const percent = Math.round(confidence * 100);
+    return { label: `${percent}%`, variant: confidence > 0.7 ? 'default' : 'secondary' };
+  };
+
   return (
     <div className="space-y-6" data-testid="framework-bmc">
       {/* Overall Metrics */}
@@ -82,17 +95,19 @@ const BMCRenderer: FC<FrameworkRendererProps<BMCFrameworkResult>> = ({ data }) =
         <h2 className="text-2xl font-bold">Canvas Components</h2>
         
         <div className="grid gap-6 md:grid-cols-2">
-          {data.blocks.map((block, idx) => (
-            <Card key={idx} data-testid={`card-bmc-block-${idx}`}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">{block.blockName}</CardTitle>
-                  <Badge variant="outline">
-                    {Math.round(block.confidence * 100)}%
-                  </Badge>
-                </div>
-                <CardDescription className="mt-2">{block.description}</CardDescription>
-              </CardHeader>
+          {data.blocks.map((block, idx) => {
+            const confDisplay = getConfidenceDisplay(block.confidence);
+            return (
+              <Card key={idx} data-testid={`card-bmc-block-${idx}`}>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">{block.blockName}</CardTitle>
+                    <Badge variant={confDisplay.variant}>
+                      {confDisplay.label}
+                    </Badge>
+                  </div>
+                  <CardDescription className="mt-2">{block.description}</CardDescription>
+                </CardHeader>
               <CardContent className="space-y-4">
                 {Array.isArray(block.keyFindings) && block.keyFindings.length > 0 && (
                   <div>
@@ -124,7 +139,8 @@ const BMCRenderer: FC<FrameworkRendererProps<BMCFrameworkResult>> = ({ data }) =
                 )}
               </CardContent>
             </Card>
-          ))}
+            )
+          })}
         </div>
       </div>
 
