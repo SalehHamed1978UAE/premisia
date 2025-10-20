@@ -524,7 +524,7 @@ export const journeySessions = pgTable("journey_sessions", {
 // Strategy Decisions table
 export const strategyDecisions = pgTable("strategy_decisions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  journeySessionId: varchar("journey_session_id").notNull().references(() => journeySessions.id, { onDelete: 'cascade' }),
+  journeySessionId: varchar("journey_session_id").references(() => journeySessions.id, { onDelete: 'cascade' }),
   userId: varchar("user_id").notNull().references(() => users.id),
   
   // Strategic Choices
