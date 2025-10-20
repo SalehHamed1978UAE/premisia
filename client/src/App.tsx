@@ -51,7 +51,7 @@ function Router() {
         <ProtectedRoute path="/strategic-consultant/research/:sessionId" component={ResearchPage} />
         <ProtectedRoute path="/strategic-consultant/epm/:sessionId/:versionNumber" component={EPMPage} />
         <ProtectedRoute path="/strategic-consultant/versions/:sessionId" component={VersionsPage} />
-        <ProtectedRoute path="/strategy-workspace/decisions/:sessionId" component={DecisionSummaryPage} />
+        <ProtectedRoute path="/strategy-workspace/decisions/:sessionId/:versionNumber" component={DecisionSummaryPage} />
         <ProtectedRoute path="/strategy-workspace/epm/:id" component={EPMProgramView} />
         <ProtectedRoute path="/repository" component={RepositoryBrowser} />
         <ProtectedRoute path="/repository/:understandingId" component={StatementDetailView} />

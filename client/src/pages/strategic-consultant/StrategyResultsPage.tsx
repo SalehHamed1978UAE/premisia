@@ -243,7 +243,7 @@ export default function StrategyResultsPage() {
             </p>
             <Button 
               size="lg"
-              onClick={() => setLocation(`/strategy-workspace/decisions/${sessionId}`)}
+              onClick={() => setLocation(`/strategy-workspace/decisions/${sessionId}/${versionNumber}`)}
               data-testid="button-review-decide"
               className="w-full"
             >
