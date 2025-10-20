@@ -262,13 +262,9 @@ export default function ResearchPage() {
     if (autoNavigateCountdown === null) return;
 
     if (autoNavigateCountdown === 0) {
-      // Determine which results page to navigate to based on journey type
-      const journeyType = localStorage.getItem(`journey-type-${sessionId}`);
-      const resultsUrl = journeyType === 'business_model_innovation'
-        ? `/bmc/results/${sessionId}/1`
-        : `/strategic-consultant/analysis/${sessionId}`;
-      
-      setLocation(resultsUrl);
+      // Route to unified results page with the correct version number
+      const version = researchData?.versionNumber || 1;
+      setLocation(`/strategic-consultant/results/${sessionId}/${version}`);
       return;
     }
 
@@ -277,18 +273,13 @@ export default function ResearchPage() {
     }, 1000);
 
     return () => clearTimeout(timer);
-  }, [autoNavigateCountdown, sessionId, setLocation]);
+  }, [autoNavigateCountdown, sessionId, researchData, setLocation]);
 
   const handleContinue = () => {
     setAutoNavigateCountdown(null);
-    
-    // Determine which results page to navigate to based on journey type
-    const journeyType = localStorage.getItem(`journey-type-${sessionId}`);
-    const resultsUrl = journeyType === 'business_model_innovation'
-      ? `/bmc/results/${sessionId}/1`
-      : `/strategic-consultant/analysis/${sessionId}`;
-    
-    setLocation(resultsUrl);
+    // Route to unified results page with the correct version number
+    const version = researchData?.versionNumber || 1;
+    setLocation(`/strategic-consultant/results/${sessionId}/${version}`);
   };
 
   const handleRetry = () => {

@@ -5,6 +5,9 @@
 
 import type { FrameworkName } from './journey-types';
 
+// Re-export for convenience
+export type { FrameworkName } from './journey-types';
+
 /**
  * Base Framework Result
  */

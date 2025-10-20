@@ -14,6 +14,7 @@ import AuthPage from "@/pages/auth-page";
 import InputPage from "@/pages/strategic-consultant/InputPage";
 import JourneySelectionPage from "@/pages/strategic-consultant/JourneySelectionPage";
 import JourneyResultsPage from "@/pages/strategic-consultant/JourneyResultsPage";
+import StrategyResultsPage from "@/pages/strategic-consultant/StrategyResultsPage";
 import AnalysisPage from "@/pages/strategic-consultant/AnalysisPage";
 import TrendAnalysisPage from "@/pages/strategic-consultant/TrendAnalysisPage";
 import DecisionPage from "@/pages/strategic-consultant/DecisionPage";
@@ -40,6 +41,7 @@ function Router() {
         <ProtectedRoute path="/strategic-consultant/input" component={InputPage} />
         <ProtectedRoute path="/strategic-consultant/journey-selection/:understandingId" component={JourneySelectionPage} />
         <ProtectedRoute path="/strategic-consultant/journey-results/:sessionId" component={JourneyResultsPage} />
+        <ProtectedRoute path="/strategic-consultant/results/:sessionId/:versionNumber" component={StrategyResultsPage} />
         <ProtectedRoute path="/strategic-consultant/analysis/:sessionId" component={AnalysisPage} />
         <ProtectedRoute path="/strategic-consultant/trend-analysis/:sessionId/:versionNumber" component={TrendAnalysisPage} />
         <ProtectedRoute path="/strategic-consultant/decisions/:sessionId/:versionNumber" component={DecisionPage} />
