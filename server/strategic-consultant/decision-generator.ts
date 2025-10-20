@@ -456,6 +456,119 @@ Return ONLY valid JSON (no markdown, no explanation):
     };
   }
 
+  async generateDecisionsFromBMC(
+    bmcResult: any, // BMCResearchResult type
+    originalInput: string
+  ): Promise<GeneratedDecisions> {
+    // Extract key insights from BMC blocks
+    const bmcBlocks = bmcResult.blocks || [];
+    const contradictions = bmcResult.contradictions || [];
+    const recommendations = bmcResult.recommendations || [];
+    const keyInsights = bmcResult.keyInsights || [];
+    
+    // Format BMC findings for AI
+    const bmcSummary = bmcBlocks.map((block: any) => 
+      `${block.blockName}: ${block.description}\nFindings: ${block.findings.map((f: any) => f.fact).slice(0, 3).join('; ')}\nConfidence: ${block.confidence}`
+    ).join('\n\n');
+
+    const contradictionsSummary = contradictions.length > 0 
+      ? `\n\nCONTRADICTIONS FOUND:\n${contradictions.map((c: any) => 
+          `- ${c.assumption}: ${c.contradictedBy.map((cb: any) => cb.fact).join('; ')}`
+        ).join('\n')}`
+      : '';
+
+    const response = await this.anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 8000,
+      temperature: 0.4,
+      messages: [
+        {
+          role: 'user',
+          content: `You are a strategic consultant creating decision points based on a Business Model Canvas analysis.
+
+ORIGINAL INPUT:
+${originalInput.substring(0, 1500)}
+
+BUSINESS MODEL CANVAS ANALYSIS:
+${bmcSummary}${contradictionsSummary}
+
+KEY INSIGHTS:
+${keyInsights.join('\n')}
+
+RECOMMENDATIONS:
+${recommendations.map((r: any) => `${r.priority}: ${r.action} - ${r.rationale}`).slice(0, 5).join('\n')}
+
+Create 2-4 strategic decision points that an executive must choose between based on this BMC analysis. Each decision should:
+1. Have 2-4 options to choose from
+2. Include cost estimates where relevant (in dollars)
+3. Include timeline estimates where relevant (in months)
+4. Show pros and cons clearly
+5. Mark one option as recommended
+6. Address contradictions found in the analysis
+
+Decision points should cover areas like:
+- Customer segment prioritization
+- Value proposition differentiation
+- Revenue model selection
+- Channel strategy
+- Resource allocation priorities
+
+Return ONLY valid JSON (no markdown, no explanation):
+
+{
+  "decisions": [
+    {
+      "id": "decision_1",
+      "title": "Decision Title",
+      "question": "Clear question for executive to answer",
+      "context": "Why this decision matters based on BMC analysis (2-3 sentences)",
+      "options": [
+        {
+          "id": "option_1",
+          "label": "Option Label",
+          "description": "Detailed description of this option",
+          "estimated_cost": { "min": 100000, "max": 250000 },
+          "estimated_timeline_months": 6,
+          "pros": ["pro 1 based on BMC findings", "pro 2", "pro 3"],
+          "cons": ["con 1", "con 2"],
+          "recommended": true,
+          "reasoning": "Why this option is recommended based on BMC analysis"
+        }
+      ],
+      "impact_areas": ["Customer Segments", "Revenue Streams", "etc"]
+    }
+  ],
+  "decision_flow": "Brief explanation of how these decisions build on the BMC analysis",
+  "estimated_completion_time_minutes": 5
+}`,
+        },
+      ],
+    });
+
+    const textContent = response.content.find((block): block is Anthropic.TextBlock => block.type === 'text');
+    if (!textContent) {
+      throw new Error('No text content in AI response');
+    }
+
+    // Extract JSON from response (handle markdown code blocks)
+    let responseText = textContent.text.trim();
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.error('Invalid JSON response from AI:', responseText);
+      throw new Error('AI did not return valid JSON for BMC decisions');
+    }
+
+    const generated = JSON.parse(jsonMatch[0]);
+
+    // Basic validation
+    const validation = await this.validateDecisions(generated);
+    if (!validation.valid) {
+      console.warn('BMC decision validation warnings:', validation.issues);
+    }
+
+    return generated;
+  }
+
   async validateDecisions(decisions: GeneratedDecisions): Promise<{ valid: boolean; issues: string[] }> {
     const issues: string[] = [];
 

@@ -1284,6 +1284,11 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
       clearInterval(progressInterval);
     }
 
+    // Generate strategic decisions from BMC results
+    console.log('[BMC-RESEARCH-STREAM] Generating strategic decisions from BMC analysis...');
+    const decisions = await decisionGenerator.generateDecisionsFromBMC(result, input);
+    console.log(`[BMC-RESEARCH-STREAM] Generated ${decisions.decisions.length} strategic decisions`);
+
     // Save to version
     const userId = (req.user as any)?.claims?.sub || 'system';
     const version = await storage.getStrategyVersion(sessionId, 1) || 
@@ -1292,6 +1297,7 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
                       versionNumber: 1,
                       status: 'in_progress',
                       analysisData: {},
+                      decisionsData: decisions,
                       userId,
                       createdBy: userId,
                     });
@@ -1303,8 +1309,9 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
           ...existingAnalysisData,
           bmc_research: result,
         },
+        decisionsData: decisions,
       });
-      console.log(`[BMC-RESEARCH-STREAM] Saved results to version ${version.versionNumber}`);
+      console.log(`[BMC-RESEARCH-STREAM] Saved BMC results and ${decisions.decisions.length} decisions to version ${version.versionNumber}`);
     }
 
     // Send completion message in research/stream format
