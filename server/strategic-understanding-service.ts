@@ -252,13 +252,20 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
       maxTokens: 3000,
     }, "anthropic");
 
-    const jsonMatch = response.content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('No JSON found in AI response');
-    }
+    let validated;
+    try {
+      const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No JSON found in AI response');
+      }
 
-    const parsed = JSON.parse(jsonMatch[0]);
-    const validated = entityExtractionSchema.parse(parsed);
+      const parsed = JSON.parse(jsonMatch[0]);
+      validated = entityExtractionSchema.parse(parsed);
+    } catch (error: any) {
+      console.error('[StrategicUnderstanding] JSON parsing error:', error);
+      console.error('[StrategicUnderstanding] Raw AI response:', response.content);
+      throw new Error(`Failed to parse AI response: ${error.message}`);
+    }
 
     console.log(`[StrategicUnderstanding] AI extracted ${validated.entities.length} entities, validating sources...`);
     
