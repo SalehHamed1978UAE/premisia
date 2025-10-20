@@ -1208,6 +1208,124 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
   }
 });
 
+// GET version of BMC research for EventSource SSE streaming
+router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response) => {
+  console.log('[BMC-RESEARCH-STREAM] GET endpoint called! sessionId:', req.params.sessionId);
+  req.socket.setTimeout(600000);
+  
+  try {
+    const { sessionId } = req.params;
+    const { input } = req.query;
+
+    if (!input || typeof input !== 'string') {
+      return res.status(400).json({ error: 'Input text is required as query parameter' });
+    }
+    
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Session ID is required' });
+    }
+    
+    console.log('[BMC-RESEARCH-STREAM] Starting SSE stream for session:', sessionId);
+
+    // Set up Server-Sent Events
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+    res.flushHeaders();
+    
+    console.log('[BMC-RESEARCH-STREAM] SSE headers set, starting to send messages...');
+
+    // Progress messages (same as POST version)
+    const progressMessages = [
+      { message: '🔍 Analyzing your business concept and strategic context...', progress: 5 },
+      { message: '🔍 Extracting key assumptions from your input...', progress: 10 },
+      { message: '🔍 Identifying explicit and implicit strategic claims...', progress: 15 },
+      { message: '🧩 Breaking down Business Model Canvas components...', progress: 20 },
+      { message: '🧩 Generating queries for Customer Segments...', progress: 25 },
+      { message: '🧩 Creating Value Proposition research queries...', progress: 30 },
+      { message: '🌐 Searching global markets for industry insights...', progress: 35 },
+      { message: '🌐 Gathering real-world customer segment data...', progress: 40 },
+      { message: '🌐 Researching competitive landscape and alternatives...', progress: 45 },
+      { message: '💰 Researching pricing models and revenue strategies...', progress: 50 },
+      { message: '💰 Analyzing competitor pricing structures...', progress: 55 },
+      { message: '💰 Investigating subscription vs. one-time models...', progress: 60 },
+      { message: '🤝 Investigating partnership and channel strategies...', progress: 65 },
+      { message: '🤝 Researching distribution channel effectiveness...', progress: 70 },
+      { message: '📊 Analyzing cost structures and resource needs...', progress: 75 },
+      { message: '📊 Researching key resource requirements...', progress: 80 },
+      { message: '🎯 Detecting strategic gaps and contradictions...', progress: 85 },
+      { message: '🎯 Cross-validating assumptions against evidence...', progress: 90 },
+      { message: '✨ Finalizing Business Model Canvas analysis...', progress: 95 },
+    ];
+
+    let messageIndex = 0;
+    let progressInterval: NodeJS.Timeout | null = null;
+
+    // Send progress messages every 6 seconds (19 messages * 6s = ~120s)
+    progressInterval = setInterval(() => {
+      if (messageIndex < progressMessages.length) {
+        const msg = progressMessages[messageIndex];
+        console.log(`[BMC-RESEARCH-STREAM] Sending progress ${messageIndex}/${progressMessages.length}:`, msg.message);
+        res.write(`data: ${JSON.stringify({ type: 'progress', ...msg })}\n\n`);
+        messageIndex++;
+      }
+    }, 6000);
+
+    // Send initial message immediately
+    console.log('[BMC-RESEARCH-STREAM] Sending initial message');
+    res.write(`data: ${JSON.stringify({ type: 'progress', message: '🚀 Starting BMC research...', progress: 0 })}\n\n`);
+
+    // Conduct research
+    const result = await bmcResearcher.conductBMCResearch(input, sessionId);
+
+    // Stop timer
+    if (progressInterval) {
+      clearInterval(progressInterval);
+    }
+
+    // Save to version
+    const userId = (req.user as any)?.claims?.sub || 'system';
+    const version = await storage.getStrategyVersion(sessionId, 1) || 
+                    await storage.createStrategyVersion({
+                      sessionId,
+                      versionNumber: 1,
+                      status: 'in_progress',
+                      analysisData: {},
+                      userId,
+                      createdBy: userId,
+                    });
+    
+    if (version) {
+      const existingAnalysisData = version.analysisData as any || {};
+      await storage.updateStrategyVersion(version.id, {
+        analysisData: {
+          ...existingAnalysisData,
+          bmc_research: result,
+        },
+      });
+      console.log(`[BMC-RESEARCH-STREAM] Saved results to version ${version.versionNumber}`);
+    }
+
+    // Send completion message in research/stream format
+    res.write(`data: ${JSON.stringify({ 
+      type: 'complete', 
+      data: {
+        versionNumber: version?.versionNumber || 1,
+        sourcesAnalyzed: result.blocks?.length || 9,
+        timeElapsed: '~2 minutes',
+      }
+    })}\n\n`);
+    res.end();
+  } catch (error: any) {
+    console.error('Error in /bmc-research/stream:', error);
+    // Ensure error has type field for frontend handling
+    const errorMessage = error.message || 'BMC research failed';
+    res.write(`data: ${JSON.stringify({ type: 'error', error: errorMessage })}\n\n`);
+    res.end();
+  }
+});
+
 // Get understanding ID by session ID
 router.get('/understanding/:sessionId', async (req: Request, res: Response) => {
   try {

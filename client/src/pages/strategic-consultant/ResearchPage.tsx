@@ -120,6 +120,7 @@ export default function ResearchPage() {
     const whysPathStr = localStorage.getItem(`strategic-whysPath-${sessionId}`) || '[]';
     const whysPath = JSON.parse(whysPathStr);
     const input = localStorage.getItem(`strategic-input-${sessionId}`) || '';
+    const journeyType = localStorage.getItem(`journey-type-${sessionId}`);
 
     if (!rootCause || !whysPath.length || !input) {
       setError('Missing required data from previous steps');
@@ -129,13 +130,26 @@ export default function ResearchPage() {
     setIsResearching(true);
     const startTime = Date.now();
 
-    const params = new URLSearchParams({
-      rootCause,
-      whysPath: JSON.stringify(whysPath),
-      input,
-    });
-
-    const eventSource = new EventSource(`/api/strategic-consultant/research/stream/${sessionId}?${params.toString()}`);
+    // BMC journeys use the BMC research endpoint
+    const isBMCJourney = journeyType === 'business_model_innovation';
+    
+    let eventSource: EventSource;
+    
+    if (isBMCJourney) {
+      // For BMC journeys, use GET /bmc-research/stream with SSE
+      const params = new URLSearchParams({
+        input,
+      });
+      eventSource = new EventSource(`/api/strategic-consultant/bmc-research/stream/${sessionId}?${params.toString()}`);
+    } else {
+      // For Porter's-based journeys, use the standard research stream
+      const params = new URLSearchParams({
+        rootCause,
+        whysPath: JSON.stringify(whysPath),
+        input,
+      });
+      eventSource = new EventSource(`/api/strategic-consultant/research/stream/${sessionId}?${params.toString()}`);
+    }
 
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
