@@ -39,13 +39,58 @@ const BMCRenderer: FC<FrameworkRendererProps<BMCFrameworkResult>> = ({ data }) =
           </div>
 
           {Array.isArray(data.contradictions) && data.contradictions.length > 0 && (
-            <Alert variant="destructive" data-testid="alert-contradictions">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Contradictions Detected</AlertTitle>
-              <AlertDescription>
-                {data.contradictions.length} contradiction(s) found between assumptions and research
-              </AlertDescription>
-            </Alert>
+            <div className="space-y-3">
+              <Alert variant="destructive" data-testid="alert-contradictions">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Contradictions Detected</AlertTitle>
+                <AlertDescription>
+                  {data.contradictions.length} contradiction(s) found between assumptions and research
+                </AlertDescription>
+              </Alert>
+              {data.contradictions.map((contradiction: any, idx) => (
+                <Card key={idx} className="border-destructive" data-testid={`card-contradiction-${idx}`}>
+                  <CardHeader>
+                    <div className="flex items-start justify-between gap-2">
+                      <CardTitle className="text-base text-destructive">
+                        {contradiction.assumption}
+                      </CardTitle>
+                      <div className="flex gap-2">
+                        <Badge variant={contradiction.impact === 'HIGH' ? 'destructive' : contradiction.impact === 'MEDIUM' ? 'secondary' : 'outline'}>
+                          {contradiction.impact} Impact
+                        </Badge>
+                        <Badge variant="outline">
+                          {contradiction.validationStrength}
+                        </Badge>
+                      </div>
+                    </div>
+                    {contradiction.assumptionCategory && (
+                      <p className="text-xs text-muted-foreground">{contradiction.assumptionCategory}</p>
+                    )}
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div>
+                      <h4 className="font-semibold text-sm mb-2">Contradicting Evidence:</h4>
+                      <ul className="list-disc list-inside space-y-1">
+                        {Array.isArray(contradiction.contradictedBy) && contradiction.contradictedBy.map((evidence: string, eidx: number) => (
+                          <li key={eidx} className="text-sm text-muted-foreground">{evidence}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    {contradiction.recommendation && (
+                      <div>
+                        <h4 className="font-semibold text-sm mb-1">Recommendation:</h4>
+                        <p className="text-sm text-muted-foreground">{contradiction.recommendation}</p>
+                      </div>
+                    )}
+                    {contradiction.investmentAmount && (
+                      <div className="text-xs text-amber-600">
+                        Investment at risk: {contradiction.investmentAmount}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>

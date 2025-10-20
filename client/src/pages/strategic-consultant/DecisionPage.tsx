@@ -34,13 +34,15 @@ interface Decision {
   impact_areas: string[];
 }
 
+interface DecisionsResponse {
+  decisions: Decision[];
+  decision_flow: string;
+  estimated_completion_time_minutes: number;
+}
+
 interface DecisionsData {
   version: {
-    decisions: {
-      decisions: Decision[];
-      decision_flow: string;
-      estimated_completion_time_minutes: number;
-    };
+    decisions: DecisionsResponse;
     versionNumber: number;
   };
 }
@@ -139,7 +141,13 @@ export default function DecisionPage() {
     );
   }
 
-  if (error || !data?.version?.decisions?.decisions || !Array.isArray(data.version.decisions.decisions)) {
+  // Handle both flat decisionsData and nested structure for backward compatibility
+  const decisionsData = data?.version?.decisions;
+  const decisions = Array.isArray(decisionsData?.decisions) 
+    ? decisionsData.decisions 
+    : (Array.isArray(decisionsData) ? decisionsData : []);
+
+  if (error || !decisionsData || decisions.length === 0) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-8">
         <Alert variant="destructive" className="max-w-md">
@@ -153,7 +161,6 @@ export default function DecisionPage() {
     );
   }
 
-  const decisions = data.version.decisions.decisions;
   const allSelected = decisions.every(d => selectedDecisions[d.id]);
   const selectionCount = Object.keys(selectedDecisions).length;
 

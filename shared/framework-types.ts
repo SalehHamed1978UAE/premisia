@@ -30,6 +30,16 @@ export interface BMCBlock {
   researchQueries: string[];
 }
 
+export interface Contradiction {
+  assumption: string;
+  assumptionCategory: string;
+  contradictedBy: string[];
+  validationStrength: 'STRONG' | 'MODERATE' | 'WEAK';
+  impact: 'HIGH' | 'MEDIUM' | 'LOW';
+  recommendation: string;
+  investmentAmount?: string | null;
+}
+
 export interface BMCFrameworkResult extends BaseFrameworkResult {
   framework: 'bmc';
   blocks: BMCBlock[];
@@ -39,7 +49,7 @@ export interface BMCFrameworkResult extends BaseFrameworkResult {
   criticalGaps: string[];
   consistencyChecks: string[];
   recommendations: string[];
-  contradictions?: any[];
+  contradictions?: Contradiction[];
   sources?: Array<{
     url: string;
     title: string;
