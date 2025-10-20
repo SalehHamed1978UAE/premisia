@@ -4,6 +4,7 @@ import { strategyDecisions, epmPrograms, journeySessions } from '@shared/schema'
 import { eq } from 'drizzle-orm';
 import { BMCAnalyzer, PortersAnalyzer, PESTLEAnalyzer, EPMSynthesizer } from '../intelligence';
 import type { BMCResults, PortersResults, PESTLEResults } from '../intelligence/types';
+import { storage } from '../storage';
 
 const router = Router();
 
@@ -147,7 +148,8 @@ function calculateOverallConfidence(componentConfidence: Record<string, number>)
 router.post('/decisions', async (req: Request, res: Response) => {
   try {
     const {
-      journeySessionId,
+      sessionId,
+      versionNumber,
       primaryCustomerSegment,
       revenueModel,
       channelPriorities,
@@ -164,16 +166,16 @@ router.post('/decisions', async (req: Request, res: Response) => {
       decisionRationale,
     } = req.body;
 
-    if (!journeySessionId || !goDecision) {
+    if (!sessionId || !goDecision) {
       return res.status(400).json({ 
-        error: 'journeySessionId and goDecision are required' 
+        error: 'sessionId and goDecision are required' 
       });
     }
 
     const userId = (req.user as any)?.claims?.sub || null;
 
     const [decision] = await db.insert(strategyDecisions).values({
-      journeySessionId,
+      journeySessionId: sessionId, // Use sessionId, nullable FK allows BMC sessions
       userId,
       primaryCustomerSegment: primaryCustomerSegment || null,
       revenueModel: revenueModel || null,
@@ -206,25 +208,28 @@ router.post('/decisions', async (req: Request, res: Response) => {
 // Generate EPM program from framework results + user decisions
 router.post('/epm/generate', async (req: Request, res: Response) => {
   try {
-    const { journeySessionId, decisionId } = req.body;
+    const { sessionId, versionNumber, decisionId } = req.body;
 
-    if (!journeySessionId) {
-      return res.status(400).json({ error: 'journeySessionId is required' });
+    if (!sessionId || !versionNumber) {
+      return res.status(400).json({ error: 'sessionId and versionNumber are required' });
     }
 
-    // Fetch journey session to get framework results
-    const [session] = await db
-      .select()
-      .from(journeySessions)
-      .where(eq(journeySessions.id, journeySessionId))
-      .limit(1);
+    // Fetch strategy version to get BMC analysis
+    const version = await storage.getStrategyVersion(sessionId, versionNumber);
 
-    if (!session) {
-      return res.status(404).json({ error: 'Journey session not found' });
+    if (!version) {
+      return res.status(404).json({ error: 'Strategy version not found' });
+    }
+
+    const analysisData = version.analysisData as any;
+    const bmcAnalysis = analysisData?.bmc_research;
+
+    if (!bmcAnalysis) {
+      return res.status(404).json({ error: 'No BMC analysis found for this version' });
     }
 
     // Fetch user decisions if provided
-    let userDecisions = null;
+    let userDecisions: any = null;
     if (decisionId) {
       const [decision] = await db
         .select()
@@ -240,7 +245,7 @@ router.post('/epm/generate', async (req: Request, res: Response) => {
         let page1Fields = 0;
         if (decision.primaryCustomerSegment) page1Fields++;
         if (decision.revenueModel) page1Fields++;
-        if (decision.channelPriorities?.length > 0) page1Fields++;
+        if (Array.isArray(decision.channelPriorities) && decision.channelPriorities.length > 0) page1Fields++;
         if (decision.partnershipStrategy) page1Fields++;
         if (page1Fields < 2) {
           missingFields.push('Strategic Choices (need at least 2 decisions)');
@@ -251,7 +256,8 @@ router.post('/epm/generate', async (req: Request, res: Response) => {
         if (!decision.timelinePreference) missingFields.push('Timeline Preference');
         
         // Page 3: Assumptions (at least 1 required)
-        if (!decision.validatedAssumptions?.length && !decision.concerns?.length) {
+        if ((!Array.isArray(decision.validatedAssumptions) || decision.validatedAssumptions.length === 0) && 
+            (!Array.isArray(decision.concerns) || decision.concerns.length === 0)) {
           missingFields.push('Validated Assumptions or Concerns');
         }
         
@@ -275,200 +281,70 @@ router.post('/epm/generate', async (req: Request, res: Response) => {
       }
     }
 
-    const context = session.accumulatedContext as any;
+    // Convert BMC blocks to BMCResults format
+    const blocks = bmcAnalysis.blocks || [];
+    const findBlock = (name: string) => blocks.find((b: any) => b.blockName === name)?.description || '';
     
-    // Determine framework type from completed frameworks
-    const completedFrameworks = session.completedFrameworks || [];
-    let frameworkType: string = 'unknown';
-    let frameworkResults: any = null;
+    const bmcResults: BMCResults = {
+      customerSegments: findBlock('Customer Segments'),
+      valuePropositions: findBlock('Value Propositions'),
+      channels: findBlock('Channels'),
+      customerRelationships: findBlock('Customer Relationships'),
+      revenueStreams: findBlock('Revenue Streams'),
+      keyActivities: findBlock('Key Activities'),
+      keyResources: findBlock('Key Resources'),
+      keyPartnerships: findBlock('Key Partnerships'),
+      costStructure: findBlock('Cost Structure'),
+      contradictions: [],
+      recommendations: bmcAnalysis.recommendations || [],
+      executiveSummary: (bmcAnalysis.keyInsights || []).join('. '),
+    };
 
-    // Extract framework results from context
-    if (completedFrameworks.includes('bmc')) {
-      frameworkType = 'bmc';
-      frameworkResults = context.insights?.bmcBlocks || {};
-      
-      // Convert to BMCResults format
-      const bmcResults: BMCResults = {
-        customerSegments: frameworkResults.customer_segments?.description || '',
-        valuePropositions: frameworkResults.value_propositions?.description || '',
-        channels: frameworkResults.channels?.description || '',
-        customerRelationships: frameworkResults.customer_relationships?.description || '',
-        revenueStreams: frameworkResults.revenue_streams?.description || '',
-        keyActivities: frameworkResults.key_activities?.description || '',
-        keyResources: frameworkResults.key_resources?.description || '',
-        keyPartnerships: frameworkResults.key_partnerships?.description || '',
-        costStructure: frameworkResults.cost_structure?.description || '',
-        contradictions: context.insights?.bmcContradictions || [],
-        recommendations: context.insights?.keyInsights || [],
-        executiveSummary: context.insights?.executiveSummary || '',
-      };
+    // Run through BMC analyzer
+    const insights = await bmcAnalyzer.analyze(bmcResults);
+    
+    // Run through EPM synthesizer
+    const epmProgram = await epmSynthesizer.synthesize(insights, userDecisions);
 
-      // Run through BMC analyzer
-      const insights = await bmcAnalyzer.analyze(bmcResults);
-      
-      // Run through EPM synthesizer
-      const epmProgram = await epmSynthesizer.synthesize(insights, userDecisions);
+    const userId = (req.user as any)?.claims?.sub || null;
 
-      const userId = (req.user as any)?.claims?.sub || null;
+    // Extract component-level confidence scores
+    const componentConfidence = extractComponentConfidence(epmProgram);
+    const finalConfidence = boostConfidenceWithDecisions(componentConfidence, userDecisions);
+    const overallConfidence = calculateOverallConfidence(finalConfidence);
 
-      // Extract component-level confidence scores
-      const componentConfidence = extractComponentConfidence(epmProgram);
-      const finalConfidence = boostConfidenceWithDecisions(componentConfidence, userDecisions);
+    // Save EPM program to database
+    const [savedProgram] = await db.insert(epmPrograms).values({
+      journeySessionId: sessionId, // Use sessionId here
+      strategyDecisionId: decisionId || null,
+      userId,
+      frameworkType: 'bmc',
+      executiveSummary: epmProgram.executiveSummary,
+      workstreams: epmProgram.workstreams,
+      timeline: epmProgram.timeline,
+      resourcePlan: epmProgram.resourcePlan,
+      financialPlan: epmProgram.financialPlan,
+      benefitsRealization: epmProgram.benefitsRealization,
+      riskRegister: epmProgram.riskRegister,
+      stageGates: epmProgram.stageGates,
+      kpis: epmProgram.kpis,
+      stakeholderMap: epmProgram.stakeholderMap,
+      governance: epmProgram.governance,
+      qaPlan: epmProgram.qaPlan,
+      procurement: epmProgram.procurement,
+      exitStrategy: epmProgram.exitStrategy,
+      componentConfidence: finalConfidence,
+      overallConfidence: overallConfidence.toString(),
+      editTracking: {},
+      status: 'draft',
+    }).returning();
 
-      // Save EPM program to database
-      const [savedProgram] = await db.insert(epmPrograms).values({
-        journeySessionId,
-        strategyDecisionId: decisionId || null,
-        userId,
-        frameworkType: 'bmc',
-        executiveSummary: epmProgram.executiveSummary,
-        workstreams: epmProgram.workstreams,
-        timeline: epmProgram.timeline,
-        resourcePlan: epmProgram.resourcePlan,
-        financialPlan: epmProgram.financialPlan,
-        benefitsRealization: epmProgram.benefitsRealization,
-        riskRegister: epmProgram.riskRegister,
-        stageGates: epmProgram.stageGates,
-        kpis: epmProgram.kpis,
-        stakeholderMap: epmProgram.stakeholderMap,
-        governance: epmProgram.governance,
-        qaPlan: epmProgram.qaPlan,
-        procurement: epmProgram.procurement,
-        exitStrategy: epmProgram.exitStrategy,
-        componentConfidence: finalConfidence,
-        overallConfidence: calculateOverallConfidence(finalConfidence).toString(),
-        editTracking: {},
-        status: 'draft',
-      }).returning();
-
-      res.json({
-        success: true,
-        epmProgramId: savedProgram.id,
-        overallConfidence: calculateOverallConfidence(finalConfidence),
-        componentsGenerated: 14,
-      });
-    } else if (completedFrameworks.includes('porters')) {
-      frameworkType = 'porters';
-      frameworkResults = context.insights?.porterAnalysis || {};
-      
-      // Convert to PortersResults format
-      const portersResults: PortersResults = {
-        competitiveRivalry: frameworkResults.competitive_rivalry || '',
-        supplierPower: frameworkResults.supplier_power || '',
-        buyerPower: frameworkResults.buyer_power || '',
-        threatOfSubstitutes: frameworkResults.threat_of_substitutes || '',
-        threatOfNewEntry: frameworkResults.threat_of_new_entry || '',
-        overallAssessment: frameworkResults.overall_assessment || '',
-        strategicRecommendations: frameworkResults.strategic_recommendations || [],
-      };
-
-      // Run through Porter's analyzer
-      const insights = await portersAnalyzer.analyze(portersResults);
-      
-      // Run through EPM synthesizer
-      const epmProgram = await epmSynthesizer.synthesize(insights, userDecisions);
-
-      const userId = (req.user as any)?.claims?.sub || null;
-
-      // Extract component-level confidence scores
-      const componentConfidence = extractComponentConfidence(epmProgram);
-      const finalConfidence = boostConfidenceWithDecisions(componentConfidence, userDecisions);
-
-      // Save EPM program to database
-      const [savedProgram] = await db.insert(epmPrograms).values({
-        journeySessionId,
-        strategyDecisionId: decisionId || null,
-        userId,
-        frameworkType: 'porters',
-        executiveSummary: epmProgram.executiveSummary,
-        workstreams: epmProgram.workstreams,
-        timeline: epmProgram.timeline,
-        resourcePlan: epmProgram.resourcePlan,
-        financialPlan: epmProgram.financialPlan,
-        benefitsRealization: epmProgram.benefitsRealization,
-        riskRegister: epmProgram.riskRegister,
-        stageGates: epmProgram.stageGates,
-        kpis: epmProgram.kpis,
-        stakeholderMap: epmProgram.stakeholderMap,
-        governance: epmProgram.governance,
-        qaPlan: epmProgram.qaPlan,
-        procurement: epmProgram.procurement,
-        exitStrategy: epmProgram.exitStrategy,
-        componentConfidence: finalConfidence,
-        overallConfidence: calculateOverallConfidence(finalConfidence).toString(),
-        editTracking: {},
-        status: 'draft',
-      }).returning();
-
-      res.json({
-        success: true,
-        epmProgramId: savedProgram.id,
-        overallConfidence: calculateOverallConfidence(finalConfidence),
-        componentsGenerated: 14,
-      });
-    } else if (completedFrameworks.includes('pestle')) {
-      frameworkType = 'pestle';
-      frameworkResults = context.insights?.pestleAnalysis || {};
-      
-      // Convert to PESTLEResults format
-      const pestleResults: PESTLEResults = {
-        political: frameworkResults.political || [],
-        economic: frameworkResults.economic || [],
-        social: frameworkResults.social || [],
-        technological: frameworkResults.technological || [],
-        legal: frameworkResults.legal || [],
-        environmental: frameworkResults.environmental || [],
-        overallAssessment: frameworkResults.overall_assessment || '',
-        strategicImplications: frameworkResults.strategic_implications || [],
-      };
-
-      // Run through PESTLE analyzer
-      const insights = await pestleAnalyzer.analyze(pestleResults);
-      
-      // Run through EPM synthesizer
-      const epmProgram = await epmSynthesizer.synthesize(insights, userDecisions);
-
-      const userId = (req.user as any)?.claims?.sub || null;
-
-      // Extract component-level confidence scores
-      const componentConfidence = extractComponentConfidence(epmProgram);
-      const finalConfidence = boostConfidenceWithDecisions(componentConfidence, userDecisions);
-
-      // Save EPM program to database
-      const [savedProgram] = await db.insert(epmPrograms).values({
-        journeySessionId,
-        strategyDecisionId: decisionId || null,
-        userId,
-        frameworkType: 'pestle',
-        executiveSummary: epmProgram.executiveSummary,
-        workstreams: epmProgram.workstreams,
-        timeline: epmProgram.timeline,
-        resourcePlan: epmProgram.resourcePlan,
-        financialPlan: epmProgram.financialPlan,
-        benefitsRealization: epmProgram.benefitsRealization,
-        riskRegister: epmProgram.riskRegister,
-        stageGates: epmProgram.stageGates,
-        kpis: epmProgram.kpis,
-        stakeholderMap: epmProgram.stakeholderMap,
-        governance: epmProgram.governance,
-        qaPlan: epmProgram.qaPlan,
-        procurement: epmProgram.procurement,
-        exitStrategy: epmProgram.exitStrategy,
-        componentConfidence: finalConfidence,
-        overallConfidence: calculateOverallConfidence(finalConfidence).toString(),
-        editTracking: {},
-        status: 'draft',
-      }).returning();
-
-      res.json({
-        success: true,
-        epmProgramId: savedProgram.id,
-        overallConfidence: calculateOverallConfidence(finalConfidence),
-        componentsGenerated: 14,
-      });
-    } else {
-      return res.status(400).json({ error: 'No supported framework found in journey' });
-    }
+    res.json({
+      success: true,
+      epmProgramId: savedProgram.id,
+      overallConfidence: overallConfidence,
+      componentsGenerated: 14,
+    });
   } catch (error: any) {
     console.error('Error in POST /epm/generate:', error);
     res.status(500).json({ error: error.message || 'EPM generation failed' });
