@@ -1178,3 +1178,233 @@ export interface Source {
   isGlobalGeneric(): boolean;
   coversRegulatoryFramework(framework: string): boolean;
 }
+
+// ============================================================================
+// STRATEGY WORKSPACE - New Architecture (Production System)
+// ============================================================================
+
+// Strategy Workspace Enums
+export const problemStatusEnum = pgEnum('problem_status', ['active', 'on_hold', 'archived', 'completed']);
+export const strategyWorkspaceStatusEnum = pgEnum('strategy_workspace_status', ['draft', 'in_progress', 'analyzed', 'approved', 'rejected', 'archived']);
+export const frameworkRunStatusEnum = pgEnum('framework_run_status', ['pending', 'running', 'complete', 'failed', 'skipped']);
+export const executionPlanStatusEnum = pgEnum('execution_plan_status', ['draft', 'pending_approval', 'approved', 'in_execution', 'completed', 'cancelled']);
+export const riskProfileEnum = pgEnum('risk_profile', ['low', 'medium', 'high', 'critical']);
+export const confidenceLevelWorkspaceEnum = pgEnum('confidence_level_workspace', ['very_low', 'low', 'medium', 'high', 'very_high']);
+export const approvalStatusEnum = pgEnum('approval_status', ['pending', 'approved', 'rejected', 'conditionally_approved']);
+export const entityTypeWorkspaceEnum = pgEnum('entity_type_workspace', ['problem', 'strategy', 'execution_plan', 'framework_run']);
+
+// Problems table - Root initiatives
+export const swProblems = pgTable("sw_problems", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  context: jsonb("context"),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  status: problemStatusEnum("status").notNull().default('active'),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdBy: varchar("created_by").notNull(),
+  updatedBy: varchar("updated_by"),
+}, (table) => ({
+  userIdx: index("idx_sw_problems_user").on(table.userId),
+  statusIdx: index("idx_sw_problems_status").on(table.status),
+}));
+
+// Strategies table - Multiple per problem with different journeys/decisions
+export const swStrategies = pgTable("sw_strategies", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  problemId: varchar("problem_id").notNull().references(() => swProblems.id, { onDelete: 'cascade' }),
+  title: text("title").notNull(),
+  approachType: journeyTypeEnum("approach_type").notNull(),
+  versionNumber: integer("version_number").notNull().default(1),
+  decisionRationale: text("decision_rationale"),
+  status: strategyWorkspaceStatusEnum("status").notNull().default('draft'),
+  confidenceScore: decimal("confidence_score", { precision: 5, scale: 2 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdBy: varchar("created_by").notNull(),
+  updatedBy: varchar("updated_by"),
+}, (table) => ({
+  problemIdx: index("idx_sw_strategies_problem").on(table.problemId),
+  statusIdx: index("idx_sw_strategies_status").on(table.status),
+  approachIdx: index("idx_sw_strategies_approach").on(table.approachType),
+}));
+
+// Framework Runs table - Stores execution results from Five Whys, BMC, Porter's, PESTLE
+export const swFrameworkRuns = pgTable("sw_framework_runs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  strategyId: varchar("strategy_id").notNull().references(() => swStrategies.id, { onDelete: 'cascade' }),
+  frameworkType: frameworkNameEnum("framework_type").notNull(),
+  sequenceOrder: integer("sequence_order").notNull(),
+  status: frameworkRunStatusEnum("status").notNull().default('pending'),
+  inputParameters: jsonb("input_parameters"),
+  rawResults: jsonb("raw_results"),
+  errorLogs: text("error_logs"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  runBy: varchar("run_by").notNull(),
+  metadata: jsonb("metadata"),
+}, (table) => ({
+  strategyIdx: index("idx_sw_framework_runs_strategy").on(table.strategyId),
+  statusIdx: index("idx_sw_framework_runs_status").on(table.status),
+  typeIdx: index("idx_sw_framework_runs_type").on(table.frameworkType),
+}));
+
+// Execution Plans table - Complete EPM programs with ALL 14 components
+export const swExecutionPlans = pgTable("sw_execution_plans", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  strategyId: varchar("strategy_id").notNull().references(() => swStrategies.id, { onDelete: 'cascade' }),
+  status: executionPlanStatusEnum("status").notNull().default('draft'),
+  riskProfile: riskProfileEnum("risk_profile").notNull(),
+  costEstimateLow: decimal("cost_estimate_low", { precision: 12, scale: 2 }),
+  costEstimateHigh: decimal("cost_estimate_high", { precision: 12, scale: 2 }),
+  timelineMonths: integer("timeline_months"),
+  npvEstimate: decimal("npv_estimate", { precision: 12, scale: 2 }),
+  roiEstimate: decimal("roi_estimate", { precision: 5, scale: 2 }),
+  paybackMonths: integer("payback_months"),
+  confidenceLevel: confidenceLevelWorkspaceEnum("confidence_level").notNull(),
+  benefitsRealizationCurve: jsonb("benefits_realization_curve"),
+  extractionRationale: text("extraction_rationale"),
+  epmProgram: jsonb("epm_program").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: varchar("created_by").notNull(),
+  approvedBy: varchar("approved_by"),
+  approvedAt: timestamp("approved_at"),
+}, (table) => ({
+  strategyIdx: index("idx_sw_execution_plans_strategy").on(table.strategyId),
+  statusIdx: index("idx_sw_execution_plans_status").on(table.status),
+  riskIdx: index("idx_sw_execution_plans_risk").on(table.riskProfile),
+}));
+
+// Strategy Versions table - Snapshots for version control
+export const swStrategyVersions = pgTable("sw_strategy_versions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  strategyId: varchar("strategy_id").notNull().references(() => swStrategies.id, { onDelete: 'cascade' }),
+  versionNumber: integer("version_number").notNull(),
+  changesMade: text("changes_made"),
+  snapshotData: jsonb("snapshot_data").notNull(),
+  createdBy: varchar("created_by").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  strategyIdx: index("idx_sw_strategy_versions_strategy").on(table.strategyId),
+  versionIdx: index("idx_sw_strategy_versions_version").on(table.versionNumber),
+}));
+
+// Journey States table - Save/resume capability
+export const swJourneyStates = pgTable("sw_journey_states", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  strategyId: varchar("strategy_id").notNull().references(() => swStrategies.id, { onDelete: 'cascade' }),
+  currentStep: text("current_step").notNull(),
+  journeyType: journeyTypeEnum("journey_type").notNull(),
+  stateData: jsonb("state_data").notNull(),
+  lastSaved: timestamp("last_saved").defaultNow(),
+  expiresAt: timestamp("expires_at"),
+  userId: varchar("user_id").notNull().references(() => users.id),
+}, (table) => ({
+  strategyIdx: index("idx_sw_journey_states_strategy").on(table.strategyId),
+  userIdx: index("idx_sw_journey_states_user").on(table.userId),
+  expiresIdx: index("idx_sw_journey_states_expires").on(table.expiresAt),
+}));
+
+// Approvals table - Workflow management
+export const swApprovals = pgTable("sw_approvals", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  entityType: entityTypeWorkspaceEnum("entity_type").notNull(),
+  entityId: varchar("entity_id").notNull(),
+  approverId: varchar("approver_id").notNull().references(() => users.id),
+  status: approvalStatusEnum("status").notNull().default('pending'),
+  comments: text("comments"),
+  conditions: text("conditions"),
+  decidedAt: timestamp("decided_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  entityIdx: index("idx_sw_approvals_entity").on(table.entityType, table.entityId),
+  approverIdx: index("idx_sw_approvals_approver").on(table.approverId),
+  statusIdx: index("idx_sw_approvals_status").on(table.status),
+}));
+
+// Attachments table - File management
+export const swAttachments = pgTable("sw_attachments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  entityType: entityTypeWorkspaceEnum("entity_type").notNull(),
+  entityId: varchar("entity_id").notNull(),
+  fileName: text("file_name").notNull(),
+  fileUrl: text("file_url").notNull(),
+  fileType: text("file_type"),
+  fileSize: integer("file_size"),
+  uploadedBy: varchar("uploaded_by").notNull().references(() => users.id),
+  uploadedAt: timestamp("uploaded_at").defaultNow(),
+}, (table) => ({
+  entityIdx: index("idx_sw_attachments_entity").on(table.entityType, table.entityId),
+  uploaderIdx: index("idx_sw_attachments_uploader").on(table.uploadedBy),
+}));
+
+// Strategy Comparisons table - Side-by-side analysis
+export const swStrategyComparisons = pgTable("sw_strategy_comparisons", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  problemId: varchar("problem_id").notNull().references(() => swProblems.id, { onDelete: 'cascade' }),
+  comparedStrategyIds: text("compared_strategy_ids").array().notNull(),
+  comparisonCriteria: jsonb("comparison_criteria"),
+  comparisonMatrix: jsonb("comparison_matrix").notNull(),
+  recommendedStrategyId: varchar("recommended_strategy_id"),
+  recommendationRationale: text("recommendation_rationale"),
+  createdAt: timestamp("created_at").defaultNow(),
+  createdBy: varchar("created_by").notNull(),
+}, (table) => ({
+  problemIdx: index("idx_sw_comparisons_problem").on(table.problemId),
+  createdByIdx: index("idx_sw_comparisons_created_by").on(table.createdBy),
+}));
+
+// Audit Log table - Change tracking and compliance
+export const swAuditLog = pgTable("sw_audit_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  entityType: entityTypeWorkspaceEnum("entity_type").notNull(),
+  entityId: varchar("entity_id").notNull(),
+  action: text("action").notNull(),
+  changes: jsonb("changes"),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  timestamp: timestamp("timestamp").defaultNow(),
+  ipAddress: text("ip_address"),
+}, (table) => ({
+  entityIdx: index("idx_sw_audit_log_entity").on(table.entityType, table.entityId),
+  userIdx: index("idx_sw_audit_log_user").on(table.userId),
+  timestampIdx: index("idx_sw_audit_log_timestamp").on(table.timestamp),
+  actionIdx: index("idx_sw_audit_log_action").on(table.action),
+}));
+
+// Insert Schemas for Strategy Workspace
+export const insertSwProblemSchema = createInsertSchema(swProblems).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertSwProblem = z.infer<typeof insertSwProblemSchema>;
+export type SelectSwProblem = typeof swProblems.$inferSelect;
+
+export const insertSwStrategySchema = createInsertSchema(swStrategies).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertSwStrategy = z.infer<typeof insertSwStrategySchema>;
+export type SelectSwStrategy = typeof swStrategies.$inferSelect;
+
+export const insertSwFrameworkRunSchema = createInsertSchema(swFrameworkRuns).omit({ id: true, startedAt: true, completedAt: true });
+export type InsertSwFrameworkRun = z.infer<typeof insertSwFrameworkRunSchema>;
+export type SelectSwFrameworkRun = typeof swFrameworkRuns.$inferSelect;
+
+export const insertSwExecutionPlanSchema = createInsertSchema(swExecutionPlans).omit({ id: true, createdAt: true, approvedAt: true });
+export type InsertSwExecutionPlan = z.infer<typeof insertSwExecutionPlanSchema>;
+export type SelectSwExecutionPlan = typeof swExecutionPlans.$inferSelect;
+
+export const insertSwJourneyStateSchema = createInsertSchema(swJourneyStates).omit({ id: true, lastSaved: true });
+export type InsertSwJourneyState = z.infer<typeof insertSwJourneyStateSchema>;
+export type SelectSwJourneyState = typeof swJourneyStates.$inferSelect;
+
+export const insertSwApprovalSchema = createInsertSchema(swApprovals).omit({ id: true, createdAt: true, decidedAt: true });
+export type InsertSwApproval = z.infer<typeof insertSwApprovalSchema>;
+export type SelectSwApproval = typeof swApprovals.$inferSelect;
+
+export const insertSwAttachmentSchema = createInsertSchema(swAttachments).omit({ id: true, uploadedAt: true });
+export type InsertSwAttachment = z.infer<typeof insertSwAttachmentSchema>;
+export type SelectSwAttachment = typeof swAttachments.$inferSelect;
+
+export const insertSwComparisonSchema = createInsertSchema(swStrategyComparisons).omit({ id: true, createdAt: true });
+export type InsertSwComparison = z.infer<typeof insertSwComparisonSchema>;
+export type SelectSwComparison = typeof swStrategyComparisons.$inferSelect;
+
+export const insertSwAuditLogSchema = createInsertSchema(swAuditLog).omit({ id: true, timestamp: true });
+export type InsertSwAuditLog = z.infer<typeof insertSwAuditLogSchema>;
+export type SelectSwAuditLog = typeof swAuditLog.$inferSelect;
