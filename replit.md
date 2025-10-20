@@ -100,12 +100,21 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI, Tailwin
     - **Trend Analysis Agent**: Provides production-ready PESTLE analysis with an evidence-first architecture, including database schema, external services (Azure Translator, GeoNames), authority registry, evidence extraction, domain extraction, PESTLE claims generation, assumption comparison, and trend synthesis services. Features a job queue, API routes with SSE progress streaming, and a comprehensive frontend UI with 5 components. Fully tested for multilingual support, geography awareness, idempotency, and security.
     - **Journey-Based Strategic Analysis**: A multi-framework sequential analysis system where "journeys" are interactive page sequences that guide users through strategic frameworks. Each journey is a series of interactive pages (not automated backend execution). Features include:
       - Journey type system with 6 pre-planned journeys (Business Model Innovation is available)
-      - Interactive pages: WhysTreePage (carousel selection), ResearchPage (SSE streaming), BMCResultsPage (analysis display)
+      - Interactive pages: WhysTreePage (carousel selection), ResearchPage (SSE streaming), StrategyResultsPage (unified results display)
       - Journey sessions track user progress through page sequences
       - Strategic context accumulation persists data as users complete each interactive step
       - Framework-agnostic bridges transform context between pages (e.g., Five Whys → BMC)
       - JSONB context persistence and pause/resume support
       - Navigation is client-side, routing users through the defined page sequence
+    - **Modular Framework Renderer Architecture**: Production-ready extensible system for displaying strategic analysis results across multiple frameworks without creating new pages:
+      - **Framework Registry Pattern**: Map framework names to renderer components via `shared/framework-types.ts` and `client/src/components/frameworks/index.ts`
+      - **Unified Results Page**: `StrategyResultsPage` normalizes framework-specific data structures and loads appropriate renderer from registry
+      - **Pluggable Renderers**: BMCRenderer (9-block Business Model Canvas), PortersRenderer (Five Forces analysis), FiveWhysRenderer (root cause tree) - all pure presentation components
+      - **Defensive Programming**: All renderers use `Array.isArray()` checks before `.map()` operations to handle optional/incomplete backend data gracefully
+      - **Adding New Frameworks**: Register new framework type + renderer component; no routing or page structure changes required
+      - **Data Normalization**: Converts framework-specific storage formats (`bmc_research`, `porter_research`) to unified `FrameworkResult` discriminated union
+      - **Version Integration**: Results page routes include version numbers (`/results/:sessionId/:version`) for historical version viewing
+      - **Benefits**: Eliminates code duplication, supports PESTLE/SWOT/Ansoff without new pages, consistent UX across frameworks
 
 ### External Dependencies
 
