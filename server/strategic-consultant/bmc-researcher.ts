@@ -5,6 +5,7 @@ import { AssumptionValidator, type Contradiction } from './assumption-validator'
 import { aiClients } from '../ai-clients';
 import { strategicUnderstandingService } from '../strategic-understanding-service';
 import { RequestThrottler } from '../utils/request-throttler';
+import { parseAIJson } from '../utils/parse-ai-json';
 
 export interface BMCBlockFindings {
   blockType: BMCBlockType;
@@ -498,13 +499,7 @@ Step 1: Same concept? Step 2: Different values?`;
         maxTokens: 500,
       }, "anthropic");
 
-      const jsonMatch = response.content.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        console.warn('[BMCResearcher] Semantic validation: No JSON found in response');
-        return { isContradiction: false, reasoning: 'Validation failed - no JSON response' };
-      }
-
-      const result = JSON.parse(jsonMatch[0]);
+      const result = parseAIJson(response.content, 'BMC contradiction validation');
       
       const status = result.isContradiction 
         ? `CONTRADICTION (same concept, different values)` 
@@ -835,12 +830,7 @@ Include 3-6 findings. Set confidence to:
 
     const textContent = response.content;
 
-    const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error(`Failed to extract JSON from ${blockType} synthesis`);
-    }
-
-    const synthesized = JSON.parse(jsonMatch[0]);
+    const synthesized = parseAIJson(textContent, `BMC ${blockType} synthesis`);
 
     return {
       blockType,
@@ -953,12 +943,7 @@ Viability criteria:
 
     const textContent = response.content;
 
-    const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('Failed to extract JSON from overall BMC synthesis');
-    }
-
-    const synthesized = JSON.parse(jsonMatch[0]);
+    const synthesized = parseAIJson(textContent, 'BMC overall synthesis');
 
     return {
       viability: synthesized.viability || 'weak',

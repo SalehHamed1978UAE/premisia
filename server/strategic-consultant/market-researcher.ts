@@ -1,5 +1,6 @@
 import { SourceValidator, type ValidationResult } from './source-validator';
 import { aiClients } from '../ai-clients';
+import { parseAIJson } from '../utils/parse-ai-json';
 
 export interface Finding {
   fact: string;
@@ -141,12 +142,7 @@ Example for "Arabic language differentiates our enterprise software in UAE":
 
     const textContent = response.content;
 
-    const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('Failed to extract JSON from query generation response');
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]);
+    const parsed = parseAIJson(textContent, 'market-researcher query generation');
     const queries = parsed.queries;
 
     // Add additional challenging queries based on keyword detection
@@ -454,12 +450,7 @@ Return ONLY valid JSON (no markdown, no explanation):
 
     const textContent = response.content;
 
-    const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('Failed to extract JSON from synthesis response');
-    }
-
-    const synthesized = JSON.parse(jsonMatch[0]);
+    const synthesized = parseAIJson(textContent, 'market-researcher synthesis');
 
     return {
       market_dynamics: synthesized.market_dynamics || [],
