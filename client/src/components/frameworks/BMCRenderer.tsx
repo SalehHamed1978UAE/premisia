@@ -59,12 +59,20 @@ const BMCRenderer: FC<FrameworkRendererProps<BMCFrameworkResult>> = ({ data }) =
           <CardHeader>
             <CardTitle>Strategic Recommendations</CardTitle>
           </CardHeader>
-          <CardContent>
-            <ul className="list-disc list-inside space-y-2" data-testid="list-recommendations">
-              {data.recommendations.map((rec, idx) => (
-                <li key={idx} className="text-sm">{rec}</li>
-              ))}
-            </ul>
+          <CardContent className="space-y-2" data-testid="list-recommendations">
+            {data.recommendations.map((rec: any, idx) => (
+              <div key={idx} className="flex items-start gap-2">
+                {rec.priority && (
+                  <Badge variant={rec.priority === 'high' ? 'destructive' : rec.priority === 'medium' ? 'secondary' : 'outline'}>
+                    {rec.priority}
+                  </Badge>
+                )}
+                <div className="flex-1">
+                  <p className="text-sm font-medium">{rec.action || rec.text || rec}</p>
+                  {rec.rationale && <p className="text-xs text-muted-foreground">{rec.rationale}</p>}
+                </div>
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}
@@ -97,14 +105,10 @@ const BMCRenderer: FC<FrameworkRendererProps<BMCFrameworkResult>> = ({ data }) =
                   </div>
                 )}
 
-                {Array.isArray(block.strategicImplications) && block.strategicImplications.length > 0 && (
+                {block.strategicImplications && (
                   <div>
                     <h4 className="font-semibold text-sm mb-2">Strategic Implications</h4>
-                    <ul className="list-disc list-inside space-y-1">
-                      {block.strategicImplications.map((impl, iidx) => (
-                        <li key={iidx} className="text-sm text-muted-foreground">{impl}</li>
-                      ))}
-                    </ul>
+                    <p className="text-sm text-muted-foreground">{block.strategicImplications}</p>
                   </div>
                 )}
 
