@@ -31,6 +31,33 @@ interface BMCAnalysis {
   criticalGaps: string[];
 }
 
+interface DecisionOption {
+  id: string;
+  label: string;
+  description: string;
+  estimated_cost?: { min: number; max: number };
+  estimated_timeline_months?: number;
+  pros: string[];
+  cons: string[];
+  recommended?: boolean;
+  reasoning?: string;
+}
+
+interface DecisionPoint {
+  id: string;
+  title: string;
+  question: string;
+  context: string;
+  options: DecisionOption[];
+  impact_areas: string[];
+}
+
+interface GeneratedDecisions {
+  decisions: DecisionPoint[];
+  decision_flow: string;
+  estimated_completion_time_minutes: number;
+}
+
 interface VersionData {
   id: string;
   versionNumber: number;
@@ -38,6 +65,7 @@ interface VersionData {
   analysis?: {
     bmc_research?: BMCAnalysis;
   };
+  decisions?: GeneratedDecisions;
 }
 
 interface StrategyDecision {
@@ -108,6 +136,10 @@ export default function DecisionSummaryPage() {
   const bmcAnalysis = versionResponse?.version?.analysis?.bmc_research;
   const blocks = bmcAnalysis?.blocks || [];
   const strategyVersionId = versionResponse?.version?.id;
+  const generatedDecisions = versionResponse?.version?.decisions;
+  
+  // Track which strategic decision options the user has selected
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
 
   // Extract BMC data when loaded
   useEffect(() => {
@@ -254,6 +286,166 @@ export default function DecisionSummaryPage() {
       onViewChange={() => setLocation('/')}
     >
       <div className="max-w-4xl mx-auto space-y-6">
+        {/* Strategic Decisions Section - Show AI-generated decisions first */}
+        {generatedDecisions && generatedDecisions.decisions && generatedDecisions.decisions.length > 0 && (
+          <Card className="border-primary" data-testid="card-strategic-decisions">
+            <CardHeader>
+              <CardTitle>Strategic Decisions</CardTitle>
+              <CardDescription>
+                Select strategic options for your EPM program
+              </CardDescription>
+              {generatedDecisions.decision_flow && (
+                <p className="text-sm text-muted-foreground mt-2">{generatedDecisions.decision_flow}</p>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {generatedDecisions.decisions.map((decision, index) => (
+                <div key={decision.id} className="space-y-4 p-4 border rounded-lg" data-testid={`decision-${index}`}>
+                  <div>
+                    <h3 className="text-lg font-semibold">{decision.title}</h3>
+                    <p className="text-sm text-muted-foreground mt-1">{decision.context}</p>
+                    <p className="font-medium mt-2">{decision.question}</p>
+                  </div>
+                  
+                  <RadioGroup
+                    value={selectedOptions[decision.id] || ''}
+                    onValueChange={(value) => setSelectedOptions(prev => ({ ...prev, [decision.id]: value }))}
+                  >
+                    {decision.options.map((option) => (
+                      <div
+                        key={option.id}
+                        className={`border rounded-lg p-4 space-y-3 ${
+                          selectedOptions[decision.id] === option.id ? 'border-primary bg-primary/5' : ''
+                        }`}
+                        data-testid={`option-${option.id}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <RadioGroupItem value={option.id} id={option.id} className="mt-1" />
+                          <div className="flex-1">
+                            <Label htmlFor={option.id} className="font-semibold cursor-pointer flex items-center gap-2">
+                              {option.label}
+                              {option.recommended && <Badge variant="default">Recommended</Badge>}
+                            </Label>
+                            <p className="text-sm text-muted-foreground mt-1">{option.description}</p>
+                            
+                            {option.estimated_cost && (
+                              <p className="text-sm font-medium mt-2">
+                                Cost: ${(option.estimated_cost.min / 1000000).toFixed(1)}M - ${(option.estimated_cost.max / 1000000).toFixed(1)}M
+                              </p>
+                            )}
+                            {option.estimated_timeline_months && (
+                              <p className="text-sm font-medium">Timeline: {option.estimated_timeline_months} months</p>
+                            )}
+                            
+                            {option.pros && option.pros.length > 0 && (
+                              <div className="mt-2">
+                                <p className="text-sm font-semibold">Pros:</p>
+                                <ul className="text-sm space-y-1 ml-4">
+                                  {option.pros.map((pro, i) => (
+                                    <li key={i} className="flex items-start gap-2">
+                                      <span className="text-green-600 mt-1">•</span>
+                                      <span>{pro}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            
+                            {option.cons && option.cons.length > 0 && (
+                              <div className="mt-2">
+                                <p className="text-sm font-semibold">Cons:</p>
+                                <ul className="text-sm space-y-1 ml-4">
+                                  {option.cons.map((con, i) => (
+                                    <li key={i} className="flex items-start gap-2">
+                                      <span className="text-red-600 mt-1">•</span>
+                                      <span>{con}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            
+                            {option.reasoning && (
+                              <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-950/20 rounded">
+                                <p className="text-sm"><span className="font-semibold">Research insight:</span> {option.reasoning}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                </div>
+              ))}
+              
+              <div className="flex justify-end gap-4 pt-4">
+                {Object.keys(selectedOptions).length < generatedDecisions.decisions.length && (
+                  <p className="text-sm text-amber-600 mr-auto">
+                    Please select an option for all {generatedDecisions.decisions.length} strategic decisions
+                    ({Object.keys(selectedOptions).length}/{generatedDecisions.decisions.length} selected)
+                  </p>
+                )}
+                <Button
+                  onClick={() => {
+                    // Validate all decisions have selections
+                    if (Object.keys(selectedOptions).length < generatedDecisions.decisions.length) {
+                      toast({
+                        title: "Missing selections",
+                        description: "Please select an option for all strategic decisions",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    
+                    // Build a rationale with the selected options
+                    const selectionsSummary = generatedDecisions.decisions.map(decision => {
+                      const selectedOptionId = selectedOptions[decision.id];
+                      const selectedOption = decision.options.find(opt => opt.id === selectedOptionId);
+                      return `${decision.title}: ${selectedOption?.label || 'Unknown'}`;
+                    }).join('\n');
+                    
+                    // Use the selected options to proceed with EPM generation
+                    const completeDecisionData = {
+                      ...decisionData,
+                      goDecision: 'proceed' as const,
+                      decisionRationale: `Strategic decisions made:\n${selectionsSummary}`,
+                      topPriorities: [
+                        ...(decisionData.topPriorities || []),
+                        ...Object.values(selectedOptions).map(optionId => {
+                          // Find the option label
+                          for (const decision of generatedDecisions.decisions) {
+                            const option = decision.options.find(opt => opt.id === optionId);
+                            if (option) return option.label;
+                          }
+                          return optionId;
+                        })
+                      ].slice(0, 5),
+                    };
+                    saveDecisionMutation.mutate(completeDecisionData as StrategyDecision);
+                  }}
+                  disabled={Object.keys(selectedOptions).length < generatedDecisions.decisions.length || saveDecisionMutation.isPending}
+                  data-testid="button-generate-epm"
+                >
+                  {saveDecisionMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating EPM Program...
+                    </>
+                  ) : (
+                    <>
+                      Convert to EPM Program
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        
+        {/* Legacy 4-step wizard - only show if NO strategic decisions exist */}
+        {(!generatedDecisions || !generatedDecisions.decisions || generatedDecisions.decisions.length === 0) && (
+          <>
         {/* Progress indicator */}
         <div className="flex items-center justify-between mb-8">
           {[1, 2, 3, 4].map((step) => (
@@ -622,6 +814,8 @@ export default function DecisionSummaryPage() {
               </div>
             </CardContent>
           </Card>
+        )}
+          </>
         )}
 
         {/* Summary of extracted data for debugging */}
