@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db';
-import { strategicUnderstanding, frameworkInsights, strategicEntities } from '@shared/schema';
+import { strategicUnderstanding, frameworkInsights, strategicEntities, strategyVersions } from '@shared/schema';
 import { eq, desc, sql } from 'drizzle-orm';
 
 const router = Router();
@@ -138,7 +138,8 @@ router.get('/statements/:understandingId', async (req, res) => {
       return res.status(404).json({ error: 'Statement not found' });
     }
 
-    const analyses = await db
+    // Query old PESTLE analyses from frameworkInsights table
+    const oldAnalyses = await db
       .select({
         id: frameworkInsights.id,
         frameworkName: frameworkInsights.frameworkName,
@@ -151,9 +152,23 @@ router.get('/statements/:understandingId', async (req, res) => {
       .where(eq(frameworkInsights.understandingId, understandingId))
       .orderBy(desc(frameworkInsights.createdAt));
 
+    // Query new Strategy Workspace analyses from strategyVersions table
+    // Find all versions associated with this understanding's session
+    const newAnalyses = await db
+      .select({
+        id: strategyVersions.id,
+        versionNumber: strategyVersions.versionNumber,
+        analysisData: strategyVersions.analysisData,
+        createdAt: strategyVersions.createdAt,
+      })
+      .from(strategyVersions)
+      .where(eq(strategyVersions.sessionId, understanding.sessionId))
+      .orderBy(desc(strategyVersions.createdAt));
+
     const groupedAnalyses: Record<string, any[]> = {};
     
-    analyses.forEach((analysis) => {
+    // Process old PESTLE analyses
+    oldAnalyses.forEach((analysis) => {
       const framework = analysis.frameworkName;
       if (!groupedAnalyses[framework]) {
         groupedAnalyses[framework] = [];
@@ -181,6 +196,60 @@ router.get('/statements/:understandingId', async (req, res) => {
         summary,
         keyFindings,
       });
+    });
+
+    // Process new Strategy Workspace analyses (BMC, Five Whys, etc.)
+    newAnalyses.forEach((version) => {
+      const analysisData = version.analysisData as any;
+      
+      // Check for BMC analysis
+      if (analysisData?.bmc_research) {
+        const bmcData = analysisData.bmc_research;
+        const framework = 'Business Model Canvas';
+        
+        if (!groupedAnalyses[framework]) {
+          groupedAnalyses[framework] = [];
+        }
+
+        let summary = '';
+        let keyFindings: string[] = [];
+
+        if (bmcData.keyInsights && bmcData.keyInsights.length > 0) {
+          summary = bmcData.keyInsights.slice(0, 2).join('. ').substring(0, 200) + '...';
+          keyFindings = bmcData.keyInsights.slice(0, 3);
+        }
+
+        groupedAnalyses[framework].push({
+          id: version.id,
+          frameworkName: framework,
+          version: `v${version.versionNumber}`,
+          createdAt: version.createdAt,
+          summary,
+          keyFindings,
+        });
+      }
+
+      // Check for Five Whys analysis
+      if (analysisData?.five_whys) {
+        const whysData = analysisData.five_whys;
+        const framework = 'Five Whys';
+        
+        if (!groupedAnalyses[framework]) {
+          groupedAnalyses[framework] = [];
+        }
+
+        let summary = whysData.rootCause ? whysData.rootCause.substring(0, 200) + '...' : '';
+        let keyFindings: string[] = whysData.keyRecommendations?.slice(0, 3) || [];
+
+        groupedAnalyses[framework].push({
+          id: version.id,
+          frameworkName: framework,
+          version: `v${version.versionNumber}`,
+          createdAt: version.createdAt,
+          summary,
+          keyFindings,
+        });
+      }
     });
 
     res.json({
