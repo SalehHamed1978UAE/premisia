@@ -1,6 +1,12 @@
 ### Overview
 Qgentic Intelligent Strategic EPM is an AI-enhanced, full-stack web application designed for comprehensive enterprise program management. It supports the entire program lifecycle, offering tools for managing programs, workstreams, tasks, resources, risks, benefits, KPIs, and financial tracking via an intuitive dashboard. The project aims to provide a holistic solution for strategic decision-making and EPM integration, featuring real-time AI intelligence, a multi-agent architecture, and a formal ontology for expert guidance. Capabilities include multi-modal input analysis, anti-bias research, and conversion of strategic decisions into actionable EPM program structures.
 
+### Recent Changes
+**October 21, 2025:**
+- **Fixed BMC Research Stream Completion Bug**: Enhanced error handling in `/api/strategic-consultant/bmc-research/stream` endpoint to ensure SSE `complete` event always sends, even when decision generation or database saves fail. Added granular try-catch blocks around research, decision generation, and persistence operations. Progress now reliably reaches 100% and stream completes gracefully. Verified with E2E testing.
+- **Fixed Type Error in Five Whys Finalize**: Corrected LSP error at line 647 in `/whys-tree/finalize` endpoint by using `storage.createStrategyVersion` directly instead of `versionManager.createVersion` for partial analysis data. The Five Whys flow creates partial data initially, so forcing it into the complete `StrategyAnalysis` type was architecturally incorrect.
+- **SSE Stream Robustness**: BMC research stream now includes 100% progress message before post-processing, comprehensive logging for debugging, and continues to completion even if non-critical operations fail.
+
 ### User Preferences
 Preferred communication style: Simple, everyday language.
 
