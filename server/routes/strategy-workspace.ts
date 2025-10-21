@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db';
-import { strategyDecisions, epmPrograms, journeySessions } from '@shared/schema';
+import { strategyDecisions, epmPrograms, journeySessions, strategyVersions } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 import { BMCAnalyzer, PortersAnalyzer, PESTLEAnalyzer, EPMSynthesizer } from '../intelligence';
 import type { BMCResults, PortersResults, PESTLEResults } from '../intelligence/types';
@@ -148,8 +148,7 @@ function calculateOverallConfidence(componentConfidence: Record<string, number>)
 router.post('/decisions', async (req: Request, res: Response) => {
   try {
     const {
-      sessionId,
-      versionNumber,
+      strategyVersionId,
       primaryCustomerSegment,
       revenueModel,
       channelPriorities,
@@ -166,16 +165,16 @@ router.post('/decisions', async (req: Request, res: Response) => {
       decisionRationale,
     } = req.body;
 
-    if (!sessionId || !goDecision) {
+    if (!strategyVersionId || !goDecision) {
       return res.status(400).json({ 
-        error: 'sessionId and goDecision are required' 
+        error: 'strategyVersionId and goDecision are required' 
       });
     }
 
     const userId = (req.user as any)?.claims?.sub || null;
 
     const [decision] = await db.insert(strategyDecisions).values({
-      journeySessionId: sessionId, // Use sessionId, nullable FK allows BMC sessions
+      strategyVersionId,
       userId,
       primaryCustomerSegment: primaryCustomerSegment || null,
       revenueModel: revenueModel || null,
@@ -208,14 +207,17 @@ router.post('/decisions', async (req: Request, res: Response) => {
 // Generate EPM program from framework results + user decisions
 router.post('/epm/generate', async (req: Request, res: Response) => {
   try {
-    const { sessionId, versionNumber, decisionId } = req.body;
+    const { strategyVersionId, decisionId } = req.body;
 
-    if (!sessionId || !versionNumber) {
-      return res.status(400).json({ error: 'sessionId and versionNumber are required' });
+    if (!strategyVersionId) {
+      return res.status(400).json({ error: 'strategyVersionId is required' });
     }
 
     // Fetch strategy version to get BMC analysis
-    const version = await storage.getStrategyVersion(sessionId, versionNumber);
+    const [version] = await db.select()
+      .from(strategyVersions)
+      .where(eq(strategyVersions.id, strategyVersionId))
+      .limit(1);
 
     if (!version) {
       return res.status(404).json({ error: 'Strategy version not found' });
@@ -315,7 +317,7 @@ router.post('/epm/generate', async (req: Request, res: Response) => {
 
     // Save EPM program to database
     const [savedProgram] = await db.insert(epmPrograms).values({
-      journeySessionId: sessionId, // Use sessionId here
+      strategyVersionId,
       strategyDecisionId: decisionId || null,
       userId,
       frameworkType: 'bmc',

@@ -521,10 +521,10 @@ export const journeySessions = pgTable("journey_sessions", {
   statusIdx: index("idx_journey_sessions_status").on(table.status),
 }));
 
-// Strategy Decisions table
+// Strategy Decisions table - Links to Strategy Workspace (new system)
 export const strategyDecisions = pgTable("strategy_decisions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  journeySessionId: varchar("journey_session_id").references(() => journeySessions.id, { onDelete: 'cascade' }),
+  strategyVersionId: varchar("strategy_version_id").notNull().references(() => strategyVersions.id, { onDelete: 'cascade' }),
   userId: varchar("user_id").notNull().references(() => users.id),
   
   // Strategic Choices
@@ -552,14 +552,14 @@ export const strategyDecisions = pgTable("strategy_decisions", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
-  journeySessionIdx: index("idx_strategy_decisions_journey").on(table.journeySessionId),
+  strategyVersionIdx: index("idx_strategy_decisions_version").on(table.strategyVersionId),
   userIdx: index("idx_strategy_decisions_user").on(table.userId),
 }));
 
-// EPM Programs table
+// EPM Programs table - Links to Strategy Workspace (new system)
 export const epmPrograms = pgTable("epm_programs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  journeySessionId: varchar("journey_session_id").notNull().references(() => journeySessions.id, { onDelete: 'cascade' }),
+  strategyVersionId: varchar("strategy_version_id").notNull().references(() => strategyVersions.id, { onDelete: 'cascade' }),
   strategyDecisionId: varchar("strategy_decision_id").references(() => strategyDecisions.id, { onDelete: 'set null' }),
   userId: varchar("user_id").notNull().references(() => users.id),
   frameworkType: varchar("framework_type", { length: 50 }).notNull(),
@@ -593,7 +593,7 @@ export const epmPrograms = pgTable("epm_programs", {
   updatedAt: timestamp("updated_at").defaultNow(),
   finalizedAt: timestamp("finalized_at"),
 }, (table) => ({
-  journeySessionIdx: index("idx_epm_programs_journey").on(table.journeySessionId),
+  strategyVersionIdx: index("idx_epm_programs_version").on(table.strategyVersionId),
   strategyDecisionIdx: index("idx_epm_programs_decision").on(table.strategyDecisionId),
   userIdx: index("idx_epm_programs_user").on(table.userId),
   statusIdx: index("idx_epm_programs_status").on(table.status),

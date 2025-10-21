@@ -32,6 +32,7 @@ interface BMCAnalysis {
 }
 
 interface VersionData {
+  id: string;
   versionNumber: number;
   status: string;
   analysis?: {
@@ -106,6 +107,7 @@ export default function DecisionSummaryPage() {
 
   const bmcAnalysis = versionResponse?.version?.analysis?.bmc_research;
   const blocks = bmcAnalysis?.blocks || [];
+  const strategyVersionId = versionResponse?.version?.id;
 
   // Extract BMC data when loaded
   useEffect(() => {
@@ -152,18 +154,20 @@ export default function DecisionSummaryPage() {
   // Save decision mutation
   const saveDecisionMutation = useMutation({
     mutationFn: async (decision: Partial<StrategyDecision>) => {
+      if (!strategyVersionId) {
+        throw new Error('Strategy version ID not available');
+      }
+      
       // First, save the decision
       const decisionResponse = await apiRequest('POST', '/api/strategy-workspace/decisions', {
-        sessionId,
-        versionNumber,
+        strategyVersionId,
         ...decision,
       });
       const decisionData = await decisionResponse.json();
       
       // Then, generate EPM program
       const epmResponse = await apiRequest('POST', '/api/strategy-workspace/epm/generate', {
-        sessionId,
-        versionNumber,
+        strategyVersionId,
         decisionId: decisionData.decisionId,
       });
       return epmResponse.json();
