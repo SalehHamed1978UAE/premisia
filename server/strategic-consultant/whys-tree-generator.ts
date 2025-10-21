@@ -31,6 +31,38 @@ interface BranchContext {
 export class WhysTreeGenerator {
   private readonly maxDepth = 5;
 
+  private extractJSON(response: { content: string; provider: string; model: string }, context: string): any {
+    console.log(`[WhysTreeGenerator] ${context} - AI provider:`, response.provider, 'model:', response.model);
+    console.log(`[WhysTreeGenerator] ${context} - Response length:`, response.content.length);
+    console.log(`[WhysTreeGenerator] ${context} - Response preview:`, response.content.substring(0, 200));
+    
+    let cleanedContent = response.content.trim();
+    
+    const codeBlockMatch = cleanedContent.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+    if (codeBlockMatch) {
+      console.log(`[WhysTreeGenerator] ${context} - Extracted from code block`);
+      cleanedContent = codeBlockMatch[1];
+    }
+
+    const jsonMatch = cleanedContent.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.error(`[WhysTreeGenerator] ${context} - Failed to extract JSON from AI response`);
+      console.error(`[WhysTreeGenerator] ${context} - Provider:`, response.provider);
+      console.error(`[WhysTreeGenerator] ${context} - Full response:`, response.content);
+      throw new Error(`Failed to extract JSON from ${response.provider} ${context}. Response was: ${response.content.substring(0, 300)}`);
+    }
+
+    try {
+      const parsed = JSON.parse(jsonMatch[0]);
+      console.log(`[WhysTreeGenerator] ${context} - Successfully parsed JSON`);
+      return parsed;
+    } catch (parseError: any) {
+      console.error(`[WhysTreeGenerator] ${context} - JSON parse error:`, parseError.message);
+      console.error(`[WhysTreeGenerator] ${context} - Attempted to parse:`, jsonMatch[0].substring(0, 300));
+      throw new Error(`Failed to parse JSON from ${response.provider} ${context}: ${parseError.message}`);
+    }
+  }
+
   async generateTree(input: string, sessionId: string): Promise<WhyTree> {
     const rootQuestion = await this.generateRootQuestion(input);
     
@@ -80,12 +112,7 @@ Return a JSON object with the question in this format:
       maxTokens: 1000,
     });
 
-    const jsonMatch = response.content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('Failed to extract JSON from root question response');
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]);
+    const parsed = this.extractJSON(response, 'generateRootQuestion');
     return parsed.question || response.content.trim();
   }
 
@@ -204,12 +231,7 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
       maxTokens: 2000,
     });
 
-    const jsonMatch = response.content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('Failed to extract JSON from branch generation response');
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]);
+    const parsed = this.extractJSON(response, 'generateLevelInParallel');
 
     const nodes: WhyNode[] = parsed.branches.map((branch: { 
       option: string; 
@@ -370,12 +392,7 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
       maxTokens: 2000,
     });
 
-    const jsonMatch = response.content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('Failed to extract JSON from path insights response');
-    }
-
-    return JSON.parse(jsonMatch[0]);
+    return this.extractJSON(response, 'analyzePathInsights');
   }
 
   async validateRootCause(rootCauseText: string): Promise<{ valid: boolean; message?: string }> {
@@ -415,13 +432,7 @@ Respond with ONLY valid JSON in this exact format:
         maxTokens: 500,
       });
 
-      const jsonMatch = response.content.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        console.error('Failed to extract JSON from validation response, allowing root cause through');
-        return { valid: true };
-      }
-
-      const validation = JSON.parse(jsonMatch[0]);
+      const validation = this.extractJSON(response, 'validateRootCause');
 
       return {
         valid: validation.isValid,
