@@ -397,9 +397,17 @@ router.get('/versions/:sessionId/:versionNumber', async (req: Request, res: Resp
       return res.status(404).json({ error: 'Version not found' });
     }
 
+    console.log('[GET /versions] Retrieved version:', {
+      hasId: !!version.id,
+      id: version.id,
+      versionNumber: version.versionNumber,
+      sessionId: version.sessionId,
+    });
+
     res.json({
       success: true,
       version: {
+        id: version.id,
         versionNumber: version.versionNumber,
         status: version.status,
         analysis: version.analysisData,
