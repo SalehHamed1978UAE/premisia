@@ -4,6 +4,12 @@ Qgentic Intelligent Strategic EPM is an AI-enhanced, full-stack web application 
 ### User Preferences
 Preferred communication style: Simple, everyday language.
 
+**Development Philosophy:**
+- No band-aid fixes or workarounds (e.g., making fields nullable to bypass foreign key constraints)
+- Always fix root architectural issues properly the first time
+- Take time to understand the proper data flow before implementing fixes
+- Clean separation of concerns - don't mix old and new system architectures
+
 ### System Architecture
 
 #### UI/UX Decisions
