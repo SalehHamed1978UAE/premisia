@@ -6,6 +6,7 @@ import { aiClients } from '../ai-clients';
 import { strategicUnderstandingService } from '../strategic-understanding-service';
 import { RequestThrottler } from '../utils/request-throttler';
 import { parseAIJson } from '../utils/parse-ai-json';
+import { dbConnectionManager } from '../db-connection-manager';
 
 export interface BMCBlockFindings {
   blockType: BMCBlockType;
@@ -536,8 +537,10 @@ Step 1: Same concept? Step 2: Different values?`;
     console.log(`[BMCResearcher] Storing BMC findings in knowledge graph for understanding: ${understandingId}`);
 
     try {
-      // STEP 1: Get DB entities ONCE (minimize DB connection time)
-      const persistedUserEntities = await strategicUnderstandingService.getEntitiesByUnderstanding(understandingId);
+      // STEP 1: Get DB entities ONCE with fresh connection (before long operations)
+      const persistedUserEntities = await dbConnectionManager.withFreshConnection(async () => {
+        return await strategicUnderstandingService.getEntitiesByUnderstanding(understandingId);
+      });
       const userInputEntities = persistedUserEntities.filter(e => e.discoveredBy === 'user_input');
       console.log(`[BMCResearcher] Found ${userInputEntities.length} persisted user_input entities for contradiction matching`);
       
@@ -546,90 +549,128 @@ Step 1: Same concept? Step 2: Different values?`;
       const validatedContradictions = await this.validateAllContradictions(contradictions, userInputEntities);
       console.log(`[BMCResearcher] Validation complete: ${validatedContradictions.filter(v => v.isValid).length}/${validatedContradictions.length} contradictions validated`);
       
-      // STEP 3: Now do fast DB operations with pre-validated results
-      // 1. Store research findings as entities (type: research_finding)
-      const findingEntities: any[] = [];
-      for (const block of blocks) {
-        for (const finding of block.findings.slice(0, 3)) { // Top 3 findings per block
-          const entity = await strategicUnderstandingService.createEntity(understandingId, {
-            type: 'research_finding',
-            claim: finding.fact,
-            confidence: block.confidence === 'strong' ? 'high' : block.confidence === 'moderate' ? 'medium' : 'low',
-            source: finding.citation,
-            evidence: `BMC ${block.blockName} research finding`,
-          }, 'bmc_agent');
-          findingEntities.push(entity);
-        }
-      }
-      console.log(`[BMCResearcher] Stored ${findingEntities.length} research findings`);
-
-      // 2. Store only validated contradictions (pre-validated to prevent timeout)
-      let createdCount = 0;
-      let skippedCount = 0;
+      // STEP 3: CRITICAL PATTERN - Batch all AI/embedding calls BEFORE any DB writes
+      // This prevents Neon from killing connections during OpenAI API calls
       
-      for (const result of validatedContradictions) {
-        if (!result.isValid || !result.sourceEntity) {
-          skippedCount++;
-          continue;
-        }
-
-        const { contradiction, sourceEntity, validation } = result;
-
-        if (validation.isContradiction) {
-          console.log(`[BMCResearcher] ✓ Validated contradiction - creating relationship from entity ID: ${sourceEntity.id}`);
-          
-          // Create a contradiction entity for the evidence
-          const contradictionEntity = await strategicUnderstandingService.createEntity(understandingId, {
-            type: 'research_finding',
-            claim: contradiction.contradictedBy.join('; '),
-            confidence: contradiction.validationStrength === 'STRONG' ? 'high' : contradiction.validationStrength === 'MODERATE' ? 'medium' : 'low',
-            source: 'BMC research',
-            evidence: `Contradicts: ${contradiction.assumption}. Impact: ${contradiction.impact}`,
-          }, 'bmc_agent');
-
-          // Create relationship with validation metadata
-          await strategicUnderstandingService.createRelationship(
-            sourceEntity.id,
-            contradictionEntity.id,
-            'contradicts',
-            contradiction.validationStrength === 'STRONG' ? 'high' : contradiction.validationStrength === 'MODERATE' ? 'medium' : 'low',
-            contradiction.recommendation,
-            'bmc_agent',
-            {
-              semanticValidation: {
-                reasoning: validation.reasoning,
-                provider: validation.provider,
-                model: validation.model,
-                validatedAt: new Date().toISOString()
+      // 3a. Collect all claims that need embeddings
+      const findingClaims = blocks.flatMap(block => 
+        block.findings.slice(0, 3).map(finding => finding.fact)
+      );
+      const contradictionClaims = validatedContradictions
+        .filter(r => r.isValid && r.validation.isContradiction)
+        .map(r => r.contradiction.contradictedBy.join('; '));
+      const gapClaims = criticalGaps.slice(0, 5);
+      
+      const allClaims = [...findingClaims, ...contradictionClaims, ...gapClaims];
+      console.log(`[BMCResearcher] Batch-generating ${allClaims.length} embeddings...`);
+      
+      // 3b. Generate ALL embeddings at once (no DB connection held)
+      const embeddings = await strategicUnderstandingService.generateEmbeddingsBatch(allClaims);
+      console.log(`[BMCResearcher] ✓ All embeddings ready`);
+      
+      // STEP 4: Now persist everything in ONE retry block with fresh connection
+      await dbConnectionManager.retryWithBackoff(async (db) => {
+        let embeddingIndex = 0;
+        
+        // 4a. Store research findings
+        for (const block of blocks) {
+          for (const finding of block.findings.slice(0, 3)) {
+            await strategicUnderstandingService.createEntityWithEmbedding(
+              db,
+              understandingId,
+              {
+                type: 'research_finding',
+                claim: finding.fact,
+                confidence: block.confidence === 'strong' ? 'high' : block.confidence === 'moderate' ? 'medium' : 'low',
+                source: finding.citation,
+                evidence: `BMC ${block.blockName} research finding`,
               },
-              contradictionImpact: contradiction.impact,
-              contradictionRecommendation: contradiction.recommendation
-            }
-          );
-          
-          createdCount++;
-        } else {
-          console.log(`[BMCResearcher] ✗ Skipped false contradiction: "${sourceEntity.claim}" vs "${contradiction.contradictedBy[0].substring(0, 60)}..."`);
-          console.log(`[BMCResearcher]   Reason: ${validation.reasoning}`);
-          skippedCount++;
+              embeddings[embeddingIndex++],
+              'bmc_agent'
+            );
+          }
         }
-      }
-      
-      console.log(`[BMCResearcher] Contradiction results: ${createdCount} created, ${skippedCount} skipped (semantic validation)`);
+        console.log(`[BMCResearcher] Stored ${findingClaims.length} research findings`);
 
-      // 3. Store critical gaps as entities (type: business_model_gap)
-      for (const gap of criticalGaps.slice(0, 5)) { // Top 5 critical gaps
-        await strategicUnderstandingService.createEntity(understandingId, {
-          type: 'business_model_gap',
-          claim: gap,
-          confidence: 'medium',
-          source: 'BMC analysis synthesis',
-          evidence: 'Identified during Business Model Canvas research and synthesis',
-        }, 'bmc_agent');
-      }
-      console.log(`[BMCResearcher] Stored ${criticalGaps.length} critical gaps`);
+        // 4b. Store validated contradictions
+        let createdCount = 0;
+        let skippedCount = 0;
+        
+        for (const result of validatedContradictions) {
+          if (!result.isValid || !result.sourceEntity) {
+            skippedCount++;
+            continue;
+          }
 
-      console.log(`[BMCResearcher] ✓ Knowledge graph enriched with BMC findings`);
+          const { contradiction, sourceEntity, validation } = result;
+
+          if (validation.isContradiction) {
+            console.log(`[BMCResearcher] ✓ Creating contradiction relationship from entity ID: ${sourceEntity.id}`);
+            
+            // Create contradiction entity with pre-generated embedding
+            const contradictionEntity = await strategicUnderstandingService.createEntityWithEmbedding(
+              db,
+              understandingId,
+              {
+                type: 'research_finding',
+                claim: contradiction.contradictedBy.join('; '),
+                confidence: contradiction.validationStrength === 'STRONG' ? 'high' : contradiction.validationStrength === 'MODERATE' ? 'medium' : 'low',
+                source: 'BMC research',
+                evidence: `Contradicts: ${contradiction.assumption}. Impact: ${contradiction.impact}`,
+              },
+              embeddings[embeddingIndex++],
+              'bmc_agent'
+            );
+
+            // Create relationship
+            await strategicUnderstandingService.createRelationshipDirect(
+              db,
+              sourceEntity.id,
+              contradictionEntity.id,
+              'contradicts',
+              contradiction.validationStrength === 'STRONG' ? 'high' : contradiction.validationStrength === 'MODERATE' ? 'medium' : 'low',
+              contradiction.recommendation,
+              'bmc_agent',
+              {
+                semanticValidation: {
+                  reasoning: validation.reasoning,
+                  provider: validation.provider,
+                  model: validation.model,
+                  validatedAt: new Date().toISOString()
+                },
+                contradictionImpact: contradiction.impact,
+                contradictionRecommendation: contradiction.recommendation
+              }
+            );
+            
+            createdCount++;
+          } else {
+            skippedCount++;
+          }
+        }
+        
+        console.log(`[BMCResearcher] Contradiction results: ${createdCount} created, ${skippedCount} skipped`);
+
+        // 4c. Store critical gaps
+        for (const gap of criticalGaps.slice(0, 5)) {
+          await strategicUnderstandingService.createEntityWithEmbedding(
+            db,
+            understandingId,
+            {
+              type: 'business_model_gap',
+              claim: gap,
+              confidence: 'medium',
+              source: 'BMC analysis synthesis',
+              evidence: 'Identified during Business Model Canvas research and synthesis',
+            },
+            embeddings[embeddingIndex++],
+            'bmc_agent'
+          );
+        }
+        console.log(`[BMCResearcher] Stored ${gapClaims.length} critical gaps`);
+
+        console.log(`[BMCResearcher] ✓ Knowledge graph enriched with BMC findings`);
+      });
     } catch (error: any) {
       console.error(`[BMCResearcher] Error storing BMC findings in graph:`, error.message);
       // Don't throw - BMC research should complete even if graph storage fails

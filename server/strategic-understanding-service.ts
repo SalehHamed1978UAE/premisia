@@ -453,6 +453,75 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
     });
   }
 
+  /**
+   * Create entity with pre-generated embedding (for batch operations)
+   * Uses provided db connection to avoid creating new connections
+   */
+  async createEntityWithEmbedding(
+    db: any,
+    understandingId: string,
+    entity: EntityExtractionResult,
+    embedding: number[],
+    discoveredBy: 'user_input' | 'bmc_agent' | '5whys_agent' | 'porters_agent' | 'trends_agent' | 'system' = 'system'
+  ): Promise<StrategicEntity> {
+    const entityData: InsertStrategicEntity = {
+      understandingId,
+      type: entity.type as any,
+      claim: entity.claim,
+      confidence: entity.confidence,
+      embedding: embedding as any,
+      source: entity.source,
+      evidence: entity.evidence || null,
+      category: entity.category || null,
+      subcategory: entity.subcategory || null,
+      investmentAmount: entity.investmentAmount || null,
+      discoveredBy: discoveredBy as any,
+      validFrom: new Date(),
+      validTo: null,
+      metadata: null,
+    };
+
+    const inserted = await db
+      .insert(strategicEntities)
+      .values(entityData)
+      .returning();
+
+    return inserted[0];
+  }
+
+  /**
+   * Create relationship directly with provided db connection (for batch operations)
+   */
+  async createRelationshipDirect(
+    db: any,
+    fromEntityId: string,
+    toEntityId: string,
+    relationshipType: string,
+    confidence: "high" | "medium" | "low",
+    evidence?: string,
+    discoveredBy: 'user_input' | 'bmc_agent' | '5whys_agent' | 'porters_agent' | 'trends_agent' | 'system' = 'system',
+    metadata?: any
+  ): Promise<StrategicRelationship> {
+    const relationshipData: InsertStrategicRelationship = {
+      fromEntityId,
+      toEntityId,
+      relationshipType: relationshipType as any,
+      confidence,
+      evidence: evidence || null,
+      discoveredBy: discoveredBy as any,
+      validFrom: new Date(),
+      validTo: null,
+      metadata: metadata || null,
+    };
+
+    const inserted = await db
+      .insert(strategicRelationships)
+      .values(relationshipData)
+      .returning();
+
+    return inserted[0];
+  }
+
   async getEntitiesByUnderstanding(understandingId: string): Promise<StrategicEntity[]> {
     // Use fresh connection for read operations after long gaps
     return await dbConnectionManager.withFreshConnection(async (db) => {
