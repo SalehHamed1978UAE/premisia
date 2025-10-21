@@ -125,8 +125,12 @@ export default function DecisionSummaryPage() {
     const partnershipsText = extractFromBlock(blocks, "Key Partnerships");
     
     // Extract priorities from recommendations and insights
+    // Handle both object {action, priority, rationale} and string formats
+    const recommendationTexts = (bmcAnalysis.recommendations || []).map((rec: any) => 
+      typeof rec === 'object' ? rec.action : rec
+    );
     const priorities = [
-      ...(bmcAnalysis.recommendations || []),
+      ...recommendationTexts,
       ...(bmcAnalysis.keyInsights || []).slice(0, 3),
     ].slice(0, 5);
     
@@ -234,7 +238,10 @@ export default function DecisionSummaryPage() {
     ? channelOptionsFromBMC 
     : ["Online", "Retail", "Direct sales", "Partnerships", "Mobile app"];
     
-  const recommendationsForPriorities = bmcAnalysis?.recommendations || [];
+  // Handle both object {action, priority, rationale} and string formats for recommendations
+  const recommendationsForPriorities = (bmcAnalysis?.recommendations || []).map((rec: any) =>
+    typeof rec === 'object' ? rec.action : rec
+  );
 
   return (
     <AppLayout
@@ -541,7 +548,7 @@ export default function DecisionSummaryPage() {
                   <div className="text-xs text-muted-foreground space-y-1">
                     <p className="font-medium">Recommendations from analysis:</p>
                     {recommendationsForPriorities.slice(0, 5).map((rec: string, idx: number) => (
-                      <p key={idx}>• {rec}</p>
+                      <p key={idx}>• {typeof rec === 'object' ? (rec as any).action : rec}</p>
                     ))}
                   </div>
                 )}
