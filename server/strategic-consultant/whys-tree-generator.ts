@@ -1,5 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { randomUUID } from 'crypto';
+import { aiClients } from '../ai-clients.js';
 
 export interface WhyNode {
   id: string;
@@ -29,16 +29,7 @@ interface BranchContext {
 }
 
 export class WhysTreeGenerator {
-  private anthropic: Anthropic;
   private readonly maxDepth = 5;
-
-  constructor() {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY environment variable is required');
-    }
-    this.anthropic = new Anthropic({ apiKey });
-  }
 
   async generateTree(input: string, sessionId: string): Promise<WhyTree> {
     const rootQuestion = await this.generateRootQuestion(input);
@@ -72,16 +63,9 @@ export class WhysTreeGenerator {
   }
 
   async generateRootQuestion(input: string): Promise<string> {
-    const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      temperature: 0.7,
-      messages: [
-        {
-          role: 'user',
-          content: `You are a strategic consultant analyzing a business problem or opportunity using the "5 Whys" technique.
-
-INPUT:
+    const response = await aiClients.callWithFallback({
+      systemPrompt: 'You are a strategic consultant analyzing a business problem or opportunity using the "5 Whys" technique.',
+      userMessage: `INPUT:
 ${input}
 
 Generate a clear, strategic root question that frames this as a "Why" question to begin the 5 Whys analysis. The question should be:
@@ -89,20 +73,20 @@ Generate a clear, strategic root question that frames this as a "Why" question t
 - Open-ended to encourage deep exploration
 - Strategic in nature (not tactical)
 
-Return ONLY the question text, no JSON, no explanation, no quotes. Just the question.
-
-Example: "Why is there a need to enter the renewable energy market?"`,
-        },
-      ],
+Return a JSON object with the question in this format:
+{
+  "question": "Why is there a need to [describe the strategic question]?"
+}`,
+      maxTokens: 1000,
     });
 
-    const textContent = response.content
-      .filter((block) => block.type === 'text')
-      .map((block) => (block as Anthropic.TextBlock).text)
-      .join('\n')
-      .trim();
+    const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error('Failed to extract JSON from root question response');
+    }
 
-    return textContent;
+    const parsed = JSON.parse(jsonMatch[0]);
+    return parsed.question || response.content.trim();
   }
 
   async generateLevelInParallel(
@@ -113,14 +97,9 @@ Example: "Why is there a need to enter the renewable energy market?"`,
   ): Promise<WhyNode[]> {
     const isLeaf = depth >= this.maxDepth;
     
-    const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2000,
-      temperature: 0.7,
-      messages: [
-        {
-          role: 'user',
-          content: `You are a strategic business consultant performing a 5 Whys root cause analysis for BUSINESS STRATEGY.
+    const response = await aiClients.callWithFallback({
+      systemPrompt: 'You are a strategic business consultant performing a 5 Whys root cause analysis for BUSINESS STRATEGY.',
+      userMessage: `STRICT REQUIREMENT: Use ONLY business strategy reasoning. Cultural/anthropological analysis is FORBIDDEN.
 
 STRICT REQUIREMENT: Use ONLY business strategy reasoning. Cultural/anthropological analysis is FORBIDDEN.
 
@@ -222,16 +201,10 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
     }
   ]
 }`,
-        },
-      ],
+      maxTokens: 2000,
     });
 
-    const textContent = response.content
-      .filter((block) => block.type === 'text')
-      .map((block) => (block as Anthropic.TextBlock).text)
-      .join('\n');
-
-    const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+    const jsonMatch = response.content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       throw new Error('Failed to extract JSON from branch generation response');
     }
@@ -366,16 +339,9 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
       .map((node, i) => `Level ${node.depth}: ${node.option}`)
       .join('\n');
 
-    const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2000,
-      temperature: 0.3,
-      messages: [
-        {
-          role: 'user',
-          content: `You are a strategic consultant synthesizing insights from a "5 Whys" analysis.
-
-ORIGINAL INPUT:
+    const response = await aiClients.callWithFallback({
+      systemPrompt: 'You are a strategic consultant synthesizing insights from a "5 Whys" analysis.',
+      userMessage: `ORIGINAL INPUT:
 ${input}
 
 ANALYSIS PATH:
@@ -401,16 +367,10 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
     "Third recommended action"
   ]
 }`,
-        },
-      ],
+      maxTokens: 2000,
     });
 
-    const textContent = response.content
-      .filter((block) => block.type === 'text')
-      .map((block) => (block as Anthropic.TextBlock).text)
-      .join('\n');
-
-    const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+    const jsonMatch = response.content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       throw new Error('Failed to extract JSON from path insights response');
     }
@@ -420,16 +380,9 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
 
   async validateRootCause(rootCauseText: string): Promise<{ valid: boolean; message?: string }> {
     try {
-      const response = await this.anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 500,
-        temperature: 0,
-        messages: [
-          {
-            role: 'user',
-            content: `Determine if this root cause addresses BUSINESS/OPERATIONAL factors or merely describes CULTURAL observations.
-
-Root cause: "${rootCauseText}"
+      const response = await aiClients.callWithFallback({
+        systemPrompt: 'Determine if this root cause addresses BUSINESS/OPERATIONAL factors or merely describes CULTURAL observations.',
+        userMessage: `Root cause: "${rootCauseText}"
 
 VALID root causes address:
 - Market dynamics, competition, pricing power, competitive moats
@@ -459,16 +412,10 @@ Respond with ONLY valid JSON in this exact format:
   "isValid": true or false,
   "reason": "brief explanation in one sentence"
 }`,
-          },
-        ],
+        maxTokens: 500,
       });
 
-      const textContent = response.content
-        .filter((block) => block.type === 'text')
-        .map((block) => (block as Anthropic.TextBlock).text)
-        .join('\n');
-
-      const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+      const jsonMatch = response.content.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         console.error('Failed to extract JSON from validation response, allowing root cause through');
         return { valid: true };
