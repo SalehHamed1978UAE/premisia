@@ -642,12 +642,18 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
       });
     } else {
       // Create new version (Five Whys flow without pre-existing analysis)
-      version = await versionManager.createVersion(
+      // Use storage.createStrategyVersion directly since we don't have complete StrategyAnalysis yet
+      version = await storage.createStrategyVersion({
         sessionId,
-        analysisData,
-        { decisions: [] }, // Empty decisions for now
-        userId
-      );
+        versionNumber: 1,
+        analysisData: analysisData,
+        decisionsData: { decisions: [] },
+        selectedDecisions: null,
+        programStructure: null,
+        status: 'draft',
+        createdBy: userId,
+        userId: userId,
+      });
     }
 
     res.json({
@@ -1276,45 +1282,81 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
     console.log('[BMC-RESEARCH-STREAM] Sending initial message');
     res.write(`data: ${JSON.stringify({ type: 'progress', message: '🚀 Starting BMC research...', progress: 0 })}\n\n`);
 
-    // Conduct research
-    const result = await bmcResearcher.conductBMCResearch(input, sessionId);
+    let result;
+    let decisions;
+    let version;
+    let researchError = false;
 
-    // Stop timer
-    if (progressInterval) {
-      clearInterval(progressInterval);
+    try {
+      // Conduct research - this is the main operation
+      console.log('[BMC-RESEARCH-STREAM] Starting BMC research...');
+      result = await bmcResearcher.conductBMCResearch(input, sessionId);
+      console.log('[BMC-RESEARCH-STREAM] BMC research completed successfully');
+      
+      // Stop progress timer
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+
+      // Send 100% progress before trying other operations
+      res.write(`data: ${JSON.stringify({ type: 'progress', message: '✅ Research complete, processing results...', progress: 100 })}\n\n`);
+
+    } catch (error: any) {
+      console.error('[BMC-RESEARCH-STREAM] Research failed:', error);
+      researchError = true;
+      
+      // Stop timer on error
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+      
+      // Re-throw to be caught by outer catch
+      throw error;
     }
 
-    // Generate strategic decisions from BMC results
-    console.log('[BMC-RESEARCH-STREAM] Generating strategic decisions from BMC analysis...');
-    const decisions = await decisionGenerator.generateDecisionsFromBMC(result, input);
-    console.log(`[BMC-RESEARCH-STREAM] Generated ${decisions.decisions.length} strategic decisions`);
-
-    // Save to version
-    const userId = (req.user as any)?.claims?.sub || 'system';
-    const version = await storage.getStrategyVersion(sessionId, 1) || 
-                    await storage.createStrategyVersion({
-                      sessionId,
-                      versionNumber: 1,
-                      status: 'in_progress',
-                      analysisData: {},
-                      decisionsData: decisions,
-                      userId,
-                      createdBy: userId,
-                    });
-    
-    if (version) {
-      const existingAnalysisData = version.analysisData as any || {};
-      await storage.updateStrategyVersion(version.id, {
-        analysisData: {
-          ...existingAnalysisData,
-          bmc_research: result,
-        },
-        decisionsData: decisions,
-      });
-      console.log(`[BMC-RESEARCH-STREAM] Saved BMC results and ${decisions.decisions.length} decisions to version ${version.versionNumber}`);
+    // Try to generate decisions, but don't fail the whole stream if this fails
+    try {
+      console.log('[BMC-RESEARCH-STREAM] Generating strategic decisions from BMC analysis...');
+      decisions = await decisionGenerator.generateDecisionsFromBMC(result, input);
+      console.log(`[BMC-RESEARCH-STREAM] Generated ${decisions.decisions.length} strategic decisions`);
+    } catch (error: any) {
+      console.error('[BMC-RESEARCH-STREAM] Decision generation failed (non-critical):', error);
+      // Continue with empty decisions rather than failing
+      decisions = { decisions: [] };
     }
 
-    // Send completion message in research/stream format
+    // Try to save to database, but don't fail the stream if this fails
+    try {
+      const userId = (req.user as any)?.claims?.sub || 'system';
+      version = await storage.getStrategyVersion(sessionId, 1) || 
+                      await storage.createStrategyVersion({
+                        sessionId,
+                        versionNumber: 1,
+                        status: 'in_progress',
+                        analysisData: {},
+                        decisionsData: decisions,
+                        userId,
+                        createdBy: userId,
+                      });
+      
+      if (version) {
+        const existingAnalysisData = version.analysisData as any || {};
+        await storage.updateStrategyVersion(version.id, {
+          analysisData: {
+            ...existingAnalysisData,
+            bmc_research: result,
+          },
+          decisionsData: decisions,
+        });
+        console.log(`[BMC-RESEARCH-STREAM] Saved BMC results and ${decisions.decisions.length} decisions to version ${version.versionNumber}`);
+      }
+    } catch (error: any) {
+      console.error('[BMC-RESEARCH-STREAM] Database save failed (non-critical):', error);
+      // Continue - we still have the results to send to frontend
+    }
+
+    // ALWAYS send completion message, even if some steps failed
+    console.log('[BMC-RESEARCH-STREAM] Sending completion event');
     res.write(`data: ${JSON.stringify({ 
       type: 'complete', 
       data: {
@@ -1324,6 +1366,7 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
       }
     })}\n\n`);
     res.end();
+    console.log('[BMC-RESEARCH-STREAM] Stream ended successfully');
   } catch (error: any) {
     console.error('Error in /bmc-research/stream:', error);
     // Ensure error has type field for frontend handling
