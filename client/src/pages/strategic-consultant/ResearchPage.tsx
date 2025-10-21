@@ -206,11 +206,11 @@ export default function ResearchPage() {
     const whysPath = JSON.parse(whysPathStr);
     const versionNumber = researchData.versionNumber;
 
-    // BMC journeys don't need Porter's analysis or decision generation
+    // BMC journeys skip Porter's analysis but need to show strategic decisions
     if (journeyType === 'business_model_innovation') {
       toast({
         title: "✓ Research complete",
-        description: "BMC analysis ready for review",
+        description: "Strategic decisions ready for your review",
       });
       setDecisionsUpdated(true); // Skip Porter's-specific processing
       setAutoNavigateCountdown(3);
@@ -276,9 +276,16 @@ export default function ResearchPage() {
     if (autoNavigateCountdown === null) return;
 
     if (autoNavigateCountdown === 0) {
-      // Route to unified results page with the correct version number
       const version = researchData?.versionNumber || 1;
-      setLocation(`/strategic-consultant/results/${sessionId}/${version}`);
+      const journeyType = localStorage.getItem(`journey-type-${sessionId}`);
+      
+      // BMC journeys go to Decision Summary to review strategic decisions
+      if (journeyType === 'business_model_innovation') {
+        setLocation(`/strategy-workspace/decisions/${sessionId}/${version}`);
+      } else {
+        // Porter's journeys go to results page
+        setLocation(`/strategic-consultant/results/${sessionId}/${version}`);
+      }
       return;
     }
 
@@ -291,9 +298,16 @@ export default function ResearchPage() {
 
   const handleContinue = () => {
     setAutoNavigateCountdown(null);
-    // Route to unified results page with the correct version number
     const version = researchData?.versionNumber || 1;
-    setLocation(`/strategic-consultant/results/${sessionId}/${version}`);
+    const journeyType = localStorage.getItem(`journey-type-${sessionId}`);
+    
+    // BMC journeys go to Decision Summary to review strategic decisions
+    if (journeyType === 'business_model_innovation') {
+      setLocation(`/strategy-workspace/decisions/${sessionId}/${version}`);
+    } else {
+      // Porter's journeys go to results page
+      setLocation(`/strategic-consultant/results/${sessionId}/${version}`);
+    }
   };
 
   const handleRetry = () => {
