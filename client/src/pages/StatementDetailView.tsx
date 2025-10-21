@@ -49,9 +49,15 @@ export default function StatementDetailView() {
     return '📋';
   };
 
-  const handleViewFullReport = (framework: string, sessionId: string) => {
+  const handleViewFullReport = (framework: string, sessionId: string, versionNumber?: number) => {
     if (framework === 'PESTLE') {
       setLocation(`/strategic-consultant/trend-analysis/${sessionId}/1`);
+    } else if (framework === 'Business Model Canvas') {
+      const version = versionNumber || 1;
+      setLocation(`/strategic-consultant/results/${sessionId}/${version}`);
+    } else if (framework === 'Five Whys') {
+      const version = versionNumber || 1;
+      setLocation(`/strategic-consultant/results/${sessionId}/${version}`);
     }
   };
 
@@ -254,7 +260,7 @@ export default function StatementDetailView() {
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                           <Button
-                            onClick={() => handleViewFullReport(framework, statement.sessionId)}
+                            onClick={() => handleViewFullReport(framework, statement.sessionId, analysis.versionNumber)}
                             variant="default"
                             data-testid={`button-view-report-${framework}-${index}`}
                           >

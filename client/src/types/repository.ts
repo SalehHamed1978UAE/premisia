@@ -13,6 +13,7 @@ export interface AnalysisInfo {
   id: string;
   frameworkName: string;
   version: string;
+  versionNumber?: number;
   createdAt: Date | string;
   duration?: number;
   summary?: string;
