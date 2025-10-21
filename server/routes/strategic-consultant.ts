@@ -670,7 +670,7 @@ router.post('/whys-tree/validate-root-cause', async (req: Request, res: Response
       return res.status(400).json({ error: 'rootCauseText is required' });
     }
 
-    const validation = whysTreeGenerator.validateRootCause(rootCauseText);
+    const validation = await whysTreeGenerator.validateRootCause(rootCauseText);
 
     res.json(validation);
   } catch (error: any) {

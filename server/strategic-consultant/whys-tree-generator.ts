@@ -418,28 +418,72 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
     return JSON.parse(jsonMatch[0]);
   }
 
-  validateRootCause(rootCauseText: string): { valid: boolean; message?: string } {
-    const culturalKeywords = [
-      'cultural', 'culture', 'tradition', 'hierarchical respect',
-      'face-saving', 'power distance', 'indirect communication',
-      'loyalty', 'wasta', 'tribal', 'social norms', 'societal',
-      'traditional values', 'organizational culture', 'cultural identity',
-      'cultural dynamics', 'cultural preferences', 'cultural norms',
-      'power imbalance', 'face saving', 'hierarchical', 'cultural accommodation'
-    ];
+  async validateRootCause(rootCauseText: string): Promise<{ valid: boolean; message?: string }> {
+    try {
+      const response = await this.anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 500,
+        temperature: 0,
+        messages: [
+          {
+            role: 'user',
+            content: `Determine if this root cause addresses BUSINESS/OPERATIONAL factors or merely describes CULTURAL observations.
 
-    const lowerCaseText = rootCauseText.toLowerCase();
-    const hasCulturalLanguage = culturalKeywords.some(keyword => 
-      lowerCaseText.includes(keyword.toLowerCase())
-    );
+Root cause: "${rootCauseText}"
 
-    if (hasCulturalLanguage) {
+VALID root causes address:
+- Market dynamics, competition, pricing power, competitive moats
+- Customer behavior, customer loyalty, brand loyalty, acquisition costs
+- Product/service differentiation, quality, features
+- Operational efficiency, cost structures, resource constraints
+- Technology capabilities, innovation, competitive advantage
+- Financial models, unit economics, retention economics
+- Go-to-market strategy, sales efficiency, conversion metrics
+
+INVALID root causes that are just cultural observations:
+- Cultural norms without business impact (e.g., "people prefer tea because of tradition")
+- Geographic or ethnic stereotypes
+- Social traditions as endpoints without business logic
+- Organizational culture without operational link
+- Anthropological observations about behavior patterns
+
+EXAMPLES:
+✅ VALID: "Customer loyalty creates competitive moats through brand differentiation"
+✅ VALID: "Premium positioning justifies higher costs through pricing power"
+✅ VALID: "Market saturation drives need for differentiation"
+❌ INVALID: "Cultural preference for hierarchy affects communication"
+❌ INVALID: "Traditional values prioritize face-saving"
+
+Respond with ONLY valid JSON in this exact format:
+{
+  "isValid": true or false,
+  "reason": "brief explanation in one sentence"
+}`,
+          },
+        ],
+      });
+
+      const textContent = response.content
+        .filter((block) => block.type === 'text')
+        .map((block) => (block as Anthropic.TextBlock).text)
+        .join('\n');
+
+      const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.error('Failed to extract JSON from validation response, allowing root cause through');
+        return { valid: true };
+      }
+
+      const validation = JSON.parse(jsonMatch[0]);
+
       return {
-        valid: false,
-        message: "This appears to be a cultural observation rather than a business problem. A root cause should identify a competitive, market, or operational issue. Consider exploring a different branch that focuses on market dynamics, competitive positioning, or product-market fit."
+        valid: validation.isValid,
+        message: validation.isValid ? undefined : 
+          `This appears to be a cultural observation rather than a business root cause. ${validation.reason} Consider exploring a different branch that focuses on market dynamics, competitive positioning, or product-market fit.`
       };
+    } catch (error) {
+      console.error('LLM validation failed, allowing root cause through:', error);
+      return { valid: true };
     }
-
-    return { valid: true };
   }
 }
