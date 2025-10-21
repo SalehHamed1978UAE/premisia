@@ -13,6 +13,7 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI, Tailwin
 - **Frontend**: React, TypeScript, Vite, TanStack Query for state management, Wouter for client-side routing.
 - **Backend**: Node.js with Express.js (ES modules), Passport.js for session-based authentication, Express sessions, and a RESTful API with role-based middleware.
 - **Data Storage**: PostgreSQL with Neon serverless driver, Drizzle ORM for type-safe schema and Zod validation.
+- **Database Connection Management**: System-wide `DBConnectionManager` pattern (server/db-connection-manager.ts) ensures reliable database operations during long-running AI/web operations. **CRITICAL PATTERN**: All journey components MUST use `dbConnectionManager.withFreshConnection()` for short DB operations and `dbConnectionManager.retryWithBackoff()` for saves after long operations. Neon serverless database kills idle connections during 30-60 second AI/web operations. Pattern: (1) get data with fresh connection, (2) release connection, (3) perform long operation with no DB held, (4) save results with retry. Implemented in: Strategic Understanding Service, BMC Researcher. Required for: ALL current and future journeys (Porter's, PESTLE, Blue Ocean, SWOT, OKRs, etc.).
 - **Authentication/Authorization**: Session-based authentication via Passport.js with Replit OIDC, HTTP-only cookies, and a three-tier role system (Admin, Editor, Viewer).
 
 #### Feature Specifications

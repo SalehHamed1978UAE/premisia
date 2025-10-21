@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { z } from "zod";
-import { db } from "./db";
+import { dbConnectionManager } from "./db-connection-manager";
 import { 
   strategicUnderstanding, 
   strategicEntities, 
@@ -95,17 +95,20 @@ export class StrategicUnderstandingService {
   }
 
   async getOrCreateUnderstanding(sessionId: string, userInput: string, companyContext?: any): Promise<StrategicUnderstanding> {
-    const existing = await db
-      .select()
-      .from(strategicUnderstanding)
-      .where(eq(strategicUnderstanding.sessionId, sessionId))
-      .limit(1);
+    // STEP 1: Check if understanding exists (short DB operation)
+    const existing = await dbConnectionManager.withFreshConnection(async (db) => {
+      return await db
+        .select()
+        .from(strategicUnderstanding)
+        .where(eq(strategicUnderstanding.sessionId, sessionId))
+        .limit(1);
+    });
 
     if (existing.length > 0) {
       return existing[0];
     }
 
-    // Generate title for new statement
+    // STEP 2: Generate title (LONG AI operation, NO database connection held)
     let title: string | null = null;
     try {
       const { generateTitle } = await import('./services/title-generator.js');
@@ -116,6 +119,7 @@ export class StrategicUnderstandingService {
       title = userInput.substring(0, 60).trim() + (userInput.length > 60 ? '...' : '');
     }
 
+    // STEP 3: Insert understanding (short DB operation with retry)
     const understanding: InsertStrategicUnderstanding = {
       sessionId,
       userInput,
@@ -126,12 +130,14 @@ export class StrategicUnderstandingService {
       lastEnrichedAt: null,
     };
 
-    const inserted = await db
-      .insert(strategicUnderstanding)
-      .values(understanding)
-      .returning();
+    return await dbConnectionManager.retryWithBackoff(async (db) => {
+      const inserted = await db
+        .insert(strategicUnderstanding)
+        .values(understanding)
+        .returning();
 
-    return inserted[0];
+      return inserted[0];
+    });
   }
 
   async extractUnderstanding(options: ExtractUnderstandingOptions): Promise<{ understandingId: string; entities: EntityExtractionResult[] }> {
@@ -296,36 +302,36 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
     const claims = validEntities.map(e => e.claim);
     const embeddings = await this.generateEmbeddingsBatch(claims);
     
-    const persistedEntities: StrategicEntity[] = [];
+    // Prepare all entity data
+    const entitiesData: InsertStrategicEntity[] = validEntities.map((entity, i) => ({
+      understandingId: understanding.id,
+      type: entity.type as any,
+      claim: entity.claim,
+      confidence: entity.confidence,
+      embedding: embeddings[i] as any,
+      source: entity.source,
+      evidence: entity.evidence || null,
+      category: entity.category || null,
+      subcategory: entity.subcategory || null,
+      investmentAmount: entity.investmentAmount || null,
+      discoveredBy: 'user_input' as any,
+      validFrom: new Date(),
+      validTo: null,
+      metadata: null,
+    }));
     
-    for (let i = 0; i < validEntities.length; i++) {
-      const entity = validEntities[i];
-      const embedding = embeddings[i];
-      
-      const entityData: InsertStrategicEntity = {
-        understandingId: understanding.id,
-        type: entity.type as any,
-        claim: entity.claim,
-        confidence: entity.confidence,
-        embedding: embedding as any,
-        source: entity.source,
-        evidence: entity.evidence || null,
-        category: entity.category || null,
-        subcategory: entity.subcategory || null,
-        investmentAmount: entity.investmentAmount || null,
-        discoveredBy: 'user_input' as any,
-        validFrom: new Date(),
-        validTo: null,
-        metadata: null,
-      };
-
-      const inserted = await db
-        .insert(strategicEntities)
-        .values(entityData)
-        .returning();
-      
-      persistedEntities.push(inserted[0]);
-    }
+    // Persist all entities with retry (handles connection timeouts)
+    const persistedEntities = await dbConnectionManager.retryWithBackoff(async (db) => {
+      const inserted: StrategicEntity[] = [];
+      for (const entityData of entitiesData) {
+        const result = await db
+          .insert(strategicEntities)
+          .values(entityData)
+          .returning();
+        inserted.push(result[0]);
+      }
+      return inserted;
+    });
     
     console.log(`[StrategicUnderstanding] ✓ Persisted ${persistedEntities.length} user entities with discovered_by='user_input'`);
 
@@ -404,12 +410,15 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
       metadata: null,
     };
 
-    const inserted = await db
-      .insert(strategicEntities)
-      .values(entityData)
-      .returning();
+    // Use retryWithBackoff since this is often called after long operations
+    return await dbConnectionManager.retryWithBackoff(async (db) => {
+      const inserted = await db
+        .insert(strategicEntities)
+        .values(entityData)
+        .returning();
 
-    return inserted[0];
+      return inserted[0];
+    });
   }
 
   async createRelationship(
@@ -433,30 +442,39 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
       metadata: metadata || null,
     };
 
-    const inserted = await db
-      .insert(strategicRelationships)
-      .values(relationshipData)
-      .returning();
+    // Use retryWithBackoff since this is often called after long operations
+    return await dbConnectionManager.retryWithBackoff(async (db) => {
+      const inserted = await db
+        .insert(strategicRelationships)
+        .values(relationshipData)
+        .returning();
 
-    return inserted[0];
+      return inserted[0];
+    });
   }
 
   async getEntitiesByUnderstanding(understandingId: string): Promise<StrategicEntity[]> {
-    return await db
-      .select()
-      .from(strategicEntities)
-      .where(eq(strategicEntities.understandingId, understandingId))
-      .orderBy(desc(strategicEntities.discoveredAt));
+    // Use fresh connection for read operations after long gaps
+    return await dbConnectionManager.withFreshConnection(async (db) => {
+      return await db
+        .select()
+        .from(strategicEntities)
+        .where(eq(strategicEntities.understandingId, understandingId))
+        .orderBy(desc(strategicEntities.discoveredAt));
+    });
   }
 
   async getRelationshipsByEntity(entityId: string): Promise<StrategicRelationship[]> {
-    return await db
-      .select()
-      .from(strategicRelationships)
-      .where(
-        sql`${strategicRelationships.fromEntityId} = ${entityId} OR ${strategicRelationships.toEntityId} = ${entityId}`
-      )
-      .orderBy(desc(strategicRelationships.discoveredAt));
+    // Use fresh connection for read operations after long gaps
+    return await dbConnectionManager.withFreshConnection(async (db) => {
+      return await db
+        .select()
+        .from(strategicRelationships)
+        .where(
+          sql`${strategicRelationships.fromEntityId} = ${entityId} OR ${strategicRelationships.toEntityId} = ${entityId}`
+        )
+        .orderBy(desc(strategicRelationships.discoveredAt));
+    });
   }
 }
 
