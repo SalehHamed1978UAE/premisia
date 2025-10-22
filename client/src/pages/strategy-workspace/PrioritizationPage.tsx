@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -72,10 +72,11 @@ export default function PrioritizationPage() {
 
   // Build prioritized items from selected decisions
   const [prioritizedItems, setPrioritizedItems] = useState<PrioritizedItem[]>([]);
-  const [initialized, setInitialized] = useState(false);
 
   // Initialize prioritized items when data loads
-  if (versionData && !initialized) {
+  useEffect(() => {
+    if (!versionData) return;
+    
     const items: PrioritizedItem[] = [];
     const decisions = versionData.decisions?.decisions || [];
     const selectedDecisions = versionData.selectedDecisions || {};
@@ -97,8 +98,7 @@ export default function PrioritizationPage() {
     });
 
     setPrioritizedItems(items);
-    setInitialized(true);
-  }
+  }, [versionData]);
 
   // Extract insights and gaps
   const bmcAnalysis = versionData?.analysis?.bmc_research;
@@ -187,7 +187,7 @@ export default function PrioritizationPage() {
     );
   }
 
-  if (prioritizedItems.length === 0 && initialized) {
+  if (prioritizedItems.length === 0 && versionData) {
     return (
       <AppLayout
         title="Prioritize Strategic Initiatives"
@@ -203,7 +203,10 @@ export default function PrioritizationPage() {
             </AlertDescription>
           </Alert>
           <div className="mt-4">
-            <Button onClick={() => setLocation(`/strategy-workspace/decisions/${sessionId}/${versionNumber}`)}>
+            <Button 
+              onClick={() => setLocation(`/strategy-workspace/decisions/${sessionId}/${versionNumber}`)}
+              data-testid="button-go-decisions"
+            >
               Go to Decisions
             </Button>
           </div>
