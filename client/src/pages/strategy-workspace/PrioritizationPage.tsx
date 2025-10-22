@@ -77,14 +77,26 @@ export default function PrioritizationPage() {
   useEffect(() => {
     if (!versionData) return;
     
+    // Debug: Log the full data structure
+    console.log('[Prioritization] Full versionData:', versionData);
+    console.log('[Prioritization] versionData.decisions:', versionData.decisions);
+    console.log('[Prioritization] versionData.selectedDecisions:', versionData.selectedDecisions);
+    
     const items: PrioritizedItem[] = [];
     const decisions = versionData.decisions?.decisions || [];
     const selectedDecisions = versionData.selectedDecisions || {};
 
+    console.log('[Prioritization] decisions array:', decisions);
+    console.log('[Prioritization] selectedDecisions object:', selectedDecisions);
+
     decisions.forEach((decision) => {
       const selectedOptionId = selectedDecisions[decision.id];
+      console.log(`[Prioritization] Processing decision ${decision.id}, selectedOptionId: ${selectedOptionId}`);
+      
       if (selectedOptionId) {
         const option = decision.options.find(opt => opt.id === selectedOptionId);
+        console.log(`[Prioritization] Found option for ${selectedOptionId}:`, option);
+        
         if (option) {
           items.push({
             id: option.id,
@@ -97,6 +109,7 @@ export default function PrioritizationPage() {
       }
     });
 
+    console.log('[Prioritization] Final items:', items);
     setPrioritizedItems(items);
   }, [versionData]);
 
