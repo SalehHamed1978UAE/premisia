@@ -428,14 +428,6 @@ export default function DecisionSummaryPage() {
                       return;
                     }
                     
-                    // Debug: Log selected options before saving
-                    console.log('[DecisionSummary] Saving selectedOptions:', selectedOptions);
-                    console.log('[DecisionSummary] Decision IDs:', generatedDecisions.decisions.map((d: any) => d.id));
-                    console.log('[DecisionSummary] All options:', generatedDecisions.decisions.map((d: any) => ({
-                      decisionId: d.id,
-                      options: d.options.map((o: any) => o.id)
-                    })));
-                    
                     // Save selected decisions and navigate to prioritization
                     saveSelectedDecisionsMutation.mutate(selectedOptions);
                   }}
