@@ -197,6 +197,11 @@ export default function DecisionSummaryPage() {
       return response.json();
     },
     onSuccess: () => {
+      // Invalidate the version query cache to ensure fresh data on next page
+      queryClient.invalidateQueries({ 
+        queryKey: ['/api/strategic-consultant/versions', sessionId, versionNumber] 
+      });
+      
       // Navigate to prioritization page
       setLocation(`/strategy-workspace/prioritization/${sessionId}/${versionNumber}`);
     },
