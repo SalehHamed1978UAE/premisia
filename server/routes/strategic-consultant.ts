@@ -13,7 +13,7 @@ import { BMCResearcher } from '../strategic-consultant/bmc-researcher';
 import { storage } from '../storage';
 import { unlink } from 'fs/promises';
 import { db } from '../db';
-import { strategicUnderstanding, journeySessions } from '@shared/schema';
+import { strategicUnderstanding, journeySessions, strategyVersions } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 import { strategicUnderstandingService } from '../strategic-understanding-service';
 import { JourneyOrchestrator } from '../journey/journey-orchestrator';
@@ -421,6 +421,42 @@ router.get('/versions/:sessionId/:versionNumber', async (req: Request, res: Resp
   } catch (error: any) {
     console.error('Error in /versions/:sessionId/:versionNumber:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch version' });
+  }
+});
+
+// PATCH /api/strategic-consultant/versions/:sessionId/:versionNumber
+// Update strategy version with selected decisions
+router.patch('/versions/:sessionId/:versionNumber', async (req: Request, res: Response) => {
+  try {
+    const { sessionId, versionNumber } = req.params;
+    const { selectedDecisions } = req.body;
+
+    if (!selectedDecisions) {
+      return res.status(400).json({ error: 'selectedDecisions is required' });
+    }
+
+    // Get existing version
+    const version = await storage.getStrategyVersion(sessionId, parseInt(versionNumber));
+    if (!version) {
+      return res.status(404).json({ error: 'Version not found' });
+    }
+
+    // Update version with selected decisions
+    await db
+      .update(strategyVersions)
+      .set({
+        selectedDecisions: selectedDecisions,
+        updatedAt: new Date(),
+      })
+      .where(eq(strategyVersions.id, version.id));
+
+    res.json({
+      success: true,
+      message: 'Selected decisions saved',
+    });
+  } catch (error: any) {
+    console.error('Error in PATCH /versions/:sessionId/:versionNumber:', error);
+    res.status(500).json({ error: error.message || 'Failed to update version' });
   }
 });
 

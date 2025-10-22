@@ -207,7 +207,7 @@ router.post('/decisions', async (req: Request, res: Response) => {
 // Generate EPM program from framework results + user decisions
 router.post('/epm/generate', async (req: Request, res: Response) => {
   try {
-    const { strategyVersionId, decisionId } = req.body;
+    const { strategyVersionId, decisionId, prioritizedOrder } = req.body;
 
     if (!strategyVersionId) {
       return res.status(400).json({ error: 'strategyVersionId is required' });
@@ -305,8 +305,14 @@ router.post('/epm/generate', async (req: Request, res: Response) => {
     // Run through BMC analyzer
     const insights = await bmcAnalyzer.analyze(bmcResults);
     
+    // Include prioritized order in user decisions context
+    const decisionsWithPriority = userDecisions ? {
+      ...userDecisions,
+      prioritizedOrder: prioritizedOrder || [],
+    } : { prioritizedOrder: prioritizedOrder || [] };
+    
     // Run through EPM synthesizer
-    const epmProgram = await epmSynthesizer.synthesize(insights, userDecisions);
+    const epmProgram = await epmSynthesizer.synthesize(insights, decisionsWithPriority);
 
     const userId = (req.user as any)?.claims?.sub || null;
 

@@ -183,7 +183,33 @@ export default function DecisionSummaryPage() {
     }));
   }, [bmcAnalysis, blocks]);
 
-  // Save decision mutation
+  // Save selected decisions mutation (for new strategic decisions flow)
+  const saveSelectedDecisionsMutation = useMutation({
+    mutationFn: async (selections: Record<string, string>) => {
+      if (!strategyVersionId) {
+        throw new Error('Strategy version ID not available');
+      }
+      
+      // Save selected decisions to strategy version
+      const response = await apiRequest('PATCH', `/api/strategic-consultant/versions/${sessionId}/${versionNumber}`, {
+        selectedDecisions: selections,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      // Navigate to prioritization page
+      setLocation(`/strategy-workspace/prioritization/${sessionId}/${versionNumber}`);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to save decisions",
+        description: error.message || "Please try again",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Save decision mutation (for legacy 4-step wizard flow)
   const saveDecisionMutation = useMutation({
     mutationFn: async (decision: Partial<StrategyDecision>) => {
       if (!strategyVersionId) {
@@ -397,43 +423,20 @@ export default function DecisionSummaryPage() {
                       return;
                     }
                     
-                    // Build a rationale with the selected options
-                    const selectionsSummary = generatedDecisions.decisions.map(decision => {
-                      const selectedOptionId = selectedOptions[decision.id];
-                      const selectedOption = decision.options.find(opt => opt.id === selectedOptionId);
-                      return `${decision.title}: ${selectedOption?.label || 'Unknown'}`;
-                    }).join('\n');
-                    
-                    // Use the selected options to proceed with EPM generation
-                    const completeDecisionData = {
-                      ...decisionData,
-                      goDecision: 'proceed' as const,
-                      decisionRationale: `Strategic decisions made:\n${selectionsSummary}`,
-                      topPriorities: [
-                        ...(decisionData.topPriorities || []),
-                        ...Object.values(selectedOptions).map(optionId => {
-                          // Find the option label
-                          for (const decision of generatedDecisions.decisions) {
-                            const option = decision.options.find(opt => opt.id === optionId);
-                            if (option) return option.label;
-                          }
-                          return optionId;
-                        })
-                      ].slice(0, 5),
-                    };
-                    saveDecisionMutation.mutate(completeDecisionData as StrategyDecision);
+                    // Save selected decisions and navigate to prioritization
+                    saveSelectedDecisionsMutation.mutate(selectedOptions);
                   }}
-                  disabled={Object.keys(selectedOptions).length < generatedDecisions.decisions.length || saveDecisionMutation.isPending}
-                  data-testid="button-generate-epm"
+                  disabled={Object.keys(selectedOptions).length < generatedDecisions.decisions.length || saveSelectedDecisionsMutation.isPending}
+                  data-testid="button-proceed-prioritization"
                 >
-                  {saveDecisionMutation.isPending ? (
+                  {saveSelectedDecisionsMutation.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating EPM Program...
+                      Saving...
                     </>
                   ) : (
                     <>
-                      Convert to EPM Program
+                      Proceed to Prioritization
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </>
                   )}
