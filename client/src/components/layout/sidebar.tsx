@@ -16,7 +16,8 @@ import {
   LogOut,
   X,
   Sparkles,
-  Archive
+  Archive,
+  FileText
 } from "lucide-react";
 import type { ViewType } from "@/pages/home-page";
 
@@ -205,6 +206,27 @@ export function Sidebar({ currentView, onViewChange, isOpen, onToggle }: Sidebar
             <div className="text-left">
               <div className="font-medium text-sm">Analysis Repository</div>
               <div className="text-xs opacity-70">Browse all analyses</div>
+            </div>
+          </Button>
+        </div>
+
+        {/* Strategy Workspace */}
+        <div className="px-4 pb-2 pt-2">
+          <Button
+            variant="outline"
+            className="w-full justify-start h-auto p-3 border-2 hover:bg-accent"
+            onClick={() => {
+              setLocation('/strategy-workspace/programs');
+              if (window.innerWidth < 1024) {
+                onToggle();
+              }
+            }}
+            data-testid="nav-strategy-workspace-programs"
+          >
+            <FileText className="h-5 w-5 mr-3 flex-shrink-0" />
+            <div className="text-left">
+              <div className="font-medium text-sm">EPM Programs</div>
+              <div className="text-xs opacity-70">Generated programs</div>
             </div>
           </Button>
         </div>

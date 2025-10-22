@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db';
 import { strategyDecisions, epmPrograms, journeySessions, strategyVersions } from '@shared/schema';
-import { eq } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import { BMCAnalyzer, PortersAnalyzer, PESTLEAnalyzer, EPMSynthesizer } from '../intelligence';
 import type { BMCResults, PortersResults, PESTLEResults } from '../intelligence/types';
 import { storage } from '../storage';
@@ -350,6 +350,52 @@ router.post('/epm/generate', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error in POST /epm/generate:', error);
     res.status(500).json({ error: error.message || 'EPM generation failed' });
+  }
+});
+
+// GET /api/strategy-workspace/epm
+// List all EPM programs for current user (framework-agnostic)
+router.get('/epm', async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.claims?.sub;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    const programs = await db
+      .select({
+        id: epmPrograms.id,
+        frameworkType: epmPrograms.frameworkType,
+        status: epmPrograms.status,
+        overallConfidence: epmPrograms.overallConfidence,
+        createdAt: epmPrograms.createdAt,
+        updatedAt: epmPrograms.updatedAt,
+        finalizedAt: epmPrograms.finalizedAt,
+        executiveSummary: epmPrograms.executiveSummary,
+        strategyVersionId: epmPrograms.strategyVersionId,
+      })
+      .from(epmPrograms)
+      .where(eq(epmPrograms.userId, userId))
+      .orderBy(desc(epmPrograms.createdAt));
+
+    // Extract titles from executive summaries for list display
+    const programsWithTitles = programs.map(prog => ({
+      id: prog.id,
+      title: (prog.executiveSummary as any)?.title || 'Untitled Program',
+      frameworkType: prog.frameworkType,
+      status: prog.status,
+      overallConfidence: parseFloat(prog.overallConfidence || '0'),
+      createdAt: prog.createdAt,
+      updatedAt: prog.updatedAt,
+      finalizedAt: prog.finalizedAt,
+      strategyVersionId: prog.strategyVersionId,
+    }));
+
+    res.json({ programs: programsWithTitles });
+  } catch (error: any) {
+    console.error('Error in GET /epm:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch EPM programs' });
   }
 });
 

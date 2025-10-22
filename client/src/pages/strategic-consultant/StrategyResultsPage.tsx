@@ -12,6 +12,7 @@ import { FRAMEWORK_METADATA } from "@shared/framework-types";
 import type { FrameworkResult, FrameworkName } from "@shared/framework-types";
 
 interface VersionData {
+  id?: string;
   versionNumber: number;
   status: string;
   createdAt: string;
@@ -101,6 +102,18 @@ export default function StrategyResultsPage() {
   // Detect supported and unsupported frameworks
   const supportedFrameworks = frameworks.filter(f => hasFrameworkRenderer(f.framework));
   const unsupportedFrameworks = frameworks.filter(f => !hasFrameworkRenderer(f.framework));
+
+  // Check if EPM program exists for this strategy version
+  const strategyVersionId = versionData?.id;
+  const { data: epmProgramsData } = useQuery<{ programs: Array<{ id: string; strategyVersionId: string }> }>({
+    queryKey: ['/api/strategy-workspace/epm'],
+    enabled: !!strategyVersionId,
+  });
+  
+  // Find EPM program for this specific strategy version
+  const existingEpmProgram = epmProgramsData?.programs?.find(
+    prog => prog.strategyVersionId === strategyVersionId
+  );
 
   if (isLoading) {
     return (
@@ -236,20 +249,41 @@ export default function StrategyResultsPage() {
 
         {/* Actions */}
         <div className="space-y-4">
-          <div className="p-6 border-2 border-primary rounded-lg bg-primary/5">
-            <h3 className="text-lg font-semibold mb-2">Next Step: Strategic Decision Making</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Review the analysis above and make key strategic decisions to generate your complete EPM program
-            </p>
-            <Button 
-              size="lg"
-              onClick={() => setLocation(`/strategy-workspace/decisions/${sessionId}/${versionNumber}`)}
-              data-testid="button-review-decide"
-              className="w-full"
-            >
-              Review Results & Make Strategic Decisions
-            </Button>
-          </div>
+          {/* EPM Program Access (if exists) */}
+          {existingEpmProgram && (
+            <div className="p-6 border-2 border-green-500 rounded-lg bg-green-50 dark:bg-green-950">
+              <h3 className="text-lg font-semibold mb-2 text-green-700 dark:text-green-300">✓ EPM Program Generated</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Your complete EPM program is ready to view and edit
+              </p>
+              <Button 
+                size="lg"
+                onClick={() => setLocation(`/strategy-workspace/epm/${existingEpmProgram.id}`)}
+                data-testid="button-view-epm-program"
+                className="w-full bg-green-600 hover:bg-green-700"
+              >
+                View EPM Program
+              </Button>
+            </div>
+          )}
+
+          {/* Next Step: Decision Making (if no EPM exists) */}
+          {!existingEpmProgram && (
+            <div className="p-6 border-2 border-primary rounded-lg bg-primary/5">
+              <h3 className="text-lg font-semibold mb-2">Next Step: Strategic Decision Making</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Review the analysis above and make key strategic decisions to generate your complete EPM program
+              </p>
+              <Button 
+                size="lg"
+                onClick={() => setLocation(`/strategy-workspace/decisions/${sessionId}/${versionNumber}`)}
+                data-testid="button-review-decide"
+                className="w-full"
+              >
+                Review Results & Make Strategic Decisions
+              </Button>
+            </div>
+          )}
           
           <div className="flex gap-4">
             <Button 
