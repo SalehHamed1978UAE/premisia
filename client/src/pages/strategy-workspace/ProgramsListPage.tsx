@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Checkbox } from '@/components/ui/checkbox';
 import { 
   FileText, 
   Search, 
@@ -13,10 +14,15 @@ import {
   TrendingUp, 
   CheckCircle2, 
   FileEdit,
-  ArrowRight 
+  ArrowRight,
+  Trash2,
+  Archive,
+  Download
 } from 'lucide-react';
 import { useState } from 'react';
 import { format } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 
 interface EPMProgram {
   id: string;
@@ -32,6 +38,11 @@ interface EPMProgram {
 
 export function ProgramsListPage() {
   const [searchQuery, setSearchQuery] = useState('');
+  const { toast } = useToast();
+  
+  // Selection state for batch operations
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBatchProcessing, setIsBatchProcessing] = useState(false);
 
   const { data, isLoading } = useQuery<{ programs: EPMProgram[] }>({
     queryKey: ['/api/strategy-workspace/epm'],
@@ -48,6 +59,119 @@ export function ProgramsListPage() {
   // Group by status
   const draftPrograms = filteredPrograms.filter(p => p.status === 'draft');
   const finalizedPrograms = filteredPrograms.filter(p => p.status === 'finalized');
+
+  // Select/deselect all
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredPrograms.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredPrograms.map(p => p.id)));
+    }
+  };
+
+  // Toggle individual selection
+  const toggleSelection = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  // Batch operations
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+
+    setIsBatchProcessing(true);
+    try {
+      await apiRequest('POST', '/api/strategy-workspace/epm/batch-delete', {
+        ids: Array.from(selectedIds),
+      });
+      
+      toast({
+        title: 'Programs deleted',
+        description: `${selectedIds.size} program(s) deleted successfully`,
+      });
+
+      setSelectedIds(new Set());
+      await queryClient.invalidateQueries({ queryKey: ['/api/strategy-workspace/epm'] });
+    } catch (error) {
+      console.error('Error batch deleting:', error);
+      toast({
+        title: 'Failed to delete',
+        description: error instanceof Error ? error.message : 'Could not delete programs',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  };
+
+  const handleBatchArchive = async () => {
+    if (selectedIds.size === 0) return;
+
+    setIsBatchProcessing(true);
+    try {
+      await apiRequest('POST', '/api/strategy-workspace/epm/batch-archive', {
+        ids: Array.from(selectedIds),
+        archive: true,
+      });
+      
+      toast({
+        title: 'Programs archived',
+        description: `${selectedIds.size} program(s) archived successfully`,
+      });
+
+      setSelectedIds(new Set());
+      await queryClient.invalidateQueries({ queryKey: ['/api/strategy-workspace/epm'] });
+    } catch (error) {
+      console.error('Error batch archiving:', error);
+      toast({
+        title: 'Failed to archive',
+        description: error instanceof Error ? error.message : 'Could not archive programs',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  };
+
+  const handleBatchExport = async () => {
+    if (selectedIds.size === 0) return;
+
+    setIsBatchProcessing(true);
+    try {
+      const response = await apiRequest('POST', '/api/strategy-workspace/epm/batch-export', {
+        ids: Array.from(selectedIds),
+      });
+      
+      // Download as JSON file
+      const dataStr = JSON.stringify(response.data, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `epm-programs-export-${new Date().toISOString().split('T')[0]}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: 'Export successful',
+        description: `${selectedIds.size} program(s) exported successfully`,
+      });
+    } catch (error) {
+      console.error('Error batch exporting:', error);
+      toast({
+        title: 'Failed to export',
+        description: error instanceof Error ? error.message : 'Could not export programs',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     if (status === 'finalized') {
@@ -87,6 +211,57 @@ export function ProgramsListPage() {
             />
           </div>
         </div>
+
+        {/* Batch action bar */}
+        {!isLoading && filteredPrograms.length > 0 && (
+          <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={filteredPrograms.length > 0 && selectedIds.size === filteredPrograms.length}
+                onCheckedChange={toggleSelectAll}
+                data-testid="checkbox-select-all"
+              />
+              <span className="text-sm font-medium">
+                {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select all'}
+              </span>
+            </div>
+
+            {selectedIds.size > 0 && (
+              <div className="flex items-center gap-2 ml-auto">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleBatchExport}
+                  disabled={isBatchProcessing}
+                  data-testid="button-batch-export"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export ({selectedIds.size})
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleBatchArchive}
+                  disabled={isBatchProcessing}
+                  data-testid="button-batch-archive"
+                >
+                  <Archive className="h-4 w-4 mr-2" />
+                  Archive ({selectedIds.size})
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={handleBatchDelete}
+                  disabled={isBatchProcessing}
+                  data-testid="button-batch-delete"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete ({selectedIds.size})
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Loading State */}
         {isLoading && (
@@ -143,17 +318,25 @@ export function ProgramsListPage() {
             {draftPrograms.map((program) => (
               <Card key={program.id} className="hover:shadow-md transition-shadow">
                 <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3 flex-1">
-                      {getFrameworkIcon(program.frameworkType)}
-                      <div className="flex-1">
-                        <CardTitle className="text-xl mb-1">{program.title}</CardTitle>
-                        <CardDescription>{program.frameworkType}</CardDescription>
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      checked={selectedIds.has(program.id)}
+                      onCheckedChange={() => toggleSelection(program.id)}
+                      data-testid={`checkbox-${program.id}`}
+                      className="mt-1"
+                    />
+                    <div className="flex items-start justify-between flex-1">
+                      <div className="flex items-start gap-3 flex-1">
+                        {getFrameworkIcon(program.frameworkType)}
+                        <div className="flex-1">
+                          <CardTitle className="text-xl mb-1">{program.title}</CardTitle>
+                          <CardDescription>{program.frameworkType}</CardDescription>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex gap-2">
-                      {getStatusBadge(program.status)}
-                      {getConfidenceBadge(program.overallConfidence)}
+                      <div className="flex gap-2">
+                        {getStatusBadge(program.status)}
+                        {getConfidenceBadge(program.overallConfidence)}
+                      </div>
                     </div>
                   </div>
                 </CardHeader>
@@ -191,17 +374,25 @@ export function ProgramsListPage() {
             {finalizedPrograms.map((program) => (
               <Card key={program.id} className="hover:shadow-md transition-shadow border-green-500/20">
                 <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3 flex-1">
-                      {getFrameworkIcon(program.frameworkType)}
-                      <div className="flex-1">
-                        <CardTitle className="text-xl mb-1">{program.title}</CardTitle>
-                        <CardDescription>{program.frameworkType}</CardDescription>
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      checked={selectedIds.has(program.id)}
+                      onCheckedChange={() => toggleSelection(program.id)}
+                      data-testid={`checkbox-${program.id}`}
+                      className="mt-1"
+                    />
+                    <div className="flex items-start justify-between flex-1">
+                      <div className="flex items-start gap-3 flex-1">
+                        {getFrameworkIcon(program.frameworkType)}
+                        <div className="flex-1">
+                          <CardTitle className="text-xl mb-1">{program.title}</CardTitle>
+                          <CardDescription>{program.frameworkType}</CardDescription>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex gap-2">
-                      {getStatusBadge(program.status)}
-                      {getConfidenceBadge(program.overallConfidence)}
+                      <div className="flex gap-2">
+                        {getStatusBadge(program.status)}
+                        {getConfidenceBadge(program.overallConfidence)}
+                      </div>
                     </div>
                   </div>
                 </CardHeader>
