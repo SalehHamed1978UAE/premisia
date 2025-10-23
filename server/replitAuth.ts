@@ -218,3 +218,17 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
     return;
   }
 };
+
+export const isAdmin: RequestHandler = (req, res, next) => {
+  if (!req.user || req.user.role !== 'Admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  next();
+};
+
+export const isEditor: RequestHandler = (req, res, next) => {
+  if (!req.user || !['Admin', 'Editor'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Editor access required' });
+  }
+  next();
+};
