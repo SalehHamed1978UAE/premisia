@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db } from '../db';
 import { strategicUnderstanding, frameworkInsights, strategicEntities, strategyVersions } from '@shared/schema';
-import { eq, desc, sql } from 'drizzle-orm';
+import { eq, desc, sql, inArray } from 'drizzle-orm';
 
 const router = Router();
 
@@ -372,6 +372,87 @@ router.get('/statements/:understandingId', async (req, res) => {
   } catch (error) {
     console.error('Error fetching statement detail:', error);
     res.status(500).json({ error: 'Failed to fetch statement detail' });
+  }
+});
+
+// Batch operations
+router.post('/batch-delete', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Invalid request: ids array is required' });
+    }
+
+    // Delete all related data for each understanding
+    await db.delete(frameworkInsights).where(inArray(frameworkInsights.understandingId, ids));
+    await db.delete(strategicEntities).where(inArray(strategicEntities.understandingId, ids));
+    await db.delete(strategicUnderstanding).where(inArray(strategicUnderstanding.id, ids));
+
+    res.json({ success: true, count: ids.length });
+  } catch (error) {
+    console.error('Error batch deleting statements:', error);
+    res.status(500).json({ error: 'Failed to delete statements' });
+  }
+});
+
+router.post('/batch-archive', async (req, res) => {
+  try {
+    const { ids, archive = true } = req.body;
+    
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Invalid request: ids array is required' });
+    }
+
+    await db
+      .update(strategicUnderstanding)
+      .set({ archived: archive, updatedAt: new Date() })
+      .where(inArray(strategicUnderstanding.id, ids));
+
+    res.json({ success: true, count: ids.length, archived: archive });
+  } catch (error) {
+    console.error('Error batch archiving statements:', error);
+    res.status(500).json({ error: 'Failed to archive statements' });
+  }
+});
+
+router.post('/batch-export', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Invalid request: ids array is required' });
+    }
+
+    const statements = await db
+      .select()
+      .from(strategicUnderstanding)
+      .where(inArray(strategicUnderstanding.id, ids));
+
+    const exportData = await Promise.all(
+      statements.map(async (stmt) => {
+        const analyses = await db
+          .select()
+          .from(frameworkInsights)
+          .where(eq(frameworkInsights.understandingId, stmt.id));
+
+        const versions = await db
+          .select()
+          .from(strategyVersions)
+          .where(eq(strategyVersions.sessionId, stmt.sessionId));
+
+        return {
+          statement: stmt,
+          oldAnalyses: analyses,
+          newAnalyses: versions,
+        };
+      })
+    );
+
+    res.json({ success: true, data: exportData });
+  } catch (error) {
+    console.error('Error batch exporting statements:', error);
+    res.status(500).json({ error: 'Failed to export statements' });
   }
 });
 

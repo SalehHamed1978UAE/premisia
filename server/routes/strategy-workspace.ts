@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db';
 import { strategyDecisions, epmPrograms, journeySessions, strategyVersions, strategicUnderstanding } from '@shared/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, inArray } from 'drizzle-orm';
 import { BMCAnalyzer, PortersAnalyzer, PESTLEAnalyzer, EPMSynthesizer } from '../intelligence';
 import type { BMCResults, PortersResults, PESTLEResults } from '../intelligence/types';
 import { storage } from '../storage';
@@ -544,6 +544,64 @@ router.post('/epm/:id/finalize', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error in POST /epm/:id/finalize:', error);
     res.status(500).json({ error: error.message || 'Failed to finalize EPM program' });
+  }
+});
+
+// Batch operations for EPM programs
+router.post('/epm/batch-delete', async (req: Request, res: Response) => {
+  try {
+    const { ids } = req.body;
+    
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Invalid request: ids array is required' });
+    }
+
+    await db.delete(epmPrograms).where(inArray(epmPrograms.id, ids));
+
+    res.json({ success: true, count: ids.length });
+  } catch (error: any) {
+    console.error('Error batch deleting EPM programs:', error);
+    res.status(500).json({ error: error.message || 'Failed to delete EPM programs' });
+  }
+});
+
+router.post('/epm/batch-archive', async (req: Request, res: Response) => {
+  try {
+    const { ids, archive = true } = req.body;
+    
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Invalid request: ids array is required' });
+    }
+
+    await db
+      .update(epmPrograms)
+      .set({ archived: archive, updatedAt: new Date() })
+      .where(inArray(epmPrograms.id, ids));
+
+    res.json({ success: true, count: ids.length, archived: archive });
+  } catch (error: any) {
+    console.error('Error batch archiving EPM programs:', error);
+    res.status(500).json({ error: error.message || 'Failed to archive EPM programs' });
+  }
+});
+
+router.post('/epm/batch-export', async (req: Request, res: Response) => {
+  try {
+    const { ids } = req.body;
+    
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Invalid request: ids array is required' });
+    }
+
+    const programs = await db
+      .select()
+      .from(epmPrograms)
+      .where(inArray(epmPrograms.id, ids));
+
+    res.json({ success: true, data: programs });
+  } catch (error: any) {
+    console.error('Error batch exporting EPM programs:', error);
+    res.status(500).json({ error: error.message || 'Failed to export EPM programs' });
   }
 });
 

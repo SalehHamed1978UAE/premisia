@@ -498,10 +498,12 @@ export const strategicUnderstanding = pgTable("strategic_understanding", {
   graphVersion: integer("graph_version").default(1),
   lastEnrichedBy: varchar("last_enriched_by", { length: 50 }),
   lastEnrichedAt: timestamp("last_enriched_at"),
+  archived: boolean("archived").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
   sessionIdx: index("idx_strategic_understanding_session").on(table.sessionId),
+  archivedIdx: index("idx_strategic_understanding_archived").on(table.archived),
 }));
 
 // Journey Sessions - Tracks multi-framework strategic journeys
