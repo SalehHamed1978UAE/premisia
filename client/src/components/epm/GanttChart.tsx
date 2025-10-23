@@ -2,6 +2,7 @@
  * GanttChart Component
  * 
  * Interactive SVG-based Gantt chart for EPM programs
+ * ULTRA-FIXED version with proper Y-positioning
  */
 
 import { useState, useMemo } from 'react';
@@ -23,9 +24,7 @@ import {
   GanttDependency,
   TaskPosition,
   DependencyPath,
-  ChartDimensions,
   ScheduleIssue,
-  calculateTaskPositions,
   calculateDependencyPaths,
   calculateChartDimensions,
   analyzeSchedule
@@ -64,16 +63,24 @@ export default function GanttChart({
     [tasks.length, maxMonth, containerWidth]
   );
 
+  // ULTRA-FIXED positioning constants
+  const HEADER_HEIGHT = 60;  // Height of the timeline header
+  const ROW_HEIGHT = dimensions.taskHeight + dimensions.taskPadding;  // 70px total
+  const BAR_HEIGHT = dimensions.taskHeight;  // 50px
+  const ROW_PADDING = dimensions.taskPadding / 2;  // 10px padding to center bars
+
+  // Calculate task positions with FIXED Y-offset
   const taskPositions = useMemo(() => {
-    const positions = calculateTaskPositions(
-      tasks,
-      dimensions.monthWidth,
-      dimensions.taskHeight,
-      dimensions.taskPadding,
-      dimensions.leftMargin
-    );
+    const positions: TaskPosition[] = tasks.map((task, taskIndex) => ({
+      id: task.id,
+      x: dimensions.leftMargin + (task.startMonth * dimensions.monthWidth),
+      // FIXED: Proper Y calculation including header height
+      y: HEADER_HEIGHT + (taskIndex * ROW_HEIGHT) + ROW_PADDING,
+      width: task.duration * dimensions.monthWidth,
+      height: BAR_HEIGHT
+    }));
     return new Map(positions.map(p => [p.id, p]));
-  }, [tasks, dimensions]);
+  }, [tasks, dimensions, HEADER_HEIGHT, ROW_HEIGHT, ROW_PADDING, BAR_HEIGHT]);
 
   const dependencyPaths = useMemo(() =>
     calculateDependencyPaths(dependencies, taskPositions, dimensions.taskHeight),
