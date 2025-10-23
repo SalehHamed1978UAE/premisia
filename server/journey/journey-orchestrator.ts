@@ -17,6 +17,7 @@ import { getJourney, isJourneyAvailable } from './journey-registry';
 import { applyWhysToBMCBridge } from './bridges/whys-to-bmc-bridge';
 import { WhysTreeGenerator } from '../strategic-consultant/whys-tree-generator';
 import { BMCResearcher } from '../strategic-consultant/bmc-researcher';
+import { dbConnectionManager } from '../db-connection-manager';
 
 export class JourneyOrchestrator {
   /**
