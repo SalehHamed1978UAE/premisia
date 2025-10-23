@@ -8,6 +8,8 @@ import { RequestThrottler } from '../utils/request-throttler';
 import { parseAIJson } from '../utils/parse-ai-json';
 import { dbConnectionManager } from '../db-connection-manager';
 
+const API_BASE = process.env.API_BASE_URL || 'http://localhost:5000';
+
 export interface BMCBlockFindings {
   blockType: BMCBlockType;
   blockName: string;
@@ -687,7 +689,7 @@ Step 1: Same concept? Step 2: Different values?`;
 
     const searchTasks = queries.map((queryObj) => async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/web-search', {
+        const response = await fetch(`${API_BASE}/api/web-search`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
