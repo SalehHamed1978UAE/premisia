@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Sparkles, Archive, FileText, ArrowRight, CheckCircle } from "lucide-react";
+import { Sparkles, Archive, FileText, ArrowRight, CheckCircle, Menu } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { cn } from "@/lib/utils";
 
@@ -54,6 +54,7 @@ const ONBOARDING_STEPS = [
 export default function HomePage() {
   const [currentStep, setCurrentStep] = useState(0);
   const [, setLocation] = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleGetStarted = () => {
     setLocation('/strategic-consultant/input');
@@ -63,8 +64,21 @@ export default function HomePage() {
   const Icon = currentStepData.icon;
 
   return (
-    <AppLayout showTopBar={false}>
+    <AppLayout showTopBar={false} sidebarOpen={sidebarOpen} onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}>
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5 p-6">
+        {/* Mobile Menu Button */}
+        <div className="lg:hidden fixed top-4 left-4 z-10">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="bg-card shadow-lg"
+            data-testid="button-mobile-menu"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+        </div>
+        
         <div className="max-w-6xl mx-auto">
           {/* Hero Section */}
           <div className="text-center mb-12">

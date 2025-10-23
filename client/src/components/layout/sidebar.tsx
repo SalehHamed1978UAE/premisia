@@ -36,6 +36,7 @@ export function Sidebar({ isOpen = false, onToggle = () => {} }: SidebarProps) {
         <div 
           className="fixed inset-0 bg-background/80 backdrop-blur-sm lg:hidden z-40"
           onClick={onToggle}
+          data-testid="sidebar-overlay"
         />
       )}
 

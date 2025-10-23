@@ -7,16 +7,29 @@ interface AppLayoutProps {
   title?: string;
   subtitle?: string;
   showTopBar?: boolean;
+  sidebarOpen?: boolean;
+  onSidebarToggle?: () => void;
 }
 
-export function AppLayout({ children, title, subtitle, showTopBar = true }: AppLayoutProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+export function AppLayout({ 
+  children, 
+  title, 
+  subtitle, 
+  showTopBar = true,
+  sidebarOpen: externalSidebarOpen,
+  onSidebarToggle: externalOnToggle
+}: AppLayoutProps) {
+  const [internalSidebarOpen, setInternalSidebarOpen] = useState(false);
+  
+  // Use external state if provided, otherwise use internal state
+  const sidebarOpen = externalSidebarOpen !== undefined ? externalSidebarOpen : internalSidebarOpen;
+  const onSidebarToggle = externalOnToggle || (() => setInternalSidebarOpen(!internalSidebarOpen));
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar
         isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        onToggle={onSidebarToggle}
       />
       
       <main className="flex-1 overflow-y-auto">
@@ -24,7 +37,7 @@ export function AppLayout({ children, title, subtitle, showTopBar = true }: AppL
           <TopBar
             title={title}
             subtitle={subtitle}
-            onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+            onToggleSidebar={onSidebarToggle}
           />
         )}
         
