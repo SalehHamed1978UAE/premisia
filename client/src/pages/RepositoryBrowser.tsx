@@ -6,7 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Archive, Calendar, TrendingUp, FileText, AlertTriangle, Trash2, ArchiveIcon } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Archive, Calendar, TrendingUp, FileText, AlertTriangle, Trash2, ArchiveIcon, Download } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { StatementSummary } from '@/types/repository';
 import { useToast } from '@/hooks/use-toast';
@@ -20,17 +21,151 @@ export default function RepositoryBrowser() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteUnderstandingId, setDeleteUnderstandingId] = useState<string | null>(null);
+  
+  // Selection state for batch operations
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBatchProcessing, setIsBatchProcessing] = useState(false);
 
   const { data: statements, isLoading, error } = useQuery<StatementSummary[]>({
     queryKey: ['/api/repository/statements'],
   });
 
+  // Select/deselect all
+  const toggleSelectAll = () => {
+    if (!statements) return;
+    if (selectedIds.size === statements.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(statements.map(s => s.understandingId)));
+    }
+  };
+
+  // Toggle individual selection
+  const toggleSelection = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
   const handleArchive = async (e: React.MouseEvent, understandingId: string) => {
     e.stopPropagation();
-    toast({
-      title: 'Archive feature',
-      description: 'Archive functionality coming soon',
-    });
+    try {
+      await apiRequest('POST', '/api/repository/batch-archive', {
+        ids: [understandingId],
+        archive: true,
+      });
+      
+      toast({
+        title: 'Statement archived',
+        description: 'The statement has been archived successfully',
+      });
+
+      await queryClient.invalidateQueries({ queryKey: ['/api/repository/statements'] });
+    } catch (error) {
+      console.error('Error archiving statement:', error);
+      toast({
+        title: 'Failed to archive',
+        description: error instanceof Error ? error.message : 'Could not archive statement',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Batch operations
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+
+    setIsBatchProcessing(true);
+    try {
+      await apiRequest('POST', '/api/repository/batch-delete', {
+        ids: Array.from(selectedIds),
+      });
+      
+      toast({
+        title: 'Statements deleted',
+        description: `${selectedIds.size} statement(s) deleted successfully`,
+      });
+
+      setSelectedIds(new Set());
+      await queryClient.invalidateQueries({ queryKey: ['/api/repository/statements'] });
+    } catch (error) {
+      console.error('Error batch deleting:', error);
+      toast({
+        title: 'Failed to delete',
+        description: error instanceof Error ? error.message : 'Could not delete statements',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  };
+
+  const handleBatchArchive = async () => {
+    if (selectedIds.size === 0) return;
+
+    setIsBatchProcessing(true);
+    try {
+      await apiRequest('POST', '/api/repository/batch-archive', {
+        ids: Array.from(selectedIds),
+        archive: true,
+      });
+      
+      toast({
+        title: 'Statements archived',
+        description: `${selectedIds.size} statement(s) archived successfully`,
+      });
+
+      setSelectedIds(new Set());
+      await queryClient.invalidateQueries({ queryKey: ['/api/repository/statements'] });
+    } catch (error) {
+      console.error('Error batch archiving:', error);
+      toast({
+        title: 'Failed to archive',
+        description: error instanceof Error ? error.message : 'Could not archive statements',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsBatchProcessing(false);
+    }
+  };
+
+  const handleBatchExport = async () => {
+    if (selectedIds.size === 0) return;
+
+    setIsBatchProcessing(true);
+    try {
+      const response = await apiRequest('POST', '/api/repository/batch-export', {
+        ids: Array.from(selectedIds),
+      });
+      
+      // Download as JSON file
+      const dataStr = JSON.stringify(response.data, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `analyses-export-${new Date().toISOString().split('T')[0]}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: 'Export successful',
+        description: `${selectedIds.size} statement(s) exported successfully`,
+      });
+    } catch (error) {
+      console.error('Error batch exporting:', error);
+      toast({
+        title: 'Failed to export',
+        description: error instanceof Error ? error.message : 'Could not export statements',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsBatchProcessing(false);
+    }
   };
 
   const handleDeleteClick = (e: React.MouseEvent, understandingId: string) => {
@@ -91,16 +226,69 @@ export default function RepositoryBrowser() {
       onViewChange={(view) => setLocation('/')}
     >
       <div className="max-w-7xl mx-auto p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground flex items-center gap-3" data-testid="page-title">
-              <Archive className="h-8 w-8 text-primary" />
-              Analysis Repository
-            </h1>
-            <p className="text-muted-foreground mt-2">
-              {statements?.length || 0} strategic statements with analyses
-            </p>
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-foreground flex items-center gap-3" data-testid="page-title">
+                <Archive className="h-8 w-8 text-primary" />
+                Analysis Repository
+              </h1>
+              <p className="text-muted-foreground mt-2">
+                {statements?.length || 0} strategic statements with analyses
+              </p>
+            </div>
           </div>
+
+          {/* Batch action bar */}
+          {statements && statements.length > 0 && (
+            <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={statements.length > 0 && selectedIds.size === statements.length}
+                  onCheckedChange={toggleSelectAll}
+                  data-testid="checkbox-select-all"
+                />
+                <span className="text-sm font-medium">
+                  {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select all'}
+                </span>
+              </div>
+
+              {selectedIds.size > 0 && (
+                <div className="flex items-center gap-2 ml-auto">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleBatchExport}
+                    disabled={isBatchProcessing}
+                    data-testid="button-batch-export"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Export ({selectedIds.size})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleBatchArchive}
+                    disabled={isBatchProcessing}
+                    data-testid="button-batch-archive"
+                  >
+                    <ArchiveIcon className="h-4 w-4 mr-2" />
+                    Archive ({selectedIds.size})
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={handleBatchDelete}
+                    disabled={isBatchProcessing}
+                    data-testid="button-batch-delete"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete ({selectedIds.size})
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {error ? (
@@ -141,13 +329,22 @@ export default function RepositoryBrowser() {
             {statements.map((statement) => (
               <Card
                 key={statement.understandingId}
-                className="hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-primary/50"
-                onClick={() => setLocation(`/repository/${statement.understandingId}`)}
+                className="hover:shadow-lg transition-shadow border-2 hover:border-primary/50"
                 data-testid={`statement-card-${statement.understandingId}`}
               >
                 <CardHeader>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      checked={selectedIds.has(statement.understandingId)}
+                      onCheckedChange={() => toggleSelection(statement.understandingId)}
+                      onClick={(e) => e.stopPropagation()}
+                      data-testid={`checkbox-${statement.understandingId}`}
+                      className="mt-1"
+                    />
+                    <div 
+                      className="flex-1 min-w-0 cursor-pointer"
+                      onClick={() => setLocation(`/repository/${statement.understandingId}`)}
+                    >
                       <CardTitle className="text-lg line-clamp-2" data-testid={`statement-title-${statement.understandingId}`}>
                         {statement.title || statement.statement}
                       </CardTitle>
