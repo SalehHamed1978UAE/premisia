@@ -27,6 +27,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Dashboard summary endpoint
+  app.get('/api/dashboard-summary', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const summary = await storage.getDashboardSummary(userId);
+      res.json(summary);
+    } catch (error) {
+      console.error("Error fetching dashboard summary:", error);
+      res.status(500).json({ message: "Failed to fetch dashboard summary" });
+    }
+  });
+
   // Middleware to check authentication (using Replit Auth)
   const requireAuth = isAuthenticated;
 

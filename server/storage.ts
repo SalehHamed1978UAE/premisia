@@ -2,14 +2,15 @@ import { db } from "./db";
 import { 
   users, programs, workstreams, resources, stageGates, stageGateReviews, 
   tasks, taskDependencies, kpis, kpiMeasurements, risks, riskMitigations,
-  benefits, fundingSources, expenses, sessionContext, strategyVersions
+  benefits, fundingSources, expenses, sessionContext, strategyVersions,
+  strategyDecisions, epmPrograms
 } from "@shared/schema";
 import type { 
   User, InsertUser, UpsertUser, Program, Workstream, Resource, StageGate, StageGateReview,
   Task, TaskDependency, Kpi, KpiMeasurement, Risk, RiskMitigation,
   Benefit, FundingSource, Expense, SessionContext, InsertSessionContext, StrategyVersion
 } from "@shared/schema";
-import { eq, desc, and, isNull, not } from "drizzle-orm";
+import { eq, desc, and, isNull, not, count, sql } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -92,6 +93,22 @@ export interface IStorage {
   getStrategyVersion(sessionId: string, versionNumber: number): Promise<any | undefined>;
   createStrategyVersion(version: any): Promise<any>;
   updateStrategyVersion(id: string, data: any): Promise<any>;
+
+  // Dashboard
+  getDashboardSummary(userId: string): Promise<{
+    counts: {
+      analyses: number;
+      strategies: number;
+      programs: number;
+    };
+    recentArtifacts: Array<{
+      id: string;
+      type: 'analysis' | 'strategy' | 'program';
+      title: string;
+      createdAt: Date;
+      link: string;
+    }>;
+  }>;
 
   sessionStore: Store;
 }
@@ -598,6 +615,78 @@ export class DatabaseStorage implements IStorage {
       .where(eq(strategyVersions.id, id))
       .returning();
     return updated;
+  }
+
+  async getDashboardSummary(userId: string) {
+    // Get counts
+    const [analysesCount] = await db
+      .select({ count: count() })
+      .from(strategyVersions)
+      .where(eq(strategyVersions.userId, userId));
+
+    const [strategiesCount] = await db
+      .select({ count: count() })
+      .from(strategyDecisions)
+      .where(eq(strategyDecisions.userId, userId));
+
+    const [programsCount] = await db
+      .select({ count: count() })
+      .from(epmPrograms)
+      .where(eq(epmPrograms.userId, userId));
+
+    // Get recent artifacts
+    const recentVersions = await db
+      .select({
+        id: strategyVersions.id,
+        inputSummary: strategyVersions.inputSummary,
+        createdAt: strategyVersions.createdAt,
+      })
+      .from(strategyVersions)
+      .where(eq(strategyVersions.userId, userId))
+      .orderBy(desc(strategyVersions.createdAt))
+      .limit(5);
+
+    const recentPrograms = await db
+      .select({
+        id: epmPrograms.id,
+        frameworkType: epmPrograms.frameworkType,
+        createdAt: epmPrograms.createdAt,
+      })
+      .from(epmPrograms)
+      .where(eq(epmPrograms.userId, userId))
+      .orderBy(desc(epmPrograms.createdAt))
+      .limit(5);
+
+    // Combine and sort by date
+    const artifacts = [
+      ...recentVersions.map(v => ({
+        id: v.id,
+        type: 'analysis' as const,
+        title: v.inputSummary || 'Strategic Analysis',
+        createdAt: v.createdAt!,
+        link: `/repository/analysis/${v.id}`
+      })),
+      ...recentPrograms.map(p => ({
+        id: p.id,
+        type: 'program' as const,
+        title: `${p.frameworkType} Program`,
+        createdAt: p.createdAt!,
+        link: `/strategy-workspace/epm/${p.id}`
+      }))
+    ];
+
+    // Sort by date and take top 5
+    artifacts.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    const recentArtifacts = artifacts.slice(0, 5);
+
+    return {
+      counts: {
+        analyses: analysesCount?.count || 0,
+        strategies: strategiesCount?.count || 0,
+        programs: programsCount?.count || 0,
+      },
+      recentArtifacts
+    };
   }
 
   /**
