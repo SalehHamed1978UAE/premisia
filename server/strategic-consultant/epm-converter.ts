@@ -193,7 +193,12 @@ export class EPMConverter {
     };
   }
 
-  private normalizeMarket(recommendedMarket: string): string {
+  private normalizeMarket(recommendedMarket: string | undefined | null): string {
+    // Handle undefined/null values - default to 'usa'
+    if (!recommendedMarket) {
+      return 'usa';
+    }
+    
     const marketLower = recommendedMarket.toLowerCase();
     
     if (marketLower.includes('uae') || marketLower.includes('emirates') || marketLower.includes('dubai')) {
