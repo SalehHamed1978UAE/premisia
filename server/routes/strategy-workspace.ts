@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db';
-import { strategyDecisions, epmPrograms, journeySessions, strategyVersions } from '@shared/schema';
+import { strategyDecisions, epmPrograms, journeySessions, strategyVersions, strategicUnderstanding } from '@shared/schema';
 import { eq, desc } from 'drizzle-orm';
 import { BMCAnalyzer, PortersAnalyzer, PESTLEAnalyzer, EPMSynthesizer } from '../intelligence';
 import type { BMCResults, PortersResults, PESTLEResults } from '../intelligence/types';
@@ -230,6 +230,15 @@ router.post('/epm/generate', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'No BMC analysis found for this version' });
     }
 
+    // Prepare context for intelligent program naming
+    const namingContext = {
+      bmcKeyInsights: bmcAnalysis.keyInsights || [],
+      bmcRecommendations: bmcAnalysis.recommendations || [],
+      selectedDecisions: version.selectedDecisions || null,
+      decisionsData: version.decisionsData || null,
+      framework: 'bmc',
+    };
+
     // Fetch user decisions if provided
     let userDecisions: any = null;
     if (decisionId) {
@@ -311,8 +320,8 @@ router.post('/epm/generate', async (req: Request, res: Response) => {
       prioritizedOrder: prioritizedOrder || [],
     } : { prioritizedOrder: prioritizedOrder || [] };
     
-    // Run through EPM synthesizer
-    const epmProgram = await epmSynthesizer.synthesize(insights, decisionsWithPriority);
+    // Run through EPM synthesizer with naming context
+    const epmProgram = await epmSynthesizer.synthesize(insights, decisionsWithPriority, namingContext);
 
     const userId = (req.user as any)?.claims?.sub || null;
 

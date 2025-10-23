@@ -36,11 +36,15 @@ export class EPMSynthesizer {
    */
   async synthesize(
     insights: StrategyInsights,
-    userContext?: UserContext
+    userContext?: UserContext,
+    namingContext?: any
   ): Promise<EPMProgram> {
     
+    // Generate intelligent program name from context
+    const programName = await this.generateProgramName(insights, userContext, namingContext);
+    
     // Generate all 14 components
-    const executiveSummary = await this.generateExecutiveSummary(insights);
+    const executiveSummary = await this.generateExecutiveSummary(insights, programName);
     const workstreams = await this.generateWorkstreams(insights);
     const timeline = await this.generateTimeline(insights, workstreams, userContext);
     const resourcePlan = await this.generateResourcePlan(insights, workstreams, userContext);
@@ -104,12 +108,13 @@ export class EPMSynthesizer {
   // Component Generators
   // ============================================================================
 
-  private async generateExecutiveSummary(insights: StrategyInsights): Promise<ExecutiveSummary> {
+  private async generateExecutiveSummary(insights: StrategyInsights, programName: string): Promise<ExecutiveSummary> {
     const marketInsights = insights.insights.filter(i => i.type === 'other' && i.source.includes('summary'));
     const riskInsights = insights.insights.filter(i => i.type === 'risk');
     const benefitInsights = insights.insights.filter(i => i.type === 'benefit');
 
     return {
+      title: programName, // Add intelligent program name
       marketOpportunity: marketInsights[0]?.content || 
         'Strategic opportunity identified through framework analysis',
       strategicImperatives: insights.insights
@@ -853,5 +858,139 @@ CONFIDENCE ASSESSMENT:
 Average confidence across components: ${Math.round(insights.overallConfidence * 100)}%
 Confidence varies by component based on directness of extraction vs. AI inference.
 `.trim();
+  }
+
+  /**
+   * Generate intelligent program name from strategic context
+   */
+  private async generateProgramName(
+    insights: StrategyInsights,
+    userContext?: UserContext,
+    namingContext?: any
+  ): Promise<string> {
+    try {
+      // Import AI clients
+      const { aiClients } = await import('../ai-clients.js');
+      
+      // Extract key context for naming
+      const keyInsights = namingContext?.bmcKeyInsights || [];
+      const recommendations = namingContext?.bmcRecommendations || [];
+      const selectedDecisions = namingContext?.selectedDecisions || {};
+      const decisionsData = namingContext?.decisionsData || {};
+      const framework = namingContext?.framework || 'bmc';
+      
+      // Build context for AI
+      let contextSummary = '';
+      
+      if (keyInsights.length > 0) {
+        contextSummary += `\nKey Strategic Insights:\n${keyInsights.slice(0, 3).join('\n')}`;
+      }
+      
+      if (recommendations.length > 0) {
+        const recs = recommendations.slice(0, 2).map((r: any) => 
+          typeof r === 'object' ? r.action : r
+        );
+        contextSummary += `\n\nTop Recommendations:\n${recs.join('\n')}`;
+      }
+      
+      // Include selected strategic decisions
+      if (decisionsData?.decisions && selectedDecisions) {
+        const selectedOptions: string[] = [];
+        decisionsData.decisions.forEach((decision: any) => {
+          const selectedOptionId = selectedDecisions[decision.id];
+          if (selectedOptionId) {
+            const option = decision.options?.find((o: any) => o.id === selectedOptionId);
+            if (option) {
+              selectedOptions.push(`${decision.title}: ${option.label}`);
+            }
+          }
+        });
+        
+        if (selectedOptions.length > 0) {
+          contextSummary += `\n\nSelected Strategic Decisions:\n${selectedOptions.slice(0, 3).join('\n')}`;
+        }
+      }
+      
+      // Use AI to generate intelligent program name
+      const prompt = `You are an expert program manager creating concise, descriptive program names.
+
+Given the following strategic analysis and decisions, generate a professional program name that captures the essence of this initiative.
+
+${contextSummary}
+
+Framework Used: ${framework.toUpperCase()}
+
+Requirements:
+- 8-15 words maximum
+- Clear and descriptive
+- Professional tone
+- Captures the core strategic approach
+- Avoid generic terms like "Strategic Initiative"
+- Focus on the unique strategic choices made
+
+Examples of good program names:
+- "Brooklyn Coffee Shop Community Hub with Diversified Revenue Strategy"
+- "Premium Customer Segment Market Entry via Pop-up Testing"
+- "Sustainable Pace Technology Integration for Local Market"
+
+Generate ONLY the program name, nothing else.`;
+
+      const result = await aiClients.callWithFallback({
+        systemPrompt: 'You are a program naming expert. Generate concise, professional program names.',
+        userMessage: prompt,
+        maxTokens: 100,
+      });
+      
+      const programName = result.content.trim();
+      
+      // Validate length
+      if (programName && programName.length > 0 && programName.length <= 150) {
+        return programName;
+      }
+      
+      // Fallback if AI response is invalid
+      return this.generateFallbackProgramName(selectedDecisions, decisionsData, framework);
+      
+    } catch (error) {
+      console.error('[EPM-SYNTHESIZER] Program name generation failed:', error);
+      // Fallback naming
+      return this.generateFallbackProgramName(
+        namingContext?.selectedDecisions,
+        namingContext?.decisionsData,
+        namingContext?.framework || 'bmc'
+      );
+    }
+  }
+
+  /**
+   * Generate fallback program name from structured data
+   */
+  private generateFallbackProgramName(
+    selectedDecisions: any,
+    decisionsData: any,
+    framework: string
+  ): string {
+    const parts: string[] = [];
+    
+    // Try to extract key decision labels
+    if (decisionsData?.decisions && selectedDecisions) {
+      decisionsData.decisions.slice(0, 2).forEach((decision: any) => {
+        const selectedOptionId = selectedDecisions[decision.id];
+        if (selectedOptionId) {
+          const option = decision.options?.find((o: any) => o.id === selectedOptionId);
+          if (option?.label) {
+            parts.push(option.label);
+          }
+        }
+      });
+    }
+    
+    // Build name from parts
+    if (parts.length > 0) {
+      return `${parts.join(' + ')} Strategy (${framework.toUpperCase()})`;
+    }
+    
+    // Ultimate fallback
+    return `Strategic Initiative (${framework.toUpperCase()} Analysis)`;
   }
 }

@@ -10,6 +10,7 @@
 // ============================================================================
 
 export interface ExecutiveSummary {
+  title?: string; // Intelligent program name
   marketOpportunity: string;
   strategicImperatives: string[];
   keySuccessFactors: string[];
