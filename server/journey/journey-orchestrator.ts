@@ -72,12 +72,14 @@ export class JourneyOrchestrator {
     journeySessionId: string,
     progressCallback?: (progress: JourneyProgress) => void
   ): Promise<StrategicContext> {
-    // Load journey session
-    const session = await db
-      .select()
-      .from(journeySessions)
-      .where(eq(journeySessions.id, journeySessionId))
-      .then(rows => rows[0]);
+    // STEP 1: Load journey session with fresh connection (before long operations)
+    const session = await dbConnectionManager.withFreshConnection(async (db) => {
+      const rows = await db
+        .select()
+        .from(journeySessions)
+        .where(eq(journeySessions.id, journeySessionId));
+      return rows[0];
+    });
 
     if (!session) {
       throw new Error(`Journey session ${journeySessionId} not found`);
