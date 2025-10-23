@@ -61,22 +61,23 @@ export class EPMSynthesizer {
       validation.corrections.forEach(corr => console.log(`  ✓ ${corr}`));
       console.log('');
       
-      // If validation adjusted workstream dates, regenerate timeline/phases/gates
-      const maxWorkstreamEnd = Math.max(...workstreams.map(w => w.endMonth));
-      if (maxWorkstreamEnd > timeline.totalMonths) {
-        console.log(`[EPM Synthesis] Extending timeline from ${timeline.totalMonths} to ${maxWorkstreamEnd} months due to dependency adjustments`);
-        timeline.totalMonths = maxWorkstreamEnd;
-        timeline.phases = this.generatePhases(timeline.totalMonths, workstreams);
-        const newStageGates = await this.generateStageGates(timeline, riskRegister);
-        stageGates.gates = newStageGates.gates;
-        stageGates.confidence = newStageGates.confidence;
-        
-        // Re-validate after regeneration
-        validation = this.validateEPMData(workstreams, timeline, stageGates);
-        if (validation.errors.length > 0) {
-          console.log('[EPM Synthesis] Re-validation after timeline regeneration found additional issues:');
-          validation.corrections.forEach(corr => console.log(`  ✓ ${corr}`));
-        }
+      // ALWAYS fully regenerate timeline/phases/gates after ANY validation corrections
+      // This ensures critical path, phases, and gates reflect corrected workstream dates
+      console.log('[EPM Synthesis] Fully regenerating timeline, phases, critical path, and stage gates...');
+      
+      // FULLY regenerate timeline (including critical path, phases, confidence)
+      const regeneratedTimeline = await this.generateTimeline(insights, workstreams, userContext);
+      Object.assign(timeline, regeneratedTimeline);
+      
+      // Regenerate stage gates based on new timeline
+      const regeneratedStageGates = await this.generateStageGates(timeline, riskRegister);
+      Object.assign(stageGates, regeneratedStageGates);
+      
+      // Re-validate after complete regeneration to catch any cascading issues
+      validation = this.validateEPMData(workstreams, timeline, stageGates);
+      if (validation.errors.length > 0) {
+        console.log('[EPM Synthesis] Re-validation after timeline regeneration:');
+        validation.corrections.forEach(corr => console.log(`  ✓ ${corr}`));
       }
     }
 
@@ -453,23 +454,43 @@ export class EPMSynthesizer {
   ): Promise<Timeline> {
     const timelineInsight = insights.insights.find(i => i.type === 'timeline');
     
-    // Determine total duration based on urgency
-    let totalMonths = 12; // Default: strategic timeline
+    // Determine base duration from urgency
+    let baseMonths = 12; // Default: strategic timeline
     if (insights.marketContext.urgency === 'ASAP') {
-      totalMonths = 6;
+      baseMonths = 6;
     } else if (insights.marketContext.urgency === 'Exploratory') {
-      totalMonths = 18;
+      baseMonths = 18;
     }
     
+    // Check hard deadlines
+    let deadlineMonths = baseMonths;
     if (userContext?.hardDeadlines && userContext.hardDeadlines.length > 0) {
-      // Adjust timeline to meet hard deadlines
       const earliestDeadline = Math.min(...userContext.hardDeadlines.map(d => 
         Math.ceil((d.date.getTime() - Date.now()) / (30 * 24 * 60 * 60 * 1000))
       ));
-      totalMonths = Math.min(totalMonths, earliestDeadline);
+      deadlineMonths = earliestDeadline;
     }
 
-    // Generate phases
+    // CRITICAL: Ensure timeline accommodates ALL workstreams (including corrected ones)
+    // totalMonths = MAX(urgency duration, actual workstream needs)
+    // Hard deadlines are informational but cannot truncate the validated schedule
+    let maxWorkstreamEnd = baseMonths;
+    if (workstreams.length > 0) {
+      maxWorkstreamEnd = Math.max(...workstreams.map(w => w.endMonth));
+    }
+
+    // Use the maximum of all constraints - corrected workstreams take precedence
+    const totalMonths = Math.max(baseMonths, maxWorkstreamEnd);
+    
+    // Log warning if hard deadline is exceeded
+    if (deadlineMonths < totalMonths && userContext?.hardDeadlines) {
+      console.warn(
+        `[EPM Synthesis] Hard deadline at M${deadlineMonths} exceeded by corrected schedule (M${totalMonths}). ` +
+        `Consider resource optimization or deadline renegotiation.`
+      );
+    }
+
+    // Generate phases (ensuring final phase covers totalMonths)
     const phases = this.generatePhases(totalMonths, workstreams);
     
     // Identify critical path (longest dependency chain)
