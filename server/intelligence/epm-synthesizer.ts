@@ -155,7 +155,48 @@ export class EPMSynthesizer {
       workstreams.push(...this.generateDefaultWorkstreams(3 - workstreams.length));
     }
 
+    // Validate and correct deliverable timelines
+    this.validateDeliverableTimelines(workstreams);
+
     return workstreams;
+  }
+
+  /**
+   * Validates that all deliverables fall within their parent workstream's timeline.
+   * Auto-corrects out-of-range deliverables by clamping to workstream endMonth.
+   */
+  private validateDeliverableTimelines(workstreams: Workstream[]): void {
+    for (const workstream of workstreams) {
+      let correctedCount = 0;
+      
+      for (const deliverable of workstream.deliverables) {
+        // Check if deliverable falls outside workstream timeline
+        if (deliverable.dueMonth < workstream.startMonth || deliverable.dueMonth > workstream.endMonth) {
+          const originalDueMonth = deliverable.dueMonth;
+          
+          // Clamp to workstream timeline
+          deliverable.dueMonth = Math.max(
+            workstream.startMonth,
+            Math.min(deliverable.dueMonth, workstream.endMonth)
+          );
+          
+          correctedCount++;
+          console.warn(
+            `[EPM Synthesis] Deliverable "${deliverable.name}" (${deliverable.id}) ` +
+            `had dueMonth ${originalDueMonth} outside workstream "${workstream.name}" ` +
+            `timeline (M${workstream.startMonth}-M${workstream.endMonth}). ` +
+            `Auto-corrected to M${deliverable.dueMonth}.`
+          );
+        }
+      }
+      
+      if (correctedCount > 0) {
+        console.log(
+          `[EPM Synthesis] Corrected ${correctedCount} deliverable(s) in "${workstream.name}" ` +
+          `to fall within workstream timeline.`
+        );
+      }
+    }
   }
 
   private generateDeliverables(insight: StrategyInsight, workstreamIndex: number) {
