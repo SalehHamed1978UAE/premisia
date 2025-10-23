@@ -3,8 +3,10 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     if (res.status === 401) {
-      window.location.href = '/auth';
-      throw new Error('401: Unauthorized - Redirecting to login');
+      if (window.location.pathname !== '/auth') {
+        window.location.href = '/auth';
+      }
+      throw new Error('401: Unauthorized');
     }
     const text = (await res.text()) || res.statusText;
     throw new Error(`${res.status}: ${text}`);
