@@ -6,6 +6,8 @@
 
 import { aiClients } from '../ai-clients';
 
+const API_BASE = process.env.API_BASE_URL || 'http://localhost:5000';
+
 export interface ResearchContext {
   topic: string;                    // What we're researching
   background: string;               // User input or context
@@ -119,7 +121,7 @@ Return ONLY valid JSON with this structure (no markdown, no explanation):
     const results = await Promise.all(
       queries.map(async (query) => {
         try {
-          const response = await fetch('http://localhost:5000/api/web-search', {
+          const response = await fetch(`${API_BASE}/api/web-search`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ query: query.query }),
@@ -179,7 +181,7 @@ Return ONLY valid JSON with this structure (no markdown, no explanation):
     
     for (const source of sources) {
       try {
-        const response = await fetch('http://localhost:5000/api/web-fetch', {
+        const response = await fetch(`${API_BASE}/api/web-fetch`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: source.url }),

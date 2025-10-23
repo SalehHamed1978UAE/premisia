@@ -1,6 +1,8 @@
 import crypto from 'crypto';
 import type { Finding, Source } from './market-researcher';
 
+const API_BASE = process.env.API_BASE_URL || 'http://localhost:5000';
+
 export type ValidationStrength = 'STRONG' | 'MODERATE' | 'WEAK';
 
 export interface ValidationResult {
@@ -201,7 +203,7 @@ export class SourceValidator {
     try {
       const query = this.buildCounterQuery(claim.text);
       
-      const response = await fetch('http://localhost:5000/api/web-search', {
+      const response = await fetch(`${API_BASE}/api/web-search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query }),
