@@ -110,21 +110,11 @@ export class JourneyOrchestrator {
           });
         }
 
-        // Execute the framework
+        // STEP 2: Execute the framework (NO DB connection held during AI operations)
         const result = await this.executeFramework(frameworkName, context);
 
         // Add result to context
         context = addFrameworkResult(context, result);
-
-        // ✅ NEW: Persist framework result to framework_insights table
-        try {
-          console.log(`[Journey] Attempting to save ${result.frameworkName} insights for understanding ${context.understandingId}`);
-          await this.saveFrameworkInsight(context.understandingId, result);
-          console.log(`[Journey] Successfully saved ${result.frameworkName} insights to framework_insights table`);
-        } catch (error) {
-          console.error(`[Journey] ERROR saving ${result.frameworkName} insights:`, error);
-          // Don't throw - allow journey to continue even if persistence fails
-        }
 
         // Apply bridge if needed (between frameworks)
         if (frameworkName === 'five_whys' && journey.frameworks[i + 1] === 'bmc') {
@@ -132,8 +122,36 @@ export class JourneyOrchestrator {
           context = bridgedContext;
         }
 
-        // Update database with progress
-        await this.saveProgress(journeySessionId, context);
+        // STEP 3: Persist framework result + progress in ONE retry block
+        await dbConnectionManager.retryWithBackoff(async (db) => {
+          // Save framework insight to framework_insights table
+          console.log(`[Journey] Saving ${result.frameworkName} insights for understanding ${context.understandingId}`);
+          await db
+            .insert(frameworkInsights)
+            .values({
+              understandingId: context.understandingId,
+              frameworkName: result.frameworkName,
+              frameworkVersion: '1.0',
+              insights: result.data as any,
+              telemetry: {
+                duration: result.duration,
+                executedAt: result.executedAt,
+              } as any,
+            });
+
+          // Save journey progress
+          await db
+            .update(journeySessions)
+            .set({
+              currentFrameworkIndex: context.currentFrameworkIndex,
+              completedFrameworks: context.completedFrameworks as any,
+              accumulatedContext: context as any,
+              updatedAt: new Date(),
+            })
+            .where(eq(journeySessions.id, journeySessionId));
+          
+          console.log(`[Journey] ✓ Saved ${result.frameworkName} insights + progress`);
+        });
 
         // Small delay to prevent overwhelming the system
         await new Promise(resolve => setTimeout(resolve, 100));
