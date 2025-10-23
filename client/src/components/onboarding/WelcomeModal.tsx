@@ -9,10 +9,11 @@ export function WelcomeModal() {
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    const hasSeenWelcome = localStorage.getItem("qgentic_welcome_seen");
-    if (!hasSeenWelcome) {
-      setOpen(true);
-    }
+    // Disabled: Using new onboarding flow on Home page instead
+    // const hasSeenWelcome = localStorage.getItem("qgentic_welcome_seen");
+    // if (!hasSeenWelcome) {
+    //   setOpen(true);
+    // }
   }, []);
 
   const handleGetStarted = () => {
