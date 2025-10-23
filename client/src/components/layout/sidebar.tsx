@@ -3,97 +3,31 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useLocation } from "wouter";
 import { 
-  LayoutDashboard, 
-  Calendar, 
-  Flag, 
-  TrendingUp, 
-  AlertTriangle, 
-  Trophy, 
-  DollarSign, 
-  Users, 
-  Bot,
+  Home,
+  Sparkles,
+  Archive,
+  FileText,
   Settings,
   LogOut,
   X,
-  Sparkles,
-  Archive,
-  FileText
+  LayoutDashboard
 } from "lucide-react";
-import type { ViewType } from "@/pages/home-page";
 
 interface SidebarProps {
-  currentView: ViewType;
-  onViewChange: (view: ViewType) => void;
-  isOpen: boolean;
-  onToggle: () => void;
+  isOpen?: boolean;
+  onToggle?: () => void;
 }
 
-const navigation = [
-  { 
-    id: 'dashboard' as ViewType, 
-    label: 'Dashboard', 
-    icon: LayoutDashboard,
-    description: 'Program overview'
-  },
-  { 
-    id: 'strategies' as ViewType, 
-    label: 'Strategic Decisions', 
-    icon: Sparkles,
-    description: 'Strategy analysis & EPM'
-  },
-  { 
-    id: 'timeline' as ViewType, 
-    label: 'Timeline', 
-    icon: Calendar,
-    description: 'Schedule & tasks'
-  },
-  { 
-    id: 'stage-gates' as ViewType, 
-    label: 'Stage Gates', 
-    icon: Flag,
-    description: 'Milestone checkpoints'
-  },
-  { 
-    id: 'kpis' as ViewType, 
-    label: 'KPIs', 
-    icon: TrendingUp,
-    description: 'Performance metrics'
-  },
-  { 
-    id: 'risks' as ViewType, 
-    label: 'Risks', 
-    icon: AlertTriangle,
-    description: 'Risk management'
-  },
-  { 
-    id: 'benefits' as ViewType, 
-    label: 'Benefits', 
-    icon: Trophy,
-    description: 'Value realization'
-  },
-  { 
-    id: 'funding' as ViewType, 
-    label: 'Funding', 
-    icon: DollarSign,
-    description: 'Budget & expenses'
-  },
-  { 
-    id: 'resources' as ViewType, 
-    label: 'Resources', 
-    icon: Users,
-    description: 'Team management'
-  },
-  { 
-    id: 'ai-orchestrator' as ViewType, 
-    label: 'AI Orchestrator', 
-    icon: Bot,
-    description: 'Multi-agent AI system'
-  },
-];
-
-export function Sidebar({ currentView, onViewChange, isOpen, onToggle }: SidebarProps) {
+export function Sidebar({ isOpen = false, onToggle = () => {} }: SidebarProps) {
   const { user } = useAuth();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
+
+  const navigate = (path: string) => {
+    setLocation(path);
+    if (window.innerWidth < 1024) {
+      onToggle();
+    }
+  };
 
   return (
     <>
@@ -169,97 +103,76 @@ export function Sidebar({ currentView, onViewChange, isOpen, onToggle }: Sidebar
           </div>
         </div>
 
-        {/* Strategic Consultant - Prominent CTA */}
-        <div className="p-4 pb-2">
-          <Button
-            className="w-full justify-start h-auto p-4 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-200"
-            onClick={() => {
-              setLocation('/strategic-consultant/input');
-              if (window.innerWidth < 1024) {
-                onToggle();
-              }
-            }}
-            data-testid="nav-strategic-consultant"
-          >
-            <Sparkles className="h-6 w-6 mr-3 flex-shrink-0" />
-            <div className="text-left">
-              <div className="font-semibold text-base">Strategic Consultant</div>
-              <div className="text-xs opacity-90">✨ AI-powered strategy</div>
-            </div>
-          </Button>
-        </div>
-
-        {/* Analysis Repository */}
-        <div className="px-4 pb-0">
-          <Button
-            variant="outline"
-            className="w-full justify-start h-auto p-3 border-2 hover:bg-accent"
-            onClick={() => {
-              setLocation('/repository');
-              if (window.innerWidth < 1024) {
-                onToggle();
-              }
-            }}
-            data-testid="nav-repository"
-          >
-            <Archive className="h-5 w-5 mr-3 flex-shrink-0" />
-            <div className="text-left">
-              <div className="font-medium text-sm">Analysis Repository</div>
-              <div className="text-xs opacity-70">Browse all analyses</div>
-            </div>
-          </Button>
-        </div>
-
-        {/* Strategy Workspace */}
-        <div className="px-4 pb-2 pt-2">
-          <Button
-            variant="outline"
-            className="w-full justify-start h-auto p-3 border-2 hover:bg-accent"
-            onClick={() => {
-              setLocation('/strategy-workspace/programs');
-              if (window.innerWidth < 1024) {
-                onToggle();
-              }
-            }}
-            data-testid="nav-strategy-workspace-programs"
-          >
-            <FileText className="h-5 w-5 mr-3 flex-shrink-0" />
-            <div className="text-left">
-              <div className="font-medium text-sm">EPM Programs</div>
-              <div className="text-xs opacity-70">Generated programs</div>
-            </div>
-          </Button>
-        </div>
-
-        {/* Navigation */}
+        {/* Main Navigation */}
         <nav className="flex-1 p-4 overflow-y-auto">
-          <div className="space-y-1">
-            {navigation.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Button
-                  key={item.id}
-                  variant={currentView === item.id ? "default" : "ghost"}
-                  className={cn(
-                    "w-full justify-start h-auto p-3",
-                    currentView === item.id && "bg-primary text-primary-foreground"
-                  )}
-                  onClick={() => {
-                    onViewChange(item.id);
-                    if (window.innerWidth < 1024) {
-                      onToggle();
-                    }
-                  }}
-                  data-testid={`nav-${item.id}`}
-                >
-                  <Icon className="h-5 w-5 mr-3 flex-shrink-0" />
-                  <div className="text-left">
-                    <div className="font-medium">{item.label}</div>
-                    <div className="text-xs opacity-70">{item.description}</div>
-                  </div>
-                </Button>
-              );
-            })}
+          <div className="space-y-2">
+            {/* Home */}
+            <Button
+              variant={location === '/' ? 'default' : 'ghost'}
+              className={cn(
+                "w-full justify-start h-auto p-3",
+                location === '/' && "bg-primary text-primary-foreground"
+              )}
+              onClick={() => navigate('/')}
+              data-testid="nav-home"
+            >
+              <Home className="h-5 w-5 mr-3 flex-shrink-0" />
+              <div className="text-left">
+                <div className="font-medium">Home</div>
+                <div className="text-xs opacity-70">Get started</div>
+              </div>
+            </Button>
+
+            {/* Strategic Consultant */}
+            <Button
+              variant={location.startsWith('/strategic-consultant') ? 'default' : 'ghost'}
+              className={cn(
+                "w-full justify-start h-auto p-3",
+                location.startsWith('/strategic-consultant') && "bg-primary text-primary-foreground"
+              )}
+              onClick={() => navigate('/strategic-consultant/input')}
+              data-testid="nav-strategic-consultant"
+            >
+              <Sparkles className="h-5 w-5 mr-3 flex-shrink-0" />
+              <div className="text-left">
+                <div className="font-medium">Strategic Consultant</div>
+                <div className="text-xs opacity-70">AI-powered strategy</div>
+              </div>
+            </Button>
+
+            {/* Analysis Repository */}
+            <Button
+              variant={location === '/repository' ? 'default' : 'ghost'}
+              className={cn(
+                "w-full justify-start h-auto p-3",
+                location === '/repository' && "bg-primary text-primary-foreground"
+              )}
+              onClick={() => navigate('/repository')}
+              data-testid="nav-repository"
+            >
+              <Archive className="h-5 w-5 mr-3 flex-shrink-0" />
+              <div className="text-left">
+                <div className="font-medium">Analysis Repository</div>
+                <div className="text-xs opacity-70">Browse all analyses</div>
+              </div>
+            </Button>
+
+            {/* EPM Programs */}
+            <Button
+              variant={location.startsWith('/strategy-workspace') ? 'default' : 'ghost'}
+              className={cn(
+                "w-full justify-start h-auto p-3",
+                location.startsWith('/strategy-workspace') && "bg-primary text-primary-foreground"
+              )}
+              onClick={() => navigate('/strategy-workspace/programs')}
+              data-testid="nav-epm-programs"
+            >
+              <FileText className="h-5 w-5 mr-3 flex-shrink-0" />
+              <div className="text-left">
+                <div className="font-medium">EPM Programs</div>
+                <div className="text-xs opacity-70">Generated programs</div>
+              </div>
+            </Button>
           </div>
         </nav>
 
