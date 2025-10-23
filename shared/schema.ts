@@ -440,6 +440,7 @@ export const strategyVersions = pgTable("strategy_versions", {
   status: strategyStatusEnum("status").notNull().default('draft'),
   convertedProgramId: varchar("converted_program_id").references(() => programs.id),
   finalizedAt: timestamp("finalized_at"),
+  archived: boolean("archived").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   createdBy: varchar("created_by").notNull(),
@@ -447,6 +448,7 @@ export const strategyVersions = pgTable("strategy_versions", {
   userIdIdx: index("idx_strategy_versions_user_id").on(table.userId),
   statusIdx: index("idx_strategy_versions_status").on(table.status),
   sessionVersionIdx: index("idx_strategy_versions_session_version").on(table.sessionId, table.versionNumber),
+  archivedIdx: index("idx_strategy_versions_archived").on(table.archived),
 }));
 
 export const strategicDecisions = pgTable("strategic_decisions", {
@@ -588,6 +590,7 @@ export const epmPrograms = pgTable("epm_programs", {
   editTracking: jsonb("edit_tracking").notNull().default(sql`'{}'::jsonb`),
   
   status: epmStatusEnum("status").notNull().default('draft'),
+  archived: boolean("archived").notNull().default(false),
   
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -597,6 +600,7 @@ export const epmPrograms = pgTable("epm_programs", {
   strategyDecisionIdx: index("idx_epm_programs_decision").on(table.strategyDecisionId),
   userIdx: index("idx_epm_programs_user").on(table.userId),
   statusIdx: index("idx_epm_programs_status").on(table.status),
+  archivedIdx: index("idx_epm_programs_archived").on(table.archived),
 }));
 
 export const strategicEntities = pgTable("strategic_entities", {
