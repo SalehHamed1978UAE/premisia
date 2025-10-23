@@ -143,7 +143,8 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
   if (!req.isAuthenticated() || !user?.expires_at) {
     // SECURITY: Development bypass requires EXPLICIT opt-in via DEV_AUTH_BYPASS=true
     // This prevents accidental auth bypass in production environments
-    const isExplicitDevMode = process.env.DEV_AUTH_BYPASS === 'true';
+    const isExplicitDevMode = process.env.DEV_AUTH_BYPASS === 'true' && 
+                              process.env.NODE_ENV === 'development';
     
     // SECURITY: Use actual socket address, NOT hostname headers (which can be spoofed)
     // Only allow bypass from true loopback connections
