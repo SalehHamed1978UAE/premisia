@@ -33,6 +33,7 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI, Tailwin
 - **Modular Framework Renderer Architecture**: An extensible system for displaying strategic analysis results across multiple frameworks (BMC, Porter's, Five Whys) using a framework registry pattern and a unified `StrategyResultsPage`.
 - **Strategy Intelligence Layer**: The core AI engine that converts ANY strategic framework into complete, executable EPM programs with all 14 required components. It includes framework-specific analyzers and an EPM Synthesis Engine.
 - **Strategy Workspace**: A comprehensive system bridging AI analysis and complete EPM programs through user strategic decision-making, featuring a 4-page wizard for capturing strategic choices, decision validation, a confidence boosting algorithm for EPM generation, and an EPM Program View with inline editing, confidence displays, and status tracking.
+- **EPM Display Formatters**: Enterprise-grade visual components replacing raw JSON with professionally formatted displays across 7 tabs (Summary, Planning, Resources, Benefits, Risks, Governance, Other). Features 14 specialized formatters for all EPM components with color-coded risk levels, priority badges, confidence indicators, timeline visualizations, and stakeholder maps. Implements type-safe handling of both simple string arrays and structured objects (e.g., strategic imperatives with action/priority/rationale), with graceful degradation and console warnings for debugging.
 
 ### External Dependencies
 - **Database Service**: Neon serverless PostgreSQL
