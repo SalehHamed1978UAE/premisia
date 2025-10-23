@@ -98,7 +98,7 @@ export default function GanttChart({
           {/* Vertical grid line */}
           <line
             x1={monthX}
-            y1={dimensions.topMargin - 20}
+            y1={dimensions.topMargin - 25}
             x2={monthX}
             y2={dimensions.height - dimensions.bottomMargin}
             stroke="#e5e7eb"
@@ -108,9 +108,10 @@ export default function GanttChart({
           {/* Month label */}
           <text
             x={monthX + dimensions.monthWidth / 2}
-            y={dimensions.topMargin - 5}
+            y={dimensions.topMargin - 8}
             textAnchor="middle"
-            className="text-xs fill-gray-600 font-medium"
+            className="fill-gray-600 font-semibold"
+            style={{ fontSize: '11px' }}
           >
             M{i}
           </text>
@@ -127,7 +128,19 @@ export default function GanttChart({
     return phases.map((phase, index) => {
       const phaseWidth = (phase.endMonth - phase.startMonth + 1) * dimensions.monthWidth;
       const phaseX = dimensions.leftMargin + (phase.startMonth * dimensions.monthWidth);
-      const labelY = dimensions.topMargin - 85; // Position for phase label
+      
+      // AGGRESSIVE truncation for phase names
+      let phaseName = phase.name;
+      const maxCharsPerMonth = 4; // Max chars that fit per month width
+      const maxChars = Math.floor(phaseWidth / 8); // Estimate based on pixel width
+      
+      if (phaseName.length > maxChars) {
+        phaseName = phaseName.substring(0, maxChars - 3) + '...';
+      }
+      
+      // If still too long, just use phase number
+      const displayLabel = phaseWidth < 80 ? `P${phase.phase}` : `Phase ${phase.phase}`;
+      const showFullName = phaseWidth > 120;
       
       return (
         <g key={`phase-${phase.phase}`}>
@@ -141,26 +154,41 @@ export default function GanttChart({
             opacity="0.3"
           />
           
-          {/* Phase label - centered within phase width */}
+          {/* Phase label - centered, multi-line if needed */}
           <text
             x={phaseX + phaseWidth / 2}
-            y={labelY}
+            y={dimensions.topMargin - 100}
             textAnchor="middle"
             className="text-xs fill-gray-700 font-semibold"
+            style={{ fontSize: '11px' }}
           >
-            Phase {phase.phase}: {phase.name}
+            {displayLabel}
           </text>
+          
+          {/* Phase name on second line if there's room */}
+          {showFullName && (
+            <text
+              x={phaseX + phaseWidth / 2}
+              y={dimensions.topMargin - 85}
+              textAnchor="middle"
+              className="text-xs fill-gray-600"
+              style={{ fontSize: '10px' }}
+            >
+              {phaseName}
+            </text>
+          )}
           
           {/* Phase boundary line (right edge) */}
           {index < phases.length - 1 && (
             <line
               x1={phaseX + phaseWidth}
-              y1={dimensions.topMargin - 90}
+              y1={dimensions.topMargin - 110}
               x2={phaseX + phaseWidth}
               y2={dimensions.topMargin}
               stroke="#94a3b8"
-              strokeWidth="1"
-              strokeDasharray="2 2"
+              strokeWidth="2"
+              strokeDasharray="3 3"
+              opacity="0.4"
             />
           )}
         </g>
@@ -174,6 +202,14 @@ export default function GanttChart({
 
     return stageGates.map(gate => {
       const gateX = dimensions.leftMargin + (gate.month * dimensions.monthWidth);
+      
+      // VERY aggressive truncation for gate names
+      const maxGateNameLength = 12; // Very short to prevent overlap
+      let gateName = gate.name;
+      if (gateName.length > maxGateNameLength) {
+        gateName = gateName.substring(0, maxGateNameLength - 2) + '..';
+      }
+      
       return (
         <g key={`gate-${gate.gate}`}>
           {/* Gate vertical line */}
@@ -189,28 +225,40 @@ export default function GanttChart({
           {/* Gate marker circle */}
           <circle
             cx={gateX}
-            cy={dimensions.topMargin - 60}
-            r="14"
+            cy={dimensions.topMargin - 70}
+            r="16"
             fill={gate.color}
+            stroke="white"
+            strokeWidth="2"
           />
           {/* Gate number */}
           <text
             x={gateX}
-            y={dimensions.topMargin - 56}
+            y={dimensions.topMargin - 65}
             textAnchor="middle"
-            className="text-xs fill-white font-bold"
+            className="fill-white font-bold"
+            style={{ fontSize: '13px' }}
           >
             {gate.gate}
           </text>
-          {/* Gate name label */}
+          {/* Gate name label - split into two lines if needed */}
           <text
             x={gateX}
-            y={dimensions.topMargin - 40}
+            y={dimensions.topMargin - 48}
             textAnchor="middle"
-            className="text-xs fill-gray-700 font-medium"
-            style={{ fontSize: '11px' }}
+            className="fill-gray-700 font-medium"
+            style={{ fontSize: '10px' }}
           >
-            {gate.name.length > 20 ? gate.name.substring(0, 17) + '...' : gate.name}
+            Gate {gate.gate}
+          </text>
+          <text
+            x={gateX}
+            y={dimensions.topMargin - 36}
+            textAnchor="middle"
+            className="fill-gray-600"
+            style={{ fontSize: '9px' }}
+          >
+            {gateName}
           </text>
         </g>
       );
@@ -233,21 +281,23 @@ export default function GanttChart({
 
     const opacity = isHovered || isSelected ? 1 : 0.85;
     
-    // Truncate long task names
-    const maxNameLength = 35;
+    // AGGRESSIVE truncation based on available left margin space
+    // Left margin is 350px, need space for critical indicator (10px) and padding (20px)
+    // Leaves ~320px for text at ~7px per char = max 45 chars
+    const maxNameLength = 45;
     const displayName = task.name.length > maxNameLength 
       ? task.name.substring(0, maxNameLength - 3) + '...'
       : task.name;
 
     return (
       <g key={task.id}>
-        {/* Task label (left side) */}
+        {/* Task label (left side) - positioned further left with more space */}
         <text
-          x={dimensions.leftMargin - 15}
-          y={position.y + position.height / 2 + 4}
+          x={dimensions.leftMargin - 20}
+          y={position.y + position.height / 2 + 5}
           textAnchor="end"
-          className={`text-sm font-medium ${isCritical ? 'fill-red-600' : 'fill-gray-700'}`}
-          style={{ fontSize: '12px' }}
+          className={`font-medium ${isCritical ? 'fill-red-600' : 'fill-gray-700'}`}
+          style={{ fontSize: '12px', fontFamily: 'system-ui, -apple-system, sans-serif' }}
         >
           {displayName}
         </text>
