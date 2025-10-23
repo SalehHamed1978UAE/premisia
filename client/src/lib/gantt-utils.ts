@@ -273,13 +273,13 @@ export function calculateChartDimensions(
   maxMonth: number,
   containerWidth: number = 1200
 ): ChartDimensions {
-  const leftMargin = 250;  // Space for task names
-  const rightMargin = 50;
-  const topMargin = 80;    // Space for month headers
-  const bottomMargin = 40;
+  const leftMargin = 300;  // Space for task names (increased from 250)
+  const rightMargin = 100; // More space on right (increased from 50)
+  const topMargin = 120;   // More space for phase labels (increased from 80)
+  const bottomMargin = 50; // More space at bottom (increased from 40)
   
-  const taskHeight = 40;
-  const taskPadding = 16;
+  const taskHeight = 50;    // Increased from 40
+  const taskPadding = 20;   // Increased from 16
   
   // Calculate month width to fit container
   const availableWidth = containerWidth - leftMargin - rightMargin;

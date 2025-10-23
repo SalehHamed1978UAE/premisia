@@ -92,20 +92,23 @@ export default function GanttChart({
   const renderMonthHeaders = () => {
     const months = [];
     for (let i = 0; i <= maxMonth; i++) {
+      const monthX = dimensions.leftMargin + (i * dimensions.monthWidth);
       months.push(
         <g key={`month-${i}`}>
+          {/* Vertical grid line */}
           <line
-            x1={dimensions.leftMargin + (i * dimensions.monthWidth)}
-            y1={dimensions.topMargin - 30}
-            x2={dimensions.leftMargin + (i * dimensions.monthWidth)}
+            x1={monthX}
+            y1={dimensions.topMargin - 20}
+            x2={monthX}
             y2={dimensions.height - dimensions.bottomMargin}
             stroke="#e5e7eb"
             strokeWidth="1"
             strokeDasharray="4 4"
           />
+          {/* Month label */}
           <text
-            x={dimensions.leftMargin + (i * dimensions.monthWidth) + dimensions.monthWidth / 2}
-            y={dimensions.topMargin - 10}
+            x={monthX + dimensions.monthWidth / 2}
+            y={dimensions.topMargin - 5}
             textAnchor="middle"
             className="text-xs fill-gray-600 font-medium"
           >
@@ -121,65 +124,97 @@ export default function GanttChart({
   const renderPhases = () => {
     if (!showPhases) return null;
 
-    return phases.map(phase => (
-      <g key={`phase-${phase.phase}`}>
-        <rect
-          x={dimensions.leftMargin + (phase.startMonth * dimensions.monthWidth)}
-          y={dimensions.topMargin}
-          width={(phase.endMonth - phase.startMonth + 1) * dimensions.monthWidth}
-          height={dimensions.height - dimensions.topMargin - dimensions.bottomMargin}
-          fill={phase.color}
-          opacity="0.3"
-        />
-        <text
-          x={dimensions.leftMargin + (phase.startMonth * dimensions.monthWidth) + 10}
-          y={dimensions.topMargin - 35}
-          className="text-xs fill-gray-700 font-semibold"
-        >
-          Phase {phase.phase}: {phase.name}
-        </text>
-      </g>
-    ));
+    return phases.map((phase, index) => {
+      const phaseWidth = (phase.endMonth - phase.startMonth + 1) * dimensions.monthWidth;
+      const phaseX = dimensions.leftMargin + (phase.startMonth * dimensions.monthWidth);
+      const labelY = dimensions.topMargin - 85; // Position for phase label
+      
+      return (
+        <g key={`phase-${phase.phase}`}>
+          {/* Phase background */}
+          <rect
+            x={phaseX}
+            y={dimensions.topMargin}
+            width={phaseWidth}
+            height={dimensions.height - dimensions.topMargin - dimensions.bottomMargin}
+            fill={phase.color}
+            opacity="0.3"
+          />
+          
+          {/* Phase label - centered within phase width */}
+          <text
+            x={phaseX + phaseWidth / 2}
+            y={labelY}
+            textAnchor="middle"
+            className="text-xs fill-gray-700 font-semibold"
+          >
+            Phase {phase.phase}: {phase.name}
+          </text>
+          
+          {/* Phase boundary line (right edge) */}
+          {index < phases.length - 1 && (
+            <line
+              x1={phaseX + phaseWidth}
+              y1={dimensions.topMargin - 90}
+              x2={phaseX + phaseWidth}
+              y2={dimensions.topMargin}
+              stroke="#94a3b8"
+              strokeWidth="1"
+              strokeDasharray="2 2"
+            />
+          )}
+        </g>
+      );
+    });
   };
 
   // Render stage gates
   const renderStageGates = () => {
     if (!showGates) return null;
 
-    return stageGates.map(gate => (
-      <g key={`gate-${gate.gate}`}>
-        <line
-          x1={dimensions.leftMargin + (gate.month * dimensions.monthWidth)}
-          y1={dimensions.topMargin}
-          x2={dimensions.leftMargin + (gate.month * dimensions.monthWidth)}
-          y2={dimensions.height - dimensions.bottomMargin}
-          stroke={gate.color}
-          strokeWidth="3"
-          opacity="0.6"
-        />
-        <circle
-          cx={dimensions.leftMargin + (gate.month * dimensions.monthWidth)}
-          cy={dimensions.topMargin - 50}
-          r="12"
-          fill={gate.color}
-        />
-        <text
-          x={dimensions.leftMargin + (gate.month * dimensions.monthWidth)}
-          y={dimensions.topMargin - 47}
-          textAnchor="middle"
-          className="text-xs fill-white font-bold"
-        >
-          {gate.gate}
-        </text>
-        <text
-          x={dimensions.leftMargin + (gate.month * dimensions.monthWidth) + 20}
-          y={dimensions.topMargin - 45}
-          className="text-xs fill-gray-700 font-medium"
-        >
-          {gate.name}
-        </text>
-      </g>
-    ));
+    return stageGates.map(gate => {
+      const gateX = dimensions.leftMargin + (gate.month * dimensions.monthWidth);
+      return (
+        <g key={`gate-${gate.gate}`}>
+          {/* Gate vertical line */}
+          <line
+            x1={gateX}
+            y1={dimensions.topMargin}
+            x2={gateX}
+            y2={dimensions.height - dimensions.bottomMargin}
+            stroke={gate.color}
+            strokeWidth="3"
+            opacity="0.6"
+          />
+          {/* Gate marker circle */}
+          <circle
+            cx={gateX}
+            cy={dimensions.topMargin - 60}
+            r="14"
+            fill={gate.color}
+          />
+          {/* Gate number */}
+          <text
+            x={gateX}
+            y={dimensions.topMargin - 56}
+            textAnchor="middle"
+            className="text-xs fill-white font-bold"
+          >
+            {gate.gate}
+          </text>
+          {/* Gate name label */}
+          <text
+            x={gateX}
+            y={dimensions.topMargin - 40}
+            textAnchor="middle"
+            className="text-xs fill-gray-700 font-medium"
+            style={{ fontSize: '11px' }}
+          >
+            {gate.name.length > 20 ? gate.name.substring(0, 17) + '...' : gate.name}
+          </text>
+        </g>
+      );
+    });
   };
 
   // Render task bar
@@ -197,17 +232,24 @@ export default function GanttChart({
           : '#ef4444';  // red-500 for low confidence
 
     const opacity = isHovered || isSelected ? 1 : 0.85;
+    
+    // Truncate long task names
+    const maxNameLength = 35;
+    const displayName = task.name.length > maxNameLength 
+      ? task.name.substring(0, maxNameLength - 3) + '...'
+      : task.name;
 
     return (
       <g key={task.id}>
         {/* Task label (left side) */}
         <text
-          x={dimensions.leftMargin - 10}
+          x={dimensions.leftMargin - 15}
           y={position.y + position.height / 2 + 4}
           textAnchor="end"
           className={`text-sm font-medium ${isCritical ? 'fill-red-600' : 'fill-gray-700'}`}
+          style={{ fontSize: '12px' }}
         >
-          {task.name}
+          {displayName}
         </text>
 
         {/* Task bar */}
