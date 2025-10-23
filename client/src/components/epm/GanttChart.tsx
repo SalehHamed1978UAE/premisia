@@ -64,23 +64,22 @@ export default function GanttChart({
   );
 
   // ULTRA-FIXED positioning constants
-  const HEADER_HEIGHT = 60;  // Height of the timeline header
   const ROW_HEIGHT = dimensions.taskHeight + dimensions.taskPadding;  // 70px total
   const BAR_HEIGHT = dimensions.taskHeight;  // 50px
   const ROW_PADDING = dimensions.taskPadding / 2;  // 10px padding to center bars
 
-  // Calculate task positions with FIXED Y-offset
+  // Calculate task positions with FIXED Y-offset using topMargin
   const taskPositions = useMemo(() => {
     const positions: TaskPosition[] = tasks.map((task, taskIndex) => ({
       id: task.id,
       x: dimensions.leftMargin + (task.startMonth * dimensions.monthWidth),
-      // FIXED: Proper Y calculation including header height
-      y: HEADER_HEIGHT + (taskIndex * ROW_HEIGHT) + ROW_PADDING,
+      // FIXED: Use topMargin (150px) not HEADER_HEIGHT (60px)
+      y: dimensions.topMargin + (taskIndex * ROW_HEIGHT) + ROW_PADDING,
       width: task.duration * dimensions.monthWidth,
       height: BAR_HEIGHT
     }));
     return new Map(positions.map(p => [p.id, p]));
-  }, [tasks, dimensions, HEADER_HEIGHT, ROW_HEIGHT, ROW_PADDING, BAR_HEIGHT]);
+  }, [tasks, dimensions, ROW_HEIGHT, ROW_PADDING, BAR_HEIGHT]);
 
   const dependencyPaths = useMemo(() =>
     calculateDependencyPaths(dependencies, taskPositions, dimensions.taskHeight),
@@ -102,10 +101,10 @@ export default function GanttChart({
       const monthX = dimensions.leftMargin + (i * dimensions.monthWidth);
       months.push(
         <g key={`month-${i}`}>
-          {/* Vertical grid line */}
+          {/* Vertical grid line - starts at topMargin */}
           <line
             x1={monthX}
-            y1={dimensions.topMargin - 25}
+            y1={dimensions.topMargin}
             x2={monthX}
             y2={dimensions.height - dimensions.bottomMargin}
             stroke="#e5e7eb"
@@ -126,6 +125,22 @@ export default function GanttChart({
       );
     }
     return months;
+  };
+
+  // Render task label rows (background rectangles)
+  const renderTaskLabelRows = () => {
+    return tasks.map((task, index) => (
+      <rect
+        key={`row-${task.id}`}
+        x={0}
+        y={dimensions.topMargin + (index * ROW_HEIGHT)}
+        width={dimensions.leftMargin}
+        height={ROW_HEIGHT}
+        fill="#f9fafb"
+        stroke="#e5e7eb"
+        strokeWidth="0.5"
+      />
+    ));
   };
 
   // Render timeline phases background
@@ -557,6 +572,9 @@ export default function GanttChart({
 
               {/* Timeline phases */}
               {renderPhases()}
+
+              {/* Task label background rows */}
+              {renderTaskLabelRows()}
 
               {/* Month grid and headers */}
               {renderMonthHeaders()}
