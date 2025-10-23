@@ -650,6 +650,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         id: epmPrograms.id,
         frameworkType: epmPrograms.frameworkType,
+        executiveSummary: epmPrograms.executiveSummary,
         createdAt: epmPrograms.createdAt,
       })
       .from(epmPrograms)
@@ -666,13 +667,19 @@ export class DatabaseStorage implements IStorage {
         createdAt: v.createdAt!,
         link: `/repository/analysis/${v.id}`
       })),
-      ...recentPrograms.map(p => ({
-        id: p.id,
-        type: 'program' as const,
-        title: `${p.frameworkType} Program`,
-        createdAt: p.createdAt!,
-        link: `/strategy-workspace/epm/${p.id}`
-      }))
+      ...recentPrograms.map(p => {
+        // Extract program name from executiveSummary
+        const execSummary = p.executiveSummary as any;
+        const programName = execSummary?.programName || execSummary?.title || `${p.frameworkType} Program`;
+        
+        return {
+          id: p.id,
+          type: 'program' as const,
+          title: programName,
+          createdAt: p.createdAt!,
+          link: `/strategy-workspace/epm/${p.id}`
+        };
+      })
     ];
 
     // Sort by date and take top 5
