@@ -20,7 +20,8 @@ router.get('/statements', async (req, res) => {
 
     const enrichedStatements = await Promise.all(
       statements.map(async (stmt) => {
-        const analyses = await db
+        // Get old PESTLE analyses from frameworkInsights
+        const oldAnalyses = await db
           .select({
             frameworkName: frameworkInsights.frameworkName,
             frameworkVersion: frameworkInsights.frameworkVersion,
@@ -30,9 +31,22 @@ router.get('/statements', async (req, res) => {
           .where(eq(frameworkInsights.understandingId, stmt.understandingId))
           .orderBy(desc(frameworkInsights.createdAt));
 
+        // Get new analyses from strategyVersions
+        const newAnalyses = await db
+          .select({
+            versionNumber: strategyVersions.versionNumber,
+            analysisData: strategyVersions.analysisData,
+            createdAt: strategyVersions.createdAt,
+          })
+          .from(strategyVersions)
+          .where(eq(strategyVersions.sessionId, stmt.sessionId))
+          .orderBy(desc(strategyVersions.createdAt));
+
         const analysisSummary: Record<string, { count: number; latestVersion: string }> = {};
+        let latestActivity: Date = stmt.createdAt;
         
-        analyses.forEach((analysis) => {
+        // Process old analyses
+        oldAnalyses.forEach((analysis) => {
           const framework = analysis.frameworkName;
           if (!analysisSummary[framework]) {
             analysisSummary[framework] = {
@@ -41,7 +55,53 @@ router.get('/statements', async (req, res) => {
             };
           }
           analysisSummary[framework].count++;
+          if (analysis.createdAt && analysis.createdAt > latestActivity) {
+            latestActivity = analysis.createdAt;
+          }
         });
+
+        // Process new analyses from strategy versions
+        newAnalyses.forEach((version) => {
+          const data = version.analysisData as any;
+          
+          // Check for BMC
+          if (data?.bmc_research) {
+            const framework = 'Business Model Canvas';
+            if (!analysisSummary[framework]) {
+              analysisSummary[framework] = { count: 0, latestVersion: `v${version.versionNumber}` };
+            }
+            analysisSummary[framework].count++;
+            if (version.createdAt && version.createdAt > latestActivity) {
+              latestActivity = version.createdAt;
+            }
+          }
+          
+          // Check for Five Whys (rootCause at top level indicates Five Whys)
+          if (data?.rootCause && data?.framework === 'five_whys') {
+            const framework = 'Five Whys';
+            if (!analysisSummary[framework]) {
+              analysisSummary[framework] = { count: 0, latestVersion: `v${version.versionNumber}` };
+            }
+            analysisSummary[framework].count++;
+            if (version.createdAt && version.createdAt > latestActivity) {
+              latestActivity = version.createdAt;
+            }
+          }
+          
+          // Check for Porter's Five Forces
+          if (data?.porters_five_forces) {
+            const framework = "Porter's Five Forces";
+            if (!analysisSummary[framework]) {
+              analysisSummary[framework] = { count: 0, latestVersion: `v${version.versionNumber}` };
+            }
+            analysisSummary[framework].count++;
+            if (version.createdAt && version.createdAt > latestActivity) {
+              latestActivity = version.createdAt;
+            }
+          }
+        });
+
+        const totalAnalyses = oldAnalyses.length + newAnalyses.length;
 
         return {
           understandingId: stmt.understandingId,
@@ -50,8 +110,8 @@ router.get('/statements', async (req, res) => {
           title: stmt.title,
           createdAt: stmt.createdAt,
           analyses: analysisSummary,
-          totalAnalyses: analyses.length,
-          lastActivity: analyses[0]?.createdAt || stmt.createdAt,
+          totalAnalyses,
+          lastActivity: latestActivity,
         };
       })
     );
@@ -198,7 +258,7 @@ router.get('/statements/:understandingId', async (req, res) => {
       });
     });
 
-    // Process new Strategy Workspace analyses (BMC, Five Whys, etc.)
+    // Process new Strategy Workspace analyses (BMC, Five Whys, Porter's)
     newAnalyses.forEach((version) => {
       const analysisData = version.analysisData as any;
       
@@ -214,9 +274,16 @@ router.get('/statements/:understandingId', async (req, res) => {
         let summary = '';
         let keyFindings: string[] = [];
 
-        if (bmcData.keyInsights && bmcData.keyInsights.length > 0) {
-          summary = bmcData.keyInsights.slice(0, 2).join('. ').substring(0, 200) + '...';
-          keyFindings = bmcData.keyInsights.slice(0, 3);
+        // Extract insights from BMC blocks
+        if (bmcData.blocks && Array.isArray(bmcData.blocks)) {
+          const allImplications = bmcData.blocks
+            .map((block: any) => block.strategicImplications)
+            .filter(Boolean);
+          
+          if (allImplications.length > 0) {
+            summary = allImplications.slice(0, 2).join(' ').substring(0, 200) + '...';
+            keyFindings = allImplications.slice(0, 3);
+          }
         }
 
         groupedAnalyses[framework].push({
@@ -230,17 +297,56 @@ router.get('/statements/:understandingId', async (req, res) => {
         });
       }
 
-      // Check for Five Whys analysis
-      if (analysisData?.five_whys) {
-        const whysData = analysisData.five_whys;
+      // Check for Five Whys analysis (rootCause at top level)
+      if (analysisData?.rootCause && analysisData?.framework === 'five_whys') {
         const framework = 'Five Whys';
         
         if (!groupedAnalyses[framework]) {
           groupedAnalyses[framework] = [];
         }
 
-        let summary = whysData.rootCause ? whysData.rootCause.substring(0, 200) + '...' : '';
-        let keyFindings: string[] = whysData.keyRecommendations?.slice(0, 3) || [];
+        const summary = analysisData.rootCause.substring(0, 200) + (analysisData.rootCause.length > 200 ? '...' : '');
+        const keyFindings: string[] = [];
+        
+        // Extract key findings from whysPath
+        if (analysisData.whysPath && Array.isArray(analysisData.whysPath)) {
+          keyFindings.push(...analysisData.whysPath.slice(0, 3));
+        }
+
+        groupedAnalyses[framework].push({
+          id: version.id,
+          frameworkName: framework,
+          version: `v${version.versionNumber}`,
+          versionNumber: version.versionNumber,
+          createdAt: version.createdAt,
+          summary,
+          keyFindings,
+        });
+      }
+
+      // Check for Porter's Five Forces analysis
+      if (analysisData?.porters_five_forces) {
+        const portersData = analysisData.porters_five_forces;
+        const framework = "Porter's Five Forces";
+        
+        if (!groupedAnalyses[framework]) {
+          groupedAnalyses[framework] = [];
+        }
+
+        let summary = '';
+        let keyFindings: string[] = [];
+
+        // Extract insights from Porter's forces
+        if (portersData.forces && Array.isArray(portersData.forces)) {
+          const allImplications = portersData.forces
+            .map((force: any) => force.strategicImplication)
+            .filter(Boolean);
+          
+          if (allImplications.length > 0) {
+            summary = allImplications.slice(0, 2).join(' ').substring(0, 200) + '...';
+            keyFindings = allImplications.slice(0, 3);
+          }
+        }
 
         groupedAnalyses[framework].push({
           id: version.id,
