@@ -85,13 +85,27 @@ export function transformToGanttData(
     confidence: ws.confidence,
     owner: ws.owner,
     description: ws.description,
-    deliverables: ws.deliverables?.map(d => ({
-      id: d.id,
-      name: d.name,
-      dueMonth: d.dueMonth,
-      effort: d.effort,
-      description: d.description
-    })) || []
+    deliverables: ws.deliverables?.map(d => {
+      // Safety check: Clamp deliverable to workstream timeline
+      // This handles legacy programs with invalid data
+      let dueMonth = d.dueMonth;
+      if (dueMonth < ws.startMonth || dueMonth > ws.endMonth) {
+        console.warn(
+          `[Gantt] Deliverable "${d.name}" (${d.id}) has dueMonth ${dueMonth} ` +
+          `outside workstream "${ws.name}" timeline (M${ws.startMonth}-M${ws.endMonth}). ` +
+          `Clamping to M${Math.max(ws.startMonth, Math.min(dueMonth, ws.endMonth))}.`
+        );
+        dueMonth = Math.max(ws.startMonth, Math.min(dueMonth, ws.endMonth));
+      }
+      
+      return {
+        id: d.id,
+        name: d.name,
+        dueMonth,
+        effort: d.effort,
+        description: d.description
+      };
+    }) || []
   }));
 
   // Transform timeline phases

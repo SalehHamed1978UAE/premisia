@@ -43,15 +43,62 @@ export class EPMSynthesizer {
     // Generate intelligent program name from context
     const programName = await this.generateProgramName(insights, userContext, namingContext);
     
-    // Generate all 14 components
+    // Generate CORE components first (timeline, workstreams, gates)
     const executiveSummary = await this.generateExecutiveSummary(insights, programName);
     const workstreams = await this.generateWorkstreams(insights);
     const timeline = await this.generateTimeline(insights, workstreams, userContext);
+    const riskRegister = await this.generateRiskRegister(insights);
+    const stageGates = await this.generateStageGates(timeline, riskRegister);
+
+    // ===== PHASE 1: DATA VALIDATION & CORRECTION =====
+    // Validate and auto-correct all logical constraints BEFORE building dependent components
+    let validation = this.validateEPMData(workstreams, timeline, stageGates);
+    
+    if (validation.errors.length > 0) {
+      console.log('\n[EPM Synthesis] Data validation found issues:');
+      validation.errors.forEach(err => console.warn(`  ❌ ${err}`));
+      console.log('\n[EPM Synthesis] Auto-corrections applied:');
+      validation.corrections.forEach(corr => console.log(`  ✓ ${corr}`));
+      console.log('');
+      
+      // If validation adjusted workstream dates, regenerate timeline/phases/gates
+      const maxWorkstreamEnd = Math.max(...workstreams.map(w => w.endMonth));
+      if (maxWorkstreamEnd > timeline.totalMonths) {
+        console.log(`[EPM Synthesis] Extending timeline from ${timeline.totalMonths} to ${maxWorkstreamEnd} months due to dependency adjustments`);
+        timeline.totalMonths = maxWorkstreamEnd;
+        timeline.phases = this.generatePhases(timeline.totalMonths, workstreams);
+        const newStageGates = await this.generateStageGates(timeline, riskRegister);
+        stageGates.gates = newStageGates.gates;
+        stageGates.confidence = newStageGates.confidence;
+        
+        // Re-validate after regeneration
+        validation = this.validateEPMData(workstreams, timeline, stageGates);
+        if (validation.errors.length > 0) {
+          console.log('[EPM Synthesis] Re-validation after timeline regeneration found additional issues:');
+          validation.corrections.forEach(corr => console.log(`  ✓ ${corr}`));
+        }
+      }
+    }
+
+    // ===== PHASE 2: PLANNING GRID ANALYSIS =====
+    // Analyze resource utilization and identify conflicts (using VALIDATED data)
+    const gridAnalysis = this.analyzePlanningGrid(workstreams, timeline);
+    
+    if (gridAnalysis.conflicts.length > 0) {
+      console.log('[EPM Synthesis] Planning grid analysis:');
+      console.log(`  Max utilization: ${gridAnalysis.maxUtilization} parallel tasks`);
+      console.log('\n  Resource conflicts detected:');
+      gridAnalysis.conflicts.forEach(conflict => console.warn(`  ⚠️  ${conflict}`));
+      console.log('');
+      
+      // TODO: Phase 3 - If conflicts exceed threshold, call LLM optimization
+      // For now, we log warnings but allow generation to continue
+    }
+    
+    // NOW generate downstream components using VALIDATED workstreams/timeline
     const resourcePlan = await this.generateResourcePlan(insights, workstreams, userContext);
     const financialPlan = await this.generateFinancialPlan(insights, resourcePlan, userContext);
     const benefitsRealization = await this.generateBenefitsRealization(insights, timeline);
-    const riskRegister = await this.generateRiskRegister(insights);
-    const stageGates = await this.generateStageGates(timeline, riskRegister);
     const kpis = await this.generateKPIs(insights, benefitsRealization);
     const stakeholderMap = await this.generateStakeholderMap(insights);
     const governance = await this.generateGovernance(insights, stakeholderMap);
@@ -162,41 +209,228 @@ export class EPMSynthesizer {
   }
 
   /**
-   * Validates that all deliverables fall within their parent workstream's timeline.
-   * Auto-corrects out-of-range deliverables by clamping to workstream endMonth.
+   * PHASE 1: Comprehensive data validation and auto-correction
+   * Validates all logical constraints: deliverables, dependencies, phases, gates
    */
-  private validateDeliverableTimelines(workstreams: Workstream[]): void {
+  private validateEPMData(
+    workstreams: Workstream[],
+    timeline: Timeline,
+    stageGates: StageGates
+  ): { errors: string[]; corrections: string[] } {
+    const errors: string[] = [];
+    const corrections: string[] = [];
+
+    // 1. Validate deliverables are within workstream bounds
     for (const workstream of workstreams) {
-      let correctedCount = 0;
-      
       for (const deliverable of workstream.deliverables) {
-        // Check if deliverable falls outside workstream timeline
         if (deliverable.dueMonth < workstream.startMonth || deliverable.dueMonth > workstream.endMonth) {
           const originalDueMonth = deliverable.dueMonth;
-          
-          // Clamp to workstream timeline
           deliverable.dueMonth = Math.max(
             workstream.startMonth,
             Math.min(deliverable.dueMonth, workstream.endMonth)
           );
           
-          correctedCount++;
-          console.warn(
-            `[EPM Synthesis] Deliverable "${deliverable.name}" (${deliverable.id}) ` +
-            `had dueMonth ${originalDueMonth} outside workstream "${workstream.name}" ` +
-            `timeline (M${workstream.startMonth}-M${workstream.endMonth}). ` +
-            `Auto-corrected to M${deliverable.dueMonth}.`
+          errors.push(
+            `Deliverable "${deliverable.name}" at M${originalDueMonth} outside workstream ` +
+            `"${workstream.name}" (M${workstream.startMonth}-M${workstream.endMonth})`
           );
+          corrections.push(`Clamped deliverable "${deliverable.name}" to M${deliverable.dueMonth}`);
         }
       }
+    }
+
+    // 2. Validate dependencies exist and are logically ordered
+    const workstreamsWithAdjustedDates: string[] = [];
+    
+    for (const workstream of workstreams) {
+      const validDependencies: string[] = [];
       
-      if (correctedCount > 0) {
-        console.log(
-          `[EPM Synthesis] Corrected ${correctedCount} deliverable(s) in "${workstream.name}" ` +
-          `to fall within workstream timeline.`
+      for (const depId of workstream.dependencies) {
+        const dependency = workstreams.find(w => w.id === depId);
+        
+        if (!dependency) {
+          errors.push(`Workstream "${workstream.name}" depends on non-existent "${depId}"`);
+          corrections.push(`Removed invalid dependency "${depId}" from "${workstream.name}"`);
+          continue;
+        }
+        
+        // Check if dependency finishes before dependent starts
+        if (dependency.endMonth >= workstream.startMonth) {
+          errors.push(
+            `Invalid dependency: "${workstream.name}" (M${workstream.startMonth}) ` +
+            `starts before "${dependency.name}" ends (M${dependency.endMonth})`
+          );
+          
+          // Auto-correct: Push dependent workstream start date
+          const oldStart = workstream.startMonth;
+          workstream.startMonth = dependency.endMonth + 1;
+          
+          // Also push end date to maintain duration
+          const duration = workstream.endMonth - oldStart;
+          workstream.endMonth = workstream.startMonth + duration;
+          
+          corrections.push(
+            `Adjusted "${workstream.name}" to M${workstream.startMonth}-M${workstream.endMonth} ` +
+            `to respect dependency on "${dependency.name}"`
+          );
+          
+          // Track that this workstream had date changes
+          workstreamsWithAdjustedDates.push(workstream.id);
+        }
+        
+        validDependencies.push(depId);
+      }
+      
+      workstream.dependencies = validDependencies;
+    }
+
+    // RE-VALIDATE: After dependency adjustments, re-check deliverables against NEW dates
+    if (workstreamsWithAdjustedDates.length > 0) {
+      for (const workstream of workstreams) {
+        if (workstreamsWithAdjustedDates.includes(workstream.id)) {
+          for (const deliverable of workstream.deliverables) {
+            if (deliverable.dueMonth < workstream.startMonth || deliverable.dueMonth > workstream.endMonth) {
+              const originalDueMonth = deliverable.dueMonth;
+              deliverable.dueMonth = Math.max(
+                workstream.startMonth,
+                Math.min(deliverable.dueMonth, workstream.endMonth)
+              );
+              
+              corrections.push(
+                `Re-clamped deliverable "${deliverable.name}" to M${deliverable.dueMonth} ` +
+                `after "${workstream.name}" date adjustment`
+              );
+            }
+          }
+        }
+      }
+    }
+
+    // 3. Validate phases don't overlap
+    const sortedPhases = [...timeline.phases].sort((a, b) => a.phase - b.phase);
+    for (let i = 1; i < sortedPhases.length; i++) {
+      const prevPhase = sortedPhases[i - 1];
+      const currPhase = sortedPhases[i];
+      
+      if (currPhase.startMonth <= prevPhase.endMonth) {
+        errors.push(
+          `Phase ${currPhase.phase} "${currPhase.name}" overlaps with ` +
+          `Phase ${prevPhase.phase} "${prevPhase.name}"`
+        );
+        
+        const oldStart = currPhase.startMonth;
+        currPhase.startMonth = prevPhase.endMonth + 1;
+        
+        corrections.push(
+          `Adjusted Phase ${currPhase.phase} start from M${oldStart} to M${currPhase.startMonth}`
         );
       }
     }
+
+    // 4. Validate stage gates align with phases
+    for (const gate of stageGates.gates) {
+      const phase = timeline.phases.find(p =>
+        gate.month >= p.startMonth && gate.month <= p.endMonth
+      );
+      
+      if (!phase) {
+        errors.push(`Stage gate ${gate.gate} at M${gate.month} not within any phase`);
+        
+        // Auto-correct: Move to nearest phase end
+        const nearestPhase = timeline.phases.reduce((prev, curr) =>
+          Math.abs(curr.endMonth - gate.month) < Math.abs(prev.endMonth - gate.month) ? curr : prev
+        );
+        
+        const oldMonth = gate.month;
+        gate.month = nearestPhase.endMonth;
+        
+        corrections.push(
+          `Moved gate ${gate.gate} from M${oldMonth} to M${gate.month} (end of Phase ${nearestPhase.phase})`
+        );
+      }
+    }
+
+    return { errors, corrections };
+  }
+
+  /**
+   * PHASE 2: Planning Grid Analysis
+   * Creates month-by-month view to identify resource conflicts
+   */
+  private analyzePlanningGrid(workstreams: Workstream[], timeline: Timeline) {
+    interface MonthCell {
+      month: number;
+      tasks: Array<{ id: string; name: string; confidence: number }>;
+      deliverables: Array<{ id: string; name: string; workstreamId: string }>;
+      phase: string | null;
+      utilization: number;
+    }
+
+    const grid: MonthCell[] = [];
+    const conflicts: string[] = [];
+
+    // Initialize grid for each month
+    for (let m = 0; m <= timeline.totalMonths; m++) {
+      const phase = timeline.phases.find(p => m >= p.startMonth && m <= p.endMonth);
+      
+      grid[m] = {
+        month: m,
+        tasks: [],
+        deliverables: [],
+        phase: phase?.name || null,
+        utilization: 0
+      };
+    }
+
+    // Place workstreams across their duration
+    for (const ws of workstreams) {
+      for (let m = ws.startMonth; m <= ws.endMonth; m++) {
+        if (grid[m]) {
+          grid[m].tasks.push({
+            id: ws.id,
+            name: ws.name,
+            confidence: ws.confidence
+          });
+          grid[m].utilization += 1;
+        }
+      }
+
+      // Place deliverables at their due month
+      for (const deliverable of ws.deliverables) {
+        if (grid[deliverable.dueMonth]) {
+          grid[deliverable.dueMonth].deliverables.push({
+            id: deliverable.id,
+            name: deliverable.name,
+            workstreamId: ws.id
+          });
+        }
+      }
+    }
+
+    // Identify resource conflicts
+    for (const month of grid) {
+      if (month.utilization > 3) {
+        conflicts.push(
+          `Month ${month.month} (${month.phase || 'No phase'}): ` +
+          `${month.utilization} parallel tasks (max recommended: 3)`
+        );
+      }
+
+      // Check if too many deliverables in one month
+      if (month.deliverables.length > 5) {
+        conflicts.push(
+          `Month ${month.month}: ${month.deliverables.length} deliverables due ` +
+          `(may overwhelm review capacity)`
+        );
+      }
+    }
+
+    return {
+      grid,
+      conflicts,
+      maxUtilization: Math.max(...grid.map(m => m.utilization)),
+      totalTasks: workstreams.length
+    };
   }
 
   private generateDeliverables(insight: StrategyInsight, workstreamIndex: number) {
