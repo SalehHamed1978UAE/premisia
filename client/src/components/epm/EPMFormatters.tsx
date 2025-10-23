@@ -57,17 +57,65 @@ function KeyValue({ label, value, className = "" }: { label: string; value: Reac
   );
 }
 
-function List({ items, className = "" }: { items: string[]; className?: string }) {
+type ListItem = string | {
+  action?: string;
+  description?: string;
+  name?: string;
+  priority?: 'high' | 'medium' | 'low';
+  rationale?: string;
+  [key: string]: any;
+};
+
+function List({ items, className = "" }: { items: ListItem[]; className?: string }) {
   if (!items || items.length === 0) return <span className="text-sm text-muted-foreground italic">None specified</span>;
   
   return (
     <ul className={`space-y-1 ${className}`}>
-      {items.map((item, i) => (
-        <li key={i} className="text-sm flex items-start gap-2">
-          <span className="text-primary mt-1">•</span>
-          <span className="flex-1">{item}</span>
-        </li>
-      ))}
+      {items.map((item, i) => {
+        // Handle string items
+        if (typeof item === 'string') {
+          return (
+            <li key={i} className="text-sm flex items-start gap-2">
+              <span className="text-primary mt-1">•</span>
+              <span className="flex-1">{item}</span>
+            </li>
+          );
+        }
+        
+        // Handle structured object items
+        if (typeof item === 'object' && item !== null) {
+          const text = item.action || item.description || item.name;
+          const priority = item.priority;
+          const rationale = item.rationale;
+          
+          // If no recognizable fields, skip this item
+          if (!text) {
+            console.warn('List item missing text fields:', item);
+            return null;
+          }
+          
+          return (
+            <li key={i} className="text-sm flex items-start gap-2">
+              <span className="text-primary mt-1">•</span>
+              <div className="flex-1 space-y-1">
+                <div className="flex items-start gap-2">
+                  <span>{text}</span>
+                  {priority && (
+                    <Badge variant={priority === 'high' ? 'destructive' : priority === 'medium' ? 'secondary' : 'outline'} className="text-xs">
+                      {priority}
+                    </Badge>
+                  )}
+                </div>
+                {rationale && (
+                  <p className="text-xs text-muted-foreground italic pl-4">{rationale}</p>
+                )}
+              </div>
+            </li>
+          );
+        }
+        
+        return null;
+      })}
     </ul>
   );
 }

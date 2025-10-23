@@ -8,10 +8,16 @@
 // EPM Program Components (The 14 Required Components)
 // ============================================================================
 
+export interface StrategicImperative {
+  action: string;
+  priority: 'high' | 'medium' | 'low';
+  rationale: string;
+}
+
 export interface ExecutiveSummary {
   title?: string;
   marketOpportunity: string;
-  strategicImperatives: string[];
+  strategicImperatives: (string | StrategicImperative)[];
   keySuccessFactors: string[];
   riskSummary: string;
   investmentRequired: string;

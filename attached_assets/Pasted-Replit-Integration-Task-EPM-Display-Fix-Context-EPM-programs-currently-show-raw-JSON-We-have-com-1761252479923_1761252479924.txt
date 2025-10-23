@@ -1,0 +1,106 @@
+Replit Integration Task - EPM Display Fix
+Context: EPM programs currently show raw JSON. We have complete formatter components ready to replace JSON with beautiful, user-friendly displays.
+Files to integrate:
+
+EPMFormatters.tsx (1,200 lines - 14 formatter components)
+EPMProgramView.tsx (modified - uses formatters instead of JSON)
+
+
+Task 1: Create EPM Components Directory
+bashmkdir -p client/src/components/epm
+Verification: Directory client/src/components/epm exists
+
+Task 2: Add EPMFormatters.tsx
+Source: User will provide EPMFormatters.tsx file
+Destination: client/src/components/epm/EPMFormatters.tsx
+Action: Copy the complete file to this location
+Verification: File exists and imports work (check for TypeScript errors)
+
+Task 3: Verify Intelligence Types
+Check: Does client/src/types/intelligence.ts exist?
+If NO: The types might be in a different location. Search for:
+
+ExecutiveSummary interface
+Workstream interface
+Timeline interface
+
+If found elsewhere: Update the import in EPMFormatters.tsx line 27:
+typescriptimport { ... } from "@/types/intelligence";
+Change to the correct path.
+If not found at all: We'll need to create the types file (unlikely - these should exist)
+Verification: EPMFormatters.tsx imports resolve without errors
+
+Task 4: Update EPMProgramView.tsx
+Source: User will provide modified EPMProgramView.tsx
+Destination: client/src/pages/strategy-workspace/EPMProgramView.tsx
+Action: REPLACE the existing file
+Key changes in new file:
+
+Lines 1-28: Added imports for all 14 formatters
+Lines 180-195: New renderComponent() function maps component names to formatters
+Line 216: Uses renderComponent() instead of JSON.stringify()
+
+Verification: File compiles without TypeScript errors
+
+Task 5: Test EPM Display
+Steps:
+
+Start the app
+Navigate to an existing EPM program (or generate a new one)
+Check all 7 tabs:
+
+Summary → Should show formatted Executive Summary (NOT JSON)
+Planning → Should show formatted Workstreams, Timeline, Stage Gates
+Resources → Should show formatted Resource Plan, Financial Plan
+Benefits → Should show formatted Benefits Realization, KPIs
+Risks → Should show formatted Risk Register
+Governance → Should show formatted Stakeholder Map, Governance
+Other → Should show formatted QA Plan, Procurement, Exit Strategy
+
+
+
+Expected result: All components display with:
+
+✅ Cards with proper styling
+✅ Badges for confidence scores (green/yellow/red)
+✅ Icons (Users, Calendar, DollarSign, etc.)
+✅ Tables for financial data
+✅ Bullet lists for strategic items
+✅ Color-coded risk levels
+✅ NO raw JSON visible anywhere
+
+Edit functionality test:
+
+Click "Edit" button on any component
+Should show JSON textarea (this is correct for editing)
+Make a change and click "Save"
+Should return to formatted display
+
+Verification: All tabs display formatted, edit works, no console errors
+
+Rollback Plan (If Issues)
+If integration fails:
+
+Keep new EPMFormatters.tsx (it's isolated, won't break anything)
+Restore old EPMProgramView.tsx from git history
+Report which specific error occurred
+
+
+Common Issues & Solutions
+Issue: Import errors for @/types/intelligence
+Fix: Find where intelligence types actually live and update import path
+Issue: lucide-react icons not found
+Fix: Run npm install lucide-react
+Issue: shadcn/ui components not found
+Fix: Verify @/components/ui/badge, @/components/ui/card etc. all exist
+
+Summary for Replit
+Replace raw JSON displays with professional formatters:
+
+Create folder: client/src/components/epm
+Add EPMFormatters.tsx to that folder
+Replace client/src/pages/strategy-workspace/EPMProgramView.tsx
+Verify types import correctly
+Test all 7 EPM tabs show formatted output
+
+Files provided by user - copy exactly as-is.
