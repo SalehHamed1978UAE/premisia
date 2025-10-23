@@ -2,6 +2,8 @@ import { SourceValidator, type ValidationResult } from './source-validator';
 import { aiClients } from '../ai-clients';
 import { parseAIJson } from '../utils/parse-ai-json';
 
+const API_BASE = process.env.API_BASE_URL || 'http://localhost:5000';
+
 export interface Finding {
   fact: string;
   citation: string;
@@ -186,7 +188,7 @@ Example for "Arabic language differentiates our enterprise software in UAE":
 
   async performSingleWebSearch(query: ResearchQuery): Promise<any> {
     try {
-      const response = await fetch('http://localhost:5000/api/web-search', {
+      const response = await fetch(`${API_BASE}/api/web-search`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -218,7 +220,7 @@ Example for "Arabic language differentiates our enterprise software in UAE":
   private async performWebSearch(queries: ResearchQuery[]): Promise<any[]> {
     const searchPromises = queries.map(async (queryObj) => {
       try {
-        const response = await fetch('http://localhost:5000/api/web-search', {
+        const response = await fetch(`${API_BASE}/api/web-search`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -255,7 +257,7 @@ Example for "Arabic language differentiates our enterprise software in UAE":
     
     const fetchPromises = sources.map(async (source) => {
       try {
-        const response = await fetch('http://localhost:5000/api/web-fetch', {
+        const response = await fetch(`${API_BASE}/api/web-fetch`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
