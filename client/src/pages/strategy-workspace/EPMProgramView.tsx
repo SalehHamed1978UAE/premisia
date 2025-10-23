@@ -12,6 +12,22 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  ExecutiveSummaryFormatter,
+  WorkstreamsFormatter,
+  TimelineFormatter,
+  ResourcePlanFormatter,
+  FinancialPlanFormatter,
+  BenefitsRealizationFormatter,
+  RiskRegisterFormatter,
+  StageGatesFormatter,
+  KPIsFormatter,
+  StakeholderMapFormatter,
+  GovernanceFormatter,
+  QAPlanFormatter,
+  ProcurementFormatter,
+  ExitStrategyFormatter,
+} from "@/components/epm/EPMFormatters";
 
 interface EPMProgram {
   id: string;
@@ -156,6 +172,40 @@ export default function EPMProgramView() {
   const program = data.program;
   const overallConfidence = parseFloat(program.overallConfidence);
 
+  // Component renderer that uses formatters
+  const renderComponent = (component: string, data: any) => {
+    // Map component names to their formatter components
+    const formatters: Record<string, (props: { data: any }) => JSX.Element> = {
+      executiveSummary: ExecutiveSummaryFormatter,
+      workstreams: WorkstreamsFormatter,
+      timeline: TimelineFormatter,
+      resourcePlan: ResourcePlanFormatter,
+      financialPlan: FinancialPlanFormatter,
+      benefitsRealization: BenefitsRealizationFormatter,
+      riskRegister: RiskRegisterFormatter,
+      stageGates: StageGatesFormatter,
+      kpis: KPIsFormatter,
+      stakeholderMap: StakeholderMapFormatter,
+      governance: GovernanceFormatter,
+      qaPlan: QAPlanFormatter,
+      procurement: ProcurementFormatter,
+      exitStrategy: ExitStrategyFormatter,
+    };
+
+    const Formatter = formatters[component];
+    
+    if (!Formatter) {
+      // Fallback to JSON if no formatter found
+      return (
+        <pre className="text-sm bg-muted p-4 rounded overflow-auto max-h-96">
+          {JSON.stringify(data, null, 2)}
+        </pre>
+      );
+    }
+
+    return <Formatter data={data} />;
+  };
+
   const ComponentCard = ({ title, component, data, confidence }: any) => {
     const isEditing = editingComponent === component;
     const isModified = program.editTracking?.[component]?.modified;
@@ -199,9 +249,7 @@ export default function EPMProgramView() {
               data-testid={`textarea-edit-${component}`}
             />
           ) : (
-            <pre className="text-sm bg-muted p-4 rounded overflow-auto max-h-96">
-              {JSON.stringify(data, null, 2)}
-            </pre>
+            renderComponent(component, data)
           )}
         </CardContent>
       </Card>
