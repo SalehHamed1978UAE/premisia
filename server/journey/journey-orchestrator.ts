@@ -340,42 +340,6 @@ export class JourneyOrchestrator {
     return bmcResults;
   }
 
-  /**
-   * Save framework insight to framework_insights table
-   * This makes the result visible in the Analysis Repository
-   */
-  private async saveFrameworkInsight(
-    understandingId: string,
-    result: FrameworkResult
-  ): Promise<void> {
-    await db
-      .insert(frameworkInsights)
-      .values({
-        understandingId,
-        frameworkName: result.frameworkName,
-        frameworkVersion: '1.0',
-        insights: result.data as any,
-        telemetry: {
-          duration: result.duration,
-          executedAt: result.executedAt,
-        } as any,
-      });
-  }
-
-  /**
-   * Save journey progress to database
-   */
-  private async saveProgress(journeySessionId: string, context: StrategicContext): Promise<void> {
-    await db
-      .update(journeySessions)
-      .set({
-        currentFrameworkIndex: context.currentFrameworkIndex,
-        completedFrameworks: context.completedFrameworks as any,
-        accumulatedContext: context as any,
-        updatedAt: new Date(),
-      })
-      .where(eq(journeySessions.id, journeySessionId));
-  }
 
   /**
    * Update journey session status
@@ -384,14 +348,16 @@ export class JourneyOrchestrator {
     journeySessionId: string,
     status: 'initializing' | 'in_progress' | 'paused' | 'completed' | 'failed'
   ): Promise<void> {
-    await db
-      .update(journeySessions)
-      .set({
-        status,
-        updatedAt: new Date(),
-        ...(status === 'completed' ? { completedAt: new Date() } : {}),
-      })
-      .where(eq(journeySessions.id, journeySessionId));
+    await dbConnectionManager.retryWithBackoff(async (db) => {
+      await db
+        .update(journeySessions)
+        .set({
+          status,
+          updatedAt: new Date(),
+          ...(status === 'completed' ? { completedAt: new Date() } : {}),
+        })
+        .where(eq(journeySessions.id, journeySessionId));
+    });
   }
 
   /**
