@@ -29,22 +29,6 @@ import {
   ExitStrategyFormatter,
 } from "@/components/epm/EPMFormatters";
 import GanttChartView from "@/components/epm/GanttChartView";
-import type {
-  ExecutiveSummary,
-  Workstream,
-  Timeline,
-  ResourcePlan,
-  FinancialPlan,
-  BenefitsRealization,
-  RiskRegister,
-  StageGates,
-  KPIs,
-  StakeholderMap,
-  Governance,
-  QAPlan,
-  Procurement,
-  ExitStrategy,
-} from "@/types/intelligence";
 
 interface EPMProgram {
   id: string;
@@ -52,20 +36,20 @@ interface EPMProgram {
   status: string;
   overallConfidence: string;
   componentConfidence: Record<string, number>;
-  executiveSummary: ExecutiveSummary;
-  workstreams: Workstream[];
-  timeline: Timeline;
-  resourcePlan: ResourcePlan;
-  financialPlan: FinancialPlan;
-  benefitsRealization: BenefitsRealization;
-  riskRegister: RiskRegister;
-  stageGates: StageGates;
-  kpis: KPIs;
-  stakeholderMap: StakeholderMap;
-  governance: Governance;
-  qaPlan: QAPlan;
-  procurement: Procurement;
-  exitStrategy: ExitStrategy;
+  executiveSummary: any;
+  workstreams: any;
+  timeline: any;
+  resourcePlan: any;
+  financialPlan: any;
+  benefitsRealization: any;
+  riskRegister: any;
+  stageGates: any;
+  kpis: any;
+  stakeholderMap: any;
+  governance: any;
+  qaPlan: any;
+  procurement: any;
+  exitStrategy: any;
   editTracking: Record<string, any>;
   createdAt: string;
   updatedAt: string;
