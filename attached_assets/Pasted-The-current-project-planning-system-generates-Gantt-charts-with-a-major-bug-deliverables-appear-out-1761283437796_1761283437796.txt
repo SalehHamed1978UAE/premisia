@@ -1,0 +1,60 @@
+The current project planning system generates Gantt charts with a major bug: deliverables appear outside their workstream date ranges (e.g., a deliverable in month 5 when the workstream ends in month 3). This happens because the current system doesn't understand project management logic - it just generates random dates.
+The Solution: Intelligent Planning Module
+We're building a completely isolated planning module that uses AI (GPT-4) to:
+
+Understand project dependencies and logic
+Schedule tasks using Critical Path Method (CPM)
+Validate that the timeline makes sense
+Fix issues like deliverables floating outside workstreams
+Push back when timelines are impossible
+
+Why Isolated Architecture?
+
+Zero risk: Doesn't touch existing code
+Easy rollback: One feature flag to switch on/off
+Clean removal: Delete one folder to remove entirely
+Parallel testing: Can run both systems side-by-side
+
+How It Works
+Current System:                    New Intelligent System:
+Generate EPM → Bad Timeline        Generate EPM → AI Extracts Tasks → 
+→ Broken Gantt Chart              CPM Scheduling → Validation → 
+                                  Optimization → Valid Gantt Chart
+```
+
+### **The Module Structure**
+```
+src/lib/intelligent-planning/   ← Completely isolated folder
+  ├── index.ts                  ← Entry point
+  ├── task-extractor.ts         ← AI extracts tasks from strategy
+  ├── scheduler.ts              ← CPM algorithm schedules tasks
+  ├── validator.ts              ← AI validates logic
+  ├── optimizer.ts              ← AI optimizes schedule
+  └── epm-integration.ts        ← Converts to/from EPM format
+Integration Strategy
+
+Phase 1: Build isolated module (what we're doing now)
+Phase 2: Test with feature flag OFF
+Phase 3: Turn flag ON for testing
+Phase 4: If it works, keep it; if not, turn OFF instantly
+Phase 5: After stable, remove old system
+
+Key Benefits
+
+Fixes the deliverable bug: Ensures all deliverables are within workstream bounds
+Intelligent scheduling: Uses AI to understand dependencies
+Validates logic: Checks if the plan actually makes sense
+Provides explanations: Can explain WHY the schedule is structured this way
+
+What Replit Needs to Do
+Take the uploaded files and organize them into an isolated module that can be turned on/off with one environment variable. No changes to existing code except one if-statement.
+Success Criteria
+When this is working:
+
+Brooklyn coffee shop test will have valid timelines
+No deliverables outside workstream dates
+Timeline will make logical sense
+Can explain its reasoning
+Can instantly rollback if issues
+
+This is a surgical addition - like adding a smart brain to the planning system without doing surgery on the existing code.
