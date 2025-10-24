@@ -29,6 +29,7 @@ import type {
   Procurement,
   ExitStrategy,
 } from './types';
+import { replaceTimelineGeneration } from '../lib/intelligent-planning/epm-integration';
 
 export class EPMSynthesizer {
   /**
@@ -148,6 +149,39 @@ export class EPMSynthesizer {
       procurement,
       exitStrategy,
     };
+
+    // ===== INTELLIGENT PLANNING SYSTEM INTEGRATION =====
+    // Feature flag: Use AI-powered planning system to replace timeline generation
+    if (process.env.INTELLIGENT_PLANNING_ENABLED === 'true') {
+      console.log('[EPM Synthesis] 🚀 Using intelligent planning system for timeline generation...');
+      
+      try {
+        const planningResult = await replaceTimelineGeneration(
+          program,
+          { insights, userContext },
+          { 
+            maxDuration: timeline.totalMonths,
+            budget: financialPlan.totalInvestment
+          }
+        );
+        
+        if (planningResult.success) {
+          console.log(`[EPM Synthesis] ✅ Intelligent planning succeeded with ${planningResult.confidence}% confidence`);
+          if (planningResult.warnings && planningResult.warnings.length > 0) {
+            console.log('[EPM Synthesis] ⚠️  Planning warnings:', planningResult.warnings);
+          }
+          return planningResult.program;
+        } else {
+          console.warn('[EPM Synthesis] ⚠️  Intelligent planning returned adjustments:', planningResult.adjustments);
+          console.warn('[EPM Synthesis] Falling back to standard timeline generation');
+          // Fall through to return standard program
+        }
+      } catch (error) {
+        console.error('[EPM Synthesis] ❌ Intelligent planning failed:', error);
+        console.error('[EPM Synthesis] Falling back to standard timeline generation');
+        // Fall through to return standard program
+      }
+    }
 
     return program;
   }
