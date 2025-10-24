@@ -618,11 +618,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getDashboardSummary(userId: string) {
-    // Get counts
+    // Get counts (filter out archived items)
     const [analysesCount] = await db
       .select({ count: count() })
       .from(strategyVersions)
-      .where(eq(strategyVersions.userId, userId));
+      .where(and(
+        eq(strategyVersions.userId, userId),
+        eq(strategyVersions.archived, false)
+      ));
 
     const [strategiesCount] = await db
       .select({ count: count() })
@@ -632,9 +635,12 @@ export class DatabaseStorage implements IStorage {
     const [programsCount] = await db
       .select({ count: count() })
       .from(epmPrograms)
-      .where(eq(epmPrograms.userId, userId));
+      .where(and(
+        eq(epmPrograms.userId, userId),
+        eq(epmPrograms.archived, false)
+      ));
 
-    // Get recent artifacts
+    // Get recent artifacts (filter out archived items)
     const recentVersions = await db
       .select({
         id: strategyVersions.id,
@@ -642,7 +648,10 @@ export class DatabaseStorage implements IStorage {
         createdAt: strategyVersions.createdAt,
       })
       .from(strategyVersions)
-      .where(eq(strategyVersions.userId, userId))
+      .where(and(
+        eq(strategyVersions.userId, userId),
+        eq(strategyVersions.archived, false)
+      ))
       .orderBy(desc(strategyVersions.createdAt))
       .limit(5);
 
@@ -654,7 +663,10 @@ export class DatabaseStorage implements IStorage {
         createdAt: epmPrograms.createdAt,
       })
       .from(epmPrograms)
-      .where(eq(epmPrograms.userId, userId))
+      .where(and(
+        eq(epmPrograms.userId, userId),
+        eq(epmPrograms.archived, false)
+      ))
       .orderBy(desc(epmPrograms.createdAt))
       .limit(5);
 
