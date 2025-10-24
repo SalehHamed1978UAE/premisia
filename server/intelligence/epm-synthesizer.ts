@@ -237,9 +237,6 @@ export class EPMSynthesizer {
       workstreams.push(...this.generateDefaultWorkstreams(3 - workstreams.length));
     }
 
-    // Validate and correct deliverable timelines
-    this.validateDeliverableTimelines(workstreams);
-
     return workstreams;
   }
 
