@@ -102,26 +102,50 @@ export async function setupAuth(app: Express) {
   passport.serializeUser((user: Express.User, cb) => cb(null, user));
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
+  // Safe strategy name lookup with normalization and fallback
   const getStrategyName = (hostname: string) => {
-    const domains = process.env.REPLIT_DOMAINS!.split(",");
-    // Check if hostname matches any registered domain
-    const matchedDomain = domains.find(d => d === hostname);
-    // Use matched domain or fallback to first domain
-    return `replitauth:${matchedDomain || domains[0]}`;
+    const domains = process.env.REPLIT_DOMAINS!.split(",").map(d => d.trim());
+    const normalizedHost = hostname.trim().toLowerCase();
+    
+    // Try exact match first
+    const matchedDomain = domains.find(d => d.trim().toLowerCase() === normalizedHost);
+    
+    if (matchedDomain) {
+      return `replitauth:${matchedDomain.trim()}`;
+    }
+    
+    // Log unmatched hostname for debugging
+    console.warn(`[Auth] Hostname "${hostname}" not found in REPLIT_DOMAINS: [${domains.join(", ")}]`);
+    console.warn(`[Auth] Falling back to first domain: ${domains[0]}`);
+    
+    // Fallback to first domain (typically the primary .replit.app domain)
+    return `replitauth:${domains[0].trim()}`;
   };
 
   app.get("/api/login", (req, res, next) => {
-    passport.authenticate(getStrategyName(req.hostname), {
-      prompt: "login consent",
-      scope: ["openid", "email", "profile", "offline_access"],
-    })(req, res, next);
+    try {
+      const strategyName = getStrategyName(req.hostname);
+      passport.authenticate(strategyName, {
+        prompt: "login consent",
+        scope: ["openid", "email", "profile", "offline_access"],
+      })(req, res, next);
+    } catch (error) {
+      console.error('[Auth] Login error:', error);
+      res.status(500).json({ message: "Authentication configuration error" });
+    }
   });
 
   app.get("/api/callback", (req, res, next) => {
-    passport.authenticate(getStrategyName(req.hostname), {
-      successReturnToOrRedirect: "/",
-      failureRedirect: "/api/login",
-    })(req, res, next);
+    try {
+      const strategyName = getStrategyName(req.hostname);
+      passport.authenticate(strategyName, {
+        successReturnToOrRedirect: "/",
+        failureRedirect: "/api/login",
+      })(req, res, next);
+    } catch (error) {
+      console.error('[Auth] Callback error:', error);
+      res.redirect("/api/login");
+    }
   });
 
   app.get("/api/logout", (req, res) => {
