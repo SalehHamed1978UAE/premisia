@@ -3,7 +3,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "./hooks/use-auth";
+import { AuthProvider, useAuth } from "./hooks/use-auth";
 import { ProgramProvider } from "./contexts/ProgramContext";
 import { SessionContextPanel } from "@/components/SessionContext";
 import HomePage from "@/pages/home-page";
@@ -31,8 +31,12 @@ import PrioritizationPage from "@/pages/strategy-workspace/PrioritizationPage";
 import EPMProgramView from "@/pages/strategy-workspace/EPMProgramView";
 import { ProgramsListPage } from "@/pages/strategy-workspace/ProgramsListPage";
 import { ProtectedRoute } from "./lib/protected-route";
+import { Loader2 } from "lucide-react";
+
 
 function Router() {
+  const { user } = useAuth();
+  
   return (
     <>
       <Switch>
@@ -62,8 +66,28 @@ function Router() {
         <Route path="/auth" component={AuthPage} />
         <Route component={NotFound} />
       </Switch>
-      <SessionContextPanel />
+      {user && <SessionContextPanel />}
     </>
+  );
+}
+
+function AppContent() {
+  const { user } = useAuth();
+  
+  // Only wrap with ProgramProvider when user is authenticated
+  // This prevents unnecessary API calls on the public landing page
+  return user ? (
+    <ProgramProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Router />
+      </TooltipProvider>
+    </ProgramProvider>
+  ) : (
+    <TooltipProvider>
+      <Toaster />
+      <Router />
+    </TooltipProvider>
   );
 }
 
@@ -71,12 +95,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <ProgramProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Router />
-          </TooltipProvider>
-        </ProgramProvider>
+        <AppContent />
       </AuthProvider>
     </QueryClientProvider>
   );
