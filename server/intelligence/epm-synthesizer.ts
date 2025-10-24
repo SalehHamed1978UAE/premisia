@@ -29,7 +29,7 @@ import type {
   Procurement,
   ExitStrategy,
 } from './types';
-import { replaceTimelineGeneration } from '../lib/intelligent-planning/epm-integration';
+import { replaceTimelineGeneration } from '../../src/lib/intelligent-planning/epm-integration';
 
 export class EPMSynthesizer {
   /**
