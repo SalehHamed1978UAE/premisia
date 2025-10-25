@@ -5,17 +5,21 @@
  * ULTRA-FIXED version with proper Y-positioning
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { 
   AlertTriangle, 
   CheckCircle2, 
   Clock, 
   Users,
   TrendingUp,
-  Flag
+  Flag,
+  ZoomIn,
+  ZoomOut,
+  Maximize2
 } from 'lucide-react';
 import {
   GanttTask,
@@ -56,6 +60,47 @@ export default function GanttChart({
   const [showDependencies, setShowDependencies] = useState(true);
   const [showPhases, setShowPhases] = useState(true);
   const [showGates, setShowGates] = useState(true);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [panX, setPanX] = useState(0);
+  const [panY, setPanY] = useState(0);
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  // Zoom handlers
+  const handleZoomIn = () => {
+    setZoomLevel(prev => Math.min(prev + 0.25, 3)); // Max 3x zoom
+  };
+
+  const handleZoomOut = () => {
+    setZoomLevel(prev => Math.max(prev - 0.25, 0.5)); // Min 0.5x zoom
+  };
+
+  const handleResetZoom = () => {
+    setZoomLevel(1);
+    setPanX(0);
+    setPanY(0);
+  };
+
+  // Pan handlers
+  const handleMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
+    setIsPanning(true);
+    setPanStart({ x: e.clientX - panX, y: e.clientY - panY });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!isPanning) return;
+    setPanX(e.clientX - panStart.x);
+    setPanY(e.clientY - panStart.y);
+  };
+
+  const handleMouseUp = () => {
+    setIsPanning(false);
+  };
+
+  const handleMouseLeave = () => {
+    setIsPanning(false);
+  };
 
   // Calculate chart dimensions and positions
   const dimensions = useMemo(() => 
@@ -471,6 +516,40 @@ export default function GanttChart({
     <div className="space-y-4">
       {/* Controls */}
       <div className="flex items-center gap-4 flex-wrap">
+        {/* Zoom Controls */}
+        <div className="flex items-center gap-2 border-r pr-4">
+          <Button 
+            size="sm" 
+            variant="outline" 
+            onClick={handleZoomOut}
+            data-testid="button-zoom-out"
+            title="Zoom Out"
+          >
+            <ZoomOut className="h-4 w-4" />
+          </Button>
+          <span className="text-sm font-medium min-w-[60px] text-center">
+            {Math.round(zoomLevel * 100)}%
+          </span>
+          <Button 
+            size="sm" 
+            variant="outline" 
+            onClick={handleZoomIn}
+            data-testid="button-zoom-in"
+            title="Zoom In"
+          >
+            <ZoomIn className="h-4 w-4" />
+          </Button>
+          <Button 
+            size="sm" 
+            variant="outline" 
+            onClick={handleResetZoom}
+            data-testid="button-reset-zoom"
+            title="Reset Zoom & Pan"
+          >
+            <Maximize2 className="h-4 w-4" />
+          </Button>
+        </div>
+
         <div className="flex items-center gap-2">
           <input
             type="checkbox"
@@ -555,11 +634,17 @@ export default function GanttChart({
       {/* Gantt Chart SVG */}
       <Card>
         <CardContent className="p-4">
-          <div className="overflow-x-auto">
+          <div className="overflow-hidden border rounded">
             <svg
+              ref={svgRef}
               width={dimensions.width}
               height={dimensions.height}
-              className="border rounded"
+              className={isPanning ? 'cursor-grabbing' : 'cursor-grab'}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseLeave}
+              data-testid="gantt-chart-svg"
             >
               {/* Background */}
               <rect
@@ -570,8 +655,10 @@ export default function GanttChart({
                 fill="white"
               />
 
-              {/* Timeline phases */}
-              {renderPhases()}
+              {/* Zoomable/pannable group */}
+              <g transform={`translate(${panX}, ${panY}) scale(${zoomLevel})`}>
+                {/* Timeline phases */}
+                {renderPhases()}
 
               {/* Task label background rows */}
               {renderTaskLabelRows()}
@@ -602,6 +689,7 @@ export default function GanttChart({
                   Total Tasks: {tasks.length}
                 </text>
               </g>
+              </g> {/* Close zoomable/pannable group */}
             </svg>
           </div>
         </CardContent>

@@ -300,7 +300,7 @@ function transformScheduleForEPM(schedule: any): any {
         endDate: task.endDate,
         startMonth,
         endMonth,
-        confidence: task.isCritical ? 70 : 85,
+        confidence: task.isCritical ? 0.70 : 0.85, // FIXED: Use decimals (0-1) not percentages
         dependencies: task.dependencies,
         deliverables: task.deliverables || [],
         owner: task.assignedResources?.[0] || 'Unassigned',
