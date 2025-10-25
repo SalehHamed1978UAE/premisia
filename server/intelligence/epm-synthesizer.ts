@@ -42,14 +42,44 @@ import { createWBSBuilder } from '../../src/lib/intelligent-planning/wbs-builder
 export class ContextBuilder {
   /**
    * Build planning context from journey insights
+   * Now ASYNC to fetch initiative type from database
    */
-  static fromJourneyInsights(
+  static async fromJourneyInsights(
     insights: StrategyInsights,
-    journeyType: string = 'strategy_workspace'
-  ): PlanningContext {
+    journeyType: string = 'strategy_workspace',
+    sessionId?: string
+  ): Promise<PlanningContext> {
     const scale = this.inferScale(insights);
     const timelineRange = this.inferTimelineRange(scale, insights);
     const budgetRange = this.inferBudgetRange(scale, insights);
+    
+    // Fetch initiative type from database if sessionId is provided
+    let initiativeType: string | undefined = undefined;
+    if (sessionId) {
+      try {
+        const { db } = await import('../db');
+        const { strategicUnderstanding } = await import('@shared/schema');
+        const { eq } = await import('drizzle-orm');
+        
+        const understanding = await db
+          .select({ initiativeType: strategicUnderstanding.initiativeType })
+          .from(strategicUnderstanding)
+          .where(eq(strategicUnderstanding.sessionId, sessionId))
+          .limit(1);
+        
+        if (understanding.length > 0 && understanding[0].initiativeType) {
+          initiativeType = understanding[0].initiativeType;
+          console.log(`[ContextBuilder] 🎯 Retrieved initiative type from DB: ${initiativeType}`);
+        } else {
+          console.log('[ContextBuilder] ⚠️ No initiative type found in DB for session:', sessionId);
+        }
+      } catch (error) {
+        console.error('[ContextBuilder] Error fetching initiative type:', error);
+        // Continue without initiative type if fetch fails
+      }
+    } else {
+      console.log('[ContextBuilder] ⚠️ No sessionId provided, cannot fetch initiative type');
+    }
     
     return {
       business: {
@@ -57,7 +87,8 @@ export class ContextBuilder {
         type: this.inferBusinessType(insights),
         industry: insights.marketContext?.industry || 'general',
         description: '',  // No context/description on StrategyInsights
-        scale
+        scale,
+        initiativeType  // Add initiative type to context
       },
       strategic: {
         insights: insights,
@@ -445,9 +476,10 @@ export class EPMSynthesizer {
       console.log('[EPM Synthesis] 🚀 CALLING INTELLIGENT PLANNING FOR CPM TIMELINE');
       console.log('='.repeat(80));
       
-      const planningContext = ContextBuilder.fromJourneyInsights(
+      const planningContext = await ContextBuilder.fromJourneyInsights(
         insights,
-        insights.frameworkType || 'strategy_workspace'
+        insights.frameworkType || 'strategy_workspace',
+        userContext?.sessionId  // Pass sessionId if available from userContext
       );
       
       console.log('[EPM Synthesis] 📋 PLANNING CONTEXT BEING PASSED:');
@@ -583,9 +615,10 @@ export class EPMSynthesizer {
     try {
       // Build planning context for WBS analysis
       console.log('[EPM Synthesis] Step 1: Building planning context from insights...');
-      const planningContext = ContextBuilder.fromJourneyInsights(
+      const planningContext = await ContextBuilder.fromJourneyInsights(
         insights,
-        insights.frameworkType || 'strategy_workspace'
+        insights.frameworkType || 'strategy_workspace',
+        userContext?.sessionId  // Pass sessionId if available from userContext
       );
       
       console.log('[EPM Synthesis] ✓ Planning Context Created:');

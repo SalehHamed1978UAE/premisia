@@ -19,9 +19,13 @@ export class LLMTaskExtractor implements ITaskExtractor {
     const context = strategy.context;
     const businessType = context?.business?.type || 'general_business';
     const businessScale = context?.business?.scale || 'mid_market';
+    const initiativeType = context?.business?.initiativeType;
     const timelineMin = context?.execution?.timeline?.min || 12;
     const timelineMax = context?.execution?.timeline?.max || 24;
     const businessName = context?.business?.name || 'the business';
+    
+    // Build initiative-specific guidance
+    const initiativeGuidance = this.getInitiativeGuidance(initiativeType);
     
     const prompt = `
     Analyze this business strategy and decompose it into executable project tasks.
@@ -30,6 +34,7 @@ export class LLMTaskExtractor implements ITaskExtractor {
     Business: ${businessName}
     Type: ${businessType}
     Scale: ${businessScale}
+    ${initiativeType ? `Initiative Type: ${initiativeType}` : ''}
     Expected Timeline: ${timelineMin}-${timelineMax} months
     
     IMPORTANT: This is a ${businessScale} business. Generate task durations appropriate for this scale:
@@ -38,6 +43,8 @@ export class LLMTaskExtractor implements ITaskExtractor {
     - Enterprise: Tasks in weeks/months, total project ${timelineMin}-${timelineMax} months
     
     The TOTAL timeline across all tasks should fit within ${timelineMin}-${timelineMax} months.
+    
+    ${initiativeGuidance}
     ===================================
     
     Strategy Context:
@@ -165,6 +172,101 @@ export class LLMTaskExtractor implements ITaskExtractor {
     return response.tasks;
   }
   
+  /**
+   * Get initiative-specific guidance for task generation
+   * Ensures AI generates contextually appropriate tasks
+   */
+  private getInitiativeGuidance(initiativeType?: string): string {
+    if (!initiativeType) return '';
+    
+    const guidanceMap: Record<string, string> = {
+      physical_business_launch: `
+    ⚠️ PHYSICAL BUSINESS CONTEXT:
+    This is launching a physical location (store, restaurant, office, etc.).
+    Focus tasks on:
+    - Real estate: Site selection, lease negotiation, buildout/renovation
+    - Licenses/permits: Health permits, business licenses, inspections
+    - Physical setup: Furniture, equipment, signage, utilities
+    - Staffing: Hiring, training, scheduling (baristas, servers, sales staff - NOT software engineers)
+    - Inventory: Supplier contracts, initial stock, POS systems
+    - Grand opening: Marketing, soft launch, opening event
+    Typical duration: 4-12 months for SMB, longer for chains`,
+      
+      software_development: `
+    ⚠️ SOFTWARE DEVELOPMENT CONTEXT:
+    This is building a software product/platform/app.
+    Focus tasks on:
+    - Technical setup: Dev environment, CI/CD, infrastructure, repositories
+    - Design: UI/UX, system architecture, database design, API design
+    - Development: Sprint planning, feature implementation, code reviews
+    - Staffing: Developers, QA engineers, DevOps, product managers (NOT baristas or retail staff)
+    - Testing: Unit tests, integration tests, UAT, performance testing
+    - Deployment: Beta launch, production deployment, monitoring
+    Typical duration: 3-12 months for MVP, longer for enterprise systems`,
+      
+      digital_transformation: `
+    ⚠️ DIGITAL TRANSFORMATION CONTEXT:
+    This is modernizing an existing business with digital capabilities.
+    Focus tasks on:
+    - Assessment: Current state analysis, gap identification, requirements
+    - Platform selection: Evaluate solutions (e.g., e-commerce, CRM, ERP)
+    - Integration: Connect new systems with existing processes/data
+    - Change management: Staff training, process redesign, adoption campaigns
+    - Staffing: Mix of domain experts and technical implementers
+    - Rollout: Phased deployment, parallel operations, cutover
+    Typical duration: 6-18 months depending on scope`,
+      
+      market_expansion: `
+    ⚠️ MARKET EXPANSION CONTEXT:
+    This is entering new markets/regions with existing offerings.
+    Focus tasks on:
+    - Market research: Customer analysis, competitive landscape, regulations
+    - Localization: Product/service adaptation, pricing, messaging
+    - Market entry: Distribution channels, partnerships, local presence
+    - Compliance: Legal entity, tax registration, regulatory approvals
+    - Staffing: Local teams, regional managers, support staff
+    - Launch: Go-to-market strategy, marketing campaigns, customer acquisition
+    Typical duration: 6-12 months per new market`,
+      
+      product_launch: `
+    ⚠️ PRODUCT LAUNCH CONTEXT:
+    This is introducing a new product to existing/new markets.
+    Focus tasks on:
+    - Product development: Design, prototyping, testing, refinement
+    - Production: Manufacturing setup, supply chain, quality control
+    - Marketing: Positioning, campaigns, sales materials, PR
+    - Sales enablement: Training, pricing, distribution channels
+    - Launch execution: Soft launch, phased rollout, full launch
+    Typical duration: 3-9 months from concept to launch`,
+      
+      service_launch: `
+    ⚠️ SERVICE LAUNCH CONTEXT:
+    This is introducing new service offerings.
+    Focus tasks on:
+    - Service design: Process definition, delivery model, quality standards
+    - Capability building: Training, certifications, tools/systems
+    - Operations: Scheduling, resource allocation, quality monitoring
+    - Staffing: Service delivery team, support roles
+    - Marketing: Service packaging, pricing, sales collateral
+    Typical duration: 2-6 months depending on complexity`,
+      
+      process_improvement: `
+    ⚠️ PROCESS IMPROVEMENT CONTEXT:
+    This is optimizing existing operations/workflows.
+    Focus tasks on:
+    - Analysis: Current state mapping, bottleneck identification, metrics
+    - Design: Future state design, efficiency gains, change impact
+    - Implementation: Process redesign, system changes, automation
+    - Change management: Training, communication, adoption tracking
+    - Validation: Metrics monitoring, continuous improvement
+    Typical duration: 2-6 months for focused improvements`,
+      
+      other: ``
+    };
+    
+    return guidanceMap[initiativeType] || '';
+  }
+
   /**
    * Infer logical dependencies between tasks using reasoning
    */
