@@ -384,9 +384,25 @@ router.post('/batch-delete', async (req, res) => {
       return res.status(400).json({ error: 'Invalid request: ids array is required' });
     }
 
+    // Get sessionIds for these understandings before deletion
+    const understandings = await db
+      .select({ sessionId: strategicUnderstanding.sessionId })
+      .from(strategicUnderstanding)
+      .where(inArray(strategicUnderstanding.id, ids));
+    
+    const sessionIds = understandings
+      .map(u => u.sessionId)
+      .filter((id): id is string => id !== null);
+
     // Delete all related data for each understanding
     await db.delete(frameworkInsights).where(inArray(frameworkInsights.understandingId, ids));
     await db.delete(strategicEntities).where(inArray(strategicEntities.understandingId, ids));
+    
+    // CASCADE DELETE: Delete all related strategyVersions
+    if (sessionIds.length > 0) {
+      await db.delete(strategyVersions).where(inArray(strategyVersions.sessionId, sessionIds));
+    }
+    
     await db.delete(strategicUnderstanding).where(inArray(strategicUnderstanding.id, ids));
 
     res.json({ success: true, count: ids.length });
@@ -404,10 +420,29 @@ router.post('/batch-archive', async (req, res) => {
       return res.status(400).json({ error: 'Invalid request: ids array is required' });
     }
 
+    // Get the sessionIds for these understandings
+    const understandings = await db
+      .select({ sessionId: strategicUnderstanding.sessionId })
+      .from(strategicUnderstanding)
+      .where(inArray(strategicUnderstanding.id, ids));
+    
+    const sessionIds = understandings
+      .map(u => u.sessionId)
+      .filter((id): id is string => id !== null);
+
+    // Archive the strategic understanding records
     await db
       .update(strategicUnderstanding)
       .set({ archived: archive, updatedAt: new Date() })
       .where(inArray(strategicUnderstanding.id, ids));
+
+    // CASCADE: Archive all related strategyVersions
+    if (sessionIds.length > 0) {
+      await db
+        .update(strategyVersions)
+        .set({ archived: archive, updatedAt: new Date() })
+        .where(inArray(strategyVersions.sessionId, sessionIds));
+    }
 
     res.json({ success: true, count: ids.length, archived: archive });
   } catch (error) {
