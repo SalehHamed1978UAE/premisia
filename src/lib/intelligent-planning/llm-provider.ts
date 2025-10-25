@@ -25,7 +25,7 @@ export class OpenAIProvider implements LLMProvider {
       const response = await this.client.chat.completions.create({
         model: this.model,
         messages: [{ role: 'user', content: prompt }],
-        temperature: 0.3,
+        // GPT-5 only supports default temperature (1.0), custom values not allowed
         max_completion_tokens: 4000  // GPT-5 requires max_completion_tokens instead of max_tokens
       });
       
@@ -62,7 +62,7 @@ export class OpenAIProvider implements LLMProvider {
             content: `${config.prompt}\n\nReturn as JSON matching this schema:\n${JSON.stringify(config.schema, null, 2)}`
           }
         ],
-        temperature: 0.2,
+        // GPT-5 only supports default temperature (1.0), custom values not allowed
         response_format: { type: 'json_object' },
         max_completion_tokens: 4000  // GPT-5 requires max_completion_tokens instead of max_tokens
       });
