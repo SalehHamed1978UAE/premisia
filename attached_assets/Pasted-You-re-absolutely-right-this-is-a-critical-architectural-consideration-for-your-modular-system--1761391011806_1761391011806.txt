@@ -1,0 +1,168 @@
+You're absolutely right - this is a critical architectural consideration for your modular system.
+
+## **Architectural Solution: Context-Driven Planning Architecture**
+
+Tell Replit:
+
+---
+
+### **The Architecture Pattern We Need: Context Propagation**
+
+In a modular system, every module needs context to make intelligent decisions. This isn't just for intelligent planning - it's for ALL future modules.
+
+### **Proposed Architecture:**
+
+**1. Define a Standard Context Interface**
+```typescript
+// src/lib/core/interfaces/planning-context.ts
+export interface PlanningContext {
+  // Business Context
+  business: {
+    name: string;
+    type: string;        // "coffee_shop" | "saas_platform" | "enterprise"
+    industry: string;
+    description: string;
+    scale: "smb" | "mid_market" | "enterprise";
+  };
+  
+  // Strategic Context (from journeys)
+  strategic: {
+    insights: any;       // From BMI/Porter's/etc
+    constraints: any;
+    objectives: any;
+  };
+  
+  // Execution Context
+  execution: {
+    timeline?: { min: number; max: number; };
+    budget?: { min: number; max: number; };
+    resources?: any[];
+  };
+  
+  // Metadata
+  meta: {
+    journeyType: string;  // "bmi" | "porter" | etc
+    confidence: number;
+    version: string;
+  };
+}
+```
+
+**2. Make Every Module Context-Aware**
+```typescript
+// Standard interface for ALL planning modules
+export interface IPlanningModule {
+  process(input: any, context: PlanningContext): Promise<any>;
+}
+```
+
+**3. Context Builder Pattern**
+```typescript
+// src/lib/core/context-builder.ts
+export class ContextBuilder {
+  static fromJourneyInsights(insights: any, journeyType: string): PlanningContext {
+    return {
+      business: {
+        name: insights.businessName,
+        type: this.inferBusinessType(insights),
+        industry: insights.industry,
+        description: insights.context,
+        scale: this.inferScale(insights)
+      },
+      strategic: {
+        insights: insights,
+        constraints: insights.constraints || [],
+        objectives: insights.objectives || []
+      },
+      execution: {
+        timeline: this.inferTimelineRange(insights),
+        budget: insights.budget,
+        resources: insights.resources
+      },
+      meta: {
+        journeyType,
+        confidence: insights.confidence || 0.75,
+        version: "1.0"
+      }
+    };
+  }
+  
+  private static inferScale(insights: any): "smb" | "mid_market" | "enterprise" {
+    // Intelligent inference based on context
+    const indicators = insights.context.toLowerCase();
+    if (indicators.includes("local") || indicators.includes("shop")) return "smb";
+    if (indicators.includes("platform") || indicators.includes("global")) return "enterprise";
+    return "mid_market";
+  }
+  
+  private static inferTimelineRange(insights: any) {
+    const scale = this.inferScale(insights);
+    switch(scale) {
+      case "smb": return { min: 6, max: 12 };
+      case "mid_market": return { min: 12, max: 24 };
+      case "enterprise": return { min: 24, max: 48 };
+    }
+  }
+}
+```
+
+**4. Update the Flow**
+```typescript
+// In epm-synthesizer.ts
+async synthesize(insights, userContext, namingContext, options) {
+  // Build context ONCE at the entry point
+  const planningContext = ContextBuilder.fromJourneyInsights(
+    insights, 
+    options.journeyType || "strategy_workspace"
+  );
+  
+  if (intelligentPlanningEnabled) {
+    return await this.buildWithIntelligentPlanning(insights, planningContext);
+  } else {
+    return await this.buildWithOldSystem(insights, planningContext);
+  }
+}
+
+// In intelligent planning
+async buildWithIntelligentPlanning(insights, context: PlanningContext) {
+  // Context flows through ALL modules
+  const workstreams = await this.generateWorkstreams(insights, context);
+  const timeline = await intelligentPlanning.process(workstreams, context);
+  // etc...
+}
+```
+
+**5. Every Module Uses Context**
+```typescript
+// In task-extractor.ts
+async extract(workstreams: any[], context: PlanningContext) {
+  const prompt = `
+    Planning for: ${context.business.type} business
+    Scale: ${context.business.scale}
+    Expected timeline: ${context.execution.timeline.min}-${context.execution.timeline.max} months
+    
+    Extract appropriate tasks for this context...
+  `;
+}
+```
+
+### **Benefits of This Architecture:**
+
+1. **Consistent Context** - Same context flows through all modules
+2. **Extensible** - New modules automatically get context
+3. **Type-Safe** - TypeScript interfaces ensure context structure
+4. **Intelligent Defaults** - Context builder infers sensible defaults
+5. **Future-Proof** - Works for any journey type or business type
+
+### **This Fixes:**
+- Coffee shop gets SMB context → 6-12 month timeline
+- Enterprise platform gets enterprise context → 24-48 month timeline
+- Future journeys automatically work with context
+
+### **Implementation Priority:**
+1. Create the context interfaces
+2. Build the ContextBuilder
+3. Update intelligent planning to use context
+4. Retrofit old system to use context (for consistency)
+
+This is the proper architectural solution for a modular system - context propagation through standardized interfaces.
