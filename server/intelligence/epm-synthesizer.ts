@@ -427,6 +427,24 @@ export class EPMSynthesizer {
     // Generate program name
     const programName = await this.generateProgramName(insights, userContext, namingContext);
     
+    // CRITICAL: Attach initiative type to insights BEFORE generating components
+    // This ensures resource generation gets the correct initiative type
+    if (userContext?.sessionId) {
+      try {
+        const tempContext = await ContextBuilder.fromJourneyInsights(
+          insights,
+          insights.frameworkType || 'strategy_workspace',
+          userContext.sessionId
+        );
+        if (tempContext.business.initiativeType) {
+          (insights as any).initiativeType = tempContext.business.initiativeType;
+          console.log(`[EPM Synthesis] ✅ Initiative type loaded early: ${tempContext.business.initiativeType}`);
+        }
+      } catch (error) {
+        console.log(`[EPM Synthesis] ⚠️ Could not load initiative type early:`, error);
+      }
+    }
+    
     // PHASE 1: Generate timeline-INDEPENDENT components
     const executiveSummary = await this.generateExecutiveSummary(insights, programName);
     const workstreams = await this.generateWorkstreams(insights, userContext);
