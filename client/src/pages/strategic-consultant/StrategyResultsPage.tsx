@@ -120,7 +120,6 @@ export default function StrategyResultsPage() {
       <AppLayout
         title="Strategy Analysis Results"
         subtitle="Loading framework analysis"
-        onViewChange={() => setLocation('/')}
       >
         <div className="flex items-center justify-center py-12">
           <div className="text-center space-y-4">
@@ -137,7 +136,6 @@ export default function StrategyResultsPage() {
       <AppLayout
         title="Strategy Analysis Results"
         subtitle="Error loading results"
-        onViewChange={() => setLocation('/')}
       >
         <div className="max-w-2xl mx-auto py-12">
           <Alert variant="destructive">
@@ -157,7 +155,6 @@ export default function StrategyResultsPage() {
       <AppLayout
         title="Strategy Analysis Results"
         subtitle="No analysis found"
-        onViewChange={() => setLocation('/')}
       >
         <div className="max-w-2xl mx-auto py-12">
           <Alert>
@@ -186,7 +183,6 @@ export default function StrategyResultsPage() {
     <AppLayout
       title="Strategy Analysis Results"
       subtitle={`Version ${versionNumber} • ${frameworks.length} framework${frameworks.length > 1 ? 's' : ''}`}
-      onViewChange={() => setLocation('/')}
     >
       <div className="max-w-6xl mx-auto space-y-8 py-6">
         {/* Header with metadata */}
