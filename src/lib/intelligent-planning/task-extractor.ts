@@ -15,8 +15,30 @@ export class LLMTaskExtractor implements ITaskExtractor {
   async extract(strategy: any): Promise<Task[]> {
     console.log('[Task Extractor] About to call LLM for task extraction...');
     
+    // Extract business context for duration calibration
+    const context = strategy.context;
+    const businessType = context?.business?.type || 'general_business';
+    const businessScale = context?.business?.scale || 'mid_market';
+    const timelineMin = context?.execution?.timeline?.min || 12;
+    const timelineMax = context?.execution?.timeline?.max || 24;
+    const businessName = context?.business?.name || 'the business';
+    
     const prompt = `
     Analyze this business strategy and decompose it into executable project tasks.
+    
+    === CRITICAL BUSINESS CONTEXT ===
+    Business: ${businessName}
+    Type: ${businessType}
+    Scale: ${businessScale}
+    Expected Timeline: ${timelineMin}-${timelineMax} months
+    
+    IMPORTANT: This is a ${businessScale} business. Generate task durations appropriate for this scale:
+    - SMB (small/medium business): Tasks in days/weeks, total project ${timelineMin}-${timelineMax} months
+    - Mid-market: Tasks in weeks, total project ${timelineMin}-${timelineMax} months  
+    - Enterprise: Tasks in weeks/months, total project ${timelineMin}-${timelineMax} months
+    
+    The TOTAL timeline across all tasks should fit within ${timelineMin}-${timelineMax} months.
+    ===================================
     
     Strategy Context:
     ${JSON.stringify(strategy, null, 2)}
