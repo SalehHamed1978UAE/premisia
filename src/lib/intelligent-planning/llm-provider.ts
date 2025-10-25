@@ -26,7 +26,7 @@ export class OpenAIProvider implements LLMProvider {
         model: this.model,
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.3,
-        max_tokens: 4000
+        max_completion_tokens: 4000  // GPT-5 requires max_completion_tokens instead of max_tokens
       });
       
       console.timeEnd('ACTUAL_OPENAI_CALL');
@@ -64,7 +64,7 @@ export class OpenAIProvider implements LLMProvider {
         ],
         temperature: 0.2,
         response_format: { type: 'json_object' },
-        max_tokens: 4000
+        max_completion_tokens: 4000  // GPT-5 requires max_completion_tokens instead of max_tokens
       });
       
       console.timeEnd('ACTUAL_OPENAI_STRUCTURED_CALL');
