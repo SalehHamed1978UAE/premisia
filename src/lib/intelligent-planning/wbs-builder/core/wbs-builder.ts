@@ -30,17 +30,24 @@ export class WBSBuilder implements IWBSBuilder {
     console.log(`[WBS Builder] Scale: ${context.business.scale}`);
     
     try {
-      // Step 0: Extract strategy signals from BMC insights
-      const { StrategySignalExtractor } = await import('../analyzers/strategy-signal-extractor');
-      const { StrategyProfiler } = await import('../analyzers/strategy-profiler');
+      // Step 0: Extract strategy signals from BMC insights (with fallback)
+      let strategyProfile: any = undefined;
       
-      const signals = StrategySignalExtractor.extract(insights);
-      const strategyProfile = StrategyProfiler.buildProfile(signals);
-      
-      console.log('[WBS Builder] Strategy profile extracted:');
-      console.log(`  - Archetype: ${strategyProfile.archetype}`);
-      console.log(`  - Digital intensity: ${strategyProfile.digitalIntensity}%`);
-      console.log(`  - Platform needed: ${strategyProfile.needsPlatform}`);
+      try {
+        const { StrategySignalExtractor } = await import('../analyzers/strategy-signal-extractor');
+        const { StrategyProfiler } = await import('../analyzers/strategy-profiler');
+        
+        const signals = StrategySignalExtractor.extract(insights);
+        strategyProfile = StrategyProfiler.buildProfile(signals);
+        
+        console.log('[WBS Builder] Strategy profile extracted:');
+        console.log(`  - Archetype: ${strategyProfile.archetype}`);
+        console.log(`  - Digital intensity: ${strategyProfile.digitalIntensity}%`);
+        console.log(`  - Platform needed: ${strategyProfile.needsPlatform}`);
+      } catch (error) {
+        console.warn('[WBS Builder] Failed to extract strategy profile, using base patterns:', error);
+        strategyProfile = undefined; // Continue without strategy profile
+      }
       
       // Step 1: Analyze business intent (with strategy awareness)
       const analysisInput: AnalysisInput = { insights, context, strategyProfile };
@@ -49,9 +56,13 @@ export class WBSBuilder implements IWBSBuilder {
       // Step 2: Select work breakdown pattern
       let pattern = await this.patternProvider.process(intent);
       
-      // Step 2.5: Apply strategy-based adjustments to pattern
-      const { AdaptivePatternWeighter } = await import('../providers/adaptive-pattern-weighter');
-      pattern = AdaptivePatternWeighter.adjustPattern(pattern, strategyProfile);
+      // Step 2.5: Apply strategy-based adjustments to pattern (if available)
+      if (strategyProfile) {
+        const { AdaptivePatternWeighter } = await import('../providers/adaptive-pattern-weighter');
+        pattern = AdaptivePatternWeighter.adjustPattern(pattern, strategyProfile);
+      } else {
+        console.log('[WBS Builder] No strategy profile, using base pattern as-is');
+      }
       
       // Step 3: Optimize pattern into concrete workstreams
       const optimizationInput: OptimizationInput = { pattern, context, insights };
