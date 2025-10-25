@@ -38,7 +38,8 @@ export class EPMSynthesizer {
   async synthesize(
     insights: StrategyInsights,
     userContext?: UserContext,
-    namingContext?: any
+    namingContext?: any,
+    options?: { forceIntelligentPlanning?: boolean }
   ): Promise<EPMProgram> {
     
     // Generate intelligent program name from context
@@ -152,7 +153,12 @@ export class EPMSynthesizer {
 
     // ===== INTELLIGENT PLANNING SYSTEM INTEGRATION =====
     // Feature flag: Use AI-powered planning system to replace timeline generation
-    if (process.env.INTELLIGENT_PLANNING_ENABLED === 'true') {
+    // Can be enabled via env var OR via options parameter (for testing)
+    const intelligentPlanningEnabled = 
+      options?.forceIntelligentPlanning === true || 
+      process.env.INTELLIGENT_PLANNING_ENABLED === 'true';
+    
+    if (intelligentPlanningEnabled) {
       console.log('[EPM Synthesis] 🚀 Using intelligent planning system for timeline generation...');
       
       try {

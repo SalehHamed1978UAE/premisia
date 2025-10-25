@@ -39,6 +39,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test endpoint for intelligent planning system
+  // Uses request-scoped override - no global state mutation
+  app.post('/api/test/intelligent-planning', isAuthenticated, async (req: any, res) => {
+    try {
+      console.log('\n========================================');
+      console.log('🧪 TEST MODE: Intelligent Planning ENABLED (request-scoped)');
+      console.log('========================================\n');
+      
+      // Import EPM synthesizer
+      const { EPMSynthesizer } = await import('./intelligence');
+      const epmSynthesizer = new EPMSynthesizer();
+      
+      // Get insights and decisions from request body
+      const { insights, userDecisions, namingContext } = req.body;
+      
+      if (!insights) {
+        return res.status(400).json({ error: 'Missing required field: insights' });
+      }
+      
+      // Generate EPM program with intelligent planning enabled via options
+      // This is request-scoped and doesn't affect other requests
+      const epmProgram = await epmSynthesizer.synthesize(
+        insights, 
+        userDecisions, 
+        namingContext,
+        { forceIntelligentPlanning: true } // Request-scoped override
+      );
+      
+      console.log('\n========================================');
+      console.log('✅ TEST COMPLETE: Intelligent Planning Result');
+      console.log('========================================\n');
+      
+      res.json({
+        success: true,
+        usedIntelligentPlanning: true,
+        program: epmProgram,
+        testMode: true,
+        message: 'This was generated with intelligent planning enabled (request-scoped)'
+      });
+      
+    } catch (error: any) {
+      console.error('❌ TEST FAILED: Intelligent Planning Error:', error);
+      res.status(500).json({ 
+        error: error.message || 'Intelligent planning test failed',
+        stack: error.stack,
+        usedIntelligentPlanning: true,
+        testMode: true
+      });
+    }
+  });
+
   // Middleware to check authentication (using Replit Auth)
   const requireAuth = isAuthenticated;
 
