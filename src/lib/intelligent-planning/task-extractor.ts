@@ -13,6 +13,8 @@ export class LLMTaskExtractor implements ITaskExtractor {
    * Main extraction - converts strategy into executable tasks
    */
   async extract(strategy: any): Promise<Task[]> {
+    console.log('[Task Extractor] About to call LLM for task extraction...');
+    
     const prompt = `
     Analyze this business strategy and decompose it into executable project tasks.
     
@@ -81,6 +83,9 @@ export class LLMTaskExtractor implements ITaskExtractor {
         }
       }
     });
+    
+    console.log('[Task Extractor] LLM responded, parsing tasks...');
+    console.log('[Task Extractor] Extracted', response.tasks?.length || 0, 'tasks');
     
     // Post-process to ensure consistency
     return this.postProcessTasks(response.tasks);

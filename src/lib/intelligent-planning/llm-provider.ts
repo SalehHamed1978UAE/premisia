@@ -16,6 +16,11 @@ export class OpenAIProvider implements LLMProvider {
   }
   
   async generate(prompt: string): Promise<string> {
+    console.log('[LLM Provider] Starting OpenAI call...');
+    console.log('[LLM Provider] Using API key:', process.env.OPENAI_API_KEY ? 'Found ✓' : 'MISSING! ✗');
+    console.log('[LLM Provider] Model:', this.model);
+    
+    console.time('ACTUAL_OPENAI_CALL');
     try {
       const response = await this.client.chat.completions.create({
         model: this.model,
@@ -24,9 +29,13 @@ export class OpenAIProvider implements LLMProvider {
         max_tokens: 4000
       });
       
+      console.timeEnd('ACTUAL_OPENAI_CALL');
+      console.log('[LLM Provider] Success - response received');
+      
       return response.choices[0].message.content || '';
     } catch (error: any) {
-      console.error('OpenAI API error:', error);
+      console.timeEnd('ACTUAL_OPENAI_CALL');
+      console.error('[LLM Provider] OpenAI API error:', error.message);
       throw new Error(`LLM generation failed: ${error.message}`);
     }
   }
@@ -35,6 +44,11 @@ export class OpenAIProvider implements LLMProvider {
     prompt: string;
     schema: any;
   }): Promise<T> {
+    console.log('[LLM Provider] Starting STRUCTURED OpenAI call...');
+    console.log('[LLM Provider] Using API key:', process.env.OPENAI_API_KEY ? 'Found ✓' : 'MISSING! ✗');
+    console.log('[LLM Provider] Model:', this.model);
+    
+    console.time('ACTUAL_OPENAI_STRUCTURED_CALL');
     try {
       const response = await this.client.chat.completions.create({
         model: this.model,
@@ -53,12 +67,16 @@ export class OpenAIProvider implements LLMProvider {
         max_tokens: 4000
       });
       
+      console.timeEnd('ACTUAL_OPENAI_STRUCTURED_CALL');
+      console.log('[LLM Provider] Success - structured response received');
+      
       const content = response.choices[0].message.content;
       if (!content) throw new Error('Empty response from LLM');
       
       return JSON.parse(content) as T;
     } catch (error: any) {
-      console.error('OpenAI structured generation error:', error);
+      console.timeEnd('ACTUAL_OPENAI_STRUCTURED_CALL');
+      console.error('[LLM Provider] OpenAI structured generation error:', error.message);
       throw new Error(`Structured generation failed: ${error.message}`);
     }
   }
