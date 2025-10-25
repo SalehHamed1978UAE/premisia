@@ -98,6 +98,149 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // DEVELOPMENT ONLY: Quick EPM test with pre-prepared data
+  // Bypasses 5+ minute AI analysis for rapid intelligent planning testing
+  app.post('/api/dev/quick-epm-test', async (req: any, res) => {
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(404).json({ error: 'Endpoint not available in production' });
+    }
+
+    try {
+      console.log('\n🚀 DEV MODE: Quick EPM Test Starting...\n');
+      
+      const { EPMSynthesizer, BMCAnalyzer } = await import('./intelligence');
+      const { createOpenAIProvider } = await import('../src/lib/intelligent-planning/llm-provider');
+      
+      // Pre-prepared BMC data for traditional Brooklyn coffee shop
+      const sampleBMC: any = {
+        customerSegments: `Local Brooklyn residents (Williamsburg neighborhood)
+Remote workers seeking workspace
+Morning commuters (6-9am rush)
+Students and freelancers
+Weekend brunch crowd`,
+
+        valuePropositions: `Artisanal single-origin coffee from Brooklyn roasters
+Cozy community gathering space with free WiFi
+Fresh daily-baked pastries and breakfast sandwiches
+Laptop-friendly environment for remote work
+Local art displays and community events`,
+
+        revenueStreams: `Coffee and espresso drinks ($4-7 per drink)
+Food sales (pastries, sandwiches, bagels)
+Merchandise (mugs, bags of beans)
+Catering for local businesses and events
+Private event space rental`,
+
+        channels: `Walk-in storefront (Bedford Ave location)
+Instagram and local social media
+Partnerships with neighborhood gyms and offices
+Word-of-mouth and community events
+Simple online ordering for pickup`,
+
+        customerRelationships: `Personalized barista service and name recognition
+Loyalty punch card program (10th drink free)
+Weekly community events (open mic, art shows)
+Regular customer relationships
+Active neighborhood presence`,
+
+        keyResources: `Prime Brooklyn retail location (1200 sq ft)
+Experienced baristas and staff (8 employees)
+Commercial espresso machines and grinders
+Relationships with local Brooklyn coffee roasters
+Cozy interior atmosphere with 30 seats`,
+
+        keyActivities: `Daily coffee preparation and beverage service
+Fresh food preparation (in-house baking)
+Customer service and relationship building
+Social media marketing and community engagement
+Inventory management and supplier coordination`,
+
+        keyPartnerships: `Brooklyn coffee roasters (Cafe Grumpy, Devoción)
+Local bakeries for pastries
+Food suppliers (dairy, produce)
+Neighborhood businesses for cross-promotion
+Local artists for rotating displays`,
+
+        costStructure: `Rent and utilities: $8k/month
+Staff salaries: $25k/month
+Coffee and food inventory: $12k/month
+Equipment maintenance: $2k/month
+Marketing and events: $3k/month`,
+
+        viability: "strong",
+        contradictions: [],
+        criticalGaps: [],
+        overallConfidence: 0.85,
+        recommendations: [
+          "Focus on building strong community presence and regular customer base",
+          "Develop signature drinks and food items for differentiation",
+          "Create a welcoming third-place environment for remote workers",
+          "Build strategic partnerships with local Brooklyn roasters and suppliers"
+        ],
+        executiveSummary: "Traditional Brooklyn coffee shop serving artisanal coffee in a community-focused environment. Business model centers on quality beverages, fresh food, and creating a neighborhood gathering space for local residents and remote workers."
+      };
+      
+      console.log('📊 Converting sample BMC to StrategyInsights...');
+      const bmcAnalyzer = new BMCAnalyzer();
+      const insights = await bmcAnalyzer.analyze(sampleBMC);
+      
+      console.log(`✓ Insights extracted: ${insights.insights.length} total`);
+      console.log(`✓ Overall confidence: ${Math.round(insights.overallConfidence * 100)}%`);
+      console.log(`✓ Market context: ${insights.marketContext.industry || 'tech-enabled retail'}`);
+      
+      const llm = createOpenAIProvider({
+        apiKey: process.env.OPENAI_API_KEY || '',
+        model: 'gpt-4o'
+      });
+      
+      const epmSynthesizer = new EPMSynthesizer(llm);
+      
+      const userContext = {
+        timelineUrgency: 'Strategic' as const,
+        budgetRange: {
+          min: 400000,
+          max: 500000
+        }
+      };
+      
+      const namingContext = {
+        businessName: "Brooklyn Artisan Coffee Shop",
+        executiveInput: "Launch neighborhood coffee shop in Williamsburg, Brooklyn"
+      };
+      
+      console.log('\n⚡ Generating EPM with Intelligent Planning enabled...\n');
+      const epmProgram = await epmSynthesizer.synthesize(
+        insights,
+        userContext,
+        namingContext,
+        { forceIntelligentPlanning: true }
+      );
+      
+      console.log('\n✅ DEV TEST COMPLETE!\n');
+      console.log(`Program: ${(epmProgram as any).programName || 'Unnamed'}`);
+      console.log(`Workstreams: ${epmProgram.workstreams.length}`);
+      console.log(`Overall Confidence: ${Math.round((epmProgram as any).overallConfidence * 100)}%`);
+      
+      res.json({
+        success: true,
+        message: 'Quick EPM test completed - check server logs for intelligent planning output',
+        program: epmProgram,
+        testData: {
+          insights: insights,
+          userContext,
+          namingContext
+        }
+      });
+      
+    } catch (error: any) {
+      console.error('❌ Quick EPM test failed:', error);
+      res.status(500).json({
+        error: error.message,
+        stack: error.stack
+      });
+    }
+  });
+
   // Middleware to check authentication (using Replit Auth)
   const requireAuth = isAuthenticated;
 

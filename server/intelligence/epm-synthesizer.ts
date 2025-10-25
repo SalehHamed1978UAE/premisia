@@ -441,14 +441,33 @@ export class EPMSynthesizer {
     
     try {
       // Build planning context with business scale inference
+      console.log('\n' + '='.repeat(80));
+      console.log('[EPM Synthesis] 🚀 CALLING INTELLIGENT PLANNING FOR CPM TIMELINE');
+      console.log('='.repeat(80));
+      
       const planningContext = ContextBuilder.fromJourneyInsights(
         insights,
         insights.frameworkType || 'strategy_workspace'
       );
       
-      console.log('[EPM Synthesis] Calling intelligent planning for CPM timeline generation...');
-      console.log(`[EPM Synthesis] Business context: ${planningContext.business.type} (${planningContext.business.scale})`);
-      console.log(`[EPM Synthesis] Timeline range: ${planningContext.execution.timeline.min}-${planningContext.execution.timeline.max} months`);
+      console.log('[EPM Synthesis] 📋 PLANNING CONTEXT BEING PASSED:');
+      console.log(`  Business Name: "${planningContext.business.name}"`);
+      console.log(`  Business Type: ${planningContext.business.type}`);
+      console.log(`  Business Scale: ${planningContext.business.scale}`);
+      console.log(`  Timeline Range: ${planningContext.execution.timeline.min}-${planningContext.execution.timeline.max} months`);
+      console.log(`  Budget Range: $${planningContext.execution.budget?.min || 'N/A'} - $${planningContext.execution.budget?.max || 'N/A'}`);
+      
+      console.log('\n[EPM Synthesis] 📦 WORKSTREAMS BEING PASSED TO INTELLIGENT PLANNING:');
+      minimalProgram.workstreams.forEach((ws, idx) => {
+        console.log(`  ${idx + 1}. ${ws.name} (${ws.id})`);
+        console.log(`     - ${ws.deliverables.length} deliverables`);
+        console.log(`     - Dependencies: ${ws.dependencies.length > 0 ? ws.dependencies.join(', ') : 'None'}`);
+      });
+      
+      console.log('\n[EPM Synthesis] ⚙️  CALLING INTELLIGENT PLANNING ORCHESTRATOR...');
+      console.log(`  Max Duration: ${planningContext.execution.timeline.max} months`);
+      console.log(`  Total Budget: $${financialPlan.totalBudget}`);
+      console.log('─'.repeat(80));
       
       const planningResult = await replaceTimelineGeneration(
         minimalProgram,
@@ -458,6 +477,11 @@ export class EPMSynthesizer {
           budget: financialPlan.totalBudget
         }
       );
+      
+      console.log('\n[EPM Synthesis] 📊 INTELLIGENT PLANNING ORCHESTRATOR RETURNED:');
+      console.log(`  Success: ${planningResult.success ? '✓ YES' : '✗ NO'}`);
+      console.log(`  Confidence: ${planningResult.confidence}%`);
+      console.log(`  Warnings: ${planningResult.warnings?.length || 0}`);
       
       if (planningResult.success) {
         console.log(`[EPM Synthesis] ✅ Intelligent planning succeeded with ${planningResult.confidence}% confidence`);
@@ -552,30 +576,65 @@ export class EPMSynthesizer {
    * Replaces blind workstream generation with business-intent-aware pattern matching
    */
   private async generateWorkstreams(insights: StrategyInsights): Promise<Workstream[]> {
-    console.log('[EPM Synthesis] Generating workstreams using WBS Builder...');
+    console.log('\n' + '='.repeat(80));
+    console.log('[EPM Synthesis] 📊 GENERATING WORKSTREAMS USING WBS BUILDER');
+    console.log('='.repeat(80));
     
     try {
       // Build planning context for WBS analysis
+      console.log('[EPM Synthesis] Step 1: Building planning context from insights...');
       const planningContext = ContextBuilder.fromJourneyInsights(
         insights,
         insights.frameworkType || 'strategy_workspace'
       );
       
+      console.log('[EPM Synthesis] ✓ Planning Context Created:');
+      console.log(`  Business Name: "${planningContext.business.name}"`);
+      console.log(`  Business Type: ${planningContext.business.type}`);
+      console.log(`  Business Scale: ${planningContext.business.scale}`);
+      console.log(`  Timeline Range: ${planningContext.execution.timeline.min}-${planningContext.execution.timeline.max} months`);
+      console.log(`  Budget Range: $${planningContext.execution.budget?.min || 'N/A'} - $${planningContext.execution.budget?.max || 'N/A'}`);
+      console.log(`  Total Insights: ${insights.insights.length}`);
+      console.log(`  Framework Type: ${insights.frameworkType}`);
+      
       // Create WBS Builder with LLM provider
+      console.log('\n[EPM Synthesis] Step 2: Creating WBS Builder with LLM provider...');
       const wbsBuilder = createWBSBuilder(this.llm);
+      console.log('[EPM Synthesis] ✓ WBS Builder created');
       
       // Generate semantically coherent WBS
+      console.log('\n[EPM Synthesis] Step 3: Calling WBS Builder to generate workstreams...');
+      console.log('[EPM Synthesis] >>> Passing to WBS Builder:');
+      console.log(`  - Insights count: ${insights.insights.length}`);
+      console.log(`  - Planning context: Business=${planningContext.business.name}, Scale=${planningContext.business.scale}`);
+      
       const wbs = await wbsBuilder.buildWBS(insights, planningContext);
       
       // Log WBS results
-      console.log(`[EPM Synthesis] WBS Builder results:`);
-      console.log(`  - Initiative type: ${wbs.intent.initiativeType}`);
-      console.log(`  - Technology role: ${wbs.intent.technologyRole}`);
-      console.log(`  - Workstreams: ${wbs.workstreams.length}`);
-      console.log(`  - Validation: ${wbs.validationReport.isValid ? 'PASSED' : 'FAILED'}`);
-      console.log(`  - Coherence: ${(wbs.validationReport.coherenceScore * 100).toFixed(1)}%`);
+      console.log('\n[EPM Synthesis] ✓ WBS Builder Completed Successfully!');
+      console.log('[EPM Synthesis] 📋 WBS BUILDER RESULTS:');
+      console.log('─'.repeat(80));
+      console.log(`  Initiative Type: ${wbs.intent.initiativeType}`);
+      console.log(`  Technology Role: ${wbs.intent.technologyRole}`);
+      console.log(`  Total Workstreams: ${wbs.workstreams.length}`);
+      console.log(`  Validation Status: ${wbs.validationReport.isValid ? '✓ PASSED' : '✗ FAILED'}`);
+      console.log(`  Coherence Score: ${(wbs.validationReport.coherenceScore * 100).toFixed(1)}%`);
+      console.log(`  Confidence: ${(wbs.intent.confidence * 100).toFixed(1)}%`);
+      
+      console.log('\n[EPM Synthesis] 📦 WORKSTREAMS GENERATED BY WBS:');
+      wbs.workstreams.forEach((ws, idx) => {
+        console.log(`\n  Workstream ${idx + 1}: ${ws.name} (${ws.id})`);
+        console.log(`    Description: ${ws.description.substring(0, 100)}...`);
+        console.log(`    Deliverables: ${ws.deliverables.length}`);
+        ws.deliverables.forEach((d, di) => {
+          console.log(`      ${di + 1}. ${d.name} (${d.description})`);
+        });
+        console.log(`    Dependencies: ${ws.dependencies.length > 0 ? ws.dependencies.join(', ') : 'None'}`);
+        console.log(`    Confidence: ${(ws.confidence * 100).toFixed(1)}%`);
+      });
       
       // Convert WBS workstreams to EPM format
+      console.log('\n[EPM Synthesis] Step 4: Converting WBS workstreams to EPM format...');
       const workstreams: Workstream[] = wbs.workstreams.map((ws, index) => {
         // Convert WBS deliverables (strings) to EPM deliverables (objects with due dates)
         const deliverables = ws.deliverables.map((delivName, delIndex) => ({
@@ -606,7 +665,14 @@ export class EPMSynthesizer {
         workstreams.push(...this.generateDefaultWorkstreams(3 - workstreams.length));
       }
       
-      console.log(`[EPM Synthesis] ✓ Generated ${workstreams.length} workstreams via WBS Builder`);
+      console.log(`\n[EPM Synthesis] ✓ Successfully converted ${workstreams.length} workstreams to EPM format`);
+      console.log('[EPM Synthesis] 📊 EPM WORKSTREAMS READY FOR INTELLIGENT PLANNING:');
+      workstreams.forEach((ws, idx) => {
+        console.log(`  ${idx + 1}. ${ws.name} (${ws.id})`);
+        console.log(`     - Deliverables: ${ws.deliverables.length}`);
+        console.log(`     - Dependencies: ${ws.dependencies.length > 0 ? ws.dependencies.join(', ') : 'None'}`);
+      });
+      console.log('='.repeat(80) + '\n');
       
       return workstreams;
       
