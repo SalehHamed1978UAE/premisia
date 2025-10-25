@@ -247,7 +247,7 @@ export class EPMSynthesizer {
     // Feature flag: Use AI-powered planning system OR old system (never both)
     const intelligentPlanningEnabled = 
       options?.forceIntelligentPlanning === true || 
-      process.env.INTELLIGENT_PLANNING_ENABLED === 'true';
+      process.env.INTELLIGENT_PLANNING_ENABLED?.toLowerCase() === 'true';
     
     if (intelligentPlanningEnabled) {
       console.log('[EPM Synthesis] 🚀 Using intelligent planning system for complete EPM generation...');
