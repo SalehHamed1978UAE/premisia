@@ -42,6 +42,31 @@ export class EPMSynthesizer {
     options?: { forceIntelligentPlanning?: boolean }
   ): Promise<EPMProgram> {
     
+    // ===== CHECK FLAG FIRST - ROUTE TO ONE PATH ONLY =====
+    // Feature flag: Use AI-powered planning system OR old system (never both)
+    const intelligentPlanningEnabled = 
+      options?.forceIntelligentPlanning === true || 
+      process.env.INTELLIGENT_PLANNING_ENABLED === 'true';
+    
+    if (intelligentPlanningEnabled) {
+      console.log('[EPM Synthesis] 🚀 Using intelligent planning system for complete EPM generation...');
+      return await this.buildWithIntelligentPlanning(insights, userContext, namingContext);
+    } else {
+      console.log('[EPM Synthesis] Using standard EPM generation system...');
+      return await this.buildWithOldSystem(insights, userContext, namingContext);
+    }
+  }
+
+  /**
+   * Build EPM program using OLD system (original logic)
+   * Used when INTELLIGENT_PLANNING_ENABLED is false
+   */
+  private async buildWithOldSystem(
+    insights: StrategyInsights,
+    userContext?: UserContext,
+    namingContext?: any
+  ): Promise<EPMProgram> {
+    
     // Generate intelligent program name from context
     const programName = await this.generateProgramName(insights, userContext, namingContext);
     
@@ -129,7 +154,7 @@ export class EPMSynthesizer {
     // Generate extraction rationale
     const extractionRationale = this.generateExtractionRationale(insights, userContext);
 
-    const program: EPMProgram = {
+    return {
       frameworkType: insights.frameworkType,
       frameworkRunId: insights.frameworkRunId,
       generatedAt: new Date(),
@@ -150,46 +175,154 @@ export class EPMSynthesizer {
       procurement,
       exitStrategy,
     };
+  }
 
-    // ===== INTELLIGENT PLANNING SYSTEM INTEGRATION =====
-    // Feature flag: Use AI-powered planning system to replace timeline generation
-    // Can be enabled via env var OR via options parameter (for testing)
-    const intelligentPlanningEnabled = 
-      options?.forceIntelligentPlanning === true || 
-      process.env.INTELLIGENT_PLANNING_ENABLED === 'true';
+  /**
+   * Build EPM program using INTELLIGENT PLANNING system
+   * Used when INTELLIGENT_PLANNING_ENABLED is true
+   * 
+   * Architecture: Generate all components first (like old system), 
+   * then use intelligent planning for CPM scheduling & timeline optimization
+   */
+  private async buildWithIntelligentPlanning(
+    insights: StrategyInsights,
+    userContext?: UserContext,
+    namingContext?: any
+  ): Promise<EPMProgram> {
     
-    if (intelligentPlanningEnabled) {
-      console.log('[EPM Synthesis] 🚀 Using intelligent planning system for timeline generation...');
+    // Generate program name
+    const programName = await this.generateProgramName(insights, userContext, namingContext);
+    
+    // Generate components (SKIP timeline generation - intelligent planning will build it)
+    const executiveSummary = await this.generateExecutiveSummary(insights, programName);
+    const workstreams = await this.generateWorkstreams(insights);
+    const riskRegister = await this.generateRiskRegister(insights);
+    const resourcePlan = await this.generateResourcePlan(insights, workstreams, userContext);
+    const financialPlan = await this.generateFinancialPlan(insights, resourcePlan, userContext);
+    
+    // Create placeholder timeline & stage gates (intelligent planning will replace these)
+    const placeholderTimeline: Timeline = {
+      totalMonths: 12, // Placeholder, will be replaced
+      phases: [],
+      criticalPath: [],
+      confidence: 0
+    };
+    const stageGates = await this.generateStageGates(placeholderTimeline, riskRegister);
+    const benefitsRealization = await this.generateBenefitsRealization(insights, placeholderTimeline);
+    const kpis = await this.generateKPIs(insights, benefitsRealization);
+    const stakeholderMap = await this.generateStakeholderMap(insights);
+    const governance = await this.generateGovernance(insights, stakeholderMap);
+    const qaPlan = await this.generateQAPlan(insights);
+    const procurement = await this.generateProcurement(insights, financialPlan);
+    const exitStrategy = await this.generateExitStrategy(insights, riskRegister);
+    
+    // Build base program with all components
+    const baseProgram: EPMProgram = {
+      frameworkType: insights.frameworkType,
+      frameworkRunId: insights.frameworkRunId,
+      generatedAt: new Date(),
+      overallConfidence: 0, // Will be recalculated after intelligent planning
+      extractionRationale: this.generateExtractionRationale(insights, userContext),
+      executiveSummary,
+      workstreams,
+      timeline: placeholderTimeline,
+      resourcePlan,
+      financialPlan,
+      benefitsRealization,
+      riskRegister,
+      stageGates,
+      kpis,
+      stakeholderMap,
+      governance,
+      qaPlan,
+      procurement,
+      exitStrategy,
+    };
+    
+    // Use intelligent planning for CPM scheduling & timeline optimization
+    try {
+      console.log('[EPM Synthesis] Applying intelligent planning for CPM scheduling...');
       
-      try {
-        const planningResult = await replaceTimelineGeneration(
-          program,
-          { insights, userContext },
-          { 
-            maxDuration: timeline.totalMonths,
-            budget: financialPlan.totalBudget
-          }
-        );
-        
-        if (planningResult.success) {
-          console.log(`[EPM Synthesis] ✅ Intelligent planning succeeded with ${planningResult.confidence}% confidence`);
-          if (planningResult.warnings && planningResult.warnings.length > 0) {
-            console.log('[EPM Synthesis] ⚠️  Planning warnings:', planningResult.warnings);
-          }
-          return planningResult.program;
-        } else {
-          console.warn('[EPM Synthesis] ⚠️  Intelligent planning returned adjustments:', planningResult.adjustments);
-          console.warn('[EPM Synthesis] Falling back to standard timeline generation');
-          // Fall through to return standard program
+      const planningResult = await replaceTimelineGeneration(
+        baseProgram,
+        { insights, userContext },
+        { 
+          maxDuration: placeholderTimeline.totalMonths,
+          budget: financialPlan.totalBudget
         }
-      } catch (error) {
-        console.error('[EPM Synthesis] ❌ Intelligent planning failed:', error);
-        console.error('[EPM Synthesis] Falling back to standard timeline generation');
-        // Fall through to return standard program
+      );
+      
+      if (planningResult.success) {
+        console.log(`[EPM Synthesis] ✅ Intelligent planning succeeded with ${planningResult.confidence}% confidence`);
+        if (planningResult.warnings && planningResult.warnings.length > 0) {
+          console.log('[EPM Synthesis] ⚠️  Planning warnings:', planningResult.warnings);
+        }
+        
+        // Recalculate overall confidence with optimized timeline
+        const optimizedProgram = planningResult.program;
+        optimizedProgram.overallConfidence = this.calculateOverallConfidence([
+          optimizedProgram.executiveSummary.confidence,
+          optimizedProgram.timeline.confidence || planningResult.confidence / 100,
+          optimizedProgram.resourcePlan.confidence,
+          optimizedProgram.financialPlan.confidence,
+          optimizedProgram.benefitsRealization.confidence,
+          optimizedProgram.riskRegister.confidence,
+          optimizedProgram.stageGates.confidence,
+          optimizedProgram.kpis.confidence,
+          optimizedProgram.stakeholderMap.confidence,
+          optimizedProgram.governance.confidence,
+          optimizedProgram.qaPlan.confidence,
+          optimizedProgram.procurement.confidence,
+          optimizedProgram.exitStrategy.confidence,
+        ]);
+        
+        return optimizedProgram;
+      } else {
+        console.warn('[EPM Synthesis] ⚠️  Intelligent planning optimization unsuccessful');
+        console.warn('[EPM Synthesis] Using base program with standard timeline');
+        
+        // Calculate confidence for base program
+        baseProgram.overallConfidence = this.calculateOverallConfidence([
+          executiveSummary.confidence,
+          placeholderTimeline.confidence,
+          resourcePlan.confidence,
+          financialPlan.confidence,
+          benefitsRealization.confidence,
+          riskRegister.confidence,
+          stageGates.confidence,
+          kpis.confidence,
+          stakeholderMap.confidence,
+          governance.confidence,
+          qaPlan.confidence,
+          procurement.confidence,
+          exitStrategy.confidence,
+        ]);
+        
+        return baseProgram;
       }
+    } catch (error) {
+      console.error('[EPM Synthesis] ❌ Intelligent planning failed:', error);
+      console.error('[EPM Synthesis] Using base program with standard timeline');
+      
+      // Calculate confidence for base program
+      baseProgram.overallConfidence = this.calculateOverallConfidence([
+        executiveSummary.confidence,
+        placeholderTimeline.confidence,
+        resourcePlan.confidence,
+        financialPlan.confidence,
+        benefitsRealization.confidence,
+        riskRegister.confidence,
+        stageGates.confidence,
+        kpis.confidence,
+        stakeholderMap.confidence,
+        governance.confidence,
+        qaPlan.confidence,
+        procurement.confidence,
+        exitStrategy.confidence,
+      ]);
+      
+      return baseProgram;
     }
-
-    return program;
   }
 
   // ============================================================================
