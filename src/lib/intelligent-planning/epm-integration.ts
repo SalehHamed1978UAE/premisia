@@ -327,9 +327,27 @@ function integrateScheduleIntoEPM(epmProgram: any, schedule: any): any {
   // Update workstreams with validated timeline data
   if (schedule?.tasks) {
     console.log(`[EPM Integration] Starting workstream integration...`);
+    console.log(`[EPM Integration] Original workstreams: ${epmProgram.workstreams?.length || 0}`);
+    console.log(`[EPM Integration] Schedule tasks: ${schedule.tasks.length}`);
+    
+    // Build a map of original workstreams for lookup
+    const workstreamMap = new Map();
+    if (epmProgram.workstreams) {
+      epmProgram.workstreams.forEach((ws: any) => {
+        workstreamMap.set(ws.id, ws);
+      });
+    }
 
     updatedProgram.workstreams = schedule.tasks.map((task: any, index: number) => {
-      const originalWorkstream = epmProgram.workstreams?.[index] || {};
+      // Try to find matching original workstream by ID
+      const originalWorkstream = workstreamMap.get(task.id) || epmProgram.workstreams?.[index] || {};
+      
+      // CRITICAL: Use ORIGINAL workstream deliverables, not task deliverables!
+      // Task Extractor LLM creates new tasks with minimal deliverables,
+      // but we want to keep the detailed deliverables from WBS Builder
+      const deliverablesToUse = originalWorkstream.deliverables || task.deliverables || [];
+      
+      console.log(`[EPM Integration] Task ${task.id}: Using ${deliverablesToUse.length} deliverables (original had ${originalWorkstream.deliverables?.length || 0})`);
       
       return {
         ...originalWorkstream,
@@ -340,7 +358,7 @@ function integrateScheduleIntoEPM(epmProgram: any, schedule: any): any {
         confidence: task.confidence,
         dependencies: task.dependencies,
         deliverables: ensureDeliverablesWithinBounds(
-          task.deliverables || originalWorkstream.deliverables || [],
+          deliverablesToUse,
           task.startMonth,
           task.endMonth
         ),
