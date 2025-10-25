@@ -19,6 +19,7 @@ import { strategicUnderstandingService } from '../strategic-understanding-servic
 import { JourneyOrchestrator } from '../journey/journey-orchestrator';
 import { journeyRegistry } from '../journey/journey-registry';
 import type { JourneyType } from '@shared/journey-types';
+import { InitiativeClassifier } from '../strategic-consultant/initiative-classifier';
 
 const router = Router();
 const upload = multer({ 
@@ -116,9 +117,20 @@ router.post('/understanding', async (req: Request, res: Response) => {
 
     const sessionId = `session-${Date.now()}-${Math.random().toString(36).substring(7)}`;
     
-    console.log('[Understanding] Starting Strategic Understanding analysis with ontology/knowledge graph...');
+    console.log('[Understanding] Step 1: Classifying initiative type...');
     
-    // Run full Strategic Understanding analysis with entity extraction
+    // Step 1: Classify the initiative type FIRST
+    const classification = await InitiativeClassifier.classify(input.trim());
+    
+    console.log('[Understanding] Classification result:', {
+      type: classification.initiativeType,
+      confidence: classification.confidence,
+      description: classification.description
+    });
+    
+    console.log('[Understanding] Step 2: Starting Strategic Understanding analysis with ontology/knowledge graph...');
+    
+    // Step 2: Run full Strategic Understanding analysis with entity extraction
     const result = await strategicUnderstandingService.extractUnderstanding({
       sessionId,
       userInput: input.trim(),
@@ -126,12 +138,33 @@ router.post('/understanding', async (req: Request, res: Response) => {
     });
 
     console.log(`[Understanding] Analysis complete - extracted ${result.entities.length} entities`);
+    
+    // Step 3: Update the understanding record with classification data
+    await db
+      .update(strategicUnderstanding)
+      .set({
+        initiativeType: classification.initiativeType,
+        initiativeDescription: classification.description,
+        classificationConfidence: classification.confidence.toString(), // Convert to string for decimal type
+        userConfirmed: false, // Not yet confirmed by user
+      })
+      .where(eq(strategicUnderstanding.id, result.understandingId));
+    
+    console.log('[Understanding] Initiative classification saved to database');
 
     res.json({
       success: true,
       understandingId: result.understandingId,
       sessionId: sessionId,
       entitiesExtracted: result.entities.length,
+      // Include classification in response for immediate use
+      classification: {
+        initiativeType: classification.initiativeType,
+        description: classification.description,
+        confidence: classification.confidence,
+        reasoning: classification.reasoning,
+        userConfirmed: false,
+      },
     });
   } catch (error: any) {
     console.error('Error in /understanding:', error);
@@ -161,10 +194,84 @@ router.get('/understanding/:understandingId', async (req: Request, res: Response
       id: understanding[0].id,
       sessionId: understanding[0].sessionId,
       userInput: understanding[0].userInput,
+      initiativeType: understanding[0].initiativeType,
+      initiativeDescription: understanding[0].initiativeDescription,
+      classificationConfidence: understanding[0].classificationConfidence,
+      userConfirmed: understanding[0].userConfirmed,
     });
   } catch (error: any) {
     console.error('Error in /understanding/:understandingId:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch understanding' });
+  }
+});
+
+// PATCH /classification - Update initiative classification (user confirmation/correction)
+router.patch('/classification', async (req: Request, res: Response) => {
+  try {
+    const { understandingId, initiativeType, userConfirmed } = req.body;
+
+    if (!understandingId) {
+      return res.status(400).json({ error: 'Understanding ID is required' });
+    }
+
+    // Verify understanding exists
+    const understanding = await db
+      .select()
+      .from(strategicUnderstanding)
+      .where(eq(strategicUnderstanding.id, understandingId))
+      .limit(1);
+
+    if (understanding.length === 0) {
+      return res.status(404).json({ error: 'Understanding not found' });
+    }
+
+    // Build update object dynamically
+    const updateData: any = {};
+    
+    if (initiativeType !== undefined) {
+      // Validate initiative type
+      const validTypes = [
+        'physical_business_launch',
+        'software_development',
+        'digital_transformation',
+        'market_expansion',
+        'product_launch',
+        'service_launch',
+        'process_improvement',
+        'other'
+      ];
+      
+      if (!validTypes.includes(initiativeType)) {
+        return res.status(400).json({ 
+          error: 'Invalid initiative type',
+          validTypes 
+        });
+      }
+      
+      updateData.initiativeType = initiativeType;
+    }
+    
+    if (userConfirmed !== undefined) {
+      updateData.userConfirmed = userConfirmed;
+    }
+
+    // Update the record
+    await db
+      .update(strategicUnderstanding)
+      .set(updateData)
+      .where(eq(strategicUnderstanding.id, understandingId));
+
+    console.log('[Classification] Updated classification for understanding:', understandingId, updateData);
+
+    res.json({
+      success: true,
+      message: 'Classification updated successfully',
+      understandingId,
+      updates: updateData,
+    });
+  } catch (error: any) {
+    console.error('Error in PATCH /classification:', error);
+    res.status(500).json({ error: error.message || 'Failed to update classification' });
   }
 });
 
