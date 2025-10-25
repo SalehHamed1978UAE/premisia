@@ -7,6 +7,19 @@ import { createPlanningSystem } from './index';
 import { PlanningRequest, PlanningResult } from './orchestrator';
 import { Constraint, Resource, PlanningContext } from './types';
 
+export type ProgressCallback = (event: {
+  type: 'step-start' | 'step-complete' | 'error' | 'complete';
+  step?: string;
+  stepNumber?: number;
+  totalSteps?: number;
+  progress?: number;
+  name?: string;
+  description?: string;
+  durationSeconds?: number;
+  elapsedSeconds?: number;
+  message?: string;
+}) => void;
+
 /**
  * Main integration function to replace current timeline generation
  * Now accepts PlanningContext with business scale and timeline constraints
@@ -18,7 +31,8 @@ export async function replaceTimelineGeneration(
     maxDuration?: number;
     budget?: number;
     teamSize?: number;
-  }
+  },
+  onProgress?: ProgressCallback
 ): Promise<{
   success: boolean;
   program: any;
@@ -54,7 +68,8 @@ export async function replaceTimelineGeneration(
     const planningResult = await generateIntelligentSchedule(
       strategy,
       constraints,
-      resources
+      resources,
+      onProgress
     );
     
     if (!planningResult.success) {
@@ -123,7 +138,8 @@ export async function replaceTimelineGeneration(
 async function generateIntelligentSchedule(
   strategy: any,
   constraints: Constraint[],
-  resources: Resource[]
+  resources: Resource[],
+  onProgress?: ProgressCallback
 ): Promise<PlanningResult> {
   
   // Create planning system with configuration
@@ -133,17 +149,71 @@ async function generateIntelligentSchedule(
     targetScore: parseInt(process.env.TARGET_PLANNING_SCORE || '85')
   });
   
-  // Subscribe to progress events for logging
+  // Define planning steps with descriptions
+  const steps = [
+    { id: 'extract-tasks', name: 'Extracting Tasks', description: 'Breaking down workstreams into detailed tasks' },
+    { id: 'schedule', name: 'Building Schedule', description: 'Creating timeline with Critical Path Method' },
+    { id: 'allocate-resources', name: 'Allocating Resources', description: 'Matching skills to tasks and checking availability' },
+    { id: 'level-resources', name: 'Optimizing Resources', description: 'Resolving conflicts and leveling workload' },
+    { id: 'optimize', name: 'AI Optimization', description: 'Using AI to improve timeline and efficiency' },
+    { id: 'validate', name: 'Final Validation', description: 'Checking for issues and calculating confidence' }
+  ];
+  
+  let currentStepIndex = 0;
+  const startTime = Date.now();
+  
+  // Subscribe to progress events and forward to callback
   planner.on('step-start', (step) => {
     console.log(`Planning step started: ${step.name}`);
+    
+    const stepInfo = steps.find(s => s.id === step.name);
+    if (stepInfo && onProgress) {
+      currentStepIndex++;
+      const progress = Math.round((currentStepIndex / steps.length) * 100);
+      const elapsedSeconds = Math.round((Date.now() - startTime) / 1000);
+      
+      onProgress({
+        type: 'step-start',
+        step: step.name,
+        stepNumber: currentStepIndex,
+        totalSteps: steps.length,
+        progress,
+        name: stepInfo.name,
+        description: stepInfo.description,
+        elapsedSeconds
+      });
+    }
   });
   
   planner.on('step-complete', (step) => {
     console.log(`Planning step completed: ${step.name}`);
+    
+    const stepInfo = steps.find(s => s.id === step.name);
+    if (stepInfo && onProgress) {
+      const durationSeconds = step.endTime && step.startTime
+        ? Math.round((step.endTime.getTime() - step.startTime.getTime()) / 1000)
+        : 0;
+      
+      onProgress({
+        type: 'step-complete',
+        step: step.name,
+        stepNumber: currentStepIndex,
+        totalSteps: steps.length,
+        name: stepInfo.name,
+        durationSeconds
+      });
+    }
   });
   
   planner.on('error', (error) => {
     console.error(`Planning error: ${error.message}`);
+    
+    if (onProgress) {
+      onProgress({
+        type: 'error',
+        message: error.message
+      });
+    }
   });
   
   // Build planning request
@@ -160,6 +230,14 @@ async function generateIntelligentSchedule(
   
   // Execute planning
   const result = await planner.plan(request);
+  
+  // Send completion event
+  if (onProgress) {
+    onProgress({
+      type: 'complete',
+      elapsedSeconds: Math.round((Date.now() - startTime) / 1000)
+    });
+  }
   
   // Transform result for EPM compatibility
   return {
