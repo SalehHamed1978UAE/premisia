@@ -439,13 +439,21 @@ export class EPMSynthesizer {
     };
     
     try {
+      // Build planning context with business scale inference
+      const planningContext = ContextBuilder.fromJourneyInsights(
+        insights,
+        insights.frameworkType || 'strategy_workspace'
+      );
+      
       console.log('[EPM Synthesis] Calling intelligent planning for CPM timeline generation...');
+      console.log(`[EPM Synthesis] Business context: ${planningContext.business.type} (${planningContext.business.scale})`);
+      console.log(`[EPM Synthesis] Timeline range: ${planningContext.execution.timeline.min}-${planningContext.execution.timeline.max} months`);
       
       const planningResult = await replaceTimelineGeneration(
         minimalProgram,
-        { insights, userContext },
+        planningContext,
         { 
-          maxDuration: 12,
+          maxDuration: planningContext.execution.timeline.max,
           budget: financialPlan.totalBudget
         }
       );
