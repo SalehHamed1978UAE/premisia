@@ -105,3 +105,50 @@ export interface ValidationResult {
   score: ScheduleScore;
   suggestions: string[];
 }
+
+/**
+ * Business scale classification for timeline and resource estimation
+ */
+export type BusinessScale = 'smb' | 'mid_market' | 'enterprise';
+
+/**
+ * Planning context that flows through all intelligent planning modules
+ * Provides business context so AI can generate appropriate timelines
+ */
+export interface PlanningContext {
+  // Business Context
+  business: {
+    name: string;
+    type: string;        // e.g., "coffee_shop", "saas_platform", "enterprise_software"
+    industry: string;
+    description: string;
+    scale: BusinessScale;
+  };
+  
+  // Strategic Context (from journey analysis)
+  strategic: {
+    insights: any;       // Framework insights (BMI, Porter's, etc.)
+    constraints: any[];
+    objectives: string[];
+  };
+  
+  // Execution Context
+  execution: {
+    timeline: {
+      min: number;      // Minimum reasonable months
+      max: number;      // Maximum reasonable months
+    };
+    budget?: {
+      min: number;
+      max: number;
+    };
+    resources?: any[];
+  };
+  
+  // Metadata
+  meta: {
+    journeyType: string;  // "bmi", "porter", "five_whys", "strategy_workspace"
+    confidence: number;   // 0-1
+    version: string;
+  };
+}
