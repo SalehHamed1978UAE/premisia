@@ -476,6 +476,12 @@ export class EPMSynthesizer {
       console.log('[EPM Synthesis] 🚀 CALLING INTELLIGENT PLANNING FOR CPM TIMELINE');
       console.log('='.repeat(80));
       
+      // DEBUG: Verify sessionId is present
+      console.log('[DEBUG] 🔍 Checking sessionId propagation:');
+      console.log(`  userContext exists: ${!!userContext}`);
+      console.log(`  userContext.sessionId: ${userContext?.sessionId || 'UNDEFINED'}`);
+      console.log(`  insights keys:`, Object.keys(insights));
+      
       const planningContext = await ContextBuilder.fromJourneyInsights(
         insights,
         insights.frameworkType || 'strategy_workspace',
@@ -483,9 +489,14 @@ export class EPMSynthesizer {
       );
       
       // Attach initiative type to insights for downstream use
+      console.log('[DEBUG] 🔍 Checking initiative type propagation:');
+      console.log(`  planningContext.business.initiativeType: ${planningContext.business.initiativeType || 'UNDEFINED'}`);
+      
       if (planningContext.business.initiativeType) {
         (insights as any).initiativeType = planningContext.business.initiativeType;
         console.log(`[EPM Synthesis] ✅ Initiative type attached to insights: ${planningContext.business.initiativeType}`);
+      } else {
+        console.log('[EPM Synthesis] ⚠️ WARNING: No initiative type found in planningContext!');
       }
       
       console.log('[EPM Synthesis] 📋 PLANNING CONTEXT BEING PASSED:');
@@ -1119,7 +1130,9 @@ export class EPMSynthesizer {
     
     // Extract initiative type from insights for initiative-aware role generation
     const initiativeType = insights.initiativeType || 'other';
-    console.log(`[Resource Generation] Initiative type for resource plan: ${initiativeType}`);
+    console.log('[DEBUG] 🔍 Resource generation:');
+    console.log(`  insights.initiativeType: ${insights.initiativeType || 'UNDEFINED'}`);
+    console.log(`  Using initiative type: ${initiativeType}`);
     
     const internalTeam = await this.generateInternalTeam(
       estimatedFTEs, 
