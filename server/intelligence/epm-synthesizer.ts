@@ -30,6 +30,204 @@ import type {
   ExitStrategy,
 } from './types';
 import { replaceTimelineGeneration } from '../../src/lib/intelligent-planning/epm-integration';
+import type { PlanningContext, BusinessScale } from '../../src/lib/intelligent-planning/types';
+
+/**
+ * ContextBuilder - Infers business context from strategic insights
+ * Provides robust scale inference using multiple signals to prevent
+ * the intelligent planning system from generating inappropriate timelines
+ * (e.g., 166 months for a coffee shop)
+ */
+export class ContextBuilder {
+  /**
+   * Build planning context from journey insights
+   */
+  static fromJourneyInsights(
+    insights: StrategyInsights,
+    journeyType: string = 'strategy_workspace'
+  ): PlanningContext {
+    const scale = this.inferScale(insights);
+    const timelineRange = this.inferTimelineRange(scale, insights);
+    const budgetRange = this.inferBudgetRange(scale, insights);
+    
+    return {
+      business: {
+        name: insights.businessName || 'Unnamed Business',
+        type: this.inferBusinessType(insights),
+        industry: insights.industry || 'general',
+        description: insights.context || insights.description || '',
+        scale
+      },
+      strategic: {
+        insights: insights,
+        constraints: insights.constraints || [],
+        objectives: insights.objectives || this.extractObjectives(insights)
+      },
+      execution: {
+        timeline: timelineRange,
+        budget: budgetRange,
+        resources: []
+      },
+      meta: {
+        journeyType,
+        confidence: insights.confidence || 0.75,
+        version: '1.0'
+      }
+    };
+  }
+
+  /**
+   * Infer business scale using multiple signals:
+   * - Budget indicators (if mentioned)
+   * - Employee count keywords
+   * - Market scope (local, regional, national, global)
+   * - Complexity indicators (single location vs multi-location)
+   * - Industry keywords (shop, enterprise, platform, etc.)
+   * 
+   * Default conservatively to mid_market if unclear
+   */
+  private static inferScale(insights: StrategyInsights): BusinessScale {
+    const contextText = (
+      (insights.context || '') + ' ' +
+      (insights.description || '') + ' ' +
+      (insights.businessName || '') + ' ' +
+      insights.insights.map(i => i.content).join(' ')
+    ).toLowerCase();
+    
+    let smb_score = 0;
+    let enterprise_score = 0;
+    
+    // SMB indicators
+    if (contextText.match(/\b(shop|store|cafe|coffee|local|small|startup|boutique|restaurant)\b/g)) {
+      smb_score += 3;
+    }
+    if (contextText.match(/\b(single location|one location|neighborhood|community)\b/g)) {
+      smb_score += 2;
+    }
+    if (contextText.match(/\b(under \$\d+k|small budget|limited budget|bootstrap)\b/g)) {
+      smb_score += 2;
+    }
+    if (contextText.match(/\b(1-5 employees|small team|solo|founder)\b/g)) {
+      smb_score += 2;
+    }
+    
+    // Enterprise indicators
+    if (contextText.match(/\b(enterprise|corporation|global|multinational|platform|saas)\b/g)) {
+      enterprise_score += 3;
+    }
+    if (contextText.match(/\b(multi-location|nationwide|international|multiple markets)\b/g)) {
+      enterprise_score += 2;
+    }
+    if (contextText.match(/\b(million|series [abc]|vc funded|enterprise software)\b/g)) {
+      enterprise_score += 2;
+    }
+    if (contextText.match(/\b(100\+ employees|large team|department)\b/g)) {
+      enterprise_score += 2;
+    }
+    
+    // Decision logic with conservative default
+    if (smb_score >= 4 && smb_score > enterprise_score) {
+      return 'smb';
+    }
+    if (enterprise_score >= 4 && enterprise_score > smb_score) {
+      return 'enterprise';
+    }
+    
+    // Default conservatively to mid_market
+    return 'mid_market';
+  }
+
+  /**
+   * Infer timeline range based on scale
+   * SMB: 6-12 months
+   * Mid-market: 12-24 months
+   * Enterprise: 24-48 months
+   */
+  private static inferTimelineRange(scale: BusinessScale, insights: StrategyInsights): { min: number; max: number } {
+    // Check if insights have explicit timeline hints
+    const contextText = ((insights.context || '') + ' ' + (insights.description || '')).toLowerCase();
+    
+    // Override if explicit timeline mentioned
+    const monthsMatch = contextText.match(/(\d+)\s*months?/);
+    if (monthsMatch) {
+      const explicitMonths = parseInt(monthsMatch[1]);
+      return {
+        min: Math.max(3, Math.floor(explicitMonths * 0.75)),
+        max: Math.ceil(explicitMonths * 1.5)
+      };
+    }
+    
+    // Default ranges by scale
+    switch (scale) {
+      case 'smb':
+        return { min: 6, max: 12 };
+      case 'mid_market':
+        return { min: 12, max: 24 };
+      case 'enterprise':
+        return { min: 24, max: 48 };
+    }
+  }
+
+  /**
+   * Infer budget range based on scale and context
+   */
+  private static inferBudgetRange(scale: BusinessScale, insights: StrategyInsights): { min: number; max: number } | undefined {
+    const contextText = ((insights.context || '') + ' ' + (insights.description || '')).toLowerCase();
+    
+    // Try to extract explicit budget if mentioned
+    const budgetMatch = contextText.match(/\$(\d+(?:,\d+)*)\s*(?:k|thousand|million|m)?/i);
+    if (budgetMatch) {
+      const amount = parseInt(budgetMatch[1].replace(/,/g, ''));
+      const multiplier = contextText.includes('million') || contextText.includes('m') ? 1000000 : 
+                        contextText.includes('k') || contextText.includes('thousand') ? 1000 : 1;
+      const budget = amount * multiplier;
+      return {
+        min: budget * 0.75,
+        max: budget * 1.25
+      };
+    }
+    
+    // Default ranges by scale
+    switch (scale) {
+      case 'smb':
+        return { min: 50000, max: 250000 };
+      case 'mid_market':
+        return { min: 250000, max: 2000000 };
+      case 'enterprise':
+        return { min: 2000000, max: 10000000 };
+    }
+  }
+
+  /**
+   * Infer business type from insights
+   */
+  private static inferBusinessType(insights: StrategyInsights): string {
+    const contextText = (
+      (insights.businessName || '') + ' ' +
+      (insights.context || '') + ' ' +
+      (insights.description || '')
+    ).toLowerCase();
+    
+    // Pattern matching for common business types
+    if (contextText.match(/\b(coffee|cafe|shop|store|restaurant|bakery)\b/)) return 'retail_food_service';
+    if (contextText.match(/\b(saas|software|platform|app|tech)\b/)) return 'saas_platform';
+    if (contextText.match(/\b(consulting|service|agency)\b/)) return 'professional_services';
+    if (contextText.match(/\b(manufacturing|factory|production)\b/)) return 'manufacturing';
+    if (contextText.match(/\b(ecommerce|online|marketplace)\b/)) return 'ecommerce';
+    
+    return 'general_business';
+  }
+
+  /**
+   * Extract objectives from insights
+   */
+  private static extractObjectives(insights: StrategyInsights): string[] {
+    return insights.insights
+      .filter(i => i.type === 'workstream' || i.source?.includes('objective'))
+      .slice(0, 5)
+      .map(i => i.content.split('\n')[0]);
+  }
+}
 
 export class EPMSynthesizer {
   /**
