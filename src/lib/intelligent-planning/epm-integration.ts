@@ -272,7 +272,7 @@ function buildResources(resourcePlan: any, config?: any): Resource[] {
 /**
  * Transform planning system schedule to EPM format
  */
-function transformScheduleForEPM(schedule: any): any {
+function transformScheduleForEPM(schedule: any, targetMinMonths: number = 9, targetMaxMonths: number = 18): any {
   // Find the earliest task start date as the project start (Month 0)
   const projectStartDate = schedule.tasks.reduce((earliest: Date, task: any) => {
     const taskStart = new Date(task.startDate);
@@ -283,6 +283,18 @@ function transformScheduleForEPM(schedule: any): any {
   
   console.log('[EPM Integration] Project start date:', projectStartDate.toISOString());
   console.log('[EPM Integration] Total duration from schedule:', schedule.totalDuration, 'months');
+  
+  // Scale timeline if outside target range
+  let scaleFactor = 1.0;
+  if (schedule.totalDuration < targetMinMonths) {
+    scaleFactor = targetMinMonths / schedule.totalDuration;
+    console.log(`[EPM Integration] ⚠️  Timeline too short (${schedule.totalDuration} months). Scaling by ${scaleFactor.toFixed(2)}x to ${targetMinMonths} months`);
+  } else if (schedule.totalDuration > targetMaxMonths) {
+    scaleFactor = targetMaxMonths / schedule.totalDuration;
+    console.log(`[EPM Integration] ⚠️  Timeline too long (${schedule.totalDuration} months). Scaling by ${scaleFactor.toFixed(2)}x to ${targetMaxMonths} months`);
+  } else {
+    console.log(`[EPM Integration] ✓ Timeline within target range (${targetMinMonths}-${targetMaxMonths} months)`);
+  }
   
   return {
     tasks: schedule.tasks.map((task: any) => {
