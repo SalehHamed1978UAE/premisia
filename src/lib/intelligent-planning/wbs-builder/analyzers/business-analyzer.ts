@@ -12,15 +12,20 @@ export class BusinessAnalyzer implements IAnalyzer {
   
   /**
    * Analyze business intent from strategic insights
+   * STRATEGY-AWARE: Uses BMC strategic recommendations to override assumptions
    */
   async process(input: AnalysisInput): Promise<BusinessIntent> {
-    const { insights, context } = input;
+    const { insights, context, strategyProfile } = input;
     
     console.log(`[${this.name}] Analyzing business intent...`);
     console.log(`[${this.name}] Business: ${context.business.name}`);
     console.log(`[${this.name}] Type hint: ${context.business.type}`);
     
-    const prompt = this.buildAnalysisPrompt(insights, context);
+    if (strategyProfile) {
+      console.log(`[${this.name}] STRATEGY OVERRIDE: Archetype=${strategyProfile.archetype}, Digital Intensity=${strategyProfile.digitalIntensity}%`);
+    }
+    
+    const prompt = this.buildAnalysisPrompt(insights, context, strategyProfile);
     
     const result = await this.llm.generateStructured<BusinessIntent>({
       prompt,
@@ -45,6 +50,12 @@ export class BusinessAnalyzer implements IAnalyzer {
       }
     });
     
+    // Apply strategy profile overrides
+    if (strategyProfile?.technologyRoleOverride) {
+      console.log(`[${this.name}] Applying strategy tech role override: ${strategyProfile.technologyRoleOverride}`);
+      result.technologyRole = strategyProfile.technologyRoleOverride;
+    }
+    
     console.log(`[${this.name}] Detected initiative type: ${result.initiativeType}`);
     console.log(`[${this.name}] Technology role: ${result.technologyRole}`);
     console.log(`[${this.name}] Confidence: ${(result.confidence * 100).toFixed(1)}%`);
@@ -54,8 +65,28 @@ export class BusinessAnalyzer implements IAnalyzer {
   
   /**
    * Build analysis prompt with business context
+   * STRATEGY-AWARE: Includes BMC strategic recommendations
    */
-  private buildAnalysisPrompt(insights: any, context: any): string {
+  private buildAnalysisPrompt(insights: any, context: any, strategyProfile?: any): string {
+    let strategySection = '';
+    
+    if (strategyProfile) {
+      strategySection = `
+
+=== STRATEGIC ANALYSIS (BMC RECOMMENDATIONS) ===
+Digital Intensity: ${strategyProfile.digitalIntensity}%
+Strategic Archetype: ${strategyProfile.archetype}
+Platform Development Needed: ${strategyProfile.needsPlatform ? 'YES' : 'NO'}
+Recommended Tech Role: ${strategyProfile.technologyRoleOverride || 'To be determined'}
+
+CRITICAL: The BMC analysis has determined that this business should follow a ${strategyProfile.archetype} model.
+This means the strategy RECOMMENDS ${strategyProfile.needsPlatform ? 'building platform/technology capabilities' : 'minimal technology focus'}.
+
+You MUST respect the strategic recommendations above. If BMC says platform development is needed,
+then technology is a strategic enabler regardless of the base business type.
+`;
+    }
+    
     return `
 You are analyzing a business initiative to understand its fundamental nature.
 
@@ -64,11 +95,11 @@ Name: ${context.business.name}
 Description: ${context.business.description}
 Industry: ${context.business.industry}
 Scale: ${context.business.scale}
-
+${strategySection}
 === STRATEGIC INSIGHTS ===
 ${JSON.stringify(insights, null, 2)}
 
-Your task: Determine the FUNDAMENTAL NATURE of what's being done.
+Your task: Determine the FUNDAMENTAL NATURE of what's being done, RESPECTING the strategic recommendations above.
 
 Critical distinctions to make:
 

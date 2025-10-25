@@ -22,6 +22,7 @@ export class WBSBuilder implements IWBSBuilder {
   
   /**
    * Build complete WBS from insights and context
+   * STRATEGY-AWARE: Extracts BMC strategic recommendations before analysis
    */
   async buildWBS(insights: any, context: PlanningContext): Promise<WBS> {
     console.log('[WBS Builder] Starting WBS generation...');
@@ -29,8 +30,20 @@ export class WBSBuilder implements IWBSBuilder {
     console.log(`[WBS Builder] Scale: ${context.business.scale}`);
     
     try {
-      // Step 1: Analyze business intent
-      const analysisInput: AnalysisInput = { insights, context };
+      // Step 0: Extract strategy signals from BMC insights
+      const { StrategySignalExtractor } = await import('../analyzers/strategy-signal-extractor');
+      const { StrategyProfiler } = await import('../analyzers/strategy-profiler');
+      
+      const signals = StrategySignalExtractor.extract(insights);
+      const strategyProfile = StrategyProfiler.buildProfile(signals);
+      
+      console.log('[WBS Builder] Strategy profile extracted:');
+      console.log(`  - Archetype: ${strategyProfile.archetype}`);
+      console.log(`  - Digital intensity: ${strategyProfile.digitalIntensity}%`);
+      console.log(`  - Platform needed: ${strategyProfile.needsPlatform}`);
+      
+      // Step 1: Analyze business intent (with strategy awareness)
+      const analysisInput: AnalysisInput = { insights, context, strategyProfile };
       const intent = await this.analyzer.process(analysisInput);
       
       // Step 2: Select work breakdown pattern

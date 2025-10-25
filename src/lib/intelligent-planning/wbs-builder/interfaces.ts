@@ -103,11 +103,24 @@ export interface ValidationIssue {
 }
 
 /**
+ * Strategy profile from BMC analysis
+ */
+export interface StrategyProfile {
+  digitalIntensity: number;
+  archetype: 'traditional' | 'hybrid' | 'digital_first';
+  needsPlatform: boolean;
+  technologyRoleOverride?: TechnologyRole;
+  recommendedCategories: string[];
+  effortAdjustments: Map<string, number>;
+}
+
+/**
  * Input for business analysis stage
  */
 export interface AnalysisInput {
   insights: any;
   context: PlanningContext;
+  strategyProfile?: StrategyProfile;  // Optional strategy-aware override
 }
 
 /**
