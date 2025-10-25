@@ -31,6 +31,7 @@ import type {
 } from './types';
 import { replaceTimelineGeneration } from '../../src/lib/intelligent-planning/epm-integration';
 import type { PlanningContext, BusinessScale } from '../../src/lib/intelligent-planning/types';
+import { createWBSBuilder } from '../../src/lib/intelligent-planning/wbs-builder';
 
 /**
  * ContextBuilder - Infers business context from strategic insights
@@ -549,30 +550,94 @@ export class EPMSynthesizer {
     };
   }
 
+  /**
+   * Generate workstreams using WBS Builder for semantic analysis
+   * Replaces blind workstream generation with business-intent-aware pattern matching
+   */
   private async generateWorkstreams(insights: StrategyInsights): Promise<Workstream[]> {
-    const workstreamInsights = insights.insights.filter(i => i.type === 'workstream');
+    console.log('[EPM Synthesis] Generating workstreams using WBS Builder...');
     
-    const workstreams: Workstream[] = workstreamInsights.map((insight, index) => {
-      const deliverables = this.generateDeliverables(insight, index);
+    try {
+      // Build planning context for WBS analysis
+      const planningContext = ContextBuilder.fromJourneyInsights(
+        insights,
+        insights.frameworkType || 'strategy_workspace'
+      );
       
-      return {
-        id: `WS${String(index + 1).padStart(3, '0')}`,
-        name: insight.content.split('\n')[0] || `Workstream ${index + 1}`,
-        description: insight.content,
-        deliverables,
-        startMonth: Math.floor(index / 2) + 1, // Stagger starts
-        endMonth: Math.min(Math.floor(index / 2) + 1 + deliverables.length, 12),
-        dependencies: index > 0 ? [`WS${String(index).padStart(3, '0')}`] : [],
-        confidence: insight.confidence,
-      };
-    });
+      // Create WBS Builder with LLM provider
+      const wbsBuilder = createWBSBuilder(this.llm);
+      
+      // Generate semantically coherent WBS
+      const wbs = await wbsBuilder.buildWBS(insights, planningContext);
+      
+      // Log WBS results
+      console.log(`[EPM Synthesis] WBS Builder results:`);
+      console.log(`  - Initiative type: ${wbs.intent.initiativeType}`);
+      console.log(`  - Technology role: ${wbs.intent.technologyRole}`);
+      console.log(`  - Workstreams: ${wbs.workstreams.length}`);
+      console.log(`  - Validation: ${wbs.validationReport.isValid ? 'PASSED' : 'FAILED'}`);
+      console.log(`  - Coherence: ${(wbs.validationReport.coherenceScore * 100).toFixed(1)}%`);
+      
+      // Convert WBS workstreams to EPM format
+      const workstreams: Workstream[] = wbs.workstreams.map((ws, index) => {
+        // Convert WBS deliverables (strings) to EPM deliverables (objects with due dates)
+        const deliverables = ws.deliverables.map((delivName, delIndex) => ({
+          id: `${ws.id}-D${delIndex + 1}`,
+          name: delivName,
+          dueMonth: 0, // Will be filled by intelligent planning
+          responsible: 'TBD',
+          confidence: ws.confidence
+        }));
+        
+        return {
+          id: ws.id,
+          name: ws.name,
+          description: ws.description,
+          deliverables,
+          startMonth: 0, // Will be filled by intelligent planning
+          endMonth: 0, // Will be filled by intelligent planning
+          dependencies: ws.dependencies,
+          confidence: ws.confidence,
+        };
+      });
+      
+      // Ensure minimum 3 workstreams
+      if (workstreams.length < 3) {
+        console.warn('[EPM Synthesis] WBS generated less than 3 workstreams, adding defaults');
+        workstreams.push(...this.generateDefaultWorkstreams(3 - workstreams.length));
+      }
+      
+      console.log(`[EPM Synthesis] ✓ Generated ${workstreams.length} workstreams via WBS Builder`);
+      
+      return workstreams;
+      
+    } catch (error) {
+      console.error('[EPM Synthesis] WBS Builder failed, falling back to legacy generation:', error);
+      
+      // Fallback to legacy workstream generation
+      const workstreamInsights = insights.insights.filter(i => i.type === 'workstream');
+      
+      const workstreams: Workstream[] = workstreamInsights.map((insight, index) => {
+        const deliverables = this.generateDeliverables(insight, index);
+        
+        return {
+          id: `WS${String(index + 1).padStart(3, '0')}`,
+          name: insight.content.split('\n')[0] || `Workstream ${index + 1}`,
+          description: insight.content,
+          deliverables,
+          startMonth: Math.floor(index / 2) + 1,
+          endMonth: Math.min(Math.floor(index / 2) + 1 + deliverables.length, 12),
+          dependencies: index > 0 ? [`WS${String(index).padStart(3, '0')}`] : [],
+          confidence: insight.confidence,
+        };
+      });
 
-    // Ensure minimum 3 workstreams
-    if (workstreams.length < 3) {
-      workstreams.push(...this.generateDefaultWorkstreams(3 - workstreams.length));
+      if (workstreams.length < 3) {
+        workstreams.push(...this.generateDefaultWorkstreams(3 - workstreams.length));
+      }
+
+      return workstreams;
     }
-
-    return workstreams;
   }
 
   /**
