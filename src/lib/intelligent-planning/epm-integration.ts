@@ -62,12 +62,12 @@ export async function replaceTimelineGeneration(
       console.log('=== PLANNING FAILURE DETAILS ===');
       console.log('Success:', planningResult.success);
       console.log('Confidence Score:', planningResult.metadata?.score);
-      console.log('Warnings:', JSON.stringify(planningResult.warnings, null, 2));
-      console.log('Adjustments Needed:', JSON.stringify(planningResult.adjustments, null, 2));
+      console.log('Warnings:', JSON.stringify(planningResult.recommendations, null, 2));
+      console.log('Adjustments Needed:', JSON.stringify(planningResult.strategyAdjustments, null, 2));
       console.log('Schedule Data:', planningResult.schedule ? 'Present' : 'Missing');
       if (planningResult.schedule) {
         console.log('Schedule Tasks Count:', planningResult.schedule.tasks?.length || 0);
-        console.log('Schedule Total Months:', planningResult.schedule.totalMonths);
+        console.log('Schedule Total Months:', planningResult.schedule.totalDuration);
       }
       console.log('=== END PLANNING FAILURE DETAILS ===');
       
@@ -99,7 +99,7 @@ export async function replaceTimelineGeneration(
     return {
       success: true,
       program: updatedProgram,
-      warnings: planningResult.warnings || [],
+      warnings: planningResult.recommendations || [],
       confidence: planningResult.metadata.score
     };
     
@@ -165,8 +165,8 @@ async function generateIntelligentSchedule(
   return {
     success: result.success,
     schedule: result.schedule ? transformScheduleForEPM(result.schedule) : undefined,
-    warnings: result.recommendations,
-    adjustments: result.strategyAdjustments,
+    recommendations: result.recommendations,
+    strategyAdjustments: result.strategyAdjustments,
     metadata: result.metadata
   };
 }
@@ -486,7 +486,7 @@ function generatePhasesFromSchedule(schedule: any): any[] {
  * Extract milestones from schedule
  */
 function extractMilestonesFromSchedule(schedule: any, projectStartDate: Date): any[] {
-  const milestones = [];
+  const milestones: any[] = [];
   const projectStartTime = projectStartDate.getTime();
   
   // Extract deliverable milestones
