@@ -181,8 +181,10 @@ export class EPMSynthesizer {
    * Build EPM program using INTELLIGENT PLANNING system
    * Used when INTELLIGENT_PLANNING_ENABLED is true
    * 
-   * Architecture: Generate all components first (like old system), 
-   * then use intelligent planning for CPM scheduling & timeline optimization
+   * Architecture: 
+   * 1. Generate timeline-independent components (workstreams, resources, financial plan)
+   * 2. Call intelligent planning to build optimized timeline via CPM scheduling
+   * 3. Generate timeline-dependent components (stage gates, benefits, KPIs) using optimized timeline
    */
   private async buildWithIntelligentPlanning(
     insights: StrategyInsights,
@@ -193,45 +195,42 @@ export class EPMSynthesizer {
     // Generate program name
     const programName = await this.generateProgramName(insights, userContext, namingContext);
     
-    // Generate components (SKIP timeline generation - intelligent planning will build it)
+    // PHASE 1: Generate timeline-INDEPENDENT components
     const executiveSummary = await this.generateExecutiveSummary(insights, programName);
     const workstreams = await this.generateWorkstreams(insights);
     const riskRegister = await this.generateRiskRegister(insights);
     const resourcePlan = await this.generateResourcePlan(insights, workstreams, userContext);
     const financialPlan = await this.generateFinancialPlan(insights, resourcePlan, userContext);
-    
-    // Create placeholder timeline & stage gates (intelligent planning will replace these)
-    const placeholderTimeline: Timeline = {
-      totalMonths: 12, // Placeholder, will be replaced
-      phases: [],
-      criticalPath: [],
-      confidence: 0
-    };
-    const stageGates = await this.generateStageGates(placeholderTimeline, riskRegister);
-    const benefitsRealization = await this.generateBenefitsRealization(insights, placeholderTimeline);
-    const kpis = await this.generateKPIs(insights, benefitsRealization);
     const stakeholderMap = await this.generateStakeholderMap(insights);
     const governance = await this.generateGovernance(insights, stakeholderMap);
     const qaPlan = await this.generateQAPlan(insights);
     const procurement = await this.generateProcurement(insights, financialPlan);
     const exitStrategy = await this.generateExitStrategy(insights, riskRegister);
     
-    // Build base program with all components
-    const baseProgram: EPMProgram = {
+    // PHASE 2: Call intelligent planning for CPM timeline generation
+    // Create minimal program for intelligent planning input
+    const placeholderTimeline: Timeline = {
+      totalMonths: 12, // Placeholder for intelligent planning
+      phases: [],
+      criticalPath: [],
+      confidence: 0
+    };
+    
+    const minimalProgram: EPMProgram = {
       frameworkType: insights.frameworkType,
       frameworkRunId: insights.frameworkRunId,
       generatedAt: new Date(),
-      overallConfidence: 0, // Will be recalculated after intelligent planning
+      overallConfidence: 0,
       extractionRationale: this.generateExtractionRationale(insights, userContext),
       executiveSummary,
       workstreams,
       timeline: placeholderTimeline,
       resourcePlan,
       financialPlan,
-      benefitsRealization,
+      benefitsRealization: {} as BenefitsRealization, // Will generate after timeline
       riskRegister,
-      stageGates,
-      kpis,
+      stageGates: {} as StageGates, // Will generate after timeline
+      kpis: {} as KPIs, // Will generate after timeline
       stakeholderMap,
       governance,
       qaPlan,
@@ -239,15 +238,14 @@ export class EPMSynthesizer {
       exitStrategy,
     };
     
-    // Use intelligent planning for CPM scheduling & timeline optimization
     try {
-      console.log('[EPM Synthesis] Applying intelligent planning for CPM scheduling...');
+      console.log('[EPM Synthesis] Calling intelligent planning for CPM timeline generation...');
       
       const planningResult = await replaceTimelineGeneration(
-        baseProgram,
+        minimalProgram,
         { insights, userContext },
         { 
-          maxDuration: placeholderTimeline.totalMonths,
+          maxDuration: 12,
           budget: financialPlan.totalBudget
         }
       );
@@ -258,17 +256,30 @@ export class EPMSynthesizer {
           console.log('[EPM Synthesis] ⚠️  Planning warnings:', planningResult.warnings);
         }
         
-        // Recalculate overall confidence with optimized timeline
+        // PHASE 3: Generate timeline-DEPENDENT components using optimized timeline
         const optimizedProgram = planningResult.program;
+        const optimizedTimeline = optimizedProgram.timeline;
+        
+        console.log('[EPM Synthesis] Generating timeline-dependent components with optimized schedule...');
+        const stageGates = await this.generateStageGates(optimizedTimeline, riskRegister);
+        const benefitsRealization = await this.generateBenefitsRealization(insights, optimizedTimeline);
+        const kpis = await this.generateKPIs(insights, benefitsRealization);
+        
+        // Update program with timeline-dependent components
+        optimizedProgram.stageGates = stageGates;
+        optimizedProgram.benefitsRealization = benefitsRealization;
+        optimizedProgram.kpis = kpis;
+        
+        // Calculate overall confidence
         optimizedProgram.overallConfidence = this.calculateOverallConfidence([
           optimizedProgram.executiveSummary.confidence,
           optimizedProgram.timeline.confidence || planningResult.confidence / 100,
           optimizedProgram.resourcePlan.confidence,
           optimizedProgram.financialPlan.confidence,
-          optimizedProgram.benefitsRealization.confidence,
+          benefitsRealization.confidence,
           optimizedProgram.riskRegister.confidence,
-          optimizedProgram.stageGates.confidence,
-          optimizedProgram.kpis.confidence,
+          stageGates.confidence,
+          kpis.confidence,
           optimizedProgram.stakeholderMap.confidence,
           optimizedProgram.governance.confidence,
           optimizedProgram.qaPlan.confidence,
@@ -278,50 +289,13 @@ export class EPMSynthesizer {
         
         return optimizedProgram;
       } else {
-        console.warn('[EPM Synthesis] ⚠️  Intelligent planning optimization unsuccessful');
-        console.warn('[EPM Synthesis] Using base program with standard timeline');
-        
-        // Calculate confidence for base program
-        baseProgram.overallConfidence = this.calculateOverallConfidence([
-          executiveSummary.confidence,
-          placeholderTimeline.confidence,
-          resourcePlan.confidence,
-          financialPlan.confidence,
-          benefitsRealization.confidence,
-          riskRegister.confidence,
-          stageGates.confidence,
-          kpis.confidence,
-          stakeholderMap.confidence,
-          governance.confidence,
-          qaPlan.confidence,
-          procurement.confidence,
-          exitStrategy.confidence,
-        ]);
-        
-        return baseProgram;
+        console.warn('[EPM Synthesis] ⚠️  Intelligent planning unsuccessful, falling back to old system');
+        return await this.buildWithOldSystem(insights, userContext, namingContext);
       }
     } catch (error) {
       console.error('[EPM Synthesis] ❌ Intelligent planning failed:', error);
-      console.error('[EPM Synthesis] Using base program with standard timeline');
-      
-      // Calculate confidence for base program
-      baseProgram.overallConfidence = this.calculateOverallConfidence([
-        executiveSummary.confidence,
-        placeholderTimeline.confidence,
-        resourcePlan.confidence,
-        financialPlan.confidence,
-        benefitsRealization.confidence,
-        riskRegister.confidence,
-        stageGates.confidence,
-        kpis.confidence,
-        stakeholderMap.confidence,
-        governance.confidence,
-        qaPlan.confidence,
-        procurement.confidence,
-        exitStrategy.confidence,
-      ]);
-      
-      return baseProgram;
+      console.error('[EPM Synthesis] Falling back to old system');
+      return await this.buildWithOldSystem(insights, userContext, namingContext);
     }
   }
 
