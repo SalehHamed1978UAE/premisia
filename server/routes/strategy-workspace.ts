@@ -321,11 +321,15 @@ router.post('/epm/generate', async (req: Request, res: Response) => {
     // Run through BMC analyzer
     const insights = await bmcAnalyzer.analyze(bmcResults);
     
-    // Include prioritized order in user decisions context
+    // Include prioritized order and sessionId in user decisions context
     const decisionsWithPriority = userDecisions ? {
       ...userDecisions,
       prioritizedOrder: prioritizedOrder || [],
-    } : { prioritizedOrder: prioritizedOrder || [] };
+      sessionId: version.sessionId,  // Pass sessionId for initiative type lookup
+    } : { 
+      prioritizedOrder: prioritizedOrder || [],
+      sessionId: version.sessionId,  // Pass sessionId for initiative type lookup
+    };
     
     // Run through EPM synthesizer with naming context
     const epmProgram = await epmSynthesizer.synthesize(insights, decisionsWithPriority, namingContext);
