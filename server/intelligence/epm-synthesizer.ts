@@ -292,6 +292,17 @@ export class EPMSynthesizer {
         return optimizedProgram;
       } else {
         console.warn('[EPM Synthesis] ⚠️  Intelligent planning unsuccessful, falling back to old system');
+        console.log('[EPM Synthesis] Planning result details:');
+        console.log('  - Success:', planningResult.success);
+        console.log('  - Confidence:', planningResult.confidence);
+        console.log('  - Warnings count:', planningResult.warnings?.length || 0);
+        console.log('  - Adjustments count:', planningResult.adjustments?.length || 0);
+        if (planningResult.adjustments && planningResult.adjustments.length > 0) {
+          console.log('[EPM Synthesis] Adjustments needed:');
+          planningResult.adjustments.forEach((adj, i) => {
+            console.log(`    ${i + 1}. ${adj}`);
+          });
+        }
         return await this.buildWithOldSystem(insights, userContext, namingContext);
       }
     } catch (error) {

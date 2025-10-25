@@ -55,6 +55,17 @@ export async function replaceTimelineGeneration(
     
     if (!planningResult.success) {
       console.warn('Planning failed, returning with adjustments needed');
+      console.log('=== PLANNING FAILURE DETAILS ===');
+      console.log('Success:', planningResult.success);
+      console.log('Confidence Score:', planningResult.metadata?.score);
+      console.log('Warnings:', JSON.stringify(planningResult.warnings, null, 2));
+      console.log('Adjustments Needed:', JSON.stringify(planningResult.adjustments, null, 2));
+      console.log('Schedule Data:', planningResult.schedule ? 'Present' : 'Missing');
+      if (planningResult.schedule) {
+        console.log('Schedule Tasks Count:', planningResult.schedule.tasks?.length || 0);
+        console.log('Schedule Total Months:', planningResult.schedule.totalMonths);
+      }
+      console.log('=== END PLANNING FAILURE DETAILS ===');
       
       return {
         success: false,
