@@ -47,7 +47,11 @@ export class WBSBuilder implements IWBSBuilder {
       const intent = await this.analyzer.process(analysisInput);
       
       // Step 2: Select work breakdown pattern
-      const pattern = await this.patternProvider.process(intent);
+      let pattern = await this.patternProvider.process(intent);
+      
+      // Step 2.5: Apply strategy-based adjustments to pattern
+      const { AdaptivePatternWeighter } = await import('../providers/adaptive-pattern-weighter');
+      pattern = AdaptivePatternWeighter.adjustPattern(pattern, strategyProfile);
       
       // Step 3: Optimize pattern into concrete workstreams
       const optimizationInput: OptimizationInput = { pattern, context, insights };
