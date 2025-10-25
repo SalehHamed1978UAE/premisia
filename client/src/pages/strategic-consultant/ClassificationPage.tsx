@@ -113,8 +113,12 @@ export default function ClassificationPage() {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to update classification');
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || 'Failed to update classification');
       }
+      
+      const result = await response.json();
+      console.log('[ClassificationPage] Update successful:', result);
       
       toast({
         title: 'Classification confirmed',
@@ -129,10 +133,10 @@ export default function ClassificationPage() {
       }, 500);
       
     } catch (error: any) {
-      console.error('Error updating classification:', error);
+      console.error('[ClassificationPage] Error updating classification:', error);
       toast({
         title: 'Update failed',
-        description: error.message,
+        description: error.message || 'An unexpected error occurred. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -158,13 +162,28 @@ export default function ClassificationPage() {
   if (!classification) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-8">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-4xl mx-auto space-y-4">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
               Classification data not found. Please try again.
             </AlertDescription>
           </Alert>
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setLocation('/strategic-consultant/input')}
+              data-testid="button-back-to-input"
+            >
+              Back to Input
+            </Button>
+            <Button
+              onClick={loadClassification}
+              data-testid="button-retry"
+            >
+              Retry Loading
+            </Button>
+          </div>
         </div>
       </div>
     );

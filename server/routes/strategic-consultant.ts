@@ -210,11 +210,12 @@ router.patch('/classification', async (req: Request, res: Response) => {
   try {
     const { understandingId, initiativeType, userConfirmed } = req.body;
 
-    if (!understandingId) {
-      return res.status(400).json({ error: 'Understanding ID is required' });
+    // Validate required field
+    if (!understandingId || typeof understandingId !== 'string') {
+      return res.status(400).json({ error: 'Valid understanding ID is required' });
     }
 
-    // Verify understanding exists
+    // Verify understanding exists BEFORE attempting update
     const understanding = await db
       .select()
       .from(strategicUnderstanding)
@@ -225,11 +226,11 @@ router.patch('/classification', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Understanding not found' });
     }
 
-    // Build update object dynamically
+    // Build update object with strict validation
     const updateData: any = {};
     
     if (initiativeType !== undefined) {
-      // Validate initiative type
+      // Validate initiative type against enum values
       const validTypes = [
         'physical_business_launch',
         'software_development',
@@ -241,10 +242,11 @@ router.patch('/classification', async (req: Request, res: Response) => {
         'other'
       ];
       
-      if (!validTypes.includes(initiativeType)) {
+      if (typeof initiativeType !== 'string' || !validTypes.includes(initiativeType)) {
         return res.status(400).json({ 
-          error: 'Invalid initiative type',
-          validTypes 
+          error: 'Invalid initiative type. Must be one of the valid enum values.',
+          validTypes,
+          received: initiativeType
         });
       }
       
@@ -252,7 +254,21 @@ router.patch('/classification', async (req: Request, res: Response) => {
     }
     
     if (userConfirmed !== undefined) {
+      // Validate boolean type
+      if (typeof userConfirmed !== 'boolean') {
+        return res.status(400).json({ 
+          error: 'userConfirmed must be a boolean value',
+          received: typeof userConfirmed
+        });
+      }
       updateData.userConfirmed = userConfirmed;
+    }
+
+    // Ensure at least one field is being updated
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ 
+        error: 'No valid fields provided for update. Provide initiativeType and/or userConfirmed.'
+      });
     }
 
     // Update the record

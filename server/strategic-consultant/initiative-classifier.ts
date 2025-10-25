@@ -90,8 +90,22 @@ export class InitiativeClassifier {
       
       console.log('[INITIATIVE-CLASSIFIER] Raw AI response:', response.content);
       
-      // Parse and validate the response
-      const parsed = JSON.parse(response.content);
+      // Parse and validate the response with robust error handling
+      let parsed: any;
+      try {
+        parsed = JSON.parse(response.content);
+      } catch (parseError) {
+        console.error('[INITIATIVE-CLASSIFIER] JSON parse error:', parseError);
+        console.error('[INITIATIVE-CLASSIFIER] Invalid JSON content:', response.content);
+        // Fallback to keyword classification if JSON parse fails
+        return this.fallbackClassification(userInput);
+      }
+      
+      // Validate required fields exist
+      if (!parsed || typeof parsed !== 'object') {
+        console.error('[INITIATIVE-CLASSIFIER] Response is not an object:', parsed);
+        return this.fallbackClassification(userInput);
+      }
       
       // Validate the classification result
       if (!this.isValidInitiativeType(parsed.initiativeType)) {
@@ -105,11 +119,22 @@ export class InitiativeClassifier {
         parsed.confidence = 0.5;
       }
       
+      // Ensure description and reasoning exist
+      if (!parsed.description || typeof parsed.description !== 'string') {
+        console.warn('[INITIATIVE-CLASSIFIER] Missing or invalid description, using default');
+        parsed.description = 'Initiative classification';
+      }
+      
+      if (!parsed.reasoning || typeof parsed.reasoning !== 'string') {
+        console.warn('[INITIATIVE-CLASSIFIER] Missing or invalid reasoning, using default');
+        parsed.reasoning = 'Automatic classification';
+      }
+      
       const result: ClassificationResult = {
         initiativeType: parsed.initiativeType,
-        description: parsed.description || 'Initiative classification',
+        description: parsed.description,
         confidence: parsed.confidence,
-        reasoning: parsed.reasoning || 'Automatic classification'
+        reasoning: parsed.reasoning
       };
       
       console.log('[INITIATIVE-CLASSIFIER] Classification result:', result);
