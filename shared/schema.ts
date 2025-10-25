@@ -28,6 +28,18 @@ export const bmcBlockTypeEnum = pgEnum('bmc_block_type', [
 export const bmcConfidenceEnum = pgEnum('bmc_confidence', ['weak', 'moderate', 'strong']);
 export const frameworkTypeEnum = pgEnum('framework_type', ['porters_five_forces', 'business_model_canvas', 'user_choice']);
 
+// Initiative type classification enum
+export const initiativeTypeEnum = pgEnum('initiative_type', [
+  'physical_business_launch',    // Opening coffee shop, restaurant, retail store
+  'software_development',         // Building SaaS, mobile app, platform
+  'digital_transformation',       // Adding digital capabilities to existing business
+  'market_expansion',            // Expanding existing business to new markets
+  'product_launch',              // Launching new product line
+  'service_launch',              // Launching new service offering
+  'process_improvement',         // Operational efficiency, restructuring
+  'other'                        // Catch-all
+]);
+
 // Strategic Understanding (Knowledge Graph) Enums
 export const entityTypeEnum = pgEnum('entity_type', [
   'explicit_assumption',
@@ -494,6 +506,11 @@ export const strategicUnderstanding = pgTable("strategic_understanding", {
   sessionId: varchar("session_id").notNull().unique(),
   userInput: text("user_input").notNull(),
   title: varchar("title", { length: 200 }),
+  // Initiative classification fields
+  initiativeType: initiativeTypeEnum("initiative_type"),
+  initiativeDescription: text("initiative_description"),
+  userConfirmed: boolean("user_confirmed").default(false),
+  classificationConfidence: decimal("classification_confidence", { precision: 3, scale: 2 }),
   companyContext: jsonb("company_context"),
   graphVersion: integer("graph_version").default(1),
   lastEnrichedBy: varchar("last_enriched_by", { length: 50 }),
@@ -504,6 +521,7 @@ export const strategicUnderstanding = pgTable("strategic_understanding", {
 }, (table) => ({
   sessionIdx: index("idx_strategic_understanding_session").on(table.sessionId),
   archivedIdx: index("idx_strategic_understanding_archived").on(table.archived),
+  initiativeTypeIdx: index("idx_strategic_understanding_initiative_type").on(table.initiativeType),
 }));
 
 // Journey Sessions - Tracks multi-framework strategic journeys
