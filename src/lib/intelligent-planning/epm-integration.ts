@@ -318,10 +318,16 @@ function transformScheduleForEPM(schedule: any): any {
  * Integrate validated schedule back into EPM program
  */
 function integrateScheduleIntoEPM(epmProgram: any, schedule: any): any {
+  console.log(`[EPM Integration] integrateScheduleIntoEPM called`);
+  console.log(`[EPM Integration] Schedule has tasks: ${schedule?.tasks ? 'YES' : 'NO'}`);
+  console.log(`[EPM Integration] Task count: ${schedule?.tasks?.length || 0}`);
+  
   const updatedProgram = { ...epmProgram };
   
   // Update workstreams with validated timeline data
   if (schedule?.tasks) {
+    console.log(`[EPM Integration] Starting workstream integration...`);
+
     updatedProgram.workstreams = schedule.tasks.map((task: any, index: number) => {
       const originalWorkstream = epmProgram.workstreams?.[index] || {};
       
@@ -373,16 +379,54 @@ function integrateScheduleIntoEPM(epmProgram: any, schedule: any): any {
 
 /**
  * Ensure all deliverables fall within workstream bounds
+ * Handles both string deliverables and object deliverables
  */
 function ensureDeliverablesWithinBounds(
   deliverables: any[],
   startMonth: number,
   endMonth: number
 ): any[] {
-  return deliverables.map(d => ({
-    ...d,
-    dueMonth: Math.max(startMonth, Math.min(endMonth, d.dueMonth))
-  }));
+  console.log(`[EPM Integration] Fixing deliverables: ${deliverables.length} items, range M${startMonth}-M${endMonth}`);
+  if (!deliverables || deliverables.length === 0) return [];
+  
+  const totalMonths = endMonth - startMonth;
+  
+  return deliverables.map((d, index) => {
+    // Handle string deliverables (from WBS Builder)
+    if (typeof d === 'string') {
+      // Distribute deliverables evenly across the workstream timeline
+      const progressPercent = (index + 1) / deliverables.length;
+      const dueMonth = startMonth + Math.floor(totalMonths * progressPercent);
+      
+      return {
+        id: `D${index + 1}`,
+        name: d,
+        dueMonth: Math.min(dueMonth, endMonth)
+      };
+    }
+    
+    // Handle object deliverables
+    const existingDueMonth = typeof d.dueMonth === 'number' && !isNaN(d.dueMonth) 
+      ? d.dueMonth 
+      : null;
+    
+    let finalDueMonth: number;
+    
+    if (existingDueMonth !== null) {
+      // Clamp existing dueMonth to workstream bounds
+      finalDueMonth = Math.max(startMonth, Math.min(endMonth, existingDueMonth));
+    } else {
+      // No valid dueMonth: distribute evenly like strings
+      const progressPercent = (index + 1) / deliverables.length;
+      finalDueMonth = startMonth + Math.floor(totalMonths * progressPercent);
+      finalDueMonth = Math.min(finalDueMonth, endMonth);
+    }
+    
+    return {
+      ...d,
+      dueMonth: finalDueMonth
+    };
+  });
 }
 
 /**
