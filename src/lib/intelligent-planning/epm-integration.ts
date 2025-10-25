@@ -5,15 +5,15 @@
 
 import { createPlanningSystem } from './index';
 import { PlanningRequest, PlanningResult } from './orchestrator';
-import { Constraint, Resource } from './types';
+import { Constraint, Resource, PlanningContext } from './types';
 
 /**
  * Main integration function to replace current timeline generation
- * Use this in your server/routes/strategy-workspace.ts
+ * Now accepts PlanningContext with business scale and timeline constraints
  */
 export async function replaceTimelineGeneration(
   epmProgram: any,
-  businessContext: any,
+  planningContext: PlanningContext,
   config?: {
     maxDuration?: number;
     budget?: number;
@@ -29,12 +29,16 @@ export async function replaceTimelineGeneration(
   
   try {
     console.log('Starting intelligent timeline generation...');
+    console.log(`Business: ${planningContext.business.name} (${planningContext.business.type})`);
+    console.log(`Scale: ${planningContext.business.scale}`);
+    console.log(`Timeline range: ${planningContext.execution.timeline.min}-${planningContext.execution.timeline.max} months`);
     
     // Extract workstreams and objectives from EPM program
+    // Include planning context so AI knows business scale
     const strategy = {
       workstreams: epmProgram.workstreams || [],
       objectives: epmProgram.executiveSummary?.objectives || [],
-      context: businessContext,
+      context: planningContext,  // Pass full context instead of raw businessContext
       timeline: epmProgram.timeline,
       financialPlan: epmProgram.financialPlan,
       riskRegister: epmProgram.riskRegister
