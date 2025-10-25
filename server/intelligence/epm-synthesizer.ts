@@ -161,7 +161,7 @@ export class EPMSynthesizer {
           { insights, userContext },
           { 
             maxDuration: timeline.totalMonths,
-            budget: financialPlan.totalInvestment
+            budget: financialPlan.totalBudget
           }
         );
         
