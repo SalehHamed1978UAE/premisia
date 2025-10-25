@@ -273,24 +273,44 @@ function buildResources(resourcePlan: any, config?: any): Resource[] {
  * Transform planning system schedule to EPM format
  */
 function transformScheduleForEPM(schedule: any): any {
+  // Find the earliest task start date as the project start (Month 0)
+  const projectStartDate = schedule.tasks.reduce((earliest: Date, task: any) => {
+    const taskStart = new Date(task.startDate);
+    return taskStart < earliest ? taskStart : earliest;
+  }, new Date(schedule.tasks[0]?.startDate || Date.now()));
+  
+  const projectStartTime = projectStartDate.getTime();
+  
+  console.log('[EPM Integration] Project start date:', projectStartDate.toISOString());
+  console.log('[EPM Integration] Total duration from schedule:', schedule.totalDuration, 'months');
+  
   return {
-    tasks: schedule.tasks.map((task: any) => ({
-      id: task.id,
-      name: task.name,
-      startDate: task.startDate,
-      endDate: task.endDate,
-      startMonth: Math.floor((task.startDate.getTime() - Date.now()) / (30 * 24 * 60 * 60 * 1000)),
-      endMonth: Math.floor((task.endDate.getTime() - Date.now()) / (30 * 24 * 60 * 60 * 1000)),
-      confidence: task.isCritical ? 70 : 85,
-      dependencies: task.dependencies,
-      deliverables: task.deliverables || [],
-      owner: task.assignedResources?.[0] || 'Unassigned',
-      description: task.description
-    })),
+    tasks: schedule.tasks.map((task: any) => {
+      const taskStartTime = new Date(task.startDate).getTime();
+      const taskEndTime = new Date(task.endDate).getTime();
+      
+      // Calculate months from PROJECT START (not from now!)
+      const startMonth = Math.floor((taskStartTime - projectStartTime) / (30 * 24 * 60 * 60 * 1000));
+      const endMonth = Math.floor((taskEndTime - projectStartTime) / (30 * 24 * 60 * 60 * 1000));
+      
+      return {
+        id: task.id,
+        name: task.name,
+        startDate: task.startDate,
+        endDate: task.endDate,
+        startMonth,
+        endMonth,
+        confidence: task.isCritical ? 70 : 85,
+        dependencies: task.dependencies,
+        deliverables: task.deliverables || [],
+        owner: task.assignedResources?.[0] || 'Unassigned',
+        description: task.description
+      };
+    }),
     totalMonths: schedule.totalDuration,
     criticalPath: schedule.criticalPath,
     phases: generatePhasesFromSchedule(schedule),
-    milestones: extractMilestonesFromSchedule(schedule)
+    milestones: extractMilestonesFromSchedule(schedule, projectStartDate)
   };
 }
 
@@ -403,8 +423,9 @@ function generatePhasesFromSchedule(schedule: any): any[] {
 /**
  * Extract milestones from schedule
  */
-function extractMilestonesFromSchedule(schedule: any): any[] {
+function extractMilestonesFromSchedule(schedule: any, projectStartDate: Date): any[] {
   const milestones = [];
+  const projectStartTime = projectStartDate.getTime();
   
   // Extract deliverable milestones
   schedule.tasks.forEach((task: any) => {
@@ -413,7 +434,7 @@ function extractMilestonesFromSchedule(schedule: any): any[] {
         milestones.push({
           id: deliverable.id,
           name: deliverable.name,
-          date: new Date(Date.now() + deliverable.dueMonth * 30 * 24 * 60 * 60 * 1000),
+          date: new Date(projectStartTime + deliverable.dueMonth * 30 * 24 * 60 * 60 * 1000),
           type: 'deliverable',
           workstreamId: task.id
         });
