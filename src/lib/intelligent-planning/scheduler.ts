@@ -112,9 +112,23 @@ export class CPMScheduler implements IScheduler {
   }
   
   private calculateDuration(duration: Duration): number {
+    // Convert all durations to months first
+    const { optimistic, likely, pessimistic, unit } = duration;
+    
+    let conversionFactor = 1;
+    if (unit === 'days') {
+      conversionFactor = 1 / 30; // 30 days per month
+    } else if (unit === 'weeks') {
+      conversionFactor = 1 / 4.33; // ~4.33 weeks per month
+    }
+    // unit === 'months' -> conversionFactor = 1
+    
+    const optimisticMonths = optimistic * conversionFactor;
+    const likelyMonths = likely * conversionFactor;
+    const pessimisticMonths = pessimistic * conversionFactor;
+    
     // PERT formula: (O + 4M + P) / 6
-    const { optimistic, likely, pessimistic } = duration;
-    return Math.round((optimistic + 4 * likely + pessimistic) / 6);
+    return Math.round((optimisticMonths + 4 * likelyMonths + pessimisticMonths) / 6 * 10) / 10; // Round to 1 decimal place
   }
   
   private findSuccessors(taskId: TaskId): ScheduledTask[] {
