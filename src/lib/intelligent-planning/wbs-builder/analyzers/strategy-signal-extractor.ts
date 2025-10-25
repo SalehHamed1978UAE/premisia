@@ -10,6 +10,7 @@ export interface StrategySignals {
   techRevenue: string[];          // Tech-enabled revenue streams
   techResources: string[];        // Key technology resources identified
   customerTech: string[];         // Digital customer relationship mechanisms
+  revenueDigitization: string[];  // Legacy compatibility
   digitalIntensity: number;       // 0-100 score of digital emphasis
 }
 
@@ -27,13 +28,26 @@ export class StrategySignalExtractor {
       techRevenue: [],
       techResources: [],
       customerTech: [],
+      revenueDigitization: [],
       digitalIntensity: 0
     };
     
+    // Defensive null checks
+    if (!insights || !insights.insights || !Array.isArray(insights.insights)) {
+      console.warn('[Strategy Signal Extractor] Invalid insights structure, returning empty signals');
+      console.warn('[Strategy Signal Extractor] Received:', JSON.stringify(insights, null, 2).substring(0, 200));
+      return signals;
+    }
+    
     // Analyze all insights for digital/technology indicators
     insights.insights.forEach((insight: any) => {
+      if (!insight || typeof insight.content !== 'string') {
+        console.warn('[Strategy Signal Extractor] Skipping malformed insight:', insight);
+        return; // Skip malformed insights
+      }
+      
       const content = insight.content.toLowerCase();
-      const category = insight.category?.toLowerCase() || '';
+      const category = (insight.metadata?.category || insight.source || '').toLowerCase();
       
       // Platform/app development signals
       if (
