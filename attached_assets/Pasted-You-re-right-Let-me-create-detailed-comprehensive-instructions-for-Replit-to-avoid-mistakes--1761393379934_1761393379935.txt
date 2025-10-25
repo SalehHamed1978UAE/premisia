@@ -1,0 +1,248 @@
+You're right. Let me create detailed, comprehensive instructions for Replit to avoid mistakes:
+
+## **Detailed Instructions for Replit: WBS Builder Module**
+
+---
+
+### **Context of the Problem**
+We discovered the intelligent planning is getting wrong workstreams. For a coffee shop, it receives "Technology Platform Development" and plans 22 months of software development. The root cause: the BMC analyzer blindly adds tech workstreams whenever it sees any technology mentioned, without understanding if the business BUILDS tech or just USES tech.
+
+### **What We're Building: Intelligent WBS Builder Module**
+
+**Location:** `/src/lib/intelligent-planning/wbs-builder.ts`
+
+### **Step 1: Create the Type Definitions**
+
+```typescript
+// These MUST be comprehensive - don't skip any
+export type InitiativeType = 
+  | 'business_launch'        // Opening physical locations (coffee shop, retail, restaurant)
+  | 'product_development'     // Creating new products/services (not software)
+  | 'software_development'    // Building software products (apps, SaaS, platforms)
+  | 'digital_transformation'  // Modernizing existing business processes with technology
+  | 'market_expansion'        // Entering new geographic markets or customer segments
+  | 'organizational_change'   // Restructuring, culture change, new operating model
+  | 'operational_excellence'  // Process improvement, cost reduction, efficiency
+  | 'merger_integration'      // Post-M&A integration, combining companies
+  | 'innovation_program'      // R&D initiatives, innovation labs
+  | 'compliance_initiative'   // Regulatory compliance, certifications
+  | 'turnaround_strategy'     // Crisis management, business recovery
+  | 'platform_ecosystem'      // Building multi-sided platforms/marketplaces
+  | 'sustainability_program'  // ESG, environmental, social initiatives
+  | 'infrastructure_upgrade'; // IT infrastructure, facilities upgrade
+
+export interface WorkStream {
+  id: string;
+  name: string;
+  category: WorkStreamCategory;
+  description: string;
+  proportionalEffort: number; // 0-100 percentage
+  priority: 'critical' | 'high' | 'medium' | 'low';
+  deliverables: string[];
+  dependencies: string[]; // IDs of other workstreams
+  estimatedDuration: { min: number; max: number; unit: 'weeks' | 'months' };
+}
+
+export type WorkStreamCategory = 
+  | 'physical_infrastructure'  // Buildings, locations, equipment
+  | 'technology_systems'       // IT systems, software, digital tools
+  | 'human_resources'          // Hiring, training, org development
+  | 'operations'               // Processes, procedures, delivery
+  | 'marketing_sales'          // Go-to-market, branding, sales
+  | 'finance_admin'            // Financial setup, admin, accounting
+  | 'legal_compliance'         // Permits, regulations, legal
+  | 'product_service'          // Core product/service development
+  | 'supply_chain'             // Vendors, suppliers, logistics
+  | 'customer_success'         // Customer service, retention
+  | 'change_management'        // Organizational change, training
+  | 'data_analytics';          // Data, insights, analytics
+```
+
+### **Step 2: Create the Pattern Library**
+
+```typescript
+// CRITICAL: These patterns define the DEFAULT work stream mix for each initiative type
+// The AI will CUSTOMIZE these based on specific context
+
+const INITIATIVE_PATTERNS: Record<InitiativeType, WorkStreamPattern[]> = {
+  business_launch: [
+    // Coffee shop, retail store, restaurant
+    { category: 'physical_infrastructure', minWeight: 30, maxWeight: 40, priority: 'critical' },
+    { category: 'operations', minWeight: 20, maxWeight: 30, priority: 'critical' },
+    { category: 'human_resources', minWeight: 15, maxWeight: 25, priority: 'high' },
+    { category: 'marketing_sales', minWeight: 10, maxWeight: 20, priority: 'high' },
+    { category: 'technology_systems', minWeight: 5, maxWeight: 15, priority: 'medium' }, // USES tech
+    { category: 'legal_compliance', minWeight: 10, maxWeight: 15, priority: 'critical' },
+    { category: 'finance_admin', minWeight: 5, maxWeight: 10, priority: 'high' }
+  ],
+  
+  software_development: [
+    // SaaS, apps, platforms - BUILDS tech
+    { category: 'technology_systems', minWeight: 50, maxWeight: 70, priority: 'critical' },
+    { category: 'product_service', minWeight: 15, maxWeight: 25, priority: 'critical' },
+    { category: 'marketing_sales', minWeight: 10, maxWeight: 20, priority: 'high' },
+    { category: 'operations', minWeight: 5, maxWeight: 10, priority: 'medium' },
+    { category: 'human_resources', minWeight: 5, maxWeight: 10, priority: 'high' },
+    { category: 'legal_compliance', minWeight: 3, maxWeight: 7, priority: 'medium' }
+  ],
+  
+  // ... Define patterns for ALL initiative types
+};
+```
+
+### **Step 3: Create the Main WBS Builder Class**
+
+```typescript
+export class IntelligentWBSBuilder {
+  constructor(private llm: LLMProvider) {}
+  
+  async buildWBS(
+    insights: any,
+    context: PlanningContext
+  ): Promise<WorkBreakdownStructure> {
+    
+    // STEP 1: Identify what type of initiative this is
+    const initiativeType = await this.identifyInitiativeType(insights, context);
+    console.log(`[WBS Builder] Initiative type identified: ${initiativeType}`);
+    
+    // STEP 2: Get the base pattern for this initiative type
+    const basePattern = INITIATIVE_PATTERNS[initiativeType];
+    console.log(`[WBS Builder] Base pattern: ${JSON.stringify(basePattern)}`);
+    
+    // STEP 3: Customize the pattern based on specific business context
+    const customizedStreams = await this.customizeWorkStreams(
+      basePattern,
+      initiativeType,
+      insights,
+      context
+    );
+    console.log(`[WBS Builder] Customized streams count: ${customizedStreams.length}`);
+    
+    // STEP 4: Validate the work streams make sense
+    const validatedStreams = await this.validateWorkStreams(
+      customizedStreams,
+      insights.businessObjective
+    );
+    
+    // STEP 5: Generate deliverables for each work stream
+    const completeWBS = await this.generateDeliverables(validatedStreams, context);
+    
+    return completeWBS;
+  }
+```
+
+### **Step 4: The Critical Method - Initiative Type Identification**
+
+```typescript
+private async identifyInitiativeType(
+  insights: any,
+  context: PlanningContext
+): Promise<InitiativeType> {
+  
+  // IMPORTANT: This prompt must be VERY specific to avoid misclassification
+  const prompt = `
+    Analyze this business case and identify the PRIMARY initiative type.
+    
+    Business Name: ${context.business.name}
+    Business Description: ${context.business.description}
+    Strategic Insights: ${JSON.stringify(insights)}
+    
+    CRITICAL DECISION RULES:
+    - If OPENING a physical location (store, restaurant, office) → business_launch
+    - If BUILDING software to sell → software_development  
+    - If CREATING physical products → product_development
+    - If USING technology to improve existing business → digital_transformation
+    - If EXPANDING to new locations/markets → market_expansion
+    
+    Common patterns:
+    - "Open a coffee shop" → business_launch (NOT software_development)
+    - "Build a SaaS platform" → software_development
+    - "Modernize our supply chain" → digital_transformation
+    - "Enter the European market" → market_expansion
+    
+    Return ONLY the initiative type that best matches.
+  `;
+  
+  const response = await this.llm.structuredComplete<{type: InitiativeType}>(prompt);
+  return response.type;
+}
+```
+
+### **Step 5: Work Stream Customization**
+
+```typescript
+private async customizeWorkStreams(
+  basePattern: WorkStreamPattern[],
+  initiativeType: InitiativeType,
+  insights: any,
+  context: PlanningContext
+): Promise<WorkStream[]> {
+  
+  const prompt = `
+    Given this ${initiativeType} initiative for ${context.business.name}:
+    ${context.business.description}
+    
+    Base work stream pattern:
+    ${JSON.stringify(basePattern)}
+    
+    Customize the work streams:
+    1. Adjust weights based on specific business context
+    2. Add specific deliverables for each stream
+    3. Set realistic durations
+    
+    RULES:
+    - Total weights must sum to 100%
+    - Physical business (coffee shop) should have 30-40% physical infrastructure
+    - Software business should have 50-70% technology systems
+    - NEVER make technology the primary stream for non-tech businesses
+    
+    Return customized work streams with specific names and deliverables.
+  `;
+  
+  return await this.llm.structuredComplete<WorkStream[]>(prompt);
+}
+```
+
+### **Step 6: Integration with EPM Synthesizer**
+
+```typescript
+// In epm-synthesizer.ts, REPLACE generateWorkstreams with:
+
+async buildWithIntelligentPlanning(insights, context) {
+  // NEW: Use WBS Builder
+  const wbsBuilder = new IntelligentWBSBuilder(this.llm);
+  const wbs = await wbsBuilder.buildWBS(insights, context);
+  
+  // Convert WBS work streams to existing workstream format
+  const workstreams = wbs.streams.map(stream => ({
+    id: stream.id,
+    name: stream.name,
+    description: stream.description,
+    deliverables: stream.deliverables,
+    startMonth: 0, // Will be set by scheduler
+    endMonth: 0,   // Will be set by scheduler
+    dependencies: stream.dependencies
+  }));
+  
+  // Continue with rest of the flow...
+}
+```
+
+### **Testing Requirements**
+
+**Test Case 1: Brooklyn Coffee Shop**
+- Should identify as `business_launch`
+- Work streams should be ~35% physical, ~25% operations, ~10% technology
+- Total timeline: 6-12 months
+- Technology tasks should be "install POS system" NOT "develop platform"
+
+**Test Case 2: SaaS Platform**  
+- Should identify as `software_development`
+- Work streams should be ~60% technology, ~20% marketing
+- Technology tasks should be "develop core platform features"
+
+### **Critical Success Factors**
+1. MUST distinguish between USING tech vs BUILDING tech
+2. MUST generate proportional work streams appropriate to business type
+3. MUST validate that work streams match business objective
+4. MUST be extensible for new initiative types without code changes
