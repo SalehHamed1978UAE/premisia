@@ -246,9 +246,7 @@ export class EPMSynthesizer {
     
     // ===== CHECK FLAG FIRST - ROUTE TO ONE PATH ONLY =====
     // Feature flag: Use AI-powered planning system OR old system (never both)
-    // TEMPORARY: Hardcoded to true for testing
     const intelligentPlanningEnabled = 
-      true || // <-- HARDCODED FOR TESTING
       options?.forceIntelligentPlanning === true || 
       process.env.INTELLIGENT_PLANNING_ENABLED === 'true';
     
