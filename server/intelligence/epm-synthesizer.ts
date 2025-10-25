@@ -175,11 +175,14 @@ export class ContextBuilder {
     const contextText = ((insights.context || '') + ' ' + (insights.description || '')).toLowerCase();
     
     // Try to extract explicit budget if mentioned
-    const budgetMatch = contextText.match(/\$(\d+(?:,\d+)*)\s*(?:k|thousand|million|m)?/i);
+    const budgetMatch = contextText.match(/\$(\d+(?:,\d+)*)\s*(k|thousand|million|mm|m(?=\s|$))?/i);
     if (budgetMatch) {
       const amount = parseInt(budgetMatch[1].replace(/,/g, ''));
-      const multiplier = contextText.includes('million') || contextText.includes('m') ? 1000000 : 
-                        contextText.includes('k') || contextText.includes('thousand') ? 1000 : 1;
+      const unit = (budgetMatch[2] || '').toLowerCase();
+      
+      // Only treat as millions with explicit "million", "mm", or standalone "m"
+      const multiplier = (unit === 'million' || unit === 'mm' || unit === 'm') ? 1000000 : 
+                        (unit === 'k' || unit === 'thousand') ? 1000 : 1;
       const budget = amount * multiplier;
       return {
         min: budget * 0.75,
