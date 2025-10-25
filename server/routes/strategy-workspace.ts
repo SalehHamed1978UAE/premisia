@@ -5,10 +5,17 @@ import { eq, desc, inArray } from 'drizzle-orm';
 import { BMCAnalyzer, PortersAnalyzer, PESTLEAnalyzer, EPMSynthesizer } from '../intelligence';
 import type { BMCResults, PortersResults, PESTLEResults } from '../intelligence/types';
 import { storage } from '../storage';
+import { createOpenAIProvider } from '../../src/lib/intelligent-planning/llm-provider';
 
 const router = Router();
 
-const epmSynthesizer = new EPMSynthesizer();
+// Create LLM provider for intelligent planning
+const llm = createOpenAIProvider({
+  apiKey: process.env.OPENAI_API_KEY || '',
+  model: 'gpt-5'
+});
+
+const epmSynthesizer = new EPMSynthesizer(llm);
 const bmcAnalyzer = new BMCAnalyzer();
 const portersAnalyzer = new PortersAnalyzer();
 const pestleAnalyzer = new PESTLEAnalyzer();

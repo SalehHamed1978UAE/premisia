@@ -50,7 +50,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Import EPM synthesizer
       const { EPMSynthesizer } = await import('./intelligence');
-      const epmSynthesizer = new EPMSynthesizer();
+      const { createOpenAIProvider } = await import('../src/lib/intelligent-planning/llm-provider');
+      
+      const llm = createOpenAIProvider({
+        apiKey: process.env.OPENAI_API_KEY || '',
+        model: 'gpt-5'
+      });
+      
+      const epmSynthesizer = new EPMSynthesizer(llm);
       
       // Get insights and decisions from request body
       const { insights, userDecisions, namingContext } = req.body;

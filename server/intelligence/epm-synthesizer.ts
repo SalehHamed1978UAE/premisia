@@ -234,6 +234,12 @@ export class ContextBuilder {
 }
 
 export class EPMSynthesizer {
+  private llm: any;
+  
+  constructor(llm?: any) {
+    this.llm = llm;
+  }
+  
   /**
    * Generate complete EPM program from strategic insights
    */
