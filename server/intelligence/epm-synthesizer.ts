@@ -304,7 +304,7 @@ export class EPMSynthesizer {
     
     // Generate CORE components first (timeline, workstreams, gates)
     const executiveSummary = await this.generateExecutiveSummary(insights, programName);
-    const workstreams = await this.generateWorkstreams(insights);
+    const workstreams = await this.generateWorkstreams(insights, userContext);
     const timeline = await this.generateTimeline(insights, workstreams, userContext);
     const riskRegister = await this.generateRiskRegister(insights);
     const stageGates = await this.generateStageGates(timeline, riskRegister);
@@ -429,7 +429,7 @@ export class EPMSynthesizer {
     
     // PHASE 1: Generate timeline-INDEPENDENT components
     const executiveSummary = await this.generateExecutiveSummary(insights, programName);
-    const workstreams = await this.generateWorkstreams(insights);
+    const workstreams = await this.generateWorkstreams(insights, userContext);
     const riskRegister = await this.generateRiskRegister(insights);
     const resourcePlan = await this.generateResourcePlan(insights, workstreams, userContext);
     const financialPlan = await this.generateFinancialPlan(insights, resourcePlan, userContext);
@@ -481,6 +481,12 @@ export class EPMSynthesizer {
         insights.frameworkType || 'strategy_workspace',
         userContext?.sessionId  // Pass sessionId if available from userContext
       );
+      
+      // Attach initiative type to insights for downstream use
+      if (planningContext.business.initiativeType) {
+        (insights as any).initiativeType = planningContext.business.initiativeType;
+        console.log(`[EPM Synthesis] ✅ Initiative type attached to insights: ${planningContext.business.initiativeType}`);
+      }
       
       console.log('[EPM Synthesis] 📋 PLANNING CONTEXT BEING PASSED:');
       console.log(`  Business Name: "${planningContext.business.name}"`);
@@ -607,7 +613,7 @@ export class EPMSynthesizer {
    * Generate workstreams using WBS Builder for semantic analysis
    * Replaces blind workstream generation with business-intent-aware pattern matching
    */
-  private async generateWorkstreams(insights: StrategyInsights): Promise<Workstream[]> {
+  private async generateWorkstreams(insights: StrategyInsights, userContext?: UserContext): Promise<Workstream[]> {
     console.log('\n' + '='.repeat(80));
     console.log('[EPM Synthesis] 📊 GENERATING WORKSTREAMS USING WBS BUILDER');
     console.log('='.repeat(80));
@@ -660,7 +666,9 @@ export class EPMSynthesizer {
         console.log(`    Description: ${ws.description.substring(0, 100)}...`);
         console.log(`    Deliverables: ${ws.deliverables.length}`);
         ws.deliverables.forEach((d, di) => {
-          console.log(`      ${di + 1}. ${d.name} (${d.description})`);
+          // WBS deliverables are strings at this point, not objects
+          const delivName = typeof d === 'string' ? d : (d as any).name || 'Unknown';
+          console.log(`      ${di + 1}. ${delivName}`);
         });
         console.log(`    Dependencies: ${ws.dependencies.length > 0 ? ws.dependencies.join(', ') : 'None'}`);
         console.log(`    Confidence: ${(ws.confidence * 100).toFixed(1)}%`);
@@ -1109,7 +1117,17 @@ export class EPMSynthesizer {
     // Estimate FTE needs based on workstreams
     const estimatedFTEs = Math.max(8, Math.min(workstreams.length * 2, 20));
     
-    const internalTeam = this.generateInternalTeam(estimatedFTEs, workstreams, resourceInsights);
+    // Extract initiative type from insights for initiative-aware role generation
+    const initiativeType = insights.initiativeType || 'other';
+    console.log(`[Resource Generation] Initiative type for resource plan: ${initiativeType}`);
+    
+    const internalTeam = await this.generateInternalTeam(
+      estimatedFTEs, 
+      workstreams, 
+      resourceInsights,
+      initiativeType,
+      insights
+    );
     const externalResources = this.generateExternalResources(insights, userContext);
     const criticalSkills = Array.from(new Set(internalTeam.flatMap(r => r.skills)));
 
@@ -1122,20 +1140,184 @@ export class EPMSynthesizer {
     };
   }
 
-  private generateInternalTeam(estimatedFTEs: number, workstreams: Workstream[], resourceInsights: StrategyInsight[]) {
-    const roles = [
-      { role: 'Program Manager', allocation: 100, months: 12, skills: ['Program management', 'Stakeholder management', 'Risk management'] },
-      { role: 'Business Analyst', allocation: 100, months: 10, skills: ['Requirements analysis', 'Process mapping', 'Documentation'] },
-      { role: 'Technical Lead', allocation: 100, months: 12, skills: ['Technical architecture', 'System design', 'Team leadership'] },
-      { role: 'Developer/Engineer', allocation: 100, months: 10, skills: ['Software development', 'Testing', 'Integration'] },
-      { role: 'Change Manager', allocation: 75, months: 8, skills: ['Change management', 'Training', 'Communication'] },
-      { role: 'Quality Assurance', allocation: 75, months: 8, skills: ['Testing', 'Quality assurance', 'Documentation'] },
-    ];
+  /**
+   * Initiative-aware internal team generation
+   * Uses LLM to generate contextually appropriate roles with fallback templates
+   */
+  private async generateInternalTeam(
+    estimatedFTEs: number, 
+    workstreams: Workstream[], 
+    resourceInsights: StrategyInsight[],
+    initiativeType: string,
+    insights: StrategyInsights
+  ) {
+    console.log(`[Resource Generation] 🎯 Generating team for initiative type: ${initiativeType}`);
+    
+    try {
+      // Try LLM-based generation first
+      const llmRoles = await this.generateRolesWithLLM(
+        initiativeType,
+        estimatedFTEs,
+        workstreams,
+        insights
+      );
+      
+      if (llmRoles && llmRoles.length > 0) {
+        console.log(`[Resource Generation] ✅ LLM generated ${llmRoles.length} initiative-appropriate roles`);
+        return llmRoles;
+      }
+    } catch (error) {
+      console.error('[Resource Generation] ⚠️ LLM generation failed, using fallback templates:', error);
+    }
+    
+    // Fallback to templates if LLM fails
+    console.log('[Resource Generation] 📋 Using fallback role template');
+    return this.getFallbackRoles(initiativeType, estimatedFTEs, workstreams);
+  }
+  
+  /**
+   * Generate roles using LLM for context-aware team composition
+   */
+  private async generateRolesWithLLM(
+    initiativeType: string,
+    estimatedFTEs: number,
+    workstreams: Workstream[],
+    insights: StrategyInsights
+  ): Promise<any[]> {
+    const workstreamSummary = workstreams.map(w => `- ${w.name} (${w.deliverables.length} deliverables)`).join('\n');
+    const timeline = workstreams[0]?.endMonth || 12;
+    
+    const prompt = `Generate an internal team structure for this initiative.
 
-    return roles.slice(0, Math.min(estimatedFTEs, roles.length)).map(r => ({
-      ...r,
-      justification: `Required for ${workstreams.length} workstreams across ${workstreams[0]?.endMonth || 12} months`,
-    }));
+INITIATIVE TYPE: ${initiativeType}
+WORKSTREAMS (${workstreams.length}):
+${workstreamSummary}
+
+PROJECT TIMELINE: ${timeline} months
+ESTIMATED TEAM SIZE: ${estimatedFTEs} FTEs
+
+Generate ${Math.min(6, estimatedFTEs)} key roles that are APPROPRIATE for this ${initiativeType} initiative.
+
+CRITICAL: Match roles to initiative type:
+- physical_business_launch: Store Manager, Barista, Server, Chef, Sales Associate, Operations Manager, etc.
+- software_development: Software Engineer, DevOps Engineer, QA Engineer, Product Manager, UX Designer, etc.
+- digital_transformation: Digital Strategy Lead, Change Manager, Integration Specialist, Training Coordinator, etc.
+- market_expansion: Market Research Analyst, Regional Manager, Business Development, Localization Specialist, etc.
+- product_launch: Product Manager, Marketing Manager, Supply Chain Coordinator, Sales Enablement, etc.
+- service_launch: Service Designer, Operations Manager, Training Specialist, Customer Success Manager, etc.
+- process_improvement: Process Analyst, Lean Six Sigma Specialist, Change Manager, Operations Lead, etc.
+
+For each role, provide:
+- role: Job title
+- allocation: % time (50-100)
+- months: Duration on project (1-${timeline})
+- skills: Array of 3-5 relevant skills
+- justification: Why this role is needed
+
+Return ONLY valid JSON array of role objects.`;
+
+    const response = await this.llm.chat({
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.3,  // Lower temperature for more consistent, appropriate roles
+    });
+    
+    const content = response.choices[0].message.content || '[]';
+    
+    // Parse JSON response
+    try {
+      const roles = JSON.parse(content);
+      if (Array.isArray(roles) && roles.length > 0) {
+        return roles;
+      }
+    } catch (parseError) {
+      console.error('[Resource Generation] Failed to parse LLM response:', parseError);
+    }
+    
+    return [];
+  }
+  
+  /**
+   * Fallback role templates for each initiative type
+   * Ensures we ALWAYS get contextually appropriate roles
+   */
+  private getFallbackRoles(
+    initiativeType: string,
+    estimatedFTEs: number,
+    workstreams: Workstream[]
+  ): any[] {
+    const timeline = workstreams[0]?.endMonth || 12;
+    const justification = `Required for ${workstreams.length} workstreams across ${timeline} months`;
+    
+    const templates: Record<string, any[]> = {
+      physical_business_launch: [
+        { role: 'Store Manager', allocation: 100, months: timeline, skills: ['Retail operations', 'Team leadership', 'Inventory management'], justification },
+        { role: 'Shift Supervisor', allocation: 100, months: timeline, skills: ['Staff scheduling', 'Customer service', 'Operations'], justification },
+        { role: 'Barista/Server', allocation: 100, months: timeline, skills: ['Food service', 'Customer interaction', 'POS systems'], justification },
+        { role: 'Operations Coordinator', allocation: 75, months: Math.floor(timeline * 0.7), skills: ['Logistics', 'Vendor management', 'Process optimization'], justification },
+        { role: 'Marketing Coordinator', allocation: 50, months: Math.floor(timeline * 0.5), skills: ['Local marketing', 'Social media', 'Community engagement'], justification },
+      ],
+      
+      software_development: [
+        { role: 'Product Manager', allocation: 100, months: timeline, skills: ['Product strategy', 'Roadmap planning', 'Stakeholder management'], justification },
+        { role: 'Tech Lead/Architect', allocation: 100, months: timeline, skills: ['System architecture', 'Technical leadership', 'Code review'], justification },
+        { role: 'Software Engineer', allocation: 100, months: timeline, skills: ['Full-stack development', 'API design', 'Database design'], justification },
+        { role: 'DevOps Engineer', allocation: 75, months: Math.floor(timeline * 0.8), skills: ['CI/CD', 'Infrastructure', 'Deployment automation'], justification },
+        { role: 'QA Engineer', allocation: 75, months: Math.floor(timeline * 0.7), skills: ['Test automation', 'Quality assurance', 'Bug tracking'], justification },
+        { role: 'UX/UI Designer', allocation: 50, months: Math.floor(timeline * 0.6), skills: ['User research', 'Interface design', 'Prototyping'], justification },
+      ],
+      
+      digital_transformation: [
+        { role: 'Digital Transformation Lead', allocation: 100, months: timeline, skills: ['Change leadership', 'Digital strategy', 'Stakeholder alignment'], justification },
+        { role: 'Business Process Analyst', allocation: 100, months: timeline, skills: ['Process mapping', 'Gap analysis', 'Requirements gathering'], justification },
+        { role: 'Integration Specialist', allocation: 100, months: Math.floor(timeline * 0.8), skills: ['Systems integration', 'API development', 'Data migration'], justification },
+        { role: 'Change Manager', allocation: 75, months: timeline, skills: ['Change management', 'Training delivery', 'Communication'], justification },
+        { role: 'Technical Consultant', allocation: 75, months: Math.floor(timeline * 0.7), skills: ['Platform implementation', 'Configuration', 'Technical training'], justification },
+      ],
+      
+      market_expansion: [
+        { role: 'Market Expansion Lead', allocation: 100, months: timeline, skills: ['Market entry strategy', 'Partnership development', 'Regional planning'], justification },
+        { role: 'Market Research Analyst', allocation: 100, months: Math.floor(timeline * 0.6), skills: ['Market analysis', 'Competitive research', 'Customer insights'], justification },
+        { role: 'Regional Manager', allocation: 100, months: Math.floor(timeline * 0.8), skills: ['Regional operations', 'Team building', 'Local execution'], justification },
+        { role: 'Business Development Manager', allocation: 75, months: timeline, skills: ['Partnership development', 'Sales strategy', 'Relationship management'], justification },
+        { role: 'Localization Specialist', allocation: 50, months: Math.floor(timeline * 0.5), skills: ['Cultural adaptation', 'Translation', 'Local compliance'], justification },
+      ],
+      
+      product_launch: [
+        { role: 'Product Launch Manager', allocation: 100, months: timeline, skills: ['Launch planning', 'Cross-functional coordination', 'Go-to-market'], justification },
+        { role: 'Product Marketing Manager', allocation: 100, months: Math.floor(timeline * 0.8), skills: ['Positioning', 'Messaging', 'Campaign management'], justification },
+        { role: 'Supply Chain Coordinator', allocation: 75, months: Math.floor(timeline * 0.7), skills: ['Inventory planning', 'Vendor management', 'Logistics'], justification },
+        { role: 'Sales Enablement Specialist', allocation: 75, months: Math.floor(timeline * 0.6), skills: ['Sales training', 'Collateral development', 'Channel support'], justification },
+        { role: 'Customer Success Manager', allocation: 50, months: Math.floor(timeline * 0.5), skills: ['Customer onboarding', 'Support', 'Feedback collection'], justification },
+      ],
+      
+      service_launch: [
+        { role: 'Service Design Lead', allocation: 100, months: timeline, skills: ['Service design', 'Process definition', 'Quality standards'], justification },
+        { role: 'Operations Manager', allocation: 100, months: timeline, skills: ['Service delivery', 'Resource allocation', 'Performance management'], justification },
+        { role: 'Training Specialist', allocation: 75, months: Math.floor(timeline * 0.7), skills: ['Training program design', 'Delivery', 'Certification'], justification },
+        { role: 'Service Coordinator', allocation: 75, months: Math.floor(timeline * 0.8), skills: ['Scheduling', 'Client communication', 'Service tracking'], justification },
+        { role: 'Quality Assurance Manager', allocation: 50, months: Math.floor(timeline * 0.6), skills: ['Quality monitoring', 'Process improvement', 'Auditing'], justification },
+      ],
+      
+      process_improvement: [
+        { role: 'Process Improvement Lead', allocation: 100, months: timeline, skills: ['Lean Six Sigma', 'Process mapping', 'Change leadership'], justification },
+        { role: 'Business Analyst', allocation: 100, months: timeline, skills: ['Requirements analysis', 'Data analysis', 'Process documentation'], justification },
+        { role: 'Operations Analyst', allocation: 75, months: Math.floor(timeline * 0.8), skills: ['Metrics analysis', 'Bottleneck identification', 'Efficiency optimization'], justification },
+        { role: 'Change Manager', allocation: 75, months: Math.floor(timeline * 0.7), skills: ['Stakeholder engagement', 'Training', 'Adoption tracking'], justification },
+        { role: 'Process Automation Specialist', allocation: 50, months: Math.floor(timeline * 0.6), skills: ['RPA', 'Workflow automation', 'Tool implementation'], justification },
+      ],
+      
+      other: [
+        { role: 'Program Manager', allocation: 100, months: timeline, skills: ['Program management', 'Stakeholder management', 'Risk management'], justification },
+        { role: 'Business Analyst', allocation: 100, months: Math.floor(timeline * 0.8), skills: ['Requirements analysis', 'Process mapping', 'Documentation'], justification },
+        { role: 'Project Coordinator', allocation: 75, months: timeline, skills: ['Coordination', 'Tracking', 'Communication'], justification },
+        { role: 'Subject Matter Expert', allocation: 75, months: Math.floor(timeline * 0.7), skills: ['Domain expertise', 'Advisory', 'Validation'], justification },
+        { role: 'Change Manager', allocation: 50, months: Math.floor(timeline * 0.6), skills: ['Change management', 'Training', 'Support'], justification },
+      ],
+    };
+    
+    const roles = templates[initiativeType] || templates.other;
+    return roles.slice(0, Math.min(estimatedFTEs, roles.length));
   }
 
   private generateExternalResources(insights: StrategyInsights, userContext?: UserContext) {

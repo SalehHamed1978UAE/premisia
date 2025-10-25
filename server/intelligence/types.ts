@@ -345,6 +345,7 @@ export interface StrategyInsights {
     riskTolerance?: 'Conservative' | 'Moderate' | 'Aggressive';
   };
   overallConfidence: number;
+  initiativeType?: string;  // Added for initiative-aware resource generation
 }
 
 // ============================================================================
@@ -538,4 +539,5 @@ export interface UserContext {
     date: Date;
   }>;
   organizationalContext?: string;
+  sessionId?: string;  // Added for initiative type lookup
 }
