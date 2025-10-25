@@ -53,16 +53,16 @@ export class ContextBuilder {
     
     return {
       business: {
-        name: insights.businessName || 'Unnamed Business',
+        name: 'Unnamed Business',  // No businessName on StrategyInsights
         type: this.inferBusinessType(insights),
-        industry: insights.industry || 'general',
-        description: insights.context || insights.description || '',
+        industry: insights.marketContext?.industry || 'general',
+        description: '',  // No context/description on StrategyInsights
         scale
       },
       strategic: {
         insights: insights,
-        constraints: insights.constraints || [],
-        objectives: insights.objectives || this.extractObjectives(insights)
+        constraints: [],  // No constraints on StrategyInsights
+        objectives: this.extractObjectives(insights)
       },
       execution: {
         timeline: timelineRange,
@@ -71,7 +71,7 @@ export class ContextBuilder {
       },
       meta: {
         journeyType,
-        confidence: insights.confidence || 0.75,
+        confidence: insights.overallConfidence || 0.75,
         version: '1.0'
       }
     };
@@ -89,9 +89,6 @@ export class ContextBuilder {
    */
   private static inferScale(insights: StrategyInsights): BusinessScale {
     const contextText = (
-      (insights.context || '') + ' ' +
-      (insights.description || '') + ' ' +
-      (insights.businessName || '') + ' ' +
       insights.insights.map(i => i.content).join(' ')
     ).toLowerCase();
     
@@ -146,7 +143,7 @@ export class ContextBuilder {
    */
   private static inferTimelineRange(scale: BusinessScale, insights: StrategyInsights): { min: number; max: number } {
     // Check if insights have explicit timeline hints
-    const contextText = ((insights.context || '') + ' ' + (insights.description || '')).toLowerCase();
+    const contextText = insights.insights.map(i => i.content).join(' ').toLowerCase();
     
     // Override if explicit timeline mentioned
     const monthsMatch = contextText.match(/(\d+)\s*months?/);
@@ -173,7 +170,7 @@ export class ContextBuilder {
    * Infer budget range based on scale and context
    */
   private static inferBudgetRange(scale: BusinessScale, insights: StrategyInsights): { min: number; max: number } | undefined {
-    const contextText = ((insights.context || '') + ' ' + (insights.description || '')).toLowerCase();
+    const contextText = insights.insights.map(i => i.content).join(' ').toLowerCase();
     
     // Try to extract explicit budget if mentioned
     const budgetMatch = contextText.match(/\$(\d+(?:,\d+)*)\s*(k|thousand|million|mm|m(?=\s|$))?/i);
@@ -206,11 +203,7 @@ export class ContextBuilder {
    * Infer business type from insights
    */
   private static inferBusinessType(insights: StrategyInsights): string {
-    const contextText = (
-      (insights.businessName || '') + ' ' +
-      (insights.context || '') + ' ' +
-      (insights.description || '')
-    ).toLowerCase();
+    const contextText = insights.insights.map(i => i.content).join(' ').toLowerCase();
     
     // Pattern matching for common business types
     if (contextText.match(/\b(coffee|cafe|shop|store|restaurant|bakery)\b/)) return 'retail_food_service';
@@ -588,8 +581,10 @@ export class EPMSynthesizer {
         const deliverables = ws.deliverables.map((delivName, delIndex) => ({
           id: `${ws.id}-D${delIndex + 1}`,
           name: delivName,
+          description: delivName, // Use deliverable name as description
           dueMonth: 0, // Will be filled by intelligent planning
           responsible: 'TBD',
+          effort: '1 person-month', // Effort as string
           confidence: ws.confidence
         }));
         
