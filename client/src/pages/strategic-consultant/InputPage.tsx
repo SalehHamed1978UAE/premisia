@@ -115,7 +115,7 @@ export default function InputPage() {
         throw new Error(errorData.error || 'Failed to create understanding');
       }
       
-      const { understandingId, sessionId } = await understandingResponse.json();
+      const { understandingId, sessionId, classification } = await understandingResponse.json();
       
       // Store the input for reference
       localStorage.setItem(`strategic-input-${sessionId}`, inputText);
@@ -123,9 +123,9 @@ export default function InputPage() {
       clearInterval(progressInterval);
       setProgress(100);
 
-      // Navigate to Journey Selection page with understandingId
+      // Navigate to Classification page for user confirmation
       setTimeout(() => {
-        setLocation(`/strategic-consultant/journey-selection/${understandingId}`);
+        setLocation(`/strategic-consultant/classification/${understandingId}`);
       }, 300);
 
     } catch (error: any) {
