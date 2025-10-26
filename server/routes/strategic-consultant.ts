@@ -771,12 +771,16 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
       isLeaf: false,
     })));
 
+    // Structure Five Whys data to match frontend expectations
+    // Frontend expects: analysis.five_whys.whysPath, etc.
     const analysisData = {
-      whysPath: selectedPath,
-      rootCause,
-      strategicImplications: insights.strategic_implications,
-      recommendedActions: insights.recommended_actions,
-      framework: 'five_whys',
+      five_whys: {
+        whysPath: selectedPath,
+        rootCause,
+        strategicImplications: insights.strategic_implications,
+        recommendedActions: insights.recommended_actions,
+        framework: 'five_whys',
+      },
       // Add fields expected by downstream pages to prevent crashes
       recommended_approaches: [],
       strategic_options: [],

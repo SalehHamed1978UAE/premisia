@@ -76,8 +76,9 @@ router.get('/statements', async (req, res) => {
             }
           }
           
-          // Check for Five Whys (rootCause at top level indicates Five Whys)
-          if (data?.rootCause && data?.framework === 'five_whys') {
+          // Check for Five Whys (support both new nested structure and old root-level structure)
+          const fiveWhysData = data?.five_whys || (data?.rootCause && data?.framework === 'five_whys' ? data : null);
+          if (fiveWhysData && (fiveWhysData.rootCause || fiveWhysData.whysPath)) {
             const framework = 'Five Whys';
             if (!analysisSummary[framework]) {
               analysisSummary[framework] = { count: 0, latestVersion: `v${version.versionNumber}` };
@@ -297,20 +298,22 @@ router.get('/statements/:understandingId', async (req, res) => {
         });
       }
 
-      // Check for Five Whys analysis (rootCause at top level)
-      if (analysisData?.rootCause && analysisData?.framework === 'five_whys') {
+      // Check for Five Whys analysis (support both new nested and old root-level structure)
+      const fiveWhysData = analysisData?.five_whys || (analysisData?.rootCause && analysisData?.framework === 'five_whys' ? analysisData : null);
+      if (fiveWhysData && (fiveWhysData.rootCause || fiveWhysData.whysPath)) {
         const framework = 'Five Whys';
         
         if (!groupedAnalyses[framework]) {
           groupedAnalyses[framework] = [];
         }
 
-        const summary = analysisData.rootCause.substring(0, 200) + (analysisData.rootCause.length > 200 ? '...' : '');
+        const rootCause = fiveWhysData.rootCause || '';
+        const summary = rootCause.substring(0, 200) + (rootCause.length > 200 ? '...' : '');
         const keyFindings: string[] = [];
         
         // Extract key findings from whysPath
-        if (analysisData.whysPath && Array.isArray(analysisData.whysPath)) {
-          keyFindings.push(...analysisData.whysPath.slice(0, 3));
+        if (fiveWhysData.whysPath && Array.isArray(fiveWhysData.whysPath)) {
+          keyFindings.push(...fiveWhysData.whysPath.slice(0, 3));
         }
 
         groupedAnalyses[framework].push({
