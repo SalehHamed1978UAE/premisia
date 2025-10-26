@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { PlanningProgressTracker } from "@/components/intelligent-planning/PlanningProgressTracker";
 import { MinimizedJobTracker } from "@/components/MinimizedJobTracker";
+import { useJobs } from "@/contexts/JobContext";
 import {
   ArrowUp,
   ArrowDown,
@@ -61,9 +62,24 @@ export default function PrioritizationPage() {
   const [, params] = useRoute("/strategy-workspace/prioritization/:sessionId/:versionNumber");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { runningJobs } = useJobs();
 
   const sessionId = params?.sessionId || '';
   const versionNumber = params?.versionNumber ? parseInt(params.versionNumber) : 1;
+  
+  // Get the running EPM generation job for this session (if any)
+  const currentJob = runningJobs.find(
+    job => job.jobType === 'epm_generation' && job.sessionId === sessionId
+  );
+  
+  // Extract meaningful title from job metadata
+  const getProgressTitle = () => {
+    if (currentJob?.inputData?.strategyName) {
+      const name = currentJob.inputData.strategyName;
+      return name.length > 35 ? name.substring(0, 32) + '...' : name;
+    }
+    return 'EPM Generation';
+  };
 
   // Fetch strategy version data
   const { data: response, isLoading, error } = useQuery<{ success: boolean; version: VersionData }>({
@@ -629,9 +645,9 @@ export default function PrioritizationPage() {
           <Card className="fixed bottom-4 right-4 w-96 shadow-lg z-50" data-testid="progress-tracker-card">
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  EPM Generation
+                <CardTitle className="text-lg flex items-center gap-2 flex-1 min-w-0">
+                  <Loader2 className="h-5 w-5 animate-spin flex-shrink-0" />
+                  <span className="truncate">{getProgressTitle()}</span>
                 </CardTitle>
                 <Button
                   variant="ghost"
@@ -678,6 +694,7 @@ export default function PrioritizationPage() {
           <MinimizedJobTracker
             progress={currentProgress}
             message={currentMessage}
+            title={getProgressTitle()}
             onExpand={() => setIsMinimized(false)}
             onDismiss={() => {
               setIsMinimized(false);

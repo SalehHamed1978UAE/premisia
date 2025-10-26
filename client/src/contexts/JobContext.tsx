@@ -9,6 +9,7 @@ interface BackgroundJob {
   status: 'pending' | 'running' | 'completed' | 'failed';
   progress: number;
   progressMessage: string | null;
+  inputData: Record<string, any> | null;
   resultData: any;
   sessionId: string | null;
   versionNumber: number | null;

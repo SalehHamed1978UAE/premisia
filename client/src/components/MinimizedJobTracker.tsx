@@ -5,6 +5,7 @@ import { Loader2, Maximize2, X } from "lucide-react";
 interface MinimizedJobTrackerProps {
   progress: number;
   message: string;
+  title?: string;
   onExpand: () => void;
   onDismiss: () => void;
 }
@@ -12,6 +13,7 @@ interface MinimizedJobTrackerProps {
 export function MinimizedJobTracker({ 
   progress, 
   message, 
+  title = 'EPM Generation',
   onExpand, 
   onDismiss 
 }: MinimizedJobTrackerProps) {
@@ -21,9 +23,9 @@ export function MinimizedJobTracker({
       data-testid="minimized-job-tracker"
     >
       <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-          <span className="text-sm font-medium">EPM Generation</span>
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <Loader2 className="h-4 w-4 animate-spin text-blue-500 flex-shrink-0" />
+          <span className="text-sm font-medium truncate">{title}</span>
         </div>
         <div className="flex items-center gap-1">
           <Button
