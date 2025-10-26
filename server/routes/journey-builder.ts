@@ -75,7 +75,7 @@ router.get('/frameworks', async (req, res) => {
 // =============================================================================
 router.post('/start', async (req, res) => {
   try {
-    const userId = (req.user as any)?.id;
+    const userId = (req.user as any)?.claims?.sub;
     
     if (!userId) {
       return res.status(401).json({

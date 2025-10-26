@@ -41,7 +41,7 @@ export function JourneyHub() {
 
   const startJourney = async (templateId: string) => {
     try {
-      const res = await fetch('/api/journeys/start', {
+      const res = await fetch('/api/journey-builder/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ templateId }),
