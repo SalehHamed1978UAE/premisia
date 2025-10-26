@@ -211,33 +211,35 @@ export default function StatementDetailView() {
         {/* Analyses */}
         {hasAnalyses ? (
           <Tabs defaultValue={frameworks[0]} className="w-full">
-            <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${frameworks.length}, 1fr)` }}>
-              {frameworks.map((framework) => (
-                <TabsTrigger key={framework} value={framework} data-testid={`tab-${framework}`}>
-                  <span className="mr-2">{getFrameworkIcon(framework)}</span>
-                  {framework}
-                  <Badge variant="secondary" className="ml-2">
-                    {statement.analyses[framework].length}
-                  </Badge>
-                </TabsTrigger>
-              ))}
-            </TabsList>
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
+              <TabsList className="inline-flex sm:grid w-full min-w-max sm:min-w-0 px-4 sm:px-0" style={{ gridTemplateColumns: `repeat(${frameworks.length}, 1fr)` }}>
+                {frameworks.map((framework) => (
+                  <TabsTrigger key={framework} value={framework} className="flex-shrink-0 whitespace-nowrap" data-testid={`tab-${framework}`}>
+                    <span className="mr-2">{getFrameworkIcon(framework)}</span>
+                    {framework}
+                    <Badge variant="secondary" className="ml-2">
+                      {statement.analyses[framework].length}
+                    </Badge>
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
 
             {frameworks.map((framework) => (
               <TabsContent key={framework} value={framework} className="space-y-4">
                 {statement.analyses[framework].map((analysis, index) => (
                   <Card key={analysis.id} data-testid={`analysis-card-${framework}-${index}`}>
                     <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <CardTitle className="flex items-center gap-2">
+                      <div className="flex flex-col sm:flex-row sm:items-start gap-4 sm:justify-between">
+                        <div className="flex-1 min-w-0">
+                          <CardTitle className="flex flex-wrap items-center gap-2">
                             <span className="text-2xl">{getFrameworkIcon(framework)}</span>
                             <span className={getFrameworkColor(framework)}>
                               {framework} Analysis
                             </span>
                             <Badge variant="outline">v{analysis.version}</Badge>
                           </CardTitle>
-                          <CardDescription className="mt-2 flex items-center gap-4">
+                          <CardDescription className="mt-2 flex flex-wrap items-center gap-4">
                             <span className="flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
                               {formatDistanceToNow(new Date(analysis.createdAt), { addSuffix: true })}
@@ -250,7 +252,7 @@ export default function StatementDetailView() {
                             )}
                           </CardDescription>
                         </div>
-                        <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+                        <div className="flex flex-row sm:flex-col gap-2 shrink-0">
                           <Button
                             onClick={() => handleDeleteClick(analysis.id, framework)}
                             variant="ghost"

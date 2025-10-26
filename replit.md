@@ -15,6 +15,13 @@ Preferred communication style: Simple, everyday language.
 #### UI/UX Decisions
 The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI, Tailwind CSS) for a "New York" style, themeable UI. It delivers a single-page application experience with mobile responsiveness, skeleton loading, and toast notifications.
 
+**Mobile Responsiveness Implementation** (October 26, 2025):
+- **Gantt Chart Timeline**: Horizontal scrolling on mobile via overflow-x-auto wrapper with touch-pan-x for swipe gestures. Chart maintains min-width of 1200px and extends to screen edges using -mx-4 sm:mx-0. Export button goes full-width on mobile (w-full sm:w-auto).
+- **Tab Navigation**: EPM Program View tabs use inline-flex layout on mobile with horizontal scrolling, converting to grid on desktop (sm:grid-cols-8). Prevents tab text overlap and truncation on small screens.
+- **Button Layouts**: Action buttons use responsive flex patterns (flex-col sm:flex-row) with full-width on mobile (w-full sm:w-auto) and whitespace-nowrap to prevent text wrapping. Applied to "Finalize EPM Program", "View Full Report", and export buttons across EPM Program View, Statement Detail, and Repository pages.
+- **Card Layouts**: Program overview cards and stat displays stack vertically on mobile using flex-col sm:flex-row with proper gap spacing (gap-4).
+- **Responsive Breakpoints**: All layouts use Tailwind's sm: breakpoint (640px) to transition from mobile-first vertical stacking to horizontal desktop layouts.
+
 #### Technical Implementations
 - **Frontend**: React, TypeScript, Vite, TanStack Query for state management, Wouter for client-side routing.
 - **Backend**: Node.js with Express.js (ES modules), Passport.js for session-based authentication, Express sessions, and a RESTful API with role-based middleware.
