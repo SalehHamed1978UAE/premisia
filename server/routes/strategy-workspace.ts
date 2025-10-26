@@ -332,6 +332,31 @@ async function processEPMGeneration(
       throw new Error('Strategy version not found');
     }
 
+    // Fetch initiative type from strategic_understanding table
+    // This is the SINGLE SOURCE OF TRUTH - fetched once and passed explicitly
+    let initiativeType: string | undefined = undefined;
+    if (version.sessionId) {
+      try {
+        const [understanding] = await db
+          .select({ initiativeType: strategicUnderstanding.initiativeType })
+          .from(strategicUnderstanding)
+          .where(eq(strategicUnderstanding.sessionId, version.sessionId))
+          .limit(1);
+        
+        if (understanding?.initiativeType) {
+          initiativeType = understanding.initiativeType;
+          console.log(`[EPM Generation] ✅ Initiative type fetched: "${initiativeType}" for session: ${version.sessionId}`);
+        } else {
+          console.warn(`[EPM Generation] ⚠️ No initiative type found for session: ${version.sessionId}`);
+        }
+      } catch (error) {
+        console.error('[EPM Generation] ❌ Error fetching initiative type:', error);
+        // Continue without initiative type - will use fallback
+      }
+    } else {
+      console.warn('[EPM Generation] ⚠️ No sessionId available - cannot fetch initiative type');
+    }
+
     // Create background job record for tracking (after we have sessionId)
     let jobId: string | null = null;
     try {
@@ -486,7 +511,8 @@ async function processEPMGeneration(
               progressMessage: event.description || event.message
             }).catch(err => console.error('[EPM Generation] Job progress update failed:', err));
           }
-        }
+        },
+        initiativeType: initiativeType  // EXPLICIT: Pass initiative type from database
       }
     );
 
