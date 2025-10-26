@@ -1,0 +1,142 @@
+User feedback: 5 Whys language is too formal and professional. Need to 
+  make it more conversational and accessible.
+
+  Fix needed in server/strategic-consultant/five-whys.ts:
+
+  GUIDELINES:
+
+  Replace professional/academic language with conversational tone:
+
+  ❌ AVOID:
+  - "Analysis indicates..."
+  - "Primary causal factor..."
+  - "Operational inefficiencies..."
+  - "Query acknowledged..."
+  - "Hypothesis validated..."
+  - "Strategic implications suggest..."
+
+  ✅ USE INSTEAD:
+  - "It looks like..."
+  - "The main reason is..."
+  - "How things are running..."
+  - "Great question!"
+  - "You're right about that..."
+  - "This means..."
+
+  PRINCIPLES:
+
+  1. Conversational, not corporate
+    - Write like you're talking to a friend
+    - Use contractions (it's, you're, let's)
+    - Short sentences
+  2. Encouraging, not clinical
+    - "Great insight!" vs "Valid observation"
+    - "Let's dig deeper" vs "Further analysis required"
+    - "You're onto something" vs "Hypothesis warrants investigation"
+  3. Clear, not jargon-heavy
+    - "main reason" vs "primary causal factor"
+    - "how things work" vs "operational mechanics"
+    - "looking at" vs "analyzing"
+  4. Helpful, not distant
+    - Explain WHY you're asking
+    - Acknowledge good thinking
+    - Guide the user gently
+
+  ---
+  SPECIFIC CHANGES:
+
+  Update all LLM prompts in five-whys.ts to follow these patterns:
+
+  Example 1: Initial Analysis
+
+  // BEFORE (Too professional)
+  const prompt = `Analyze the following business context and identify root 
+  causes using the Five Whys methodology. Extract key causal relationships 
+  and surface underlying assumptions that warrant validation.`;
+
+  // AFTER (Accessible)
+  const prompt = `Let's figure out what's really going on with your 
+  business. I'm going to ask "why" a few times to get to the heart of the 
+  issue. Think of it like peeling an onion - each layer gets us closer to 
+  the real answer.`;
+
+  Example 2: Asking Follow-up Questions
+
+  // BEFORE (Too formal)
+  const prompt = `Based on the identified causal factor, formulate 
+  interrogative statements to probe deeper into the underlying mechanisms.`;
+
+  // AFTER (Conversational)
+  const prompt = `Okay, so we found that "${previousAnswer}". Now let's dig 
+  a bit deeper. Ask yourself: why does this happen? What's causing this to 
+  be the case?`;
+
+  Example 3: Root Cause Identification
+
+  // BEFORE (Too clinical)
+  const prompt = `Analysis of causal chain indicates convergence on 
+  fundamental structural impediment. Synthesize findings into actionable 
+  root cause statement.`;
+
+  // AFTER (Clear & friendly)
+  const prompt = `Great! We've worked through several layers, and I think 
+  we've hit the core issue here. Let me summarize what we've uncovered and 
+  what it means for your business.`;
+
+  Example 4: Presenting Results
+
+  // BEFORE (Too dry)
+  "Root Cause Analysis Complete. Primary causal factors identified with 
+  supporting evidence chains."
+
+  // AFTER (Engaging)
+  "Alright, here's what we discovered! These are the real reasons behind 
+  what you're seeing. Let's break down each one:"
+
+  ---
+  FIND AND UPDATE THESE SECTIONS:
+
+  1. Initial prompt that starts the analysis
+  2. Questions generated for each "why" iteration
+  3. Transition text between levels
+  4. Final summary/results presentation
+  5. Any error messages or validation text
+
+  ---
+  TESTING:
+
+  After making changes, test with:
+  Input: "I want to open a coffee shop but sales are lower than expected"
+
+  Check that the output:
+  - ✅ Feels like a conversation, not a report
+  - ✅ Uses friendly, encouraging language
+  - ✅ Explains concepts clearly without jargon
+  - ✅ Makes the user feel supported, not judged
+
+  ---
+  IMPORTANT:
+
+  - ⚠️ Don't change the analytical logic - just the language/tone
+  - ⚠️ Keep the same number of "why" iterations - just make them friendlier
+  - ⚠️ Maintain data structure - only update prompt strings and result
+  presentation
+
+  Make these updates to all prompts in 
+  server/strategic-consultant/five-whys.ts.
+
+  After updating, test with a sample input and show me the before/after 
+  output."
+
+  ---
+  ✅ Expected Result
+
+  BEFORE:
+  "Analysis indicates primary revenue underperformance stems from suboptimal
+   customer acquisition mechanisms and insufficient market penetration 
+  strategies."
+
+  AFTER:
+  "It looks like the main issue is that you're not getting enough customers 
+  through the door, and your marketing isn't reaching the right people in 
+  your area."

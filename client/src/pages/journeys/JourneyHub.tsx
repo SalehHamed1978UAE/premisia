@@ -1,11 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import { useState } from 'react';
+import { useLocation } from 'wouter';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Clock, Star, Sparkles, ArrowRight } from 'lucide-react';
 import { JourneyBuilderWizard } from './JourneyBuilderWizard';
+import { AppLayout } from '@/components/layout/AppLayout';
 
 interface JourneyTemplate {
   id: string;
@@ -22,6 +24,7 @@ interface JourneyTemplate {
 
 export function JourneyHub() {
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
   const [showBuilder, setShowBuilder] = useState(false);
 
   const { data, isLoading, refetch } = useQuery({
@@ -70,19 +73,28 @@ export function JourneyHub() {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto p-6 max-w-7xl">
+      <AppLayout
+        title="Strategic Journeys"
+        subtitle="Choose a pre-defined journey or create your own custom path"
+        onViewChange={(view) => setLocation('/')}
+      >
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
             <p className="text-muted-foreground">Loading journeys...</p>
           </div>
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
   return (
-    <div className="container mx-auto p-6 max-w-7xl" data-testid="journey-hub">
+    <AppLayout
+      title="Strategic Journeys"
+      subtitle="Choose a pre-defined journey or create your own custom path"
+      onViewChange={(view) => setLocation('/')}
+    >
+      <div className="container mx-auto p-6 max-w-7xl" data-testid="journey-hub">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
@@ -240,16 +252,17 @@ export function JourneyHub() {
         </div>
       )}
 
-      {/* Journey Builder Wizard Modal */}
-      {showBuilder && (
-        <JourneyBuilderWizard 
-          onClose={() => setShowBuilder(false)}
-          onSave={() => {
-            setShowBuilder(false);
-            refetch(); // Refresh templates to show new custom journey
-          }}
-        />
-      )}
-    </div>
+        {/* Journey Builder Wizard Modal */}
+        {showBuilder && (
+          <JourneyBuilderWizard 
+            onClose={() => setShowBuilder(false)}
+            onSave={() => {
+              setShowBuilder(false);
+              refetch(); // Refresh templates to show new custom journey
+            }}
+          />
+        )}
+      </div>
+    </AppLayout>
   );
 }
