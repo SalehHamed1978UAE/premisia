@@ -309,6 +309,8 @@ async function processEPMGeneration(
   progressId: string,
   req: Request
 ) {
+  const startTime = Date.now(); // Track elapsed time
+  
   try {
     // Send initial progress event
     sendSSEEvent(progressId, {
@@ -485,16 +487,20 @@ async function processEPMGeneration(
     }
 
     const programId = savedProgram.id;
+    const elapsedSeconds = Math.round((Date.now() - startTime) / 1000);
+    
     console.log(`[EPM Generation] ✅ Program saved with ID: ${programId}`);
+    console.log(`[EPM Generation] Total elapsed time: ${elapsedSeconds}s`);
     console.log(`[EPM Generation] Sending completion event with programId: ${programId}`);
 
-    // Send completion event with program ID
+    // Send completion event with program ID and elapsed time
     sendSSEEvent(progressId, {
       type: 'complete',
       progress: 100,
       epmProgramId: programId,
       overallConfidence: overallConfidence,
       componentsGenerated: 14,
+      elapsedSeconds: elapsedSeconds,
       message: 'EPM program generation complete!'
     });
     

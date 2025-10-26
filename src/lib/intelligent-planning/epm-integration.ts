@@ -231,13 +231,9 @@ async function generateIntelligentSchedule(
   // Execute planning
   const result = await planner.plan(request);
   
-  // Send completion event
-  if (onProgress) {
-    onProgress({
-      type: 'complete',
-      elapsedSeconds: Math.round((Date.now() - startTime) / 1000)
-    });
-  }
+  // NOTE: Do NOT send 'complete' event here
+  // The completion event with program ID is sent by the EPM generation endpoint
+  // after successfully saving the program to the database
   
   // Transform result for EPM compatibility
   return {
