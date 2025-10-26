@@ -1346,6 +1346,50 @@ Marketing and events: $3k/month`,
     }
   });
   
+  // Get recently completed jobs (for notifications)
+  app.get('/api/background-jobs/recent-completions', isAuthenticated, async (req: any, res) => {
+    try {
+      // Validate auth claims exist
+      if (!req.user?.claims?.sub) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      
+      const userId = req.user.claims.sub;
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      
+      // Get jobs completed in the last 5 minutes
+      const jobs = await db
+        .select()
+        .from(backgroundJobs)
+        .where(
+          and(
+            eq(backgroundJobs.userId, userId),
+            or(
+              eq(backgroundJobs.status, 'completed'),
+              eq(backgroundJobs.status, 'failed')
+            ),
+            or(
+              and(
+                eq(backgroundJobs.status, 'completed'),
+                sql`${backgroundJobs.completedAt} >= ${fiveMinutesAgo}`
+              ),
+              and(
+                eq(backgroundJobs.status, 'failed'),
+                sql`${backgroundJobs.failedAt} >= ${fiveMinutesAgo}`
+              )
+            )
+          )
+        )
+        .orderBy(desc(backgroundJobs.createdAt))
+        .limit(5);
+      
+      res.json({ jobs });
+    } catch (error: any) {
+      console.error('Error fetching recent completions:', error);
+      res.status(500).json({ error: 'Failed to fetch recent completions' });
+    }
+  });
+  
   // Get all jobs for current user (with optional status filter)
   app.get('/api/background-jobs', isAuthenticated, async (req: any, res) => {
     try {
