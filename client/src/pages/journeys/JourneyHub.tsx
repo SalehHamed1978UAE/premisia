@@ -17,6 +17,7 @@ interface JourneyTemplate {
   usageCount: number;
   category: string;
   tags: string[];
+  steps: Array<{ id: string; name: string; frameworkKey: string }>;
 }
 
 export function JourneyHub() {
@@ -138,12 +139,20 @@ export function JourneyHub() {
                     {template.usageCount} {template.usageCount === 1 ? 'use' : 'uses'}
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2 mb-4 min-h-[2rem]">
-                  {template.tags?.map(tag => (
-                    <Badge key={tag} variant="secondary" className="text-xs">
-                      {tag}
-                    </Badge>
-                  ))}
+                <div className="mb-4 min-h-[4rem]">
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Framework Sequence:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {template.steps?.map((step: any, idx: number) => (
+                      <div key={step.id} className="flex items-center gap-1">
+                        <Badge variant="outline" className="text-xs">
+                          {step.name}
+                        </Badge>
+                        {idx < template.steps.length - 1 && (
+                          <ArrowRight className="w-3 h-3 text-muted-foreground" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 <Button 
                   onClick={() => startJourney(template.id)}
@@ -189,6 +198,21 @@ export function JourneyHub() {
                     <div className="flex items-center gap-1">
                       <Clock className="w-4 h-4" />
                       ~{template.estimatedDuration} min
+                    </div>
+                  </div>
+                  <div className="mb-4 min-h-[4rem]">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Framework Sequence:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {template.steps?.map((step: any, idx: number) => (
+                        <div key={step.id} className="flex items-center gap-1">
+                          <Badge variant="outline" className="text-xs">
+                            {step.name}
+                          </Badge>
+                          {idx < template.steps.length - 1 && (
+                            <ArrowRight className="w-3 h-3 text-muted-foreground" />
+                          )}
+                        </div>
+                      ))}
                     </div>
                   </div>
                   <Button 
