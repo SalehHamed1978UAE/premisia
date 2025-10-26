@@ -35,6 +35,21 @@ export function GlobalJobTracker() {
     }
   };
 
+  // Extract meaningful title from job metadata
+  const getJobTitle = (job: any) => {
+    const inputData = job.inputData || {};
+    
+    // For EPM generation, show strategy name
+    if (job.jobType === 'epm_generation' && inputData.strategyName) {
+      // Truncate long names to 40 chars
+      const name = inputData.strategyName;
+      return name.length > 40 ? name.substring(0, 37) + '...' : name;
+    }
+    
+    // Fallback to generic type label
+    return getJobTypeLabel(job.jobType);
+  };
+
   return (
     <div className="fixed bottom-4 right-4 w-96 max-w-[calc(100vw-2rem)] space-y-2 z-50" data-testid="global-job-tracker">
       {visibleJobs.map(job => {
@@ -58,7 +73,7 @@ export function GlobalJobTracker() {
                   <Loader2 className="h-4 w-4 animate-spin text-blue-500 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
-                      {getJobTypeLabel(job.jobType)}
+                      {getJobTitle(job)}
                     </p>
                     <p className="text-xs text-muted-foreground truncate">
                       {job.progress}% - {job.progressMessage || 'Processing...'}
@@ -87,10 +102,10 @@ export function GlobalJobTracker() {
           <Card key={job.id} className="shadow-lg border-2" data-testid={`expanded-job-${job.id}`}>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-                  <CardTitle className="text-base">
-                    {getJobTypeLabel(job.jobType)}
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-500 flex-shrink-0" />
+                  <CardTitle className="text-base truncate">
+                    {getJobTitle(job)}
                   </CardTitle>
                 </div>
                 <div className="flex items-center gap-1">
