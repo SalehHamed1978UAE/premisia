@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { flushSync } from "react-dom";
 import { useRoute, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -59,6 +60,7 @@ export default function WhysTreePage() {
   const [showValidationWarning, setShowValidationWarning] = useState(false);
   const [validationMessage, setValidationMessage] = useState("");
   const [isLongGeneration, setIsLongGeneration] = useState(false);
+  const [isProcessingAction, setIsProcessingAction] = useState(false);
 
   const generateTreeMutation = useMutation({
     mutationFn: async () => {
@@ -110,6 +112,8 @@ export default function WhysTreePage() {
       return response.json();
     },
     onSuccess: (data: any, variables) => {
+      setIsProcessingAction(false);
+      
       if (data.expandedBranches && tree) {
         const updateNodeBranches = (nodes: WhyNode[]): WhyNode[] => {
           return nodes.map(node => {
@@ -132,6 +136,8 @@ export default function WhysTreePage() {
       }
     },
     onError: (error: any) => {
+      setIsProcessingAction(false);
+      
       toast({
         title: "Expansion failed",
         description: error.message || "Failed to expand branch",
@@ -164,6 +170,8 @@ export default function WhysTreePage() {
       return response.json();
     },
     onSuccess: (data: any, variables) => {
+      setIsProcessingAction(false);
+      
       if (!understanding) return;
       
       localStorage.setItem(`strategic-rootCause-${understanding.sessionId}`, variables.rootCause);
@@ -176,6 +184,8 @@ export default function WhysTreePage() {
       setLocation(`/strategic-consultant/research/${understanding.sessionId}`);
     },
     onError: (error: any) => {
+      setIsProcessingAction(false);
+      
       toast({
         title: "Finalization failed",
         description: error.message || "Failed to finalize root cause",
@@ -265,6 +275,16 @@ export default function WhysTreePage() {
   const handleSelectAndContinue = () => {
     if (!currentOption) return;
 
+    // Check if we need to call expansion (no existing branches)
+    const needsExpansion = !currentOption.branches || currentOption.branches.length === 0;
+    
+    // Set processing state IMMEDIATELY if expansion is needed - use flushSync for instant UI update
+    if (needsExpansion) {
+      flushSync(() => {
+        setIsProcessingAction(true);
+      });
+    }
+
     const newPath = [...selectedPath, {
       nodeId: currentOption.id,
       option: currentOption.option,
@@ -272,11 +292,12 @@ export default function WhysTreePage() {
     }];
     setSelectedPath(newPath);
 
-    if (currentOption.branches && currentOption.branches.length > 0) {
+    if (!needsExpansion) {
+      // Branches exist, just navigate
       setCurrentLevel(prev => prev + 1);
       setCurrentOptionIndex(0);
     } else {
-      // If custom option, pass isCustom flag to expand mutation
+      // Need to expand - call mutation
       expandBranchMutation.mutate({
         nodeId: currentOption.id,
         parentQuestion: currentOption.question,
@@ -290,6 +311,11 @@ export default function WhysTreePage() {
   const handleFinalize = async () => {
     if (!currentOption) return;
     
+    // Set immediate processing state for instant UI feedback - use flushSync for instant UI update
+    flushSync(() => {
+      setIsProcessingAction(true);
+    });
+    
     // Validate root cause first
     try {
       const validation = await validateRootCauseMutation.mutateAsync(currentOption.option);
@@ -298,6 +324,7 @@ export default function WhysTreePage() {
         // Show warning modal if validation fails
         setValidationMessage(validation.message || 'This root cause contains cultural observations instead of business problems.');
         setShowValidationWarning(true);
+        setIsProcessingAction(false);
         return;
       }
       
@@ -314,6 +341,7 @@ export default function WhysTreePage() {
         completePath: pathOptions
       });
     } catch (error: any) {
+      setIsProcessingAction(false);
       toast({
         title: "Validation failed",
         description: error.message || "Failed to validate root cause",
@@ -683,11 +711,20 @@ export default function WhysTreePage() {
                         className="w-full"
                         size="lg"
                         onClick={handleSelectAndContinue}
-                        disabled={finalizeMutation.isPending}
+                        disabled={isProcessingAction || expandBranchMutation.isPending || finalizeMutation.isPending}
                         data-testid="button-continue"
                       >
-                        <ArrowRight className="h-5 w-5 mr-2" />
-                        Continue to next Why
+                        {(isProcessingAction || expandBranchMutation.isPending) ? (
+                          <>
+                            <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                            Loading next level...
+                          </>
+                        ) : (
+                          <>
+                            <ArrowRight className="h-5 w-5 mr-2" />
+                            Continue to next Why
+                          </>
+                        )}
                       </Button>
                     )}
 
@@ -697,11 +734,20 @@ export default function WhysTreePage() {
                         className="w-full"
                         size="lg"
                         onClick={handleFinalize}
-                        disabled={finalizeMutation.isPending}
+                        disabled={isProcessingAction || validateRootCauseMutation.isPending || finalizeMutation.isPending}
                         data-testid="button-finalize"
                       >
-                        <CheckCircle2 className="h-5 w-5 mr-2" />
-                        {finalizeMutation.isPending ? "Processing..." : "This is my root cause"}
+                        {(isProcessingAction || validateRootCauseMutation.isPending || finalizeMutation.isPending) ? (
+                          <>
+                            <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                            {validateRootCauseMutation.isPending ? "Validating..." : "Processing..."}
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="h-5 w-5 mr-2" />
+                            This is my root cause
+                          </>
+                        )}
                       </Button>
                     )}
                   </div>
