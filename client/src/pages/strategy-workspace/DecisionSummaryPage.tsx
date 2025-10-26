@@ -314,7 +314,6 @@ export default function DecisionSummaryPage() {
     <AppLayout
       title="Strategic Decision Summary"
       subtitle="Make key strategic choices to guide EPM program generation"
-      onViewChange={() => setLocation('/')}
     >
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Strategic Decisions Section - Show AI-generated decisions first */}

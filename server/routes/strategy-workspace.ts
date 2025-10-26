@@ -313,22 +313,6 @@ async function processEPMGeneration(
   const startTime = Date.now(); // Track elapsed time
   const userId = (req.user as any)?.claims?.sub || null;
   
-  // Create background job record for tracking
-  let jobId: string | null = null;
-  try {
-    jobId = await backgroundJobService.createJob({
-      userId,
-      jobType: 'epm_generation',
-      inputData: { strategyVersionId, decisionId, prioritizedOrder },
-      relatedEntityId: strategyVersionId,
-      relatedEntityType: 'strategy_version',
-    });
-    console.log('[EPM Generation] Background job created:', jobId);
-  } catch (jobError) {
-    console.error('[EPM Generation] Failed to create background job:', jobError);
-    // Continue without job tracking if it fails
-  }
-  
   try {
     // Send initial progress event
     sendSSEEvent(progressId, {
@@ -337,17 +321,8 @@ async function processEPMGeneration(
       progress: 5,
       description: 'Preparing strategic analysis...'
     });
-    
-    // Update job status to running
-    if (jobId) {
-      await backgroundJobService.updateJob(jobId, {
-        status: 'running',
-        progress: 5,
-        progressMessage: 'Preparing strategic analysis...'
-      }).catch(err => console.error('[EPM Generation] Job update failed:', err));
-    }
 
-    // Fetch strategy version to get BMC analysis
+    // Fetch strategy version first to get sessionId
     const [version] = await db.select()
       .from(strategyVersions)
       .where(eq(strategyVersions.id, strategyVersionId))
@@ -355,6 +330,35 @@ async function processEPMGeneration(
 
     if (!version) {
       throw new Error('Strategy version not found');
+    }
+
+    // Create background job record for tracking (after we have sessionId)
+    let jobId: string | null = null;
+    try {
+      jobId = await backgroundJobService.createJob({
+        userId,
+        jobType: 'epm_generation',
+        inputData: { 
+          strategyVersionId, 
+          decisionId, 
+          prioritizedOrder,
+          progressId // Store progressId for SSE reconnection
+        },
+        sessionId: version.sessionId, // Store sessionId for session-based lookups
+        relatedEntityId: strategyVersionId,
+        relatedEntityType: 'strategy_version',
+      });
+      console.log('[EPM Generation] Background job created:', jobId, 'for session:', version.sessionId);
+      
+      // Update job to running status
+      await backgroundJobService.updateJob(jobId, {
+        status: 'running',
+        progress: 5,
+        progressMessage: 'Preparing strategic analysis...'
+      }).catch(err => console.error('[EPM Generation] Job update failed:', err));
+    } catch (jobError) {
+      console.error('[EPM Generation] Failed to create background job:', jobError);
+      // Continue without job tracking if it fails
     }
 
     const analysisData = version.analysisData as any;

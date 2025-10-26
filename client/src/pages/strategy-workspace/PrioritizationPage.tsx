@@ -78,6 +78,41 @@ export default function PrioritizationPage() {
   const [showProgress, setShowProgress] = useState(false);
   const [progressId, setProgressId] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const [completedJobResult, setCompletedJobResult] = useState<{
+    programId: string;
+    confidence: number;
+  } | null>(null);
+  
+  // Load dismissed job IDs from localStorage (persistent across mounts)
+  const [dismissedJobIds, setDismissedJobIds] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem('dismissedEPMJobs');
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+  
+  // Persist dismissed job IDs to localStorage
+  const dismissJob = (jobId: string) => {
+    setDismissedJobIds(prev => {
+      const updated = new Set(prev).add(jobId);
+      localStorage.setItem('dismissedEPMJobs', JSON.stringify(Array.from(updated)));
+      return updated;
+    });
+  };
+
+  // Check for existing background job on mount (reconnection logic)
+  const { data: existingJob, refetch: refetchJob } = useQuery({
+    queryKey: ['/api/background-jobs/by-session', sessionId],
+    enabled: !!sessionId,
+    queryFn: async () => {
+      const res = await fetch(`/api/background-jobs/by-session/${sessionId}`);
+      if (!res.ok) throw new Error('Failed to fetch job');
+      return res.json();
+    },
+    retry: false,
+  });
 
   // Initialize prioritized items when data loads
   useEffect(() => {
@@ -105,6 +140,66 @@ export default function PrioritizationPage() {
 
     setPrioritizedItems(items);
   }, [versionData]);
+
+  // Handle existing background job (reconnection logic)
+  useEffect(() => {
+    if (!existingJob?.job) return;
+    
+    const job = existingJob.job;
+    console.log('[Reconnection] Found existing job:', job);
+    
+    // Skip if this job was already dismissed
+    if (dismissedJobIds.has(job.id)) {
+      console.log('[Reconnection] Job already dismissed, skipping');
+      return;
+    }
+    
+    if (job.jobType !== 'epm_generation') return;
+    
+    // Extract progressId from job inputData (stored during job creation)
+    const storedProgressId = job.inputData?.progressId;
+    
+    if (job.status === 'completed') {
+      // Job completed while user was away - show it once
+      const programId = job.resultData?.programId;
+      const confidence = job.resultData?.overallConfidence || 0;
+      
+      if (programId) {
+        setCompletedJobResult({ programId, confidence });
+        toast({
+          title: "EPM Generation Complete",
+          description: `Your EPM program finished generating while you were away (${Math.round(confidence * 100)}% confidence)`,
+        });
+      }
+    } else if (job.status === 'running' && storedProgressId) {
+      // Job still running - reconnect to progress stream using stored progressId
+      console.log('[Reconnection] Reconnecting to running job with progressId:', storedProgressId);
+      setProgressId(storedProgressId);
+      setShowProgress(true);
+      toast({
+        title: "Resuming EPM Generation",
+        description: "Reconnecting to your in-progress EPM generation...",
+      });
+    } else if (job.status === 'failed' && !dismissedJobIds.has(job.id)) {
+      toast({
+        title: "EPM Generation Failed",
+        description: job.errorMessage || "The EPM generation encountered an error",
+        variant: "destructive",
+      });
+      // Auto-dismiss failed jobs so error doesn't keep showing
+      dismissJob(job.id);
+    }
+  }, [existingJob, dismissedJobIds, toast, dismissJob]);
+  
+  // Handle viewing completed program - dismiss the job
+  const handleViewProgram = () => {
+    if (completedJobResult && existingJob?.job) {
+      // Dismiss the job so it doesn't reappear on next mount
+      dismissJob(existingJob.job.id);
+      setCompletedJobResult(null);
+      setLocation(`/strategy-workspace/epm/${completedJobResult.programId}`);
+    }
+  };
 
   // Extract insights and gaps
   const bmcAnalysis = versionData?.analysis?.bmc_research;
@@ -449,34 +544,60 @@ export default function PrioritizationPage() {
         </Card>
 
         {/* Actions */}
-        <Card className="border-2 border-primary">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold mb-1">Ready to Generate Your EPM Program?</h3>
-                <p className="text-sm text-muted-foreground">
-                  Your strategic initiatives will be converted into a complete EPM program with workstreams 
-                  structured according to your priority order.
-                </p>
+        {completedJobResult ? (
+          <Card className="border-2 border-green-500">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                    <h3 className="font-semibold">EPM Program Generated</h3>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Your EPM program was generated with {Math.round(completedJobResult.confidence * 100)}% confidence. 
+                    Click below to view the results.
+                  </p>
+                </div>
+                <Button
+                  size="lg"
+                  onClick={handleViewProgram}
+                  data-testid="button-view-epm"
+                >
+                  View EPM Program
+                </Button>
               </div>
-              <Button
-                size="lg"
-                onClick={() => generateEPMMutation.mutate()}
-                disabled={generateEPMMutation.isPending || prioritizedItems.length === 0}
-                data-testid="button-generate-epm"
-              >
-                {generateEPMMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  'Generate EPM Program'
-                )}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="border-2 border-primary">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold mb-1">Ready to Generate Your EPM Program?</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Your strategic initiatives will be converted into a complete EPM program with workstreams 
+                    structured according to your priority order.
+                  </p>
+                </div>
+                <Button
+                  size="lg"
+                  onClick={() => generateEPMMutation.mutate()}
+                  disabled={generateEPMMutation.isPending || prioritizedItems.length === 0}
+                  data-testid="button-generate-epm"
+                >
+                  {generateEPMMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    'Generate EPM Program'
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Back Button */}
         <div className="flex justify-start">
