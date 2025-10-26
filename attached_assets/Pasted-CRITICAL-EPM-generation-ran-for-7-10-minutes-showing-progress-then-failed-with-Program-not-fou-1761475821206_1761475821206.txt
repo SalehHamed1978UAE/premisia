@@ -1,0 +1,158 @@
+CRITICAL: EPM generation ran for 7-10 minutes showing progress, then 
+  failed with "Program not found" error. This is a critical production 
+  blocker.
+
+  Immediate Investigation Required
+
+  1. Check Server Logs for the Actual Error
+
+  Look for error logs near the end of EPM generation. Search for:
+  # Look for errors:
+  grep -i "error" [log file]
+  grep -i "exception" [log file]
+  grep -i "failed" [log file]
+
+  # Look for what happened at the end:
+  tail -100 [log file]
+
+  Common causes:
+
+  - ❌ Database transaction timeout - Generation took too long, transaction
+  rolled back
+  - ❌ Unhandled exception - Error during final save step
+  - ❌ Session ID mismatch - Wrong session ID used to save/retrieve program
+  - ❌ Memory error - Server ran out of memory during generation
+  - ❌ LLM API error - AI provider returned error at final step
+
+  2. Check the Route Handler Error Handling
+
+  File: server/routes/strategy-workspace.ts
+
+  Find the EPM generation route and check if errors are being caught:
+
+  try {
+    // ... EPM generation code ...
+
+    // ✅ Critical: Is the program being saved to database?
+    const savedProgram = await db.insert(epmPrograms).values({
+      userId: user.id,
+      sessionId: sessionId,
+      program: program,
+      // ... other fields
+    }).returning();
+
+    console.log('[EPM Generation] ✅ Program saved with ID:',
+  savedProgram[0].id);
+
+    // Send completion event with program ID
+    broadcastProgress(progressId, {
+      step: 7,
+      totalSteps: 7,
+      stepName: 'Complete',
+      status: 'completed',
+      message: 'Enterprise Program generated successfully',
+      timestamp: new Date(),
+      programId: savedProgram[0].id  // Include this!
+    });
+
+  } catch (error) {
+    console.error('[EPM Generation] ❌ FATAL ERROR:', error);
+
+    // Broadcast error to frontend
+    broadcastProgress(progressId, {
+      step: currentStep,
+      totalSteps: 7,
+      stepName: 'Error',
+      status: 'error',
+      message: `Generation failed: ${error.message}`,
+      timestamp: new Date()
+    });
+
+    // Don't silently fail!
+    throw error;
+  }
+
+  3. Check Database Schema
+
+  Verify the epmPrograms table exists and has correct schema:
+
+  // Does this table exist?
+  // Check shared/schema.ts for epmPrograms definition
+
+  4. Check Frontend Error Handling
+
+  File: client/src/pages/strategy-workspace/PrioritizationPage.tsx
+
+  When progress shows "error" status, show the error to user:
+
+  eventSource.onmessage = (event) => {
+    const progress: PlanningProgress = JSON.parse(event.data);
+    setCurrentProgress(progress);
+
+    // Handle error status
+    if (progress.status === 'error') {
+      console.error('[Progress] EPM generation failed:', progress.message);
+      toast.error(`EPM Generation Failed: ${progress.message}`);
+      eventSource.close();
+      setEpmProgress(null);
+      return;
+    }
+
+    // Handle completion
+    if (progress.status === 'completed' && progress.step ===
+  progress.totalSteps) {
+      console.log('[Progress] EPM generation complete');
+
+      // Verify program was saved
+      if (!progress.programId) {
+        console.error('[Progress] No program ID returned!');
+        toast.error('EPM was generated but not saved properly. Please try 
+  again.');
+      }
+
+      eventSource.close();
+      setCompletedSteps(prev => new Set([...prev, progress.step]));
+      onComplete?.();
+    }
+  };
+
+  5. Add Database Save Verification
+
+  After generation completes, verify the program is actually in the
+  database:
+
+  // After EPM generation completes:
+  const programId = savedProgram[0].id;
+
+  // Verify it's actually there:
+  const verification = await db
+    .select({ id: epmPrograms.id })
+    .from(epmPrograms)
+    .where(eq(epmPrograms.id, programId))
+    .limit(1);
+
+  if (verification.length === 0) {
+    console.error('[EPM Generation] ❌ Program was not saved to database!');
+    throw new Error('Program generation completed but failed to save');
+  }
+
+  console.log('[EPM Generation] ✅ Verified program exists in database');
+
+  ---
+  What to Report Back
+
+  Check the server logs and tell me:
+
+  1. What error appears in the logs? (Copy the full error stack trace)
+  2. Does the log say "Program saved with ID: XXX"? (Is it saving at all?)
+  3. Is there a database error? (Connection timeout, transaction rollback,
+  etc.)
+  4. What's the last successful log message before failure?
+  5. Does the epmPrograms table exist in the database?
+
+  Also check frontend:
+
+  6. What does the browser console show? (Any error messages?)
+  7. What does the Network tab show? (Did the SSE connection close with an
+  error?)
+

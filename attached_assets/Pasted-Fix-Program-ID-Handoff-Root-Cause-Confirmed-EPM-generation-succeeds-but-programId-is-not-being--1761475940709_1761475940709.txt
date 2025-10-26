@@ -1,0 +1,158 @@
+Fix Program ID Handoff
+
+  Root Cause Confirmed: EPM generation succeeds, but programId is not being
+  passed to frontend, causing navigation to fail with GET 
+  /api/strategy-workspace/epm/undefined.
+
+  Fix 1: Return Program ID in Final SSE Event
+
+  File: server/routes/strategy-workspace.ts
+
+  After EPM generation completes, the final progress event MUST include the
+  program ID:
+
+  // After successful EPM generation and save:
+  const savedProgram = await db.insert(epmPrograms).values({
+    userId: user.id,
+    sessionId: sessionId,
+    program: finalProgram,
+    confidence: finalProgram.overallConfidence,
+    createdAt: new Date()
+  }).returning();
+
+  const programId = savedProgram[0].id;
+
+  console.log(`[EPM Generation] ✅ Program saved with ID: ${programId}`);
+
+  // ✅ CRITICAL: Include programId in completion event
+  broadcastProgress(progressId, {
+    step: 7,
+    totalSteps: 7,
+    stepName: 'Complete',
+    status: 'completed',
+    message: 'Enterprise Program generated successfully',
+    timestamp: new Date(),
+    programId: programId  // ← ADD THIS
+  });
+
+  Fix 2: Update TypeScript Interface
+
+  File: server/routes/intelligent-planning.ts (or wherever PlanningProgress
+  is defined)
+
+  Add programId to the interface:
+
+  export interface PlanningProgress {
+    step: number;
+    totalSteps: number;
+    stepName: string;
+    status: 'in_progress' | 'completed' | 'error';
+    message: string;
+    timestamp: Date;
+    programId?: number;  // ← ADD THIS
+  }
+
+  Fix 3: Capture Program ID in Frontend
+
+  File: client/src/pages/strategy-workspace/PrioritizationPage.tsx
+
+  Add state to store program ID and capture it from SSE:
+
+  // Add state for program ID
+  const [generatedProgramId, setGeneratedProgramId] = useState<number |
+  null>(null);
+
+  // In SSE onmessage handler:
+  eventSource.onmessage = (event) => {
+    const progress: PlanningProgress = JSON.parse(event.data);
+    setCurrentProgress(progress);
+
+    if (progress.status === 'completed') {
+      setCompletedSteps(prev => new Set([...prev, progress.step]));
+
+      // ✅ Capture program ID from completion event
+      if (progress.step === progress.totalSteps && progress.programId) {
+        console.log('[Progress] EPM generation complete with ID:',
+  progress.programId);
+        setGeneratedProgramId(progress.programId);
+        eventSource.close();
+
+        // Navigate to the program view with the correct ID
+        setTimeout(() => {
+          navigate(`/strategy-workspace/epm/${progress.programId}`);
+        }, 1000);
+      }
+    }
+  };
+
+  Fix 4: Add Error Handling for Missing ID
+
+  eventSource.onmessage = (event) => {
+    const progress: PlanningProgress = JSON.parse(event.data);
+
+    if (progress.status === 'completed' && progress.step ===
+  progress.totalSteps) {
+      if (!progress.programId) {
+        console.error('[Progress] ❌ EPM completed but no program ID 
+  returned!');
+        toast.error('EPM was generated but could not be retrieved. Please 
+  refresh the page.');
+        eventSource.close();
+        setEpmProgress(null);
+        return;
+      }
+
+      // Success path with valid program ID
+      console.log('[Progress] ✅ EPM generation complete with ID:',
+  progress.programId);
+      setGeneratedProgramId(progress.programId);
+      eventSource.close();
+      navigate(`/strategy-workspace/epm/${progress.programId}`);
+    }
+  };
+
+  Fix 5: Verify the Route Exists
+
+  Make sure the EPM view route actually exists:
+
+  File: client/src/App.tsx (or wherever routes are defined)
+
+  <Route path="/strategy-workspace/epm/:programId"
+  component={EPMProgramView} />
+
+  Fix 6: Add Logging to Trace the ID
+
+  Add console logs to trace where the ID gets lost:
+
+  // Backend - after saving:
+  console.log('[EPM Generation] Program saved:', savedProgram[0]);
+  console.log('[EPM Generation] Sending program ID:', savedProgram[0].id);
+
+  // Backend - in broadcastProgress:
+  console.log('[SSE] Broadcasting completion with programId:',
+  progress.programId);
+
+  // Frontend - in SSE handler:
+  console.log('[Progress] Received event:', progress);
+  console.log('[Progress] Program ID from event:', progress.programId);
+
+  ---
+  Testing After Fix
+
+  1. Start new EPM generation
+  2. Watch server logs - should see: [EPM Generation] Program saved with ID:
+   123
+  3. Watch browser console - should see: [Progress] EPM generation complete 
+  with ID: 123
+  4. Navigation should work - should redirect to /strategy-workspace/epm/123
+  5. Program should load - should see the EPM program details
+
+  Expected Behavior
+
+  ✅ EPM generation completes successfully
+  ✅ Program saved to database with ID: 123
+  ✅ SSE event includes programId: 123
+  ✅ Frontend captures programId: 123
+  ✅ Navigation redirects to /strategy-workspace/epm/123
+  ✅ User sees their EPM program
+
