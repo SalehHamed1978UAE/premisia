@@ -5,7 +5,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "./hooks/use-auth";
 import { ProgramProvider } from "./contexts/ProgramContext";
+import { JobProvider } from "./contexts/JobContext";
 import { SessionContextPanel } from "@/components/SessionContext";
+import { GlobalJobTracker } from "@/components/GlobalJobTracker";
 import { useJobNotifications } from "@/hooks/useJobNotifications";
 import HomePage from "@/pages/home-page";
 import ProgramsPage from "@/pages/programs-page";
@@ -39,11 +41,6 @@ import { Loader2 } from "lucide-react";
 
 function Router() {
   const { user } = useAuth();
-  
-  // Enable job notifications for authenticated users
-  if (user) {
-    useJobNotifications();
-  }
   
   return (
     <>
@@ -84,15 +81,18 @@ function Router() {
 function AppContent() {
   const { user } = useAuth();
   
-  // Only wrap with ProgramProvider when user is authenticated
+  // Only wrap with ProgramProvider and JobProvider when user is authenticated
   // This prevents unnecessary API calls on the public landing page
   return user ? (
-    <ProgramProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-      </TooltipProvider>
-    </ProgramProvider>
+    <JobProvider>
+      <ProgramProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Router />
+          <GlobalJobTracker />
+        </TooltipProvider>
+      </ProgramProvider>
+    </JobProvider>
   ) : (
     <TooltipProvider>
       <Toaster />
