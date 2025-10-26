@@ -1,6 +1,6 @@
 import { backgroundJobs } from "@shared/schema";
 import type { InsertBackgroundJob, SelectBackgroundJob } from "@shared/schema";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import { dbConnectionManager } from "../db-connection-manager";
 
 /**
@@ -316,20 +316,31 @@ export class BackgroundJobService {
     const cutoffDate = new Date(Date.now() - daysOld * 24 * 60 * 60 * 1000);
 
     const result = await dbConnectionManager.withFreshConnection(async (db) => {
-      // Delete completed or failed jobs older than cutoff date
-      const deleted = await db
-        .delete(backgroundJobs)
+      // First, get the jobs that will be deleted
+      const jobsToDelete = await db
+        .select({ id: backgroundJobs.id })
+        .from(backgroundJobs)
         .where(
           and(
             inArray(backgroundJobs.status, ['completed', 'failed']),
-            // @ts-ignore - Drizzle ORM date comparison
-            db.sql`${backgroundJobs.createdAt} < ${cutoffDate}`
+            // Drizzle ORM date comparison using sql template tag from drizzle-orm
+            sql`${backgroundJobs.createdAt} < ${cutoffDate}`
           )
-        )
-        .returning();
+        );
 
-      console.log('[Background Job] ✓ Deleted', deleted.length, 'old jobs');
-      return deleted.length;
+      if (jobsToDelete.length === 0) {
+        console.log('[Background Job] ✓ No old jobs to delete');
+        return 0;
+      }
+
+      // Delete the jobs
+      const jobIds = jobsToDelete.map(job => job.id);
+      await db
+        .delete(backgroundJobs)
+        .where(inArray(backgroundJobs.id, jobIds));
+
+      console.log('[Background Job] ✓ Deleted', jobsToDelete.length, 'old jobs');
+      return jobsToDelete.length;
     });
 
     return result;
