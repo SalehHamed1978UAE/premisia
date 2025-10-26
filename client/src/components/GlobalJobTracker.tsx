@@ -2,16 +2,41 @@ import { useJobs } from '@/contexts/JobContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
-import { Loader2, X, ChevronRight, Minimize2 } from 'lucide-react';
+import { Loader2, X, ChevronRight, Minimize2, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { useLocation } from 'wouter';
+import { useMutation } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
+import { useToast } from '@/hooks/use-toast';
 
 export function GlobalJobTracker() {
   const { runningJobs } = useJobs();
   const [location, setLocationNav] = useLocation();
+  const { toast } = useToast();
   const [dismissedJobs, setDismissedJobs] = useState<Set<string>>(new Set());
   const [minimizedJobs, setMinimizedJobs] = useState<Set<string>>(new Set());
   const [showAllJobs, setShowAllJobs] = useState(false);
+
+  const cancelJobMutation = useMutation({
+    mutationFn: async (jobId: string) => {
+      return await apiRequest('DELETE', `/api/background-jobs/${jobId}`);
+    },
+    onSuccess: (_, jobId) => {
+      toast({
+        title: "Job Cancelled",
+        description: "The background job has been cancelled successfully.",
+      });
+      // Remove from dismissed list so it disappears
+      setDismissedJobs(prev => new Set(prev).add(jobId));
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Cancellation Failed",
+        description: error?.message || "Unable to cancel the job. It may have already completed.",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Don't show on PrioritizationPage - it has its own detailed tracker
   const onPrioritizationPage = location.includes('/strategy-workspace/prioritization');
@@ -152,17 +177,30 @@ export function GlobalJobTracker() {
                 </p>
               </div>
 
-              {job.jobType === 'epm_generation' && (
+              <div className="flex gap-2">
+                {job.jobType === 'epm_generation' && (
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setLocationNav('/strategy-workspace/programs')}
+                    data-testid="button-view-programs"
+                  >
+                    Go to Programs
+                    <ChevronRight className="h-4 w-4 ml-2" />
+                  </Button>
+                )}
                 <Button
                   variant="outline"
-                  className="w-full"
-                  onClick={() => setLocationNav('/strategy-workspace/programs')}
-                  data-testid="button-view-programs"
+                  size={job.jobType === 'epm_generation' ? 'default' : 'default'}
+                  className={job.jobType === 'epm_generation' ? '' : 'w-full'}
+                  onClick={() => cancelJobMutation.mutate(job.id)}
+                  disabled={cancelJobMutation.isPending}
+                  data-testid={`button-cancel-job-${job.id}`}
                 >
-                  Go to Programs
-                  <ChevronRight className="h-4 w-4 ml-2" />
+                  <XCircle className="h-4 w-4 mr-2" />
+                  Cancel
                 </Button>
-              )}
+              </div>
             </CardContent>
           </Card>
         );

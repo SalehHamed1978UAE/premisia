@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { storage } from "./storage";
-import { insertProgramSchema, insertWorkstreamSchema, insertStageGateSchema, insertTaskSchema, insertKpiSchema, insertRiskSchema, insertBenefitSchema, insertFundingSourceSchema, insertExpenseSchema, insertResourceSchema, insertSessionContextSchema, orchestratorTaskSchema } from "@shared/schema";
+import { insertProgramSchema, insertWorkstreamSchema, insertStageGateSchema, insertTaskSchema, insertKpiSchema, insertRiskSchema, insertBenefitSchema, insertFundingSourceSchema, insertExpenseSchema, insertResourceSchema, insertSessionContextSchema, orchestratorTaskSchema, backgroundJobs } from "@shared/schema";
 import { ontologyService } from "./ontology-service";
 import { assessmentService } from "./assessment-service";
 import { Orchestrator } from "./orchestrator";
@@ -12,6 +12,8 @@ import statementRepositoryRoutes from "./routes/statement-repository.routes";
 import strategyWorkspaceRoutes from "./routes/strategy-workspace";
 import journeyBuilderRoutes from "./routes/journey-builder";
 import { backgroundJobService } from "./services/background-job-service";
+import { eq, and, or, desc, sql } from "drizzle-orm";
+import { db } from "./db";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup Replit Auth
