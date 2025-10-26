@@ -314,29 +314,31 @@ function Dashboard({ summary }: { summary: DashboardSummary }) {
               {summary.recentArtifacts.map((artifact) => (
                 <Link key={artifact.id} href={artifact.link}>
                   <div
-                    className="flex items-center gap-4 p-4 rounded-lg border border-border hover:bg-accent transition-colors cursor-pointer"
+                    className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-4 rounded-lg border border-border hover:bg-accent transition-colors cursor-pointer"
                     data-testid={`artifact-${artifact.id}`}
                   >
-                    <div className={cn(
-                      "w-10 h-10 rounded-lg flex items-center justify-center",
-                      artifact.type === 'analysis' && "bg-blue-100 dark:bg-blue-900/30",
-                      artifact.type === 'program' && "bg-green-100 dark:bg-green-900/30"
-                    )}>
-                      {artifact.type === 'analysis' ? (
-                        <Archive className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                      ) : (
-                        <FileText className="h-5 w-5 text-green-600 dark:text-green-400" />
-                      )}
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                      <div className={cn(
+                        "w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0",
+                        artifact.type === 'analysis' && "bg-blue-100 dark:bg-blue-900/30",
+                        artifact.type === 'program' && "bg-green-100 dark:bg-green-900/30"
+                      )}>
+                        {artifact.type === 'analysis' ? (
+                          <Archive className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                        ) : (
+                          <FileText className="h-5 w-5 text-green-600 dark:text-green-400" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-foreground truncate">{artifact.title}</h4>
+                        <p className="text-sm text-muted-foreground">
+                          {artifact.type === 'analysis' ? 'Strategic Analysis' : 'EPM Program'}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-foreground">{artifact.title}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {artifact.type === 'analysis' ? 'Strategic Analysis' : 'EPM Program'}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground flex-shrink-0 pl-14 sm:pl-0">
                       <Calendar className="h-4 w-4" />
-                      {format(new Date(artifact.createdAt), 'MMM d, yyyy')}
+                      <span className="whitespace-nowrap">{format(new Date(artifact.createdAt), 'MMM d, yyyy')}</span>
                     </div>
                   </div>
                 </Link>
