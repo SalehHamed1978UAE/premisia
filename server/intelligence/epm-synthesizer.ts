@@ -437,23 +437,8 @@ export class EPMSynthesizer {
     // Generate program name
     const programName = await this.generateProgramName(insights, userContext, namingContext);
     
-    // CRITICAL: Attach initiative type to insights BEFORE generating components
-    // This ensures resource generation gets the correct initiative type
-    if (userContext?.sessionId) {
-      try {
-        const tempContext = await ContextBuilder.fromJourneyInsights(
-          insights,
-          insights.frameworkType || 'strategy_workspace',
-          userContext.sessionId
-        );
-        if (tempContext.business.initiativeType) {
-          (insights as any).initiativeType = tempContext.business.initiativeType;
-          console.log(`[EPM Synthesis] ✅ Initiative type loaded early: ${tempContext.business.initiativeType}`);
-        }
-      } catch (error) {
-        console.log(`[EPM Synthesis] ⚠️ Could not load initiative type early:`, error);
-      }
-    }
+    // REMOVED MUTATION: Initiative type is now passed explicitly as a parameter
+    // No longer mutating insights.initiativeType - single source of truth from database
     
     // PHASE 1: Generate timeline-INDEPENDENT components
     const executiveSummary = await this.generateExecutiveSummary(insights, programName);
@@ -516,16 +501,8 @@ export class EPMSynthesizer {
         userContext?.sessionId  // Pass sessionId if available from userContext
       );
       
-      // Attach initiative type to insights for downstream use
-      console.log('[DEBUG] 🔍 Checking initiative type propagation:');
-      console.log(`  planningContext.business.initiativeType: ${planningContext.business.initiativeType || 'UNDEFINED'}`);
-      
-      if (planningContext.business.initiativeType) {
-        (insights as any).initiativeType = planningContext.business.initiativeType;
-        console.log(`[EPM Synthesis] ✅ Initiative type attached to insights: ${planningContext.business.initiativeType}`);
-      } else {
-        console.log('[EPM Synthesis] ⚠️ WARNING: No initiative type found in planningContext!');
-      }
+      // REMOVED MUTATION: Initiative type was already passed explicitly to generateResourcePlan
+      // No longer mutating insights.initiativeType - explicit parameter passing ensures single source of truth
       
       console.log('[EPM Synthesis] 📋 PLANNING CONTEXT BEING PASSED:');
       console.log(`  Business Name: "${planningContext.business.name}"`);
