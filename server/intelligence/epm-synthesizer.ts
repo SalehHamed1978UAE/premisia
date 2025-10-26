@@ -271,7 +271,11 @@ export class EPMSynthesizer {
     insights: StrategyInsights,
     userContext?: UserContext,
     namingContext?: any,
-    options?: { forceIntelligentPlanning?: boolean; onProgress?: (event: any) => void }
+    options?: { 
+      forceIntelligentPlanning?: boolean; 
+      onProgress?: (event: any) => void;
+      initiativeType?: string;  // EXPLICIT: Initiative type from database
+    }
   ): Promise<EPMProgram> {
     
     // ===== CHECK FLAG FIRST - ROUTE TO ONE PATH ONLY =====
@@ -282,10 +286,10 @@ export class EPMSynthesizer {
     
     if (intelligentPlanningEnabled) {
       console.log('[EPM Synthesis] 🚀 Using intelligent planning system for complete EPM generation...');
-      return await this.buildWithIntelligentPlanning(insights, userContext, namingContext, options?.onProgress);
+      return await this.buildWithIntelligentPlanning(insights, userContext, namingContext, options?.onProgress, options?.initiativeType);
     } else {
       console.log('[EPM Synthesis] Using standard EPM generation system...');
-      return await this.buildWithOldSystem(insights, userContext, namingContext);
+      return await this.buildWithOldSystem(insights, userContext, namingContext, options?.initiativeType);
     }
   }
 
@@ -296,7 +300,8 @@ export class EPMSynthesizer {
   private async buildWithOldSystem(
     insights: StrategyInsights,
     userContext?: UserContext,
-    namingContext?: any
+    namingContext?: any,
+    initiativeType?: string  // EXPLICIT: Initiative type from database
   ): Promise<EPMProgram> {
     
     // Generate intelligent program name from context
@@ -356,7 +361,7 @@ export class EPMSynthesizer {
     }
     
     // NOW generate downstream components using VALIDATED workstreams/timeline
-    const resourcePlan = await this.generateResourcePlan(insights, workstreams, userContext);
+    const resourcePlan = await this.generateResourcePlan(insights, workstreams, userContext, initiativeType);
     const financialPlan = await this.generateFinancialPlan(insights, resourcePlan, userContext);
     const benefitsRealization = await this.generateBenefitsRealization(insights, timeline);
     const kpis = await this.generateKPIs(insights, benefitsRealization);
@@ -422,7 +427,8 @@ export class EPMSynthesizer {
     insights: StrategyInsights,
     userContext?: UserContext,
     namingContext?: any,
-    onProgress?: (event: any) => void
+    onProgress?: (event: any) => void,
+    initiativeType?: string  // EXPLICIT: Initiative type from database
   ): Promise<EPMProgram> {
     
     // Track total elapsed time for progress updates
@@ -453,7 +459,7 @@ export class EPMSynthesizer {
     const executiveSummary = await this.generateExecutiveSummary(insights, programName);
     const workstreams = await this.generateWorkstreams(insights, userContext, onProgress, startTime);
     const riskRegister = await this.generateRiskRegister(insights);
-    const resourcePlan = await this.generateResourcePlan(insights, workstreams, userContext);
+    const resourcePlan = await this.generateResourcePlan(insights, workstreams, userContext, initiativeType);
     const financialPlan = await this.generateFinancialPlan(insights, resourcePlan, userContext);
     const stakeholderMap = await this.generateStakeholderMap(insights);
     const governance = await this.generateGovernance(insights, stakeholderMap);
