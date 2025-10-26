@@ -771,13 +771,35 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
       isLeaf: false,
     })));
 
-    // Structure Five Whys data to match frontend expectations
-    // Frontend expects: analysis.five_whys.whysPath, etc.
+    // Structure Five Whys data to match FiveWhysAnalysis interface expected by renderer
+    // Renderer expects: why_1.question, why_1.answer, etc.
     const analysisData = {
       five_whys: {
+        problem_statement: input,
+        why_1: {
+          question: "Why is this happening?",
+          answer: selectedPath[0] || ""
+        },
+        why_2: {
+          question: "Why does that occur?",
+          answer: selectedPath[1] || ""
+        },
+        why_3: {
+          question: "Why is that the case?",
+          answer: selectedPath[2] || ""
+        },
+        why_4: {
+          question: "Why does that matter?",
+          answer: selectedPath[3] || ""
+        },
+        why_5: {
+          question: "What's the underlying cause?",
+          answer: selectedPath[4] || ""
+        },
+        root_cause: rootCause,
+        strategic_implications: insights.strategic_implications,
+        // Keep whysPath for backward compatibility
         whysPath: selectedPath,
-        rootCause,
-        strategicImplications: insights.strategic_implications,
         recommendedActions: insights.recommended_actions,
         framework: 'five_whys',
       },
