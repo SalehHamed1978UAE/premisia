@@ -11,6 +11,7 @@ import trendAnalysisRoutes from "./routes/trend-analysis";
 import statementRepositoryRoutes from "./routes/statement-repository.routes";
 import strategyWorkspaceRoutes from "./routes/strategy-workspace";
 import journeyBuilderRoutes from "./routes/journey-builder";
+import { backgroundJobService } from "./services/background-job-service";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup Replit Auth
@@ -1245,6 +1246,123 @@ Marketing and events: $3k/month`,
         message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined
       });
+    }
+  });
+
+  // ============================================
+  // Background Jobs Routes
+  // ============================================
+  
+  // Get a specific job by ID
+  app.get('/api/background-jobs/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      // Validate auth claims exist
+      if (!req.user?.claims?.sub) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      
+      const jobId = req.params.id;
+      const userId = req.user.claims.sub;
+      
+      const job = await backgroundJobService.getJobById(jobId);
+      
+      if (!job) {
+        return res.status(404).json({ error: 'Job not found' });
+      }
+      
+      // Ensure user owns this job (check before returning data)
+      if (job.userId !== userId) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+      
+      res.json({ job });
+    } catch (error) {
+      console.error('[Background Jobs] Error fetching job:', error);
+      res.status(500).json({ error: 'Failed to fetch job' });
+    }
+  });
+  
+  // Get all running jobs for current user
+  app.get('/api/background-jobs/running', isAuthenticated, async (req: any, res) => {
+    try {
+      // Validate auth claims exist
+      if (!req.user?.claims?.sub) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      
+      const userId = req.user.claims.sub;
+      const jobs = await backgroundJobService.getRunningJobs(userId);
+      res.json({ jobs });
+    } catch (error) {
+      console.error('[Background Jobs] Error fetching running jobs:', error);
+      res.status(500).json({ error: 'Failed to fetch running jobs' });
+    }
+  });
+  
+  // Get job by session ID
+  app.get('/api/background-jobs/by-session/:sessionId', isAuthenticated, async (req: any, res) => {
+    try {
+      // Validate auth claims exist
+      if (!req.user?.claims?.sub) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      
+      const sessionId = req.params.sessionId;
+      const userId = req.user.claims.sub;
+      
+      const job = await backgroundJobService.getJobBySession(sessionId);
+      
+      if (!job) {
+        return res.json({ job: null });
+      }
+      
+      // Ensure user owns this job (check before returning data)
+      if (job.userId !== userId) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+      
+      res.json({ job });
+    } catch (error) {
+      console.error('[Background Jobs] Error fetching job by session:', error);
+      res.status(500).json({ error: 'Failed to fetch job' });
+    }
+  });
+  
+  // Get recent jobs for current user
+  app.get('/api/background-jobs/recent', isAuthenticated, async (req: any, res) => {
+    try {
+      // Validate auth claims exist
+      if (!req.user?.claims?.sub) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      
+      const userId = req.user.claims.sub;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const jobs = await backgroundJobService.getRecentJobs(userId, limit);
+      res.json({ jobs });
+    } catch (error) {
+      console.error('[Background Jobs] Error fetching recent jobs:', error);
+      res.status(500).json({ error: 'Failed to fetch recent jobs' });
+    }
+  });
+  
+  // Get all jobs for current user (with optional status filter)
+  app.get('/api/background-jobs', isAuthenticated, async (req: any, res) => {
+    try {
+      // Validate auth claims exist
+      if (!req.user?.claims?.sub) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      
+      const userId = req.user.claims.sub;
+      const status = req.query.status as 'pending' | 'running' | 'completed' | 'failed' | undefined;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+      
+      const jobs = await backgroundJobService.getJobsByUser(userId, { status, limit });
+      res.json({ jobs });
+    } catch (error) {
+      console.error('[Background Jobs] Error fetching user jobs:', error);
+      res.status(500).json({ error: 'Failed to fetch jobs' });
     }
   });
 

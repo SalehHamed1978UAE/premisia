@@ -6,6 +6,7 @@ import { BMCAnalyzer, PortersAnalyzer, PESTLEAnalyzer, EPMSynthesizer } from '..
 import type { BMCResults, PortersResults, PESTLEResults } from '../intelligence/types';
 import { storage } from '../storage';
 import { createOpenAIProvider } from '../../src/lib/intelligent-planning/llm-provider';
+import { backgroundJobService } from '../services/background-job-service';
 
 const router = Router();
 
@@ -310,6 +311,23 @@ async function processEPMGeneration(
   req: Request
 ) {
   const startTime = Date.now(); // Track elapsed time
+  const userId = (req.user as any)?.claims?.sub || null;
+  
+  // Create background job record for tracking
+  let jobId: string | null = null;
+  try {
+    jobId = await backgroundJobService.createJob({
+      userId,
+      jobType: 'epm_generation',
+      inputData: { strategyVersionId, decisionId, prioritizedOrder },
+      relatedEntityId: strategyVersionId,
+      relatedEntityType: 'strategy_version',
+    });
+    console.log('[EPM Generation] Background job created:', jobId);
+  } catch (jobError) {
+    console.error('[EPM Generation] Failed to create background job:', jobError);
+    // Continue without job tracking if it fails
+  }
   
   try {
     // Send initial progress event
@@ -319,6 +337,15 @@ async function processEPMGeneration(
       progress: 5,
       description: 'Preparing strategic analysis...'
     });
+    
+    // Update job status to running
+    if (jobId) {
+      await backgroundJobService.updateJob(jobId, {
+        status: 'running',
+        progress: 5,
+        progressMessage: 'Preparing strategic analysis...'
+      }).catch(err => console.error('[EPM Generation] Job update failed:', err));
+    }
 
     // Fetch strategy version to get BMC analysis
     const [version] = await db.select()
@@ -443,11 +470,17 @@ async function processEPMGeneration(
         onProgress: (event) => {
           // Forward intelligent planning events to SSE stream
           sendSSEEvent(progressId, event);
+          
+          // Update background job progress (alongside SSE)
+          if (jobId && event.progress !== undefined) {
+            backgroundJobService.updateJob(jobId, {
+              progress: event.progress,
+              progressMessage: event.description || event.message
+            }).catch(err => console.error('[EPM Generation] Job progress update failed:', err));
+          }
         }
       }
     );
-
-    const userId = (req.user as any)?.claims?.sub || null;
 
     // Extract component-level confidence scores
     const componentConfidence = extractComponentConfidence(epmProgram);
@@ -504,6 +537,19 @@ async function processEPMGeneration(
       message: 'EPM program generation complete!'
     });
     
+    // Mark background job as completed
+    if (jobId) {
+      await backgroundJobService.updateJob(jobId, {
+        status: 'completed',
+        progress: 100,
+        resultData: {
+          programId,
+          overallConfidence,
+          elapsedSeconds
+        }
+      }).catch(err => console.error('[EPM Generation] Job completion update failed:', err));
+    }
+    
     // Close SSE stream
     const stream = progressStreams.get(progressId);
     if (stream) {
@@ -512,6 +558,14 @@ async function processEPMGeneration(
     }
   } catch (error: any) {
     console.error('Error in processEPMGeneration:', error);
+    
+    // Mark background job as failed
+    if (jobId) {
+      await backgroundJobService.failJob(jobId, error).catch(err => 
+        console.error('[EPM Generation] Job failure update failed:', err)
+      );
+    }
+    
     throw error; // Re-throw to be caught by outer catch in POST /epm/generate
   }
 }

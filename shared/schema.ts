@@ -110,6 +110,18 @@ export const epmStatusEnum = pgEnum('epm_status', ['draft', 'finalized']);
 export const difficultyEnum = pgEnum('difficulty', ['beginner', 'intermediate', 'advanced']);
 export const userJourneyStatusEnum = pgEnum('user_journey_status', ['in_progress', 'completed', 'paused', 'abandoned']);
 
+// Background Jobs enums
+export const jobStatusEnum = pgEnum('job_status', ['pending', 'running', 'completed', 'failed']);
+export const jobTypeEnum = pgEnum('job_type', [
+  'epm_generation',
+  'bmc_analysis',
+  'five_whys_generation',
+  'porters_analysis',
+  'pestle_analysis',
+  'web_research',
+  'strategic_understanding'
+]);
+
 // Session storage table for Replit Auth
 export const sessions = pgTable(
   "sessions",
@@ -1559,6 +1571,34 @@ export const frameworkRegistry = pgTable("framework_registry", {
   activeIdx: index("idx_framework_registry_active").on(table.isActive),
 }));
 
+// Background Jobs table - Track long-running operations for recovery
+export const backgroundJobs = pgTable("background_jobs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  jobType: jobTypeEnum("job_type").notNull(),
+  status: jobStatusEnum("status").notNull().default('pending'),
+  progress: integer("progress").notNull().default(0),
+  progressMessage: text("progress_message"),
+  inputData: jsonb("input_data"),
+  resultData: jsonb("result_data"),
+  errorMessage: text("error_message"),
+  errorStack: text("error_stack"),
+  sessionId: text("session_id"),
+  relatedEntityId: varchar("related_entity_id"),
+  relatedEntityType: text("related_entity_type"),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+  failedAt: timestamp("failed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  userIdx: index("idx_background_jobs_user").on(table.userId),
+  statusIdx: index("idx_background_jobs_status").on(table.status),
+  sessionIdx: index("idx_background_jobs_session").on(table.sessionId),
+  typeIdx: index("idx_background_jobs_type").on(table.jobType),
+  relatedEntityIdx: index("idx_background_jobs_related_entity").on(table.relatedEntityId, table.relatedEntityType),
+}));
+
 // Insert Schemas for Strategy Workspace
 export const insertSwProblemSchema = createInsertSchema(swProblems).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertSwProblem = z.infer<typeof insertSwProblemSchema>;
@@ -1608,3 +1648,8 @@ export type SelectUserJourney = typeof userJourneys.$inferSelect;
 export const insertFrameworkRegistrySchema = createInsertSchema(frameworkRegistry).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertFrameworkRegistry = z.infer<typeof insertFrameworkRegistrySchema>;
 export type SelectFrameworkRegistry = typeof frameworkRegistry.$inferSelect;
+
+// Insert Schemas for Background Jobs
+export const insertBackgroundJobSchema = createInsertSchema(backgroundJobs).omit({ id: true, createdAt: true, updatedAt: true, startedAt: true, completedAt: true, failedAt: true });
+export type InsertBackgroundJob = z.infer<typeof insertBackgroundJobSchema>;
+export type SelectBackgroundJob = typeof backgroundJobs.$inferSelect;
