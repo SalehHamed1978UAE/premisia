@@ -1409,6 +1409,58 @@ Marketing and events: $3k/month`,
       res.status(500).json({ error: 'Failed to fetch jobs' });
     }
   });
+  
+  // Cancel a running job
+  app.delete('/api/background-jobs/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      // Validate auth claims exist
+      if (!req.user?.claims?.sub) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      
+      const jobId = req.params.id;
+      const userId = req.user.claims.sub;
+      
+      const cancelled = await backgroundJobService.cancelJob(jobId, userId);
+      
+      if (!cancelled) {
+        return res.status(400).json({ error: 'Unable to cancel job. Job may not exist, belong to another user, or already be completed.' });
+      }
+      
+      res.json({ success: true, message: 'Job cancelled successfully' });
+    } catch (error) {
+      console.error('[Background Jobs] Error cancelling job:', error);
+      res.status(500).json({ error: 'Failed to cancel job' });
+    }
+  });
+  
+  // Cleanup old completed/failed jobs
+  app.post('/api/background-jobs/cleanup', isAuthenticated, async (req: any, res) => {
+    try {
+      // Validate auth claims exist
+      if (!req.user?.claims?.sub) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      
+      const daysOld = req.body.daysOld || 7;
+      
+      // Validate daysOld is a reasonable number
+      if (daysOld < 1 || daysOld > 365) {
+        return res.status(400).json({ error: 'daysOld must be between 1 and 365' });
+      }
+      
+      const deletedCount = await backgroundJobService.cleanupOldJobs(daysOld);
+      
+      res.json({ 
+        success: true, 
+        message: `Cleaned up ${deletedCount} old jobs`,
+        deletedCount 
+      });
+    } catch (error) {
+      console.error('[Background Jobs] Error cleaning up jobs:', error);
+      res.status(500).json({ error: 'Failed to cleanup jobs' });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;
