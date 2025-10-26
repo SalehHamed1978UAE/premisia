@@ -257,6 +257,83 @@ export class BackgroundJobService {
 
     return result;
   }
+
+  /**
+   * Cancel a running job
+   * Marks job as failed with cancellation message
+   */
+  async cancelJob(jobId: string, userId: string): Promise<boolean> {
+    console.log('[Background Job] Cancelling job:', jobId, 'for user:', userId);
+
+    const result = await dbConnectionManager.withFreshConnection(async (db) => {
+      // First, verify the job exists and belongs to the user
+      const [job] = await db
+        .select()
+        .from(backgroundJobs)
+        .where(eq(backgroundJobs.id, jobId));
+
+      if (!job) {
+        console.error('[Background Job] Job not found:', jobId);
+        return false;
+      }
+
+      if (job.userId !== userId) {
+        console.error('[Background Job] User does not own job:', userId, 'vs', job.userId);
+        return false;
+      }
+
+      // Only allow cancelling pending or running jobs
+      if (job.status !== 'pending' && job.status !== 'running') {
+        console.error('[Background Job] Job is not cancellable (status:', job.status, ')');
+        return false;
+      }
+
+      // Mark as failed with cancellation message
+      await db
+        .update(backgroundJobs)
+        .set({
+          status: 'failed',
+          errorMessage: 'Job cancelled by user',
+          failedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(backgroundJobs.id, jobId));
+
+      console.log('[Background Job] ✓ Job cancelled:', jobId);
+      return true;
+    });
+
+    return result;
+  }
+
+  /**
+   * Delete old completed/failed jobs
+   * Cleans up jobs older than specified days
+   */
+  async cleanupOldJobs(daysOld: number = 7): Promise<number> {
+    console.log('[Background Job] Cleaning up jobs older than', daysOld, 'days');
+
+    const cutoffDate = new Date(Date.now() - daysOld * 24 * 60 * 60 * 1000);
+
+    const result = await dbConnectionManager.withFreshConnection(async (db) => {
+      // Delete completed or failed jobs older than cutoff date
+      const deleted = await db
+        .delete(backgroundJobs)
+        .where(
+          and(
+            inArray(backgroundJobs.status, ['completed', 'failed']),
+            // @ts-ignore - Drizzle ORM date comparison
+            db.sql`${backgroundJobs.createdAt} < ${cutoffDate}`
+          )
+        )
+        .returning();
+
+      console.log('[Background Job] ✓ Deleted', deleted.length, 'old jobs');
+      return deleted.length;
+    });
+
+    return result;
+  }
 }
 
 // Export singleton instance
