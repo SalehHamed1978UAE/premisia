@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { PlanningProgressTracker } from "@/components/intelligent-planning/PlanningProgressTracker";
+import { MinimizedJobTracker } from "@/components/MinimizedJobTracker";
 import {
   ArrowUp,
   ArrowDown,
@@ -18,6 +19,8 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle,
+  X,
+  Info,
 } from "lucide-react";
 
 interface VersionData {
@@ -76,6 +79,9 @@ export default function PrioritizationPage() {
   
   // Progress tracking state
   const [showProgress, setShowProgress] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [currentProgress, setCurrentProgress] = useState(0);
+  const [currentMessage, setCurrentMessage] = useState('');
   const [progressId, setProgressId] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const [completedJobResult, setCompletedJobResult] = useState<{
@@ -239,6 +245,14 @@ export default function PrioritizationPage() {
       
       const data = JSON.parse(event.data);
       console.log('[Progress] Received SSE event:', data);
+      
+      // Track current progress for minimized view
+      if (data.progress !== undefined) {
+        setCurrentProgress(data.progress);
+      }
+      if (data.description || data.message) {
+        setCurrentMessage(data.description || data.message);
+      }
       
       // Update the progress tracker via window method
       if ((window as any).__updatePlanningProgress) {
@@ -610,14 +624,66 @@ export default function PrioritizationPage() {
           </Button>
         </div>
         
-        {/* Progress Tracker Overlay */}
-        {showProgress && (
-          <div 
-            className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            data-testid="progress-overlay"
-          >
-            <PlanningProgressTracker />
-          </div>
+        {/* Non-Blocking Progress Tracker */}
+        {showProgress && !isMinimized && (
+          <Card className="fixed bottom-4 right-4 w-96 shadow-lg z-50" data-testid="progress-tracker-card">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  EPM Generation
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsMinimized(true)}
+                  data-testid="button-minimize-progress"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <PlanningProgressTracker />
+              
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  You can safely navigate away. We'll notify you when it's ready.
+                </AlertDescription>
+              </Alert>
+
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsMinimized(true);
+                    toast({
+                      title: "Generation continues in background",
+                      description: "Check the Programs menu for completion status",
+                    });
+                  }}
+                  className="flex-1"
+                  data-testid="button-navigate-away"
+                >
+                  Navigate Away
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+        
+        {/* Minimized Progress Tracker */}
+        {showProgress && isMinimized && (
+          <MinimizedJobTracker
+            progress={currentProgress}
+            message={currentMessage}
+            onExpand={() => setIsMinimized(false)}
+            onDismiss={() => {
+              setIsMinimized(false);
+              setShowProgress(false);
+            }}
+          />
         )}
       </div>
     </AppLayout>
