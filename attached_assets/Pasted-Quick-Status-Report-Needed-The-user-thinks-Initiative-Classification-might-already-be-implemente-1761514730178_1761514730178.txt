@@ -1,0 +1,83 @@
+Quick Status Report Needed:
+
+  The user thinks Initiative Classification might already be implemented 
+  because they see a business type confirmation step.
+
+  Please clarify what's actually in the codebase:
+
+  1. Database Schema
+
+  # Check if initiative_type exists
+  psql $DATABASE_URL -c "\d strategic_understanding" | grep initiative
+
+  Does strategic_understanding table have:
+  - initiative_type column?
+  - initiative_description column?
+  - user_confirmed column?
+  - classification_confidence column?
+
+  2. Backend Services
+
+  Do these files exist?
+  - server/strategic-consultant/initiative-classifier.ts
+  - server/strategic-consultant/quality-validator.ts
+
+  3. Frontend Confirmation
+
+  Is there a page/component where users confirm their initiative type?
+  - client/src/pages/strategic-consultant/ClassificationPage.tsx
+
+  4. Context Propagation
+
+  When EPM generates resources, does it:
+  - Read initiative_type from the database?
+  - Pass it to task extraction?
+  - Pass it to resource generation?
+  - Generate different resources based on type (Baristas for coffee shops vs 
+  Developers for software)?
+
+  5. Test Question
+
+  If you run this query, what does it return?
+  SELECT initiative_type, initiative_description, user_confirmed
+  FROM strategic_understanding
+  ORDER BY created_at DESC
+  LIMIT 3;
+
+  Are the fields populated? Or NULL?
+
+  ---
+  What We Need to Know:
+
+  A) Initiative Classification is fully implemented → Resources are 
+  context-aware
+
+  B) Partially implemented → Database exists but not used in EPM generation
+
+  C) Not implemented → User is seeing ambiguity detection, not classification
+
+  D) Something else → Explain what's there
+
+  Please report back with findings! 🔍
+
+  ---
+  🤔 My Hypothesis:
+
+  I think what happened is:
+
+  Ambiguity Detection (which we know is done) might be asking:
+  - "Is this B2B or B2C?"
+  - "Physical or digital?"
+  - "What industry?"
+
+  And the user is seeing these questions and thinking "This is business type
+  classification!"
+
+  But Initiative Classification is different - it's:
+  1. AI automatically detects type ("physical_business_launch")
+  2. Shows confidence score
+  3. Stores in database
+  4. Uses that type throughout EPM generation
+
+  The key difference is step 4 - does EPM actually use the business type to
+  generate different resources?
