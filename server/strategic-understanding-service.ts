@@ -148,12 +148,18 @@ export class StrategicUnderstandingService {
 
     const systemPrompt = `You are a strategic insight extraction expert. Your ONLY job is to extract verifiable insights from user input. Return ONLY valid JSON (no markdown, no explanation).
 
+CRITICAL JSON FORMATTING RULES:
+- ALL string values must have quotes properly escaped (use \\" for quotes inside strings)
+- Return ONLY valid, parseable JSON
+- Do not include any text outside the JSON object
+
 CRITICAL GROUNDING RULES:
 1. EXPLICIT entities: User DIRECTLY stated them - require exact quote in source field
 2. IMPLICIT entities: Direct logical implications with clear reasoning chain
 3. INFERRED entities: Exploratory reasoning (mark as low confidence)
 4. NEVER invent facts not grounded in the input
-5. Source field MUST contain actual text from input (exact substring match required)`;
+5. Source field MUST contain actual text from input (exact substring match required)
+6. If source text contains quotes, escape them properly in JSON`;
 
     const userMessage = `Extract strategic entities from user input using STRICT 3-tier categorization. Only extract what can be VALIDATED.
 
@@ -260,7 +266,17 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
 
     let validated;
     try {
-      const jsonMatch = response.content.match(/\{[\s\S]*\}/);
+      // Clean the response content
+      let cleanedContent = response.content.trim();
+      
+      // Remove markdown code blocks if present
+      const codeBlockMatch = cleanedContent.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+      if (codeBlockMatch) {
+        cleanedContent = codeBlockMatch[1];
+      }
+
+      // Extract JSON object
+      const jsonMatch = cleanedContent.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         throw new Error('No JSON found in AI response');
       }
@@ -269,7 +285,13 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
       validated = entityExtractionSchema.parse(parsed);
     } catch (error: any) {
       console.error('[StrategicUnderstanding] JSON parsing error:', error);
-      console.error('[StrategicUnderstanding] Raw AI response:', response.content);
+      console.error('[StrategicUnderstanding] Raw AI response (first 500 chars):', response.content.substring(0, 500));
+      
+      // Try to provide more helpful error message
+      if (error.message.includes('JSON')) {
+        const preview = response.content.substring(0, 300);
+        throw new Error(`Failed to parse AI response as JSON. Response preview: ${preview}...`);
+      }
       throw new Error(`Failed to parse AI response: ${error.message}`);
     }
 
