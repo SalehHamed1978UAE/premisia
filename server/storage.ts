@@ -3,7 +3,7 @@ import {
   users, programs, workstreams, resources, stageGates, stageGateReviews, 
   tasks, taskDependencies, kpis, kpiMeasurements, risks, riskMitigations,
   benefits, fundingSources, expenses, sessionContext, strategyVersions,
-  strategyDecisions, epmPrograms
+  strategyDecisions, epmPrograms, strategicUnderstanding
 } from "@shared/schema";
 import type { 
   User, InsertUser, UpsertUser, Program, Workstream, Resource, StageGate, StageGateReview,
@@ -607,6 +607,16 @@ export class DatabaseStorage implements IStorage {
   async createStrategyVersion(version: any): Promise<StrategyVersion> {
     const [newVersion] = await db.insert(strategyVersions).values(version).returning();
     return newVersion;
+  }
+
+  async getInitiativeDescriptionForSession(sessionId: string): Promise<string | null> {
+    const [understanding] = await db
+      .select({ initiativeDescription: strategicUnderstanding.initiativeDescription })
+      .from(strategicUnderstanding)
+      .where(eq(strategicUnderstanding.sessionId, sessionId))
+      .limit(1);
+    
+    return understanding?.initiativeDescription || null;
   }
 
   async updateStrategyVersion(id: string, data: any): Promise<StrategyVersion> {
