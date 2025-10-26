@@ -32,6 +32,7 @@ import type {
 import { replaceTimelineGeneration } from '../../src/lib/intelligent-planning/epm-integration';
 import type { PlanningContext, BusinessScale } from '../../src/lib/intelligent-planning/types';
 import { createWBSBuilder } from '../../src/lib/intelligent-planning/wbs-builder';
+import { aiClients } from '../ai-clients';
 
 /**
  * ContextBuilder - Infers business context from strategic insights
