@@ -10,6 +10,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { getFrameworkRenderer, hasFrameworkRenderer } from "@/components/frameworks";
 import { FRAMEWORK_METADATA } from "@shared/framework-types";
 import type { FrameworkResult, FrameworkName } from "@shared/framework-types";
+import { useJobs } from "@/contexts/JobContext";
 
 interface VersionData {
   id?: string;
@@ -87,6 +88,7 @@ function normalizeAnalysisToFrameworks(analysis: VersionData['analysis']): Frame
 export default function StrategyResultsPage() {
   const [, params] = useRoute("/strategic-consultant/results/:sessionId/:versionNumber");
   const [, setLocation] = useLocation();
+  const { runningJobs } = useJobs();
   
   const sessionId = params?.sessionId || '';
   const versionNumber = params?.versionNumber ? parseInt(params.versionNumber) : 1;
@@ -113,6 +115,11 @@ export default function StrategyResultsPage() {
   // Find EPM program for this specific strategy version
   const existingEpmProgram = epmProgramsData?.programs?.find(
     prog => prog.strategyVersionId === strategyVersionId
+  );
+  
+  // Check if EPM generation is currently running for this session
+  const hasRunningEPM = runningJobs.some(job =>
+    job.jobType === 'epm_generation' && job.sessionId === sessionId
   );
 
   if (isLoading) {
@@ -263,8 +270,30 @@ export default function StrategyResultsPage() {
             </div>
           )}
 
-          {/* Next Step: Decision Making (if no EPM exists) */}
-          {!existingEpmProgram && (
+          {/* EPM Generation In Progress */}
+          {!existingEpmProgram && hasRunningEPM && (
+            <div className="p-6 border-2 border-blue-500 rounded-lg bg-blue-50 dark:bg-blue-950">
+              <h3 className="text-lg font-semibold mb-2 text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                EPM Generation In Progress
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Your EPM program is being generated. You can safely navigate away - we'll notify you when it's ready.
+              </p>
+              <Button 
+                size="lg"
+                onClick={() => setLocation('/strategy-workspace/programs')}
+                variant="outline"
+                data-testid="button-view-programs-in-progress"
+                className="w-full text-sm md:text-base px-3 py-2 sm:px-4 sm:py-2"
+              >
+                <span className="truncate">View Programs & Running Jobs</span>
+              </Button>
+            </div>
+          )}
+
+          {/* Next Step: Decision Making (if no EPM exists and none generating) */}
+          {!existingEpmProgram && !hasRunningEPM && (
             <div className="p-6 border-2 border-primary rounded-lg bg-primary/5">
               <h3 className="text-lg font-semibold mb-2">Next Step: Strategic Decision Making</h3>
               <p className="text-sm text-muted-foreground mb-4">
