@@ -478,10 +478,21 @@ async function processEPMGeneration(
       status: 'draft',
     }).returning();
 
+    // Verify program was saved and ID exists
+    if (!savedProgram || !savedProgram.id) {
+      console.error('[EPM Generation] ❌ Program save failed - no ID returned:', savedProgram);
+      throw new Error('Failed to save EPM program - no ID returned from database');
+    }
+
+    const programId = savedProgram.id;
+    console.log(`[EPM Generation] ✅ Program saved with ID: ${programId}`);
+    console.log(`[EPM Generation] Sending completion event with programId: ${programId}`);
+
+    // Send completion event with program ID
     sendSSEEvent(progressId, {
       type: 'complete',
       progress: 100,
-      epmProgramId: savedProgram.id,
+      epmProgramId: programId,
       overallConfidence: overallConfidence,
       componentsGenerated: 14,
       message: 'EPM program generation complete!'

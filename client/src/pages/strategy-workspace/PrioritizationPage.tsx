@@ -143,6 +143,7 @@ export default function PrioritizationPage() {
       }, 10 * 60 * 1000);
       
       const data = JSON.parse(event.data);
+      console.log('[Progress] Received SSE event:', data);
       
       // Update the progress tracker via window method
       if ((window as any).__updatePlanningProgress) {
@@ -154,11 +155,27 @@ export default function PrioritizationPage() {
         clearTimeout(timeoutId);
         eventSource.close();
         setShowProgress(false);
+
+        // Check if program ID exists
+        if (!data.epmProgramId) {
+          console.error('[Progress] ❌ EPM completed but no program ID returned!', data);
+          toast({
+            title: "EPM Generation Issue",
+            description: "EPM was generated but could not be retrieved. Please check your programs list.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        console.log('[Progress] ✅ EPM generation complete with ID:', data.epmProgramId);
+        
         toast({
           title: "EPM Program Generated",
           description: `Created with ${Math.round(parseFloat(data.overallConfidence || '0') * 100)}% confidence`,
         });
-        // Navigate to EPM view
+
+        // Navigate to EPM view with valid program ID
+        console.log('[Progress] Navigating to:', `/strategy-workspace/epm/${data.epmProgramId}`);
         setLocation(`/strategy-workspace/epm/${data.epmProgramId}`);
       }
       
