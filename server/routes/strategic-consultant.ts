@@ -866,6 +866,10 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
       });
     } else {
       // Create new version (Five Whys flow without pre-existing analysis)
+      // Get descriptive title from strategic understanding
+      const initiativeDescription = await storage.getInitiativeDescriptionForSession(sessionId);
+      const inputSummary = initiativeDescription || 'Strategic Analysis';
+      
       // Use storage.createStrategyVersion directly since we don't have complete StrategyAnalysis yet
       version = await storage.createStrategyVersion({
         sessionId,
@@ -877,6 +881,7 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
         status: 'draft',
         createdBy: userId,
         userId: userId,
+        inputSummary,
       });
     }
 
@@ -1380,6 +1385,10 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
       const userId = (req.user as any)?.claims?.sub || 'system';
       let version;
       
+      // Get descriptive title from strategic understanding
+      const initiativeDescription = await storage.getInitiativeDescriptionForSession(sessionId);
+      const inputSummary = initiativeDescription || 'Strategic Analysis';
+      
       if (versionNumber) {
         // Get or create the specified version
         version = await storage.getStrategyVersion(sessionId, versionNumber);
@@ -1393,6 +1402,7 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
             analysisData: {},
             userId,
             createdBy: userId,
+            inputSummary,
           });
         }
       } else {
@@ -1408,6 +1418,7 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
             analysisData: {},
             userId,
             createdBy: userId,
+            inputSummary,
           });
         }
       }
@@ -1552,6 +1563,11 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
     // Try to save to database, but don't fail the stream if this fails
     try {
       const userId = (req.user as any)?.claims?.sub || 'system';
+      
+      // Get descriptive title from strategic understanding
+      const initiativeDescription = await storage.getInitiativeDescriptionForSession(sessionId);
+      const inputSummary = initiativeDescription || 'Strategic Analysis';
+      
       version = await storage.getStrategyVersion(sessionId, 1) || 
                       await storage.createStrategyVersion({
                         sessionId,
@@ -1561,6 +1577,7 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
                         decisionsData: decisions,
                         userId,
                         createdBy: userId,
+                        inputSummary,
                       });
       
       if (version) {
