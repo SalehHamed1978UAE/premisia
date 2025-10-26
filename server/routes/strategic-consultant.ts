@@ -1581,11 +1581,45 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
 
     // ALWAYS send completion message, even if some steps failed
     console.log('[BMC-RESEARCH-STREAM] Sending completion event');
+    
+    // Build findings object from BMC research result
+    const findings: any = {
+      market_dynamics: [],
+      competitive_landscape: [],
+      language_preferences: [],
+      buyer_behavior: [],
+      regulatory_factors: [],
+      sources: [],
+    };
+    
+    // Extract sources from BMC blocks if available
+    if (result.blocks && Array.isArray(result.blocks)) {
+      result.blocks.forEach((block: any) => {
+        if (block.research && Array.isArray(block.research)) {
+          block.research.forEach((item: any) => {
+            if (item.citations && Array.isArray(item.citations)) {
+              item.citations.forEach((citation: any) => {
+                if (citation.url && citation.title) {
+                  findings.sources.push({
+                    url: citation.url,
+                    title: citation.title,
+                    relevance_score: citation.relevance || 0.8,
+                  });
+                }
+              });
+            }
+          });
+        }
+      });
+    }
+    
     res.write(`data: ${JSON.stringify({ 
       type: 'complete', 
       data: {
+        findings,
+        searchQueriesUsed: [],
         versionNumber: version?.versionNumber || 1,
-        sourcesAnalyzed: result.blocks?.length || 9,
+        sourcesAnalyzed: findings.sources.length || 9,
         timeElapsed: '~2 minutes',
       }
     })}\n\n`);
