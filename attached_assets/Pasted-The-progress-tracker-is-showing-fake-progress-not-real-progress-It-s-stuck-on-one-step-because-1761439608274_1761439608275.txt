@@ -1,0 +1,182 @@
+The
+  progress tracker is showing fake progress, not real progress. It's stuck
+  on one step because Replit implemented a shortcut instead of the real SSE
+  integration.
+
+  The Problem
+
+  Looking at what Replit implemented, they said:
+  "The LSP error shows the synthesizer doesn't accept the onProgress 
+  callback yet. Let me take a simpler approach - use manual progress events 
+  for now"
+
+  This means they're sending progress events from the route handler BEFORE 
+  the work actually happens, instead of emitting them FROM INSIDE the
+  intelligent planning orchestrator as each step completes.
+
+  So you're seeing "extracting tasks" for 2 minutes because that's when the
+  actual work is happening, but no real progress events are being emitted.
+
+  The Fix
+
+  We need to properly wire the progress callback into the orchestrator. Tell
+   Replit:
+
+  ---
+  Instructions for Replit: Fix Real Progress Tracking
+
+  The current implementation is NOT working - progress events are sent
+  before work happens, not during. We need to emit progress FROM INSIDE the
+  intelligent planning orchestrator.
+
+  Step 1: Update replaceTimelineGeneration to Accept Progress Callback
+
+  File: src/lib/intelligent-planning/epm-integration.ts
+
+  Find the replaceTimelineGeneration function signature and add the
+  onProgress parameter:
+
+  export async function replaceTimelineGeneration(
+    program: EPMProgram,
+    context: PlanningContext,
+    options: { maxDuration?: number; budget?: number },
+    onProgress?: (step: number, stepName: string, message: string) => void  
+  // ADD THIS
+  ): Promise<PlanningResult> {
+
+    console.log('[Intelligent Planning] Starting timeline generation with 
+  progress tracking');
+
+    try {
+      // Step 1: WBS Building
+      onProgress?.(1, 'WBS Generation', 'Building work breakdown 
+  structure...');
+
+      const wbs = await wbsBuilder.build(context.business,
+  context.strategic.objectives);
+
+      onProgress?.(1, 'WBS Generation', `Generated ${wbs.workstreams.length}
+   workstreams`);
+
+      // Step 2: Task Extraction
+      onProgress?.(2, 'Task Extraction', 'Extracting detailed tasks from 
+  workstreams...');
+
+      const tasks = await taskExtractor.extract(program, context);
+
+      onProgress?.(2, 'Task Extraction', `Extracted ${tasks.length} tasks`);
+
+      // Step 3: Scheduling
+      onProgress?.(3, 'Scheduling', 'Optimizing timeline with Critical Path 
+  Method...');
+
+      const schedule = await scheduler.schedule(tasks, options);
+
+      onProgress?.(3, 'Scheduling', `Optimized timeline to 
+  ${schedule.totalMonths} months`);
+
+      // Step 4: Resource Allocation
+      onProgress?.(4, 'Resource Allocation', 'Assigning resources to 
+  tasks...');
+
+      // ... resource allocation work ...
+
+      onProgress?.(4, 'Resource Allocation', 'Resources allocated 
+  successfully');
+
+      // Step 5: Cost Estimation
+      onProgress?.(5, 'Cost Estimation', 'Calculating financial 
+  projections...');
+
+      // ... cost estimation work ...
+
+      onProgress?.(5, 'Cost Estimation', 'Financial projections complete');
+
+      // Step 6: Validation
+      onProgress?.(6, 'Validation', 'Validating schedule feasibility...');
+
+      // ... validation work ...
+
+      onProgress?.(6, 'Validation', 'Program validation complete');
+
+      return planningResult;
+
+    } catch (error) {
+      console.error('[Intelligent Planning] Error:', error);
+      throw error;
+    }
+  }
+
+  Step 2: Update Route Handler to Pass Callback Through
+
+  File: server/routes/strategy-workspace.ts
+
+  Find where replaceTimelineGeneration is called and update it:
+
+  // REMOVE the fake manual progress events before/after
+  // REPLACE with real callback passed to orchestrator:
+
+  const planningResult = await replaceTimelineGeneration(
+    minimalProgram,
+    planningContext,
+    {
+      maxDuration: planningContext.execution.timeline.max,
+      budget: financialPlan.totalBudget
+    },
+    // ✅ Real progress callback that broadcasts SSE events
+    (step: number, stepName: string, message: string) => {
+      broadcastProgress(progressId, {
+        step,
+        totalSteps: 6,
+        stepName,
+        status: 'in_progress',
+        message,
+        timestamp: new Date()
+      });
+    }
+  );
+
+  // Send final completion event
+  broadcastProgress(progressId, {
+    step: 6,
+    totalSteps: 6,
+    stepName: 'Complete',
+    status: 'completed',
+    message: 'Enterprise Program generated successfully',
+    timestamp: new Date()
+  });
+
+  Step 3: Find Where Each Step Actually Happens
+
+  You need to identify where in the code each of these operations actually 
+  happens:
+
+  1. WBS Building - Where does wbsBuilder.build() get called?
+  2. Task Extraction - Where does taskExtractor.extract() get called?
+  3. Scheduling - Where does scheduler.schedule() get called?
+  4. Resource Allocation - Where are resources assigned to tasks?
+  5. Cost Estimation - Where are costs calculated?
+  6. Validation - Where is the program validated?
+
+  Emit progress IMMEDIATELY BEFORE and AFTER each actual operation, not just
+   at the route level.
+
+  Step 4: Test Again
+
+  After this fix, you should see:
+  - Step 1 (WBS) completes in ~10-20 seconds
+  - Step 2 (Task Extraction) completes in ~20-40 seconds ← This is where
+  you're currently stuck
+  - Step 3 (Scheduling) completes in ~10-20 seconds
+  - Steps 4-6 complete quickly
+
+  If Task Extraction genuinely takes 2+ minutes, we may need to optimize it
+  separately.
+
+  ---
+  The key principle: Emit progress events WHERE THE WORK ACTUALLY HAPPENS, 
+  not before it starts.
+
+  Tell Replit to implement this properly and test again. If task extraction
+  is genuinely taking 2+ minutes, we'll need to investigate why it's so
+  slow.
