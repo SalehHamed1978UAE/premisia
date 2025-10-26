@@ -499,7 +499,6 @@ export default function WhysTreePage() {
     <AppLayout
       title="Five Whys Analysis"
       subtitle="Discover root causes through strategic questioning"
-      onViewChange={(view) => setLocation('/')}
     >
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Progress Indicator */}
