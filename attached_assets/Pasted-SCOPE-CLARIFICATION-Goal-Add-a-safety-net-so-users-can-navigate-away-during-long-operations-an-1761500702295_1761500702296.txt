@@ -1,0 +1,116 @@
+SCOPE CLARIFICATION
+
+  Goal: Add a safety net so users can navigate away during long operations
+  and return later.
+
+  What we're building: Hybrid approach (not pure background jobs)
+
+  Keep Existing (Don't Touch):
+
+  - ✅ Current progress bars and live updates
+  - ✅ SSE streaming (BMC, Web Research)
+  - ✅ User stays on page watching progress
+  - ✅ Immediate result display
+  - ✅ All existing UI/UX flows
+
+  Add New (Safety Net):
+
+  - ✅ Track operations in database
+  - ✅ If user navigates away, job continues
+  - ✅ When user returns, show "Operation completed" or "Still running (75%)"
+  - ✅ Optional jobs dashboard to see what's running
+
+  ---
+  🎯 Implementation: Minimal Changes
+
+  Read BACKGROUND_JOBS_HYBRID_APPROACH.md - it has the revised plan.
+
+  Key changes:
+  1. Add job tracking when operations start
+  2. Update job records as progress happens (alongside existing SSE)
+  3. Add reconnection check when user returns to a page
+  4. Keep all existing behavior intact
+
+  Time: 2-3 hours (not 4-5) since we're just adding tracking, not rebuilding
+  execution.
+
+  ---
+  📝 What You Need to Do:
+
+  Phase 1: Database & Service (1 hour)
+
+  1. Create background_jobs table (same as before)
+  2. Create BackgroundJobService (same as before)
+  3. Add API routes for job status
+
+  Phase 2: Add Job Tracking to Existing Endpoints (1 hour)
+
+  Update endpoints like POST /generate-epm:
+  // Before synthesis
+  const jobId = await backgroundJobService.createJob({...});
+
+  // During synthesis (alongside existing SSE)
+  onProgress: (progress, msg) => {
+    backgroundJobService.updateJob(jobId, { progress, message });
+    // ALSO keep existing SSE/progress updates
+  }
+
+  // After synthesis
+  await backgroundJobService.updateJob(jobId, { status: 'completed',
+  resultData });
+
+  Phase 3: Frontend Reconnection (30 min)
+
+  When user returns to a page:
+  useEffect(() => {
+    // Check if there's a running job for this session
+    const job = await checkRunningJob(sessionId);
+    if (job?.status === 'running') {
+      // Resume watching it
+      setShowProgress(true);
+    }
+  }, []);
+
+  Phase 4: Optional Jobs Dashboard (30 min)
+
+  Simple page showing:
+  - Currently running jobs
+  - Recently completed jobs
+  - Failed jobs
+
+  ---
+  ✅ Success Looks Like:
+
+  Test 1: User starts EPM generation
+  - ✅ Progress bar shows up (existing)
+  - ✅ User watches it complete (existing)
+  - ✅ Job is tracked in database (new)
+
+  Test 2: User starts EPM generation, then navigates away
+  - ✅ User clicks browser back button
+  - ✅ Job continues running in background
+  - ✅ User returns 2 minutes later
+  - ✅ Page shows "Still running (85%)" or "Completed!"
+
+  Test 3: User goes to /jobs page
+  - ✅ Sees list of operations (running, completed, failed)
+  - ✅ Can click to view results
+
+  ---
+  🚫 What We're NOT Doing:
+
+  ❌ Replacing SSE with polling (keep SSE!)
+  ❌ Changing any existing UI (keep progress bars!)
+  ❌ Building job queue/workers (not needed!)
+  ❌ Removing live updates (keep them!)
+
+  ---
+  🎬 Start Here:
+
+  1. Read BACKGROUND_JOBS_HYBRID_APPROACH.md (full details)
+  2. Implement Phase 1: Database & Service (1 hour)
+  3. Implement Phase 2: Add tracking to 1-2 endpoints (1 hour)
+  4. Test navigation recovery
+  5. (Optional) Add jobs dashboard
+
+  Questions? The hybrid approach doc has code examples for everything.
