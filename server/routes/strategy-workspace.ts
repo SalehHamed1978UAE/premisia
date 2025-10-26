@@ -342,7 +342,11 @@ async function processEPMGeneration(
           strategyVersionId, 
           decisionId, 
           prioritizedOrder,
-          progressId // Store progressId for SSE reconnection
+          progressId, // Store progressId for SSE reconnection
+          // Store strategy context for meaningful job titles
+          strategyName: version.inputSummary || version.strategicApproach || version.marketContext || `Strategy v${version.versionNumber}`,
+          sessionId: version.sessionId,
+          versionNumber: version.versionNumber,
         },
         sessionId: version.sessionId, // Store sessionId for session-based lookups
         relatedEntityId: strategyVersionId,
