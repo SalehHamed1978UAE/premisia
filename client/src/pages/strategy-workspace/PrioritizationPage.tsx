@@ -118,7 +118,7 @@ export default function PrioritizationPage() {
     const eventSource = new EventSource(`/api/strategy-workspace/epm/progress/${progressId}`);
     eventSourceRef.current = eventSource;
     
-    // Timeout: if no events received for 5 minutes, assume failure
+    // Timeout: if no events received for 10 minutes, assume failure
     let timeoutId = setTimeout(() => {
       eventSource.close();
       setShowProgress(false);
@@ -127,7 +127,7 @@ export default function PrioritizationPage() {
         description: "EPM generation took too long. Please try again or check your results later.",
         variant: "destructive",
       });
-    }, 5 * 60 * 1000); // 5 minute timeout
+    }, 10 * 60 * 1000); // 10 minute timeout
     
     eventSource.onmessage = (event) => {
       // Reset timeout on any message
@@ -140,7 +140,7 @@ export default function PrioritizationPage() {
           description: "No progress updates received. The generation may have completed - check your programs list.",
           variant: "destructive",
         });
-      }, 5 * 60 * 1000);
+      }, 10 * 60 * 1000);
       
       const data = JSON.parse(event.data);
       

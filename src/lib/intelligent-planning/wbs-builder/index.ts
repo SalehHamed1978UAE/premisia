@@ -17,9 +17,13 @@ import { SoftwareDevelopmentPattern } from './patterns/software-development';
  * Create WBS Builder with all dependencies configured
  * 
  * @param llm - LLM provider for AI-powered analysis
+ * @param onWorkstreamProgress - Optional callback for workstream generation progress
  * @returns Configured WBS Builder instance
  */
-export function createWBSBuilder(llm: ILLMProvider): IWBSBuilder {
+export function createWBSBuilder(
+  llm: ILLMProvider,
+  onWorkstreamProgress?: (current: number, total: number, name: string) => void
+): IWBSBuilder {
   console.log('[WBS Builder Factory] Creating WBS Builder...');
   
   // Create pattern registry and register patterns
@@ -38,7 +42,7 @@ export function createWBSBuilder(llm: ILLMProvider): IWBSBuilder {
   // Create pipeline components with dependency injection
   const analyzer = new BusinessAnalyzer(llm);
   const patternProvider = new PatternProvider(registry, llm);
-  const optimizer = new StreamOptimizer(llm);
+  const optimizer = new StreamOptimizer(llm, onWorkstreamProgress);
   const validator = new SemanticValidator(llm);
   
   // Compose the WBS Builder

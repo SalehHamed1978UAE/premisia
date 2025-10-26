@@ -310,9 +310,7 @@ async function processEPMGeneration(
   req: Request
 ) {
   try {
-    // Wait briefly for client to establish SSE connection
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
+    // Send initial progress event
     sendSSEEvent(progressId, {
       type: 'step-start',
       step: 'initialization',
@@ -434,27 +432,18 @@ async function processEPMGeneration(
       sessionId: version.sessionId,  // Pass sessionId for initiative type lookup
     };
     
-    sendSSEEvent(progressId, {
-      type: 'step-start',
-      step: 'extract-tasks',
-      progress: 20,
-      description: 'Generating EPM program components...'
-    });
-    
-    // Run through EPM synthesizer with naming context
-    // TODO: Wire up intelligent planning progress callbacks
+    // Run through EPM synthesizer with naming context and real-time progress
     const epmProgram = await epmSynthesizer.synthesize(
       insights,
       decisionsWithPriority,
-      namingContext
+      namingContext,
+      {
+        onProgress: (event) => {
+          // Forward intelligent planning events to SSE stream
+          sendSSEEvent(progressId, event);
+        }
+      }
     );
-    
-    sendSSEEvent(progressId, {
-      type: 'step-complete',
-      step: 'extract-tasks',
-      progress: 90,
-      description: 'EPM program generated successfully'
-    });
 
     const userId = (req.user as any)?.claims?.sub || null;
 

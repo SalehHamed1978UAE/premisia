@@ -271,7 +271,7 @@ export class EPMSynthesizer {
     insights: StrategyInsights,
     userContext?: UserContext,
     namingContext?: any,
-    options?: { forceIntelligentPlanning?: boolean }
+    options?: { forceIntelligentPlanning?: boolean; onProgress?: (event: any) => void }
   ): Promise<EPMProgram> {
     
     // ===== CHECK FLAG FIRST - ROUTE TO ONE PATH ONLY =====
@@ -282,7 +282,7 @@ export class EPMSynthesizer {
     
     if (intelligentPlanningEnabled) {
       console.log('[EPM Synthesis] 🚀 Using intelligent planning system for complete EPM generation...');
-      return await this.buildWithIntelligentPlanning(insights, userContext, namingContext);
+      return await this.buildWithIntelligentPlanning(insights, userContext, namingContext, options?.onProgress);
     } else {
       console.log('[EPM Synthesis] Using standard EPM generation system...');
       return await this.buildWithOldSystem(insights, userContext, namingContext);
@@ -421,7 +421,8 @@ export class EPMSynthesizer {
   private async buildWithIntelligentPlanning(
     insights: StrategyInsights,
     userContext?: UserContext,
-    namingContext?: any
+    namingContext?: any,
+    onProgress?: (event: any) => void
   ): Promise<EPMProgram> {
     
     // Generate program name
@@ -447,7 +448,7 @@ export class EPMSynthesizer {
     
     // PHASE 1: Generate timeline-INDEPENDENT components
     const executiveSummary = await this.generateExecutiveSummary(insights, programName);
-    const workstreams = await this.generateWorkstreams(insights, userContext);
+    const workstreams = await this.generateWorkstreams(insights, userContext, onProgress);
     const riskRegister = await this.generateRiskRegister(insights);
     const resourcePlan = await this.generateResourcePlan(insights, workstreams, userContext);
     const financialPlan = await this.generateFinancialPlan(insights, resourcePlan, userContext);
@@ -542,7 +543,8 @@ export class EPMSynthesizer {
         { 
           maxDuration: planningContext.execution.timeline.max,
           budget: financialPlan.totalBudget
-        }
+        },
+        onProgress  // Pass through the progress callback
       );
       
       console.log('\n[EPM Synthesis] 📊 INTELLIGENT PLANNING ORCHESTRATOR RETURNED:');
@@ -642,7 +644,11 @@ export class EPMSynthesizer {
    * Generate workstreams using WBS Builder for semantic analysis
    * Replaces blind workstream generation with business-intent-aware pattern matching
    */
-  private async generateWorkstreams(insights: StrategyInsights, userContext?: UserContext): Promise<Workstream[]> {
+  private async generateWorkstreams(
+    insights: StrategyInsights, 
+    userContext?: UserContext,
+    onProgress?: (event: any) => void
+  ): Promise<Workstream[]> {
     console.log('\n' + '='.repeat(80));
     console.log('[EPM Synthesis] 📊 GENERATING WORKSTREAMS USING WBS BUILDER');
     console.log('='.repeat(80));
@@ -665,9 +671,20 @@ export class EPMSynthesizer {
       console.log(`  Total Insights: ${insights.insights.length}`);
       console.log(`  Framework Type: ${insights.frameworkType}`);
       
-      // Create WBS Builder with LLM provider
+      // Create WBS Builder with LLM provider and progress callback
       console.log('\n[EPM Synthesis] Step 2: Creating WBS Builder with LLM provider...');
-      const wbsBuilder = createWBSBuilder(this.llm);
+      const wbsBuilder = createWBSBuilder(this.llm, (current, total, workstreamName) => {
+        // Emit WBS workstream generation progress
+        if (onProgress) {
+          onProgress({
+            type: 'step-start',
+            step: 'wbs-generation',
+            progress: Math.round((current / total) * 100),
+            description: `Generating workstream ${current}/${total}: ${workstreamName}`,
+            elapsedSeconds: 0
+          });
+        }
+      });
       console.log('[EPM Synthesis] ✓ WBS Builder created');
       
       // Generate semantically coherent WBS

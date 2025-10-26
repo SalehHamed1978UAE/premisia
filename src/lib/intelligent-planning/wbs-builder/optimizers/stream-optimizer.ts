@@ -7,8 +7,11 @@ import { IOptimizer, OptimizationInput, WorkStream, ILLMProvider } from '../inte
 
 export class StreamOptimizer implements IOptimizer {
   name = 'StreamOptimizer';
+  private onProgress?: (current: number, total: number, name: string) => void;
   
-  constructor(private llm: ILLMProvider) {}
+  constructor(private llm: ILLMProvider, onProgress?: (current: number, total: number, name: string) => void) {
+    this.onProgress = onProgress;
+  }
   
   /**
    * Convert pattern weights into concrete workstreams with deliverables
@@ -28,6 +31,11 @@ export class StreamOptimizer implements IOptimizer {
       
       const workstream = await this.generateWorkstream(streamCategory, context, insights, i);
       workstreams.push(workstream);
+      
+      // Emit progress after each workstream is generated
+      if (this.onProgress) {
+        this.onProgress(i + 1, pattern.streams.length, workstream.name);
+      }
     }
     
     // Generate dependencies between workstreams
