@@ -10,7 +10,8 @@ import {
   Settings,
   LogOut,
   X,
-  LayoutDashboard
+  LayoutDashboard,
+  Map
 } from "lucide-react";
 
 interface SidebarProps {
@@ -172,6 +173,23 @@ export function Sidebar({ isOpen = false, onToggle = () => {} }: SidebarProps) {
               <div className="text-left">
                 <div className="font-medium">EPM Programs</div>
                 <div className="text-xs opacity-70">Generated programs</div>
+              </div>
+            </Button>
+
+            {/* Journeys */}
+            <Button
+              variant={location === '/journeys' ? 'default' : 'ghost'}
+              className={cn(
+                "w-full justify-start h-auto p-3",
+                location === '/journeys' && "bg-primary text-primary-foreground"
+              )}
+              onClick={() => navigate('/journeys')}
+              data-testid="nav-journeys"
+            >
+              <Map className="h-5 w-5 mr-3 flex-shrink-0" />
+              <div className="text-left">
+                <div className="font-medium">Journeys</div>
+                <div className="text-xs opacity-70">Strategic paths</div>
               </div>
             </Button>
           </div>

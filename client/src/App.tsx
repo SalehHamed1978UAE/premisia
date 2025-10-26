@@ -31,6 +31,7 @@ import DecisionSummaryPage from "@/pages/strategy-workspace/DecisionSummaryPage"
 import PrioritizationPage from "@/pages/strategy-workspace/PrioritizationPage";
 import EPMProgramView from "@/pages/strategy-workspace/EPMProgramView";
 import { ProgramsListPage } from "@/pages/strategy-workspace/ProgramsListPage";
+import { JourneyHub } from "@/pages/journeys/JourneyHub";
 import { ProtectedRoute } from "./lib/protected-route";
 import { Loader2 } from "lucide-react";
 
@@ -63,6 +64,7 @@ function Router() {
         <ProtectedRoute path="/strategy-workspace/decisions/:sessionId/:versionNumber" component={DecisionSummaryPage} />
         <ProtectedRoute path="/strategy-workspace/prioritization/:sessionId/:versionNumber" component={PrioritizationPage} />
         <ProtectedRoute path="/strategy-workspace/epm/:id" component={EPMProgramView} />
+        <ProtectedRoute path="/journeys" component={JourneyHub} />
         <ProtectedRoute path="/repository" component={RepositoryBrowser} />
         <ProtectedRoute path="/repository/:understandingId" component={StatementDetailView} />
         <Route path="/auth" component={AuthPage} />

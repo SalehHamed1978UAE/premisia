@@ -258,7 +258,7 @@ Marketing and events: $3k/month`,
   app.use("/api/strategy-workspace", requireAuth, strategyWorkspaceRoutes);
 
   // Journey Builder routes (protected with auth)
-  app.use("/api/journeys", requireAuth, journeyBuilderRoutes);
+  app.use("/api/journey-builder", requireAuth, journeyBuilderRoutes);
 
   // Middleware to check roles (updated for Replit Auth)
   const requireRole = (roles: string[]) => async (req: any, res: any, next: any) => {

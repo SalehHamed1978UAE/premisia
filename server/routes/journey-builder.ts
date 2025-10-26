@@ -252,6 +252,57 @@ router.post('/analyze', async (req, res) => {
 });
 
 // =============================================================================
+// POST /api/journey-builder/journeys
+// Create a custom journey template
+// 
+// Body:
+//   - name: string
+//   - description?: string
+//   - steps: JourneyStep[]
+//   - tags?: string[]
+// =============================================================================
+router.post('/journeys', async (req, res) => {
+  try {
+    const userId = (req.user as any)?.claims?.sub;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+      });
+    }
+
+    const { name, description, steps, tags } = req.body;
+
+    if (!name || !steps || !Array.isArray(steps)) {
+      return res.status(400).json({
+        success: false,
+        error: 'name and steps are required',
+      });
+    }
+
+    const template = await journeyBuilderService.createTemplate({
+      name,
+      description,
+      steps,
+      tags: tags || ['custom'],
+      userId,
+    });
+
+    res.json({
+      success: true,
+      journey: template,
+    });
+  } catch (error) {
+    console.error('[Journey Builder API] Error creating custom journey:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create custom journey',
+    });
+  }
+});
+
+// =============================================================================
 // POST /api/journeys/suggest
 // Get AI framework suggestions based on user goal
 // 
