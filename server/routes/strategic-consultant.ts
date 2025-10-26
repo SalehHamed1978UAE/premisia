@@ -719,6 +719,11 @@ router.post('/whys-tree/expand', async (req: Request, res: Response) => {
     let expandedBranches;
 
     if (isCustom && customOption) {
+      console.log('[API] Custom branch expansion requested');
+      console.log('[API] selectedPath:', selectedPath);
+      console.log('[API] customOption:', customOption);
+      console.log('[API] isCustom:', isCustom);
+      
       // For custom options, generate fresh branches using the custom option as context
       expandedBranches = await whysTreeGenerator.generateCustomBranches(
         customOption,

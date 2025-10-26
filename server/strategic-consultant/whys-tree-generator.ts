@@ -233,6 +233,11 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
 
     const parsed = this.extractJSON(response, 'generateLevelInParallel');
 
+    // Log the AI prompt context for debugging custom input issues
+    if (context.previousAnswers.length > 0) {
+      console.log(`[generateLevelInParallel] Depth ${depth} - Previous answers sent to AI:`, context.previousAnswers);
+    }
+
     const nodes: WhyNode[] = parsed.branches.map((branch: { 
       option: string; 
       next_question: string;
@@ -289,13 +294,19 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
       throw new Error('Cannot expand beyond maximum depth');
     }
 
+    console.log('[generateCustomBranches] Received selectedPath:', selectedPath);
+    console.log('[generateCustomBranches] Received customOption:', customOption);
+    console.log('[generateCustomBranches] Custom option already in path - using selectedPath directly');
+
     // Generate a follow-up question based on the custom option
     const nextQuestion = `Why is this? (${customOption})`;
     
     const nextDepth = currentDepth + 1;
+    // FIX: selectedPath already contains the custom option (added by frontend before API call)
+    // Don't add it again - that causes duplication and confuses the AI
     const branches = await this.generateLevelInParallel(
       nextQuestion,
-      { input, previousAnswers: [...selectedPath, customOption] },
+      { input, previousAnswers: selectedPath },
       nextDepth
     );
 
