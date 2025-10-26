@@ -1207,12 +1207,16 @@ export class EPMSynthesizer {
         console.log(`[Resource Generation] ✅ LLM generated ${llmRoles.length} initiative-appropriate roles`);
         return llmRoles;
       }
+      
+      console.warn('[Resource Generation] ⚠️ LLM returned empty roles, falling back to templates');
     } catch (error) {
       console.error('[Resource Generation] ⚠️ LLM generation failed, using fallback templates:', error);
+      console.error('[Resource Generation] Error details:', error instanceof Error ? error.message : String(error));
     }
     
     // Fallback to templates if LLM fails
-    console.log('[Resource Generation] 📋 Using fallback role template');
+    console.log(`[Resource Generation] 📋 Using fallback template for ${initiativeType}`);
+    console.log('[Resource Generation] ⚠️ NOTE: Fallback roles are generic - LLM should be fixed to provide context-appropriate roles');
     return this.getFallbackRoles(initiativeType, estimatedFTEs, workstreams);
   }
   
@@ -1231,7 +1235,11 @@ export class EPMSynthesizer {
     // Extract business description from insights
     const businessDescription = insights.insights
       .find(i => i.type === 'other' || i.content.includes('business') || i.content.includes('initiative'))
-      ?.content.substring(0, 200) || 'a new business';
+      ?.content.substring(0, 200)?.trim() || 'a new business initiative';
+    
+    // Log business context for debugging
+    console.log(`[Resource Generation] Business context: "${businessDescription.substring(0, 100)}..."`);
+    console.log(`[Resource Generation] Initiative type: ${initiativeType}`);
     
     const prompt = `Generate an internal team structure for this initiative.
 
@@ -1300,10 +1308,10 @@ Return ONLY valid JSON array of role objects. NO markdown, NO code blocks, ONLY 
     
     const templates: Record<string, any[]> = {
       physical_business_launch: [
-        { role: 'Store Manager', allocation: 100, months: timeline, skills: ['Retail operations', 'Team leadership', 'Inventory management'], justification },
-        { role: 'Shift Supervisor', allocation: 100, months: timeline, skills: ['Staff scheduling', 'Customer service', 'Operations'], justification },
-        { role: 'Barista/Server', allocation: 100, months: timeline, skills: ['Food service', 'Customer interaction', 'POS systems'], justification },
-        { role: 'Operations Coordinator', allocation: 75, months: Math.floor(timeline * 0.7), skills: ['Logistics', 'Vendor management', 'Process optimization'], justification },
+        { role: 'Operations Manager', allocation: 100, months: timeline, skills: ['Business operations', 'Team leadership', 'Resource management'], justification },
+        { role: 'Program Manager', allocation: 100, months: timeline, skills: ['Program planning', 'Stakeholder management', 'Project coordination'], justification },
+        { role: 'Operations Coordinator', allocation: 75, months: Math.floor(timeline * 0.8), skills: ['Logistics', 'Vendor management', 'Process optimization'], justification },
+        { role: 'Business Development Lead', allocation: 75, months: Math.floor(timeline * 0.7), skills: ['Strategy', 'Partnership development', 'Market analysis'], justification },
         { role: 'Marketing Coordinator', allocation: 50, months: Math.floor(timeline * 0.5), skills: ['Local marketing', 'Social media', 'Community engagement'], justification },
       ],
       
