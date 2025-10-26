@@ -8,9 +8,13 @@ import { useLocation } from 'wouter';
 
 export function GlobalJobTracker() {
   const { runningJobs } = useJobs();
-  const [, setLocation] = useLocation();
+  const [location, setLocationNav] = useLocation();
   const [dismissedJobs, setDismissedJobs] = useState<Set<string>>(new Set());
   const [minimizedJobs, setMinimizedJobs] = useState<Set<string>>(new Set());
+
+  // Don't show on PrioritizationPage - it has its own detailed tracker
+  const onPrioritizationPage = location.includes('/strategy-workspace/prioritization');
+  if (onPrioritizationPage) return null;
 
   if (runningJobs.length === 0) return null;
 
@@ -132,7 +136,7 @@ export function GlobalJobTracker() {
                 <Button
                   variant="outline"
                   className="w-full"
-                  onClick={() => setLocation('/strategy-workspace/programs')}
+                  onClick={() => setLocationNav('/strategy-workspace/programs')}
                   data-testid="button-view-programs"
                 >
                   Go to Programs
