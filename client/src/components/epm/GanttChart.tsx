@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   AlertTriangle, 
   CheckCircle2, 
@@ -634,18 +635,19 @@ export default function GanttChart({
       {/* Gantt Chart SVG */}
       <Card>
         <CardContent className="p-4">
-          <div className="overflow-hidden border rounded">
-            <svg
-              ref={svgRef}
-              width={dimensions.width}
-              height={dimensions.height}
-              className={isPanning ? 'cursor-grabbing' : 'cursor-grab'}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseLeave}
-              data-testid="gantt-chart-svg"
-            >
+          <ScrollArea className="w-full" data-testid="gantt-scroll-area">
+            <div className="border rounded">
+              <svg
+                ref={svgRef}
+                width={dimensions.width}
+                height={dimensions.height}
+                className={isPanning ? 'cursor-grabbing' : 'cursor-grab'}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseLeave}
+                data-testid="gantt-chart-svg"
+              >
               {/* Background */}
               <rect
                 x="0"
@@ -691,7 +693,8 @@ export default function GanttChart({
               </g>
               </g> {/* Close zoomable/pannable group */}
             </svg>
-          </div>
+            </div>
+          </ScrollArea>
         </CardContent>
       </Card>
 

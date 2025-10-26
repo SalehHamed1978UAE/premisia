@@ -250,11 +250,12 @@ export default function StatementDetailView() {
                             )}
                           </CardDescription>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-col sm:flex-row gap-2 shrink-0">
                           <Button
                             onClick={() => handleDeleteClick(analysis.id, framework)}
                             variant="ghost"
                             size="icon"
+                            className="h-9 w-9"
                             data-testid={`button-delete-${framework}-${index}`}
                           >
                             <Trash2 className="h-4 w-4 text-destructive" />
@@ -262,9 +263,11 @@ export default function StatementDetailView() {
                           <Button
                             onClick={() => handleViewFullReport(framework, statement.sessionId, analysis.versionNumber)}
                             variant="default"
+                            size="sm"
+                            className="whitespace-nowrap"
                             data-testid={`button-view-report-${framework}-${index}`}
                           >
-                            <ExternalLink className="h-4 w-4 mr-2" />
+                            <ExternalLink className="h-4 w-4 mr-2 flex-shrink-0" />
                             View Full Report
                           </Button>
                         </div>

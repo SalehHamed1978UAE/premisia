@@ -116,16 +116,16 @@ export default function GanttChartView({ workstreams, timeline, stageGates }: Ga
       {/* Header */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
             <div>
               <CardTitle>Program Timeline - Gantt Chart</CardTitle>
               <CardDescription>
                 Visual timeline showing workstreams, dependencies, critical path, and milestones
               </CardDescription>
             </div>
-            <Button variant="outline" onClick={handleExportImage} size="sm">
+            <Button variant="outline" onClick={handleExportImage} size="sm" className="w-full sm:w-auto">
               <Download className="h-4 w-4 mr-2" />
-              Export Image
+              <span className="sm:inline">Export Image</span>
             </Button>
           </div>
         </CardHeader>
@@ -143,21 +143,26 @@ export default function GanttChartView({ workstreams, timeline, stageGates }: Ga
             <li><strong>Diamond markers</strong> show deliverable milestones</li>
             <li><strong>Arrows</strong> display task dependencies</li>
             <li><strong>Vertical lines</strong> mark stage gates</li>
+            <li className="text-orange-600 dark:text-orange-400"><strong>Mobile:</strong> Swipe left/right to scroll timeline</li>
           </ul>
         </AlertDescription>
       </Alert>
 
-      {/* Gantt Chart */}
-      <GanttChart
-        tasks={ganttData.tasks}
-        phases={ganttData.phases}
-        stageGates={ganttData.stageGates}
-        dependencies={ganttData.dependencies}
-        totalMonths={ganttData.totalMonths}
-        maxMonth={ganttData.maxMonth}
-        criticalPath={ganttData.criticalPath}
-        containerWidth={1200}
-      />
+      {/* Gantt Chart - Scrollable Container for Mobile */}
+      <div className="overflow-x-auto -mx-4 sm:mx-0 touch-pan-x">
+        <div className="min-w-[1200px] px-4 sm:px-0">
+          <GanttChart
+            tasks={ganttData.tasks}
+            phases={ganttData.phases}
+            stageGates={ganttData.stageGates}
+            dependencies={ganttData.dependencies}
+            totalMonths={ganttData.totalMonths}
+            maxMonth={ganttData.maxMonth}
+            criticalPath={ganttData.criticalPath}
+            containerWidth={1200}
+          />
+        </div>
+      </div>
 
       {/* Critical Path Details */}
       {ganttData.criticalPath.length > 0 && (

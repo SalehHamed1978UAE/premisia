@@ -281,7 +281,7 @@ export default function EPMProgramView() {
         {/* Overall Status */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:justify-between">
               <div>
                 <CardTitle>Program Overview</CardTitle>
                 <CardDescription>
@@ -313,16 +313,18 @@ export default function EPMProgramView() {
 
         {/* Component Tabs - NOW WITH 8 TABS INCLUDING GANTT */}
         <Tabs defaultValue="summary" className="space-y-4">
-          <TabsList className="grid grid-cols-8 w-full">
-            <TabsTrigger value="summary">Summary</TabsTrigger>
-            <TabsTrigger value="timeline">Timeline</TabsTrigger>
-            <TabsTrigger value="planning">Planning</TabsTrigger>
-            <TabsTrigger value="resources">Resources</TabsTrigger>
-            <TabsTrigger value="benefits">Benefits</TabsTrigger>
-            <TabsTrigger value="risks">Risks</TabsTrigger>
-            <TabsTrigger value="governance">Governance</TabsTrigger>
-            <TabsTrigger value="other">Other</TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto -mx-4 sm:mx-0">
+            <TabsList className="inline-flex sm:grid sm:grid-cols-8 w-full min-w-max sm:min-w-0 px-4 sm:px-0">
+              <TabsTrigger value="summary" className="flex-shrink-0 px-3 sm:px-4 text-sm">Summary</TabsTrigger>
+              <TabsTrigger value="timeline" className="flex-shrink-0 px-3 sm:px-4 text-sm">Timeline</TabsTrigger>
+              <TabsTrigger value="planning" className="flex-shrink-0 px-3 sm:px-4 text-sm">Planning</TabsTrigger>
+              <TabsTrigger value="resources" className="flex-shrink-0 px-3 sm:px-4 text-sm">Resources</TabsTrigger>
+              <TabsTrigger value="benefits" className="flex-shrink-0 px-3 sm:px-4 text-sm">Benefits</TabsTrigger>
+              <TabsTrigger value="risks" className="flex-shrink-0 px-3 sm:px-4 text-sm">Risks</TabsTrigger>
+              <TabsTrigger value="governance" className="flex-shrink-0 px-3 sm:px-4 text-sm">Gov</TabsTrigger>
+              <TabsTrigger value="other" className="flex-shrink-0 px-3 sm:px-4 text-sm">Other</TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="summary" className="space-y-4">
             <ComponentCard
@@ -443,8 +445,8 @@ export default function EPMProgramView() {
         {program.status === 'draft' && (
           <Card>
             <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:justify-between">
+                <div className="flex-1">
                   <h3 className="font-semibold">Ready to Finalize?</h3>
                   <p className="text-sm text-muted-foreground">
                     Review all components above and finalize when ready
@@ -454,15 +456,16 @@ export default function EPMProgramView() {
                   onClick={() => finalizeMutation.mutate()}
                   disabled={finalizeMutation.isPending || overallConfidence < 0.6}
                   data-testid="button-finalize"
+                  className="w-full sm:w-auto whitespace-nowrap"
                 >
                   {finalizeMutation.isPending ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin flex-shrink-0" />
                       Finalizing...
                     </>
                   ) : (
                     <>
-                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                      <CheckCircle2 className="mr-2 h-4 w-4 flex-shrink-0" />
                       Finalize EPM Program
                     </>
                   )}

@@ -256,9 +256,9 @@ export default function StrategyResultsPage() {
                 size="lg"
                 onClick={() => setLocation(`/strategy-workspace/epm/${existingEpmProgram.id}`)}
                 data-testid="button-view-epm-program"
-                className="w-full bg-green-600 hover:bg-green-700"
+                className="w-full bg-green-600 hover:bg-green-700 text-sm md:text-base px-3 py-2 sm:px-4 sm:py-2"
               >
-                View EPM Program
+                <span className="truncate">View EPM Program</span>
               </Button>
             </div>
           )}
@@ -274,27 +274,29 @@ export default function StrategyResultsPage() {
                 size="lg"
                 onClick={() => setLocation(`/strategy-workspace/decisions/${sessionId}/${versionNumber}`)}
                 data-testid="button-review-decide"
-                className="w-full"
+                className="w-full text-sm md:text-base px-3 py-2 sm:px-4 sm:py-2"
               >
-                Review Results & Make Strategic Decisions
+                <span className="truncate">Review Results & Make Strategic Decisions</span>
               </Button>
             </div>
           )}
           
-          <div className="flex gap-4">
+          <div className="flex flex-col sm:flex-row gap-4">
             <Button 
               variant="outline"
               onClick={() => setLocation('/strategic-consultant')}
               data-testid="button-new-analysis"
+              className="w-full sm:w-auto text-sm md:text-base px-3 py-2 sm:px-4 sm:py-2"
             >
-              Start New Analysis
+              <span className="truncate">Start New Analysis</span>
             </Button>
             <Button 
               variant="outline"
               onClick={() => setLocation(`/strategic-consultant/decisions/${sessionId}/${versionNumber}`)}
               data-testid="button-view-decisions"
+              className="w-full sm:w-auto text-sm md:text-base px-3 py-2 sm:px-4 sm:py-2"
             >
-              View AI Decisions (Old Flow)
+              <span className="truncate">View AI Decisions (Old Flow)</span>
             </Button>
           </div>
         </div>
