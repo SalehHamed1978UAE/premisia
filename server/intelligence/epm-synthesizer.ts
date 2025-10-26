@@ -1230,8 +1230,8 @@ export class EPMSynthesizer {
     
     // Extract business description from insights
     const businessDescription = insights.insights
-      .find(i => i.type === 'market_analysis' || i.type === 'overview')
-      ?.content || 'a new business';
+      .find(i => i.type === 'other' || i.content.includes('business') || i.content.includes('initiative'))
+      ?.content.substring(0, 200) || 'a new business';
     
     const prompt = `Generate an internal team structure for this initiative.
 
@@ -1267,7 +1267,6 @@ Return ONLY valid JSON array of role objects. NO markdown, NO code blocks, ONLY 
       systemPrompt: 'You are an HR and resource planning expert. Generate ONLY valid JSON matching the requested format. NO markdown code blocks. The roles MUST match the specific business being described.',
       userMessage: prompt,
       maxTokens: 2000,
-      temperature: 0.3,
     });
     
     const content = response.content;
