@@ -33,7 +33,6 @@ export default function InputPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
 
   // Get URL parameters
   const urlParams = new URLSearchParams(window.location.search);
@@ -42,7 +41,7 @@ export default function InputPage() {
   const [text, setText] = useState(prefilledText);
 
   // Fetch journey data if journeySession parameter exists
-  const { data: journeyData, isLoading: loadingJourney } = useQuery({
+  const { data: journeyData, isLoading: loadingJourney, refetch: refetchJourney } = useQuery({
     queryKey: ['journey', journeySessionId],
     queryFn: async () => {
       if (!journeySessionId) return null;
@@ -52,6 +51,9 @@ export default function InputPage() {
     },
     enabled: !!journeySessionId,
   });
+
+  // Get current step index from journey data (from server state)
+  const currentStepIndex = journeyData?.journey?.currentStepIndex || 0;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -208,9 +210,10 @@ export default function InputPage() {
       // Store the input for reference
       localStorage.setItem(`strategic-input-${sessionId}`, text.trim());
 
-      // Mark journey step as complete
+      // Mark journey step as complete and get next step info
+      let stepCompletion;
       if (journeySessionId) {
-        await fetch(`/api/journey-builder/${journeySessionId}/complete-step`, {
+        const completeResponse = await fetch(`/api/journey-builder/${journeySessionId}/complete-step`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -218,15 +221,33 @@ export default function InputPage() {
             result: { understandingId, sessionId }
           })
         });
+
+        if (!completeResponse.ok) {
+          throw new Error('Failed to complete journey step');
+        }
+
+        stepCompletion = await completeResponse.json();
       }
 
       clearInterval(progressInterval);
       setProgress(100);
 
-      // Navigate to Classification page
-      setTimeout(() => {
-        setLocation(`/strategic-consultant/classification/${understandingId}`);
-      }, 300);
+      // Check if journey is complete or if there are more steps
+      if (stepCompletion?.completed) {
+        // Journey complete - navigate to classification
+        setTimeout(() => {
+          setLocation(`/strategic-consultant/classification/${understandingId}`);
+        }, 300);
+      } else {
+        // More steps remaining - refetch journey and clear input for next step
+        await refetchJourney();
+        setText(''); // Clear input for next step
+        
+        toast({
+          title: "Step completed",
+          description: `Moving to step ${(stepCompletion?.nextStepIndex || 0) + 1}...`,
+        });
+      }
 
     } catch (error: any) {
       clearInterval(progressInterval);
