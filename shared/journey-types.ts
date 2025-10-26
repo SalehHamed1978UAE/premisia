@@ -140,3 +140,95 @@ export interface JourneyProgress {
   status: string;
   estimatedTimeRemaining?: string;
 }
+
+// =============================================================================
+// Journey Builder Types (User-Composable Framework System)
+// =============================================================================
+
+/**
+ * Journey Builder Step - A single framework step in a custom journey
+ */
+export interface JourneyStep {
+  id: string;
+  frameworkKey: string;
+  name: string;
+  description?: string;
+  required: boolean;
+  skippable: boolean;
+  dependsOn?: string[]; // IDs of steps that must complete first
+  estimatedDuration?: number; // minutes
+  order: number;
+}
+
+/**
+ * Journey Builder Template - Pre-defined or custom journey blueprint
+ */
+export interface JourneyTemplate {
+  id: string;
+  name: string;
+  description?: string;
+  isSystemTemplate: boolean;
+  createdBy?: string;
+  steps: JourneyStep[];
+  category?: string;
+  tags?: string[];
+  estimatedDuration?: number;
+  difficulty?: 'beginner' | 'intermediate' | 'advanced';
+  usageCount: number;
+  version: number;
+  isPublished: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * User Journey Instance - Active execution of a journey template
+ */
+export interface UserJourney {
+  id: string;
+  userId: string;
+  sessionId: string;
+  templateId?: string;
+  name: string;
+  steps: JourneyStep[];
+  currentStepIndex: number;
+  status: 'in_progress' | 'completed' | 'paused' | 'abandoned';
+  completedSteps: string[]; // Step IDs
+  stepResults: Record<string, any>; // Step ID -> result data
+  journeyContext: Record<string, any>; // Shared context across steps
+  startedAt: Date;
+  completedAt?: Date;
+  lastActivityAt: Date;
+}
+
+/**
+ * Framework Registry Entry - User-selectable framework definition
+ */
+export interface Framework {
+  id: string;
+  frameworkKey: string;
+  name: string;
+  description?: string;
+  category?: string;
+  estimatedDuration?: number;
+  difficulty?: 'beginner' | 'intermediate' | 'advanced';
+  requiredInputs: string[];
+  providedOutputs: string[];
+  isActive: boolean;
+  version: string;
+  processorPath?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Journey Validation Result - Information completeness check for EPM
+ */
+export interface ValidationResult {
+  isValid: boolean;
+  hasRequiredInfo: boolean;
+  missingInformation: string[];
+  warnings: string[];
+  recommendations: string[];
+  informationCollected: string[];
+}

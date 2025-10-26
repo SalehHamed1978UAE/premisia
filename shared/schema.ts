@@ -106,6 +106,10 @@ export const timelinePreferenceEnum = pgEnum('timeline_preference', ['fast_growt
 export const goDecisionEnum = pgEnum('go_decision', ['proceed', 'pivot', 'abandon']);
 export const epmStatusEnum = pgEnum('epm_status', ['draft', 'finalized']);
 
+// Journey Builder enums
+export const difficultyEnum = pgEnum('difficulty', ['beginner', 'intermediate', 'advanced']);
+export const userJourneyStatusEnum = pgEnum('user_journey_status', ['in_progress', 'completed', 'paused', 'abandoned']);
+
 // Session storage table for Replit Auth
 export const sessions = pgTable(
   "sessions",
@@ -1482,6 +1486,79 @@ export const swAuditLog = pgTable("sw_audit_log", {
   actionIdx: index("idx_sw_audit_log_action").on(table.action),
 }));
 
+// =============================================================================
+// Journey Builder Tables - User-Composable Framework System
+// =============================================================================
+
+// Journey Templates table - Pre-defined and custom journey blueprints
+export const journeyTemplates = pgTable("journey_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  isSystemTemplate: boolean("is_system_template").notNull().default(false),
+  createdBy: varchar("created_by").references(() => users.id),
+  steps: jsonb("steps").notNull(), // JourneyStep[]
+  category: text("category"),
+  tags: jsonb("tags").default(sql`'[]'::jsonb`), // string[]
+  estimatedDuration: integer("estimated_duration_minutes"),
+  difficulty: difficultyEnum("difficulty"),
+  usageCount: integer("usage_count").notNull().default(0),
+  version: integer("version").notNull().default(1),
+  isPublished: boolean("is_published").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  createdByIdx: index("idx_journey_templates_created_by").on(table.createdBy),
+  categoryIdx: index("idx_journey_templates_category").on(table.category),
+  systemIdx: index("idx_journey_templates_system").on(table.isSystemTemplate),
+  publishedIdx: index("idx_journey_templates_published").on(table.isPublished),
+}));
+
+// User Journeys table - Active journey instances
+export const userJourneys = pgTable("user_journeys", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  sessionId: text("session_id").notNull().unique(),
+  templateId: varchar("template_id").references(() => journeyTemplates.id),
+  name: text("name").notNull(),
+  steps: jsonb("steps").notNull(), // JourneyStep[]
+  currentStepIndex: integer("current_step_index").notNull().default(0),
+  status: userJourneyStatusEnum("status").notNull().default('in_progress'),
+  completedSteps: jsonb("completed_steps").notNull().default(sql`'[]'::jsonb`), // string[]
+  stepResults: jsonb("step_results").notNull().default(sql`'{}'::jsonb`), // Record<string, any>
+  journeyContext: jsonb("journey_context").notNull().default(sql`'{}'::jsonb`), // Record<string, any>
+  startedAt: timestamp("started_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+  lastActivityAt: timestamp("last_activity_at").notNull().defaultNow(),
+}, (table) => ({
+  userIdx: index("idx_user_journeys_user").on(table.userId),
+  sessionIdx: index("idx_user_journeys_session").on(table.sessionId),
+  templateIdx: index("idx_user_journeys_template").on(table.templateId),
+  statusIdx: index("idx_user_journeys_status").on(table.status),
+}));
+
+// Framework Registry table - All user-selectable frameworks
+export const frameworkRegistry = pgTable("framework_registry", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  frameworkKey: text("framework_key").notNull().unique(),
+  name: text("name").notNull(),
+  description: text("description"),
+  category: text("category"),
+  estimatedDuration: integer("estimated_duration_minutes"),
+  difficulty: difficultyEnum("difficulty"),
+  requiredInputs: jsonb("required_inputs").notNull().default(sql`'[]'::jsonb`), // string[]
+  providedOutputs: jsonb("provided_outputs").notNull().default(sql`'[]'::jsonb`), // string[]
+  isActive: boolean("is_active").notNull().default(true),
+  version: text("version").notNull().default('1.0'),
+  processorPath: text("processor_path"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  keyIdx: index("idx_framework_registry_key").on(table.frameworkKey),
+  categoryIdx: index("idx_framework_registry_category").on(table.category),
+  activeIdx: index("idx_framework_registry_active").on(table.isActive),
+}));
+
 // Insert Schemas for Strategy Workspace
 export const insertSwProblemSchema = createInsertSchema(swProblems).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertSwProblem = z.infer<typeof insertSwProblemSchema>;
@@ -1518,3 +1595,16 @@ export type SelectSwComparison = typeof swStrategyComparisons.$inferSelect;
 export const insertSwAuditLogSchema = createInsertSchema(swAuditLog).omit({ id: true, timestamp: true });
 export type InsertSwAuditLog = z.infer<typeof insertSwAuditLogSchema>;
 export type SelectSwAuditLog = typeof swAuditLog.$inferSelect;
+
+// Insert Schemas for Journey Builder
+export const insertJourneyTemplateSchema = createInsertSchema(journeyTemplates).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertJourneyTemplate = z.infer<typeof insertJourneyTemplateSchema>;
+export type SelectJourneyTemplate = typeof journeyTemplates.$inferSelect;
+
+export const insertUserJourneySchema = createInsertSchema(userJourneys).omit({ id: true, startedAt: true, lastActivityAt: true });
+export type InsertUserJourney = z.infer<typeof insertUserJourneySchema>;
+export type SelectUserJourney = typeof userJourneys.$inferSelect;
+
+export const insertFrameworkRegistrySchema = createInsertSchema(frameworkRegistry).omit({ id: true, createdAt: true, updatedAt: true });
+export type InsertFrameworkRegistry = z.infer<typeof insertFrameworkRegistrySchema>;
+export type SelectFrameworkRegistry = typeof frameworkRegistry.$inferSelect;

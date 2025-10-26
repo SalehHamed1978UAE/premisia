@@ -10,6 +10,7 @@ import strategicConsultantRoutes from "./routes/strategic-consultant";
 import trendAnalysisRoutes from "./routes/trend-analysis";
 import statementRepositoryRoutes from "./routes/statement-repository.routes";
 import strategyWorkspaceRoutes from "./routes/strategy-workspace";
+import journeyBuilderRoutes from "./routes/journey-builder";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup Replit Auth
@@ -255,6 +256,9 @@ Marketing and events: $3k/month`,
   
   // Strategy Workspace routes (protected with auth)
   app.use("/api/strategy-workspace", requireAuth, strategyWorkspaceRoutes);
+
+  // Journey Builder routes (protected with auth)
+  app.use("/api/journeys", requireAuth, journeyBuilderRoutes);
 
   // Middleware to check roles (updated for Replit Auth)
   const requireRole = (roles: string[]) => async (req: any, res: any, next: any) => {
