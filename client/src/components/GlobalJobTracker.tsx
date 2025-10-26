@@ -50,9 +50,14 @@ export function GlobalJobTracker() {
     return getJobTypeLabel(job.jobType);
   };
 
+  // Overflow handling - show summary if 4+ jobs
+  const [showAllJobs, setShowAllJobs] = useState(false);
+  const hasOverflow = visibleJobs.length > 3;
+  const jobsToDisplay = hasOverflow && !showAllJobs ? visibleJobs.slice(0, 2) : visibleJobs;
+
   return (
     <div className="fixed bottom-4 right-4 w-96 max-w-[calc(100vw-2rem)] space-y-2 z-50" data-testid="global-job-tracker">
-      {visibleJobs.map(job => {
+      {jobsToDisplay.map(job => {
         const isMinimized = minimizedJobs.has(job.id);
         
         if (isMinimized) {
@@ -162,6 +167,52 @@ export function GlobalJobTracker() {
           </Card>
         );
       })}
+      
+      {/* Overflow summary card - show if 4+ jobs and not showing all */}
+      {hasOverflow && !showAllJobs && (
+        <Card className="shadow-lg border-2 border-blue-500/50" data-testid="job-overflow-summary">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                <div>
+                  <p className="text-sm font-medium">
+                    + {visibleJobs.length - 2} more job{visibleJobs.length - 2 !== 1 ? 's' : ''} running
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    All jobs processing in background
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAllJobs(true)}
+                data-testid="button-show-all-jobs"
+              >
+                View All
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {/* Show "Collapse" button if showing all jobs */}
+      {hasOverflow && showAllJobs && (
+        <Card className="shadow-lg border-2 border-blue-500/50" data-testid="job-collapse-summary">
+          <CardContent className="p-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowAllJobs(false)}
+              className="w-full"
+              data-testid="button-collapse-jobs"
+            >
+              Show Less
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
