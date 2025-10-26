@@ -9,6 +9,25 @@ import { createOpenAIProvider } from '../../src/lib/intelligent-planning/llm-pro
 
 const router = Router();
 
+// In-memory store for SSE connections
+interface ProgressStream {
+  res: Response;
+  lastEventId: number;
+}
+
+const progressStreams = new Map<string, ProgressStream>();
+
+// Helper to send SSE event
+function sendSSEEvent(progressId: string, data: any) {
+  const stream = progressStreams.get(progressId);
+  if (!stream) return;
+
+  stream.lastEventId++;
+  const eventData = JSON.stringify(data);
+  stream.res.write(`id: ${stream.lastEventId}\n`);
+  stream.res.write(`data: ${eventData}\n\n`);
+}
+
 // Create LLM provider for intelligent planning
 const llm = createOpenAIProvider({
   apiKey: process.env.OPENAI_API_KEY || '',
@@ -150,6 +169,35 @@ function calculateOverallConfidence(componentConfidence: Record<string, number>)
   return Math.round(average * 100) / 100;
 }
 
+// GET /api/strategy-workspace/epm/progress/:progressId
+// SSE endpoint for real-time planning progress
+router.get('/epm/progress/:progressId', (req: Request, res: Response) => {
+  const { progressId } = req.params;
+
+  // Set headers for SSE
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+
+  // Store the connection
+  progressStreams.set(progressId, {
+    res,
+    lastEventId: 0
+  });
+
+  // Send initial connection event
+  sendSSEEvent(progressId, {
+    type: 'connected',
+    message: 'Planning progress stream connected'
+  });
+
+  // Clean up on client disconnect
+  req.on('close', () => {
+    progressStreams.delete(progressId);
+  });
+});
+
 // POST /api/strategy-workspace/decisions
 // Save user's strategic decisions
 router.post('/decisions', async (req: Request, res: Response) => {
@@ -213,12 +261,64 @@ router.post('/decisions', async (req: Request, res: Response) => {
 // POST /api/strategy-workspace/epm/generate
 // Generate EPM program from framework results + user decisions
 router.post('/epm/generate', async (req: Request, res: Response) => {
+  // Generate unique progress ID for this generation
+  const progressId = `progress-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+  
   try {
     const { strategyVersionId, decisionId, prioritizedOrder } = req.body;
 
     if (!strategyVersionId) {
       return res.status(400).json({ error: 'strategyVersionId is required' });
     }
+    
+    // Return progress ID immediately so client can connect to SSE
+    res.json({
+      success: true,
+      progressId,
+      message: 'EPM generation started. Connect to progress stream for updates.'
+    });
+
+    // Continue processing in background
+    processEPMGeneration(strategyVersionId, decisionId, prioritizedOrder, progressId, req).catch(error => {
+      console.error('Background EPM generation error:', error);
+      sendSSEEvent(progressId, {
+        type: 'error',
+        message: error.message || 'EPM generation failed'
+      });
+      // Clean up stream
+      const stream = progressStreams.get(progressId);
+      if (stream) {
+        stream.res.end();
+        progressStreams.delete(progressId);
+      }
+    });
+  } catch (error: any) {
+    console.error('Error in POST /epm/generate:', error);
+    sendSSEEvent(progressId, {
+      type: 'error',
+      message: error.message || 'EPM generation failed'
+    });
+  }
+});
+
+// Background processing function for EPM generation
+async function processEPMGeneration(
+  strategyVersionId: string,
+  decisionId: string | undefined,
+  prioritizedOrder: any,
+  progressId: string,
+  req: Request
+) {
+  try {
+    // Wait briefly for client to establish SSE connection
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    sendSSEEvent(progressId, {
+      type: 'step-start',
+      step: 'initialization',
+      progress: 5,
+      description: 'Preparing strategic analysis...'
+    });
 
     // Fetch strategy version to get BMC analysis
     const [version] = await db.select()
@@ -227,14 +327,14 @@ router.post('/epm/generate', async (req: Request, res: Response) => {
       .limit(1);
 
     if (!version) {
-      return res.status(404).json({ error: 'Strategy version not found' });
+      throw new Error('Strategy version not found');
     }
 
     const analysisData = version.analysisData as any;
     const bmcAnalysis = analysisData?.bmc_research;
 
     if (!bmcAnalysis) {
-      return res.status(404).json({ error: 'No BMC analysis found for this version' });
+      throw new Error('No BMC analysis found for this version');
     }
 
     // Prepare context for intelligent program naming
@@ -288,11 +388,7 @@ router.post('/epm/generate', async (req: Request, res: Response) => {
         }
         
         if (missingFields.length > 0) {
-          return res.status(400).json({ 
-            error: 'Incomplete strategic decisions',
-            missingFields,
-            message: 'Please complete the Decision Summary to fill the 22% automation gap and boost EPM confidence'
-          });
+          throw new Error(`Incomplete strategic decisions: ${missingFields.join(', ')}`);
         }
         
         userDecisions = decision;
@@ -319,6 +415,13 @@ router.post('/epm/generate', async (req: Request, res: Response) => {
     };
 
     // Run through BMC analyzer
+    sendSSEEvent(progressId, {
+      type: 'step-start',
+      step: 'analyze',
+      progress: 10,
+      description: 'Analyzing strategic framework...'
+    });
+    
     const insights = await bmcAnalyzer.analyze(bmcResults);
     
     // Include prioritized order and sessionId in user decisions context
@@ -331,8 +434,27 @@ router.post('/epm/generate', async (req: Request, res: Response) => {
       sessionId: version.sessionId,  // Pass sessionId for initiative type lookup
     };
     
+    sendSSEEvent(progressId, {
+      type: 'step-start',
+      step: 'extract-tasks',
+      progress: 20,
+      description: 'Generating EPM program components...'
+    });
+    
     // Run through EPM synthesizer with naming context
-    const epmProgram = await epmSynthesizer.synthesize(insights, decisionsWithPriority, namingContext);
+    // TODO: Wire up intelligent planning progress callbacks
+    const epmProgram = await epmSynthesizer.synthesize(
+      insights,
+      decisionsWithPriority,
+      namingContext
+    );
+    
+    sendSSEEvent(progressId, {
+      type: 'step-complete',
+      step: 'extract-tasks',
+      progress: 90,
+      description: 'EPM program generated successfully'
+    });
 
     const userId = (req.user as any)?.claims?.sub || null;
 
@@ -367,17 +489,26 @@ router.post('/epm/generate', async (req: Request, res: Response) => {
       status: 'draft',
     }).returning();
 
-    res.json({
-      success: true,
+    sendSSEEvent(progressId, {
+      type: 'complete',
+      progress: 100,
       epmProgramId: savedProgram.id,
       overallConfidence: overallConfidence,
       componentsGenerated: 14,
+      message: 'EPM program generation complete!'
     });
+    
+    // Close SSE stream
+    const stream = progressStreams.get(progressId);
+    if (stream) {
+      stream.res.end();
+      progressStreams.delete(progressId);
+    }
   } catch (error: any) {
-    console.error('Error in POST /epm/generate:', error);
-    res.status(500).json({ error: error.message || 'EPM generation failed' });
+    console.error('Error in processEPMGeneration:', error);
+    throw error; // Re-throw to be caught by outer catch in POST /epm/generate
   }
-});
+}
 
 // GET /api/strategy-workspace/epm
 // List all EPM programs for current user (framework-agnostic)

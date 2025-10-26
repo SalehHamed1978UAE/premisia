@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRoute, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { PlanningProgressTracker } from "@/components/intelligent-planning/PlanningProgressTracker";
 import {
   ArrowUp,
   ArrowDown,
@@ -72,6 +73,11 @@ export default function PrioritizationPage() {
 
   // Build prioritized items from selected decisions
   const [prioritizedItems, setPrioritizedItems] = useState<PrioritizedItem[]>([]);
+  
+  // Progress tracking state
+  const [showProgress, setShowProgress] = useState(false);
+  const [progressId, setProgressId] = useState<string | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
 
   // Initialize prioritized items when data loads
   useEffect(() => {
@@ -105,6 +111,87 @@ export default function PrioritizationPage() {
   const keyInsights = bmcAnalysis?.keyInsights || [];
   const criticalGaps = bmcAnalysis?.criticalGaps || [];
 
+  // Connect to SSE for progress updates
+  useEffect(() => {
+    if (!progressId) return;
+    
+    const eventSource = new EventSource(`/api/strategy-workspace/epm/progress/${progressId}`);
+    eventSourceRef.current = eventSource;
+    
+    // Timeout: if no events received for 5 minutes, assume failure
+    let timeoutId = setTimeout(() => {
+      eventSource.close();
+      setShowProgress(false);
+      toast({
+        title: "Generation Timeout",
+        description: "EPM generation took too long. Please try again or check your results later.",
+        variant: "destructive",
+      });
+    }, 5 * 60 * 1000); // 5 minute timeout
+    
+    eventSource.onmessage = (event) => {
+      // Reset timeout on any message
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        eventSource.close();
+        setShowProgress(false);
+        toast({
+          title: "Generation Timeout",
+          description: "No progress updates received. The generation may have completed - check your programs list.",
+          variant: "destructive",
+        });
+      }, 5 * 60 * 1000);
+      
+      const data = JSON.parse(event.data);
+      
+      // Update the progress tracker via window method
+      if ((window as any).__updatePlanningProgress) {
+        (window as any).__updatePlanningProgress(data);
+      }
+      
+      // Handle completion
+      if (data.type === 'complete') {
+        clearTimeout(timeoutId);
+        eventSource.close();
+        setShowProgress(false);
+        toast({
+          title: "EPM Program Generated",
+          description: `Created with ${Math.round(parseFloat(data.overallConfidence || '0') * 100)}% confidence`,
+        });
+        // Navigate to EPM view
+        setLocation(`/strategy-workspace/epm/${data.epmProgramId}`);
+      }
+      
+      // Handle errors
+      if (data.type === 'error') {
+        clearTimeout(timeoutId);
+        eventSource.close();
+        setShowProgress(false);
+        toast({
+          title: "EPM Generation Failed",
+          description: data.message || "Please try again",
+          variant: "destructive",
+        });
+      }
+    };
+    
+    eventSource.onerror = () => {
+      clearTimeout(timeoutId);
+      eventSource.close();
+      setShowProgress(false);
+      toast({
+        title: "Connection Error",
+        description: "Lost connection to progress updates. The generation may still be running - check your programs list.",
+        variant: "destructive",
+      });
+    };
+    
+    return () => {
+      clearTimeout(timeoutId);
+      eventSource.close();
+    };
+  }, [progressId, setLocation, toast]);
+
   // Generate EPM mutation
   const generateEPMMutation = useMutation({
     mutationFn: async () => {
@@ -123,12 +210,18 @@ export default function PrioritizationPage() {
       return epmResponse.json();
     },
     onSuccess: (data) => {
-      toast({
-        title: "EPM Program Generated",
-        description: `Created with ${Math.round(parseFloat(data.overallConfidence) * 100)}% confidence`,
-      });
-      // Navigate to EPM view
-      setLocation(`/strategy-workspace/epm/${data.epmProgramId}`);
+      // New response format includes progressId
+      if (data.progressId) {
+        setProgressId(data.progressId);
+        setShowProgress(true);
+      } else {
+        // Fallback to old format
+        toast({
+          title: "EPM Program Generated",
+          description: `Created with ${Math.round(parseFloat(data.overallConfidence) * 100)}% confidence`,
+        });
+        setLocation(`/strategy-workspace/epm/${data.epmProgramId}`);
+      }
     },
     onError: (error: any) => {
       toast({
@@ -155,7 +248,6 @@ export default function PrioritizationPage() {
       <AppLayout
         title="Prioritize Strategic Initiatives"
         subtitle="Organize your strategic choices by priority"
-        onViewChange={() => setLocation('/')}
       >
         <div className="flex items-center justify-center py-12">
           <div className="text-center space-y-4">
@@ -172,7 +264,6 @@ export default function PrioritizationPage() {
       <AppLayout
         title="Prioritize Strategic Initiatives"
         subtitle="Organize your strategic choices by priority"
-        onViewChange={() => setLocation('/')}
       >
         <div className="max-w-2xl mx-auto py-12">
           <Alert variant="destructive">
@@ -192,7 +283,6 @@ export default function PrioritizationPage() {
       <AppLayout
         title="Prioritize Strategic Initiatives"
         subtitle="Organize your strategic choices by priority"
-        onViewChange={() => setLocation('/')}
       >
         <div className="max-w-2xl mx-auto py-12">
           <Alert>
@@ -219,7 +309,6 @@ export default function PrioritizationPage() {
     <AppLayout
       title="Prioritize Strategic Initiatives"
       subtitle="Drag to reorder initiatives by priority - highest priority at the top"
-      onViewChange={() => setLocation('/')}
     >
       <div className="max-w-5xl mx-auto space-y-6">
         {/* Instructions */}
@@ -382,6 +471,16 @@ export default function PrioritizationPage() {
             ← Back to Decisions
           </Button>
         </div>
+        
+        {/* Progress Tracker Overlay */}
+        {showProgress && (
+          <div 
+            className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            data-testid="progress-overlay"
+          >
+            <PlanningProgressTracker />
+          </div>
+        )}
       </div>
     </AppLayout>
   );
