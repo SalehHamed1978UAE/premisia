@@ -20,6 +20,7 @@ import { JourneyOrchestrator } from '../journey/journey-orchestrator';
 import { journeyRegistry } from '../journey/journey-registry';
 import type { JourneyType } from '@shared/journey-types';
 import { InitiativeClassifier } from '../strategic-consultant/initiative-classifier';
+import { ambiguityDetector } from '../services/ambiguity-detector.js';
 
 const router = Router();
 const upload = multer({ 
@@ -107,20 +108,45 @@ router.post('/analyze', upload.single('file'), async (req: Request, res: Respons
   }
 });
 
+/**
+ * POST /api/strategic-consultant/check-ambiguities
+ * Check user input for ambiguities BEFORE creating strategic understanding
+ */
+router.post('/check-ambiguities', async (req: Request, res: Response) => {
+  try {
+    const { userInput } = req.body;
+
+    if (!userInput) {
+      return res.status(400).json({ error: 'userInput is required' });
+    }
+
+    const result = await ambiguityDetector.detectAmbiguities(userInput);
+    res.json(result);
+  } catch (error: any) {
+    console.error('[Strategic Consultant] Error checking ambiguities:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.post('/understanding', async (req: Request, res: Response) => {
   try {
-    const { input } = req.body;
+    const { input, clarifications } = req.body;
 
     if (!input || !input.trim()) {
       return res.status(400).json({ error: 'Input text is required' });
     }
+
+    // If clarifications provided, incorporate them into the input
+    const finalInput = clarifications
+      ? ambiguityDetector.buildClarifiedInput(input.trim(), clarifications)
+      : input.trim();
 
     const sessionId = `session-${Date.now()}-${Math.random().toString(36).substring(7)}`;
     
     console.log('[Understanding] Step 1: Classifying initiative type...');
     
     // Step 1: Classify the initiative type FIRST
-    const classification = await InitiativeClassifier.classify(input.trim());
+    const classification = await InitiativeClassifier.classify(finalInput);
     
     console.log('[Understanding] Classification result:', {
       type: classification.initiativeType,
@@ -133,7 +159,7 @@ router.post('/understanding', async (req: Request, res: Response) => {
     // Step 2: Run full Strategic Understanding analysis with entity extraction
     const result = await strategicUnderstandingService.extractUnderstanding({
       sessionId,
-      userInput: input.trim(),
+      userInput: finalInput,
       companyContext: null,
     });
 

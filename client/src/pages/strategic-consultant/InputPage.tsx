@@ -12,6 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Badge } from "@/components/ui/badge";
+import { ClarificationModal } from "@/components/ClarificationModal";
 
 const SUPPORTED_FORMATS = {
   'application/pdf': '.pdf',
@@ -33,6 +34,9 @@ export default function InputPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [showClarificationModal, setShowClarificationModal] = useState(false);
+  const [clarificationQuestions, setClarificationQuestions] = useState<any[]>([]);
+  const [isCheckingAmbiguities, setIsCheckingAmbiguities] = useState(false);
 
   // Get URL parameters
   const urlParams = new URLSearchParams(window.location.search);
@@ -93,6 +97,53 @@ export default function InputPage() {
       return;
     }
 
+    if (file) {
+      toast({
+        title: "File upload not yet supported",
+        description: "Please paste the content as text for now",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Step 1: Check for ambiguities first
+    setIsCheckingAmbiguities(true);
+    try {
+      const ambiguityResponse = await fetch('/api/strategic-consultant/check-ambiguities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userInput: text.trim() })
+      });
+
+      if (!ambiguityResponse.ok) {
+        throw new Error('Failed to check ambiguities');
+      }
+
+      const ambiguityResult = await ambiguityResponse.json();
+
+      if (ambiguityResult.hasAmbiguities) {
+        // Show clarification modal
+        setClarificationQuestions(ambiguityResult.questions);
+        setShowClarificationModal(true);
+        setIsCheckingAmbiguities(false);
+      } else {
+        // No ambiguities, proceed directly
+        setIsCheckingAmbiguities(false);
+        await startStrategicUnderstanding(text.trim(), null);
+      }
+    } catch (error: any) {
+      setIsCheckingAmbiguities(false);
+      toast({
+        title: "Check failed",
+        description: "Could not check for ambiguities. Proceeding with original input.",
+        variant: "default"
+      });
+      // Proceed anyway on error
+      await startStrategicUnderstanding(text.trim(), null);
+    }
+  };
+
+  const startStrategicUnderstanding = async (input: string, clarifications: Record<string, string> | null) => {
     setIsAnalyzing(true);
     setProgress(0);
 
@@ -107,25 +158,14 @@ export default function InputPage() {
     }, 300); // Update every 300ms for smoother feel
 
     try {
-      let inputText = text.trim();
-      
-      // For files, extract text first (you could add file support to /understanding later)
-      if (file) {
-        toast({
-          title: "File upload not yet supported",
-          description: "Please paste the content as text for now",
-          variant: "destructive"
-        });
-        clearInterval(progressInterval);
-        setIsAnalyzing(false);
-        return;
-      }
-
-      // Create understanding record immediately
+      // Create understanding record with optional clarifications
       const understandingResponse = await fetch('/api/strategic-consultant/understanding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input: inputText })
+        body: JSON.stringify({ 
+          input: input,
+          clarifications: clarifications 
+        })
       });
       
       if (!understandingResponse.ok) {
@@ -136,7 +176,7 @@ export default function InputPage() {
       const { understandingId, sessionId, classification } = await understandingResponse.json();
       
       // Store the input for reference
-      localStorage.setItem(`strategic-input-${sessionId}`, inputText);
+      localStorage.setItem(`strategic-input-${sessionId}`, input);
 
       clearInterval(progressInterval);
       setProgress(100);
@@ -158,6 +198,26 @@ export default function InputPage() {
       setIsAnalyzing(false);
       setProgress(0);
     }
+  };
+
+  const handleClarificationsSubmit = (answers: Record<string, string>) => {
+    setShowClarificationModal(false);
+
+    // Convert answers to human-readable clarifications
+    const clarifications: Record<string, string> = {};
+    clarificationQuestions.forEach(q => {
+      const selectedOption = q.options.find((opt: any) => opt.value === answers[q.id]);
+      if (selectedOption) {
+        clarifications[q.question] = selectedOption.label;
+      }
+    });
+
+    startStrategicUnderstanding(text.trim(), clarifications);
+  };
+
+  const handleSkipClarifications = () => {
+    setShowClarificationModal(false);
+    startStrategicUnderstanding(text.trim(), null);
   };
 
   const getFileIcon = () => {
@@ -523,10 +583,15 @@ export default function InputPage() {
                 type="submit"
                 size="lg"
                 className="w-full"
-                disabled={isAnalyzing || (!text.trim() && !file) || !!uploadError}
+                disabled={isAnalyzing || isCheckingAmbiguities || (!text.trim() && !file) || !!uploadError}
                 data-testid="button-analyze"
               >
-                {isAnalyzing ? (
+                {isCheckingAmbiguities ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Checking for ambiguities...
+                  </>
+                ) : isAnalyzing ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Starting Analysis...
@@ -539,6 +604,15 @@ export default function InputPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Clarification Modal */}
+      {showClarificationModal && (
+        <ClarificationModal
+          questions={clarificationQuestions}
+          onSubmit={handleClarificationsSubmit}
+          onSkip={handleSkipClarifications}
+        />
+      )}
     </AppLayout>
   );
 }
