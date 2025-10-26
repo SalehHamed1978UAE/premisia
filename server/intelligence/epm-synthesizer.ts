@@ -1228,8 +1228,14 @@ export class EPMSynthesizer {
     const workstreamSummary = workstreams.map(w => `- ${w.name} (${w.deliverables.length} deliverables)`).join('\n');
     const timeline = workstreams[0]?.endMonth || 12;
     
+    // Extract business description from insights
+    const businessDescription = insights.insights
+      .find(i => i.type === 'market_analysis' || i.type === 'overview')
+      ?.content || 'a new business';
+    
     const prompt = `Generate an internal team structure for this initiative.
 
+BUSINESS DESCRIPTION: ${businessDescription}
 INITIATIVE TYPE: ${initiativeType}
 WORKSTREAMS (${workstreams.length}):
 ${workstreamSummary}
@@ -1237,42 +1243,45 @@ ${workstreamSummary}
 PROJECT TIMELINE: ${timeline} months
 ESTIMATED TEAM SIZE: ${estimatedFTEs} FTEs
 
-Generate ${Math.min(6, estimatedFTEs)} key roles that are APPROPRIATE for this ${initiativeType} initiative.
+Generate ${Math.min(6, estimatedFTEs)} key roles that are APPROPRIATE for this specific business and initiative type.
 
-CRITICAL: Match roles to initiative type:
-- physical_business_launch: Store Manager, Barista, Server, Chef, Sales Associate, Operations Manager, etc.
-- software_development: Software Engineer, DevOps Engineer, QA Engineer, Product Manager, UX Designer, etc.
-- digital_transformation: Digital Strategy Lead, Change Manager, Integration Specialist, Training Coordinator, etc.
-- market_expansion: Market Research Analyst, Regional Manager, Business Development, Localization Specialist, etc.
-- product_launch: Product Manager, Marketing Manager, Supply Chain Coordinator, Sales Enablement, etc.
-- service_launch: Service Designer, Operations Manager, Training Specialist, Customer Success Manager, etc.
-- process_improvement: Process Analyst, Lean Six Sigma Specialist, Change Manager, Operations Lead, etc.
+CRITICAL: Match roles to the ACTUAL BUSINESS described above, not generic templates:
+- For physical retail/food businesses: Store Manager, Barista, Server, Chef, Sales Associate, etc.
+- For educational/training facilities: Director of Education, Lead Instructor, Curriculum Developer, Student Advisor, etc.
+- For software development: Software Engineer, DevOps Engineer, QA Engineer, Product Manager, UX Designer, etc.
+- For digital transformation: Digital Strategy Lead, Change Manager, Integration Specialist, Training Coordinator, etc.
+- For market expansion: Market Research Analyst, Regional Manager, Business Development, Localization Specialist, etc.
+- For product launch: Product Manager, Marketing Manager, Supply Chain Coordinator, Sales Enablement, etc.
+- For service launch: Service Designer, Operations Manager, Training Specialist, Customer Success Manager, etc.
 
 For each role, provide:
-- role: Job title
+- role: Job title (MUST match the actual business - e.g., "Lead AI Tutor" for tutoring center, NOT "Barista")
 - allocation: % time (50-100)
 - months: Duration on project (1-${timeline})
 - skills: Array of 3-5 relevant skills
 - justification: Why this role is needed
 
-Return ONLY valid JSON array of role objects.`;
+Return ONLY valid JSON array of role objects. NO markdown, NO code blocks, ONLY the JSON array.`;
 
-    const response = await this.llm.chat({
-      model: 'gpt-4o',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.3,  // Lower temperature for more consistent, appropriate roles
+    const response = await aiClients.callWithFallback({
+      systemPrompt: 'You are an HR and resource planning expert. Generate ONLY valid JSON matching the requested format. NO markdown code blocks. The roles MUST match the specific business being described.',
+      userMessage: prompt,
+      maxTokens: 2000,
+      temperature: 0.3,
     });
     
-    const content = response.choices[0].message.content || '[]';
+    const content = response.content;
     
     // Parse JSON response
     try {
       const roles = JSON.parse(content);
       if (Array.isArray(roles) && roles.length > 0) {
+        console.log(`[Resource Generation] ✅ Successfully generated ${roles.length} context-appropriate roles`);
         return roles;
       }
     } catch (parseError) {
       console.error('[Resource Generation] Failed to parse LLM response:', parseError);
+      console.error('[Resource Generation] Raw response:', content);
     }
     
     return [];
