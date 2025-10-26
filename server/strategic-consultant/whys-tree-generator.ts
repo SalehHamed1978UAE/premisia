@@ -96,18 +96,20 @@ export class WhysTreeGenerator {
 
   async generateRootQuestion(input: string): Promise<string> {
     const response = await aiClients.callWithFallback({
-      systemPrompt: 'You are a strategic consultant analyzing a business problem or opportunity using the "5 Whys" technique.',
-      userMessage: `INPUT:
+      systemPrompt: 'You\'re a friendly strategic consultant helping someone think through their business challenge. You use the "5 Whys" technique - asking "why" to get to the heart of the matter.',
+      userMessage: `Here's what they told you:
 ${input}
 
-Generate a clear, strategic root question that frames this as a "Why" question to begin the 5 Whys analysis. The question should be:
-- Focused on understanding the fundamental purpose or problem
-- Open-ended to encourage deep exploration
-- Strategic in nature (not tactical)
+Let's start by asking a good "Why" question that gets to the core of what's going on. 
 
-Return a JSON object with the question in this format:
+Write a question that:
+- Feels natural and conversational (like you're talking to a friend)
+- Gets at the real reason or purpose behind what they shared
+- Opens the door for deeper exploration
+
+Return a JSON object with the question:
 {
-  "question": "Why is there a need to [describe the strategic question]?"
+  "question": "Why [phrase this naturally]?"
 }`,
       maxTokens: 1000,
     });
@@ -125,106 +127,79 @@ Return a JSON object with the question in this format:
     const isLeaf = depth >= this.maxDepth;
     
     const response = await aiClients.callWithFallback({
-      systemPrompt: 'You are a strategic business consultant performing a 5 Whys root cause analysis for BUSINESS STRATEGY.',
-      userMessage: `STRICT REQUIREMENT: Use ONLY business strategy reasoning. Cultural/anthropological analysis is FORBIDDEN.
+      systemPrompt: 'You\'re helping someone figure out the real business reasons behind what\'s happening. Keep it conversational, clear, and focused on actual business strategy - not cultural stuff.',
+      userMessage: `Alright, let's dig into this together! We're trying to understand the business reasons behind what's going on.
 
-STRICT REQUIREMENT: Use ONLY business strategy reasoning. Cultural/anthropological analysis is FORBIDDEN.
+IMPORTANT: Stick to real business strategy. Here's what I mean:
 
-FORBIDDEN TOPICS (DO NOT USE):
-- Cultural dynamics, hierarchical respect, face-saving, indirect communication
-- Power imbalances, organizational culture theory
-- Cultural identity, traditions, or anthropological concepts
-- Social norms, cultural preferences, or societal behavior patterns
-- Traditional values or cultural accommodation strategies
+✅ Talk about things like:
+- What's happening in the market (competitors, pricing, growth)
+- How the product fits what customers need
+- What it costs to get and keep customers
+- Resource constraints and how things are run
+- What makes this business different from others
+- The money side - what's driving costs and revenue
 
-REQUIRED TOPICS (MUST USE):
-- Market saturation and competitive positioning
-- Product-market fit and feature differentiation
-- Pricing pressure and customer acquisition costs
-- Resource constraints and go-to-market strategy
-- Market dynamics and competitive advantage
-- Sales cycle efficiency and conversion metrics
-- Customer churn and retention economics
-- Competitive moats and barriers to entry
+❌ Skip the cultural/social stuff like:
+- Cultural norms and traditions
+- Organizational culture observations
+- Social behavior patterns
+- Any anthropological analysis
 
-Each "Why?" must explore BUSINESS LOGIC:
-- Why does this business decision make competitive sense?
-- What market conditions drive this strategy?
-- How does this create competitive advantage?
-- What are the economic/resource constraints?
-- What customer pain points drive demand?
-- What are the unit economics or financial drivers?
+Quick examples to show what I mean:
+✅ "The market's growing 40% yearly with only 3 main players"
+✅ "This solves a problem that costs businesses $50K each year"
+✅ "Competitors don't have this feature yet - you've got a 6-month window"
+❌ "Cultural norms around hierarchy affect decisions" - nope, too cultural
 
-EXAMPLES OF CORRECT BUSINESS REASONING:
-✅ "Market shows 40% YoY growth with only 3 established players"
-✅ "Addresses unmet need costing customers $50K annually per enterprise"
-✅ "Competitors lack this feature, creating 6-month differentiation window"
-✅ "Customer acquisition cost is $12K but competitor average is $45K"
-✅ "Current product serves 10-50 employees, but enterprise needs 500+ employee features"
-
-EXAMPLES OF FORBIDDEN CULTURAL REASONING:
-❌ "Cultural norms require respect for hierarchy"
-❌ "Face-saving is important in this culture"
-❌ "Indirect communication preferences affect feedback"
-❌ "Power distance influences decision-making processes"
-❌ "Traditional organizational structures prioritize loyalty"
-
-Your analysis path should explain COMPETITIVE STRATEGY, not cultural accommodation.
-
-FINAL VALIDATION: Before generating each option, verify:
-- Does this explain a BUSINESS competitive dynamic? ✅
-- Does this mention cultural norms or traditions? ❌
-
-If any option explores cultural behavior instead of business strategy, regenerate it with business logic.
-
-ORIGINAL INPUT:
+What they told us originally:
 ${context.input}
 
-CURRENT QUESTION:
+The question we're asking now:
 ${question}
 
-${context.previousAnswers.length > 0 ? `PREVIOUS ANSWERS IN THIS PATH:\n${context.previousAnswers.map((a, i) => `${i + 1}. ${a}`).join('\n')}` : ''}
+${context.previousAnswers.length > 0 ? `Here's the path we've taken so far:\n${context.previousAnswers.map((a, i) => `${i + 1}. ${a}`).join('\n')}` : ''}
 
-CURRENT DEPTH: ${depth} of ${this.maxDepth}
+We're at step ${depth} of ${this.maxDepth}.
 
-Generate 3-4 distinct, business-focused answers to this question. Each answer must follow BUSINESS REASONING only.
+Give me 3-4 different answers to this "why" question. Make each one about real business reasons.
 
-For each option you generate, provide evidence to help the user evaluate if this causal explanation is accurate:
+For each option, help them decide if it's the right path by providing:
 
-1. SUPPORTING EVIDENCE (2-3 bullet points):
-   - Data, metrics, or reasoning why this causal explanation is valid
-   - Why this answer to "Why?" makes business sense
-   - Market signals, competitive indicators, or economic factors supporting this path
+1. WHY THIS MAKES SENSE (2-3 points):
+   - What data or reasoning supports this explanation?
+   - Why does this answer make business sense?
+   - What market signals or economic factors back this up?
 
-2. COUNTER-ARGUMENTS (2-3 bullet points):
-   - Data, metrics, or reasoning why this explanation might NOT be accurate
-   - Alternative explanations or contradicting evidence
-   - Factors that suggest a different causal path might be more relevant
+2. WHY THIS MIGHT NOT BE IT (2-3 points):
+   - What evidence might contradict this?
+   - What other explanations could be more accurate?
+   - What factors suggest a different path might be better?
 
-3. CONSIDERATION (1 sentence):
-   - Neutral observation to help user decide if this causal path is worth exploring deeper
-   - Frame as "Consider: [insight that helps compare this option to alternatives]"
+3. SOMETHING TO THINK ABOUT (1 sentence):
+   - A neutral observation to help them compare this option to the others
+   - Start with "Consider: [something useful]"
 
-IMPORTANT: These are causal explanations at intermediate levels, not root causes yet. Help the user evaluate: "Is this WHY accurate? Should I explore this branch?"
+Remember: These aren't the final root causes yet - we're still working our way down. Help them evaluate: "Is this explanation accurate? Should I go down this road?"
 
-Return ONLY valid JSON with this exact structure (no markdown, no explanation):
+Return ONLY valid JSON (no markdown, no extra text):
 
 {
   "branches": [
     {
-      "option": "Clear, business-focused causal statement",
-      "next_question": "The next Why? question if user selects this",
+      "option": "Clear explanation in plain language",
+      "next_question": "The next why question if they pick this",
       "supporting_evidence": [
-        "Specific metric, data point, or business reasoning (not generic)",
-        "Another concrete indicator supporting this explanation",
-        "Third piece of evidence if relevant"
+        "Specific reason this makes sense (be concrete, not vague)",
+        "Another solid indicator",
+        "Third piece of evidence if you've got one"
       ],
       "counter_arguments": [
-        "Specific evidence that challenges this explanation",
-        "Alternative perspective or contradicting data",
+        "Specific reason this might not be right",
+        "Alternative explanation or contradicting evidence",
         "Third counter-point if relevant"
       ],
-      "consideration": "Neutral one-sentence insight comparing trade-offs or noting what this path reveals"
+      "consideration": "Neutral one-liner to help them compare options"
     }
   ]
 }`,
@@ -373,31 +348,34 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
       .join('\n');
 
     const response = await aiClients.callWithFallback({
-      systemPrompt: 'You are a strategic consultant synthesizing insights from a "5 Whys" analysis.',
-      userMessage: `ORIGINAL INPUT:
+      systemPrompt: 'You\'re helping someone understand what their 5 Whys analysis revealed. Explain it clearly in everyday language, like you\'re talking to a friend.',
+      userMessage: `Here's what they started with:
 ${input}
 
-ANALYSIS PATH:
+And here's the path we took to get to the bottom of it:
 ${pathDescription}
 
-Based on this analysis path, provide:
-1. A clear statement of the root cause identified
-2. 3-5 strategic implications
-3. 3-5 recommended actions to address the root cause
+Okay, time to wrap this up! Based on everything we uncovered, I need you to:
 
-Return ONLY valid JSON with this exact structure (no markdown, no explanation):
+1. Sum up the real core issue we found (the root cause)
+2. Explain what this means for their business (3-5 implications - keep them practical)
+3. Suggest what they should actually do about it (3-5 concrete actions)
+
+Write this in a friendly, conversational way. No corporate jargon - just clear, helpful advice.
+
+Return ONLY valid JSON (no markdown, no extra text):
 
 {
-  "root_cause": "Clear statement of the fundamental root cause",
+  "root_cause": "Clear, plain-language explanation of the real issue",
   "strategic_implications": [
-    "First strategic implication",
-    "Second strategic implication",
-    "Third strategic implication"
+    "What this means for your business (be specific)",
+    "Another implication (keep it real)",
+    "Third one if relevant"
   ],
   "recommended_actions": [
-    "First recommended action",
-    "Second recommended action",
-    "Third recommended action"
+    "Something concrete you can do",
+    "Another practical step",
+    "Third action if you've got one"
   ]
 }`,
       maxTokens: 2000,
@@ -409,36 +387,36 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
   async validateRootCause(rootCauseText: string): Promise<{ valid: boolean; message?: string }> {
     try {
       const response = await aiClients.callWithFallback({
-        systemPrompt: 'Determine if this root cause addresses BUSINESS/OPERATIONAL factors or merely describes CULTURAL observations.',
-        userMessage: `Root cause: "${rootCauseText}"
+        systemPrompt: 'Check if this root cause is about real business factors or if it is just a cultural observation.',
+        userMessage: `Root cause they found: "${rootCauseText}"
 
-VALID root causes address:
-- Market dynamics, competition, pricing power, competitive moats
-- Customer behavior, customer loyalty, brand loyalty, acquisition costs
-- Product/service differentiation, quality, features
-- Operational efficiency, cost structures, resource constraints
-- Technology capabilities, innovation, competitive advantage
-- Financial models, unit economics, retention economics
-- Go-to-market strategy, sales efficiency, conversion metrics
+Good root causes talk about business stuff like:
+- What's happening in the market (competitors, pricing, how you stand out)
+- Customer behavior (loyalty, how much it costs to get them, why they stick around)
+- Product/service features (what makes it different, quality, what it does)
+- How things run (efficiency, costs, what resources you have)
+- Technology and innovation (what gives you an edge)
+- The money side (unit economics, how you make revenue)
+- Sales and marketing (how you get customers, conversion rates)
 
-INVALID root causes that are just cultural observations:
-- Cultural norms without business impact (e.g., "people prefer tea because of tradition")
+Not-so-good root causes are just about culture:
+- Cultural norms without business impact ("people prefer tea because of tradition")
 - Geographic or ethnic stereotypes
-- Social traditions as endpoints without business logic
-- Organizational culture without operational link
-- Anthropological observations about behavior patterns
+- Social traditions without business logic
+- Organizational culture without explaining how it affects operations
+- Observations about behavior patterns without business context
 
-EXAMPLES:
-✅ VALID: "Customer loyalty creates competitive moats through brand differentiation"
-✅ VALID: "Premium positioning justifies higher costs through pricing power"
-✅ VALID: "Market saturation drives need for differentiation"
-❌ INVALID: "Cultural preference for hierarchy affects communication"
-❌ INVALID: "Traditional values prioritize face-saving"
+Examples:
+✅ GOOD: "Customer loyalty creates a competitive advantage through brand recognition"
+✅ GOOD: "Premium pricing works because you're positioned as high-end"
+✅ GOOD: "The market's crowded, so you need to stand out"
+❌ NOT BUSINESS-FOCUSED: "Cultural hierarchy affects how people communicate"
+❌ NOT BUSINESS-FOCUSED: "Traditional values about face-saving"
 
-Respond with ONLY valid JSON in this exact format:
+Respond with ONLY valid JSON:
 {
   "isValid": true or false,
-  "reason": "brief explanation in one sentence"
+  "reason": "quick explanation in one sentence"
 }`,
         maxTokens: 500,
       });
@@ -448,7 +426,7 @@ Respond with ONLY valid JSON in this exact format:
       return {
         valid: validation.isValid,
         message: validation.isValid ? undefined : 
-          `This appears to be a cultural observation rather than a business root cause. ${validation.reason} Consider exploring a different branch that focuses on market dynamics, competitive positioning, or product-market fit.`
+          `Hmm, this looks more like a cultural observation than a business root cause. ${validation.reason} Try exploring a different branch that focuses on market dynamics, competition, or how your product fits what customers need.`
       };
     } catch (error) {
       console.error('LLM validation failed, allowing root cause through:', error);
