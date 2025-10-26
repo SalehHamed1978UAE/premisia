@@ -425,6 +425,9 @@ export class EPMSynthesizer {
     onProgress?: (event: any) => void
   ): Promise<EPMProgram> {
     
+    // Track total elapsed time for progress updates
+    const startTime = Date.now();
+    
     // Generate program name
     const programName = await this.generateProgramName(insights, userContext, namingContext);
     
@@ -448,7 +451,7 @@ export class EPMSynthesizer {
     
     // PHASE 1: Generate timeline-INDEPENDENT components
     const executiveSummary = await this.generateExecutiveSummary(insights, programName);
-    const workstreams = await this.generateWorkstreams(insights, userContext, onProgress);
+    const workstreams = await this.generateWorkstreams(insights, userContext, onProgress, startTime);
     const riskRegister = await this.generateRiskRegister(insights);
     const resourcePlan = await this.generateResourcePlan(insights, workstreams, userContext);
     const financialPlan = await this.generateFinancialPlan(insights, resourcePlan, userContext);
@@ -647,11 +650,15 @@ export class EPMSynthesizer {
   private async generateWorkstreams(
     insights: StrategyInsights, 
     userContext?: UserContext,
-    onProgress?: (event: any) => void
+    onProgress?: (event: any) => void,
+    startTime?: number  // Optional start time for elapsed tracking
   ): Promise<Workstream[]> {
     console.log('\n' + '='.repeat(80));
     console.log('[EPM Synthesis] 📊 GENERATING WORKSTREAMS USING WBS BUILDER');
     console.log('='.repeat(80));
+    
+    // Use provided start time or create new one
+    const processStartTime = startTime || Date.now();
     
     try {
       // Build planning context for WBS analysis
@@ -674,14 +681,15 @@ export class EPMSynthesizer {
       // Create WBS Builder with LLM provider and progress callback
       console.log('\n[EPM Synthesis] Step 2: Creating WBS Builder with LLM provider...');
       const wbsBuilder = createWBSBuilder(this.llm, (current, total, workstreamName) => {
-        // Emit WBS workstream generation progress
+        // Emit WBS workstream generation progress with elapsed time
         if (onProgress) {
+          const elapsedSeconds = Math.round((Date.now() - processStartTime) / 1000);
           onProgress({
             type: 'step-start',
             step: 'wbs-generation',
             progress: Math.round((current / total) * 100),
             description: `Generating workstream ${current}/${total}: ${workstreamName}`,
-            elapsedSeconds: 0
+            elapsedSeconds
           });
         }
       });

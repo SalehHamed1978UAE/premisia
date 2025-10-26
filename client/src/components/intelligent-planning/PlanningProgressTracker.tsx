@@ -24,6 +24,7 @@ export function PlanningProgressTracker({
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState<string>('Initializing...');
   const [steps, setSteps] = useState<PlanningStep[]>([
+    { id: 'wbs-generation', name: 'Generating Workstreams', description: 'Creating strategic workstreams from analysis', status: 'pending' },
     { id: 'extract-tasks', name: 'Extracting Tasks', description: 'Breaking down workstreams into detailed tasks', status: 'pending' },
     { id: 'schedule', name: 'Building Schedule', description: 'Creating timeline with Critical Path Method', status: 'pending' },
     { id: 'allocate-resources', name: 'Allocating Resources', description: 'Matching skills to tasks', status: 'pending' },
@@ -73,7 +74,10 @@ export function PlanningProgressTracker({
         case 'step-start':
           setProgress(event.progress || 0);
           setCurrentStep(event.description || '');
-          setElapsedTime(event.elapsedSeconds || 0);
+          // Only update elapsed time if event provides it AND it's valid (don't reset to 0)
+          if (event.elapsedSeconds !== undefined && event.elapsedSeconds > 0) {
+            setElapsedTime(event.elapsedSeconds);
+          }
 
           setSteps(prev => prev.map(step =>
             step.id === event.step
