@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "./hooks/use-auth";
 import { ProgramProvider } from "./contexts/ProgramContext";
 import { SessionContextPanel } from "@/components/SessionContext";
+import { useJobNotifications } from "@/hooks/useJobNotifications";
 import HomePage from "@/pages/home-page";
 import ProgramsPage from "@/pages/programs-page";
 import StrategyTest from "@/pages/strategy-test";
@@ -38,6 +39,11 @@ import { Loader2 } from "lucide-react";
 
 function Router() {
   const { user } = useAuth();
+  
+  // Enable job notifications for authenticated users
+  if (user) {
+    useJobNotifications();
+  }
   
   return (
     <>

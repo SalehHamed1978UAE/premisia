@@ -45,19 +45,19 @@ export function useJobNotifications() {
       if (job.status === 'completed' && job.jobType === 'epm_generation') {
         const programId = job.resultData?.programId;
         
-        toast({
+        // Show completion notification
+        const toastId = toast({
           title: '✅ EPM Generation Complete!',
-          description: 'Your program is ready to view',
-          action: programId ? (
-            <button
-              onClick={() => setLocation(`/strategy-workspace/epm/${programId}`)}
-              className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90"
-            >
-              View Program
-            </button>
-          ) : undefined,
+          description: programId 
+            ? 'Click to view your program' 
+            : 'Your program is ready',
           duration: 15000, // Show for 15 seconds
         });
+        
+        // Navigate immediately if we have programId
+        if (programId) {
+          setTimeout(() => setLocation(`/strategy-workspace/epm/${programId}`), 500);
+        }
       } else if (job.status === 'failed') {
         toast({
           title: '❌ Generation Failed',
