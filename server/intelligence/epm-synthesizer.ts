@@ -1170,24 +1170,25 @@ export class EPMSynthesizer {
   private async generateResourcePlan(
     insights: StrategyInsights,
     workstreams: Workstream[],
-    userContext?: UserContext
+    userContext?: UserContext,
+    initiativeType?: string  // EXPLICIT: Initiative type passed from parent
   ): Promise<ResourcePlan> {
     const resourceInsights = insights.insights.filter(i => i.type === 'resource');
     
     // Estimate FTE needs based on workstreams
     const estimatedFTEs = Math.max(8, Math.min(workstreams.length * 2, 20));
     
-    // Extract initiative type from insights for initiative-aware role generation
-    const initiativeType = insights.initiativeType || 'other';
-    console.log('[DEBUG] 🔍 Resource generation:');
-    console.log(`  insights.initiativeType: ${insights.initiativeType || 'UNDEFINED'}`);
-    console.log(`  Using initiative type: ${initiativeType}`);
+    // Use explicit initiative type parameter (fallback to 'other' if undefined)
+    const finalInitiativeType = initiativeType || 'other';
+    console.log('[Resource Generation] 🎯 Initiative type source:');
+    console.log(`  Passed parameter: ${initiativeType || 'UNDEFINED'}`);
+    console.log(`  Final value used: ${finalInitiativeType}`);
     
     const internalTeam = await this.generateInternalTeam(
       estimatedFTEs, 
       workstreams, 
       resourceInsights,
-      initiativeType,
+      finalInitiativeType,
       insights
     );
     const externalResources = this.generateExternalResources(insights, userContext);
