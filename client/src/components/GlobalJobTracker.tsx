@@ -11,6 +11,7 @@ export function GlobalJobTracker() {
   const [location, setLocationNav] = useLocation();
   const [dismissedJobs, setDismissedJobs] = useState<Set<string>>(new Set());
   const [minimizedJobs, setMinimizedJobs] = useState<Set<string>>(new Set());
+  const [showAllJobs, setShowAllJobs] = useState(false);
 
   // Don't show on PrioritizationPage - it has its own detailed tracker
   const onPrioritizationPage = location.includes('/strategy-workspace/prioritization');
@@ -51,7 +52,6 @@ export function GlobalJobTracker() {
   };
 
   // Overflow handling - show summary if 4+ jobs
-  const [showAllJobs, setShowAllJobs] = useState(false);
   const hasOverflow = visibleJobs.length > 3;
   const jobsToDisplay = hasOverflow && !showAllJobs ? visibleJobs.slice(0, 2) : visibleJobs;
 
