@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db';
-import { strategyDecisions, epmPrograms, journeySessions, strategyVersions, strategicUnderstanding } from '@shared/schema';
+import { strategyDecisions, epmPrograms, journeySessions, strategyVersions, strategicUnderstanding, taskAssignments } from '@shared/schema';
 import { eq, desc, inArray } from 'drizzle-orm';
 import { BMCAnalyzer, PortersAnalyzer, PESTLEAnalyzer, EPMSynthesizer } from '../intelligence';
 import type { BMCResults, PortersResults, PESTLEResults } from '../intelligence/types';
@@ -558,6 +558,24 @@ async function processEPMGeneration(
     
     console.log(`[EPM Generation] ✅ Program saved with ID: ${programId}`);
     console.log(`[EPM Generation] Total elapsed time: ${elapsedSeconds}s`);
+    
+    // Generate and save task assignments
+    try {
+      console.log(`[EPM Generation] 📋 Generating task assignments...`);
+      const assignments = await epmSynthesizer.generateAssignments(epmProgram, programId);
+      
+      if (assignments && assignments.length > 0) {
+        // Bulk insert assignments into database
+        await db.insert(taskAssignments).values(assignments);
+        console.log(`[EPM Generation] ✅ Saved ${assignments.length} task assignments`);
+      } else {
+        console.log(`[EPM Generation] ℹ️  No assignments generated (program may lack resources or tasks)`);
+      }
+    } catch (assignmentError: any) {
+      // Don't fail the entire EPM generation if assignments fail
+      console.error(`[EPM Generation] ⚠️  Assignment generation failed (non-critical):`, assignmentError);
+    }
+    
     console.log(`[EPM Generation] Sending completion event with programId: ${programId}`);
 
     // Send completion event with program ID and elapsed time
