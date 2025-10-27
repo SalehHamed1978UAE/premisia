@@ -2057,4 +2057,80 @@ Generate ONLY the program name, nothing else.`;
     // Ultimate fallback
     return `Strategic Initiative (${framework.toUpperCase()} Analysis)`;
   }
+
+  /**
+   * Generate task assignments from EPM program data
+   * Uses the Assignment Engine to match resources to tasks
+   */
+  async generateAssignments(epmProgram: EPMProgram, epmProgramId: string): Promise<any[]> {
+    const { synthesizeAssignments } = await import('../services/assignment-engine');
+    
+    console.log('[EPM Synthesis] 📋 Generating task assignments...');
+    
+    // Convert EPM workstreams to Assignment Engine format
+    const workstreams = epmProgram.workstreams.map((ws: any) => ({
+      id: ws.id,
+      name: ws.name,
+      description: ws.description || '',
+      tasks: (ws.tasks || []).map((task: any) => ({
+        id: task.id,
+        name: task.name,
+        description: task.description || '',
+        startDate: task.start || task.startDate || new Date().toISOString(),
+        endDate: task.end || task.endDate || new Date().toISOString(),
+        duration: task.duration || 1,
+        dependencies: task.dependencies || [],
+        requiredSkills: task.skills || [],
+        estimatedEffort: task.effort || 1,
+        priority: task.priority || 'medium',
+      })),
+    }));
+
+    // Convert EPM resource plan to Assignment Engine format
+    // Combine internal team and external resources into unified format
+    // Handle legacy programs without resourcePlan
+    if (!epmProgram.resourcePlan || (!epmProgram.resourcePlan.internalTeam && !epmProgram.resourcePlan.externalResources)) {
+      console.log('[EPM Synthesis] ⚠️ No resource plan available, skipping assignment generation');
+      return [];
+    }
+
+    const internalResources = (epmProgram.resourcePlan.internalTeam || []).map((member: any, index: number) => ({
+      id: member.id || `internal-${index}`,
+      name: member.role || member.name || 'Team Member',
+      role: member.role || 'Team Member',
+      skills: member.skills || [],
+      availability: member.availability || 100,
+      costPerDay: member.costPerUnit || 0,
+    }));
+
+    const externalResources = (epmProgram.resourcePlan.externalResources || []).map((ext: any, index: number) => ({
+      id: ext.id || `external-${index}`,
+      name: ext.type || ext.description || 'External Resource',
+      role: ext.type || 'External Resource',
+      skills: [],
+      availability: 100,
+      costPerDay: (ext.estimatedCost || 0) / 30, // Convert monthly to daily
+    }));
+
+    const resourcePlan = {
+      resources: [...internalResources, ...externalResources],
+      totalBudget: epmProgram.financialPlan?.totalBudget || 0,
+    };
+
+    // Synthesize assignments using the Assignment Engine
+    const assignments = synthesizeAssignments(
+      epmProgramId,
+      workstreams,
+      resourcePlan,
+      {
+        preferredAllocation: 100,
+        skillMatchRequired: false, // Be flexible for initial generation
+        confidence: 'medium',
+      }
+    );
+
+    console.log(`[EPM Synthesis] ✓ Generated ${assignments.length} task assignments`);
+    
+    return assignments;
+  }
 }

@@ -11,6 +11,7 @@ import trendAnalysisRoutes from "./routes/trend-analysis";
 import statementRepositoryRoutes from "./routes/statement-repository.routes";
 import strategyWorkspaceRoutes from "./routes/strategy-workspace";
 import journeyBuilderRoutes from "./routes/journey-builder";
+import taskAssignmentsRoutes from "./routes/task-assignments";
 import { backgroundJobService } from "./services/background-job-service";
 import { eq, and, or, desc, sql } from "drizzle-orm";
 import { db } from "./db";
@@ -262,6 +263,9 @@ Marketing and events: $3k/month`,
 
   // Journey Builder routes (protected with auth)
   app.use("/api/journey-builder", requireAuth, journeyBuilderRoutes);
+
+  // Task Assignments routes (protected with auth)
+  app.use("/api/task-assignments", requireAuth, taskAssignmentsRoutes);
 
   // Middleware to check roles (updated for Replit Auth)
   const requireRole = (roles: string[]) => async (req: any, res: any, next: any) => {

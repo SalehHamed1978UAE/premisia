@@ -122,6 +122,10 @@ export const jobTypeEnum = pgEnum('job_type', [
   'strategic_understanding'
 ]);
 
+// Task Assignment enums
+export const assignmentSourceEnum = pgEnum('assignment_source', ['ai_generated', 'manual', 'system', 'optimized']);
+export const assignmentStatusEnum = pgEnum('assignment_status', ['proposed', 'active', 'completed', 'cancelled']);
+
 // Session storage table for Replit Auth
 export const sessions = pgTable(
   "sessions",
@@ -639,6 +643,45 @@ export const epmPrograms = pgTable("epm_programs", {
   archivedIdx: index("idx_epm_programs_archived").on(table.archived),
 }));
 
+// Task Assignments table - Links resources to tasks within EPM programs
+export const taskAssignments = pgTable("task_assignments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  epmProgramId: varchar("epm_program_id").notNull().references(() => epmPrograms.id, { onDelete: 'cascade' }),
+  
+  // Task identification (from workstreams JSONB)
+  workstreamId: varchar("workstream_id", { length: 100 }).notNull(),
+  taskId: varchar("task_id", { length: 100 }).notNull(),
+  taskName: text("task_name").notNull(),
+  
+  // Resource identification (from resourcePlan JSONB)
+  resourceId: varchar("resource_id", { length: 100 }).notNull(),
+  resourceName: text("resource_name").notNull(),
+  resourceRole: text("resource_role").notNull(),
+  
+  // Assignment details
+  allocationPercent: integer("allocation_percent").notNull().default(100), // % of resource time
+  status: assignmentStatusEnum("status").notNull().default('active'),
+  source: assignmentSourceEnum("source").notNull().default('ai_generated'),
+  confidence: confidenceLevelEnum("confidence"),
+  
+  // Timeline
+  assignedFrom: timestamp("assigned_from").notNull(),
+  assignedTo: timestamp("assigned_to").notNull(),
+  
+  // Metadata
+  notes: text("notes"),
+  metadata: jsonb("metadata"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  programIdx: index("idx_task_assignments_program").on(table.epmProgramId),
+  taskIdx: index("idx_task_assignments_task").on(table.taskId),
+  resourceIdx: index("idx_task_assignments_resource").on(table.resourceId),
+  statusIdx: index("idx_task_assignments_status").on(table.status),
+  timelineIdx: index("idx_task_assignments_timeline").on(table.assignedFrom, table.assignedTo),
+}));
+
 export const strategicEntities = pgTable("strategic_entities", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   understandingId: varchar("understanding_id").notNull().references(() => strategicUnderstanding.id, { onDelete: 'cascade' }),
@@ -977,6 +1020,7 @@ export const insertStrategicUnderstandingSchema = createInsertSchema(strategicUn
 export const insertJourneySessionSchema = createInsertSchema(journeySessions).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertStrategyDecisionSchema = createInsertSchema(strategyDecisions).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertEpmProgramSchema = createInsertSchema(epmPrograms).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTaskAssignmentSchema = createInsertSchema(taskAssignments).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertStrategicEntitySchema = createInsertSchema(strategicEntities).omit({ id: true, createdAt: true, updatedAt: true, discoveredAt: true });
 export const insertStrategicRelationshipSchema = createInsertSchema(strategicRelationships).omit({ id: true, createdAt: true, updatedAt: true, discoveredAt: true });
 
@@ -1040,6 +1084,10 @@ export type StrategicEntity = typeof strategicEntities.$inferSelect;
 export type InsertStrategicEntity = z.infer<typeof insertStrategicEntitySchema>;
 export type StrategicRelationship = typeof strategicRelationships.$inferSelect;
 export type InsertStrategicRelationship = z.infer<typeof insertStrategicRelationshipSchema>;
+
+// Task Assignment types
+export type TaskAssignment = typeof taskAssignments.$inferSelect;
+export type InsertTaskAssignment = z.infer<typeof insertTaskAssignmentSchema>;
 
 // Trend Analysis types
 export type AuthoritySource = typeof authoritySources.$inferSelect;
