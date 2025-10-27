@@ -42,15 +42,17 @@ export default function AssignmentsPanel({
   const [expandedWorkstream, setExpandedWorkstream] = useState<string | null>(null);
 
   // Get all resources from resource plan
+  // IMPORTANT: ID generation must match backend Assignment Engine (epm-synthesizer.ts)
+  // Backend uses: member.id || `internal-${index}` and ext.id || `external-${index}`
   const allResources = [
-    ...(resourcePlan?.internalTeam || []).map((r, idx) => ({ 
-      id: r.role || `internal-${idx}`, 
-      name: r.role || `Resource ${idx + 1}`, 
+    ...(resourcePlan?.internalTeam || []).map((r: any, idx) => ({ 
+      id: r.id || `internal-${idx}`, // Match backend ID generation
+      name: r.role || r.name || `Resource ${idx + 1}`, 
       type: 'internal' as const 
     })),
-    ...(resourcePlan?.externalResources || []).map((r, idx) => ({ 
-      id: r.type || `external-${idx}`, 
-      name: r.type, 
+    ...(resourcePlan?.externalResources || []).map((r: any, idx) => ({ 
+      id: r.id || `external-${idx}`, // Match backend ID generation
+      name: r.type || r.description || `External Resource ${idx + 1}`, 
       type: 'external' as const 
     }))
   ];
