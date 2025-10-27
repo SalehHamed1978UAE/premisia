@@ -124,7 +124,7 @@ export const jobTypeEnum = pgEnum('job_type', [
 
 // Task Assignment enums  
 export const assignmentSourceEnum = pgEnum('assignment_source', ['ai_generated', 'manual', 'bulk_import']);
-export const assignmentResourceTypeEnum = pgEnum('assignment_resource_type', ['internal', 'external']);
+export const assignmentResourceTypeEnum = pgEnum('assignment_resource_type', ['internal_team', 'external_resource']);
 
 // Session storage table for Replit Auth
 export const sessions = pgTable(

@@ -2157,7 +2157,7 @@ Generate ONLY the program name, nothing else.`;
       id: member.id || `internal-${index}`,
       name: member.role || member.name || 'Team Member',
       role: member.role || 'Team Member',
-      type: 'internal' as const, // CRITICAL: Required for database assignment resourceType
+      type: 'internal_team' as const, // CRITICAL: Must match database enum assignment_resource_type
       skills: member.skills || [],
       availability: member.availability || 100,
       costPerDay: member.costPerUnit || 0,
@@ -2167,7 +2167,7 @@ Generate ONLY the program name, nothing else.`;
       id: ext.id || `external-${index}`,
       name: ext.type || ext.description || 'External Resource',
       role: ext.type || 'External Resource',
-      type: 'external' as const, // CRITICAL: Required for database assignment resourceType
+      type: 'external_resource' as const, // CRITICAL: Must match database enum assignment_resource_type
       skills: [],
       availability: 100,
       costPerDay: (ext.estimatedCost || 0) / 30, // Convert monthly to daily
