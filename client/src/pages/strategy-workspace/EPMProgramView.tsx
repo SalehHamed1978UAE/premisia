@@ -29,6 +29,8 @@ import {
   ExitStrategyFormatter,
 } from "@/components/epm/EPMFormatters";
 import GanttChartView from "@/components/epm/GanttChartView";
+import AssignmentsPanel from "@/components/epm/AssignmentsPanel";
+import ResourceWorkloadView from "@/components/epm/ResourceWorkloadView";
 import type {
   ExecutiveSummary,
   Workstream,
@@ -378,6 +380,17 @@ export default function EPMProgramView() {
               data={program.financialPlan}
               confidence={program.componentConfidence.financialPlan || 0.75}
             />
+            
+            {/* Task Assignments */}
+            <AssignmentsPanel
+              programId={program.id}
+              workstreams={program.workstreams}
+              resourcePlan={program.resourcePlan}
+              readonly={program.status === 'finalized'}
+            />
+            
+            {/* Resource Workload */}
+            <ResourceWorkloadView programId={program.id} />
           </TabsContent>
 
           <TabsContent value="benefits" className="space-y-4">
