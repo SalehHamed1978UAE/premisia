@@ -18,8 +18,10 @@ import { eq, and, sql, desc } from "drizzle-orm";
 import { aiClients } from "./ai-clients";
 import { 
   getStrategicUnderstandingBySession, 
-  saveStrategicUnderstanding 
+  saveStrategicUnderstanding,
+  getStrategicEntitiesByUnderstanding as getEntitiesSecure
 } from "./services/secure-data-service";
+import { encrypt, encryptJSON, decrypt, decryptJSON } from "./utils/encryption";
 
 const EMBEDDING_MODEL = "text-embedding-3-small";
 const EMBEDDING_DIMENSIONS = 1536;
@@ -319,22 +321,22 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
     const claims = validEntities.map(e => e.claim);
     const embeddings = await this.generateEmbeddingsBatch(claims);
     
-    // Prepare all entity data
+    // Prepare all entity data with encryption for sensitive fields
     const entitiesData: InsertStrategicEntity[] = validEntities.map((entity, i) => ({
       understandingId: understanding.id,
       type: entity.type as any,
-      claim: entity.claim,
+      claim: encrypt(entity.claim)!, // 🔐 Encrypted
       confidence: entity.confidence,
       embedding: embeddings[i] as any,
-      source: entity.source,
-      evidence: entity.evidence || null,
-      category: entity.category || null,
-      subcategory: entity.subcategory || null,
+      source: encrypt(entity.source)!, // 🔐 Encrypted
+      evidence: entity.evidence ? encrypt(entity.evidence) : null, // 🔐 Encrypted if present
+      category: entity.category ? encrypt(entity.category) : null, // 🔐 Encrypted if present
+      subcategory: entity.subcategory ? encrypt(entity.subcategory) : null, // 🔐 Encrypted if present
       investmentAmount: entity.investmentAmount || null,
       discoveredBy: 'user_input' as any,
       validFrom: new Date(),
       validTo: null,
-      metadata: null,
+      metadata: null, // 🔐 Would be encrypted if present
     }));
     
     // Persist all entities with retry (handles connection timeouts)
@@ -410,21 +412,22 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
   ): Promise<StrategicEntity> {
     const embedding = await this.generateEmbedding(entity.claim);
 
+    // Encrypt sensitive fields before inserting
     const entityData: InsertStrategicEntity = {
       understandingId,
       type: entity.type as any,
-      claim: entity.claim,
+      claim: encrypt(entity.claim)!, // 🔐 Encrypted
       confidence: entity.confidence,
       embedding: embedding as any,
-      source: entity.source,
-      evidence: entity.evidence || null,
-      category: entity.category || null,
-      subcategory: entity.subcategory || null,
+      source: encrypt(entity.source)!, // 🔐 Encrypted
+      evidence: entity.evidence ? encrypt(entity.evidence) : null, // 🔐 Encrypted if present
+      category: entity.category ? encrypt(entity.category) : null, // 🔐 Encrypted if present
+      subcategory: entity.subcategory ? encrypt(entity.subcategory) : null, // 🔐 Encrypted if present
       investmentAmount: entity.investmentAmount || null,
       discoveredBy: discoveredBy as any,
       validFrom: new Date(),
       validTo: null,
-      metadata: null,
+      metadata: null, // 🔐 Would be encrypted if present
     };
 
     // Use retryWithBackoff since this is often called after long operations
@@ -434,7 +437,17 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
         .values(entityData)
         .returning();
 
-      return inserted[0];
+      // Decrypt before returning (callers expect plaintext)
+      const record = inserted[0];
+      return {
+        ...record,
+        claim: decrypt(record.claim) || record.claim,
+        source: decrypt(record.source) || record.source,
+        evidence: record.evidence ? decrypt(record.evidence) || record.evidence : null,
+        category: record.category ? decrypt(record.category) || record.category : null,
+        subcategory: record.subcategory ? decrypt(record.subcategory) || record.subcategory : null,
+        metadata: record.metadata ? decryptJSON(record.metadata) || record.metadata : null,
+      };
     });
   }
 
@@ -447,16 +460,17 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
     discoveredBy: 'user_input' | 'bmc_agent' | '5whys_agent' | 'porters_agent' | 'trends_agent' | 'system' = 'system',
     metadata?: any
   ): Promise<StrategicRelationship> {
+    // Encrypt sensitive fields before inserting
     const relationshipData: InsertStrategicRelationship = {
       fromEntityId,
       toEntityId,
       relationshipType: relationshipType as any,
       confidence,
-      evidence: evidence || null,
+      evidence: evidence ? encrypt(evidence) : null, // 🔐 Encrypted if present
       discoveredBy: discoveredBy as any,
       validFrom: new Date(),
       validTo: null,
-      metadata: metadata || null,
+      metadata: metadata ? encryptJSON(metadata) : null, // 🔐 Encrypted if present
     };
 
     // Use retryWithBackoff since this is often called after long operations
@@ -466,7 +480,12 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
         .values(relationshipData)
         .returning();
 
-      return inserted[0];
+      // Decrypt before returning
+      return {
+        ...inserted[0],
+        evidence: inserted[0].evidence ? decrypt(inserted[0].evidence) || inserted[0].evidence : null,
+        metadata: inserted[0].metadata ? decryptJSON(inserted[0].metadata) || inserted[0].metadata : null,
+      };
     });
   }
 
@@ -481,21 +500,22 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
     embedding: number[],
     discoveredBy: 'user_input' | 'bmc_agent' | '5whys_agent' | 'porters_agent' | 'trends_agent' | 'system' = 'system'
   ): Promise<StrategicEntity> {
+    // Encrypt sensitive fields before inserting
     const entityData: InsertStrategicEntity = {
       understandingId,
       type: entity.type as any,
-      claim: entity.claim,
+      claim: encrypt(entity.claim)!, // 🔐 Encrypted
       confidence: entity.confidence,
       embedding: embedding as any,
-      source: entity.source,
-      evidence: entity.evidence || null,
-      category: entity.category || null,
-      subcategory: entity.subcategory || null,
+      source: encrypt(entity.source)!, // 🔐 Encrypted
+      evidence: entity.evidence ? encrypt(entity.evidence) : null, // 🔐 Encrypted if present
+      category: entity.category ? encrypt(entity.category) : null, // 🔐 Encrypted if present
+      subcategory: entity.subcategory ? encrypt(entity.subcategory) : null, // 🔐 Encrypted if present
       investmentAmount: entity.investmentAmount || null,
       discoveredBy: discoveredBy as any,
       validFrom: new Date(),
       validTo: null,
-      metadata: null,
+      metadata: null, // 🔐 Would be encrypted if present
     };
 
     const inserted = await db
@@ -503,7 +523,17 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
       .values(entityData)
       .returning();
 
-    return inserted[0];
+    // Decrypt before returning (callers expect plaintext)
+    const record = inserted[0];
+    return {
+      ...record,
+      claim: decrypt(record.claim) || record.claim,
+      source: decrypt(record.source) || record.source,
+      evidence: record.evidence ? decrypt(record.evidence) || record.evidence : null,
+      category: record.category ? decrypt(record.category) || record.category : null,
+      subcategory: record.subcategory ? decrypt(record.subcategory) || record.subcategory : null,
+      metadata: record.metadata ? decryptJSON(record.metadata) || record.metadata : null,
+    };
   }
 
   /**
@@ -519,16 +549,17 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
     discoveredBy: 'user_input' | 'bmc_agent' | '5whys_agent' | 'porters_agent' | 'trends_agent' | 'system' = 'system',
     metadata?: any
   ): Promise<StrategicRelationship> {
+    // Encrypt sensitive fields before inserting
     const relationshipData: InsertStrategicRelationship = {
       fromEntityId,
       toEntityId,
       relationshipType: relationshipType as any,
       confidence,
-      evidence: evidence || null,
+      evidence: evidence ? encrypt(evidence) : null, // 🔐 Encrypted if present
       discoveredBy: discoveredBy as any,
       validFrom: new Date(),
       validTo: null,
-      metadata: metadata || null,
+      metadata: metadata ? encryptJSON(metadata) : null, // 🔐 Encrypted if present
     };
 
     const inserted = await db
@@ -536,17 +567,24 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
       .values(relationshipData)
       .returning();
 
-    return inserted[0];
+    // Decrypt before returning (callers expect plaintext)
+    const record = inserted[0];
+    return {
+      ...record,
+      evidence: record.evidence ? decrypt(record.evidence) || record.evidence : null,
+      metadata: record.metadata ? decryptJSON(record.metadata) || record.metadata : null,
+    };
   }
 
   async getEntitiesByUnderstanding(understandingId: string): Promise<StrategicEntity[]> {
-    // Use fresh connection for read operations after long gaps
-    return await dbConnectionManager.withFreshConnection(async (db) => {
-      return await db
-        .select()
-        .from(strategicEntities)
-        .where(eq(strategicEntities.understandingId, understandingId))
-        .orderBy(desc(strategicEntities.discoveredAt));
+    // Use secure service to automatically decrypt entities
+    const entities = await getEntitiesSecure(understandingId);
+    
+    // Sort by discoveredAt descending (same as original behavior)
+    return entities.sort((a, b) => {
+      const aTime = a.discoveredAt?.getTime() || 0;
+      const bTime = b.discoveredAt?.getTime() || 0;
+      return bTime - aTime;
     });
   }
 

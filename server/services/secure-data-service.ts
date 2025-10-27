@@ -179,24 +179,34 @@ function decryptJourneySession(record: any): SecureJourneySession {
 
 export interface SecureStrategicEntity {
   id?: string;
-  userId: string;
-  sessionId: string;
-  entityType: string;
-  content: string;
-  properties?: any;
+  understandingId: string;
+  type: any;
+  claim: string;
+  confidence?: any;
+  embedding?: any;
+  source: string;
   evidence?: string | null;
-  reasoning?: string | null;
-  confidence?: string;
+  category?: string | null;
+  subcategory?: string | null;
+  investmentAmount?: number | null;
+  discoveredBy: any;
+  discoveredAt?: Date;
+  validFrom?: Date;
+  validTo?: Date | null;
+  metadata?: any;
   createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export async function saveStrategicEntity(data: SecureStrategicEntity) {
   const encrypted = {
     ...data,
-    content: encrypt(data.content)!,
-    properties: data.properties ? encryptJSON(data.properties) : null,
+    claim: encrypt(data.claim)!,
+    source: encrypt(data.source)!,
     evidence: data.evidence ? encrypt(data.evidence) : null,
-    reasoning: data.reasoning ? encrypt(data.reasoning) : null,
+    category: data.category ? encrypt(data.category) : null,
+    subcategory: data.subcategory ? encrypt(data.subcategory) : null,
+    metadata: data.metadata ? encryptJSON(data.metadata) : null,
   };
 
   const result = await db.insert(strategicEntities)
@@ -206,13 +216,63 @@ export async function saveStrategicEntity(data: SecureStrategicEntity) {
   return decryptStrategicEntity(result[0]);
 }
 
+export async function getStrategicEntitiesByUnderstanding(understandingId: string) {
+  const result = await db.select()
+    .from(strategicEntities)
+    .where(eq(strategicEntities.understandingId, understandingId));
+
+  return result.map(decryptStrategicEntity);
+}
+
 function decryptStrategicEntity(record: any): SecureStrategicEntity {
   return {
     ...record,
-    content: decrypt(record.content) || record.content,
-    properties: record.properties ? decryptJSON(record.properties) || record.properties : null,
+    claim: decrypt(record.claim) || record.claim,
+    source: decrypt(record.source) || record.source,
     evidence: record.evidence ? decrypt(record.evidence) || record.evidence : null,
-    reasoning: record.reasoning ? decrypt(record.reasoning) || record.reasoning : null,
+    category: record.category ? decrypt(record.category) || record.category : null,
+    subcategory: record.subcategory ? decrypt(record.subcategory) || record.subcategory : null,
+    metadata: record.metadata ? decryptJSON(record.metadata) || record.metadata : null,
+  };
+}
+
+// ==================== STRATEGIC RELATIONSHIPS (Knowledge Graph) ====================
+
+export interface SecureStrategicRelationship {
+  id?: string;
+  fromEntityId: string;
+  toEntityId: string;
+  relationshipType: any;
+  confidence?: any;
+  evidence?: string | null;
+  discoveredBy: any;
+  discoveredAt?: Date;
+  validFrom?: Date;
+  validTo?: Date | null;
+  metadata?: any;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export async function saveStrategicRelationship(data: SecureStrategicRelationship) {
+  const encrypted = {
+    ...data,
+    evidence: data.evidence ? encrypt(data.evidence) : null,
+    metadata: data.metadata ? encryptJSON(data.metadata) : null,
+  };
+
+  const result = await db.insert(strategicRelationships)
+    .values(encrypted as any)
+    .returning();
+
+  return decryptStrategicRelationship(result[0]);
+}
+
+function decryptStrategicRelationship(record: any): SecureStrategicRelationship {
+  return {
+    ...record,
+    evidence: record.evidence ? decrypt(record.evidence) || record.evidence : null,
+    metadata: record.metadata ? decryptJSON(record.metadata) || record.metadata : null,
   };
 }
 
