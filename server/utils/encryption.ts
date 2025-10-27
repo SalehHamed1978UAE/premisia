@@ -67,8 +67,8 @@ export function decrypt(encryptedData: string | null | undefined): string | null
     
     return decrypted.toString('utf8');
   } catch (error) {
-    console.error('Decryption error:', error);
-    throw new Error('Failed to decrypt data');
+    console.warn('Decryption failed, treating as unencrypted legacy data:', error);
+    return encryptedData;
   }
 }
 
@@ -94,8 +94,18 @@ export function decryptJSON<T>(encryptedData: string | null): T | null {
 export function isEncrypted(data: string | null | undefined): boolean {
   if (!data) return false;
   
-  const colonCount = (data.match(/:/g) || []).length;
-  return colonCount === 2 && data.split(':').every(part => part.length > 0);
+  const parts = data.split(':');
+  if (parts.length !== 3) return false;
+  
+  try {
+    const iv = Buffer.from(parts[0], 'base64');
+    const authTag = Buffer.from(parts[1], 'base64');
+    const encrypted = Buffer.from(parts[2], 'base64');
+    
+    return iv.length === IV_LENGTH && authTag.length === TAG_LENGTH && encrypted.length > 0;
+  } catch (error) {
+    return false;
+  }
 }
 
 export function validateEncryptionKey(): void {
