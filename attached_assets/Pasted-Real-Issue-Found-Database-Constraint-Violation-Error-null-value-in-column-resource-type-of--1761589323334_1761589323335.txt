@@ -1,0 +1,92 @@
+Real Issue Found: Database Constraint Violation
+
+  Error:
+  null value in column "resource_type" of relation "task_assignments"
+  violates not-null constraint
+
+  What's happening:
+  1. ✅ Skills are now being extracted correctly
+  2. ✅ Assignment engine is matching resources to tasks (9 assignments
+  created!)
+  3. ❌ Database insert fails because resourceType field is NULL
+  4. ❌ Database schema requires resourceType to be 'internal' or 'external'
+
+  The Fix Needed:
+
+  Replit needs to update synthesizeAssignments in
+  /server/services/assignment-engine.ts around line 118:
+
+  // CURRENT (Missing resourceType):
+  assignments.push({
+    epmProgramId,
+    workstreamId: workstream.id,
+    taskId: task.id,
+    taskName: task.name,
+    resourceId: matchedResource.id,
+    resourceName: matchedResource.name,
+    resourceRole: matchedResource.role,
+    // ❌ resourceType is MISSING!
+    allocationPercent: preferredAllocation,
+    status: 'active',
+    ...
+  });
+
+  // SHOULD BE:
+  assignments.push({
+    epmProgramId,
+    workstreamId: workstream.id,
+    taskId: task.id,
+    taskName: task.name,
+    resourceId: matchedResource.id,
+    resourceName: matchedResource.name,
+    resourceRole: matchedResource.role,
+    resourceType: matchedResource.type || 'internal', // ✅ Add this!
+    allocationPercent: preferredAllocation,
+    status: 'active',
+    ...
+  });
+
+  And update the Resource interface to include type:
+
+  In /server/services/assignment-engine.ts around line 38:
+
+  export interface Resource {
+    id: string;
+    name: string;
+    role: string;
+    type?: 'internal' | 'external'; // ✅ Add this
+    skills?: string[];
+    availability?: number;
+    costPerDay?: number;
+  }
+
+  And when converting resources in epm-synthesizer.ts line 2097 & 2106:
+
+  // Internal resources
+  const internalResources = (epmProgram.resourcePlan.internalTeam ||
+  []).map((member: any, index: number) => ({
+    id: member.id || `internal-${index}`,
+    name: member.role || member.name || 'Team Member',
+    role: member.role || 'Team Member',
+    type: 'internal', // ✅ Add this
+    skills: member.skills || [],
+    availability: member.availability || 100,
+    costPerDay: member.costPerUnit || 0,
+  }));
+
+  // External resources
+  const externalResources = (epmProgram.resourcePlan.externalResources ||
+  []).map((ext: any, index: number) => ({
+    id: ext.id || `external-${index}`,
+    name: ext.type || ext.description || 'External Resource',
+    role: ext.type || 'External Resource',
+    type: 'external', // ✅ Add this
+    skills: [],
+    availability: 100,
+    costPerDay: (ext.estimatedCost || 0) / 30,
+  }));
+
+  ---
+  Replit: Go ahead with this fix! Once resourceType is included, the database
+   inserts should succeed and resources will be properly assigned. We're
+  almost there! 🎯
