@@ -378,7 +378,9 @@ function transformScheduleForEPM(schedule: any): any {
         dependencies: task.dependencies,
         deliverables: task.deliverables || [],
         owner: task.assignedResources?.[0] || 'Unassigned',
-        description: task.description
+        description: task.description,
+        requirements: task.requirements || [], // Preserve skill requirements for assignment generation
+        skills: task.skills || [] // Also preserve direct skills array if present
       };
     }),
     totalMonths: schedule.totalDuration,
@@ -437,7 +439,11 @@ function integrateScheduleIntoEPM(epmProgram: any, schedule: any): any {
           task.endMonth
         ),
         owner: task.owner || originalWorkstream.owner,
-        description: task.description || originalWorkstream.description
+        description: task.description || originalWorkstream.description,
+        requirements: task.requirements || [], // CRITICAL: Preserve requirements for assignment generation
+        skills: task.skills || [], // CRITICAL: Preserve skills for assignment generation
+        startDate: task.startDate, // Add explicit dates for assignment engine
+        endDate: task.endDate
       };
     });
   }
