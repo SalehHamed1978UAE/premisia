@@ -39,6 +39,7 @@ export interface Resource {
   id: string;
   name: string;
   role: string;
+  type?: 'internal' | 'external'; // Resource type for database assignment
   skills?: string[];
   availability?: number; // % availability (0-100)
   costPerDay?: number;
@@ -123,6 +124,7 @@ export function synthesizeAssignments(
           resourceId: matchedResource.id,
           resourceName: matchedResource.name,
           resourceRole: matchedResource.role,
+          resourceType: matchedResource.type || 'internal', // CRITICAL: Required by database schema
           allocationPercent: preferredAllocation,
           status: 'active',
           source: 'ai_generated',
