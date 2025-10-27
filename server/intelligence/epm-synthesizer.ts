@@ -2080,7 +2080,19 @@ Generate ONLY the program name, nothing else.`;
         endDate: task.end || task.endDate || new Date().toISOString(),
         duration: task.duration || 1,
         dependencies: task.dependencies || [],
-        requiredSkills: task.skills || [],
+        // Extract skills from requirements array (intelligent planning format)
+        // or fall back to skills array (legacy format)
+        requiredSkills: (() => {
+          if (Array.isArray(task.requirements) && task.requirements.length > 0) {
+            const extractedSkills = task.requirements
+              .map((req: any) => req?.skill)
+              .filter((skill: any) => typeof skill === 'string' && skill.length > 0);
+            if (extractedSkills.length > 0) {
+              return extractedSkills;
+            }
+          }
+          return task.skills || [];
+        })(),
         estimatedEffort: task.effort || 1,
         priority: task.priority || 'medium',
       })),
