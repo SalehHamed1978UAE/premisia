@@ -16,6 +16,10 @@ import type {
 } from "@shared/schema";
 import { eq, and, sql, desc } from "drizzle-orm";
 import { aiClients } from "./ai-clients";
+import { 
+  getStrategicUnderstandingBySession, 
+  saveStrategicUnderstanding 
+} from "./services/secure-data-service";
 
 const EMBEDDING_MODEL = "text-embedding-3-small";
 const EMBEDDING_DIMENSIONS = 1536;
@@ -95,17 +99,11 @@ export class StrategicUnderstandingService {
   }
 
   async getOrCreateUnderstanding(sessionId: string, userInput: string, companyContext?: any): Promise<StrategicUnderstanding> {
-    // STEP 1: Check if understanding exists (short DB operation)
-    const existing = await dbConnectionManager.withFreshConnection(async (db) => {
-      return await db
-        .select()
-        .from(strategicUnderstanding)
-        .where(eq(strategicUnderstanding.sessionId, sessionId))
-        .limit(1);
-    });
+    // STEP 1: Check if understanding exists using secure service
+    const existing = await getStrategicUnderstandingBySession(sessionId);
 
-    if (existing.length > 0) {
-      return existing[0];
+    if (existing) {
+      return existing as StrategicUnderstanding;
     }
 
     // STEP 2: Generate title (LONG AI operation, NO database connection held)
@@ -119,8 +117,8 @@ export class StrategicUnderstandingService {
       title = userInput.substring(0, 60).trim() + (userInput.length > 60 ? '...' : '');
     }
 
-    // STEP 3: Insert understanding (short DB operation with retry)
-    const understanding: InsertStrategicUnderstanding = {
+    // STEP 3: Insert understanding using secure service (encrypts sensitive fields)
+    const understanding = {
       sessionId,
       userInput,
       title,
@@ -130,14 +128,11 @@ export class StrategicUnderstandingService {
       lastEnrichedAt: null,
     };
 
-    return await dbConnectionManager.retryWithBackoff(async (db) => {
-      const inserted = await db
-        .insert(strategicUnderstanding)
-        .values(understanding)
-        .returning();
-
-      return inserted[0];
-    });
+    console.log('[StrategicUnderstanding] 🔐 Encrypting and saving Strategic Understanding...');
+    const saved = await saveStrategicUnderstanding(understanding);
+    console.log('[StrategicUnderstanding] ✓ Strategic Understanding saved with encryption');
+    
+    return saved as StrategicUnderstanding;
   }
 
   async extractUnderstanding(options: ExtractUnderstandingOptions): Promise<{ understandingId: string; entities: EntityExtractionResult[] }> {

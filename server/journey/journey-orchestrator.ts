@@ -18,6 +18,7 @@ import { applyWhysToBMCBridge } from './bridges/whys-to-bmc-bridge';
 import { WhysTreeGenerator } from '../strategic-consultant/whys-tree-generator';
 import { BMCResearcher } from '../strategic-consultant/bmc-researcher';
 import { dbConnectionManager } from '../db-connection-manager';
+import { getStrategicUnderstanding } from '../services/secure-data-service';
 
 export class JourneyOrchestrator {
   /**
@@ -33,19 +34,15 @@ export class JourneyOrchestrator {
       throw new Error(`Journey "${journeyType}" is not yet implemented`);
     }
 
-    // Load understanding
-    const understanding = await db
-      .select()
-      .from(strategicUnderstanding)
-      .where(eq(strategicUnderstanding.id, understandingId))
-      .then(rows => rows[0]);
+    // Load understanding using secure service
+    const understanding = await getStrategicUnderstanding(understandingId);
 
     if (!understanding) {
       throw new Error(`Understanding ${understandingId} not found`);
     }
 
-    // Initialize context
-    const context = initializeContext(understanding, journeyType);
+    // Initialize context (cast to full type since we've confirmed it exists)
+    const context = initializeContext(understanding as any, journeyType);
 
     // Create journey session in database
     const [journeySession] = await db

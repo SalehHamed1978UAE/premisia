@@ -1,6 +1,7 @@
 import { db } from './db.ts';
 import { strategicEntities, strategicUnderstanding } from '@shared/schema';
 import { eq } from 'drizzle-orm';
+import { getStrategicUnderstanding } from './services/secure-data-service';
 
 export interface DomainContext {
   industry?: string;
@@ -16,18 +17,12 @@ class DomainExtractionService {
    * Extract domain context from strategic understanding
    */
   async extractDomain(understandingId: string): Promise<DomainContext> {
-    // Get strategic understanding
-    const understanding = await db
-      .select()
-      .from(strategicUnderstanding)
-      .where(eq(strategicUnderstanding.id, understandingId))
-      .limit(1);
+    // Get strategic understanding using secure service
+    const understandingData = await getStrategicUnderstanding(understandingId);
 
-    if (!understanding || understanding.length === 0) {
+    if (!understandingData) {
       throw new Error(`Strategic understanding ${understandingId} not found`);
     }
-
-    const understandingData = understanding[0];
 
     // Get entities for this understanding
     const entities = await db

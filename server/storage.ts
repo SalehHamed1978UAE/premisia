@@ -17,6 +17,7 @@ import { pool } from "./db";
 import type { Store } from "express-session";
 import { ontologyService } from "./ontology-service";
 import type { EPMEntity } from "@shared/ontology";
+import { getStrategicUnderstandingBySession } from "./services/secure-data-service";
 
 const PostgresSessionStore = connectPg(session);
 
@@ -610,12 +611,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getInitiativeDescriptionForSession(sessionId: string): Promise<string | null> {
-    const [understanding] = await db
-      .select({ initiativeDescription: strategicUnderstanding.initiativeDescription })
-      .from(strategicUnderstanding)
-      .where(eq(strategicUnderstanding.sessionId, sessionId))
-      .limit(1);
-    
+    // Use secure service to get decrypted data
+    const understanding = await getStrategicUnderstandingBySession(sessionId);
     return understanding?.initiativeDescription || null;
   }
 

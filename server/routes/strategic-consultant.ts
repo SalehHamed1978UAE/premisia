@@ -21,6 +21,7 @@ import { journeyRegistry } from '../journey/journey-registry';
 import type { JourneyType } from '@shared/journey-types';
 import { InitiativeClassifier } from '../strategic-consultant/initiative-classifier';
 import { ambiguityDetector } from '../services/ambiguity-detector.js';
+import { getStrategicUnderstanding, getStrategicUnderstandingBySession, updateStrategicUnderstanding } from '../services/secure-data-service';
 
 const router = Router();
 const upload = multer({ 
@@ -165,18 +166,16 @@ router.post('/understanding', async (req: Request, res: Response) => {
 
     console.log(`[Understanding] Analysis complete - extracted ${result.entities.length} entities`);
     
-    // Step 3: Update the understanding record with classification data
-    await db
-      .update(strategicUnderstanding)
-      .set({
-        initiativeType: classification.initiativeType,
-        initiativeDescription: classification.description,
-        classificationConfidence: classification.confidence.toString(), // Convert to string for decimal type
-        userConfirmed: false, // Not yet confirmed by user
-      })
-      .where(eq(strategicUnderstanding.id, result.understandingId));
+    // Step 3: Update the understanding record with classification data using secure service
+    console.log('[Understanding] 🔐 Encrypting and saving initiative classification...');
+    await updateStrategicUnderstanding(result.understandingId, {
+      initiativeType: classification.initiativeType,
+      initiativeDescription: classification.description,
+      classificationConfidence: classification.confidence.toString(), // Convert to string for decimal type
+      userConfirmed: false, // Not yet confirmed by user
+    });
     
-    console.log('[Understanding] Initiative classification saved to database');
+    console.log('[Understanding] ✓ Initiative classification saved to database with encryption');
 
     res.json({
       success: true,
@@ -206,24 +205,21 @@ router.get('/understanding/:understandingId', async (req: Request, res: Response
       return res.status(400).json({ error: 'Understanding ID is required' });
     }
 
-    const understanding = await db
-      .select()
-      .from(strategicUnderstanding)
-      .where(eq(strategicUnderstanding.id, understandingId))
-      .limit(1);
+    // Use secure service to get decrypted data
+    const understanding = await getStrategicUnderstanding(understandingId);
 
-    if (understanding.length === 0) {
+    if (!understanding) {
       return res.status(404).json({ error: 'Understanding not found' });
     }
 
     res.json({
-      id: understanding[0].id,
-      sessionId: understanding[0].sessionId,
-      userInput: understanding[0].userInput,
-      initiativeType: understanding[0].initiativeType,
-      initiativeDescription: understanding[0].initiativeDescription,
-      classificationConfidence: understanding[0].classificationConfidence,
-      userConfirmed: understanding[0].userConfirmed,
+      id: understanding.id,
+      sessionId: understanding.sessionId,
+      userInput: understanding.userInput,
+      initiativeType: understanding.initiativeType,
+      initiativeDescription: understanding.initiativeDescription,
+      classificationConfidence: understanding.classificationConfidence,
+      userConfirmed: understanding.userConfirmed,
     });
   } catch (error: any) {
     console.error('Error in /understanding/:understandingId:', error);
@@ -241,14 +237,10 @@ router.patch('/classification', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Valid understanding ID is required' });
     }
 
-    // Verify understanding exists BEFORE attempting update
-    const understanding = await db
-      .select()
-      .from(strategicUnderstanding)
-      .where(eq(strategicUnderstanding.id, understandingId))
-      .limit(1);
+    // Verify understanding exists BEFORE attempting update (using secure service)
+    const understanding = await getStrategicUnderstanding(understandingId);
 
-    if (understanding.length === 0) {
+    if (!understanding) {
       return res.status(404).json({ error: 'Understanding not found' });
     }
 
@@ -297,13 +289,10 @@ router.patch('/classification', async (req: Request, res: Response) => {
       });
     }
 
-    // Update the record
-    await db
-      .update(strategicUnderstanding)
-      .set(updateData)
-      .where(eq(strategicUnderstanding.id, understandingId));
-
-    console.log('[Classification] Updated classification for understanding:', understandingId, updateData);
+    // Update the record using secure service (encrypts sensitive fields if present)
+    console.log('[Classification] 🔐 Updating classification with encryption protection...');
+    await updateStrategicUnderstanding(understandingId, updateData);
+    console.log('[Classification] ✓ Updated classification for understanding:', understandingId, updateData);
 
     res.json({
       success: true,
@@ -327,13 +316,10 @@ router.post('/journeys/execute', async (req: Request, res: Response) => {
       });
     }
 
-    const understanding = await db
-      .select()
-      .from(strategicUnderstanding)
-      .where(eq(strategicUnderstanding.id, understandingId))
-      .limit(1);
+    // Use secure service to get decrypted data
+    const understanding = await getStrategicUnderstanding(understandingId);
 
-    if (understanding.length === 0) {
+    if (!understanding) {
       return res.status(404).json({ error: 'Understanding not found' });
     }
 
@@ -353,19 +339,19 @@ router.post('/journeys/execute', async (req: Request, res: Response) => {
 
     // Create journey session to track progress
     const journeySessionId = await journeyOrchestrator.startJourney(
-      understanding[0].id,
+      understanding.id!,
       journeyType as JourneyType,
       userId
     );
 
     // Return the first page in the journey sequence for client-side navigation
     const firstPage = (journey as any).pageSequence?.[0] || '/strategic-consultant/whys-tree/:understandingId';
-    const navigationUrl = firstPage.replace(':understandingId', understandingId).replace(':sessionId', understanding[0].sessionId);
+    const navigationUrl = firstPage.replace(':understandingId', understandingId).replace(':sessionId', understanding.sessionId);
 
     res.json({
       success: true,
       journeySessionId,
-      sessionId: understanding[0].sessionId, // Session ID used in navigation URLs
+      sessionId: understanding.sessionId, // Session ID used in navigation URLs
       journeyType,
       message: 'Journey initialized successfully',
       navigationUrl,
@@ -1656,13 +1642,10 @@ router.get('/understanding/:sessionId', async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params;
     
-    const result = await db
-      .select()
-      .from(strategicUnderstanding)
-      .where(eq(strategicUnderstanding.sessionId, sessionId))
-      .limit(1);
+    // Use secure service to get decrypted data
+    const result = await getStrategicUnderstandingBySession(sessionId);
     
-    if (result.length === 0) {
+    if (!result) {
       return res.status(404).json({ 
         success: false,
         error: 'Strategic understanding not found for this session' 
@@ -1671,7 +1654,7 @@ router.get('/understanding/:sessionId', async (req: Request, res: Response) => {
     
     res.json({
       success: true,
-      understandingId: result[0].id,
+      understandingId: result.id,
     });
   } catch (error: any) {
     console.error('Error fetching understanding ID:', error);
