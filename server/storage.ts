@@ -648,13 +648,15 @@ export class DatabaseStorage implements IStorage {
       ));
 
     // Get recent artifacts (filter out archived items)
+    // Join with strategic_understanding to get the understanding ID for repository links
     const recentVersions = await db
       .select({
-        id: strategyVersions.id,
+        understandingId: strategicUnderstanding.id,
         inputSummary: strategyVersions.inputSummary,
         createdAt: strategyVersions.createdAt,
       })
       .from(strategyVersions)
+      .innerJoin(strategicUnderstanding, eq(strategyVersions.sessionId, strategicUnderstanding.sessionId))
       .where(and(
         eq(strategyVersions.userId, userId),
         eq(strategyVersions.archived, false)
@@ -680,11 +682,11 @@ export class DatabaseStorage implements IStorage {
     // Combine and sort by date
     const artifacts = [
       ...recentVersions.map(v => ({
-        id: v.id,
+        id: v.understandingId,
         type: 'analysis' as const,
         title: v.inputSummary || 'Strategic Analysis',
         createdAt: v.createdAt!,
-        link: `/repository/${v.id}`
+        link: `/repository/${v.understandingId}`
       })),
       ...recentPrograms.map(p => {
         // Extract program name from executiveSummary
