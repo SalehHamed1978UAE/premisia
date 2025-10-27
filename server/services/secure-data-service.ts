@@ -117,10 +117,29 @@ function decryptStrategicUnderstanding(record: any): SecureStrategicUnderstandin
 export interface SecureJourneySession {
   id?: string;
   userId: string;
-  sessionId: string;
+  sessionId?: string;
+  understandingId?: string;
+  journeyType?: string;
+  status?: string;
+  currentFrameworkIndex?: number;
+  completedFrameworks?: string[];
   accumulatedContext?: any;
+  completedAt?: Date | null;
   createdAt?: Date;
   updatedAt?: Date;
+}
+
+export async function saveJourneySession(data: SecureJourneySession) {
+  const encrypted = {
+    ...data,
+    accumulatedContext: data.accumulatedContext ? encryptJSON(data.accumulatedContext) : null,
+  };
+
+  const result = await db.insert(journeySessions)
+    .values(encrypted as any)
+    .returning();
+
+  return decryptJourneySession(result[0]);
 }
 
 export async function updateJourneySession(id: string, data: Partial<SecureJourneySession>) {

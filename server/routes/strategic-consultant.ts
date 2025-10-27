@@ -21,7 +21,7 @@ import { journeyRegistry } from '../journey/journey-registry';
 import type { JourneyType } from '@shared/journey-types';
 import { InitiativeClassifier } from '../strategic-consultant/initiative-classifier';
 import { ambiguityDetector } from '../services/ambiguity-detector.js';
-import { getStrategicUnderstanding, getStrategicUnderstandingBySession, updateStrategicUnderstanding } from '../services/secure-data-service';
+import { getStrategicUnderstanding, getStrategicUnderstandingBySession, updateStrategicUnderstanding, getJourneySession } from '../services/secure-data-service';
 
 const router = Router();
 const upload = multer({ 
@@ -371,25 +371,19 @@ router.get('/journeys/:sessionId/results', async (req: Request, res: Response) =
       return res.status(400).json({ error: 'Session ID is required' });
     }
 
-    // Fetch journey session from database
-    const session = await db
-      .select()
-      .from(journeySessions)
-      .where(eq(journeySessions.id, sessionId))
-      .limit(1);
+    // Fetch journey session using secure service (decrypts accumulatedContext)
+    const journeySession = await getJourneySession(sessionId);
 
-    if (session.length === 0) {
+    if (!journeySession) {
       return res.status(404).json({ error: 'Journey session not found' });
     }
-
-    const journeySession = session[0];
 
     res.json({
       success: true,
       journeyType: journeySession.journeyType,
       status: journeySession.status,
       completedFrameworks: journeySession.completedFrameworks,
-      context: journeySession.accumulatedContext,
+      context: journeySession.accumulatedContext, // Already decrypted by secure service
       completedAt: journeySession.completedAt,
     });
   } catch (error: any) {

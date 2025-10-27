@@ -18,7 +18,7 @@ import { applyWhysToBMCBridge } from './bridges/whys-to-bmc-bridge';
 import { WhysTreeGenerator } from '../strategic-consultant/whys-tree-generator';
 import { BMCResearcher } from '../strategic-consultant/bmc-researcher';
 import { dbConnectionManager } from '../db-connection-manager';
-import { getStrategicUnderstanding } from '../services/secure-data-service';
+import { getStrategicUnderstanding, saveJourneySession, getJourneySession, updateJourneySession } from '../services/secure-data-service';
 
 export class JourneyOrchestrator {
   /**
@@ -44,21 +44,20 @@ export class JourneyOrchestrator {
     // Initialize context (cast to full type since we've confirmed it exists)
     const context = initializeContext(understanding as any, journeyType);
 
-    // Create journey session in database
-    const [journeySession] = await db
-      .insert(journeySessions)
-      .values({
-        understandingId,
-        userId,
-        journeyType,
-        status: 'initializing',
-        currentFrameworkIndex: 0,
-        completedFrameworks: [],
-        accumulatedContext: context as any, // Store initial context
-      })
-      .returning();
+    // Create journey session in database using secure service (encrypts accumulatedContext)
+    console.log('[JourneyOrchestrator] 🔐 Encrypting and saving journey session...');
+    const journeySession = await saveJourneySession({
+      understandingId,
+      userId,
+      journeyType: journeyType as any,
+      status: 'initializing',
+      currentFrameworkIndex: 0,
+      completedFrameworks: [],
+      accumulatedContext: context, // Will be encrypted by secure service
+    });
+    console.log('[JourneyOrchestrator] ✓ Journey session saved with encryption');
 
-    return journeySession.id;
+    return journeySession.id!;
   }
 
   /**
@@ -69,23 +68,17 @@ export class JourneyOrchestrator {
     journeySessionId: string,
     progressCallback?: (progress: JourneyProgress) => void
   ): Promise<StrategicContext> {
-    // STEP 1: Load journey session with fresh connection (before long operations)
-    const session = await dbConnectionManager.withFreshConnection(async (db) => {
-      const rows = await db
-        .select()
-        .from(journeySessions)
-        .where(eq(journeySessions.id, journeySessionId));
-      return rows[0];
-    });
+    // STEP 1: Load journey session using secure service (decrypts accumulatedContext)
+    const session = await getJourneySession(journeySessionId);
 
     if (!session) {
       throw new Error(`Journey session ${journeySessionId} not found`);
     }
 
     // Get journey definition
-    const journey = getJourney(session.journeyType);
+    const journey = getJourney(session.journeyType! as JourneyType);
 
-    // Load context from database
+    // Load context from database (already decrypted by secure service)
     let context: StrategicContext = session.accumulatedContext as StrategicContext;
 
     // Update status to in_progress
@@ -119,7 +112,7 @@ export class JourneyOrchestrator {
           context = bridgedContext;
         }
 
-        // STEP 3: Persist framework result + progress in ONE retry block
+        // STEP 3a: Save framework insights
         await dbConnectionManager.retryWithBackoff(async (db) => {
           // Save framework insight to framework_insights table
           console.log(`[Journey] Saving ${result.frameworkName} insights for understanding ${context.understandingId}`);
@@ -135,20 +128,17 @@ export class JourneyOrchestrator {
                 executedAt: result.executedAt,
               } as any,
             });
-
-          // Save journey progress
-          await db
-            .update(journeySessions)
-            .set({
-              currentFrameworkIndex: context.currentFrameworkIndex,
-              completedFrameworks: context.completedFrameworks as any,
-              accumulatedContext: context as any,
-              updatedAt: new Date(),
-            })
-            .where(eq(journeySessions.id, journeySessionId));
-          
-          console.log(`[Journey] ✓ Saved ${result.frameworkName} insights + progress`);
+          console.log(`[Journey] ✓ Saved ${result.frameworkName} insights`);
         });
+
+        // STEP 3b: Save journey progress using secure service (encrypts accumulatedContext)
+        console.log(`[Journey] 🔐 Encrypting and updating journey progress...`);
+        await updateJourneySession(journeySessionId, {
+          currentFrameworkIndex: context.currentFrameworkIndex,
+          completedFrameworks: context.completedFrameworks as any,
+          accumulatedContext: context,
+        });
+        console.log(`[Journey] ✓ Journey progress updated with encryption`);
 
         // Small delay to prevent overwhelming the system
         await new Promise(resolve => setTimeout(resolve, 100));
