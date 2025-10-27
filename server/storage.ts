@@ -684,7 +684,7 @@ export class DatabaseStorage implements IStorage {
         type: 'analysis' as const,
         title: v.inputSummary || 'Strategic Analysis',
         createdAt: v.createdAt!,
-        link: `/repository/analysis/${v.id}`
+        link: `/repository/${v.id}`
       })),
       ...recentPrograms.map(p => {
         // Extract program name from executiveSummary
