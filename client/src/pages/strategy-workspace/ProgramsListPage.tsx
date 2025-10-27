@@ -97,6 +97,7 @@ export function ProgramsListPage() {
 
       setSelectedIds(new Set());
       await queryClient.invalidateQueries({ queryKey: ['/api/strategy-workspace/epm'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/dashboard-summary'] });
     } catch (error) {
       console.error('Error batch deleting:', error);
       toast({
@@ -126,6 +127,7 @@ export function ProgramsListPage() {
 
       setSelectedIds(new Set());
       await queryClient.invalidateQueries({ queryKey: ['/api/strategy-workspace/epm'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/dashboard-summary'] });
     } catch (error) {
       console.error('Error batch archiving:', error);
       toast({

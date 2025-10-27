@@ -92,6 +92,7 @@ export default function RepositoryBrowser() {
 
       setSelectedIds(new Set());
       await queryClient.invalidateQueries({ queryKey: ['/api/repository/statements'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/dashboard-summary'] });
     } catch (error) {
       console.error('Error batch deleting:', error);
       toast({
@@ -121,6 +122,7 @@ export default function RepositoryBrowser() {
 
       setSelectedIds(new Set());
       await queryClient.invalidateQueries({ queryKey: ['/api/repository/statements'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/dashboard-summary'] });
     } catch (error) {
       console.error('Error batch archiving:', error);
       toast({
