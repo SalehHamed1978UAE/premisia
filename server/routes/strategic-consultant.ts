@@ -1536,6 +1536,15 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
       return res.status(400).json({ error: 'Session ID is required' });
     }
     
+    // Verify session exists in database before starting stream
+    const sessionExists = await getJourneySession(sessionId);
+    if (!sessionExists) {
+      console.error(`[BMC-RESEARCH-STREAM] Session ${sessionId} not found - may have been lost due to server restart`);
+      return res.status(410).json({ 
+        error: 'Session expired or not found. Please start a new analysis from the beginning.' 
+      });
+    }
+    
     console.log('[BMC-RESEARCH-STREAM] Starting SSE stream for session:', sessionId);
 
     // Set up Server-Sent Events
