@@ -85,6 +85,82 @@ export default function InputPage() {
     setFile(selectedFile);
   };
 
+  const handleFileSubmit = async () => {
+    if (!file) return;
+
+    setIsAnalyzing(true);
+    setProgress(0);
+
+    // Simulate progress
+    const progressInterval = setInterval(() => {
+      setProgress((prev) => Math.min(prev + 1, 95));
+    }, 300);
+
+    try {
+      // Step 1: Create understanding session to get sessionId
+      const understandingResponse = await fetch('/api/strategic-consultant/understanding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          input: text.trim() || `File upload: ${file.name}`,
+          clarifications: null 
+        })
+      });
+      
+      if (!understandingResponse.ok) {
+        throw new Error('Failed to create understanding session');
+      }
+      
+      const { sessionId } = await understandingResponse.json();
+
+      // Step 2: Upload file with sessionId
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('sessionId', sessionId);
+      if (text.trim()) {
+        formData.append('text', text.trim()); // Optional additional context
+      }
+
+      const response = await fetch('/api/strategic-consultant/analyze', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'File upload failed');
+      }
+
+      const data = await response.json();
+
+      clearInterval(progressInterval);
+      setProgress(100);
+
+      toast({
+        title: "File processed successfully",
+        description: `Extracted content from ${file.name}`,
+      });
+
+      // Navigate to results page
+      const { version } = data;
+      setTimeout(() => {
+        setLocation(`/strategic-consultant/results/${sessionId}/${version.versionNumber}`);
+      }, 300);
+
+    } catch (error: any) {
+      clearInterval(progressInterval);
+      toast({
+        title: "Upload failed",
+        description: error.message || "Failed to process file",
+        variant: "destructive"
+      });
+    } finally {
+      setIsAnalyzing(false);
+      setProgress(0);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
