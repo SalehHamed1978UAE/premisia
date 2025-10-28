@@ -2918,6 +2918,233 @@ function generateUiStyledHtml(pkg: FullExportPackage): string {
         </div>
       </div>
     `);
+    
+    // Extract framework analysis from accumulated context
+    const context = parseField(j.accumulatedContext);
+    const insights = context?.insights || {};
+    
+    // ======================
+    // FIVE WHYS ANALYSIS
+    // ======================
+    if (insights.rootCauses || insights.whysPath || insights.strategicImplications) {
+      contentParts.push(`
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Five Whys Analysis</h2>
+          </div>
+          <div class="card-content">
+            ${insights.whysPath && insights.whysPath.length > 0 ? `
+            <div class="mb-4">
+              <h3>Analysis Path</h3>
+              <ol>
+                ${insights.whysPath.map((step: any, idx: number) => `
+                  <li class="mb-2">
+                    <strong>Why?</strong> ${escapeHtml(step.question || step.why || 'Not specified')}
+                    <br><strong>Answer:</strong> ${escapeHtml(step.answer || 'Not specified')}
+                  </li>
+                `).join('')}
+              </ol>
+            </div>
+            ` : ''}
+            ${insights.rootCauses && insights.rootCauses.length > 0 ? `
+            <div class="mb-4">
+              <h3>Identified Root Causes</h3>
+              <ul>
+                ${insights.rootCauses.map((cause: string) => `<li>${escapeHtml(cause)}</li>`).join('')}
+              </ul>
+            </div>
+            ` : ''}
+            ${insights.strategicImplications && insights.strategicImplications.length > 0 ? `
+            <div>
+              <h3>Strategic Implications</h3>
+              <ul>
+                ${insights.strategicImplications.map((imp: string) => `<li>${escapeHtml(imp)}</li>`).join('')}
+              </ul>
+            </div>
+            ` : ''}
+          </div>
+        </div>
+      `);
+    }
+    
+    // ======================
+    // BUSINESS MODEL CANVAS ANALYSIS
+    // ======================
+    if (insights.bmcBlocks) {
+      const bmc = insights.bmcBlocks;
+      
+      const renderBmcBlock = (title: string, data: any) => {
+        if (!data) return '';
+        
+        if (typeof data === 'string') {
+          return `<div class="mb-3"><h4>${title}</h4><p>${escapeHtml(data)}</p></div>`;
+        } else if (Array.isArray(data)) {
+          return `<div class="mb-3"><h4>${title}</h4><ul>${data.map((item: string) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>`;
+        } else if (data.segments) {
+          return `<div class="mb-3"><h4>${title}</h4><ul>${data.segments.map((seg: any) => `<li><strong>${escapeHtml(seg.name || 'Segment')}:</strong> ${escapeHtml(seg.description || '')}</li>`).join('')}</ul></div>`;
+        } else if (data.propositions) {
+          return `<div class="mb-3"><h4>${title}</h4><ul>${data.propositions.map((vp: any) => `<li><strong>${escapeHtml(vp.title || 'Value Proposition')}:</strong> ${escapeHtml(vp.description || '')}</li>`).join('')}</ul></div>`;
+        } else if (data.channels) {
+          return `<div class="mb-3"><h4>${title}</h4><ul>${data.channels.map((ch: any) => `<li><strong>${escapeHtml(ch.name || 'Channel')}:</strong> ${escapeHtml(ch.description || '')}</li>`).join('')}</ul></div>`;
+        } else if (data.relationships) {
+          return `<div class="mb-3"><h4>${title}</h4><ul>${data.relationships.map((rel: any) => `<li><strong>${escapeHtml(rel.type || 'Relationship')}:</strong> ${escapeHtml(rel.description || '')}</li>`).join('')}</ul></div>`;
+        } else if (data.streams) {
+          return `<div class="mb-3"><h4>${title}</h4><ul>${data.streams.map((rev: any) => `<li><strong>${escapeHtml(rev.name || 'Revenue Stream')}:</strong> ${escapeHtml(rev.description || '')}${rev.pricingModel ? `<br><em>Pricing: ${escapeHtml(rev.pricingModel)}</em>` : ''}</li>`).join('')}</ul></div>`;
+        } else if (data.resources) {
+          return `<div class="mb-3"><h4>${title}</h4><ul>${data.resources.map((res: any) => `<li><strong>${escapeHtml(res.name || 'Resource')}:</strong> ${escapeHtml(res.description || '')}</li>`).join('')}</ul></div>`;
+        } else if (data.activities) {
+          return `<div class="mb-3"><h4>${title}</h4><ul>${data.activities.map((act: any) => `<li><strong>${escapeHtml(act.name || 'Activity')}:</strong> ${escapeHtml(act.description || '')}</li>`).join('')}</ul></div>`;
+        } else if (data.partnerships) {
+          return `<div class="mb-3"><h4>${title}</h4><ul>${data.partnerships.map((part: any) => `<li><strong>${escapeHtml(part.partner || 'Partner')}:</strong> ${escapeHtml(part.description || '')}</li>`).join('')}</ul></div>`;
+        } else if (data.costs) {
+          return `<div class="mb-3"><h4>${title}</h4><ul>${data.costs.map((cost: any) => `<li><strong>${escapeHtml(cost.category || 'Cost')}:</strong> ${escapeHtml(cost.description || '')}</li>`).join('')}</ul></div>`;
+        }
+        return '';
+      };
+      
+      contentParts.push(`
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Business Model Canvas Analysis</h2>
+          </div>
+          <div class="card-content">
+            ${renderBmcBlock('Customer Segments', bmc.customerSegments)}
+            ${renderBmcBlock('Value Propositions', bmc.valuePropositions)}
+            ${renderBmcBlock('Channels', bmc.channels)}
+            ${renderBmcBlock('Customer Relationships', bmc.customerRelationships)}
+            ${renderBmcBlock('Revenue Streams', bmc.revenueStreams)}
+            ${renderBmcBlock('Key Resources', bmc.keyResources)}
+            ${renderBmcBlock('Key Activities', bmc.keyActivities)}
+            ${renderBmcBlock('Key Partnerships', bmc.keyPartnerships)}
+            ${renderBmcBlock('Cost Structure', bmc.costStructure)}
+            
+            ${insights.bmcContradictions && insights.bmcContradictions.length > 0 ? `
+            <div class="mb-3">
+              <h4>Identified Contradictions</h4>
+              <ul>
+                ${insights.bmcContradictions.map((cont: any) => {
+                  if (typeof cont === 'string') {
+                    return `<li>${escapeHtml(cont)}</li>`;
+                  } else {
+                    return `<li><strong>${escapeHtml(cont.title || 'Contradiction')}:</strong> ${escapeHtml(cont.description || cont.issue || '')}${cont.recommendation ? `<br><em>Recommendation: ${escapeHtml(cont.recommendation)}</em>` : ''}</li>`;
+                  }
+                }).join('')}
+              </ul>
+            </div>
+            ` : ''}
+            
+            ${insights.businessModelGaps && insights.businessModelGaps.length > 0 ? `
+            <div>
+              <h4>Critical Gaps</h4>
+              <ul>
+                ${insights.businessModelGaps.map((gap: any) => {
+                  if (typeof gap === 'string') {
+                    return `<li>${escapeHtml(gap)}</li>`;
+                  } else {
+                    return `<li><strong>${escapeHtml(gap.area || 'Gap')}:</strong> ${escapeHtml(gap.description || '')}${gap.impact ? `<br><em>Impact: ${escapeHtml(gap.impact)}</em>` : ''}</li>`;
+                  }
+                }).join('')}
+              </ul>
+            </div>
+            ` : ''}
+          </div>
+        </div>
+      `);
+    }
+    
+    // ======================
+    // PORTER'S FIVE FORCES ANALYSIS
+    // ======================
+    if (insights.portersForces) {
+      const forces = insights.portersForces;
+      
+      const renderForce = (title: string, force: any) => {
+        if (!force) return '';
+        
+        if (typeof force === 'string') {
+          return `<div class="mb-3"><h4>${title}</h4><p>${escapeHtml(force)}</p></div>`;
+        } else {
+          let html = `<div class="mb-3"><h4>${title}</h4>`;
+          if (force.intensity) html += `<p><strong>Intensity:</strong> ${escapeHtml(force.intensity)}</p>`;
+          if (force.level) html += `<p><strong>Level:</strong> ${escapeHtml(force.level)}</p>`;
+          if (force.power) html += `<p><strong>Power:</strong> ${escapeHtml(force.power)}</p>`;
+          if (force.factors && Array.isArray(force.factors)) {
+            html += `<ul>${force.factors.map((f: string) => `<li>${escapeHtml(f)}</li>`).join('')}</ul>`;
+          }
+          if (force.barriers && Array.isArray(force.barriers)) {
+            html += `<p><strong>Entry Barriers:</strong></p><ul>${force.barriers.map((b: string) => `<li>${escapeHtml(b)}</li>`).join('')}</ul>`;
+          }
+          if (force.substitutes && Array.isArray(force.substitutes)) {
+            html += `<ul>${force.substitutes.map((s: string) => `<li>${escapeHtml(s)}</li>`).join('')}</ul>`;
+          }
+          html += '</div>';
+          return html;
+        }
+      };
+      
+      contentParts.push(`
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Porter's Five Forces Analysis</h2>
+          </div>
+          <div class="card-content">
+            ${renderForce('Competitive Rivalry', forces.competitiveRivalry || forces.competitive_rivalry)}
+            ${renderForce('Threat of New Entrants', forces.threatOfNewEntrants || forces.threat_of_new_entrants)}
+            ${renderForce('Bargaining Power of Suppliers', forces.bargainingPowerOfSuppliers || forces.supplier_power)}
+            ${renderForce('Bargaining Power of Buyers', forces.bargainingPowerOfBuyers || forces.buyer_power)}
+            ${renderForce('Threat of Substitutes', forces.threatOfSubstitutes || forces.threat_of_substitutes)}
+          </div>
+        </div>
+      `);
+    }
+    
+    // ======================
+    // PESTLE ANALYSIS
+    // ======================
+    if (insights.trendFactors || insights.externalForces) {
+      const factors = insights.trendFactors || {};
+      
+      const renderPestleCategory = (category: string, data: any) => {
+        if (!data) return '';
+        
+        const title = category.charAt(0).toUpperCase() + category.slice(1);
+        let html = `<div class="mb-3"><h4>${title} Factors</h4>`;
+        
+        if (typeof data === 'string') {
+          html += `<p>${escapeHtml(data)}</p>`;
+        } else if (Array.isArray(data)) {
+          html += `<ul>${data.map((item: string) => `<li>${escapeHtml(item)}</li>`).join('')}</ul>`;
+        } else {
+          if (data.trends && Array.isArray(data.trends)) {
+            html += `<p><strong>Trends:</strong></p><ul>${data.trends.map((t: string) => `<li>${escapeHtml(t)}</li>`).join('')}</ul>`;
+          }
+          if (data.opportunities && Array.isArray(data.opportunities)) {
+            html += `<p><strong>Opportunities:</strong></p><ul>${data.opportunities.map((o: string) => `<li>${escapeHtml(o)}</li>`).join('')}</ul>`;
+          }
+          if (data.risks && Array.isArray(data.risks)) {
+            html += `<p><strong>Risks:</strong></p><ul>${data.risks.map((r: string) => `<li>${escapeHtml(r)}</li>`).join('')}</ul>`;
+          }
+        }
+        html += '</div>';
+        return html;
+      };
+      
+      contentParts.push(`
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">PESTLE Analysis</h2>
+          </div>
+          <div class="card-content">
+            ${renderPestleCategory('political', factors.political)}
+            ${renderPestleCategory('economic', factors.economic)}
+            ${renderPestleCategory('social', factors.social)}
+            ${renderPestleCategory('technological', factors.technological)}
+            ${renderPestleCategory('legal', factors.legal)}
+            ${renderPestleCategory('environmental', factors.environmental)}
+          </div>
+        </div>
+      `);
+    }
   }
 
   // ======================
