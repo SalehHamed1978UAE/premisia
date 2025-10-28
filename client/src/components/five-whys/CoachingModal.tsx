@@ -102,7 +102,8 @@ export function CoachingModal({
 
   const handleUseImprovedSuggestion = () => {
     if (evaluation.improvedSuggestion) {
-      setRevisedAnswer(evaluation.improvedSuggestion);
+      // Directly submit the improved suggestion
+      onRevise(evaluation.improvedSuggestion);
     }
   };
 
