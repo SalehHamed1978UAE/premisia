@@ -918,7 +918,7 @@ async function generatePdfFromHtml(html: string): Promise<Buffer> {
  * Mirrors the Markdown report structure with all strategic and EPM components
  */
 async function generateDocxReport(pkg: FullExportPackage): Promise<Buffer> {
-  const sections: Paragraph[] = [];
+  const sections: (Paragraph | Table)[] = [];
 
   // Safe JSONB parser
   const parseField = (field: any) => {
@@ -1398,19 +1398,750 @@ async function generateDocxReport(pkg: FullExportPackage): Promise<Buffer> {
       sections.push(new Paragraph({ text: '' }));
     }
 
-    // 4-14: Add remaining EPM components with appropriate formatting
-    // (Keeping response size manageable - will continue in next edit)
+    // 4. RESOURCE PLAN
+    if (resourcePlan) {
+      sections.push(
+        new Paragraph({
+          text: '4. Resource Plan',
+          heading: HeadingLevel.HEADING_2,
+        })
+      );
+
+      if (resourcePlan.internalTeam && resourcePlan.internalTeam.length > 0) {
+        sections.push(
+          new Paragraph({
+            text: 'Internal Team',
+            heading: HeadingLevel.HEADING_3,
+          })
+        );
+
+        // Create table for internal team
+        const internalTeamRows: TableRow[] = [
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Role', bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'FTE', bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Responsibilities', bold: true })] })] }),
+            ],
+          }),
+        ];
+
+        resourcePlan.internalTeam.forEach((r: any) => {
+          internalTeamRows.push(
+            new TableRow({
+              children: [
+                new TableCell({ children: [new Paragraph(r.role || r.title || 'Not specified')] }),
+                new TableCell({ children: [new Paragraph(String(r.fte || r.allocation || 'TBD'))] }),
+                new TableCell({ children: [new Paragraph(r.responsibilities || r.description || '-')] }),
+              ],
+            })
+          );
+        });
+
+        sections.push(
+          new Table({
+            rows: internalTeamRows,
+            width: { size: 100, type: WidthType.PERCENTAGE },
+          })
+        );
+      }
+
+      if (resourcePlan.externalResources && resourcePlan.externalResources.length > 0) {
+        sections.push(
+          new Paragraph({
+            text: 'External Resources',
+            heading: HeadingLevel.HEADING_3,
+          })
+        );
+
+        const externalResourcesRows: TableRow[] = [
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Type', bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Quantity', bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Skills Required', bold: true })] })] }),
+            ],
+          }),
+        ];
+
+        resourcePlan.externalResources.forEach((r: any) => {
+          externalResourcesRows.push(
+            new TableRow({
+              children: [
+                new TableCell({ children: [new Paragraph(r.type || r.role || 'Contractor')] }),
+                new TableCell({ children: [new Paragraph(String(r.quantity || r.count || '1'))] }),
+                new TableCell({ children: [new Paragraph(r.skills || r.requirements || '-')] }),
+              ],
+            })
+          );
+        });
+
+        sections.push(
+          new Table({
+            rows: externalResourcesRows,
+            width: { size: 100, type: WidthType.PERCENTAGE },
+          })
+        );
+      }
+
+      if (resourcePlan.totalFTE) {
+        sections.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: 'Total FTE Required: ', bold: true }),
+              new TextRun(String(resourcePlan.totalFTE)),
+            ],
+          })
+        );
+      }
+
+      sections.push(new Paragraph({ text: '' }));
+    }
+
+    // 5. FINANCIAL PLAN
+    if (financialPlan) {
+      sections.push(
+        new Paragraph({
+          text: '5. Financial Plan',
+          heading: HeadingLevel.HEADING_2,
+        })
+      );
+
+      if (financialPlan.totalBudget) {
+        const budget = typeof financialPlan.totalBudget === 'number' 
+          ? `$${financialPlan.totalBudget.toLocaleString()}`
+          : financialPlan.totalBudget;
+        sections.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: 'Total Program Budget: ', bold: true }),
+              new TextRun(budget),
+            ],
+          })
+        );
+      }
+
+      if (financialPlan.costBreakdown && financialPlan.costBreakdown.length > 0) {
+        sections.push(
+          new Paragraph({
+            text: 'Cost Breakdown',
+            heading: HeadingLevel.HEADING_3,
+          })
+        );
+
+        const costBreakdownRows: TableRow[] = [
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Category', bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Amount', bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Percentage', bold: true })] })] }),
+            ],
+          }),
+        ];
+
+        financialPlan.costBreakdown.forEach((item: any) => {
+          const category = item.category || item.name || 'Other';
+          const amount = typeof item.amount === 'number' ? `$${item.amount.toLocaleString()}` : item.amount;
+          const pct = item.percentage || '-';
+          costBreakdownRows.push(
+            new TableRow({
+              children: [
+                new TableCell({ children: [new Paragraph(category)] }),
+                new TableCell({ children: [new Paragraph(amount)] }),
+                new TableCell({ children: [new Paragraph(String(pct))] }),
+              ],
+            })
+          );
+        });
+
+        sections.push(
+          new Table({
+            rows: costBreakdownRows,
+            width: { size: 100, type: WidthType.PERCENTAGE },
+          })
+        );
+      }
+
+      if (financialPlan.cashFlow && financialPlan.cashFlow.length > 0) {
+        sections.push(
+          new Paragraph({
+            text: 'Cash Flow Projection',
+            heading: HeadingLevel.HEADING_3,
+          })
+        );
+        financialPlan.cashFlow.forEach((cf: any) => {
+          sections.push(
+            new Paragraph({
+              text: `• ${cf.period || `Period ${cf.month || cf.quarter}`}: $${cf.amount?.toLocaleString() || '0'}`,
+              bullet: { level: 0 },
+            })
+          );
+        });
+      }
+
+      sections.push(new Paragraph({ text: '' }));
+    }
+
+    // 6. BENEFITS REALIZATION
+    if (benefits) {
+      sections.push(
+        new Paragraph({
+          text: '6. Benefits Realization',
+          heading: HeadingLevel.HEADING_2,
+        })
+      );
+
+      if (benefits.benefits && benefits.benefits.length > 0) {
+        sections.push(
+          new Paragraph({
+            text: 'Expected Benefits',
+            heading: HeadingLevel.HEADING_3,
+          })
+        );
+        benefits.benefits.forEach((b: any, idx: number) => {
+          sections.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: `${idx + 1}. `, bold: true }),
+                new TextRun({ text: b.name || b.benefit, bold: true }),
+              ],
+            })
+          );
+          if (b.description) {
+            sections.push(new Paragraph({ text: `   ${b.description}` }));
+          }
+          if (b.metric) {
+            sections.push(
+              new Paragraph({
+                children: [
+                  new TextRun({ text: '   Metric: ', bold: true }),
+                  new TextRun(b.metric),
+                ],
+              })
+            );
+          }
+          if (b.target) {
+            sections.push(
+              new Paragraph({
+                children: [
+                  new TextRun({ text: '   Target: ', bold: true }),
+                  new TextRun(b.target),
+                ],
+              })
+            );
+          }
+          if (b.timeframe) {
+            sections.push(
+              new Paragraph({
+                children: [
+                  new TextRun({ text: '   Timeframe: ', bold: true }),
+                  new TextRun(b.timeframe),
+                ],
+              })
+            );
+          }
+        });
+      }
+
+      if (benefits.realizationPlan) {
+        sections.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: 'Realization Plan: ', bold: true }),
+              new TextRun(benefits.realizationPlan),
+            ],
+          })
+        );
+      }
+
+      sections.push(new Paragraph({ text: '' }));
+    }
+
+    // 7. RISK REGISTER
+    if (risks) {
+      sections.push(
+        new Paragraph({
+          text: '7. Risk Register',
+          heading: HeadingLevel.HEADING_2,
+        })
+      );
+
+      const riskArray = risks.risks || risks;
+      if (Array.isArray(riskArray) && riskArray.length > 0) {
+        const riskRows = [
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Risk', bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Probability', bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Impact', bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Mitigation', bold: true })] })] }),
+            ],
+          }),
+        ];
+
+        riskArray.forEach((r: any) => {
+          const name = r.risk || r.name || r.description || 'Unnamed risk';
+          const prob = r.probability || r.likelihood || '-';
+          const impact = r.impact || r.severity || '-';
+          const mit = r.mitigation || r.response || '-';
+
+          riskRows.push(
+            new TableRow({
+              children: [
+                new TableCell({ children: [new Paragraph({ text: name })] }),
+                new TableCell({ children: [new Paragraph({ text: prob })] }),
+                new TableCell({ children: [new Paragraph({ text: impact })] }),
+                new TableCell({ children: [new Paragraph({ text: mit })] }),
+              ],
+            })
+          );
+        });
+
+        sections.push(
+          new Table({
+            rows: riskRows,
+            width: { size: 100, type: WidthType.PERCENTAGE },
+          })
+        );
+      }
+
+      sections.push(new Paragraph({ text: '' }));
+    }
+
+    // 8. STAGE GATES & MILESTONES
+    if (stageGates) {
+      sections.push(
+        new Paragraph({
+          text: '8. Stage Gates & Milestones',
+          heading: HeadingLevel.HEADING_2,
+        })
+      );
+
+      const gates = stageGates.gates || stageGates;
+      if (Array.isArray(gates) && gates.length > 0) {
+        gates.forEach((gate: any, idx: number) => {
+          sections.push(
+            new Paragraph({
+              text: `Gate ${idx + 1}: ${gate.name || gate.title}`,
+              heading: HeadingLevel.HEADING_3,
+            })
+          );
+
+          if (gate.timing) {
+            sections.push(
+              new Paragraph({
+                children: [
+                  new TextRun({ text: 'Timing: ', bold: true }),
+                  new TextRun(gate.timing),
+                ],
+              })
+            );
+          }
+
+          if (gate.criteria && gate.criteria.length > 0) {
+            sections.push(
+              new Paragraph({
+                children: [new TextRun({ text: 'Approval Criteria', bold: true })],
+              })
+            );
+            gate.criteria.forEach((c: string) => {
+              sections.push(
+                new Paragraph({
+                  text: `• ${c}`,
+                  bullet: { level: 0 },
+                })
+              );
+            });
+          }
+
+          if (gate.deliverables && gate.deliverables.length > 0) {
+            sections.push(
+              new Paragraph({
+                children: [new TextRun({ text: 'Required Deliverables', bold: true })],
+              })
+            );
+            gate.deliverables.forEach((d: string) => {
+              sections.push(
+                new Paragraph({
+                  text: `• ${d}`,
+                  bullet: { level: 0 },
+                })
+              );
+            });
+          }
+
+          sections.push(new Paragraph({ text: '' }));
+        });
+      }
+
+      sections.push(new Paragraph({ text: '' }));
+    }
+
+    // 9. KEY PERFORMANCE INDICATORS (KPIs)
+    if (kpis) {
+      sections.push(
+        new Paragraph({
+          text: '9. Key Performance Indicators (KPIs)',
+          heading: HeadingLevel.HEADING_2,
+        })
+      );
+
+      const kpiArray = kpis.kpis || kpis.metrics || kpis;
+      if (Array.isArray(kpiArray) && kpiArray.length > 0) {
+        const kpiRows = [
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'KPI', bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Target', bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Measurement Frequency', bold: true })] })] }),
+            ],
+          }),
+        ];
+
+        kpiArray.forEach((kpi: any) => {
+          const name = kpi.name || kpi.metric || kpi.kpi || 'KPI';
+          const target = kpi.target || kpi.goal || '-';
+          const freq = kpi.frequency || kpi.measurementFrequency || 'Monthly';
+
+          kpiRows.push(
+            new TableRow({
+              children: [
+                new TableCell({ children: [new Paragraph({ text: name })] }),
+                new TableCell({ children: [new Paragraph({ text: target })] }),
+                new TableCell({ children: [new Paragraph({ text: freq })] }),
+              ],
+            })
+          );
+        });
+
+        sections.push(
+          new Table({
+            rows: kpiRows,
+            width: { size: 100, type: WidthType.PERCENTAGE },
+          })
+        );
+      }
+
+      sections.push(new Paragraph({ text: '' }));
+    }
+
+    // 10. STAKEHOLDER MAP
+    if (stakeholders) {
+      sections.push(
+        new Paragraph({
+          text: '10. Stakeholder Map',
+          heading: HeadingLevel.HEADING_2,
+        })
+      );
+
+      const stakeholderArray = stakeholders.stakeholders || stakeholders;
+      if (Array.isArray(stakeholderArray) && stakeholderArray.length > 0) {
+        const stakeholderRows = [
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Stakeholder', bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Role', bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Interest Level', bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: 'Engagement Strategy', bold: true })] })] }),
+            ],
+          }),
+        ];
+
+        stakeholderArray.forEach((s: any) => {
+          const name = s.name || s.stakeholder || 'Stakeholder';
+          const role = s.role || s.position || '-';
+          const interest = s.interest || s.interestLevel || '-';
+          const strategy = s.engagement || s.strategy || '-';
+
+          stakeholderRows.push(
+            new TableRow({
+              children: [
+                new TableCell({ children: [new Paragraph({ text: name })] }),
+                new TableCell({ children: [new Paragraph({ text: role })] }),
+                new TableCell({ children: [new Paragraph({ text: interest })] }),
+                new TableCell({ children: [new Paragraph({ text: strategy })] }),
+              ],
+            })
+          );
+        });
+
+        sections.push(
+          new Table({
+            rows: stakeholderRows,
+            width: { size: 100, type: WidthType.PERCENTAGE },
+          })
+        );
+      }
+
+      sections.push(new Paragraph({ text: '' }));
+    }
+
+    // 11. GOVERNANCE STRUCTURE
+    if (governance) {
+      sections.push(
+        new Paragraph({
+          text: '11. Governance Structure',
+          heading: HeadingLevel.HEADING_2,
+        })
+      );
+
+      if (governance.structure) {
+        sections.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: 'Governance Model: ', bold: true }),
+              new TextRun(governance.structure),
+            ],
+          })
+        );
+      }
+
+      if (governance.decisionMaking) {
+        sections.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: 'Decision-Making Framework: ', bold: true }),
+              new TextRun(governance.decisionMaking),
+            ],
+          })
+        );
+      }
+
+      if (governance.roles && governance.roles.length > 0) {
+        sections.push(
+          new Paragraph({
+            children: [new TextRun({ text: 'Key Governance Roles', bold: true })],
+          })
+        );
+        governance.roles.forEach((r: any) => {
+          const role = typeof r === 'string' ? r : (r.role || r.name);
+          const resp = r.responsibilities || '';
+          const text = resp ? `${role}: ${resp}` : role;
+          sections.push(
+            new Paragraph({
+              text: `• ${text}`,
+              bullet: { level: 0 },
+            })
+          );
+        });
+      }
+
+      if (governance.meetings) {
+        sections.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: 'Meeting Cadence: ', bold: true }),
+              new TextRun(governance.meetings),
+            ],
+          })
+        );
+      }
+
+      sections.push(new Paragraph({ text: '' }));
+    }
+
+    // 12. QUALITY ASSURANCE PLAN
+    if (qaPlan) {
+      sections.push(
+        new Paragraph({
+          text: '12. Quality Assurance Plan',
+          heading: HeadingLevel.HEADING_2,
+        })
+      );
+
+      if (qaPlan.approach) {
+        sections.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: 'QA Approach: ', bold: true }),
+              new TextRun(qaPlan.approach),
+            ],
+          })
+        );
+      }
+
+      if (qaPlan.standards && qaPlan.standards.length > 0) {
+        sections.push(
+          new Paragraph({
+            children: [new TextRun({ text: 'Quality Standards', bold: true })],
+          })
+        );
+        qaPlan.standards.forEach((std: string) => {
+          sections.push(
+            new Paragraph({
+              text: `• ${std}`,
+              bullet: { level: 0 },
+            })
+          );
+        });
+      }
+
+      if (qaPlan.reviews && qaPlan.reviews.length > 0) {
+        sections.push(
+          new Paragraph({
+            children: [new TextRun({ text: 'Review Gates', bold: true })],
+          })
+        );
+        qaPlan.reviews.forEach((rev: any) => {
+          const name = typeof rev === 'string' ? rev : (rev.name || rev.type);
+          sections.push(
+            new Paragraph({
+              text: `• ${name}`,
+              bullet: { level: 0 },
+            })
+          );
+        });
+      }
+
+      sections.push(new Paragraph({ text: '' }));
+    }
+
+    // 13. PROCUREMENT PLAN
+    if (procurement) {
+      sections.push(
+        new Paragraph({
+          text: '13. Procurement Plan',
+          heading: HeadingLevel.HEADING_2,
+        })
+      );
+
+      if (procurement.strategy) {
+        sections.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: 'Procurement Strategy: ', bold: true }),
+              new TextRun(procurement.strategy),
+            ],
+          })
+        );
+      }
+
+      const vendors = procurement.vendors || procurement.suppliers || [];
+      if (vendors.length > 0) {
+        sections.push(
+          new Paragraph({
+            children: [new TextRun({ text: 'Vendor Requirements', bold: true })],
+          })
+        );
+        vendors.forEach((v: any) => {
+          const name = typeof v === 'string' ? v : (v.name || v.vendor || v.type);
+          const req = v.requirements || v.details || '';
+          const text = req ? `${name}: ${req}` : name;
+          sections.push(
+            new Paragraph({
+              text: `• ${text}`,
+              bullet: { level: 0 },
+            })
+          );
+        });
+      }
+
+      sections.push(new Paragraph({ text: '' }));
+    }
+
+    // 14. EXIT STRATEGY
+    if (exitStrategy) {
+      sections.push(
+        new Paragraph({
+          text: '14. Exit Strategy',
+          heading: HeadingLevel.HEADING_2,
+        })
+      );
+
+      if (exitStrategy.approach) {
+        sections.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: 'Exit Approach: ', bold: true }),
+              new TextRun(exitStrategy.approach),
+            ],
+          })
+        );
+      }
+
+      if (exitStrategy.criteria && exitStrategy.criteria.length > 0) {
+        sections.push(
+          new Paragraph({
+            children: [new TextRun({ text: 'Exit Criteria', bold: true })],
+          })
+        );
+        exitStrategy.criteria.forEach((c: string) => {
+          sections.push(
+            new Paragraph({
+              text: `• ${c}`,
+              bullet: { level: 0 },
+            })
+          );
+        });
+      }
+
+      if (exitStrategy.transitionPlan) {
+        sections.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: 'Transition Plan: ', bold: true }),
+              new TextRun(exitStrategy.transitionPlan),
+            ],
+          })
+        );
+      }
+
+      sections.push(new Paragraph({ text: '' }));
+    }
+  }
+
+  // ======================
+  // TASK ASSIGNMENTS OVERVIEW
+  // ======================
+  if (pkg.epm?.assignments && pkg.epm.assignments.length > 0) {
+    sections.push(
+      new Paragraph({
+        text: 'Task Assignments Overview',
+        heading: HeadingLevel.HEADING_2,
+      })
+    );
+
+    sections.push(
+      new Paragraph({
+        children: [
+          new TextRun({ text: 'Total Assignments: ', bold: true }),
+          new TextRun(pkg.epm.assignments.length.toString()),
+        ],
+      })
+    );
+
+    const resourceCounts = pkg.epm.assignments.reduce((acc: any, a: any) => {
+      acc[a.resourceName] = (acc[a.resourceName] || 0) + 1;
+      return acc;
+    }, {});
+
+    sections.push(
+      new Paragraph({
+        children: [new TextRun({ text: 'Assignments by Resource', bold: true })],
+      })
+    );
+
+    Object.entries(resourceCounts).forEach(([name, count]) => {
+      sections.push(
+        new Paragraph({
+          text: `• ${name}: ${count} task(s)`,
+          bullet: { level: 0 },
+        })
+      );
+    });
 
     sections.push(
       new Paragraph({
         children: [
           new TextRun({
-            text: 'Note: Full EPM program details including Resource Plan, Financial Plan, Benefits, Risks, Stage Gates, KPIs, Stakeholders, Governance, QA Plan, Procurement, and Exit Strategy are available in the Markdown and PDF reports.',
+            text: 'Detailed assignment data available in assignments.csv',
             italics: true,
           }),
         ],
       })
     );
+
+    sections.push(new Paragraph({ text: '' }));
   }
 
   // Footer

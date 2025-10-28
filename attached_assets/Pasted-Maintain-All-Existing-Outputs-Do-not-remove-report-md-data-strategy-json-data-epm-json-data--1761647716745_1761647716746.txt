@@ -1,0 +1,219 @@
+Maintain All Existing Outputs
+
+  - Do not remove report.md, data/strategy.json, data/epm.json, data/
+    assignments.csv, data/workstreams.csv, or any other raw files we already
+    generate.
+  - Leave the current ZIP structure intact; we’re just adding richer report
+    files alongside what’s there.
+
+  ———
+
+  ## Add UI-Styled Report (mirrors app layout)
+
+  1. Build an HTML report template that mirrors the Strategy Analysis + EPM
+     Program pages (cards, badges, colors, tables, headings). Populate it with
+     the same data the UI uses (strategic overview, insights, contradictions,
+     framework results, recommendations, workstreams, timeline, resource plan,
+     financials, risks, KPIs, assignments, etc.).
+      - You can either:
+          - Create a dedicated template (e.g., using Tailwind-style CSS).
+          - Or server-render the existing React components
+            (StrategyResultsPage / EPMProgramView) and capture the HTML.
+      - Either approach is fine, as long as the exported report matches the
+        screenshots the user attached.
+  2. Generate new files from that HTML:
+      - report-ui.html (optional but helpful to debug).
+      - report-ui.pdf (via Puppeteer or similar).
+      - report-ui.docx (using html-to-docx, docx-templater, or another
+        converter).
+  3. Do not replace the existing plain PDF/DOCX/Markdown unless you explicitly
+     confirm both options work; instead, add the new ones alongside the current
+     files. We want both:
+      - Existing report.pdf / report.docx (can keep as the simple summary).
+      - New UI-styled versions (report-ui.pdf, report-ui.docx) containing the
+        full visual report.
+  4. CSV/JSON remain unchanged—only the new UI-level documents are being added.
+
+  ———
+
+  ## Verification Checklist
+
+  - ZIP now contains the original files plus report-ui.pdf and report-ui.docx.
+  - Open the new PDF/DOCX: they should look like the Strategy Results & EPM
+    Program UI (cards, sections, color highlights, tables).
+  - JSON and CSV files remain intact.
+  - Analysis-only exports work as well (UI-style report should gracefully omit
+    EPM sections if none exist).
+
+  Once this is delivered, we’ll have:
+
+  - Existing plain-text/structured outputs (unchanged).
+  - Additional UI-styled PDF/DOCX exports that match the on-screen experience.
+
+
+› is that enough guidance? replit makes lots of mistakes all the time.
+
+
+• To keep Replit on target, add a bit more concrete direction:
+
+  1. Spell out where the HTML comes from.
+      - Either supply a dedicated template file (server/export/templates/report-
+        ui.html) with the layout you want, or instruct them to reuse the actual
+        React pages via server‑side rendering. If you want a template, point to
+        specific sections (cards, badges, tables) and tell them to copy the JSX
+        structure from StrategyResultsPage and EPMProgramView into that HTML.
+      - Emphasize that the template must include every section: overview,
+        contradictions, key insights, framework results, workstreams, timeline,
+        resource plan, financial plan, benefits, risks, KPIs, stakeholders,
+        assignments, etc.
+  2. Give explicit filenames.
+     Ask them to produce:
+
+     report-ui.html   // optional for debugging
+     report-ui.pdf
+     report-ui.docx
+
+     and to keep the existing report.md, report.pdf, report.docx, JSON, CSV
+     files untouched.
+  3. Require data parity.
+     Make it clear the UI-styled report has to use the same data as the JSON (no
+     sections may be omitted). Suggest sanity checks: the number of workstreams
+     in the report should match the JSON array length, the critical path list
+     should match, etc.
+  4. Validation steps.
+     Tell them to export one program and one analysis, then:
+      - Open report-ui.pdf / report-ui.docx and confirm they visually match the
+        live UI.
+      - Compare contents against the on-screen data.
+      - Verify the old files are still present.
+
+  With those explicit instructions—what template to build, which files to
+  output, and how to validate—you’ll drastically cut down on misfires.
+
+
+› ok, do it. give me the expliciut content to copy and paste into replit
+
+
+• Absolutely! Here’s the complete, explicit instruction set you can copy
+  straight into Replit so they deliver the new UI-style reports without touching
+  any of the existing export artifacts. Let me know if you'd like a more concise
+  version!
+
+  ———
+
+  REPLIT IMPLEMENTATION BRIEF – UI-Styled Export (Keep Existing Files)
+
+  ### Objective
+
+  Enhance the current export system by adding UI-styled PDF and DOCX reports
+  that match the on-screen presentation of Strategy Analysis and EPM Program
+  pages (color-coded cards, badges, tables, headings, etc.), without removing
+  existing exports (Markdown, JSON, CSV, simple PDF/DOCX).
+
+  ### Summary of Required Changes
+
+  - Keep existing files (report.md, report.pdf, report.docx, strategy.json,
+    epm.json, assignments.csv, workstreams.csv, etc.) untouched.
+  - Add new files inside the export ZIP:
+      - report-ui.html (optional debugging aid)
+      - report-ui.pdf
+      - report-ui.docx
+  - These UI-style reports MUST visually replicate the Strategy Analysis & EPM
+    Program UI.
+
+  ———
+
+  ### Instructions
+
+  #### 1. Create or reuse a full UI HTML report
+
+  - Build a dedicated HTML template that mirrors all sections of the app:
+      - Strategy Overview (title, date, confidence, etc.)
+      - Overall Assessment (viability, contradiction warnings, summary cards)
+      - Key Insights (text and bullet sections)
+      - Strategic Recommendations (colored badges + text detail)
+      - Framework Results (Five Whys, Business Model Canvas components, etc.)
+      - Strategic Decisions & Journey Output
+      - EPM Components:
+          - Workstreams (name, description, deliverables, start/end months,
+            status badges)
+          - Timeline (total months, critical path list, stage gates, milestones)
+          - Resource Plan (internal team, external resources, critical skills)
+          - Financial Plan (total budget, cost breakdown, cash flow items)
+          - Benefits Realization
+          - Risk Register
+          - KPIs
+          - Stakeholder Map
+          - Governance, QA plan, Procurement, Exit Strategy
+          - Task Assignments (resource -> task table)
+          - Schedule issues, dependency graph summary
+  - Data binding: Use the existing JSON structure already produced in the export
+    service (everything in FullExportPackage) to populate the template. Every
+    field visible in the UI should appear in the report, in the same order, with
+    the same highlight colors and badges.
+  - Layout requirements: Carefully reproduce the visual presentation—cards with
+    rounded borders, heading hierarchy, badges indicating severity/confidence,
+    secondary text for descriptions. You can extract CSS classes/inline styles
+    from the React components or craft equivalent CSS to mimic them.
+
+  (Tip: create an HTML template in server/export/templates/report-ui.html and
+  populate it via string replacement or a templating library.)
+
+  #### 2. Render the HTML to additional formats
+
+  - HTML file (report-ui.html): Optional but useful for debugging. Include it
+    inside the ZIP.
+  - PDF (report-ui.pdf): Use Puppeteer to render the HTML with all styles
+    intact. Ensure printBackground, proper margins, and --no-sandbox flags for
+    Replit.
+  - DOCX (report-ui.docx): Use an HTML-to-DOCX converter (html-to-docx, docx-
+    templater, etc.) so the Word document looks like the HTML. The DOCX should
+    preserve headings, badges, tables, and colors as closely as possible.
+
+  #### 3. Preserve existing exports
+
+  - Do not remove or rename any existing exports (report.md, old report.pdf,
+    etc.).
+  - Simply add the new UI-style files into the ZIP (e.g., inside the root
+    alongside report.md).
+
+  #### 4. File naming
+
+  - The ZIP name already uses the program/analysis title (e.g., AI-Consultancy-
+    Launch-Strategy-v1.zip). Inside that ZIP, add:
+
+    report-ui.html         (optional)
+    report-ui.pdf
+    report-ui.docx
+
+  #### 5. Tests to run
+
+  1. Strategy-only export: Export an analysis from the repository without an
+     EPM program.
+      - Confirm report-ui.pdf/.docx include all strategy sections exactly as
+        shown in the app (screenshots provided).
+      - Confirm no EPM sections appear if not available.
+  2. Full program export: Export a completed EPM program.
+      - Verify all sections (strategy and EPM) appear in both new files, styled
+        and complete.
+  3. Existing files unchanged: The original JSON, CSV, and plain Markdown/PDF/
+     DOCX should be untouched and populated with data.
+  4. Content parity: Cross-check counts (e.g., number of workstreams, risks,
+     assignments) to ensure the UI-style report matches the underlying data.
+
+  ———
+
+  ### Optional Enhancements (NOT required)
+
+  - If you decide to reuse actual React components, set up server-side rendering
+    for StrategyResultsPage + EPMProgramView and feed the resulting HTML
+    straight into Puppeteer/HTML→DOCX. This keeps the report in sync whenever
+    the UI changes.
+  - Include an embedded Gantt visualization (SVG/PNG) inside the report if
+    desired.
+
+  ———
+
+  That’s it! Please roll out the UI-style HTML template, generate the PDF & DOCX
+  from it, and make sure the new files show up alongside all existing exports.
+  Let me know if you hit any issues!
