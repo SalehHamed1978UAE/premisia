@@ -289,6 +289,16 @@ export function CoachingModal({
         </div>
 
         <DialogFooter className="flex-col sm:flex-row gap-2">
+          {evaluation.improvedSuggestion && (
+            <Button
+              variant="ghost"
+              onClick={() => setRevisedAnswer(candidate)}
+              className="w-full sm:w-auto"
+              data-testid="button-use-original"
+            >
+              Start over with my original answer
+            </Button>
+          )}
           {!isInvalid && (
             <Button
               variant="outline"

@@ -308,47 +308,54 @@ export default function WhysTreePage() {
       setIsProcessingAction(true);
     });
 
-    try {
-      // Validate the selected answer before continuing
-      const previousWhys = selectedPath.map(p => p.option);
-      const validation = await validateWhyMutation.mutateAsync({
-        level: currentLevel,
-        candidate: currentOption.option,
-        previousWhys,
-        rootQuestion: tree.rootQuestion,
-      });
+    // ONLY validate if this is a CUSTOM user input
+    // System-provided Whys are already validated and don't need coaching
+    const isUserCustomInput = currentOption.isCustom === true;
 
-      if (validation.success && validation.evaluation) {
-        const { verdict } = validation.evaluation;
+    if (isUserCustomInput) {
+      try {
+        // Validate the user's custom input
+        const previousWhys = selectedPath.map(p => p.option);
+        const validation = await validateWhyMutation.mutateAsync({
+          level: currentLevel,
+          candidate: currentOption.option,
+          previousWhys,
+          rootQuestion: tree.rootQuestion,
+        });
 
-        if (verdict === 'invalid') {
-          // Block progression - must revise
-          setIsProcessingAction(false);
-          setCurrentEvaluation(validation.evaluation);
-          setPendingAction({ type: 'continue' });
-          setShowCoachingModal(true);
-          return;
-        } else if (verdict === 'needs_clarification') {
-          // Show warning but allow override
-          setIsProcessingAction(false);
-          setCurrentEvaluation(validation.evaluation);
-          setPendingAction({ type: 'continue' });
-          setShowCoachingModal(true);
-          return;
+        if (validation.success && validation.evaluation) {
+          const { verdict } = validation.evaluation;
+
+          if (verdict === 'invalid') {
+            // Block progression - must revise
+            setIsProcessingAction(false);
+            setCurrentEvaluation(validation.evaluation);
+            setPendingAction({ type: 'continue' });
+            setShowCoachingModal(true);
+            return;
+          } else if (verdict === 'needs_clarification') {
+            // Show warning but allow override
+            setIsProcessingAction(false);
+            setCurrentEvaluation(validation.evaluation);
+            setPendingAction({ type: 'continue' });
+            setShowCoachingModal(true);
+            return;
+          }
         }
+      } catch (error) {
+        setIsProcessingAction(false);
+        toast({
+          title: "Validation failed",
+          description: "Failed to validate your answer. Please try again.",
+          variant: "destructive",
+        });
+        return;
       }
-
-      // If validation passes (acceptable), proceed
-      // Note: proceedWithContinue() will keep isProcessingAction true if expansion is needed
-      proceedWithContinue();
-    } catch (error) {
-      setIsProcessingAction(false);
-      toast({
-        title: "Validation failed",
-        description: "Failed to validate your answer. Please try again.",
-        variant: "destructive",
-      });
     }
+
+    // If validation passes (acceptable) OR this is a system-provided option, proceed
+    // Note: proceedWithContinue() will keep isProcessingAction true if expansion is needed
+    proceedWithContinue();
   };
 
   const proceedWithContinue = (overrideOption?: string, overrideIsCustom?: boolean) => {
@@ -534,31 +541,8 @@ export default function WhysTreePage() {
   const handleRevision = async (newAnswer: string) => {
     if (!tree || !pendingAction) return;
 
-    // Update the current option with the revised answer
     if (pendingAction.type === 'continue' && currentOption) {
-      const updateNodeOption = (nodes: WhyNode[]): WhyNode[] => {
-        return nodes.map(node => {
-          if (node.id === currentOption.id) {
-            return {
-              ...node,
-              option: newAnswer,
-              question: `Why is this? (${newAnswer})`,
-              isCustom: true,
-            };
-          }
-          if (node.branches) {
-            return { ...node, branches: updateNodeOption(node.branches) };
-          }
-          return node;
-        });
-      };
-
-      setTree({
-        ...tree,
-        branches: updateNodeOption(tree.branches),
-      });
-
-      // Close modal temporarily and show loading state
+      // Close modal and show loading state
       setShowCoachingModal(false);
       flushSync(() => {
         setIsProcessingAction(true);
@@ -598,7 +582,10 @@ export default function WhysTreePage() {
           title: "Answer revised",
           description: "Your improved answer has been validated",
         });
-        // Pass the revised answer explicitly to ensure it's used (not stale currentOption)
+        
+        // Pass the revised answer explicitly to proceedWithContinue
+        // It will be added to selectedPath and used for expansion
+        // The backend will generate new options based on this revised answer
         proceedWithContinue(newAnswer, true);
       } catch (error) {
         setIsProcessingAction(false);

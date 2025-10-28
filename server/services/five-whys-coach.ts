@@ -158,6 +158,13 @@ Return your evaluation in this JSON format:
 }
 \`\`\`
 
+**IMPORTANT GUIDELINES FOR SUGGESTIONS:**
+- Base suggestions ONLY on information the user has already provided
+- Do NOT assume the user has conducted surveys, collected data, or performed research they haven't mentioned
+- Do NOT invent specific numbers, percentages, or statistics unless the user stated them
+- Keep suggestions grounded in observable, verifiable business factors
+- If you can't make a concrete suggestion without making assumptions, provide follow-up questions instead
+
 Focus on helping the user dig deeper into controllable, organizational root causes - not external factors or symptoms.`;
   }
 
