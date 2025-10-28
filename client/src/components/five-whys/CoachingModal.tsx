@@ -37,7 +37,7 @@ interface CoachingModalProps {
   rootQuestion: string;
   previousWhys: string[];
   sessionId: string;
-  onRevise: (newAnswer: string) => void;
+  onRevise: (newAnswer: string, isCoachGenerated?: boolean) => void;
   onOverride: () => void;
 }
 
@@ -52,10 +52,13 @@ export function CoachingModal({
   onRevise,
   onOverride,
 }: CoachingModalProps) {
-  const [revisedAnswer, setRevisedAnswer] = useState(candidate);
+  // Pre-fill with AI's improved suggestion if available, otherwise use original
+  const [revisedAnswer, setRevisedAnswer] = useState(evaluation.improvedSuggestion || candidate);
   const [coachingQuestion, setCoachingQuestion] = useState("");
   const [conversationHistory, setConversationHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const [coachingResponse, setCoachingResponse] = useState<string>("");
+  // Track whether current answer is AI-generated (to bypass validation)
+  const [isCurrentAnswerCoachGenerated, setIsCurrentAnswerCoachGenerated] = useState(!!evaluation.improvedSuggestion);
 
   const coachingMutation = useMutation({
     mutationFn: async (userQuestion: string) => {
@@ -83,6 +86,7 @@ export function CoachingModal({
         ]);
         if (data.coaching.suggestedRevision) {
           setRevisedAnswer(data.coaching.suggestedRevision);
+          setIsCurrentAnswerCoachGenerated(true); // Mark as coach-generated
         }
         setCoachingQuestion("");
       }
@@ -102,9 +106,21 @@ export function CoachingModal({
 
   const handleUseImprovedSuggestion = () => {
     if (evaluation.improvedSuggestion) {
-      // Directly submit the improved suggestion
-      onRevise(evaluation.improvedSuggestion);
+      // Directly submit the improved suggestion - mark as coach-generated
+      onRevise(evaluation.improvedSuggestion, true);
     }
+  };
+
+  const handleGenerateNewSuggestion = () => {
+    // Ask the coach to provide an alternative suggestion
+    const question = "Can you provide a different way to phrase this answer? Give me an alternative suggestion.";
+    coachingMutation.mutate(question);
+  };
+
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setRevisedAnswer(e.target.value);
+    // User is manually editing - mark as NOT coach-generated
+    setIsCurrentAnswerCoachGenerated(false);
   };
 
   const isInvalid = evaluation.verdict === 'invalid';
@@ -209,29 +225,6 @@ export function CoachingModal({
             </div>
           )}
 
-          {/* Coaching Conversation */}
-          {conversationHistory.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="font-semibold text-sm md:text-base">Coaching conversation:</h3>
-              <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
-                {conversationHistory.map((msg, idx) => (
-                  <div
-                    key={idx}
-                    className={`p-3 rounded-lg ${
-                      msg.role === 'user'
-                        ? 'bg-muted ml-0 sm:ml-8'
-                        : 'bg-primary/10 mr-0 sm:mr-8'
-                    }`}
-                  >
-                    <div className="text-xs font-medium text-muted-foreground mb-1.5">
-                      {msg.role === 'user' ? 'You' : 'Coach'}
-                    </div>
-                    <p className="text-sm break-words leading-relaxed">{msg.content}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Ask Coach */}
           <div className="space-y-2">
@@ -280,7 +273,7 @@ export function CoachingModal({
             <h3 className="font-semibold text-sm md:text-base">Revise your answer:</h3>
             <Textarea
               value={revisedAnswer}
-              onChange={(e) => setRevisedAnswer(e.target.value)}
+              onChange={handleTextareaChange}
               className="min-h-[100px] text-sm md:text-base resize-none"
               placeholder="Enter your improved answer here..."
               data-testid="input-revised-answer"
@@ -292,11 +285,19 @@ export function CoachingModal({
           {evaluation.improvedSuggestion && (
             <Button
               variant="ghost"
-              onClick={() => setRevisedAnswer(candidate)}
+              onClick={handleGenerateNewSuggestion}
+              disabled={coachingMutation.isPending}
               className="w-full sm:w-auto"
-              data-testid="button-use-original"
+              data-testid="button-generate-new-suggestion"
             >
-              Start over with my original answer
+              {coachingMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                'Generate new suggestion'
+              )}
             </Button>
           )}
           {!isInvalid && (
@@ -310,7 +311,7 @@ export function CoachingModal({
             </Button>
           )}
           <Button
-            onClick={() => onRevise(revisedAnswer)}
+            onClick={() => onRevise(revisedAnswer, isCurrentAnswerCoachGenerated)}
             disabled={!revisedAnswer.trim() || revisedAnswer === candidate}
             className="w-full sm:w-auto"
             data-testid="button-submit-revision"

@@ -538,7 +538,7 @@ export default function WhysTreePage() {
   };
 
   // Coaching modal handlers
-  const handleRevision = async (newAnswer: string) => {
+  const handleRevision = async (newAnswer: string, isCoachGenerated: boolean = false) => {
     if (!tree || !pendingAction) return;
 
     if (pendingAction.type === 'continue' && currentOption) {
@@ -548,8 +548,21 @@ export default function WhysTreePage() {
         setIsProcessingAction(true);
       });
 
+      // If this is a coach-generated answer, auto-accept without re-validation
+      if (isCoachGenerated) {
+        // Coach's suggestion - accept it directly without re-validation
+        setPendingAction(null);
+        setCurrentEvaluation(null);
+        toast({
+          title: "Using coach's suggestion",
+          description: "Proceeding with the improved answer",
+        });
+        proceedWithContinue(newAnswer, true);
+        return;
+      }
+
       try {
-        // Re-validate the revised answer
+        // Only re-validate if user manually edited the answer
         const previousWhys = selectedPath.map(p => p.option);
         const validation = await validateWhyMutation.mutateAsync({
           level: currentLevel,
@@ -596,16 +609,27 @@ export default function WhysTreePage() {
         });
       }
     } else if (pendingAction.type === 'custom') {
-      // For custom Whys, re-validate and proceed with the revised answer
-      // Don't update tree here - let proceedWithContinue handle it via override
-      
+      // For custom Whys, check if it's the coach's suggestion first
       setShowCoachingModal(false);
       flushSync(() => {
         setIsProcessingAction(true);
       });
 
+      // If this is a coach-generated answer, auto-accept without re-validation
+      if (isCoachGenerated) {
+        // Coach's suggestion - accept it directly without re-validation
+        setPendingAction(null);
+        setCurrentEvaluation(null);
+        toast({
+          title: "Using coach's suggestion",
+          description: "Proceeding with the improved answer",
+        });
+        proceedWithContinue(newAnswer, true);
+        return;
+      }
+
       try {
-        // Re-validate the revised answer
+        // Only re-validate if user manually edited the answer
         const previousWhys = selectedPath.map(p => p.option);
         const validation = await validateWhyMutation.mutateAsync({
           level: currentLevel,
