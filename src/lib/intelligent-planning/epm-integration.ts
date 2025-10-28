@@ -377,7 +377,9 @@ function transformScheduleForEPM(schedule: any): any {
         confidence: task.isCritical ? 0.70 : 0.85, // FIXED: Use decimals (0-1) not percentages
         dependencies: task.dependencies,
         deliverables: task.deliverables || [],
-        owner: task.assignedResources?.[0] || 'Unassigned',
+        owner: task.owner || task.assignedResourceNames?.[0] || 'Unassigned',
+        assignedResourceIds: task.assignedResourceIds || [],
+        assignedResourceNames: task.assignedResourceNames || [],
         description: task.description,
         requirements: task.requirements || [], // Preserve skill requirements for assignment generation
         skills: task.skills || [] // Also preserve direct skills array if present
@@ -439,6 +441,8 @@ function integrateScheduleIntoEPM(epmProgram: any, schedule: any): any {
           task.endMonth
         ),
         owner: task.owner || originalWorkstream.owner,
+        assignedResourceIds: task.assignedResourceIds || [],
+        assignedResourceNames: task.assignedResourceNames || [],
         description: task.description || originalWorkstream.description,
         requirements: task.requirements || [], // CRITICAL: Preserve requirements for assignment generation
         skills: task.skills || [], // CRITICAL: Preserve skills for assignment generation

@@ -48,6 +48,9 @@ export interface ScheduledTask extends Task {
   endDate: Date;
   isCritical: boolean;
   assignedResources: ResourceId[];
+  assignedResourceIds?: ResourceId[];
+  assignedResourceNames?: string[];
+  owner?: string;
 }
 
 export interface Schedule {

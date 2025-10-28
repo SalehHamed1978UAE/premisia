@@ -119,24 +119,105 @@ export class ResourceManager implements IResourceManager {
     
     for (const task of tasks) {
       const assigned = this.findBestResources(task);
-      assignments.set(task.id, assigned);
-      task.assignedResources = assigned;
+      const resourceIds = assigned.map(r => r.id);
+      const resourceNames = assigned.map(r => r.name);
+      
+      assignments.set(task.id, resourceIds);
+      task.assignedResources = resourceIds;
+      task.assignedResourceIds = resourceIds;
+      task.assignedResourceNames = resourceNames;
+      task.owner = resourceNames[0] || 'Unassigned';
     }
     
     return assignments;
   }
   
-  private findBestResources(task: ScheduledTask): ResourceId[] {
-    const assigned: ResourceId[] = [];
+  private findBestResources(task: ScheduledTask): Resource[] {
+    const assigned: Resource[] = [];
+    const availableResources = Array.from(this.resources.values());
     
-    for (const requirement of task.requirements) {
-      const available = Array.from(this.resources.values())
-        .filter(r => r.skills.includes(requirement.skill))
-        .sort((a, b) => a.costPerUnit - b.costPerUnit);
+    // Handle tasks with no requirements - treat as generic need
+    if (!task.requirements || task.requirements.length === 0) {
+      // Assign cheapest available resource
+      const cheapest = availableResources.sort((a, b) => 
+        (a.costPerUnit || 0) - (b.costPerUnit || 0)
+      )[0];
       
-      if (available.length > 0) {
-        assigned.push(available[0].id);
+      if (cheapest) {
+        return [cheapest];
       }
+      return [];
+    }
+    
+    // Process each requirement with safe fuzzy matching
+    for (const requirement of task.requirements) {
+      let matchedResources = availableResources.filter(r => {
+        if (!r.skills || r.skills.length === 0) return false;
+        
+        const reqSkill = requirement.skill.toLowerCase().trim();
+        const reqTokens = reqSkill.split(/\s+/);
+        
+        // Flatten all resource skill tokens into a single set
+        const allResourceTokens = r.skills.flatMap(skill =>
+          skill.toLowerCase().trim().split(/\s+/)
+        );
+        
+        // Helper: Check if a requirement token matches any resource token
+        const tokenMatches = (reqToken: string): boolean => {
+          return allResourceTokens.some(resToken => {
+            // Exact match - always accept regardless of length
+            if (reqToken === resToken) return true;
+            
+            // For longer tokens (4+ chars), allow prefix match ONLY with approved suffixes
+            // This prevents false positives like "plan" matching "plant"
+            if (reqToken.length >= 4 && resToken.length >= 4) {
+              const approvedSuffixes = ['ing', 'er', 'ed', 'ist', 'ment', 'ness', 'ion', 'tion', 'ation', 'ity', 'ship', 'ful', 'less', 's'];
+              
+              if (resToken.startsWith(reqToken)) {
+                const suffix = resToken.slice(reqToken.length);
+                // Allow if suffix is one of the approved word endings
+                return suffix === '' || approvedSuffixes.some(s => suffix === s || suffix.startsWith(s));
+              }
+              
+              if (reqToken.startsWith(resToken)) {
+                const suffix = reqToken.slice(resToken.length);
+                return suffix === '' || approvedSuffixes.some(s => suffix === s || suffix.startsWith(s));
+              }
+            }
+            
+            return false;
+          });
+        };
+        
+        // All requirement tokens must find a match somewhere in the resource's skills
+        return reqTokens.every(tokenMatches);
+      });
+      
+      // Sort by cost (cheapest first)
+      matchedResources.sort((a, b) => (a.costPerUnit || 0) - (b.costPerUnit || 0));
+      
+      // Fallback: if no skill match, use cheapest available resource
+      if (matchedResources.length === 0) {
+        const fallback = availableResources.sort((a, b) => 
+          (a.costPerUnit || 0) - (b.costPerUnit || 0)
+        )[0];
+        
+        if (fallback) {
+          matchedResources = [fallback];
+        }
+      }
+      
+      if (matchedResources.length > 0) {
+        assigned.push(matchedResources[0]);
+      }
+    }
+    
+    // Ensure every task has at least one assignment
+    if (assigned.length === 0 && availableResources.length > 0) {
+      const cheapest = availableResources.sort((a, b) => 
+        (a.costPerUnit || 0) - (b.costPerUnit || 0)
+      )[0];
+      assigned.push(cheapest);
     }
     
     return assigned;
