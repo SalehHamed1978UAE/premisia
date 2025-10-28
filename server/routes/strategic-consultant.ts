@@ -1536,23 +1536,26 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
       return res.status(400).json({ error: 'Session ID is required' });
     }
     
-    // Verify session exists in database before starting stream
-    const sessionExists = await getJourneySession(sessionId);
-    if (!sessionExists) {
-      console.error(`[BMC-RESEARCH-STREAM] Session ${sessionId} not found - may have been lost due to server restart`);
-      return res.status(410).json({ 
-        error: 'Session expired or not found. Please start a new analysis from the beginning.' 
-      });
-    }
-    
     console.log('[BMC-RESEARCH-STREAM] Starting SSE stream for session:', sessionId);
 
-    // Set up Server-Sent Events
+    // Set up Server-Sent Events first
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
     res.flushHeaders();
+    
+    // Verify session exists in database after headers are set
+    const sessionExists = await getJourneySession(sessionId);
+    if (!sessionExists) {
+      console.error(`[BMC-RESEARCH-STREAM] Session ${sessionId} not found - may have been lost due to server restart`);
+      res.write(`data: ${JSON.stringify({ 
+        type: 'error', 
+        error: 'Session expired or not found. Please start a new analysis from the beginning.' 
+      })}\n\n`);
+      res.end();
+      return;
+    }
     
     console.log('[BMC-RESEARCH-STREAM] SSE headers set, starting to send messages...');
 
