@@ -364,6 +364,48 @@ Return ONLY valid JSON (no markdown, no extra text):
 
   async validateRootCause(rootCauseText: string): Promise<{ valid: boolean; message?: string }> {
     try {
+      // Safety override: Auto-approve if text contains clear business problem indicators
+      // This prevents false positives from intermittent AI misinterpretation
+      
+      // Strong multi-word business phrases that are unambiguous
+      const strongBusinessPhrases = [
+        'information overload', 'decision paralysis', 'business complexity',
+        'capability gap', 'skill gap', 'market dynamics', 'competitive positioning',
+        'value proposition', 'revenue stream', 'cost structure', 'pricing power'
+      ];
+      
+      // Cultural identifiers that should always trigger AI validation
+      // Use root forms to catch variants (culturally, ethnically, traditional, etc.)
+      const culturalRoots = [
+        'cultur', 'tradition', 'ethnic', 'racial', 'national', 
+        'heritage', 'custom', 'ritual', 'bias', 'background', 'norm',
+        'belief', 'stereotype', 'hierarch'
+      ];
+      
+      const lowerText = rootCauseText.toLowerCase();
+      
+      // First check: If ANY cultural root present, always defer to AI
+      // This catches variants like "culturally", "ethnically", "traditional", etc.
+      const hasCulturalRef = culturalRoots.some(root => {
+        // Match root as word start to catch all variants
+        const regex = new RegExp(`\\b${root}`, 'i');
+        return regex.test(lowerText);
+      });
+      
+      if (hasCulturalRef) {
+        console.log(`[validateRootCause] Cultural identifier detected, deferring to AI validation`);
+      } else {
+        // Second check: Auto-approve ONLY if strong business phrase present
+        const hasStrongBusinessPhrase = strongBusinessPhrases.some(phrase => 
+          lowerText.includes(phrase)
+        );
+        
+        if (hasStrongBusinessPhrase) {
+          console.log(`[validateRootCause] Safety override: Auto-approved business-focused root cause with phrase match`);
+          return { valid: true };
+        }
+      }
+
       const response = await aiClients.callWithFallback({
         systemPrompt: 'You\'re helping someone check if they\'ve found a real business root cause, or if they might need to dig a bit deeper. Be supportive and constructive.',
         userMessage: `They think they found their root cause: "${rootCauseText}"
@@ -390,6 +432,8 @@ Respond with ONLY valid JSON:
       });
 
       const validation = this.extractJSON(response, 'validateRootCause');
+      
+      console.log(`[validateRootCause] AI validation result: ${validation.isValid ? 'valid' : 'invalid'} - "${rootCauseText}"`);
 
       return {
         valid: validation.isValid,
