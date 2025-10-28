@@ -405,10 +405,26 @@ export function analyzeSchedule(
         
         // Check if they overlap
         if (task1.startMonth <= task2.endMonth && task2.startMonth <= task1.endMonth) {
+          
+          // ENHANCED TEAM DETECTION: Skip overlap warning for pooled resources
+          const isPooledResource =
+            // PRIMARY: Check if either task has multiple assigned resources (= team)
+            (task1.assignedResourceIds && task1.assignedResourceIds.length > 1) ||
+            (task2.assignedResourceIds && task2.assignedResourceIds.length > 1) ||
+            // SECONDARY: Name-based heuristic for teams
+            owner.toLowerCase().includes('team');
+          
+          if (isPooledResource) {
+            // This is a team resource - teams can handle concurrent tasks
+            // Skip the overlap warning
+            continue;
+          }
+          
+          // Only flag overlap for single-resource (individual) owners
           issues.push({
             type: 'overlap',
             severity: 'high',
-            description: `${owner} is assigned to overlapping critical tasks: "${task1.name}" and "${task2.name}"`,
+            description: `${owner} is assigned to overlapping critical tasks: "${task1.name}" (Month ${task1.startMonth}-${task1.endMonth}) and "${task2.name}" (Month ${task2.startMonth}-${task2.endMonth})`,
             affectedTasks: [task1.id, task2.id],
             recommendation: 'Assign additional resources or adjust task timelines to prevent resource conflicts'
           });
