@@ -1,0 +1,107 @@
+1. Make the Markdown report complete
+
+  In the export service (generateMarkdown):
+
+  - Replace the placeholder blocks with real content from pkg.strategy and
+    pkg.epm.program.
+  - Use optional chaining so missing sections don’t crash. For each component,
+    render the actual data. For example:
+
+    md += `## Executive Summary\n\n`;
+    md += `${pkg.epm.program?.executiveSummary?.summary ?? 'N/A'}\n\n`;
+
+    if (pkg.epm.program?.executiveSummary?.objectives?.length) {
+      md += `### Objectives\n`;
+      pkg.epm.program.executiveSummary.objectives.forEach(obj => md += `-
+  ${obj}\n`);
+      md += '\n';
+    }
+
+    md += `## Strategic Analysis\n\n`;
+    md += `**Framework:** ${pkg.epm.program?.frameworkType ?? 'N/A'}\n`;
+    if (pkg.strategy.insights?.length) {
+      md += `### Key Insights\n`;
+      pkg.strategy.insights.forEach(insight => md += `- ${insight}\n`);
+      md += '\n';
+    }
+    if (pkg.strategy.contradictions?.length) {
+      md += `### ⚠ Contradictions\n`;
+      pkg.strategy.contradictions.forEach(c => {
+        md += `- **${c.assumption}**\n  - Evidence: ${c.contradictedBy?.join(';
+  ') ?? 'N/A'}\n  - Impact: ${c.impact}\n  - Recommendation:
+  ${c.recommendation}\n\n`;
+      });
+    }
+  - Continue this pattern for:
+      - Strategic decisions.
+      - Workstreams (name, description, deliverables, timeline).
+      - Timeline & critical path (total months, stage gates).
+      - Resource plan (internal team, external resources, critical skills).
+      - Financial plan (total budget, financialPlan.costBreakdown, cash flow
+        table).
+      - Benefits (benefitsRealization.benefits).
+      - Risks (riskRegister.risks).
+      - KPIs, stakeholders, governance, QA plan, procurement, exit strategy.
+      - Task assignments (Markdown table using the assignments array).
+
+  That Markdown should mirror all the information you see in the JSON.
+
+  ———
+
+  ### 2. Reuse the Markdown for HTML, PDF, and DOCX
+
+  - Convert the Markdown to HTML using a parser (e.g. marked.parse(markdown))
+    before sending it to Puppeteer. That gives proper headings, lists, and
+    tables in the PDF.
+  - Generate the DOCX from the same content. Either:
+      - Build the document programmatically with docx (loop through the same
+        sections so the Word file mirrors the Markdown), or
+      - Use a helper library such as markdown-to-docx/html-to-docx to convert
+        the Markdown/HTML directly.
+  - Keep the ZIP filenames and paths unchanged; just make sure report.md,
+    report.pdf, and report.docx all contain the full report.
+
+  ———
+
+  ### 3. Populate the CSVs
+
+  Right now assignments.csv and workstreams.csv only have headers. Replace the
+  stub with real rows, escaping commas/quotes. For example:
+
+  const escape = (value: string) =>
+    `"${(value ?? '').replace(/"/g, '""')}"`;
+
+  const assignmentsCsv = [
+    'Task ID,Task Name,Resource ID,Resource Name,Role,Allocation %,Start
+  Date,End Date,Status',
+    ...pkg.epm.assignments.map(a => [
+      a.taskId ?? '',
+      escape(a.taskName ?? ''),
+      a.resourceId ?? '',
+      escape(a.resourceName ?? ''),
+      escape(a.resourceRole ?? ''),
+      a.allocationPercent ?? '',
+      a.assignedFrom ? new Date(a.assignedFrom).toISOString() : '',
+      a.assignedTo ? new Date(a.assignedTo).toISOString() : '',
+      a.status ?? ''
+    ].join(',')),
+  ].join('\n');
+
+  Do the same for workstreams (id, name, description, start/end, dependencies,
+  deliverables). If you want to add more CSVs (resources, risks, benefits),
+  follow the same approach.
+
+  ———
+
+  ### 4. Verify
+
+  After updating:
+
+  - Export an EPM program and open report.md, report.pdf, and report.docx. They
+    should all show the full executive summary, strategic sections, workstreams,
+    risks, financials, assignments, etc.
+  - Open the CSVs in Excel/Google Sheets—rows should be populated with the
+    actual data.
+  - Export an analysis-only session to make sure the strategic sections populate
+    even when there’s no EPM program.
+

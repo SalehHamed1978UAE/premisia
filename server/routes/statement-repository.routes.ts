@@ -2,12 +2,14 @@ import { Router } from 'express';
 import { db } from '../db';
 import { strategicUnderstanding, frameworkInsights, strategicEntities, strategyVersions } from '@shared/schema';
 import { eq, desc, sql, inArray } from 'drizzle-orm';
+import { getStrategicUnderstanding } from '../services/secure-data-service';
+import { decrypt } from '../utils/encryption';
 
 const router = Router();
 
 router.get('/statements', async (req, res) => {
   try {
-    const statements = await db
+    const rawStatements = await db
       .select({
         understandingId: strategicUnderstanding.id,
         sessionId: strategicUnderstanding.sessionId,
@@ -17,6 +19,12 @@ router.get('/statements', async (req, res) => {
       })
       .from(strategicUnderstanding)
       .orderBy(desc(strategicUnderstanding.createdAt));
+    
+    // Decrypt userInput for each statement
+    const statements = rawStatements.map(stmt => ({
+      ...stmt,
+      statement: decrypt(stmt.statement) || stmt.statement,
+    }));
 
     const enrichedStatements = await Promise.all(
       statements.map(async (stmt) => {
@@ -43,7 +51,7 @@ router.get('/statements', async (req, res) => {
           .orderBy(desc(strategyVersions.createdAt));
 
         const analysisSummary: Record<string, { count: number; latestVersion: string }> = {};
-        let latestActivity: Date = stmt.createdAt;
+        let latestActivity: Date = stmt.createdAt || new Date();
         
         // Process old analyses
         oldAnalyses.forEach((analysis) => {
@@ -190,10 +198,8 @@ router.get('/statements/:understandingId', async (req, res) => {
   try {
     const { understandingId } = req.params;
 
-    const [understanding] = await db
-      .select()
-      .from(strategicUnderstanding)
-      .where(eq(strategicUnderstanding.id, understandingId));
+    // Use the decryption service to get decrypted data
+    const understanding = await getStrategicUnderstanding(understandingId);
 
     if (!understanding) {
       return res.status(404).json({ error: 'Statement not found' });

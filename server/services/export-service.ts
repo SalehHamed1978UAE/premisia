@@ -151,6 +151,16 @@ async function loadExportData(
   // Load strategic understanding
   const understanding = await getStrategicUnderstandingBySession(sessionId);
   console.log('[Export Service] loadExportData - Understanding loaded:', understanding ? 'Yes' : 'No');
+  
+  // Debug: Check if userInput is still encrypted
+  if (understanding?.userInput) {
+    const isEncrypted = understanding.userInput.includes(':') && understanding.userInput.split(':').length === 3;
+    console.log('[Export Service] userInput encryption status:', {
+      isEncrypted,
+      firstChars: understanding.userInput.substring(0, 50),
+      length: understanding.userInput.length
+    });
+  }
 
   // Load journey session
   console.log('[Export Service] loadExportData - Loading journey session...');
