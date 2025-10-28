@@ -13,6 +13,7 @@ import type { StatementSummary } from '@/types/repository';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { DeleteAnalysisDialog } from '@/components/DeleteAnalysisDialog';
+import { ExportFullReportButton } from '@/components/epm/ExportFullReportButton';
 
 export default function RepositoryBrowser() {
   const [, setLocation] = useLocation();
@@ -419,6 +420,16 @@ export default function RepositoryBrowser() {
                     >
                       View Details
                     </Button>
+                  </div>
+
+                  {/* Export button */}
+                  <div className="pt-2 border-t">
+                    <ExportFullReportButton
+                      sessionId={statement.sessionId}
+                      variant="ghost"
+                      size="sm"
+                      className="w-full"
+                    />
                   </div>
                 </CardContent>
               </Card>

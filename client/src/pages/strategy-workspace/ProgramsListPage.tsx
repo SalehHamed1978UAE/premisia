@@ -23,6 +23,7 @@ import { useState } from 'react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
+import { ExportFullReportButton } from '@/components/epm/ExportFullReportButton';
 
 interface EPMProgram {
   id: string;
@@ -342,7 +343,7 @@ export function ProgramsListPage() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-6 text-sm text-muted-foreground">
                       <div className="flex items-center gap-2">
@@ -359,6 +360,15 @@ export function ProgramsListPage() {
                         View Program <ArrowRight className="ml-2 h-4 w-4" />
                       </Link>
                     </Button>
+                  </div>
+                  <div className="pt-2 border-t">
+                    <ExportFullReportButton
+                      sessionId={program.strategyVersionId}
+                      programId={program.id}
+                      variant="ghost"
+                      size="sm"
+                      className="w-full"
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -398,7 +408,7 @@ export function ProgramsListPage() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-6 text-sm text-muted-foreground">
                       <div className="flex items-center gap-2">
@@ -417,6 +427,15 @@ export function ProgramsListPage() {
                         View Program <ArrowRight className="ml-2 h-4 w-4" />
                       </Link>
                     </Button>
+                  </div>
+                  <div className="pt-2 border-t">
+                    <ExportFullReportButton
+                      sessionId={program.strategyVersionId}
+                      programId={program.id}
+                      variant="ghost"
+                      size="sm"
+                      className="w-full"
+                    />
                   </div>
                 </CardContent>
               </Card>

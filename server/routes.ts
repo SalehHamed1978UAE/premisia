@@ -12,6 +12,7 @@ import statementRepositoryRoutes from "./routes/statement-repository.routes";
 import strategyWorkspaceRoutes from "./routes/strategy-workspace";
 import journeyBuilderRoutes from "./routes/journey-builder";
 import taskAssignmentsRoutes from "./routes/task-assignments";
+import exportsRoutes from "./routes/exports";
 import { backgroundJobService } from "./services/background-job-service";
 import { eq, and, or, desc, sql } from "drizzle-orm";
 import { db } from "./db";
@@ -266,6 +267,9 @@ Marketing and events: $3k/month`,
 
   // Task Assignments routes (protected with auth)
   app.use("/api/task-assignments", requireAuth, taskAssignmentsRoutes);
+
+  // Exports routes (protected with auth)
+  app.use("/api/exports", requireAuth, exportsRoutes);
 
   // Middleware to check roles (updated for Replit Auth)
   const requireRole = (roles: string[]) => async (req: any, res: any, next: any) => {
