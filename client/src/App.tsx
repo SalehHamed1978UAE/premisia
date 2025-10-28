@@ -6,8 +6,11 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "./hooks/use-auth";
 import { ProgramProvider } from "./contexts/ProgramContext";
 import { JobProvider } from "./contexts/JobContext";
+import { DocumentInsightsProvider } from "./contexts/DocumentInsightsContext";
 import { SessionContextPanel } from "@/components/SessionContext";
 import { GlobalJobTracker } from "@/components/GlobalJobTracker";
+import { DocumentInsightsFAB } from "@/components/DocumentInsightsFAB";
+import { DocumentInsightsPanel } from "@/components/DocumentInsightsPanel";
 import { useJobNotifications } from "@/hooks/useJobNotifications";
 import HomePage from "@/pages/home-page";
 import ProgramsPage from "@/pages/programs-page";
@@ -86,11 +89,15 @@ function AppContent() {
   return user ? (
     <JobProvider>
       <ProgramProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-          <GlobalJobTracker />
-        </TooltipProvider>
+        <DocumentInsightsProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Router />
+            <GlobalJobTracker />
+            <DocumentInsightsFAB />
+            <DocumentInsightsPanel />
+          </TooltipProvider>
+        </DocumentInsightsProvider>
       </ProgramProvider>
     </JobProvider>
   ) : (

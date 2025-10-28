@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useEffect, useRef } from 'react';
 import { useLocation } from 'wouter';
+import { useDocumentInsights } from '@/contexts/DocumentInsightsContext';
 
 interface BackgroundJob {
   id: string;
@@ -19,6 +20,7 @@ interface BackgroundJob {
 export function useJobNotifications() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const { addNotification, setPanelOpen } = useDocumentInsights();
   const seenJobs = useRef(new Set<string>());
 
   // Poll for completed jobs every 10 seconds
@@ -27,6 +29,18 @@ export function useJobNotifications() {
     queryFn: async () => {
       const res = await fetch('/api/background-jobs/recent-completions');
       if (!res.ok) throw new Error('Failed to fetch job notifications');
+      return res.json();
+    },
+    refetchInterval: 10000, // Every 10 seconds
+    retry: false,
+  });
+
+  // Poll for document enrichment notifications every 10 seconds
+  const { data: enrichmentData } = useQuery({
+    queryKey: ['enrichment-notifications'],
+    queryFn: async () => {
+      const res = await fetch('/api/document-enrichment/notifications');
+      if (!res.ok) throw new Error('Failed to fetch enrichment notifications');
       return res.json();
     },
     refetchInterval: 10000, // Every 10 seconds
@@ -69,4 +83,21 @@ export function useJobNotifications() {
       }
     });
   }, [data, toast, setLocation]);
+
+  // Handle document enrichment notifications
+  useEffect(() => {
+    if (!enrichmentData?.jobs) return;
+
+    enrichmentData.jobs.forEach((enrichment: any) => {
+      // Add to context - it will check if we've seen it before
+      addNotification(enrichment);
+
+      // Show a simple toast notification (action button will be in the FAB)
+      toast({
+        title: '💡 Knowledge Extracted',
+        description: `${enrichment.entityCount} statement${enrichment.entityCount !== 1 ? 's' : ''} from ${enrichment.fileName || 'your document'}. Check the insights panel.`,
+        duration: 15000,
+      });
+    });
+  }, [enrichmentData, addNotification, toast]);
 }

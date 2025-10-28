@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import { backgroundJobService } from '../services/background-job-service';
-import { requireAuth } from '../middleware/auth';
+import { isAuthenticated } from '../replitAuth';
 
 const router = Router();
 
@@ -8,7 +8,7 @@ const router = Router();
  * GET /api/document-enrichment/notifications
  * Get completed document enrichment jobs for the current user
  */
-router.get('/notifications', requireAuth, async (req: Request, res: Response) => {
+router.get('/notifications', isAuthenticated, async (req: Request, res: Response) => {
   try {
     const userId = (req.user as any)?.claims?.sub;
     
