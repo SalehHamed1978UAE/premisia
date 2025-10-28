@@ -371,7 +371,10 @@ Return ONLY valid JSON (no markdown, no extra text):
       const strongBusinessPhrases = [
         'information overload', 'decision paralysis', 'business complexity',
         'capability gap', 'skill gap', 'market dynamics', 'competitive positioning',
-        'value proposition', 'revenue stream', 'cost structure', 'pricing power'
+        'value proposition', 'revenue stream', 'cost structure', 'pricing power',
+        'decision tool', 'career-ending', 'project failure', 'roi', 'return on investment',
+        'business risk', 'market entry', 'customer acquisition', 'sales cycle',
+        'proof-of-concept', 'enterprise sales', 'conservative buyer'
       ];
       
       // Cultural identifiers that should always trigger AI validation
