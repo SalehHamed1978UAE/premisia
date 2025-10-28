@@ -22,6 +22,7 @@ import type { JourneyType } from '@shared/journey-types';
 import { InitiativeClassifier } from '../strategic-consultant/initiative-classifier';
 import { ambiguityDetector } from '../services/ambiguity-detector.js';
 import { getStrategicUnderstanding, getStrategicUnderstandingBySession, updateStrategicUnderstanding, getJourneySession } from '../services/secure-data-service';
+import { fiveWhysCoach } from '../services/five-whys-coach.js';
 
 const router = Router();
 const upload = multer({ 
@@ -1655,6 +1656,84 @@ router.get('/understanding/:sessionId', async (req: Request, res: Response) => {
     res.status(500).json({ 
       success: false,
       error: error.message || 'Failed to fetch understanding ID' 
+    });
+  }
+});
+
+/**
+ * POST /api/strategic-consultant/five-whys/validate
+ * Validate a candidate "Why" answer for quality and relevance
+ */
+router.post('/five-whys/validate', async (req: Request, res: Response) => {
+  try {
+    const { level, candidate, previousWhys, rootQuestion, sessionContext } = req.body;
+
+    if (!candidate || !rootQuestion || level === undefined) {
+      return res.status(400).json({ 
+        error: 'level, candidate, and rootQuestion are required' 
+      });
+    }
+
+    const evaluation = await fiveWhysCoach.validateWhy({
+      level: parseInt(level),
+      candidate,
+      previousWhys: previousWhys || [],
+      rootQuestion,
+      sessionContext,
+    });
+
+    res.json({
+      success: true,
+      evaluation,
+    });
+  } catch (error: any) {
+    console.error('Error in /five-whys/validate:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message || 'Validation failed' 
+    });
+  }
+});
+
+/**
+ * POST /api/strategic-consultant/five-whys/coach
+ * Get coaching guidance to improve a "Why" answer
+ */
+router.post('/five-whys/coach', async (req: Request, res: Response) => {
+  try {
+    const { 
+      sessionId, 
+      rootQuestion, 
+      previousWhys, 
+      candidate, 
+      userQuestion,
+      conversationHistory 
+    } = req.body;
+
+    if (!sessionId || !rootQuestion || !candidate || !userQuestion) {
+      return res.status(400).json({ 
+        error: 'sessionId, rootQuestion, candidate, and userQuestion are required' 
+      });
+    }
+
+    const coaching = await fiveWhysCoach.provideCoaching({
+      sessionId,
+      rootQuestion,
+      previousWhys: previousWhys || [],
+      candidate,
+      userQuestion,
+      conversationHistory: conversationHistory || [],
+    });
+
+    res.json({
+      success: true,
+      coaching,
+    });
+  } catch (error: any) {
+    console.error('Error in /five-whys/coach:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message || 'Coaching failed' 
     });
   }
 });
