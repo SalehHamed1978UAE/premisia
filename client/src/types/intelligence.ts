@@ -43,6 +43,8 @@ export interface Workstream {
   endMonth: number;
   dependencies: string[];
   confidence: number;
+  assignedResourceIds?: string[]; // Resource IDs assigned to this workstream
+  assignedResourceNames?: string[]; // Resource names assigned to this workstream
 }
 
 export interface TimelinePhase {

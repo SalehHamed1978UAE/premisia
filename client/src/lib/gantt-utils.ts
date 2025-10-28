@@ -87,6 +87,8 @@ export function transformToGanttData(
     confidence: ws.confidence,
     owner: ws.owner,
     description: ws.description,
+    assignedResourceIds: ws.assignedResourceIds || [],
+    assignedResourceNames: ws.assignedResourceNames || [],
     deliverables: ws.deliverables?.map(d => {
       // Safety check: Clamp deliverable to workstream timeline
       // This handles legacy programs with invalid data
