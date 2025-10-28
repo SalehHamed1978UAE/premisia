@@ -408,6 +408,336 @@ function generateMarkdownReport(pkg: FullExportPackage): string {
     }
     
     lines.push('\n---\n');
+    
+    // Extract framework analysis from accumulated context
+    const context = parseField(j.accumulatedContext);
+    const insights = context?.insights || {};
+    
+    // ======================
+    // FIVE WHYS ANALYSIS
+    // ======================
+    if (insights.rootCauses || insights.whysPath || insights.strategicImplications) {
+      lines.push('## Five Whys Analysis\n');
+      
+      if (insights.whysPath && insights.whysPath.length > 0) {
+        lines.push('\n**Analysis Path:**\n');
+        insights.whysPath.forEach((step: any, idx: number) => {
+          lines.push(`${idx + 1}. **Why?** ${step.question || step.why || 'Not specified'}`);
+          lines.push(`   **Answer:** ${step.answer || 'Not specified'}\n`);
+        });
+      }
+      
+      if (insights.rootCauses && insights.rootCauses.length > 0) {
+        lines.push('\n**Identified Root Causes:**\n');
+        insights.rootCauses.forEach((cause: string) => {
+          lines.push(`- ${cause}`);
+        });
+        lines.push('');
+      }
+      
+      if (insights.strategicImplications && insights.strategicImplications.length > 0) {
+        lines.push('\n**Strategic Implications:**\n');
+        insights.strategicImplications.forEach((imp: string) => {
+          lines.push(`- ${imp}`);
+        });
+        lines.push('');
+      }
+      
+      lines.push('---\n');
+    }
+    
+    // ======================
+    // BUSINESS MODEL CANVAS ANALYSIS
+    // ======================
+    if (insights.bmcBlocks) {
+      const bmc = insights.bmcBlocks;
+      lines.push('## Business Model Canvas Analysis\n');
+      
+      if (bmc.customerSegments) {
+        lines.push('\n### Customer Segments\n');
+        if (typeof bmc.customerSegments === 'string') {
+          lines.push(`${bmc.customerSegments}\n`);
+        } else if (Array.isArray(bmc.customerSegments)) {
+          bmc.customerSegments.forEach((seg: string) => lines.push(`- ${seg}`));
+          lines.push('');
+        } else if (bmc.customerSegments.segments) {
+          bmc.customerSegments.segments.forEach((seg: any) => {
+            lines.push(`- **${seg.name || 'Segment'}:** ${seg.description || ''}`);
+          });
+          lines.push('');
+        }
+      }
+      
+      if (bmc.valuePropositions) {
+        lines.push('\n### Value Propositions\n');
+        if (typeof bmc.valuePropositions === 'string') {
+          lines.push(`${bmc.valuePropositions}\n`);
+        } else if (Array.isArray(bmc.valuePropositions)) {
+          bmc.valuePropositions.forEach((vp: string) => lines.push(`- ${vp}`));
+          lines.push('');
+        } else if (bmc.valuePropositions.propositions) {
+          bmc.valuePropositions.propositions.forEach((vp: any) => {
+            lines.push(`- **${vp.title || 'Value Proposition'}:** ${vp.description || ''}`);
+          });
+          lines.push('');
+        }
+      }
+      
+      if (bmc.channels) {
+        lines.push('\n### Channels\n');
+        if (typeof bmc.channels === 'string') {
+          lines.push(`${bmc.channels}\n`);
+        } else if (Array.isArray(bmc.channels)) {
+          bmc.channels.forEach((ch: string) => lines.push(`- ${ch}`));
+          lines.push('');
+        } else if (bmc.channels.channels) {
+          bmc.channels.channels.forEach((ch: any) => {
+            lines.push(`- **${ch.name || 'Channel'}:** ${ch.description || ''}`);
+          });
+          lines.push('');
+        }
+      }
+      
+      if (bmc.customerRelationships) {
+        lines.push('\n### Customer Relationships\n');
+        if (typeof bmc.customerRelationships === 'string') {
+          lines.push(`${bmc.customerRelationships}\n`);
+        } else if (Array.isArray(bmc.customerRelationships)) {
+          bmc.customerRelationships.forEach((rel: string) => lines.push(`- ${rel}`));
+          lines.push('');
+        } else if (bmc.customerRelationships.relationships) {
+          bmc.customerRelationships.relationships.forEach((rel: any) => {
+            lines.push(`- **${rel.type || 'Relationship'}:** ${rel.description || ''}`);
+          });
+          lines.push('');
+        }
+      }
+      
+      if (bmc.revenueStreams) {
+        lines.push('\n### Revenue Streams\n');
+        if (typeof bmc.revenueStreams === 'string') {
+          lines.push(`${bmc.revenueStreams}\n`);
+        } else if (Array.isArray(bmc.revenueStreams)) {
+          bmc.revenueStreams.forEach((rev: string) => lines.push(`- ${rev}`));
+          lines.push('');
+        } else if (bmc.revenueStreams.streams) {
+          bmc.revenueStreams.streams.forEach((rev: any) => {
+            lines.push(`- **${rev.name || 'Revenue Stream'}:** ${rev.description || ''}`);
+            if (rev.pricingModel) lines.push(`  - Pricing: ${rev.pricingModel}`);
+          });
+          lines.push('');
+        }
+      }
+      
+      if (bmc.keyResources) {
+        lines.push('\n### Key Resources\n');
+        if (typeof bmc.keyResources === 'string') {
+          lines.push(`${bmc.keyResources}\n`);
+        } else if (Array.isArray(bmc.keyResources)) {
+          bmc.keyResources.forEach((res: string) => lines.push(`- ${res}`));
+          lines.push('');
+        } else if (bmc.keyResources.resources) {
+          bmc.keyResources.resources.forEach((res: any) => {
+            lines.push(`- **${res.name || 'Resource'}:** ${res.description || ''}`);
+          });
+          lines.push('');
+        }
+      }
+      
+      if (bmc.keyActivities) {
+        lines.push('\n### Key Activities\n');
+        if (typeof bmc.keyActivities === 'string') {
+          lines.push(`${bmc.keyActivities}\n`);
+        } else if (Array.isArray(bmc.keyActivities)) {
+          bmc.keyActivities.forEach((act: string) => lines.push(`- ${act}`));
+          lines.push('');
+        } else if (bmc.keyActivities.activities) {
+          bmc.keyActivities.activities.forEach((act: any) => {
+            lines.push(`- **${act.name || 'Activity'}:** ${act.description || ''}`);
+          });
+          lines.push('');
+        }
+      }
+      
+      if (bmc.keyPartnerships) {
+        lines.push('\n### Key Partnerships\n');
+        if (typeof bmc.keyPartnerships === 'string') {
+          lines.push(`${bmc.keyPartnerships}\n`);
+        } else if (Array.isArray(bmc.keyPartnerships)) {
+          bmc.keyPartnerships.forEach((part: string) => lines.push(`- ${part}`));
+          lines.push('');
+        } else if (bmc.keyPartnerships.partnerships) {
+          bmc.keyPartnerships.partnerships.forEach((part: any) => {
+            lines.push(`- **${part.partner || 'Partner'}:** ${part.description || ''}`);
+          });
+          lines.push('');
+        }
+      }
+      
+      if (bmc.costStructure) {
+        lines.push('\n### Cost Structure\n');
+        if (typeof bmc.costStructure === 'string') {
+          lines.push(`${bmc.costStructure}\n`);
+        } else if (Array.isArray(bmc.costStructure)) {
+          bmc.costStructure.forEach((cost: string) => lines.push(`- ${cost}`));
+          lines.push('');
+        } else if (bmc.costStructure.costs) {
+          bmc.costStructure.costs.forEach((cost: any) => {
+            lines.push(`- **${cost.category || 'Cost'}:** ${cost.description || ''}`);
+          });
+          lines.push('');
+        }
+      }
+      
+      if (insights.bmcContradictions && insights.bmcContradictions.length > 0) {
+        lines.push('\n### Identified Contradictions\n');
+        insights.bmcContradictions.forEach((cont: any) => {
+          if (typeof cont === 'string') {
+            lines.push(`- ${cont}`);
+          } else {
+            lines.push(`- **${cont.title || 'Contradiction'}:** ${cont.description || cont.issue || ''}`);
+            if (cont.recommendation) lines.push(`  - *Recommendation:* ${cont.recommendation}`);
+          }
+        });
+        lines.push('');
+      }
+      
+      if (insights.businessModelGaps && insights.businessModelGaps.length > 0) {
+        lines.push('\n### Critical Gaps\n');
+        insights.businessModelGaps.forEach((gap: any) => {
+          if (typeof gap === 'string') {
+            lines.push(`- ${gap}`);
+          } else {
+            lines.push(`- **${gap.area || 'Gap'}:** ${gap.description || ''}`);
+            if (gap.impact) lines.push(`  - *Impact:* ${gap.impact}`);
+          }
+        });
+        lines.push('');
+      }
+      
+      lines.push('---\n');
+    }
+    
+    // ======================
+    // PORTER'S FIVE FORCES ANALYSIS
+    // ======================
+    if (insights.portersForces) {
+      lines.push('## Porter\'s Five Forces Analysis\n');
+      const forces = insights.portersForces;
+      
+      if (forces.competitiveRivalry || forces.competitive_rivalry) {
+        const rivalry = forces.competitiveRivalry || forces.competitive_rivalry;
+        lines.push('\n### Competitive Rivalry\n');
+        if (typeof rivalry === 'string') {
+          lines.push(`${rivalry}\n`);
+        } else {
+          if (rivalry.intensity) lines.push(`**Intensity:** ${rivalry.intensity}\n`);
+          if (rivalry.factors && Array.isArray(rivalry.factors)) {
+            rivalry.factors.forEach((f: string) => lines.push(`- ${f}`));
+            lines.push('');
+          }
+        }
+      }
+      
+      if (forces.threatOfNewEntrants || forces.threat_of_new_entrants) {
+        const threat = forces.threatOfNewEntrants || forces.threat_of_new_entrants;
+        lines.push('\n### Threat of New Entrants\n');
+        if (typeof threat === 'string') {
+          lines.push(`${threat}\n`);
+        } else {
+          if (threat.level) lines.push(`**Threat Level:** ${threat.level}\n`);
+          if (threat.barriers && Array.isArray(threat.barriers)) {
+            lines.push('**Entry Barriers:**\n');
+            threat.barriers.forEach((b: string) => lines.push(`- ${b}`));
+            lines.push('');
+          }
+        }
+      }
+      
+      if (forces.bargainingPowerOfSuppliers || forces.supplier_power) {
+        const power = forces.bargainingPowerOfSuppliers || forces.supplier_power;
+        lines.push('\n### Bargaining Power of Suppliers\n');
+        if (typeof power === 'string') {
+          lines.push(`${power}\n`);
+        } else {
+          if (power.power) lines.push(`**Power Level:** ${power.power}\n`);
+          if (power.factors && Array.isArray(power.factors)) {
+            power.factors.forEach((f: string) => lines.push(`- ${f}`));
+            lines.push('');
+          }
+        }
+      }
+      
+      if (forces.bargainingPowerOfBuyers || forces.buyer_power) {
+        const power = forces.bargainingPowerOfBuyers || forces.buyer_power;
+        lines.push('\n### Bargaining Power of Buyers\n');
+        if (typeof power === 'string') {
+          lines.push(`${power}\n`);
+        } else {
+          if (power.power) lines.push(`**Power Level:** ${power.power}\n`);
+          if (power.factors && Array.isArray(power.factors)) {
+            power.factors.forEach((f: string) => lines.push(`- ${f}`));
+            lines.push('');
+          }
+        }
+      }
+      
+      if (forces.threatOfSubstitutes || forces.threat_of_substitutes) {
+        const threat = forces.threatOfSubstitutes || forces.threat_of_substitutes;
+        lines.push('\n### Threat of Substitutes\n');
+        if (typeof threat === 'string') {
+          lines.push(`${threat}\n`);
+        } else {
+          if (threat.level) lines.push(`**Threat Level:** ${threat.level}\n`);
+          if (threat.substitutes && Array.isArray(threat.substitutes)) {
+            threat.substitutes.forEach((s: string) => lines.push(`- ${s}`));
+            lines.push('');
+          }
+        }
+      }
+      
+      lines.push('---\n');
+    }
+    
+    // ======================
+    // PESTLE ANALYSIS
+    // ======================
+    if (insights.trendFactors || insights.externalForces) {
+      lines.push('## PESTLE Analysis\n');
+      const factors = insights.trendFactors || {};
+      
+      ['political', 'economic', 'social', 'technological', 'legal', 'environmental'].forEach((category: string) => {
+        if (factors[category]) {
+          lines.push(`\n### ${category.charAt(0).toUpperCase() + category.slice(1)} Factors\n`);
+          const catData = factors[category];
+          
+          if (typeof catData === 'string') {
+            lines.push(`${catData}\n`);
+          } else if (Array.isArray(catData)) {
+            catData.forEach((item: string) => lines.push(`- ${item}`));
+            lines.push('');
+          } else {
+            if (catData.trends && Array.isArray(catData.trends)) {
+              lines.push('**Trends:**\n');
+              catData.trends.forEach((t: string) => lines.push(`- ${t}`));
+              lines.push('');
+            }
+            if (catData.opportunities && Array.isArray(catData.opportunities)) {
+              lines.push('**Opportunities:**\n');
+              catData.opportunities.forEach((o: string) => lines.push(`- ${o}`));
+              lines.push('');
+            }
+            if (catData.risks && Array.isArray(catData.risks)) {
+              lines.push('**Risks:**\n');
+              catData.risks.forEach((r: string) => lines.push(`- ${r}`));
+              lines.push('');
+            }
+          }
+        }
+      });
+      
+      lines.push('---\n');
+    }
   }
 
   // ======================
