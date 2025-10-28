@@ -596,10 +596,60 @@ export default function WhysTreePage() {
         });
       }
     } else if (pendingAction.type === 'custom') {
-      setCustomWhyText(newAnswer);
+      // For custom Whys, re-validate and proceed with the revised answer
+      // Don't update tree here - let proceedWithContinue handle it via override
+      
       setShowCoachingModal(false);
-      setPendingAction(null);
-      setCurrentEvaluation(null);
+      flushSync(() => {
+        setIsProcessingAction(true);
+      });
+
+      try {
+        // Re-validate the revised answer
+        const previousWhys = selectedPath.map(p => p.option);
+        const validation = await validateWhyMutation.mutateAsync({
+          level: currentLevel,
+          candidate: newAnswer,
+          previousWhys,
+          rootQuestion: tree.rootQuestion,
+        });
+
+        if (validation.success && validation.evaluation) {
+          const { verdict } = validation.evaluation;
+
+          if (verdict === 'invalid' || verdict === 'needs_clarification') {
+            // Still has issues - show coaching modal again
+            setIsProcessingAction(false);
+            setCurrentEvaluation(validation.evaluation);
+            setShowCoachingModal(true);
+            toast({
+              title: "Needs more improvement",
+              description: "Your answer still needs refinement. Please review the feedback.",
+              variant: "destructive",
+            });
+            return;
+          }
+        }
+
+        // Validation passed - proceed with the revised answer
+        setPendingAction(null);
+        setCurrentEvaluation(null);
+        toast({
+          title: "Answer revised",
+          description: "Your improved answer has been validated",
+        });
+        
+        // Pass the revised answer explicitly via override
+        // This will add it to selectedPath and use it for expansion
+        proceedWithContinue(newAnswer, true);
+      } catch (error) {
+        setIsProcessingAction(false);
+        toast({
+          title: "Validation failed",
+          description: "Failed to validate revised answer. Please try again.",
+          variant: "destructive",
+        });
+      }
     } else if (pendingAction.type === 'edit') {
       setEditedWhyText(newAnswer);
       setShowCoachingModal(false);
