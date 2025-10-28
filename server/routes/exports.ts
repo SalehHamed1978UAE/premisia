@@ -18,7 +18,7 @@ const router = Router();
 router.get('/full-pass', async (req, res) => {
   try {
     const { sessionId, versionNumber, programId } = req.query;
-    const userId = (req.user as any)?.id;
+    const userId = (req.user as any)?.claims?.sub;
 
     // Authentication check
     if (!userId) {
