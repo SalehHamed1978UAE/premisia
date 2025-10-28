@@ -151,38 +151,66 @@ export default function ResearchPage() {
       eventSource = new EventSource(`/api/strategic-consultant/research/stream/${sessionId}?${params.toString()}`);
     }
 
-    eventSource.onmessage = (event) => {
-      const data = JSON.parse(event.data);
+    console.log('[ResearchPage] Connecting to research stream:', eventSource.url);
 
-      if (data.type === 'progress' || data.type === 'query') {
-        setProgress(data.progress || 0);
-        setCurrentQuery(data.message || '');
-      } else if (data.type === 'complete') {
-        setProgress(100);
-        setResearchData(data.data);
-        setIsResearching(false);
-        localStorage.setItem(`strategic-versionNumber-${sessionId}`, data.data.versionNumber.toString());
-        toast({
-          title: "Research complete ✓",
-          description: `Analyzed ${data.data.sourcesAnalyzed} sources in ${data.data.timeElapsed}`,
-        });
-        eventSource.close();
-      } else if (data.type === 'error') {
-        setError(data.error || 'Research failed');
-        setIsResearching(false);
-        toast({
-          title: "Research failed",
-          description: data.error || "Failed to conduct market research",
-          variant: "destructive",
-        });
-        eventSource.close();
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log('[ResearchPage] Received message:', data.type || 'unknown', data);
+
+        if (data.type === 'progress' || data.type === 'query') {
+          setProgress(data.progress || 0);
+          setCurrentQuery(data.message || '');
+        } else if (data.type === 'complete') {
+          setProgress(100);
+          setResearchData(data.data);
+          setIsResearching(false);
+          localStorage.setItem(`strategic-versionNumber-${sessionId}`, data.data.versionNumber.toString());
+          toast({
+            title: "Research complete ✓",
+            description: `Analyzed ${data.data.sourcesAnalyzed} sources in ${data.data.timeElapsed}`,
+          });
+          eventSource.close();
+        } else if (data.type === 'error') {
+          console.error('[ResearchPage] Research error from backend:', data.error);
+          setError(data.error || 'Research failed');
+          setIsResearching(false);
+          toast({
+            title: "Research failed",
+            description: data.error || "Failed to conduct market research",
+            variant: "destructive",
+          });
+          eventSource.close();
+        }
+      } catch (parseError) {
+        console.error('[ResearchPage] Error parsing SSE message:', parseError, event.data);
       }
     };
 
-    eventSource.onerror = () => {
-      setError('Connection to research stream failed');
+    eventSource.onerror = (event) => {
+      console.error('[ResearchPage] EventSource error:', {
+        readyState: eventSource.readyState,
+        url: eventSource.url,
+        event
+      });
+      
+      const errorMessage = eventSource.readyState === EventSource.CLOSED 
+        ? 'Connection closed by server - the research request may have timed out or encountered an error'
+        : 'Connection to research stream failed - check your network connection';
+      
+      setError(errorMessage);
       setIsResearching(false);
       eventSource.close();
+      
+      toast({
+        title: "Connection Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    };
+
+    eventSource.onopen = () => {
+      console.log('[ResearchPage] EventSource connection opened successfully');
     };
 
     const timerInterval = setInterval(() => {
