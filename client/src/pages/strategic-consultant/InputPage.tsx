@@ -173,12 +173,9 @@ export default function InputPage() {
       return;
     }
 
-    if (file && file.size > MAX_FILE_SIZE) {
-      toast({
-        title: "File too large",
-        description: "Maximum file size is 50MB",
-        variant: "destructive"
-      });
+    // Route to file upload handler if file present
+    if (file) {
+      await handleFileSubmit();
       return;
     }
 
