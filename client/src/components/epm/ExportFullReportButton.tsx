@@ -23,6 +23,9 @@ export function ExportFullReportButton({
   const [isExporting, setIsExporting] = useState(false);
   const { toast } = useToast();
 
+  // Detect if user is on mobile device
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
   const handleExport = async () => {
     setIsExporting(true);
 
@@ -42,15 +45,31 @@ export function ExportFullReportButton({
         params.append('programId', programId);
       }
 
-      // Make request to export endpoint
-      console.log('[Export] Requesting:', `/api/exports/full-pass?${params.toString()}`);
-      const response = await fetch(`/api/exports/full-pass?${params.toString()}`, {
+      const exportUrl = `/api/exports/full-pass?${params.toString()}`;
+
+      // Mobile browsers don't support programmatic downloads well
+      // Open the download URL directly in a new window
+      if (isMobile) {
+        console.log('[Export] Mobile detected - opening download URL directly');
+        window.location.href = exportUrl;
+        
+        toast({
+          title: 'Export started',
+          description: 'Your download will begin shortly',
+        });
+        
+        setIsExporting(false);
+        return;
+      }
+
+      // Desktop: Use blob download for better UX
+      console.log('[Export] Desktop - using blob download');
+      const response = await fetch(exportUrl, {
         method: 'GET',
         credentials: 'include',
       });
 
       console.log('[Export] Response status:', response.status);
-      console.log('[Export] Response headers:', Object.fromEntries(response.headers.entries()));
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Export failed' }));
@@ -59,7 +78,7 @@ export function ExportFullReportButton({
 
       // Get the blob from response
       const blob = await response.blob();
-      console.log('[Export] Blob size:', blob.size, 'type:', blob.type);
+      console.log('[Export] Blob size:', blob.size, 'bytes');
 
       if (blob.size === 0) {
         throw new Error('Export file is empty');
@@ -87,7 +106,6 @@ export function ExportFullReportButton({
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      console.log('[Export] Download triggered successfully');
 
       toast({
         title: 'Export successful',
