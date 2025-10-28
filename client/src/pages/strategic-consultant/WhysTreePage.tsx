@@ -21,6 +21,7 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { CoachingModal } from "@/components/five-whys/CoachingModal";
 
 interface WhyNode {
   id: string;
@@ -61,6 +62,11 @@ export default function WhysTreePage() {
   const [validationMessage, setValidationMessage] = useState("");
   const [isLongGeneration, setIsLongGeneration] = useState(false);
   const [isProcessingAction, setIsProcessingAction] = useState(false);
+  
+  // Coaching modal state
+  const [showCoachingModal, setShowCoachingModal] = useState(false);
+  const [currentEvaluation, setCurrentEvaluation] = useState<any>(null);
+  const [pendingAction, setPendingAction] = useState<{ type: 'continue' | 'custom' | 'edit'; data?: any } | null>(null);
 
   const generateTreeMutation = useMutation({
     mutationFn: async () => {
@@ -194,6 +200,28 @@ export default function WhysTreePage() {
     },
   });
 
+  // Validation mutation for Five Whys coaching
+  const validateWhyMutation = useMutation({
+    mutationFn: async ({ level, candidate, previousWhys, rootQuestion }: {
+      level: number;
+      candidate: string;
+      previousWhys: string[];
+      rootQuestion: string;
+    }) => {
+      const response = await apiRequest(
+        'POST',
+        '/api/strategic-consultant/five-whys/validate',
+        {
+          level,
+          candidate,
+          previousWhys,
+          rootQuestion,
+        }
+      );
+      return await response.json() as { success: boolean; evaluation: any };
+    },
+  });
+
   useEffect(() => {
     const fetchUnderstanding = async () => {
       if (!understandingId) return;
@@ -272,7 +300,41 @@ export default function WhysTreePage() {
     setCurrentOptionIndex(prev => Math.min(totalOptions - 1, prev + 1));
   };
 
-  const handleSelectAndContinue = () => {
+  const handleSelectAndContinue = async () => {
+    if (!currentOption || !tree) return;
+
+    // Validate the selected answer before continuing
+    const previousWhys = selectedPath.map(p => p.option);
+    const validation = await validateWhyMutation.mutateAsync({
+      level: currentLevel,
+      candidate: currentOption.option,
+      previousWhys,
+      rootQuestion: tree.rootQuestion,
+    });
+
+    if (validation.success && validation.evaluation) {
+      const { verdict } = validation.evaluation;
+
+      if (verdict === 'invalid') {
+        // Block progression - must revise
+        setCurrentEvaluation(validation.evaluation);
+        setPendingAction({ type: 'continue' });
+        setShowCoachingModal(true);
+        return;
+      } else if (verdict === 'needs_clarification') {
+        // Show warning but allow override
+        setCurrentEvaluation(validation.evaluation);
+        setPendingAction({ type: 'continue' });
+        setShowCoachingModal(true);
+        return;
+      }
+    }
+
+    // If validation passes (acceptable), proceed
+    proceedWithContinue();
+  };
+
+  const proceedWithContinue = () => {
     if (!currentOption) return;
 
     // Check if we need to call expansion (no existing branches)
@@ -448,6 +510,80 @@ export default function WhysTreePage() {
   const handleCancelEdit = () => {
     setIsEditingWhy(false);
     setEditedWhyText("");
+  };
+
+  // Coaching modal handlers
+  const handleRevision = (newAnswer: string) => {
+    if (!tree || !pendingAction) return;
+
+    // Update the current option with the revised answer
+    if (pendingAction.type === 'continue' && currentOption) {
+      const updateNodeOption = (nodes: WhyNode[]): WhyNode[] => {
+        return nodes.map(node => {
+          if (node.id === currentOption.id) {
+            return {
+              ...node,
+              option: newAnswer,
+              question: `Why is this? (${newAnswer})`,
+              isCustom: true,
+            };
+          }
+          if (node.branches) {
+            return { ...node, branches: updateNodeOption(node.branches) };
+          }
+          return node;
+        });
+      };
+
+      setTree({
+        ...tree,
+        branches: updateNodeOption(tree.branches),
+      });
+    } else if (pendingAction.type === 'custom') {
+      setCustomWhyText(newAnswer);
+    } else if (pendingAction.type === 'edit') {
+      setEditedWhyText(newAnswer);
+    }
+
+    // Close modal and proceed
+    setShowCoachingModal(false);
+    setPendingAction(null);
+    setCurrentEvaluation(null);
+
+    // Execute the pending action
+    if (pendingAction.type === 'continue') {
+      proceedWithContinue();
+    } else if (pendingAction.type === 'custom') {
+      // Will be added by user clicking the button again
+    } else if (pendingAction.type === 'edit') {
+      // Will be saved by user clicking save
+    }
+
+    toast({
+      title: "Answer revised",
+      description: "Your improved answer has been applied",
+    });
+  };
+
+  const handleOverride = () => {
+    // Allow override only for needs_clarification, not invalid
+    if (currentEvaluation?.verdict === 'invalid') {
+      toast({
+        title: "Cannot override",
+        description: "This answer must be revised before continuing",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setShowCoachingModal(false);
+    
+    if (pendingAction?.type === 'continue') {
+      proceedWithContinue();
+    }
+
+    setPendingAction(null);
+    setCurrentEvaluation(null);
   };
 
   const canShowRootCauseButton = currentLevel >= 3;
@@ -831,6 +967,21 @@ export default function WhysTreePage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Coaching Modal */}
+      {currentEvaluation && tree && (
+        <CoachingModal
+          open={showCoachingModal}
+          onOpenChange={setShowCoachingModal}
+          evaluation={currentEvaluation}
+          candidate={currentOption?.option || customWhyText || editedWhyText}
+          rootQuestion={tree.rootQuestion}
+          previousWhys={selectedPath.map(p => p.option)}
+          sessionId={tree.sessionId}
+          onRevise={handleRevision}
+          onOverride={handleOverride}
+        />
+      )}
     </AppLayout>
   );
 }
