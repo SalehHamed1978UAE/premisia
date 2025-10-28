@@ -137,10 +137,8 @@ export default function ResearchPage() {
     
     if (isBMCJourney) {
       // For BMC journeys, use GET /bmc-research/stream with SSE
-      const params = new URLSearchParams({
-        input,
-      });
-      eventSource = new EventSource(`/api/strategic-consultant/bmc-research/stream/${sessionId}?${params.toString()}`);
+      // Note: Input is fetched from journey session on the backend, not passed as query param
+      eventSource = new EventSource(`/api/strategic-consultant/bmc-research/stream/${sessionId}`);
     } else {
       // For Porter's-based journeys, use the standard research stream
       const params = new URLSearchParams({

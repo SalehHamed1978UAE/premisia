@@ -1526,11 +1526,6 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
   
   try {
     const { sessionId } = req.params;
-    const { input } = req.query;
-
-    if (!input || typeof input !== 'string') {
-      return res.status(400).json({ error: 'Input text is required as query parameter' });
-    }
     
     if (!sessionId) {
       return res.status(400).json({ error: 'Session ID is required' });
@@ -1545,7 +1540,25 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
     res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
     res.flushHeaders();
     
-    console.log('[BMC-RESEARCH-STREAM] SSE headers set, starting to send messages...');
+    console.log('[BMC-RESEARCH-STREAM] SSE headers set, fetching input from journey session...');
+    
+    // Fetch input from journey session instead of query parameter
+    const journeySession = await getJourneySession(sessionId);
+    if (!journeySession || !journeySession.understandingId) {
+      res.write(`data: ${JSON.stringify({ type: 'error', error: 'Journey session not found' })}\n\n`);
+      res.end();
+      return;
+    }
+    
+    const understanding = await getStrategicUnderstanding(journeySession.understandingId);
+    if (!understanding) {
+      res.write(`data: ${JSON.stringify({ type: 'error', error: 'Strategic understanding not found' })}\n\n`);
+      res.end();
+      return;
+    }
+    
+    const input = understanding.userInput;
+    console.log('[BMC-RESEARCH-STREAM] Input fetched from understanding, length:', input.length);
 
     // Progress messages (same as POST version)
     const progressMessages = [
