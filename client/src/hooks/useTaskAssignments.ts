@@ -15,11 +15,11 @@ export interface TaskAssignment {
   epmProgramId: string;
   taskId: string;
   resourceId: string;
-  resourceType: 'internal' | 'external';
+  resourceType: 'internal_team' | 'external_resource';
   assignedAt: Date;
   estimatedHours?: number;
   actualHours?: number;
-  status: 'assigned' | 'in_progress' | 'completed';
+  status: 'assigned' | 'in_progress' | 'completed' | 'active';
   assignmentSource: 'ai_generated' | 'manual' | 'bulk_import';
   notes?: string;
   createdAt: Date;
@@ -29,7 +29,7 @@ export interface TaskAssignment {
 export interface ResourceWorkload {
   resourceId: string;
   resourceName: string;
-  resourceType: 'internal' | 'external';
+  resourceType: 'internal_team' | 'external_resource';
   totalAssignedHours: number;
   totalActualHours: number;
   assignmentCount: number;
@@ -47,9 +47,9 @@ export interface CreateAssignmentInput {
   epmProgramId: string;
   taskId: string;
   resourceId: string;
-  resourceType: 'internal' | 'external';
+  resourceType: 'internal_team' | 'external_resource';
   estimatedHours?: number;
-  status?: 'assigned' | 'in_progress' | 'completed';
+  status?: 'assigned' | 'in_progress' | 'completed' | 'active';
   assignmentSource?: 'ai_generated' | 'manual' | 'bulk_import';
   notes?: string;
 }

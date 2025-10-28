@@ -59,7 +59,13 @@ export default function AssignmentsPanel({
 
   // Helper to get task/deliverable name
   const getTaskName = (taskId: string): string => {
-    // Tasks are stored as deliverables in the workstream structure
+    // First check if taskId matches a workstream ID (intelligent planning flat structure)
+    const matchingWorkstream = workstreams.find(ws => ws.id === taskId);
+    if (matchingWorkstream) {
+      return matchingWorkstream.name;
+    }
+    
+    // Otherwise check deliverables (legacy nested structure)
     for (const ws of workstreams) {
       const deliverable = ws.deliverables?.find((d: any) => d.id === taskId || d.name === taskId);
       if (deliverable) return deliverable.name || deliverable.description || taskId;
@@ -75,6 +81,13 @@ export default function AssignmentsPanel({
 
   // Helper to get workstream name
   const getWorkstreamName = (taskId: string): string => {
+    // First check if taskId matches a workstream ID (intelligent planning flat structure)
+    const matchingWorkstream = workstreams.find(ws => ws.id === taskId);
+    if (matchingWorkstream) {
+      return matchingWorkstream.name;
+    }
+    
+    // Otherwise check deliverables (legacy nested structure)
     for (const ws of workstreams) {
       const deliverable = ws.deliverables?.find((d: any) => d.id === taskId || d.name === taskId);
       if (deliverable) return ws.name;
@@ -85,7 +98,12 @@ export default function AssignmentsPanel({
   // Group assignments by workstream
   const assignmentsByWorkstream = workstreams.map(ws => {
     const wsAssignments = (assignments || []).filter(a => {
-      // Check if this assignment's task is a deliverable in this workstream
+      // CASE 1: Intelligent planning - taskId matches workstream ID directly
+      if (ws.id === a.taskId) {
+        return true;
+      }
+      
+      // CASE 2: Legacy structure - taskId matches a deliverable within this workstream
       const deliverable = ws.deliverables?.find((d: any) => d.id === a.taskId || d.name === a.taskId);
       return !!deliverable;
     });
