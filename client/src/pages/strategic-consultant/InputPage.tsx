@@ -97,10 +97,10 @@ export default function InputPage() {
       return;
     }
 
-    if (file) {
+    if (file && file.size > MAX_FILE_SIZE) {
       toast({
-        title: "File upload not yet supported",
-        description: "Please paste the content as text for now",
+        title: "File too large",
+        description: "Maximum file size is 50MB",
         variant: "destructive"
       });
       return;
