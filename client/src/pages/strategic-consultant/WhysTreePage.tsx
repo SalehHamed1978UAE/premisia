@@ -718,42 +718,48 @@ export default function WhysTreePage() {
 
   if (!understandingId) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-8">
-        <Alert variant="destructive" className="max-w-md">
-          <AlertDescription>No understanding ID provided</AlertDescription>
-        </Alert>
-      </div>
+      <AppLayout title="Five Whys Analysis" subtitle="Error" onViewChange={() => {}}>
+        <div className="flex items-center justify-center p-8">
+          <Alert variant="destructive" className="max-w-md">
+            <AlertDescription>No understanding ID provided</AlertDescription>
+          </Alert>
+        </div>
+      </AppLayout>
     );
   }
 
   if (generateTreeMutation.isPending) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-          <p className="text-muted-foreground">Generating Five Whys analysis...</p>
-          {isLongGeneration ? (
-            <>
-              <p className="text-sm text-amber-600 dark:text-amber-400 font-medium">
-                Generated Level 1 completely, Level 2 generating...
-              </p>
-              <p className="text-xs text-muted-foreground">This is taking longer than usual, please wait</p>
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">This may take 20-30 seconds</p>
-          )}
+      <AppLayout title="Five Whys Analysis" subtitle="Generating analysis..." onViewChange={() => {}}>
+        <div className="flex items-center justify-center">
+          <div className="text-center space-y-4">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+            <p className="text-muted-foreground">Generating Five Whys analysis...</p>
+            {isLongGeneration ? (
+              <>
+                <p className="text-sm text-amber-600 dark:text-amber-400 font-medium">
+                  Generated Level 1 completely, Level 2 generating...
+                </p>
+                <p className="text-xs text-muted-foreground">This is taking longer than usual, please wait</p>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">This may take 20-30 seconds</p>
+            )}
+          </div>
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
   if (!tree) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-8">
-        <Alert variant="destructive" className="max-w-md">
-          <AlertDescription>Failed to load decision tree</AlertDescription>
-        </Alert>
-      </div>
+      <AppLayout title="Five Whys Analysis" subtitle="Error loading" onViewChange={() => {}}>
+        <div className="flex items-center justify-center p-8">
+          <Alert variant="destructive" className="max-w-md">
+            <AlertDescription>Failed to load decision tree</AlertDescription>
+          </Alert>
+        </div>
+      </AppLayout>
     );
   }
 

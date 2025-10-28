@@ -89,75 +89,73 @@ export default function InputPage() {
     if (!file) return;
 
     setIsAnalyzing(true);
-    setProgress(0);
-
-    // Simulate progress
-    const progressInterval = setInterval(() => {
-      setProgress((prev) => Math.min(prev + 1, 95));
-    }, 300);
+    setProgress(20);
 
     try {
-      // Step 1: Create understanding session to get sessionId
-      const understandingResponse = await fetch('/api/strategic-consultant/understanding', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          input: text.trim() || `File upload: ${file.name}`,
-          clarifications: null 
-        })
-      });
-      
-      if (!understandingResponse.ok) {
-        throw new Error('Failed to create understanding session');
-      }
-      
-      const { sessionId } = await understandingResponse.json();
-
-      // Step 2: Upload file with sessionId
+      // Step 1: Extract file content only (no analysis)
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('sessionId', sessionId);
-      if (text.trim()) {
-        formData.append('text', text.trim()); // Optional additional context
-      }
 
-      const response = await fetch('/api/strategic-consultant/analyze', {
+      const extractResponse = await fetch('/api/strategic-consultant/extract-file', {
         method: 'POST',
         credentials: 'include',
         body: formData,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'File upload failed');
+      if (!extractResponse.ok) {
+        const errorData = await extractResponse.json();
+        throw new Error(errorData.error || 'File extraction failed');
       }
 
-      const data = await response.json();
-
-      clearInterval(progressInterval);
-      setProgress(100);
-
+      const { content } = await extractResponse.json();
+      
       toast({
-        title: "File processed successfully",
-        description: `Extracted content from ${file.name}`,
+        title: "File extracted",
+        description: `Content extracted from ${file.name}`,
       });
 
-      // Navigate to results page
-      const { version } = data;
-      setTimeout(() => {
-        setLocation(`/strategic-consultant/results/${sessionId}/${version.versionNumber}`);
-      }, 300);
+      setProgress(40);
+
+      // Step 2: Use extracted content as text input and follow normal flow
+      // Combine with any additional text context
+      const finalInput = text.trim() 
+        ? `${text.trim()}\n\n--- Content from ${file.name} ---\n${content}`
+        : content;
+
+      // Check for ambiguities first
+      const ambiguityResponse = await fetch('/api/strategic-consultant/check-ambiguities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userInput: finalInput })
+      });
+
+      if (!ambiguityResponse.ok) {
+        throw new Error('Failed to check ambiguities');
+      }
+
+      const ambiguityResult = await ambiguityResponse.json();
+      setProgress(60);
+
+      if (ambiguityResult.hasAmbiguities) {
+        // Show clarification modal
+        setText(finalInput); // Save extracted content to state for later use
+        setClarificationQuestions(ambiguityResult.questions);
+        setShowClarificationModal(true);
+        setIsAnalyzing(false);
+        setProgress(0);
+      } else {
+        // No ambiguities, proceed directly to understanding
+        await startStrategicUnderstanding(finalInput, null);
+      }
 
     } catch (error: any) {
-      clearInterval(progressInterval);
+      setIsAnalyzing(false);
+      setProgress(0);
       toast({
         title: "Upload failed",
         description: error.message || "Failed to process file",
         variant: "destructive"
       });
-    } finally {
-      setIsAnalyzing(false);
-      setProgress(0);
     }
   };
 

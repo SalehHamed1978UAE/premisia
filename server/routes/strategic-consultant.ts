@@ -42,6 +42,56 @@ const frameworkSelector = new FrameworkSelector();
 const bmcResearcher = new BMCResearcher();
 const journeyOrchestrator = new JourneyOrchestrator();
 
+/**
+ * POST /api/strategic-consultant/extract-file
+ * Extract text content from uploaded file only (no analysis)
+ */
+router.post('/extract-file', upload.single('file'), async (req: Request, res: Response) => {
+  let filePath: string | undefined;
+  
+  try {
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({ error: 'File is required' });
+    }
+
+    filePath = file.path;
+    const fileType = file.mimetype;
+    
+    let processedInput;
+    if (fileType === 'application/pdf') {
+      processedInput = await inputProcessor.processPDF(file.path);
+    } else if (fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+      processedInput = await inputProcessor.processDOCX(file.path);
+    } else if (fileType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
+      processedInput = await inputProcessor.processExcel(file.path);
+    } else if (fileType.startsWith('image/')) {
+      processedInput = await inputProcessor.processImage(file.path, file.mimetype);
+    } else {
+      return res.status(400).json({ error: 'Unsupported file type' });
+    }
+
+    res.json({
+      success: true,
+      content: processedInput.content,
+      metadata: processedInput.metadata,
+    });
+  } catch (error: any) {
+    console.error('Error in /extract-file:', error);
+    res.status(500).json({ error: error.message || 'File extraction failed' });
+  } finally {
+    // Always clean up uploaded file
+    if (filePath) {
+      try {
+        await unlink(filePath);
+      } catch (unlinkError) {
+        console.error('Error cleaning up file:', unlinkError);
+      }
+    }
+  }
+});
+
 router.post('/analyze', upload.single('file'), async (req: Request, res: Response) => {
   try {
     const { text, sessionId } = req.body;

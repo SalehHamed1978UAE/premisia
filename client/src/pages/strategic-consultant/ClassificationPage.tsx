@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle2, AlertCircle, Loader2, ArrowRight, Info } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AppLayout } from '@/components/layout/AppLayout';
 
 interface ClassificationData {
   initiativeType: string;
@@ -146,7 +147,7 @@ export default function ClassificationPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-8">
+      <AppLayout title="Classification" subtitle="Loading..." onViewChange={() => {}}>
         <div className="max-w-4xl mx-auto">
           <Card>
             <CardContent className="p-12 flex flex-col items-center justify-center">
@@ -155,13 +156,13 @@ export default function ClassificationPage() {
             </CardContent>
           </Card>
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
   if (!classification) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-8">
+      <AppLayout title="Classification" subtitle="Error loading" onViewChange={() => {}}>
         <div className="max-w-4xl mx-auto space-y-4">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -185,7 +186,7 @@ export default function ClassificationPage() {
             </Button>
           </div>
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
@@ -195,19 +196,8 @@ export default function ClassificationPage() {
                           'text-orange-600';
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-8">
+    <AppLayout title="Confirm Initiative Type" subtitle="Review and confirm the AI classification" onViewChange={() => {}}>
       <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="text-center space-y-2">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-            Confirm Initiative Type
-          </h1>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Our AI has analyzed your input and classified the type of initiative. 
-            Please review and confirm or correct the classification.
-          </p>
-        </div>
-
         {/* AI Classification Card */}
         <Card>
           <CardHeader>
@@ -329,6 +319,6 @@ export default function ClassificationPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </AppLayout>
   );
 }
