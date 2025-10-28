@@ -22,6 +22,7 @@ export function useJobNotifications() {
   const [, setLocation] = useLocation();
   const { addNotification, setPanelOpen } = useDocumentInsights();
   const seenJobs = useRef(new Set<string>());
+  const seenEnrichments = useRef(new Set<string>());
 
   // Poll for completed jobs every 10 seconds
   const { data } = useQuery({
@@ -89,10 +90,18 @@ export function useJobNotifications() {
     if (!enrichmentData?.jobs) return;
 
     enrichmentData.jobs.forEach((enrichment: any) => {
-      // Add to context - it will check if we've seen it before
+      // Skip if we've already shown a toast for this enrichment
+      if (seenEnrichments.current.has(enrichment.id)) {
+        return;
+      }
+
+      // Mark as seen
+      seenEnrichments.current.add(enrichment.id);
+
+      // Add to context - it will check if we've seen it before for persistence
       addNotification(enrichment);
 
-      // Show a simple toast notification (action button will be in the FAB)
+      // Show a simple toast notification once (action button will be in the FAB)
       toast({
         title: '💡 Knowledge Extracted',
         description: `${enrichment.entityCount} statement${enrichment.entityCount !== 1 ? 's' : ''} from ${enrichment.fileName || 'your document'}. Check the insights panel.`,
