@@ -1540,19 +1540,12 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
     res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
     res.flushHeaders();
     
-    console.log('[BMC-RESEARCH-STREAM] SSE headers set, fetching input from journey session...');
+    console.log('[BMC-RESEARCH-STREAM] SSE headers set, fetching input from strategic understanding...');
     
-    // Fetch input from journey session instead of query parameter
-    const journeySession = await getJourneySession(sessionId);
-    if (!journeySession || !journeySession.understandingId) {
-      res.write(`data: ${JSON.stringify({ type: 'error', error: 'Journey session not found' })}\n\n`);
-      res.end();
-      return;
-    }
-    
-    const understanding = await getStrategicUnderstanding(journeySession.understandingId);
-    if (!understanding) {
-      res.write(`data: ${JSON.stringify({ type: 'error', error: 'Strategic understanding not found' })}\n\n`);
+    // Fetch input from strategic understanding using sessionId (session-{timestamp}-{random} format)
+    const understanding = await getStrategicUnderstandingBySession(sessionId);
+    if (!understanding || !understanding.userInput) {
+      res.write(`data: ${JSON.stringify({ type: 'error', error: 'Strategic understanding not found for this session' })}\n\n`);
       res.end();
       return;
     }
