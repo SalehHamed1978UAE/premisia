@@ -364,72 +364,29 @@ Return ONLY valid JSON (no markdown, no extra text):
 
   async validateRootCause(rootCauseText: string): Promise<{ valid: boolean; message?: string }> {
     try {
-      // Safety override: Auto-approve if text contains clear business problem indicators
-      // This prevents false positives from intermittent AI misinterpretation
-      
-      // Strong multi-word business phrases that are unambiguous
-      const strongBusinessPhrases = [
-        'information overload', 'decision paralysis', 'business complexity',
-        'capability gap', 'skill gap', 'market dynamics', 'competitive positioning',
-        'value proposition', 'revenue stream', 'cost structure', 'pricing power',
-        'decision tool', 'career-ending', 'project failure', 'roi', 'return on investment',
-        'business risk', 'market entry', 'customer acquisition', 'sales cycle',
-        'proof-of-concept', 'enterprise sales', 'conservative buyer'
-      ];
-      
-      // Cultural identifiers that should always trigger AI validation
-      // Use root forms to catch variants (culturally, ethnically, traditional, etc.)
-      const culturalRoots = [
-        'cultur', 'tradition', 'ethnic', 'racial', 'national', 
-        'heritage', 'custom', 'ritual', 'bias', 'background', 'norm',
-        'belief', 'stereotype', 'hierarch'
-      ];
-      
-      const lowerText = rootCauseText.toLowerCase();
-      
-      // First check: If ANY cultural root present, always defer to AI
-      // This catches variants like "culturally", "ethnically", "traditional", etc.
-      const hasCulturalRef = culturalRoots.some(root => {
-        // Match root as word start to catch all variants
-        const regex = new RegExp(`\\b${root}`, 'i');
-        return regex.test(lowerText);
-      });
-      
-      if (hasCulturalRef) {
-        console.log(`[validateRootCause] Cultural identifier detected, deferring to AI validation`);
-      } else {
-        // Second check: Auto-approve ONLY if strong business phrase present
-        const hasStrongBusinessPhrase = strongBusinessPhrases.some(phrase => 
-          lowerText.includes(phrase)
-        );
-        
-        if (hasStrongBusinessPhrase) {
-          console.log(`[validateRootCause] Safety override: Auto-approved business-focused root cause with phrase match`);
-          return { valid: true };
-        }
-      }
-
       const response = await aiClients.callWithFallback({
-        systemPrompt: 'You\'re helping someone check if they\'ve found a real business root cause, or if they might need to dig a bit deeper. Be supportive and constructive.',
-        userMessage: `They think they found their root cause: "${rootCauseText}"
+        systemPrompt: 'You are validating whether a strategic root cause contains harmful ethnic, racial, or national stereotypes. You ONLY flag statements that make generalizations about groups of people based on ethnicity, race, nationality, or culture. Business risk aversion, organizational behavior, and market dynamics are ALWAYS valid.',
+        userMessage: `Validate this root cause: "${rootCauseText}"
 
-I want to make sure this ties back to actual business dynamics. Strong root causes usually connect to things like:
-- Market conditions (competitors, pricing, market size, growth trends)
-- Customer dynamics (why they buy, stay, or leave; what they're willing to pay)
-- Product strengths or gaps (features, quality, differentiation)
-- Operations (efficiency, costs, resource limitations)
-- Business model factors (how you make money, unit economics)
+ONLY mark as invalid if it contains ethnic, racial, or national stereotypes like:
+❌ "Asian cultures prioritize hierarchy over innovation"
+❌ "Western executives are more risk-tolerant than Eastern ones"
+❌ "Latin American markets respond better to personal relationships"
 
-Watch out for explanations that stop at cultural or social observations without connecting to business impact. For example:
-- "Cultural hierarchy affects communication" - this is cultural, not business
-- "Premium positioning drives pricing power" - this IS business ✓
+These are ALWAYS valid business root causes:
+✓ Risk aversion and fear of failure (executives worried about career impact)
+✓ Organizational decision-making patterns (paralysis, bureaucracy, slow processes)
+✓ Market dynamics (buyer conservatism, long sales cycles, proof requirements)
+✓ Resource constraints (budget, time, capability gaps)
+✓ Competitive pressure and positioning concerns
+✓ Any statement about business outcomes, costs, pricing, customers, or operations
 
-Look at their root cause. Does it explain a business dynamic, or does it just describe a cultural pattern?
+The test: Does this attribute behavior to someone's ethnicity, race, nationality, or cultural background? If NO, it's valid.
 
 Respond with ONLY valid JSON:
 {
   "isValid": true or false,
-  "reason": "brief, friendly explanation"
+  "reason": "brief explanation of why it contains stereotypes OR confirmation it's a valid business root cause"
 }`,
         maxTokens: 500,
       });
