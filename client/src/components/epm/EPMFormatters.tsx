@@ -355,7 +355,7 @@ export function ResourcePlanFormatter({ data }: { data: ResourcePlan }) {
 export function FinancialPlanFormatter({ data }: { data: FinancialPlan }) {
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="text-sm text-muted-foreground">Total Budget</div>

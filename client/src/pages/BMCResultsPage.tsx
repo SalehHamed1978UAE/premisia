@@ -123,7 +123,7 @@ export default function BMCResultsPage() {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-3xl font-bold" data-testid="text-page-title">
+              <h1 className="text-2xl md:text-3xl font-bold" data-testid="text-page-title">
                 Business Model Canvas Analysis
               </h1>
               <p className="text-muted-foreground">
@@ -203,7 +203,7 @@ export default function BMCResultsPage() {
 
         {/* BMC Blocks */}
         <div className="space-y-6">
-          <h2 className="text-2xl font-bold">Canvas Components</h2>
+          <h2 className="text-xl md:text-2xl font-bold">Canvas Components</h2>
           
           <div className="grid gap-6 md:grid-cols-2">
             {bmcResult.blocks.map((block, idx) => (

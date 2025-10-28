@@ -85,7 +85,7 @@ export default function ProgramsPage() {
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
               </Link>
-              <h1 className="text-3xl font-bold tracking-tight" data-testid="text-page-title">Programs Management</h1>
+              <h1 className="text-2xl md:text-3xl font-bold tracking-tight" data-testid="text-page-title">Programs Management</h1>
             </div>
             <p className="text-muted-foreground" data-testid="text-page-subtitle">
               Manage all enterprise programs in one place

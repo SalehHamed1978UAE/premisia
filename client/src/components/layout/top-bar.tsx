@@ -26,7 +26,7 @@ export function TopBar({ title, subtitle, onToggleSidebar }: TopBarProps) {
             <Menu className="h-5 w-5" />
           </Button>
           <div>
-            <h2 className="text-xl font-bold text-foreground">{title}</h2>
+            <h2 className="text-lg md:text-xl font-bold text-foreground">{title}</h2>
             <p className="text-sm text-muted-foreground">{subtitle}</p>
           </div>
         </div>

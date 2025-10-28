@@ -98,7 +98,7 @@ export function JourneyHub() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Strategic Journeys</h1>
+          <h1 className="text-2xl md:text-3xl font-bold mb-2">Strategic Journeys</h1>
           <p className="text-muted-foreground">
             Choose a pre-defined journey or create your own custom path
           </p>
@@ -116,7 +116,7 @@ export function JourneyHub() {
 
       {/* Pre-defined Journeys */}
       <section className="mb-12">
-        <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2">
+        <h2 className="text-xl md:text-2xl font-semibold mb-4 flex items-center gap-2">
           <Star className="w-6 h-6 text-yellow-500" />
           Pre-defined Journeys
         </h2>
@@ -183,7 +183,7 @@ export function JourneyHub() {
       {/* Custom Journeys */}
       {customTemplates.length > 0 && (
         <section>
-          <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2">
+          <h2 className="text-xl md:text-2xl font-semibold mb-4 flex items-center gap-2">
             <Sparkles className="w-6 h-6 text-purple-500" />
             Your Custom Journeys
           </h2>

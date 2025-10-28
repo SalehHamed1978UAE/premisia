@@ -232,7 +232,7 @@ export default function RepositoryBrowser() {
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-foreground flex items-center gap-3" data-testid="page-title">
+              <h1 className="text-2xl md:text-3xl font-bold text-foreground flex items-center gap-3" data-testid="page-title">
                 <Archive className="h-8 w-8 text-primary" />
                 Analysis Repository
               </h1>

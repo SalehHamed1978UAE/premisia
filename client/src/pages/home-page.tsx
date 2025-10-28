@@ -91,7 +91,7 @@ function OnboardingFlow() {
           <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4">
             Welcome to Qgentic EPM
           </h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
             Turn strategic ideas into executable enterprise programs with AI-powered guidance
           </p>
         </div>
@@ -151,7 +151,7 @@ function OnboardingFlow() {
                     Step {currentStep + 1} of {ONBOARDING_STEPS.length}
                   </span>
                 </div>
-                <h2 className="text-3xl font-bold text-foreground mb-3">
+                <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
                   {currentStepData.title}
                 </h2>
                 <p className="text-lg text-muted-foreground mb-6">
@@ -252,7 +252,7 @@ function Dashboard({ summary }: { summary: DashboardSummary }) {
     <div className="p-6 space-y-6">
       {/* Welcome Header */}
       <div>
-        <h1 className="text-3xl font-bold text-foreground mb-2">Dashboard</h1>
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">Dashboard</h1>
         <p className="text-muted-foreground">Overview of your strategic work</p>
       </div>
 

@@ -30,16 +30,16 @@ export default function AuthPage() {
               <ShieldCheck className="h-8 w-8" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold">Qgentic EPM</h1>
+              <h1 className="text-xl md:text-2xl font-bold">Qgentic EPM</h1>
               <p className="text-primary-foreground/80">Intelligent Strategic EPM</p>
             </div>
           </div>
           <div className="space-y-6">
             <div>
-              <h2 className="text-4xl font-bold mb-4">
+              <h2 className="text-3xl md:text-4xl font-bold mb-4">
                 Manage Complex Programs with Confidence
               </h2>
-              <p className="text-xl text-primary-foreground/90 leading-relaxed">
+              <p className="text-lg md:text-xl text-primary-foreground/90 leading-relaxed">
                 Track timelines, manage risks, monitor KPIs, and realize benefits across your enterprise transformation initiatives.
               </p>
             </div>
@@ -94,7 +94,7 @@ export default function AuthPage() {
           <Card className="shadow-2xl border-0 bg-card/50 backdrop-blur">
             <CardContent className="p-8">
               <div className="text-center mb-8">
-                <h2 className="text-3xl font-bold text-foreground mb-2">Welcome</h2>
+                <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-2">Welcome</h2>
                 <p className="text-muted-foreground">Access your program management dashboard</p>
               </div>
 
