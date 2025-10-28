@@ -704,7 +704,7 @@ function generateMarkdownReport(pkg: FullExportPackage): string {
     // ======================
     if (insights.trendFactors || insights.externalForces) {
       lines.push('## PESTLE Analysis\n');
-      const factors = insights.trendFactors || {};
+      const factors = insights.trendFactors ?? insights.externalForces ?? {};
       
       ['political', 'economic', 'social', 'technological', 'legal', 'environmental'].forEach((category: string) => {
         if (factors[category]) {
@@ -3102,7 +3102,7 @@ function generateUiStyledHtml(pkg: FullExportPackage): string {
     // PESTLE ANALYSIS
     // ======================
     if (insights.trendFactors || insights.externalForces) {
-      const factors = insights.trendFactors || {};
+      const factors = insights.trendFactors ?? insights.externalForces ?? {};
       
       const renderPestleCategory = (category: string, data: any) => {
         if (!data) return '';
