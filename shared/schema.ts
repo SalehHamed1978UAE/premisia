@@ -119,7 +119,8 @@ export const jobTypeEnum = pgEnum('job_type', [
   'porters_analysis',
   'pestle_analysis',
   'web_research',
-  'strategic_understanding'
+  'strategic_understanding',
+  'document_enrichment'
 ]);
 
 // Task Assignment enums  

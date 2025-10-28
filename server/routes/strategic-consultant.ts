@@ -142,6 +142,24 @@ router.post('/analyze', upload.single('file'), async (req: Request, res: Respons
     const userId = (req.user as any)?.claims?.sub || null;
     const version = await versionManager.createVersion(sessionId, analysis, decisions, userId);
 
+    // If a file was uploaded, queue background enrichment job
+    if (file && processedInput) {
+      const { backgroundJobService } = await import('../services/background-job-service');
+      await backgroundJobService.createJob({
+        userId,
+        jobType: 'document_enrichment',
+        sessionId,
+        relatedEntityId: version.versionNumber.toString(),
+        relatedEntityType: 'strategy_version',
+        inputData: {
+          processedInput,
+          sessionId,
+          fileName: file.originalname,
+        },
+      });
+      console.log('[Analyze] ✓ Queued document enrichment job for:', file.originalname);
+    }
+
     res.json({
       success: true,
       analysis,

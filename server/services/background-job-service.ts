@@ -20,7 +20,7 @@ export class BackgroundJobService {
    */
   async createJob(params: {
     userId: string | null;
-    jobType: 'epm_generation' | 'bmc_analysis' | 'five_whys_generation' | 'porters_analysis' | 'pestle_analysis' | 'web_research' | 'strategic_understanding';
+    jobType: 'epm_generation' | 'bmc_analysis' | 'five_whys_generation' | 'porters_analysis' | 'pestle_analysis' | 'web_research' | 'strategic_understanding' | 'document_enrichment';
     inputData?: Record<string, any>;
     sessionId?: string;
     relatedEntityId?: string;
@@ -344,6 +344,60 @@ export class BackgroundJobService {
     });
 
     return result;
+  }
+
+  /**
+   * Process pending jobs (dispatcher)
+   * Polls for pending jobs and routes them to appropriate workers
+   */
+  async processPendingJobs(): Promise<void> {
+    try {
+      const result = await dbConnectionManager.withFreshConnection(async (db) => {
+        return await db
+          .select()
+          .from(backgroundJobs)
+          .where(eq(backgroundJobs.status, 'pending'))
+          .orderBy(backgroundJobs.createdAt)
+          .limit(10);
+      });
+
+      if (result.length === 0) {
+        return;
+      }
+
+      console.log(`[Background Job Dispatcher] Found ${result.length} pending job(s)`);
+
+      // Process each job
+      for (const job of result) {
+        this.processJob(job).catch((error) => {
+          console.error('[Background Job Dispatcher] Error processing job:', job.id, error);
+        });
+      }
+    } catch (error) {
+      console.error('[Background Job Dispatcher] Error fetching pending jobs:', error);
+    }
+  }
+
+  /**
+   * Process a single job by routing to appropriate worker
+   */
+  private async processJob(job: SelectBackgroundJob): Promise<void> {
+    console.log(`[Background Job Dispatcher] Processing ${job.jobType} job:`, job.id);
+
+    try {
+      // Import worker dynamically to avoid circular dependencies
+      if (job.jobType === 'document_enrichment') {
+        const { processDocumentEnrichmentJob } = await import('./document-enrichment-worker');
+        await processDocumentEnrichmentJob(job);
+      }
+      // Add other job types here as needed
+      else {
+        console.log(`[Background Job Dispatcher] No worker for job type: ${job.jobType}`);
+      }
+    } catch (error: any) {
+      console.error(`[Background Job Dispatcher] Job ${job.id} failed:`, error);
+      await this.failJob(job.id, error);
+    }
   }
 }
 

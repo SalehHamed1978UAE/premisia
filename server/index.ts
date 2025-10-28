@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { validateEncryptionKey } from "./utils/encryption";
+import { backgroundJobService } from "./services/background-job-service";
 
 const app = express();
 
@@ -80,5 +81,14 @@ app.use((req, res, next) => {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+    
+    // Start background job dispatcher (polls every 15 seconds)
+    setInterval(() => {
+      backgroundJobService.processPendingJobs().catch((error) => {
+        console.error('[Server] Background job dispatcher error:', error);
+      });
+    }, 15000);
+    
+    log('Background job dispatcher started (polling every 15s)');
   });
 })();

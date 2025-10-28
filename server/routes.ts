@@ -7,6 +7,7 @@ import { ontologyService } from "./ontology-service";
 import { assessmentService } from "./assessment-service";
 import { Orchestrator } from "./orchestrator";
 import strategicConsultantRoutes from "./routes/strategic-consultant";
+import documentEnrichmentRoutes from "./routes/document-enrichment";
 import trendAnalysisRoutes from "./routes/trend-analysis";
 import statementRepositoryRoutes from "./routes/statement-repository.routes";
 import strategyWorkspaceRoutes from "./routes/strategy-workspace";
@@ -252,6 +253,7 @@ Marketing and events: $3k/month`,
 
   // Strategic Consultant routes (protected with auth)
   app.use("/api/strategic-consultant", requireAuth, strategicConsultantRoutes);
+  app.use("/api/document-enrichment", documentEnrichmentRoutes);
   
   // Trend Analysis routes (protected with auth)
   app.use("/api/trend-analysis", requireAuth, trendAnalysisRoutes);
