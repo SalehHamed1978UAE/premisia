@@ -27,10 +27,12 @@ export function ExportFullReportButton({
     setIsExporting(true);
 
     try {
-      // Build query string
-      const params = new URLSearchParams({
-        sessionId,
-      });
+      // Build query string - only append defined values to avoid ?sessionId=undefined
+      const params = new URLSearchParams();
+      
+      if (sessionId) {
+        params.append('sessionId', sessionId);
+      }
       
       if (versionNumber !== undefined) {
         params.append('versionNumber', versionNumber.toString());

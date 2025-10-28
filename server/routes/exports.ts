@@ -17,61 +17,121 @@ const router = Router();
  */
 router.get('/full-pass', async (req, res) => {
   try {
-    const { sessionId, versionNumber, programId } = req.query;
+    let { sessionId, versionNumber, programId } = req.query;
     const userId = (req.user as any)?.claims?.sub;
+
+    console.log('[Export] Request received:', { sessionId, versionNumber, programId, userId });
 
     // Authentication check
     if (!userId) {
+      console.log('[Export] Authentication failed - no userId');
       res.status(401).json({ error: 'Authentication required' });
       return;
     }
 
-    // Validation
-    if (!sessionId || typeof sessionId !== 'string') {
-      res.status(400).json({ error: 'sessionId is required' });
+    // Validation - require either sessionId or programId
+    if (!sessionId && !programId) {
+      console.log('[Export] Validation failed - neither sessionId nor programId provided');
+      res.status(400).json({ error: 'sessionId or programId is required' });
       return;
     }
 
-    // Ownership verification - Check if user owns the strategic understanding via strategy version
-    const [understanding] = await db.select()
-      .from(strategicUnderstanding)
-      .where(eq(strategicUnderstanding.sessionId, sessionId))
-      .limit(1);
-
-    if (!understanding) {
-      res.status(404).json({ error: 'Strategic session not found' });
-      return;
-    }
-
-    // Verify ownership through strategy version userId
-    const ownershipCheck = await db.select({ userId: strategyVersions.userId })
-      .from(strategyVersions)
-      .where(eq(strategyVersions.sessionId, sessionId))
-      .limit(1);
-
-    if (!ownershipCheck || ownershipCheck.length === 0) {
-      res.status(404).json({ error: 'No strategy versions found for this session' });
-      return;
-    }
-
-    if (ownershipCheck[0].userId !== userId) {
-      res.status(403).json({ error: 'You do not have permission to access this strategic session' });
-      return;
-    }
-    
-    // If programId is provided, verify ownership
-    if (programId) {
+    // If no sessionId but we have programId, derive sessionId from program
+    if (!sessionId && programId) {
+      console.log('[Export] Deriving sessionId from programId:', programId);
+      
       const [program] = await db.select()
         .from(epmPrograms)
         .where(eq(epmPrograms.id, programId as string))
         .limit(1);
 
       if (!program) {
+        console.log('[Export] Program not found:', programId);
+        res.status(404).json({ error: 'EPM program not found' });
+        return;
+      }
+
+      // Verify ownership first
+      if (program.userId !== userId) {
+        console.log('[Export] Program ownership check failed:', { programUserId: program.userId, requestUserId: userId });
+        res.status(403).json({ error: 'You do not have permission to access this program' });
+        return;
+      }
+
+      // Get strategy version to find sessionId
+      const [version] = await db.select()
+        .from(strategyVersions)
+        .where(eq(strategyVersions.id, program.strategyVersionId))
+        .limit(1);
+
+      if (!version) {
+        console.log('[Export] Strategy version not found for program:', program.strategyVersionId);
+        res.status(404).json({ error: 'Strategy version not found for this program' });
+        return;
+      }
+
+      sessionId = version.sessionId as string;
+      versionNumber = version.versionNumber.toString();
+      console.log('[Export] Derived sessionId and versionNumber:', { sessionId, versionNumber });
+    }
+
+    // Ensure sessionId is string type
+    if (typeof sessionId !== 'string') {
+      console.log('[Export] Invalid sessionId type:', typeof sessionId);
+      res.status(400).json({ error: 'Invalid sessionId' });
+      return;
+    }
+
+    // Ownership verification - Check if user owns the strategic understanding via strategy version
+    console.log('[Export] Checking strategic understanding for sessionId:', sessionId);
+    const [understanding] = await db.select()
+      .from(strategicUnderstanding)
+      .where(eq(strategicUnderstanding.sessionId, sessionId))
+      .limit(1);
+
+    if (!understanding) {
+      console.log('[Export] Strategic session not found for sessionId:', sessionId);
+      res.status(404).json({ error: 'Strategic session not found' });
+      return;
+    }
+
+    // Verify ownership through strategy version userId
+    console.log('[Export] Verifying ownership for sessionId:', sessionId);
+    const ownershipCheck = await db.select({ userId: strategyVersions.userId })
+      .from(strategyVersions)
+      .where(eq(strategyVersions.sessionId, sessionId))
+      .limit(1);
+
+    if (!ownershipCheck || ownershipCheck.length === 0) {
+      console.log('[Export] No strategy versions found for sessionId:', sessionId);
+      res.status(404).json({ error: 'No strategy versions found for this session' });
+      return;
+    }
+
+    if (ownershipCheck[0].userId !== userId) {
+      console.log('[Export] Ownership check failed:', { versionUserId: ownershipCheck[0].userId, requestUserId: userId });
+      res.status(403).json({ error: 'You do not have permission to access this strategic session' });
+      return;
+    }
+
+    console.log('[Export] Ownership verified for user:', userId);
+    
+    // If programId is provided and wasn't already checked, verify ownership
+    if (programId && sessionId === req.query.sessionId) {
+      console.log('[Export] Verifying program ownership for programId:', programId);
+      const [program] = await db.select()
+        .from(epmPrograms)
+        .where(eq(epmPrograms.id, programId as string))
+        .limit(1);
+
+      if (!program) {
+        console.log('[Export] Program not found:', programId);
         res.status(404).json({ error: 'EPM program not found' });
         return;
       }
 
       if (program.userId !== userId) {
+        console.log('[Export] Program ownership check failed:', { programUserId: program.userId, requestUserId: userId });
         res.status(403).json({ error: 'You do not have permission to access this program' });
         return;
       }
@@ -80,6 +140,8 @@ router.get('/full-pass', async (req, res) => {
     // Generate filename
     const versionStr = versionNumber ? `-v${versionNumber}` : '-latest';
     const filename = `qgentic-export-${sessionId}${versionStr}.zip`;
+
+    console.log('[Export] Starting export generation:', { sessionId, versionNumber, programId, filename });
 
     // Set response headers
     res.setHeader('Content-Type', 'application/zip');
@@ -96,15 +158,20 @@ router.get('/full-pass', async (req, res) => {
       res
     );
 
+    console.log('[Export] Export generation completed successfully');
+
   } catch (error) {
     console.error('[Export] Error generating full-pass export:', error);
+    console.error('[Export] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     
     // Check if headers have already been sent
     if (!res.headersSent) {
-      res.status(500).json({ error: 'Failed to generate export' });
+      const errorMessage = error instanceof Error ? error.message : 'Failed to generate export';
+      console.log('[Export] Sending error response:', errorMessage);
+      res.status(500).json({ error: errorMessage });
     } else {
       // If streaming has started, we can't send JSON error
-      // Just end the response
+      console.log('[Export] Headers already sent, ending response');
       res.end();
     }
   }

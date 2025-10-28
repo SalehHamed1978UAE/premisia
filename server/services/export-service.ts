@@ -51,20 +51,34 @@ export async function generateFullPassExport(
 ): Promise<void> {
   const { sessionId, versionNumber, programId, userId } = request;
 
+  console.log('[Export Service] Starting export generation:', { sessionId, versionNumber, programId, userId });
+
   // Load all required data
+  console.log('[Export Service] Loading export data...');
   const exportPackage = await loadExportData(sessionId, versionNumber, programId, userId);
+  console.log('[Export Service] Data loaded successfully. Version:', exportPackage.metadata.versionNumber);
 
   // Generate report content in various formats
+  console.log('[Export Service] Generating Markdown report...');
   const markdown = generateMarkdownReport(exportPackage);
+  
+  console.log('[Export Service] Converting Markdown to HTML...');
   const html = await generateHtmlFromMarkdown(markdown);
+  
+  console.log('[Export Service] Generating PDF from HTML...');
   const pdf = await generatePdfFromHtml(html);
+  
+  console.log('[Export Service] Generating DOCX report...');
   const docx = await generateDocxReport(exportPackage);
+  
+  console.log('[Export Service] Generating JSON and CSV exports...');
   const strategyJson = JSON.stringify(exportPackage.strategy, null, 2);
   const epmJson = exportPackage.epm?.program ? JSON.stringify(exportPackage.epm, null, 2) : null;
   const assignmentsCsv = exportPackage.epm?.assignments ? generateAssignmentsCsv(exportPackage.epm.assignments) : null;
   const workstreamsCsv = exportPackage.epm?.program?.workstreams ? generateWorkstreamsCsv(exportPackage.epm.program.workstreams) : null;
 
   // Create ZIP archive
+  console.log('[Export Service] Creating ZIP archive...');
   const archive = archiver('zip', {
     zlib: { level: 9 }
   });
@@ -72,13 +86,14 @@ export async function generateFullPassExport(
   // Handle archive events
   archive.on('warning', (err) => {
     if (err.code === 'ENOENT') {
-      console.warn('[Export] Archive warning:', err);
+      console.warn('[Export Service] Archive warning:', err);
     } else {
       throw err;
     }
   });
 
   archive.on('error', (err) => {
+    console.error('[Export Service] Archive error:', err);
     throw err;
   });
 
@@ -86,12 +101,14 @@ export async function generateFullPassExport(
   archive.pipe(outputStream);
 
   // Add files to archive
+  console.log('[Export Service] Adding files to archive...');
   archive.append(markdown, { name: 'report.md' });
   archive.append(pdf, { name: 'report.pdf' });
   archive.append(docx, { name: 'report.docx' });
   archive.append(strategyJson, { name: 'data/strategy.json' });
   
   if (epmJson) {
+    console.log('[Export Service] Adding EPM data...');
     archive.append(epmJson, { name: 'data/epm.json' });
   }
   if (assignmentsCsv) {
@@ -102,7 +119,9 @@ export async function generateFullPassExport(
   }
 
   // Finalize the archive
+  console.log('[Export Service] Finalizing archive...');
   await archive.finalize();
+  console.log('[Export Service] Export package created successfully');
 }
 
 /**
@@ -114,16 +133,21 @@ async function loadExportData(
   programId: string | undefined,
   userId: string
 ): Promise<FullExportPackage> {
+  console.log('[Export Service] loadExportData - Loading strategic understanding for sessionId:', sessionId);
   // Load strategic understanding
   const understanding = await getStrategicUnderstandingBySession(sessionId);
+  console.log('[Export Service] loadExportData - Understanding loaded:', understanding ? 'Yes' : 'No');
 
   // Load journey session
+  console.log('[Export Service] loadExportData - Loading journey session...');
   const [journeySession] = await db.select()
     .from(journeySessions)
     .where(eq(journeySessions.understandingId, understanding?.id || sessionId))
     .limit(1);
+  console.log('[Export Service] loadExportData - Journey session loaded:', journeySession ? 'Yes' : 'No');
 
   // Load strategy version
+  console.log('[Export Service] loadExportData - Loading strategy version. Requested version:', versionNumber);
   let strategyVersion;
   if (versionNumber !== undefined) {
     [strategyVersion] = await db.select()
@@ -133,6 +157,7 @@ async function loadExportData(
         eq(strategyVersions.versionNumber, versionNumber)
       ))
       .limit(1);
+    console.log('[Export Service] loadExportData - Loaded specific version:', versionNumber);
   } else {
     // Get latest version (descending order)
     const versions = await db.select()
@@ -141,6 +166,7 @@ async function loadExportData(
       .orderBy(desc(strategyVersions.versionNumber))
       .limit(1);
     strategyVersion = versions[0];
+    console.log('[Export Service] loadExportData - Loaded latest version:', strategyVersion?.versionNumber);
   }
 
   // Load EPM program if programId provided
