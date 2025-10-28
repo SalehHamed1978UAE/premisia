@@ -137,9 +137,30 @@ router.get('/full-pass', async (req, res) => {
       }
     }
 
-    // Generate filename
-    const versionStr = versionNumber ? `-v${versionNumber}` : '-latest';
-    const filename = `qgentic-export-${sessionId}${versionStr}.zip`;
+    // Helper function to sanitize filename
+    const sanitizeFilename = (title: string): string => {
+      return title
+        .replace(/[^a-zA-Z0-9\s-]/g, '') // Remove special characters
+        .replace(/\s+/g, '-') // Replace spaces with hyphens
+        .replace(/-+/g, '-') // Replace multiple hyphens with single hyphen
+        .trim()
+        .substring(0, 100); // Limit length to 100 chars
+    };
+
+    // Get title for filename from strategic understanding
+    let exportTitle = 'Qgentic Export';
+    try {
+      if (understanding && understanding.title) {
+        exportTitle = sanitizeFilename(understanding.title);
+        console.log('[Export] Using understanding title for filename:', exportTitle);
+      }
+    } catch (err) {
+      console.warn('[Export] Failed to get title, using default:', err);
+    }
+
+    // Generate filename with human-readable title
+    const versionStr = versionNumber ? ` v${versionNumber}` : '';
+    const filename = `${exportTitle}${versionStr}.zip`;
 
     console.log('[Export] Starting export generation:', { sessionId, versionNumber, programId, filename });
 
