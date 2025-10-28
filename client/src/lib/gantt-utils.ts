@@ -20,6 +20,8 @@ export interface GanttTask {
   description?: string;
   deliverables?: GanttDeliverable[];
   workstreamId?: string; // For deliverables, which workstream they belong to
+  assignedResourceIds?: string[]; // Resource IDs assigned to this task
+  assignedResourceNames?: string[]; // Resource names assigned to this task
 }
 
 export interface GanttDeliverable {
