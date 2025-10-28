@@ -303,35 +303,52 @@ export default function WhysTreePage() {
   const handleSelectAndContinue = async () => {
     if (!currentOption || !tree) return;
 
-    // Validate the selected answer before continuing
-    const previousWhys = selectedPath.map(p => p.option);
-    const validation = await validateWhyMutation.mutateAsync({
-      level: currentLevel,
-      candidate: currentOption.option,
-      previousWhys,
-      rootQuestion: tree.rootQuestion,
+    // Set loading state immediately for instant user feedback
+    flushSync(() => {
+      setIsProcessingAction(true);
     });
 
-    if (validation.success && validation.evaluation) {
-      const { verdict } = validation.evaluation;
+    try {
+      // Validate the selected answer before continuing
+      const previousWhys = selectedPath.map(p => p.option);
+      const validation = await validateWhyMutation.mutateAsync({
+        level: currentLevel,
+        candidate: currentOption.option,
+        previousWhys,
+        rootQuestion: tree.rootQuestion,
+      });
 
-      if (verdict === 'invalid') {
-        // Block progression - must revise
-        setCurrentEvaluation(validation.evaluation);
-        setPendingAction({ type: 'continue' });
-        setShowCoachingModal(true);
-        return;
-      } else if (verdict === 'needs_clarification') {
-        // Show warning but allow override
-        setCurrentEvaluation(validation.evaluation);
-        setPendingAction({ type: 'continue' });
-        setShowCoachingModal(true);
-        return;
+      if (validation.success && validation.evaluation) {
+        const { verdict } = validation.evaluation;
+
+        if (verdict === 'invalid') {
+          // Block progression - must revise
+          setIsProcessingAction(false);
+          setCurrentEvaluation(validation.evaluation);
+          setPendingAction({ type: 'continue' });
+          setShowCoachingModal(true);
+          return;
+        } else if (verdict === 'needs_clarification') {
+          // Show warning but allow override
+          setIsProcessingAction(false);
+          setCurrentEvaluation(validation.evaluation);
+          setPendingAction({ type: 'continue' });
+          setShowCoachingModal(true);
+          return;
+        }
       }
-    }
 
-    // If validation passes (acceptable), proceed
-    proceedWithContinue();
+      // If validation passes (acceptable), proceed
+      // Note: proceedWithContinue() will keep isProcessingAction true if expansion is needed
+      proceedWithContinue();
+    } catch (error) {
+      setIsProcessingAction(false);
+      toast({
+        title: "Validation failed",
+        description: "Failed to validate your answer. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const proceedWithContinue = () => {
@@ -340,12 +357,8 @@ export default function WhysTreePage() {
     // Check if we need to call expansion (no existing branches)
     const needsExpansion = !currentOption.branches || currentOption.branches.length === 0;
     
-    // Set processing state IMMEDIATELY if expansion is needed - use flushSync for instant UI update
-    if (needsExpansion) {
-      flushSync(() => {
-        setIsProcessingAction(true);
-      });
-    }
+    // Note: isProcessingAction is already true from handleSelectAndContinue
+    // Keep it true if expansion is needed, clear it if just navigating
 
     const newPath = [...selectedPath, {
       nodeId: currentOption.id,
@@ -355,11 +368,12 @@ export default function WhysTreePage() {
     setSelectedPath(newPath);
 
     if (!needsExpansion) {
-      // Branches exist, just navigate
+      // Branches exist, just navigate - clear loading state
       setCurrentLevel(prev => prev + 1);
       setCurrentOptionIndex(0);
+      setIsProcessingAction(false);
     } else {
-      // Need to expand - call mutation
+      // Need to expand - call mutation (loading state stays true, cleared in mutation onSuccess/onError)
       expandBranchMutation.mutate({
         nodeId: currentOption.id,
         parentQuestion: currentOption.question,

@@ -112,52 +112,52 @@ export function CoachingModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="coaching-modal">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="coaching-modal">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-xl md:text-2xl">
-            {isInvalid && <AlertCircle className="w-6 h-6 text-destructive" />}
-            {needsClarification && <AlertTriangle className="w-6 h-6 text-yellow-600" />}
-            {isInvalid ? 'Let\'s Improve This Answer' : 'Consider Refining This'}
+          <DialogTitle className="flex items-center gap-2 text-lg md:text-xl">
+            {isInvalid && <AlertCircle className="w-5 h-5 text-destructive shrink-0" />}
+            {needsClarification && <AlertTriangle className="w-5 h-5 text-yellow-600 shrink-0" />}
+            <span className="break-words">{isInvalid ? 'Let\'s Improve This Answer' : 'Consider Refining This'}</span>
           </DialogTitle>
-          <DialogDescription className="text-base md:text-lg">
+          <DialogDescription className="text-sm md:text-base break-words">
             {isInvalid 
               ? 'This answer needs refinement before we can continue the analysis.'
               : 'This answer could be stronger. Let me help you think it through.'}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-5">
           {/* Current Answer */}
           <Card>
             <CardContent className="pt-4">
               <div className="text-sm text-muted-foreground mb-2">Your current answer:</div>
-              <p className="text-base font-medium">{candidate}</p>
+              <p className="text-sm md:text-base font-medium break-words">{candidate}</p>
             </CardContent>
           </Card>
 
           {/* Issues */}
           {evaluation.issues.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="font-semibold text-base flex items-center gap-2">
-                <AlertCircle className="w-4 h-4" />
+            <div className="space-y-3">
+              <h3 className="font-semibold text-sm md:text-base flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
                 What to improve:
               </h3>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {evaluation.issues.map((issue, idx) => (
                   <div
                     key={idx}
-                    className={`p-3 rounded-md border ${
+                    className={`p-3 md:p-4 rounded-lg border ${
                       issue.severity === 'critical'
                         ? 'bg-destructive/10 border-destructive/30'
                         : 'bg-yellow-50 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-800'
                     }`}
                     data-testid={`issue-${idx}`}
                   >
-                    <div className="flex items-start gap-2">
-                      <Badge variant={issue.severity === 'critical' ? 'destructive' : 'outline'} className="mt-0.5">
+                    <div className="flex flex-col sm:flex-row items-start gap-2">
+                      <Badge variant={issue.severity === 'critical' ? 'destructive' : 'outline'} className="shrink-0">
                         {issue.type}
                       </Badge>
-                      <p className="text-sm flex-1">{issue.message}</p>
+                      <p className="text-sm break-words flex-1 leading-relaxed">{issue.message}</p>
                     </div>
                   </div>
                 ))}
@@ -169,16 +169,15 @@ export function CoachingModal({
           {evaluation.improvedSuggestion && (
             <Card className="bg-primary/5 border-primary/20">
               <CardContent className="pt-4">
-                <div className="flex items-start gap-2 mb-2">
-                  <Lightbulb className="w-5 h-5 text-primary mt-0.5" />
-                  <h3 className="font-semibold text-base">Suggested improvement:</h3>
+                <div className="flex items-start gap-2 mb-3">
+                  <Lightbulb className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                  <h3 className="font-semibold text-sm md:text-base">Suggested improvement:</h3>
                 </div>
-                <p className="text-sm mb-3 pl-7">{evaluation.improvedSuggestion}</p>
+                <p className="text-sm break-words leading-relaxed mb-4">{evaluation.improvedSuggestion}</p>
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={handleUseImprovedSuggestion}
-                  className="ml-7"
                   data-testid="button-use-suggestion"
                 >
                   Use this version
@@ -189,20 +188,20 @@ export function CoachingModal({
 
           {/* Follow-up Questions */}
           {evaluation.followUpQuestions.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="font-semibold text-base">Questions to consider:</h3>
+            <div className="space-y-3">
+              <h3 className="font-semibold text-sm md:text-base">Questions to consider:</h3>
               <div className="space-y-2">
                 {evaluation.followUpQuestions.map((question, idx) => (
                   <Button
                     key={idx}
                     variant="outline"
-                    className="w-full justify-start text-left h-auto py-3 px-4"
+                    className="w-full justify-start text-left h-auto py-3 px-4 whitespace-normal"
                     onClick={() => handleAskFollowUp(question)}
                     disabled={coachingMutation.isPending}
                     data-testid={`followup-question-${idx}`}
                   >
-                    <MessageCircle className="w-4 h-4 mr-2 shrink-0" />
-                    <span className="text-sm">{question}</span>
+                    <MessageCircle className="w-4 h-4 mr-2 shrink-0 mt-0.5" />
+                    <span className="text-sm break-words leading-relaxed">{question}</span>
                   </Button>
                 ))}
               </div>
@@ -211,22 +210,22 @@ export function CoachingModal({
 
           {/* Coaching Conversation */}
           {conversationHistory.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="font-semibold text-base">Coaching conversation:</h3>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
+            <div className="space-y-3">
+              <h3 className="font-semibold text-sm md:text-base">Coaching conversation:</h3>
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
                 {conversationHistory.map((msg, idx) => (
                   <div
                     key={idx}
-                    className={`p-3 rounded-md ${
+                    className={`p-3 rounded-lg ${
                       msg.role === 'user'
-                        ? 'bg-muted ml-8'
-                        : 'bg-primary/10 mr-8'
+                        ? 'bg-muted ml-0 sm:ml-8'
+                        : 'bg-primary/10 mr-0 sm:mr-8'
                     }`}
                   >
-                    <div className="text-xs text-muted-foreground mb-1">
+                    <div className="text-xs font-medium text-muted-foreground mb-1.5">
                       {msg.role === 'user' ? 'You' : 'Coach'}
                     </div>
-                    <p className="text-sm">{msg.content}</p>
+                    <p className="text-sm break-words leading-relaxed">{msg.content}</p>
                   </div>
                 ))}
               </div>
@@ -235,7 +234,7 @@ export function CoachingModal({
 
           {/* Ask Coach */}
           <div className="space-y-2">
-            <h3 className="font-semibold text-base">Need more help?</h3>
+            <h3 className="font-semibold text-sm md:text-base">Need more help?</h3>
             <div className="flex gap-2">
               <Textarea
                 placeholder="Ask the coach for guidance..."
@@ -269,19 +268,20 @@ export function CoachingModal({
           {coachingResponse && (
             <Card className="bg-primary/5">
               <CardContent className="pt-4">
-                <div className="text-xs text-muted-foreground mb-1">Coach says:</div>
-                <p className="text-sm">{coachingResponse}</p>
+                <div className="text-xs font-medium text-muted-foreground mb-2">Coach says:</div>
+                <p className="text-sm break-words leading-relaxed">{coachingResponse}</p>
               </CardContent>
             </Card>
           )}
 
           {/* Edit Answer */}
           <div className="space-y-2">
-            <h3 className="font-semibold text-base">Revise your answer:</h3>
+            <h3 className="font-semibold text-sm md:text-base">Revise your answer:</h3>
             <Textarea
               value={revisedAnswer}
               onChange={(e) => setRevisedAnswer(e.target.value)}
-              className="min-h-[100px] text-base md:text-sm"
+              className="min-h-[100px] text-sm md:text-base resize-none"
+              placeholder="Enter your improved answer here..."
               data-testid="input-revised-answer"
             />
           </div>
