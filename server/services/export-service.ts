@@ -4,6 +4,11 @@ import { marked } from 'marked';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell, WidthType, AlignmentType } from 'docx';
 import puppeteer from 'puppeteer';
 import { format } from 'date-fns';
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+// @ts-ignore - no type declarations available
+import HTMLtoDOCX from 'html-docx-js';
 import { getStrategicUnderstandingBySession } from './secure-data-service';
 import { db } from '../db';
 import {
@@ -82,6 +87,16 @@ export async function generateFullPassExport(
   const risksCsv = exportPackage.epm?.program?.riskRegister ? generateRisksCsv(exportPackage.epm.program.riskRegister) : null;
   const benefitsCsv = exportPackage.epm?.program?.benefitsRealization ? generateBenefitsCsv(exportPackage.epm.program.benefitsRealization) : null;
 
+  // Generate UI-styled exports
+  console.log('[Export Service] Generating UI-styled HTML...');
+  const uiHtml = generateUiStyledHtml(exportPackage);
+  
+  console.log('[Export Service] Generating UI-styled PDF...');
+  const uiPdf = await generatePdfFromUiHtml(uiHtml);
+  
+  console.log('[Export Service] Generating UI-styled DOCX...');
+  const uiDocx = await generateDocxFromHtml(uiHtml);
+
   // Create ZIP archive
   console.log('[Export Service] Creating ZIP archive...');
   const archive = archiver('zip', {
@@ -110,6 +125,9 @@ export async function generateFullPassExport(
   archive.append(markdown, { name: 'report.md' });
   archive.append(pdf, { name: 'report.pdf' });
   archive.append(docx, { name: 'report.docx' });
+  archive.append(uiHtml, { name: 'report-ui.html' });
+  archive.append(uiPdf, { name: 'report-ui.pdf' });
+  archive.append(uiDocx, { name: 'report-ui.docx' });
   archive.append(strategyJson, { name: 'data/strategy.json' });
   
   if (epmJson) {
@@ -2341,4 +2359,866 @@ function escapeCsvField(field: string): string {
     return `"${str.replace(/"/g, '""')}"`;
   }
   return str;
+}
+
+/**
+ * Generate UI-styled HTML report with cards, badges, and tables
+ */
+function generateUiStyledHtml(pkg: FullExportPackage): string {
+  // Parse JSONB fields safely with error handling (reuse existing pattern)
+  const parseField = (field: any) => {
+    if (!field) return null;
+    if (typeof field === 'object') return field;
+    
+    try {
+      return JSON.parse(field);
+    } catch (err) {
+      console.warn('[Export] Failed to parse JSONB field:', err);
+      return null;
+    }
+  };
+
+  // Helper to generate confidence badge
+  const getConfidenceBadge = (confidence: number | string): string => {
+    const conf = typeof confidence === 'number' ? confidence : parseFloat(confidence as string);
+    if (isNaN(conf)) return '<span class="badge badge-secondary">N/A</span>';
+    
+    const percentage = conf * 100;
+    let badgeClass = 'badge-warning';
+    if (percentage >= 75) badgeClass = 'badge-success';
+    else if (percentage < 50) badgeClass = 'badge-destructive';
+    
+    return `<span class="badge ${badgeClass}">${percentage.toFixed(0)}%</span>`;
+  };
+
+  // Helper to escape HTML - handles all data types safely
+  const escapeHtml = (str: any): string => {
+    if (str === null || str === undefined) return '';
+    
+    // Convert to string if not already
+    let stringValue: string;
+    if (typeof str === 'object') {
+      // For objects/arrays, use JSON representation
+      stringValue = JSON.stringify(str);
+    } else {
+      stringValue = String(str);
+    }
+    
+    return stringValue
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  };
+
+  const contentParts: string[] = [];
+  
+  // Header
+  const title = pkg.strategy.understanding?.title || 'Strategic Analysis Report';
+  contentParts.push(`
+    <div class="header">
+      <h1>${escapeHtml(title)}</h1>
+      <p class="subtitle">Generated: ${format(new Date(pkg.metadata.exportedAt), 'PPpp')}</p>
+      <p class="subtitle">Session ID: ${pkg.metadata.sessionId}</p>
+      ${pkg.metadata.versionNumber ? `<p class="subtitle">Version: ${pkg.metadata.versionNumber}</p>` : ''}
+    </div>
+  `);
+
+  // ======================
+  // STRATEGIC UNDERSTANDING
+  // ======================
+  if (pkg.strategy.understanding) {
+    const u = pkg.strategy.understanding;
+    contentParts.push(`
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Strategic Understanding</h2>
+        </div>
+        <div class="card-content">
+          <div class="key-value">
+            <div class="key-value-label">Title:</div>
+            <div class="key-value-value">${escapeHtml(u.title || 'Untitled Initiative')}</div>
+          </div>
+          <div class="key-value">
+            <div class="key-value-label">Initiative Type:</div>
+            <div class="key-value-value">${escapeHtml(u.initiativeType || 'Not classified')}</div>
+          </div>
+          ${u.classificationConfidence ? `
+          <div class="key-value">
+            <div class="key-value-label">Classification Confidence:</div>
+            <div class="key-value-value">${getConfidenceBadge(u.classificationConfidence)}</div>
+          </div>
+          ` : ''}
+          ${u.initiativeDescription ? `
+          <div class="mt-4">
+            <h3>Description</h3>
+            <p>${escapeHtml(u.initiativeDescription)}</p>
+          </div>
+          ` : ''}
+          ${u.userInput ? `
+          <div class="mt-4">
+            <h3>Original User Input</h3>
+            <p>${escapeHtml(u.userInput)}</p>
+          </div>
+          ` : ''}
+        </div>
+      </div>
+    `);
+  }
+
+  // ======================
+  // STRATEGIC JOURNEY
+  // ======================
+  if (pkg.strategy.journeySession) {
+    const j = pkg.strategy.journeySession;
+    contentParts.push(`
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Strategic Journey</h2>
+        </div>
+        <div class="card-content">
+          <div class="key-value">
+            <div class="key-value-label">Journey Type:</div>
+            <div class="key-value-value">${escapeHtml(j.journeyType || 'Custom')}</div>
+          </div>
+          <div class="key-value">
+            <div class="key-value-label">Status:</div>
+            <div class="key-value-value"><span class="badge badge-default">${escapeHtml(j.status)}</span></div>
+          </div>
+          ${j.completedFrameworks && j.completedFrameworks.length > 0 ? `
+          <div class="mt-4">
+            <h3>Completed Frameworks</h3>
+            <ul>
+              ${j.completedFrameworks.map((fw: string) => `<li>${escapeHtml(fw)}</li>`).join('')}
+            </ul>
+          </div>
+          ` : ''}
+        </div>
+      </div>
+    `);
+  }
+
+  // ======================
+  // STRATEGIC DECISIONS
+  // ======================
+  if (pkg.strategy.strategyVersion) {
+    const sv = pkg.strategy.strategyVersion;
+    contentParts.push(`
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Strategic Decisions</h2>
+          ${sv.versionLabel ? `<p class="card-description">Version: ${escapeHtml(sv.versionLabel)}</p>` : ''}
+        </div>
+        <div class="card-content">
+          ${sv.inputSummary ? `
+          <div class="mb-4">
+            <h3>Summary</h3>
+            <p>${escapeHtml(sv.inputSummary)}</p>
+          </div>
+          ` : ''}
+          ${pkg.strategy.decisions && pkg.strategy.decisions.length > 0 ? `
+          <div>
+            <h3>Selected Decisions</h3>
+            <ol>
+              ${pkg.strategy.decisions.map((decision: any) => {
+                const decType = decision.type || decision.category || 'Decision';
+                const decValue = decision.value || decision.description || decision.choice || 'Not specified';
+                return `
+                  <li>
+                    <strong>${escapeHtml(decType)}:</strong> ${escapeHtml(decValue)}
+                    ${decision.rationale ? `<br><em class="text-muted">Rationale: ${escapeHtml(decision.rationale)}</em>` : ''}
+                  </li>
+                `;
+              }).join('')}
+            </ol>
+          </div>
+          ` : ''}
+        </div>
+      </div>
+    `);
+  }
+
+  // ======================
+  // EPM PROGRAM - 14 COMPONENTS
+  // ======================
+  if (pkg.epm?.program) {
+    const program = pkg.epm.program;
+    const execSummary = parseField(program.executiveSummary);
+    const workstreams = parseField(program.workstreams);
+    const timeline = parseField(program.timeline);
+    const resourcePlan = parseField(program.resourcePlan);
+    const financialPlan = parseField(program.financialPlan);
+    const benefits = parseField(program.benefitsRealization);
+    const risks = parseField(program.riskRegister);
+    const stageGates = parseField(program.stageGates);
+    const kpis = parseField(program.kpis);
+    const stakeholders = parseField(program.stakeholderMap);
+    const governance = parseField(program.governance);
+    const qaPlan = parseField(program.qaPlan);
+    const procurement = parseField(program.procurement);
+    const exitStrategy = parseField(program.exitStrategy);
+
+    // EPM Header Card
+    const confidenceValue = program.overallConfidence ? parseFloat(program.overallConfidence as any) : null;
+    contentParts.push(`
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Enterprise Program Management (EPM) Program</h2>
+        </div>
+        <div class="card-content">
+          <div class="key-value">
+            <div class="key-value-label">Framework:</div>
+            <div class="key-value-value">${escapeHtml(program.frameworkType || 'Not specified')}</div>
+          </div>
+          <div class="key-value">
+            <div class="key-value-label">Status:</div>
+            <div class="key-value-value"><span class="badge badge-default">${escapeHtml(program.status)}</span></div>
+          </div>
+          ${confidenceValue !== null && !isNaN(confidenceValue) ? `
+          <div class="key-value">
+            <div class="key-value-label">Overall Confidence:</div>
+            <div class="key-value-value">${getConfidenceBadge(confidenceValue)}</div>
+          </div>
+          ` : ''}
+        </div>
+      </div>
+    `);
+
+    // 1. EXECUTIVE SUMMARY
+    if (execSummary) {
+      contentParts.push(`
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">1. Executive Summary</h2>
+          </div>
+          <div class="card-content">
+            ${execSummary.title ? `<h3 class="mb-2">${escapeHtml(execSummary.title)}</h3>` : ''}
+            ${execSummary.overview || execSummary.summary ? `<p class="mb-4">${escapeHtml(execSummary.overview || execSummary.summary)}</p>` : ''}
+            ${execSummary.objectives && execSummary.objectives.length > 0 ? `
+            <div class="mb-4">
+              <h3>Strategic Objectives</h3>
+              <ol>
+                ${execSummary.objectives.map((obj: string) => `<li>${escapeHtml(obj)}</li>`).join('')}
+              </ol>
+            </div>
+            ` : ''}
+            ${execSummary.scope ? `
+            <div class="mb-4">
+              <h3>Scope</h3>
+              <p>${escapeHtml(execSummary.scope)}</p>
+            </div>
+            ` : ''}
+            ${execSummary.successCriteria && execSummary.successCriteria.length > 0 ? `
+            <div>
+              <h3>Success Criteria</h3>
+              <ul>
+                ${execSummary.successCriteria.map((criteria: string) => `<li>${escapeHtml(criteria)}</li>`).join('')}
+              </ul>
+            </div>
+            ` : ''}
+          </div>
+        </div>
+      `);
+    }
+
+    // 2. WORKSTREAMS
+    if (workstreams && workstreams.length > 0) {
+      contentParts.push(`
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">2. Workstreams</h2>
+          </div>
+          <div class="card-content">
+            <div class="grid grid-cols-2">
+              ${workstreams.map((ws: any, idx: number) => `
+                <div class="card" style="background: hsl(var(--secondary)); margin-bottom: 1rem;">
+                  <div class="card-header">
+                    <h3 class="card-title">${idx + 1}. ${escapeHtml(ws.name || `Workstream ${idx + 1}`)}</h3>
+                  </div>
+                  <div class="card-content">
+                    ${ws.description ? `<p class="mb-2">${escapeHtml(ws.description)}</p>` : ''}
+                    ${ws.owner ? `<p class="mb-1"><strong>Owner:</strong> ${escapeHtml(ws.owner)}</p>` : ''}
+                    ${ws.startMonth !== undefined && ws.endMonth !== undefined ? `<p class="mb-1"><strong>Duration:</strong> Month ${ws.startMonth} to Month ${ws.endMonth}</p>` : ''}
+                    ${ws.dependencies && ws.dependencies.length > 0 ? `<p class="mb-2"><strong>Dependencies:</strong> ${ws.dependencies.map(escapeHtml).join(', ')}</p>` : ''}
+                    ${ws.deliverables && ws.deliverables.length > 0 ? `
+                    <div class="mt-2">
+                      <strong>Key Deliverables:</strong>
+                      <ul>
+                        ${ws.deliverables.map((d: any) => {
+                          const delName = typeof d === 'string' ? d : (d.name || d.title || 'Deliverable');
+                          return `<li>${escapeHtml(delName)}</li>`;
+                        }).join('')}
+                      </ul>
+                    </div>
+                    ` : ''}
+                    ${ws.tasks && ws.tasks.length > 0 ? `<p class="mt-2"><span class="badge badge-outline">${ws.tasks.length} tasks</span></p>` : ''}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `);
+    }
+
+    // 3. TIMELINE & CRITICAL PATH
+    if (timeline) {
+      contentParts.push(`
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">3. Timeline & Critical Path</h2>
+          </div>
+          <div class="card-content">
+            ${timeline.totalDuration ? `<p class="mb-4"><strong>Total Program Duration:</strong> ${timeline.totalDuration} months</p>` : ''}
+            ${timeline.phases && timeline.phases.length > 0 ? `
+            <div class="mb-4">
+              <h3>Program Phases</h3>
+              <ul>
+                ${timeline.phases.map((phase: any) => `
+                  <li>
+                    <strong>${escapeHtml(phase.name)}:</strong> Month ${phase.startMonth} to Month ${phase.endMonth}
+                    ${phase.milestones && phase.milestones.length > 0 ? `<br><em class="text-muted">Milestones: ${phase.milestones.map(escapeHtml).join(', ')}</em>` : ''}
+                  </li>
+                `).join('')}
+              </ul>
+            </div>
+            ` : ''}
+            ${timeline.criticalPath && timeline.criticalPath.length > 0 ? `
+            <div>
+              <h3>Critical Path</h3>
+              <ul>
+                ${timeline.criticalPath.map((item: string) => `<li>${escapeHtml(item)}</li>`).join('')}
+              </ul>
+            </div>
+            ` : ''}
+          </div>
+        </div>
+      `);
+    }
+
+    // 4. RESOURCE PLAN
+    if (resourcePlan) {
+      contentParts.push(`
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">4. Resource Plan</h2>
+          </div>
+          <div class="card-content">
+            ${resourcePlan.internalTeam && resourcePlan.internalTeam.length > 0 ? `
+            <div class="mb-4">
+              <h3>Internal Team</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Role</th>
+                    <th>FTE</th>
+                    <th>Responsibilities</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${resourcePlan.internalTeam.map((r: any) => `
+                    <tr>
+                      <td>${escapeHtml(r.role || r.title || 'Not specified')}</td>
+                      <td>${escapeHtml(String(r.fte || r.allocation || 'TBD'))}</td>
+                      <td>${escapeHtml(r.responsibilities || r.description || '-')}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            ` : ''}
+            ${resourcePlan.externalResources && resourcePlan.externalResources.length > 0 ? `
+            <div>
+              <h3>External Resources</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Quantity</th>
+                    <th>Skills Required</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${resourcePlan.externalResources.map((r: any) => `
+                    <tr>
+                      <td>${escapeHtml(r.type || r.role || 'Contractor')}</td>
+                      <td>${escapeHtml(String(r.quantity || r.count || '1'))}</td>
+                      <td>${escapeHtml(r.skills || r.requirements || '-')}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+            ` : ''}
+            ${resourcePlan.totalFTE ? `<p class="mt-4"><strong>Total FTE Required:</strong> ${resourcePlan.totalFTE}</p>` : ''}
+          </div>
+        </div>
+      `);
+    }
+
+    // 5. FINANCIAL PLAN
+    if (financialPlan) {
+      const budget = typeof financialPlan.totalBudget === 'number' 
+        ? `$${financialPlan.totalBudget.toLocaleString()}`
+        : financialPlan.totalBudget;
+      
+      contentParts.push(`
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">5. Financial Plan</h2>
+          </div>
+          <div class="card-content">
+            ${financialPlan.totalBudget ? `<p class="mb-4"><strong>Total Program Budget:</strong> ${escapeHtml(budget)}</p>` : ''}
+            ${financialPlan.costBreakdown && financialPlan.costBreakdown.length > 0 ? `
+            <div class="mb-4">
+              <h3>Cost Breakdown</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Category</th>
+                    <th>Amount</th>
+                    <th>Percentage</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${financialPlan.costBreakdown.map((item: any) => {
+                    const category = item.category || item.name || 'Other';
+                    const amount = typeof item.amount === 'number' ? `$${item.amount.toLocaleString()}` : item.amount;
+                    const pct = item.percentage || '-';
+                    return `
+                      <tr>
+                        <td>${escapeHtml(category)}</td>
+                        <td>${escapeHtml(amount)}</td>
+                        <td>${escapeHtml(String(pct))}</td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+            ` : ''}
+            ${financialPlan.cashFlow && financialPlan.cashFlow.length > 0 ? `
+            <div>
+              <h3>Cash Flow Projection</h3>
+              <ul>
+                ${financialPlan.cashFlow.map((cf: any) => `
+                  <li><strong>${escapeHtml(cf.period || `Period ${cf.month || cf.quarter}`)}:</strong> $${cf.amount?.toLocaleString() || '0'}</li>
+                `).join('')}
+              </ul>
+            </div>
+            ` : ''}
+          </div>
+        </div>
+      `);
+    }
+
+    // 6. BENEFITS REALIZATION
+    if (benefits && benefits.benefits && benefits.benefits.length > 0) {
+      contentParts.push(`
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">6. Benefits Realization</h2>
+          </div>
+          <div class="card-content">
+            <h3>Expected Benefits</h3>
+            <ol>
+              ${benefits.benefits.map((b: any) => `
+                <li>
+                  <strong>${escapeHtml(b.name || b.benefit)}</strong>
+                  ${b.description ? `<br>${escapeHtml(b.description)}` : ''}
+                  ${b.metric ? `<br><strong>Metric:</strong> ${escapeHtml(b.metric)}` : ''}
+                  ${b.target ? `<br><strong>Target:</strong> ${escapeHtml(b.target)}` : ''}
+                  ${b.timeframe ? `<br><strong>Timeframe:</strong> ${escapeHtml(b.timeframe)}` : ''}
+                </li>
+              `).join('')}
+            </ol>
+            ${benefits.realizationPlan ? `
+            <div class="mt-4">
+              <h3>Realization Plan</h3>
+              <p>${escapeHtml(benefits.realizationPlan)}</p>
+            </div>
+            ` : ''}
+          </div>
+        </div>
+      `);
+    }
+
+    // 7. RISK REGISTER
+    if (risks) {
+      const riskArray = risks.risks || risks;
+      if (Array.isArray(riskArray) && riskArray.length > 0) {
+        contentParts.push(`
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">7. Risk Register</h2>
+            </div>
+            <div class="card-content">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Risk</th>
+                    <th>Probability</th>
+                    <th>Impact</th>
+                    <th>Mitigation</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${riskArray.map((r: any) => {
+                    const name = r.risk || r.name || r.description || 'Unnamed risk';
+                    const prob = r.probability || r.likelihood || '-';
+                    const impact = r.impact || r.severity || '-';
+                    const mit = r.mitigation || r.response || '-';
+                    return `
+                      <tr>
+                        <td>${escapeHtml(name)}</td>
+                        <td>${escapeHtml(prob)}</td>
+                        <td>${escapeHtml(impact)}</td>
+                        <td>${escapeHtml(mit)}</td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `);
+      }
+    }
+
+    // 8. STAGE GATES
+    if (stageGates) {
+      const gates = stageGates.gates || stageGates;
+      if (Array.isArray(gates) && gates.length > 0) {
+        contentParts.push(`
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">8. Stage Gates & Milestones</h2>
+            </div>
+            <div class="card-content">
+              ${gates.map((gate: any, idx: number) => `
+                <div class="mb-4">
+                  <h3>Gate ${idx + 1}: ${escapeHtml(gate.name || gate.title)}</h3>
+                  ${gate.timing ? `<p><strong>Timing:</strong> ${escapeHtml(gate.timing)}</p>` : ''}
+                  ${gate.criteria && gate.criteria.length > 0 ? `
+                  <div class="mt-2">
+                    <strong>Approval Criteria:</strong>
+                    <ul>
+                      ${gate.criteria.map((c: string) => `<li>${escapeHtml(c)}</li>`).join('')}
+                    </ul>
+                  </div>
+                  ` : ''}
+                  ${gate.deliverables && gate.deliverables.length > 0 ? `
+                  <div class="mt-2">
+                    <strong>Required Deliverables:</strong>
+                    <ul>
+                      ${gate.deliverables.map((d: string) => `<li>${escapeHtml(d)}</li>`).join('')}
+                    </ul>
+                  </div>
+                  ` : ''}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `);
+      }
+    }
+
+    // 9. KPIs
+    if (kpis) {
+      const kpiArray = kpis.kpis || kpis.metrics || kpis;
+      if (Array.isArray(kpiArray) && kpiArray.length > 0) {
+        contentParts.push(`
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">9. Key Performance Indicators (KPIs)</h2>
+            </div>
+            <div class="card-content">
+              <table>
+                <thead>
+                  <tr>
+                    <th>KPI</th>
+                    <th>Target</th>
+                    <th>Measurement Frequency</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${kpiArray.map((kpi: any) => {
+                    const name = kpi.name || kpi.metric || kpi.kpi || 'KPI';
+                    const target = kpi.target || kpi.goal || '-';
+                    const freq = kpi.frequency || kpi.measurementFrequency || 'Monthly';
+                    return `
+                      <tr>
+                        <td>${escapeHtml(name)}</td>
+                        <td>${escapeHtml(target)}</td>
+                        <td>${escapeHtml(freq)}</td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `);
+      }
+    }
+
+    // 10. STAKEHOLDER MAP
+    if (stakeholders) {
+      const stakeholderArray = stakeholders.stakeholders || stakeholders;
+      if (Array.isArray(stakeholderArray) && stakeholderArray.length > 0) {
+        contentParts.push(`
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">10. Stakeholder Map</h2>
+            </div>
+            <div class="card-content">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Stakeholder</th>
+                    <th>Role</th>
+                    <th>Interest Level</th>
+                    <th>Engagement Strategy</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${stakeholderArray.map((s: any) => {
+                    const name = s.name || s.stakeholder || 'Stakeholder';
+                    const role = s.role || s.position || '-';
+                    const interest = s.interest || s.interestLevel || '-';
+                    const strategy = s.engagement || s.strategy || '-';
+                    return `
+                      <tr>
+                        <td>${escapeHtml(name)}</td>
+                        <td>${escapeHtml(role)}</td>
+                        <td>${escapeHtml(interest)}</td>
+                        <td>${escapeHtml(strategy)}</td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `);
+      }
+    }
+
+    // 11. GOVERNANCE
+    if (governance) {
+      contentParts.push(`
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">11. Governance Structure</h2>
+          </div>
+          <div class="card-content">
+            ${governance.structure ? `<p class="mb-2"><strong>Governance Model:</strong> ${escapeHtml(governance.structure)}</p>` : ''}
+            ${governance.decisionMaking ? `<p class="mb-2"><strong>Decision-Making Framework:</strong> ${escapeHtml(governance.decisionMaking)}</p>` : ''}
+            ${governance.roles && governance.roles.length > 0 ? `
+            <div class="mb-2">
+              <strong>Key Governance Roles:</strong>
+              <ul>
+                ${governance.roles.map((r: any) => {
+                  const role = typeof r === 'string' ? r : (r.role || r.name);
+                  const resp = r.responsibilities || '';
+                  const text = resp ? `${role}: ${resp}` : role;
+                  return `<li>${escapeHtml(text)}</li>`;
+                }).join('')}
+              </ul>
+            </div>
+            ` : ''}
+            ${governance.meetings ? `<p><strong>Meeting Cadence:</strong> ${escapeHtml(governance.meetings)}</p>` : ''}
+          </div>
+        </div>
+      `);
+    }
+
+    // 12. QA PLAN
+    if (qaPlan) {
+      contentParts.push(`
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">12. Quality Assurance Plan</h2>
+          </div>
+          <div class="card-content">
+            ${qaPlan.approach ? `<p class="mb-4"><strong>QA Approach:</strong> ${escapeHtml(qaPlan.approach)}</p>` : ''}
+            ${qaPlan.standards && qaPlan.standards.length > 0 ? `
+            <div class="mb-4">
+              <strong>Quality Standards:</strong>
+              <ul>
+                ${qaPlan.standards.map((std: string) => `<li>${escapeHtml(std)}</li>`).join('')}
+              </ul>
+            </div>
+            ` : ''}
+            ${qaPlan.reviews && qaPlan.reviews.length > 0 ? `
+            <div>
+              <strong>Review Gates:</strong>
+              <ul>
+                ${qaPlan.reviews.map((rev: any) => {
+                  const name = typeof rev === 'string' ? rev : (rev.name || rev.type);
+                  return `<li>${escapeHtml(name)}</li>`;
+                }).join('')}
+              </ul>
+            </div>
+            ` : ''}
+          </div>
+        </div>
+      `);
+    }
+
+    // 13. PROCUREMENT
+    if (procurement) {
+      const vendors = procurement.vendors || procurement.suppliers || [];
+      contentParts.push(`
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">13. Procurement Plan</h2>
+          </div>
+          <div class="card-content">
+            ${procurement.strategy ? `<p class="mb-4"><strong>Procurement Strategy:</strong> ${escapeHtml(procurement.strategy)}</p>` : ''}
+            ${vendors.length > 0 ? `
+            <div>
+              <strong>Vendor Requirements:</strong>
+              <ul>
+                ${vendors.map((v: any) => {
+                  const name = typeof v === 'string' ? v : (v.name || v.vendor || v.type);
+                  const req = v.requirements || v.details || '';
+                  const text = req ? `${name}: ${req}` : name;
+                  return `<li>${escapeHtml(text)}</li>`;
+                }).join('')}
+              </ul>
+            </div>
+            ` : ''}
+          </div>
+        </div>
+      `);
+    }
+
+    // 14. EXIT STRATEGY
+    if (exitStrategy) {
+      contentParts.push(`
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">14. Exit Strategy</h2>
+          </div>
+          <div class="card-content">
+            ${exitStrategy.approach ? `<p class="mb-4"><strong>Exit Approach:</strong> ${escapeHtml(exitStrategy.approach)}</p>` : ''}
+            ${exitStrategy.criteria && exitStrategy.criteria.length > 0 ? `
+            <div class="mb-4">
+              <strong>Exit Criteria:</strong>
+              <ul>
+                ${exitStrategy.criteria.map((c: string) => `<li>${escapeHtml(c)}</li>`).join('')}
+              </ul>
+            </div>
+            ` : ''}
+            ${exitStrategy.transitionPlan ? `
+            <div>
+              <strong>Transition Plan:</strong>
+              <p>${escapeHtml(exitStrategy.transitionPlan)}</p>
+            </div>
+            ` : ''}
+          </div>
+        </div>
+      `);
+    }
+  }
+
+  // ======================
+  // TASK ASSIGNMENTS
+  // ======================
+  if (pkg.epm?.assignments && pkg.epm.assignments.length > 0) {
+    const resourceCounts = pkg.epm.assignments.reduce((acc: any, a: any) => {
+      acc[a.resourceName] = (acc[a.resourceName] || 0) + 1;
+      return acc;
+    }, {});
+
+    contentParts.push(`
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Task Assignments Overview</h2>
+        </div>
+        <div class="card-content">
+          <p class="mb-4"><strong>Total Assignments:</strong> ${pkg.epm.assignments.length}</p>
+          <h3>Assignments by Resource</h3>
+          <ul>
+            ${Object.entries(resourceCounts).map(([name, count]) => `
+              <li><strong>${escapeHtml(name)}:</strong> ${count} task(s)</li>
+            `).join('')}
+          </ul>
+          <p class="mt-4 text-muted"><em>Detailed assignment data available in assignments.csv</em></p>
+        </div>
+      </div>
+    `);
+  }
+
+  // Footer
+  contentParts.push(`
+    <div class="card" style="background: hsl(var(--muted)); border: none;">
+      <div class="card-content" style="text-align: center;">
+        <p class="text-muted"><em>Report generated by Qgentic Intelligent Strategic EPM</em></p>
+        <p class="text-muted"><em>Export Date: ${format(new Date(pkg.metadata.exportedAt), 'PPPPpp')}</em></p>
+      </div>
+    </div>
+  `);
+
+  // Read template and replace placeholders (ES module compatible)
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const templatePath = join(__dirname, '../export/templates/report-ui.html');
+  const template = readFileSync(templatePath, 'utf-8');
+  
+  return template
+    .replace('{{TITLE}}', escapeHtml(title))
+    .replace('{{CONTENT}}', contentParts.join('\n'));
+}
+
+/**
+ * Generate PDF from UI-styled HTML using Puppeteer
+ */
+async function generatePdfFromUiHtml(html: string): Promise<Buffer> {
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'networkidle0' });
+    
+    const pdf = await page.pdf({
+      format: 'A4',
+      margin: {
+        top: '20mm',
+        right: '15mm',
+        bottom: '20mm',
+        left: '15mm',
+      },
+      printBackground: true,
+    });
+
+    return Buffer.from(pdf);
+  } finally {
+    await browser.close();
+  }
+}
+
+/**
+ * Generate DOCX from HTML using html-docx-js
+ */
+async function generateDocxFromHtml(html: string): Promise<Buffer> {
+  // html-docx-js exports an object with asBlob method
+  const docxBlob = HTMLtoDOCX.asBlob(html, {
+    orientation: 'portrait',
+    margins: {
+      top: 720,
+      right: 720,
+      bottom: 720,
+      left: 720,
+    },
+  });
+  
+  // Convert Blob to Buffer (Blob.arrayBuffer returns Promise<ArrayBuffer>)
+  const arrayBuffer = await docxBlob.arrayBuffer();
+  return Buffer.from(arrayBuffer);
 }
