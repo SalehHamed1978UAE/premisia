@@ -1,0 +1,256 @@
+• Monitoring Plan
+
+  - Instrument journeys so every framework records what it read, what it wrote,
+    and how it changed context. Persist those traces, and expose a simple API
+    (plus optional CLI script) to review them. Below are drop-in snippets and
+    instructions for Replit to implement.
+
+  Implementation Steps
+
+  1. Extend shared types
+     Update shared/journey-types.ts to describe the new trace payloads (add near
+     the other exported interfaces):
+
+     export interface FrameworkExecutionTrace {
+       id: string;
+       journeySessionId: string;
+       frameworkName: FrameworkName;
+       startedAt: string;
+       durationMs: number;
+       reads: string[];
+       writes: string[];
+       contextDiff: {
+         added: Record<string, unknown>;
+         changed: Record<string, { before: unknown; after: unknown }>;
+         removed: string[];
+       };
+     }
+
+     export interface FrameworkResult {
+       frameworkName: FrameworkName;
+       executedAt: Date;
+       duration: number;
+       data: any;
+       errors?: string[];
+       trace?: {
+         reads: string[];
+         writes: string[];
+       };
+     }
+     (If FrameworkResult already exists, just add the optional trace field.)
+     (If FrameworkResult already exists, just add the optional trace field.)
+  2. Add Drizzle schema + migration
+     In shared/schema.ts, append:
+
+     export const journeyExecutionTraces = pgTable("journey_execution_traces", {
+       id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+       journeySessionId: varchar("journey_session_id")
+         .notNull()
+         .references(() => journeySessions.id),
+       frameworkName: frameworkNameEnum("framework_name").notNull(),
+       startedAt: timestamp("started_at").notNull(),
+       durationMs: integer("duration_ms").notNull(),
+       reads: jsonb("reads").$type<string[]>().notNull(),
+       writes: jsonb("writes").$type<string[]>().notNull(),
+       contextDiff: jsonb("context_diff").notNull(),
+       createdAt: timestamp("created_at").defaultNow(),
+     });
+
+     Then create a drizzle migration adding that table (Replit can run npx
+     drizzle-kit generate after editing the schema).
+  3. Add trace utilities
+     Create server/journey/trace-recorder.ts:
+
+     import { randomUUID } from "crypto";
+     import { journeyExecutionTraces } from "@shared/schema";
+     import type { FrameworkExecutionTrace, StrategicContext } from "@shared/
+  journey-types";
+     import { dbConnectionManager } from "../db-connection-manager";
+
+     export function cloneInsights(context: StrategicContext): Record<string,
+  unknown> {
+       return JSON.parse(JSON.stringify(context.insights ?? {}));
+     }
+
+     export function diffInsights(
+       before: Record<string, unknown>,
+       after: Record<string, unknown>
+     ): FrameworkExecutionTrace["contextDiff"] {
+       const added: Record<string, unknown> = {};
+       const changed: Record<string, { before: unknown; after: unknown }> = {};
+       const removed: string[] = [];
+
+       const allKeys = new Set([...Object.keys(before), ...Object.keys(after)]);
+       for (const key of allKeys) {
+         if (!(key in before)) {
+           added[key] = after[key];
+         } else if (!(key in after)) {
+           removed.push(key);
+         } else if (JSON.stringify(before[key]) !== JSON.stringify(after[key]))
+  {
+           changed[key] = { before: before[key], after: after[key] };
+         }
+       }
+
+       return { added, changed, removed };
+     }
+
+     export async function persistTrace(trace: FrameworkExecutionTrace) {
+       await dbConnectionManager.retryWithBackoff(async (db) => {
+         await db.insert(journeyExecutionTraces).values({
+           id: trace.id,
+           journeySessionId: trace.journeySessionId,
+           frameworkName: trace.frameworkName,
+           startedAt: new Date(trace.startedAt),
+           durationMs: trace.durationMs,
+           reads: trace.reads,
+           writes: trace.writes,
+           contextDiff: trace.contextDiff,
+         });
+       });
+     }
+
+     export function buildTrace(params: {
+       journeySessionId: string;
+       frameworkName: FrameworkExecutionTrace["frameworkName"];
+       startedAt: Date;
+       durationMs: number;
+       reads: string[];
+       writes: string[];
+       before: Record<string, unknown>;
+       after: Record<string, unknown>;
+     }): FrameworkExecutionTrace {
+       return {
+         id: randomUUID(),
+         journeySessionId: params.journeySessionId,
+         frameworkName: params.frameworkName,
+         startedAt: params.startedAt.toISOString(),
+         durationMs: params.durationMs,
+         reads: params.reads,
+         writes: params.writes,
+         contextDiff: diffInsights(params.before, params.after),
+       };
+     }
+  4. Instrument journey execution
+     Modify server/journey/journey-orchestrator.ts (inside the for loop):
+      - Before calling executeFramework, capture const insightsBefore =
+        traceRecorder.cloneInsights(context);.
+      - After receiving result, grab const insightsAfter =
+        traceRecorder.cloneInsights(context);.
+      - Build and persist the trace:
+
+        const trace = traceRecorder.buildTrace({
+          journeySessionId: journeySessionId,
+          frameworkName,
+          startedAt: result.executedAt,
+          durationMs: result.duration,
+          reads: result.trace?.reads ?? [],
+          writes: result.trace?.writes ?? [],
+          before: insightsBefore,
+          after: insightsAfter,
+        });
+        await traceRecorder.persistTrace(trace);
+
+     Ensure you import traceRecorder helper at top:
+     import * as traceRecorder from "./trace-recorder";
+  5. Return explicit read/write hints from frameworks
+     Update executeFiveWhys and executeBMC to set trace on the returned
+     FrameworkResult. Example for Five Whys:
+
+     return {
+       frameworkName: "five_whys",
+       executedAt: new Date(),
+       duration: Date.now() - startTime,
+       data: { ... },
+       trace: {
+         reads: ["context.userInput", "context.sessionId"],
+         writes: ["insights.rootCauses", "insights.whysPath",
+  "insights.strategicImplications"],
+       },
+     };
+
+     Do similarly for BMC (reads context.userInput,
+     context.insights.bmcDesignConstraints; writes insights.bmcBlocks,
+     insights.businessModelGaps, insights.bmcContradictions).
+  6. Expose report endpoint
+     In server/routes/journey-builder.ts (or a new journey-traces route), add:
+
+     import { journeyExecutionTraces } from "@shared/schema";
+     import { asc } from "drizzle-orm";
+
+     router.get("/:sessionId/execution-report", async (req, res) => {
+       const { sessionId } = req.params;
+       const traces = await db
+         .select()
+         .from(journeyExecutionTraces)
+         .where(eq(journeyExecutionTraces.journeySessionId, sessionId))
+         .orderBy(asc(journeyExecutionTraces.startedAt));
+
+       const edges: Array<[string, string]> = [];
+       traces.forEach((current, idx) => {
+         for (let j = 0; j < idx; j++) {
+           const prev = traces[j];
+           const dependency = prev.writes.some((write) =>
+  current.reads.includes(write));
+           if (dependency) {
+             edges.push([prev.frameworkName, current.frameworkName]);
+           }
+         }
+       });
+
+       res.json({
+         sessionId,
+         traces,
+         dependencyGraph: edges,
+       });
+     });
+
+     (remember to import eq and ensure route is mounted.)
+  7. Optional CLI for local inspection
+     Add scripts/print-journey-trace.ts:
+
+     import { db } from "../server/db";
+     import { journeyExecutionTraces } from "@shared/schema";
+     import { eq, asc } from "drizzle-orm";
+
+
+  async function main(sessionId: string) {
+  const traces = await db
+  .select()
+  .from(journeyExecutionTraces)
+  .where(eq(journeyExecutionTraces.journeySessionId, sessionId))
+  .orderBy(asc(journeyExecutionTraces.startedAt));
+
+       traces.forEach((trace) => {
+         console.log(`Framework: ${trace.frameworkName}`);
+         console.log(`  Duration: ${trace.durationMs}ms`);
+         console.log(`  Reads: ${trace.reads.join(", ") || "(none)"}`);
+         console.log(`  Writes: ${trace.writes.join(", ") || "(none)"}`);
+         console.log(`  Added: ${Object.keys(trace.contextDiff.added).join(", ")
+  || "(none)"}`);
+         console.log(`  Removed: ${trace.contextDiff.removed.join(", ") ||
+  "(none)"}`);
+         console.log(`  Changed:
+  ${Object.keys(trace.contextDiff.changed).join(", ") || "(none)"}`);
+         console.log("—");
+       });
+
+  }
+
+  main(process.argv[2]!).catch((err) => {
+  console.error(err);
+  process.exit(1);
+  });
+
+  Register with `package.json` script: `"trace:journey": "tsx scripts/print-
+  journey-trace.ts"`.
+
+  **After Implementation**
+  - Run the migration (`npx drizzle-kit migrate`) and verify new table exists.
+  - Execute a sample journey, then call `GET /api/journeys/<sessionId>/
+  execution-report`; confirm traces + dependency edges match expectation.
+  - Optional: run `npm run trace:journey <sessionId>` to print the captured
+  report.
+
+  This gives Replit clear edits + commands to add real dependency tracing and
+  validated parallelization insights.
