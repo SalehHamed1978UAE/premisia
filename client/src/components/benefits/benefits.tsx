@@ -369,8 +369,8 @@ export function Benefits() {
                   <p className="text-muted-foreground">No benefits to track</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
+                <div className="overflow-x-auto -mx-4 md:mx-0">
+                  <table className="min-w-full">
                     <thead>
                       <tr className="border-b">
                         <th className="text-left p-4 font-semibold text-foreground">Benefit</th>

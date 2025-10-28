@@ -63,7 +63,7 @@ export function Sidebar({ isOpen = false, onToggle = () => {} }: SidebarProps) {
               variant="ghost"
               size="icon"
               onClick={onToggle}
-              className="lg:hidden h-8 w-8"
+              className="lg:hidden"
               data-testid="button-close-sidebar"
             >
               <X className="h-4 w-4" />
