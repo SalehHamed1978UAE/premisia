@@ -63,6 +63,9 @@ export async function generateFullPassExport(
   const exportPackage = await loadExportData(sessionId, versionNumber, programId, userId);
   console.log('[Export Service] Data loaded successfully. Version:', exportPackage.metadata.versionNumber);
 
+  // Track which files were included/skipped during generation
+  const skippedFiles: string[] = [];
+  
   // Generate report content in various formats
   console.log('[Export Service] Generating Markdown report...');
   const markdown = generateMarkdownReport(exportPackage);
@@ -70,8 +73,17 @@ export async function generateFullPassExport(
   console.log('[Export Service] Converting Markdown to HTML...');
   const html = await generateHtmlFromMarkdown(markdown);
   
+  // Try to generate PDF from HTML - skip if Puppeteer fails (e.g., on mobile)
   console.log('[Export Service] Generating PDF from HTML...');
-  const pdf = await generatePdfFromHtml(html);
+  let pdf: Buffer | null = null;
+  try {
+    pdf = await generatePdfFromHtml(html);
+  } catch (error) {
+    const err = error as Error;
+    const errorMsg = err?.message || String(error);
+    console.warn('[Export Service] PDF generation failed (Puppeteer unavailable), skipping:', errorMsg);
+    skippedFiles.push('report.pdf (Puppeteer unavailable)');
+  }
   
   console.log('[Export Service] Generating DOCX report...');
   const docx = await generateDocxReport(exportPackage);
@@ -91,8 +103,17 @@ export async function generateFullPassExport(
   console.log('[Export Service] Generating UI-styled HTML...');
   const uiHtml = generateUiStyledHtml(exportPackage);
   
+  // Try to generate UI-styled PDF - skip if Puppeteer fails
   console.log('[Export Service] Generating UI-styled PDF...');
-  const uiPdf = await generatePdfFromUiHtml(uiHtml);
+  let uiPdf: Buffer | null = null;
+  try {
+    uiPdf = await generatePdfFromUiHtml(uiHtml);
+  } catch (error) {
+    const err = error as Error;
+    const errorMsg = err?.message || String(error);
+    console.warn('[Export Service] UI-styled PDF generation failed (Puppeteer unavailable), skipping:', errorMsg);
+    skippedFiles.push('report-ui.pdf (Puppeteer unavailable)');
+  }
   
   console.log('[Export Service] Generating UI-styled DOCX...');
   const uiDocx = await generateDocxFromHtml(uiHtml);
@@ -122,36 +143,106 @@ export async function generateFullPassExport(
 
   // Add files to archive
   console.log('[Export Service] Adding files to archive...');
+  
+  // Track which files were included
+  const includedFiles: string[] = [];
+  
+  // Always add these core files
   archive.append(markdown, { name: 'report.md' });
-  archive.append(pdf, { name: 'report.pdf' });
+  includedFiles.push('report.md');
+  
   archive.append(docx, { name: 'report.docx' });
+  includedFiles.push('report.docx');
+  
   archive.append(uiHtml, { name: 'report-ui.html' });
-  archive.append(uiPdf, { name: 'report-ui.pdf' });
+  includedFiles.push('report-ui.html');
+  
   archive.append(uiDocx, { name: 'report-ui.docx' });
+  includedFiles.push('report-ui.docx');
+  
+  // Add PDFs only if successfully generated (skipped files already tracked in catch blocks above)
+  if (pdf) {
+    archive.append(pdf, { name: 'report.pdf' });
+    includedFiles.push('report.pdf');
+  }
+  
+  if (uiPdf) {
+    archive.append(uiPdf, { name: 'report-ui.pdf' });
+    includedFiles.push('report-ui.pdf');
+  }
+  
   archive.append(strategyJson, { name: 'data/strategy.json' });
+  includedFiles.push('data/strategy.json');
   
   if (epmJson) {
     console.log('[Export Service] Adding EPM data...');
     archive.append(epmJson, { name: 'data/epm.json' });
+    includedFiles.push('data/epm.json');
   }
   if (assignmentsCsv) {
     archive.append(assignmentsCsv, { name: 'data/assignments.csv' });
+    includedFiles.push('data/assignments.csv');
   }
   if (workstreamsCsv) {
     archive.append(workstreamsCsv, { name: 'data/workstreams.csv' });
+    includedFiles.push('data/workstreams.csv');
   }
   if (resourcesCsv) {
     archive.append(resourcesCsv, { name: 'data/resources.csv' });
+    includedFiles.push('data/resources.csv');
   }
   if (risksCsv) {
     archive.append(risksCsv, { name: 'data/risks.csv' });
+    includedFiles.push('data/risks.csv');
   }
   if (benefitsCsv) {
     archive.append(benefitsCsv, { name: 'data/benefits.csv' });
+    includedFiles.push('data/benefits.csv');
   }
+
+  // Create README to inform user about export contents
+  const readmeContent = `# Export Package Contents
+
+This ZIP archive contains your strategic analysis and EPM program data in multiple formats.
+
+## Included Files (${includedFiles.length}):
+
+${includedFiles.map(f => `- ${f}`).join('\n')}
+
+${skippedFiles.length > 0 ? `## Note: Some Files Skipped
+
+The following files could not be generated in this environment:
+
+${skippedFiles.map(f => `- ${f}`).join('\n')}
+
+PDF files require Puppeteer (headless Chrome) which may not be available on mobile devices or certain environments. All other formats (Markdown, Word, HTML, JSON, CSV) are included.
+` : ''}
+
+## File Descriptions:
+
+- **report.md** - Full Markdown report with all sections
+- **report.docx** - Comprehensive Word document
+- **report-ui.html** - HTML report with styled cards and tables
+- **report-ui.docx** - Word document with styled layout
+- **report.pdf** - PDF version (if available)
+- **report-ui.pdf** - Styled PDF version (if available)
+- **data/strategy.json** - Strategic analysis data in JSON
+- **data/epm.json** - EPM program data (if generated)
+- **data/*.csv** - Detailed data exports for assignments, workstreams, resources, risks, and benefits
+
+Generated on: ${new Date(exportPackage.metadata.exportedAt).toLocaleString()}
+Session ID: ${exportPackage.metadata.sessionId}
+${exportPackage.metadata.versionNumber ? `Version: ${exportPackage.metadata.versionNumber}` : ''}
+`;
+
+  archive.append(readmeContent, { name: 'README.txt' });
 
   // Finalize the archive
   console.log('[Export Service] Finalizing archive...');
+  console.log(`[Export Service] Archive contains ${includedFiles.length + 1} files (including README)`);
+  if (skippedFiles.length > 0) {
+    console.log(`[Export Service] ${skippedFiles.length} files were skipped due to Puppeteer unavailability`);
+  }
   await archive.finalize();
   console.log('[Export Service] Export package created successfully');
 }
