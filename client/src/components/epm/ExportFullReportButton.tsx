@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 
 interface ExportFullReportButtonProps {
-  sessionId: string;
+  sessionId?: string;
   versionNumber?: number;
   programId?: string;
   variant?: 'default' | 'outline' | 'ghost';

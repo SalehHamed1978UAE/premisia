@@ -76,6 +76,11 @@ export async function generateFullPassExport(
   const epmJson = exportPackage.epm?.program ? JSON.stringify(exportPackage.epm, null, 2) : null;
   const assignmentsCsv = exportPackage.epm?.assignments ? generateAssignmentsCsv(exportPackage.epm.assignments) : null;
   const workstreamsCsv = exportPackage.epm?.program?.workstreams ? generateWorkstreamsCsv(exportPackage.epm.program.workstreams) : null;
+  
+  // Optional CSVs - generate if data available
+  const resourcesCsv = exportPackage.epm?.program?.resourcePlan ? generateResourcesCsv(exportPackage.epm.program.resourcePlan) : null;
+  const risksCsv = exportPackage.epm?.program?.riskRegister ? generateRisksCsv(exportPackage.epm.program.riskRegister) : null;
+  const benefitsCsv = exportPackage.epm?.program?.benefitsRealization ? generateBenefitsCsv(exportPackage.epm.program.benefitsRealization) : null;
 
   // Create ZIP archive
   console.log('[Export Service] Creating ZIP archive...');
@@ -116,6 +121,15 @@ export async function generateFullPassExport(
   }
   if (workstreamsCsv) {
     archive.append(workstreamsCsv, { name: 'data/workstreams.csv' });
+  }
+  if (resourcesCsv) {
+    archive.append(resourcesCsv, { name: 'data/resources.csv' });
+  }
+  if (risksCsv) {
+    archive.append(risksCsv, { name: 'data/risks.csv' });
+  }
+  if (benefitsCsv) {
+    archive.append(benefitsCsv, { name: 'data/benefits.csv' });
   }
 
   // Finalize the archive
@@ -208,10 +222,24 @@ async function loadExportData(
 }
 
 /**
- * Generate Markdown report
+ * Generate comprehensive Markdown report covering all strategic analysis and EPM components
  */
 function generateMarkdownReport(pkg: FullExportPackage): string {
   const lines: string[] = [];
+  
+  // Parse JSONB fields safely with error handling
+  const parseField = (field: any) => {
+    if (!field) return null;
+    if (typeof field === 'object') return field;
+    
+    // Handle string JSONB fields
+    try {
+      return JSON.parse(field);
+    } catch (err) {
+      console.warn('[Export] Failed to parse JSONB field:', err);
+      return null;
+    }
+  };
 
   // Header
   lines.push('# Qgentic Strategic Analysis & EPM Program Report\n');
@@ -222,132 +250,541 @@ function generateMarkdownReport(pkg: FullExportPackage): string {
   }
   lines.push('\n---\n');
 
-  // Strategic Understanding
+  // ======================
+  // STRATEGIC UNDERSTANDING
+  // ======================
   if (pkg.strategy.understanding) {
+    const u = pkg.strategy.understanding;
     lines.push('## Strategic Understanding\n');
-    lines.push(`**Title:** ${pkg.strategy.understanding.title || 'Untitled Initiative'}\n`);
-    lines.push(`**Initiative Type:** ${pkg.strategy.understanding.initiativeType || 'Not classified'}\n`);
-    if (pkg.strategy.understanding.initiativeDescription) {
-      lines.push(`\n**Description:**\n${pkg.strategy.understanding.initiativeDescription}\n`);
+    lines.push(`**Title:** ${u.title || 'Untitled Initiative'}\n`);
+    lines.push(`**Initiative Type:** ${u.initiativeType || 'Not classified'}\n`);
+    if (u.classificationConfidence) {
+      lines.push(`**Classification Confidence:** ${(parseFloat(u.classificationConfidence as any) * 100).toFixed(0)}%\n`);
     }
-    if (pkg.strategy.understanding.userInput) {
-      lines.push(`\n**User Input:**\n${pkg.strategy.understanding.userInput}\n`);
+    
+    if (u.initiativeDescription) {
+      lines.push(`\n**Description:**\n${u.initiativeDescription}\n`);
     }
+    
+    if (u.userInput) {
+      lines.push(`\n**Original User Input:**\n${u.userInput}\n`);
+    }
+    
     lines.push('\n---\n');
   }
 
-  // Journey Session
+  // ======================
+  // STRATEGIC JOURNEY
+  // ======================
   if (pkg.strategy.journeySession) {
+    const j = pkg.strategy.journeySession;
     lines.push('## Strategic Journey\n');
-    lines.push(`**Journey Type:** ${pkg.strategy.journeySession.journeyType || 'Not specified'}\n`);
-    lines.push(`**Status:** ${pkg.strategy.journeySession.status}\n`);
-    if (pkg.strategy.journeySession.completedFrameworks && pkg.strategy.journeySession.completedFrameworks.length > 0) {
-      lines.push(`**Completed Frameworks:** ${pkg.strategy.journeySession.completedFrameworks.join(', ')}\n`);
+    lines.push(`**Journey Type:** ${j.journeyType || 'Custom'}\n`);
+    lines.push(`**Status:** ${j.status}\n`);
+    
+    if (j.completedFrameworks && j.completedFrameworks.length > 0) {
+      lines.push(`\n**Completed Frameworks:**\n`);
+      j.completedFrameworks.forEach((fw: string) => lines.push(`- ${fw}`));
+      lines.push('');
     }
+    
     lines.push('\n---\n');
   }
 
-  // Strategy Version & Decisions
+  // ======================
+  // STRATEGIC DECISIONS
+  // ======================
   if (pkg.strategy.strategyVersion) {
+    const sv = pkg.strategy.strategyVersion;
     lines.push('## Strategic Decisions\n');
-    if (pkg.strategy.strategyVersion.versionLabel) {
-      lines.push(`**Version:** ${pkg.strategy.strategyVersion.versionLabel}\n`);
+    
+    if (sv.versionLabel) {
+      lines.push(`**Version:** ${sv.versionLabel}\n`);
     }
-    if (pkg.strategy.strategyVersion.inputSummary) {
-      lines.push(`\n**Summary:**\n${pkg.strategy.strategyVersion.inputSummary}\n`);
+    
+    if (sv.inputSummary) {
+      lines.push(`\n**Summary:**\n${sv.inputSummary}\n`);
     }
     
     if (pkg.strategy.decisions && pkg.strategy.decisions.length > 0) {
-      lines.push('\n### Key Decisions\n');
+      lines.push('\n### Selected Decisions\n');
       pkg.strategy.decisions.forEach((decision: any, idx: number) => {
-        lines.push(`${idx + 1}. **${decision.type || 'Decision'}:** ${decision.value || decision.description || 'Not specified'}`);
-      });
-      lines.push('');
-    }
-    lines.push('\n---\n');
-  }
-
-  // EPM Program
-  if (pkg.epm?.program) {
-    const program = pkg.epm.program;
-    lines.push('## EPM Program\n');
-    lines.push(`**Program Name:** ${program.programName}\n`);
-    lines.push(`**Status:** ${program.status}\n`);
-    lines.push(`**Overall Confidence:** ${(parseFloat(program.overallConfidence) * 100).toFixed(1)}%\n`);
-    
-    if (program.executiveSummary) {
-      lines.push(`\n**Executive Summary:**\n${program.executiveSummary}\n`);
-    }
-
-    // Timeline
-    if (program.timeline) {
-      lines.push('\n### Timeline\n');
-      const timeline = typeof program.timeline === 'string' ? JSON.parse(program.timeline) : program.timeline;
-      if (timeline.phases) {
-        timeline.phases.forEach((phase: any) => {
-          lines.push(`- **${phase.name}:** ${phase.startDate} to ${phase.endDate}`);
-        });
-      }
-      lines.push('');
-    }
-
-    // Workstreams
-    if (program.workstreams) {
-      lines.push('\n### Workstreams\n');
-      const workstreams = typeof program.workstreams === 'string' ? JSON.parse(program.workstreams) : program.workstreams;
-      workstreams.forEach((ws: any, idx: number) => {
-        lines.push(`${idx + 1}. **${ws.name}** (${ws.tasks?.length || 0} tasks)`);
-        if (ws.description) {
-          lines.push(`   - ${ws.description}`);
+        const decType = decision.type || decision.category || 'Decision';
+        const decValue = decision.value || decision.description || decision.choice || 'Not specified';
+        lines.push(`${idx + 1}. **${decType}:** ${decValue}`);
+        if (decision.rationale) {
+          lines.push(`   - *Rationale:* ${decision.rationale}`);
         }
       });
       lines.push('');
     }
-
-    // Resource Plan
-    if (program.resourcePlan) {
-      lines.push('\n### Resources\n');
-      const resourcePlan = typeof program.resourcePlan === 'string' ? JSON.parse(program.resourcePlan) : program.resourcePlan;
-      if (resourcePlan.resources) {
-        lines.push(`Total resources: ${resourcePlan.resources.length}\n`);
-      }
-    }
-
-    // Risks
-    if (program.risks) {
-      lines.push('\n### Key Risks\n');
-      const risks = typeof program.risks === 'string' ? JSON.parse(program.risks) : program.risks;
-      if (Array.isArray(risks)) {
-        risks.slice(0, 5).forEach((risk: any, idx: number) => {
-          lines.push(`${idx + 1}. **${risk.name}** (${risk.level}): ${risk.description}`);
-        });
-      }
-      lines.push('');
-    }
-
+    
     lines.push('\n---\n');
   }
 
-  // Assignments Summary
+  // ======================
+  // EPM PROGRAM - 14 COMPONENTS
+  // ======================
+  if (pkg.epm?.program) {
+    const program = pkg.epm.program;
+    const execSummary = parseField(program.executiveSummary);
+    const workstreams = parseField(program.workstreams);
+    const timeline = parseField(program.timeline);
+    const resourcePlan = parseField(program.resourcePlan);
+    const financialPlan = parseField(program.financialPlan);
+    const benefits = parseField(program.benefitsRealization);
+    const risks = parseField(program.riskRegister);
+    const stageGates = parseField(program.stageGates);
+    const kpis = parseField(program.kpis);
+    const stakeholders = parseField(program.stakeholderMap);
+    const governance = parseField(program.governance);
+    const qaPlan = parseField(program.qaPlan);
+    const procurement = parseField(program.procurement);
+    const exitStrategy = parseField(program.exitStrategy);
+
+    lines.push('# Enterprise Program Management (EPM) Program\n');
+    lines.push(`**Framework:** ${program.frameworkType || 'Not specified'}\n`);
+    lines.push(`**Status:** ${program.status}\n`);
+    
+    // Format overall confidence with guards
+    const confidenceValue = program.overallConfidence ? parseFloat(program.overallConfidence as any) : null;
+    const confidenceText = (confidenceValue !== null && !isNaN(confidenceValue)) 
+      ? `${(confidenceValue * 100).toFixed(1)}%`
+      : 'Not calculated';
+    lines.push(`**Overall Confidence:** ${confidenceText}\n`);
+    lines.push('\n---\n');
+
+    // 1. EXECUTIVE SUMMARY
+    if (execSummary) {
+      lines.push('## 1. Executive Summary\n');
+      
+      if (execSummary.title) {
+        lines.push(`**Program Title:** ${execSummary.title}\n`);
+      }
+      
+      if (execSummary.overview || execSummary.summary) {
+        lines.push(`\n${execSummary.overview || execSummary.summary}\n`);
+      }
+      
+      if (execSummary.objectives && execSummary.objectives.length > 0) {
+        lines.push('\n**Strategic Objectives:**\n');
+        execSummary.objectives.forEach((obj: string, idx: number) => {
+          lines.push(`${idx + 1}. ${obj}`);
+        });
+        lines.push('');
+      }
+      
+      if (execSummary.scope) {
+        lines.push(`\n**Scope:** ${execSummary.scope}\n`);
+      }
+      
+      if (execSummary.successCriteria && execSummary.successCriteria.length > 0) {
+        lines.push('\n**Success Criteria:**\n');
+        execSummary.successCriteria.forEach((criteria: string) => {
+          lines.push(`- ${criteria}`);
+        });
+        lines.push('');
+      }
+      
+      lines.push('\n---\n');
+    }
+
+    // 2. WORKSTREAMS
+    if (workstreams && workstreams.length > 0) {
+      lines.push('## 2. Workstreams\n');
+      
+      workstreams.forEach((ws: any, idx: number) => {
+        lines.push(`### ${idx + 1}. ${ws.name || `Workstream ${idx + 1}`}\n`);
+        
+        if (ws.description) {
+          lines.push(`${ws.description}\n`);
+        }
+        
+        if (ws.owner) {
+          lines.push(`**Owner:** ${ws.owner}`);
+        }
+        
+        if (ws.startMonth !== undefined && ws.endMonth !== undefined) {
+          lines.push(`**Duration:** Month ${ws.startMonth} to Month ${ws.endMonth}`);
+        }
+        
+        if (ws.dependencies && ws.dependencies.length > 0) {
+          lines.push(`**Dependencies:** ${ws.dependencies.join(', ')}`);
+        }
+        
+        if (ws.deliverables && ws.deliverables.length > 0) {
+          lines.push('\n**Key Deliverables:**');
+          ws.deliverables.forEach((d: any) => {
+            const delName = typeof d === 'string' ? d : (d.name || d.title || 'Deliverable');
+            lines.push(`- ${delName}`);
+          });
+        }
+        
+        if (ws.tasks && ws.tasks.length > 0) {
+          lines.push(`\n**Tasks:** ${ws.tasks.length} tasks defined`);
+        }
+        
+        lines.push('');
+      });
+      
+      lines.push('---\n');
+    }
+
+    // 3. TIMELINE & CRITICAL PATH
+    if (timeline) {
+      lines.push('## 3. Timeline & Critical Path\n');
+      
+      if (timeline.totalDuration) {
+        lines.push(`**Total Program Duration:** ${timeline.totalDuration} months\n`);
+      }
+      
+      if (timeline.phases && timeline.phases.length > 0) {
+        lines.push('\n**Program Phases:**\n');
+        timeline.phases.forEach((phase: any) => {
+          lines.push(`- **${phase.name}:** Month ${phase.startMonth} to Month ${phase.endMonth}`);
+          if (phase.milestones && phase.milestones.length > 0) {
+            lines.push(`  - Milestones: ${phase.milestones.join(', ')}`);
+          }
+        });
+        lines.push('');
+      }
+      
+      if (timeline.criticalPath && timeline.criticalPath.length > 0) {
+        lines.push('\n**Critical Path:**\n');
+        timeline.criticalPath.forEach((item: string) => {
+          lines.push(`- ${item}`);
+        });
+        lines.push('');
+      }
+      
+      if (timeline.milestones && timeline.milestones.length > 0) {
+        lines.push('\n**Key Milestones:**\n');
+        timeline.milestones.forEach((m: any) => {
+          const mName = typeof m === 'string' ? m : (m.name || m.title);
+          const mDate = m.date || m.month ? ` (${m.date || `Month ${m.month}`})` : '';
+          lines.push(`- ${mName}${mDate}`);
+        });
+        lines.push('');
+      }
+      
+      lines.push('---\n');
+    }
+
+    // 4. RESOURCE PLAN
+    if (resourcePlan) {
+      lines.push('## 4. Resource Plan\n');
+      
+      if (resourcePlan.internalTeam && resourcePlan.internalTeam.length > 0) {
+        lines.push('\n### Internal Team\n');
+        lines.push('| Role | FTE | Responsibilities |');
+        lines.push('|------|-----|------------------|');
+        resourcePlan.internalTeam.forEach((r: any) => {
+          const role = r.role || r.title || 'Not specified';
+          const fte = r.fte || r.allocation || 'TBD';
+          const resp = r.responsibilities || r.description || '-';
+          lines.push(`| ${role} | ${fte} | ${resp} |`);
+        });
+        lines.push('');
+      }
+      
+      if (resourcePlan.externalResources && resourcePlan.externalResources.length > 0) {
+        lines.push('\n### External Resources\n');
+        lines.push('| Type | Quantity | Skills Required |');
+        lines.push('|------|----------|-----------------|');
+        resourcePlan.externalResources.forEach((r: any) => {
+          const type = r.type || r.role || 'Contractor';
+          const qty = r.quantity || r.count || '1';
+          const skills = r.skills || r.requirements || '-';
+          lines.push(`| ${type} | ${qty} | ${skills} |`);
+        });
+        lines.push('');
+      }
+      
+      if (resourcePlan.totalFTE) {
+        lines.push(`\n**Total FTE Required:** ${resourcePlan.totalFTE}\n`);
+      }
+      
+      lines.push('---\n');
+    }
+
+    // 5. FINANCIAL PLAN
+    if (financialPlan) {
+      lines.push('## 5. Financial Plan\n');
+      
+      if (financialPlan.totalBudget) {
+        const budget = typeof financialPlan.totalBudget === 'number' 
+          ? `$${financialPlan.totalBudget.toLocaleString()}`
+          : financialPlan.totalBudget;
+        lines.push(`**Total Program Budget:** ${budget}\n`);
+      }
+      
+      if (financialPlan.costBreakdown && financialPlan.costBreakdown.length > 0) {
+        lines.push('\n### Cost Breakdown\n');
+        lines.push('| Category | Amount | Percentage |');
+        lines.push('|----------|--------|------------|');
+        financialPlan.costBreakdown.forEach((item: any) => {
+          const category = item.category || item.name || 'Other';
+          const amount = typeof item.amount === 'number' ? `$${item.amount.toLocaleString()}` : item.amount;
+          const pct = item.percentage || '-';
+          lines.push(`| ${category} | ${amount} | ${pct} |`);
+        });
+        lines.push('');
+      }
+      
+      if (financialPlan.cashFlow && financialPlan.cashFlow.length > 0) {
+        lines.push('\n### Cash Flow Projection\n');
+        financialPlan.cashFlow.forEach((cf: any) => {
+          lines.push(`- **${cf.period || `Period ${cf.month || cf.quarter}`}:** $${cf.amount?.toLocaleString() || '0'}`);
+        });
+        lines.push('');
+      }
+      
+      lines.push('---\n');
+    }
+
+    // 6. BENEFITS REALIZATION
+    if (benefits) {
+      lines.push('## 6. Benefits Realization\n');
+      
+      if (benefits.benefits && benefits.benefits.length > 0) {
+        lines.push('\n### Expected Benefits\n');
+        benefits.benefits.forEach((b: any, idx: number) => {
+          lines.push(`${idx + 1}. **${b.name || b.benefit}**`);
+          if (b.description) {
+            lines.push(`   - ${b.description}`);
+          }
+          if (b.metric) {
+            lines.push(`   - **Metric:** ${b.metric}`);
+          }
+          if (b.target) {
+            lines.push(`   - **Target:** ${b.target}`);
+          }
+          if (b.timeframe) {
+            lines.push(`   - **Timeframe:** ${b.timeframe}`);
+          }
+        });
+        lines.push('');
+      }
+      
+      if (benefits.realizationPlan) {
+        lines.push(`\n**Realization Plan:** ${benefits.realizationPlan}\n`);
+      }
+      
+      lines.push('---\n');
+    }
+
+    // 7. RISK REGISTER
+    if (risks) {
+      lines.push('## 7. Risk Register\n');
+      
+      const riskArray = risks.risks || risks;
+      if (Array.isArray(riskArray) && riskArray.length > 0) {
+        lines.push('| Risk | Probability | Impact | Mitigation |');
+        lines.push('|------|-------------|--------|------------|');
+        riskArray.forEach((r: any) => {
+          const name = r.risk || r.name || r.description || 'Unnamed risk';
+          const prob = r.probability || r.likelihood || '-';
+          const impact = r.impact || r.severity || '-';
+          const mit = r.mitigation || r.response || '-';
+          lines.push(`| ${name} | ${prob} | ${impact} | ${mit} |`);
+        });
+        lines.push('');
+      }
+      
+      lines.push('---\n');
+    }
+
+    // 8. STAGE GATES
+    if (stageGates) {
+      lines.push('## 8. Stage Gates & Milestones\n');
+      
+      const gates = stageGates.gates || stageGates;
+      if (Array.isArray(gates) && gates.length > 0) {
+        gates.forEach((gate: any, idx: number) => {
+          lines.push(`### Gate ${idx + 1}: ${gate.name || gate.title}\n`);
+          if (gate.timing) {
+            lines.push(`**Timing:** ${gate.timing}`);
+          }
+          if (gate.criteria && gate.criteria.length > 0) {
+            lines.push('\n**Approval Criteria:**');
+            gate.criteria.forEach((c: string) => lines.push(`- ${c}`));
+          }
+          if (gate.deliverables && gate.deliverables.length > 0) {
+            lines.push('\n**Required Deliverables:**');
+            gate.deliverables.forEach((d: string) => lines.push(`- ${d}`));
+          }
+          lines.push('');
+        });
+      }
+      
+      lines.push('---\n');
+    }
+
+    // 9. KPIs
+    if (kpis) {
+      lines.push('## 9. Key Performance Indicators (KPIs)\n');
+      
+      const kpiArray = kpis.kpis || kpis.metrics || kpis;
+      if (Array.isArray(kpiArray) && kpiArray.length > 0) {
+        lines.push('| KPI | Target | Measurement Frequency |');
+        lines.push('|-----|--------|----------------------|');
+        kpiArray.forEach((kpi: any) => {
+          const name = kpi.name || kpi.metric || kpi.kpi || 'KPI';
+          const target = kpi.target || kpi.goal || '-';
+          const freq = kpi.frequency || kpi.measurementFrequency || 'Monthly';
+          lines.push(`| ${name} | ${target} | ${freq} |`);
+        });
+        lines.push('');
+      }
+      
+      lines.push('---\n');
+    }
+
+    // 10. STAKEHOLDER MAP
+    if (stakeholders) {
+      lines.push('## 10. Stakeholder Map\n');
+      
+      const stakeholderArray = stakeholders.stakeholders || stakeholders;
+      if (Array.isArray(stakeholderArray) && stakeholderArray.length > 0) {
+        lines.push('| Stakeholder | Role | Interest Level | Engagement Strategy |');
+        lines.push('|-------------|------|----------------|---------------------|');
+        stakeholderArray.forEach((s: any) => {
+          const name = s.name || s.stakeholder || 'Stakeholder';
+          const role = s.role || s.position || '-';
+          const interest = s.interest || s.interestLevel || '-';
+          const strategy = s.engagement || s.strategy || '-';
+          lines.push(`| ${name} | ${role} | ${interest} | ${strategy} |`);
+        });
+        lines.push('');
+      }
+      
+      lines.push('---\n');
+    }
+
+    // 11. GOVERNANCE
+    if (governance) {
+      lines.push('## 11. Governance Structure\n');
+      
+      if (governance.structure) {
+        lines.push(`**Governance Model:** ${governance.structure}\n`);
+      }
+      
+      if (governance.decisionMaking) {
+        lines.push(`\n**Decision-Making Framework:** ${governance.decisionMaking}\n`);
+      }
+      
+      if (governance.roles && governance.roles.length > 0) {
+        lines.push('\n**Key Governance Roles:**\n');
+        governance.roles.forEach((r: any) => {
+          const role = typeof r === 'string' ? r : (r.role || r.name);
+          const resp = r.responsibilities || '';
+          lines.push(`- **${role}**${resp ? `: ${resp}` : ''}`);
+        });
+        lines.push('');
+      }
+      
+      if (governance.meetings) {
+        lines.push(`\n**Meeting Cadence:** ${governance.meetings}\n`);
+      }
+      
+      lines.push('---\n');
+    }
+
+    // 12. QA PLAN
+    if (qaPlan) {
+      lines.push('## 12. Quality Assurance Plan\n');
+      
+      if (qaPlan.approach) {
+        lines.push(`**QA Approach:** ${qaPlan.approach}\n`);
+      }
+      
+      if (qaPlan.standards && qaPlan.standards.length > 0) {
+        lines.push('\n**Quality Standards:**\n');
+        qaPlan.standards.forEach((std: string) => lines.push(`- ${std}`));
+        lines.push('');
+      }
+      
+      if (qaPlan.reviews && qaPlan.reviews.length > 0) {
+        lines.push('\n**Review Gates:**\n');
+        qaPlan.reviews.forEach((rev: any) => {
+          const name = typeof rev === 'string' ? rev : (rev.name || rev.type);
+          lines.push(`- ${name}`);
+        });
+        lines.push('');
+      }
+      
+      lines.push('---\n');
+    }
+
+    // 13. PROCUREMENT
+    if (procurement) {
+      lines.push('## 13. Procurement Plan\n');
+      
+      if (procurement.strategy) {
+        lines.push(`**Procurement Strategy:** ${procurement.strategy}\n`);
+      }
+      
+      const vendors = procurement.vendors || procurement.suppliers || [];
+      if (vendors.length > 0) {
+        lines.push('\n**Vendor Requirements:**\n');
+        vendors.forEach((v: any) => {
+          const name = typeof v === 'string' ? v : (v.name || v.vendor || v.type);
+          const req = v.requirements || v.details || '';
+          lines.push(`- **${name}**${req ? `: ${req}` : ''}`);
+        });
+        lines.push('');
+      }
+      
+      lines.push('---\n');
+    }
+
+    // 14. EXIT STRATEGY
+    if (exitStrategy) {
+      lines.push('## 14. Exit Strategy\n');
+      
+      if (exitStrategy.approach) {
+        lines.push(`**Exit Approach:** ${exitStrategy.approach}\n`);
+      }
+      
+      if (exitStrategy.criteria && exitStrategy.criteria.length > 0) {
+        lines.push('\n**Exit Criteria:**\n');
+        exitStrategy.criteria.forEach((c: string) => lines.push(`- ${c}`));
+        lines.push('');
+      }
+      
+      if (exitStrategy.transitionPlan) {
+        lines.push(`\n**Transition Plan:** ${exitStrategy.transitionPlan}\n`);
+      }
+      
+      lines.push('---\n');
+    }
+  }
+
+  // ======================
+  // TASK ASSIGNMENTS
+  // ======================
   if (pkg.epm?.assignments && pkg.epm.assignments.length > 0) {
-    lines.push('## Task Assignments Summary\n');
-    lines.push(`Total assignments: ${pkg.epm.assignments.length}\n`);
+    lines.push('## Task Assignments Overview\n');
+    lines.push(`**Total Assignments:** ${pkg.epm.assignments.length}\n`);
     
     const resourceCounts = pkg.epm.assignments.reduce((acc: any, a: any) => {
       acc[a.resourceName] = (acc[a.resourceName] || 0) + 1;
       return acc;
     }, {});
     
-    lines.push('\n### Assignments by Resource\n');
+    lines.push('\n**Assignments by Resource:**\n');
     Object.entries(resourceCounts).forEach(([name, count]) => {
-      lines.push(`- **${name}:** ${count} tasks`);
+      lines.push(`- **${name}:** ${count} task(s)`);
     });
-    lines.push('');
+    lines.push('\n');
+    
+    lines.push('*Detailed assignment data available in assignments.csv*\n');
+    lines.push('\n---\n');
   }
 
   // Footer
-  lines.push('\n---\n');
-  lines.push('*Report generated by Qgentic Intelligent Strategic EPM*');
+  lines.push('\n*Report generated by Qgentic Intelligent Strategic EPM*\n');
+  lines.push(`*Export Date: ${format(new Date(pkg.metadata.exportedAt), 'PPPPpp')}*`);
 
   return lines.join('\n');
 }
@@ -534,6 +971,9 @@ async function generateDocxReport(pkg: FullExportPackage): Promise<Buffer> {
   // EPM Program
   if (pkg.epm?.program) {
     const program = pkg.epm.program;
+    const programTitle = program.executiveSummary?.title || program.frameworkType || 'EPM Program';
+    const programOverview = typeof program.executiveSummary === 'object' ? program.executiveSummary?.overview || '' : '';
+    
     sections.push(
       new Paragraph({
         text: 'EPM Program',
@@ -541,31 +981,40 @@ async function generateDocxReport(pkg: FullExportPackage): Promise<Buffer> {
       }),
       new Paragraph({
         children: [
-          new TextRun({ text: 'Program Name: ', bold: true }),
-          new TextRun(program.programName),
+          new TextRun({ text: 'Program Title: ', bold: true }),
+          new TextRun({ text: programTitle || 'EPM Program' }),
+        ],
+      }),
+      new Paragraph({
+        children: [
+          new TextRun({ text: 'Framework: ', bold: true }),
+          new TextRun({ text: program.frameworkType || 'Not specified' }),
         ],
       }),
       new Paragraph({
         children: [
           new TextRun({ text: 'Status: ', bold: true }),
-          new TextRun(program.status),
+          new TextRun({ text: program.status || 'draft' }),
         ],
       }),
       new Paragraph({
         children: [
           new TextRun({ text: 'Overall Confidence: ', bold: true }),
-          new TextRun(`${(parseFloat(program.overallConfidence) * 100).toFixed(1)}%`),
+          new TextRun({ text: (() => {
+            const val = program.overallConfidence ? parseFloat(program.overallConfidence as any) : null;
+            return (val !== null && !isNaN(val)) ? `${(val * 100).toFixed(1)}%` : 'Not calculated';
+          })() }),
         ],
       })
     );
 
-    if (program.executiveSummary) {
+    if (programOverview) {
       sections.push(
         new Paragraph({
-          children: [new TextRun({ text: 'Executive Summary: ', bold: true })],
+          children: [new TextRun({ text: 'Overview: ', bold: true })],
         }),
         new Paragraph({
-          text: program.executiveSummary,
+          text: programOverview,
         })
       );
     }
@@ -633,6 +1082,106 @@ function generateWorkstreamsCsv(workstreams: any[]): string {
     ];
     rows.push(row.join(','));
   });
+
+  return rows.join('\n');
+}
+
+/**
+ * Generate CSV for resources (internal team and external resources)
+ */
+function generateResourcesCsv(resourcePlan: any): string {
+  const headers = ['Resource Type', 'Role/Title', 'FTE/Quantity', 'Skills/Responsibilities', 'Category'];
+  const rows = [headers.join(',')];
+
+  const plan = typeof resourcePlan === 'string' ? JSON.parse(resourcePlan) : resourcePlan;
+  if (!plan) return rows.join('\n');
+
+  // Internal team
+  if (plan.internalTeam && plan.internalTeam.length > 0) {
+    plan.internalTeam.forEach((r: any) => {
+      const row = [
+        'Internal',
+        escapeCsvField(r.role || r.title || 'Not specified'),
+        r.fte || r.allocation || 'TBD',
+        escapeCsvField(r.responsibilities || r.description || '-'),
+        'Core Team'
+      ];
+      rows.push(row.join(','));
+    });
+  }
+
+  // External resources
+  if (plan.externalResources && plan.externalResources.length > 0) {
+    plan.externalResources.forEach((r: any) => {
+      const row = [
+        'External',
+        escapeCsvField(r.type || r.role || 'Contractor'),
+        r.quantity || r.count || '1',
+        escapeCsvField(r.skills || r.requirements || '-'),
+        'External/Vendor'
+      ];
+      rows.push(row.join(','));
+    });
+  }
+
+  return rows.join('\n');
+}
+
+/**
+ * Generate CSV for risks
+ */
+function generateRisksCsv(riskRegister: any): string {
+  const headers = ['Risk ID', 'Risk Description', 'Probability', 'Impact', 'Severity', 'Mitigation Strategy', 'Owner'];
+  const rows = [headers.join(',')];
+
+  const risks = typeof riskRegister === 'string' ? JSON.parse(riskRegister) : riskRegister;
+  if (!risks) return rows.join('\n');
+
+  const riskArray = risks.risks || risks;
+  if (Array.isArray(riskArray)) {
+    riskArray.forEach((r: any, idx: number) => {
+      const row = [
+        `RISK-${idx + 1}`,
+        escapeCsvField(r.risk || r.name || r.description || 'Unnamed risk'),
+        r.probability || r.likelihood || '-',
+        r.impact || r.severity || '-',
+        r.level || r.rating || '-',
+        escapeCsvField(r.mitigation || r.response || r.strategy || '-'),
+        escapeCsvField(r.owner || '-')
+      ];
+      rows.push(row.join(','));
+    });
+  }
+
+  return rows.join('\n');
+}
+
+/**
+ * Generate CSV for benefits
+ */
+function generateBenefitsCsv(benefitsRealization: any): string {
+  const headers = ['Benefit ID', 'Benefit Name', 'Description', 'Category', 'Metric', 'Target', 'Timeframe', 'Responsible Party'];
+  const rows = [headers.join(',')];
+
+  const benefits = typeof benefitsRealization === 'string' ? JSON.parse(benefitsRealization) : benefitsRealization;
+  if (!benefits) return rows.join('\n');
+
+  const benefitArray = benefits.benefits || [];
+  if (Array.isArray(benefitArray)) {
+    benefitArray.forEach((b: any, idx: number) => {
+      const row = [
+        `BEN-${idx + 1}`,
+        escapeCsvField(b.name || b.benefit || 'Unnamed benefit'),
+        escapeCsvField(b.description || '-'),
+        escapeCsvField(b.category || b.type || '-'),
+        escapeCsvField(b.metric || '-'),
+        escapeCsvField(b.target || b.goal || '-'),
+        escapeCsvField(b.timeframe || b.timeline || '-'),
+        escapeCsvField(b.owner || b.responsible || '-')
+      ];
+      rows.push(row.join(','));
+    });
+  }
 
   return rows.join('\n');
 }

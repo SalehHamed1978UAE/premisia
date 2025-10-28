@@ -1,0 +1,122 @@
+### 1. Make the Markdown report the canonical, full-featured version
+
+  Rework generateMarkdown(pkg) so it covers every section of the JSON. Use the
+  real property names (note financialPlan.costBreakdown, financialPlan.cashFlow,
+  benefitsRealization.benefits, riskRegister.risks, resourcePlan.internalTeam,
+  etc.). For example:
+
+  md += `## Executive Summary\n\n`;
+  md += `${pkg.epm.program?.executiveSummary?.summary ?? 'N/A'}\n\n`;
+  if (pkg.epm.program?.executiveSummary?.objectives?.length) {
+    md += `### Objectives\n`;
+    pkg.epm.program.executiveSummary.objectives.forEach(obj => md += `-
+  ${obj}\n`);
+    md += '\n';
+  }
+
+  md += `## Strategic Analysis\n\n`;
+  md += `**Framework:** ${pkg.epm.program?.frameworkType ?? 'N/A'}\n`;
+  if (pkg.strategy.insights?.length) {
+    md += `### Key Insights\n`;
+    pkg.strategy.insights.forEach(insight => md += `- ${insight}\n`);
+    md += '\n';
+  }
+  if (pkg.strategy.contradictions?.length) {
+    md += `### ⚠ Contradictions\n`;
+    pkg.strategy.contradictions.forEach(c => {
+      md += `- **${c.assumption}**\n  - Evidence: ${c.contradictedBy?.join(';
+  ') ?? 'N/A'}\n  - Impact: ${c.impact}\n  - Recommendation:
+  ${c.recommendation}\n\n`;
+    });
+  }
+
+  Continue in this style for workstreams, timeline/critical path, stage gates,
+  resource plan (internal + external), financial plan (total budget, cost
+  breakdown table, cash flow), benefits, risks, KPIs, stakeholders, assignments,
+  QA, procurement, exit strategy, etc. Guard each block with optional chaining
+  so empty sections don’t throw.
+
+  ———
+
+  ### 2. Reuse the Markdown everywhere
+
+  Once the Markdown is complete:
+
+  - HTML/PDF: Feed the markdown through a parser (marked.parse(markdown) or
+    similar) so headings, tables, and bold text render properly before Puppeteer
+    creates the PDF.
+  - DOCX: Instead of the current stub, convert the same Markdown (or derived
+    HTML) into DOCX. Options:
+      - Programmatically build the doc using docx with loops mirroring the
+        Markdown sections.
+      - Or install a helper such as markdown-to-docx/html-to-docx to turn the
+        Markdown/HTML into a Word document. The key is that the DOCX should
+        contain the same content and headings as the Markdown.
+
+  This ensures all three report formats stay in sync.
+
+  ———
+
+  ### 3. Fill the CSVs with real data
+
+  The current CSV strings only have headers. Make them reflect the exported
+  content, for example:
+
+  // Assignments CSV
+  csv = 'Task ID,Task Name,Resource ID,Resource Name,Role,Allocation %,Start
+  Date,End Date,Status\n';
+  pkg.epm.assignments.forEach(a => {
+    csv += [
+      a.taskId,
+      escapeCsv(a.taskName),
+      a.resourceId,
+      escapeCsv(a.resourceName),
+      escapeCsv(a.resourceRole),
+      a.allocationPercent,
+      new Date(a.assignedFrom).toISOString(),
+      new Date(a.assignedTo).toISOString(),
+      a.status,
+    ].join(',') + '\n';
+  });
+
+  // Workstreams CSV
+  csv = 'Workstream ID,Name,Description,Start Month,End
+  Month,Dependencies,Deliverables\n';
+  pkg.epm.program?.workstreams?.forEach(ws => {
+    csv += [
+      ws.id,
+      escapeCsv(ws.name),
+      escapeCsv(ws.description || ''),
+      ws.startMonth,
+      ws.endMonth,
+      escapeCsv((ws.dependencies || []).join('; ')),
+      escapeCsv((ws.deliverables || []).map(d => d.name ?? d).join('; '))
+    ].join(',') + '\n';
+  });
+
+  Use a shared escapeCsv helper to double quotes and wrap fields containing
+  commas.
+
+  If you want to go further, add additional CSVs (internal team, external
+  resources, risk register, benefits) by following the same pattern.
+
+  ———
+
+  ### 4. Keep file names human-friendly
+
+  You already resolved this, but double-check that the ZIP and report filenames
+  reflect the program or analysis title (e.g. coffee-shop-launch-v1/report.pdf).
+
+  ———
+
+  ### 5. Test
+
+  After the changes:
+
+  - Export an existing EPM program and open report.md, report.pdf, and
+    report.docx—they should all contain the same rich content.
+  - Open assignments.csv and workstreams.csv in Excel/Sheets to confirm the data
+    is populated and formatted correctly.
+  - Export an analysis-only session to verify the strategic sections populate
+    even without an EPM.
+

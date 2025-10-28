@@ -363,7 +363,6 @@ export function ProgramsListPage() {
                   </div>
                   <div className="pt-2 border-t">
                     <ExportFullReportButton
-                      sessionId={program.strategyVersionId}
                       programId={program.id}
                       variant="ghost"
                       size="sm"
@@ -430,7 +429,6 @@ export function ProgramsListPage() {
                   </div>
                   <div className="pt-2 border-t">
                     <ExportFullReportButton
-                      sessionId={program.strategyVersionId}
                       programId={program.id}
                       variant="ghost"
                       size="sm"
