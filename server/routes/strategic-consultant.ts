@@ -111,6 +111,27 @@ router.post('/analyze', upload.single('file'), async (req: Request, res: Respons
 });
 
 /**
+ * POST /api/strategic-consultant/check-sanity
+ * Validate user input for obvious impossibilities BEFORE proceeding
+ */
+router.post('/check-sanity', async (req: Request, res: Response) => {
+  try {
+    const { userInput } = req.body;
+
+    if (!userInput) {
+      return res.status(400).json({ error: 'userInput is required' });
+    }
+
+    const { initialSanityChecker } = await import('../services/initial-sanity-check.js');
+    const result = await initialSanityChecker.checkInput({ userInput });
+    res.json(result);
+  } catch (error: any) {
+    console.error('[Strategic Consultant] Error in sanity check:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * POST /api/strategic-consultant/check-ambiguities
  * Check user input for ambiguities BEFORE creating strategic understanding
  */
