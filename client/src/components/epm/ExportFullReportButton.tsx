@@ -43,10 +43,14 @@ export function ExportFullReportButton({
       }
 
       // Make request to export endpoint
+      console.log('[Export] Requesting:', `/api/exports/full-pass?${params.toString()}`);
       const response = await fetch(`/api/exports/full-pass?${params.toString()}`, {
         method: 'GET',
         credentials: 'include',
       });
+
+      console.log('[Export] Response status:', response.status);
+      console.log('[Export] Response headers:', Object.fromEntries(response.headers.entries()));
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Export failed' }));
@@ -55,6 +59,11 @@ export function ExportFullReportButton({
 
       // Get the blob from response
       const blob = await response.blob();
+      console.log('[Export] Blob size:', blob.size, 'type:', blob.type);
+
+      if (blob.size === 0) {
+        throw new Error('Export file is empty');
+      }
 
       // Create download link
       const url = URL.createObjectURL(blob);
@@ -72,11 +81,13 @@ export function ExportFullReportButton({
         }
       }
       
+      console.log('[Export] Triggering download for:', filename);
       a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      console.log('[Export] Download triggered successfully');
 
       toast({
         title: 'Export successful',
