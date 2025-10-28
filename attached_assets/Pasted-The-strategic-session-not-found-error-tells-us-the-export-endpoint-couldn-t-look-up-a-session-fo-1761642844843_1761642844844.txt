@@ -1,0 +1,93 @@
+The “strategic session not found” error tells us the export endpoint couldn’t
+  look up a session for the ID it received (either the value was undefined/
+  wrong, or the program was created before we stored that linkage). The “failed
+  to generate report” message is the generic catch-all when the service throws
+  earlier. Here’s what to ask Replit to adjust:
+
+  ———
+
+  ### 1. Don’t append undefined params in the export button
+
+  In ExportFullReportButton, only append query parameters when you actually have
+  the value:
+
+  const params = new URLSearchParams();
+  if (sessionId) params.append('sessionId', sessionId);
+  if (versionNumber !== undefined) params.append('versionNumber',
+  versionNumber.toString());
+  if (programId) params.append('programId', programId);
+
+  We’ve seen URLs like ?sessionId=undefined, which cause the lookup to fail.
+
+  ———
+
+  ### 2. Derive the session ID on the server when only a program ID is provided
+
+  In server/services/export-service.ts (or wherever loadAllData runs), follow
+  this order:
+
+  // Inside loadAllData
+  let sessionId = input.sessionId;
+  let versionNumber = input.versionNumber;
+
+  // If sessionId wasn’t supplied but we have a program
+  if (!sessionId && input.programId) {
+    const [program] = await db
+      .select()
+      .from(epmPrograms)
+      .where(eq(epmPrograms.id, input.programId))
+      .limit(1);
+
+    if (!program) throw new Error('EPM program not found');
+
+    // Use program.strategyVersionId to load the strategy version
+    const [version] = await db
+      .select()
+      .from(strategyVersions)
+      .where(eq(strategyVersions.id, program.strategyVersionId))
+      .limit(1);
+
+    if (version) {
+      sessionId = version.sessionId;
+      versionNumber = version.versionNumber;
+    }
+  }
+
+  Then use sessionId/versionNumber for the rest of the lookups. This lets
+  exports work for older programs that didn’t store the session ID in the
+  client.
+
+  ———
+
+  ### 3. Relax the route validation
+
+  In server/routes/exports.ts, only insist on sessionId if programId hasn’t been
+  supplied. Example:
+
+  if (!sessionId && !programId) {
+    return res.status(400).json({ error: 'sessionId or programId is
+  required' });
+  }
+
+  After deriving sessionId (Step 2), verify ownership before generating the
+  export.
+
+  ———
+
+  ### 4. Guard against missing version numbers
+
+  Some legacy analyses don’t have versionNumber set. When it’s missing, default
+  to 1 (or the latest version) so repository exports still succeed:
+
+  const resolvedVersionNumber = versionNumber ?? version?.versionNumber ?? 1;
+
+  Use that value when querying strategyVersions.
+
+  ———
+
+  ### 5. Add logging to pinpoint failures
+
+  Wrap the export service calls with descriptive logs so the console shows
+  whether a sessionId was actually resolved, and surface the underlying error
+  instead of “failed to generate report”.
+
