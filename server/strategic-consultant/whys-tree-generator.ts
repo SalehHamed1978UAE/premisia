@@ -365,30 +365,29 @@ Return ONLY valid JSON (no markdown, no extra text):
   async validateRootCause(rootCauseText: string): Promise<{ valid: boolean; message?: string }> {
     try {
       const response = await aiClients.callWithFallback({
-        systemPrompt: 'You are validating whether a strategic root cause contains harmful ethnic, racial, or national stereotypes. You ONLY flag statements that make generalizations about groups of people based on ethnicity, race, nationality, or culture. Business risk aversion, organizational behavior, and market dynamics are ALWAYS valid.',
-        userMessage: `Validate this root cause: "${rootCauseText}"
+        systemPrompt: 'You are a safety check for harmful stereotypes. Be VERY permissive - only flag obvious ethnic, racial, or national stereotypes. When in doubt, approve it.',
+        userMessage: `Does this root cause contain an ethnic, racial, or national stereotype? "${rootCauseText}"
 
-ONLY mark as invalid if it contains ethnic, racial, or national stereotypes like:
-❌ "Asian cultures prioritize hierarchy over innovation"
-❌ "Western executives are more risk-tolerant than Eastern ones"
-❌ "Latin American markets respond better to personal relationships"
+Default to VALID unless it's an OBVIOUS stereotype like:
+❌ "Asian cultures avoid confrontation"
+❌ "Western executives take more risks than Eastern ones"  
+❌ "Middle Eastern business culture prioritizes relationships over contracts"
 
-These are ALWAYS valid business root causes:
-✓ Risk aversion and fear of failure (executives worried about career impact)
-✓ Organizational decision-making patterns (paralysis, bureaucracy, slow processes)
-✓ Market dynamics (buyer conservatism, long sales cycles, proof requirements)
-✓ Resource constraints (budget, time, capability gaps)
-✓ Competitive pressure and positioning concerns
-✓ Any statement about business outcomes, costs, pricing, customers, or operations
+Everything else is VALID, including:
+✓ Psychological patterns (fear, risk aversion, blame, reputation concerns)
+✓ Organizational behavior (bureaucracy, hierarchy, decision paralysis)
+✓ Market/business dynamics (any analysis of markets, customers, competition, pricing)
+✓ Industry patterns (sales cycles, buyer conservatism, proof requirements)
+✓ Resource/capability issues (gaps, constraints, skills, expertise)
 
-The test: Does this attribute behavior to someone's ethnicity, race, nationality, or cultural background? If NO, it's valid.
+When in doubt → mark as valid. Only flag EXPLICIT stereotypes about ethnic/racial/national groups.
 
 Respond with ONLY valid JSON:
 {
   "isValid": true or false,
-  "reason": "brief explanation of why it contains stereotypes OR confirmation it's a valid business root cause"
+  "reason": "why it's a stereotype OR why it's valid"
 }`,
-        maxTokens: 500,
+        maxTokens: 300,
       });
 
       const validation = this.extractJSON(response, 'validateRootCause');
