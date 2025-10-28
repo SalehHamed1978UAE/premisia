@@ -1,7 +1,6 @@
 import type { SelectBackgroundJob } from "@shared/schema";
-import { strategicUnderstandingService } from "../services/strategic-understanding-service";
-import { backgroundJobService } from "../services/background-job-service";
-import { secureDataService } from "../services/secure-data-service";
+import { strategicUnderstandingService } from "../strategic-understanding-service";
+import { backgroundJobService } from "./background-job-service";
 
 /**
  * Document Enrichment Worker
@@ -70,10 +69,9 @@ export async function processDocumentEnrichmentJob(job: SelectBackgroundJob): Pr
     const understanding = await strategicUnderstandingService.extractUnderstanding({
       sessionId,
       userInput: processedInput.content,
-      source: fileName || 'uploaded_document',
     });
 
-    console.log('[DocumentEnrichment] Extracted understanding:', understanding.id);
+    console.log('[DocumentEnrichment] Extracted understanding:', understanding.understandingId);
 
     // Update progress
     await backgroundJobService.updateJob(job.id, {
@@ -83,7 +81,7 @@ export async function processDocumentEnrichmentJob(job: SelectBackgroundJob): Pr
 
     // If there was an existing understanding ID, we've merged with it
     // Otherwise, this is a new understanding
-    const finalUnderstandingId = understandingId || understanding.id;
+    const finalUnderstandingId = understandingId || understanding.understandingId;
 
     // Get entity count for notification
     const entityCount = understanding.entities?.length || 0;
