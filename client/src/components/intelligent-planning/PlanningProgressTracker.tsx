@@ -121,9 +121,9 @@ export function PlanningProgressTracker({
   }, [onComplete, onError]);
 
   return (
-    <Card className="w-full max-w-2xl" data-testid="planning-progress-tracker">
+    <Card className="w-full max-w-md sm:max-w-lg md:max-w-xl lg:max-w-2xl" data-testid="planning-progress-tracker">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
           {!isComplete && !error && <Loader2 className="h-5 w-5 animate-spin" />}
           {isComplete && <CheckCircle2 className="h-5 w-5 text-green-600" />}
           {error && <AlertCircle className="h-5 w-5 text-red-600" />}
@@ -159,17 +159,17 @@ export function PlanningProgressTracker({
         </div>
 
         {/* Steps List */}
-        <div className="space-y-3">
+        <div className="space-y-2 sm:space-y-3">
           {steps.map((step, index) => (
             <div
               key={step.id}
-              className="flex items-start gap-3 p-3 rounded-lg transition-colors hover:bg-muted/50 dark:hover:bg-muted/20"
+              className="flex items-start gap-2 sm:gap-3 p-2 sm:p-3 rounded-lg transition-colors hover:bg-muted/50 dark:hover:bg-muted/20"
               data-testid={`step-${step.id}`}
             >
-              <div className="mt-0.5">{getStepIcon(step.status)}</div>
+              <div className="mt-0.5 flex-shrink-0">{getStepIcon(step.status)}</div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2">
-                  <h4 className="text-sm font-medium">
+                  <h4 className="text-xs sm:text-sm font-medium truncate">
                     {index + 1}. {step.name}
                   </h4>
                   {step.durationSeconds !== undefined && (
@@ -178,7 +178,7 @@ export function PlanningProgressTracker({
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
+                <p className="text-xs text-muted-foreground mt-1 line-clamp-1 sm:line-clamp-none">
                   {step.description}
                 </p>
               </div>
@@ -187,9 +187,9 @@ export function PlanningProgressTracker({
         </div>
 
         {/* Time and Estimate */}
-        <div className="flex items-center justify-between text-sm text-muted-foreground border-t pt-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0 text-xs sm:text-sm text-muted-foreground border-t pt-3 sm:pt-4">
           <div className="flex items-center gap-2">
-            <Clock className="h-4 w-4" />
+            <Clock className="h-4 w-4 flex-shrink-0" />
             <span data-testid="elapsed-time">Elapsed: {formatTime(elapsedTime)}</span>
           </div>
           {!isComplete && !error && (

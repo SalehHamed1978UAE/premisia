@@ -22,6 +22,7 @@ import {
   getStrategicEntitiesByUnderstanding as getEntitiesSecure
 } from "./services/secure-data-service";
 import { encrypt, encryptJSON, decrypt, decryptJSON } from "./utils/encryption";
+import { parseAIJson } from "./utils/parse-ai-json";
 
 const EMBEDDING_MODEL = "text-embedding-3-small";
 const EMBEDDING_DIMENSIONS = 1536;
@@ -263,33 +264,16 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
 
     let validated;
     try {
-      // Clean the response content
-      let cleanedContent = response.content.trim();
-      
-      // Remove markdown code blocks if present
-      const codeBlockMatch = cleanedContent.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-      if (codeBlockMatch) {
-        cleanedContent = codeBlockMatch[1];
-      }
-
-      // Extract JSON object
-      const jsonMatch = cleanedContent.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('No JSON found in AI response');
-      }
-
-      const parsed = JSON.parse(jsonMatch[0]);
+      // Use robust parser with fallback mechanisms
+      const parsed = parseAIJson(response.content, 'entity extraction');
       validated = entityExtractionSchema.parse(parsed);
     } catch (error: any) {
-      console.error('[StrategicUnderstanding] JSON parsing error:', error);
+      console.error('[StrategicUnderstanding] Validation error:', error);
       console.error('[StrategicUnderstanding] Raw AI response (first 500 chars):', response.content.substring(0, 500));
       
-      // Try to provide more helpful error message
-      if (error.message.includes('JSON')) {
-        const preview = response.content.substring(0, 300);
-        throw new Error(`Failed to parse AI response as JSON. Response preview: ${preview}...`);
-      }
-      throw new Error(`Failed to parse AI response: ${error.message}`);
+      // Provide helpful error message
+      const preview = response.content.substring(0, 300);
+      throw new Error(`Failed to parse AI response as JSON. Response preview: ${preview}...`);
     }
 
     console.log(`[StrategicUnderstanding] AI extracted ${validated.entities.length} entities, validating sources...`);

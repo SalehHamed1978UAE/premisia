@@ -81,7 +81,7 @@ export function GlobalJobTracker() {
   const jobsToDisplay = hasOverflow && !showAllJobs ? visibleJobs.slice(0, 2) : visibleJobs;
 
   return (
-    <div className="fixed bottom-4 right-4 w-96 max-w-[calc(100vw-2rem)] space-y-2 z-50" data-testid="global-job-tracker">
+    <div className="fixed bottom-4 right-4 w-full sm:w-96 max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] overflow-y-auto space-y-2 z-50" data-testid="global-job-tracker">
       {jobsToDisplay.map(job => {
         const isMinimized = minimizedJobs.has(job.id);
         
@@ -163,25 +163,26 @@ export function GlobalJobTracker() {
             <CardContent className="space-y-3">
               <div>
                 <Progress value={job.progress} className="h-2" />
-                <div className="flex items-center justify-between mt-1">
-                  <p className="text-xs text-muted-foreground line-clamp-1">
+                <div className="flex items-center justify-between mt-1 gap-2">
+                  <p className="text-xs text-muted-foreground line-clamp-2 flex-1">
                     {job.progressMessage || 'Processing...'}
                   </p>
-                  <p className="text-xs font-medium">{job.progress}%</p>
+                  <p className="text-xs font-medium flex-shrink-0">{job.progress}%</p>
                 </div>
               </div>
 
-              <div className="bg-muted/50 rounded-lg p-3">
+              <div className="bg-muted/50 rounded-lg p-2">
                 <p className="text-xs text-muted-foreground">
                   ℹ️ You can safely navigate anywhere. We'll notify you when it's ready.
                 </p>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 {job.jobType === 'epm_generation' && (
                   <Button
                     variant="outline"
-                    className="flex-1"
+                    className="flex-1 text-xs sm:text-sm"
+                    size="sm"
                     onClick={() => setLocationNav('/strategy-workspace/programs')}
                     data-testid="button-view-programs"
                   >
@@ -191,8 +192,8 @@ export function GlobalJobTracker() {
                 )}
                 <Button
                   variant="outline"
-                  size={job.jobType === 'epm_generation' ? 'default' : 'default'}
-                  className={job.jobType === 'epm_generation' ? '' : 'w-full'}
+                  size="sm"
+                  className={job.jobType === 'epm_generation' ? 'text-xs sm:text-sm' : 'w-full text-xs sm:text-sm'}
                   onClick={() => cancelJobMutation.mutate(job.id)}
                   disabled={cancelJobMutation.isPending}
                   data-testid={`button-cancel-job-${job.id}`}
