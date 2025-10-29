@@ -121,8 +121,8 @@ export function PlanningProgressTracker({
   }, [onComplete, onError]);
 
   return (
-    <Card className="w-full max-w-md sm:max-w-lg md:max-w-xl lg:max-w-2xl" data-testid="planning-progress-tracker">
-      <CardHeader>
+    <Card className="w-full max-w-md sm:max-w-lg md:max-w-xl lg:max-w-2xl max-h-[90vh] flex flex-col" data-testid="planning-progress-tracker">
+      <CardHeader className="flex-shrink-0">
         <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
           {!isComplete && !error && <Loader2 className="h-5 w-5 animate-spin" />}
           {isComplete && <CheckCircle2 className="h-5 w-5 text-green-600" />}
@@ -130,7 +130,7 @@ export function PlanningProgressTracker({
           Creating Your Program Plan
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-6 overflow-y-auto flex-1">
 
         {/* Error Alert */}
         {error && (
@@ -193,7 +193,7 @@ export function PlanningProgressTracker({
             <span data-testid="elapsed-time">Elapsed: {formatTime(elapsedTime)}</span>
           </div>
           {!isComplete && !error && (
-            <span className="text-xs">Estimated: 2-3 minutes</span>
+            <span className="text-xs">Estimated: Approx. 10 minutes</span>
           )}
           {isComplete && (
             <span className="text-xs text-green-600 dark:text-green-500 font-medium">

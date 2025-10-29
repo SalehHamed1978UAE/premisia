@@ -22,6 +22,8 @@ import {
   CheckCircle,
   X,
   Info,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 interface VersionData {
@@ -66,6 +68,9 @@ export default function PrioritizationPage() {
 
   const sessionId = params?.sessionId || '';
   const versionNumber = params?.versionNumber ? parseInt(params.versionNumber) : 1;
+  
+  // Context sidebar state (collapsed by default on smaller screens)
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   
   // Get the running EPM generation job for this session (if any)
   const currentJob = runningJobs.find(
@@ -452,65 +457,22 @@ export default function PrioritizationPage() {
       title="Prioritize Strategic Initiatives"
       subtitle="Drag to reorder initiatives by priority - highest priority at the top"
     >
-      <div className="max-w-5xl mx-auto space-y-6">
-        {/* Instructions */}
-        <Card className="border-primary">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-primary" />
-              Finalize Your Strategic Priorities
-            </CardTitle>
-            <CardDescription>
-              Your strategic choices are listed below. Use the arrows to reorder them by priority. 
-              The top item will become your primary focus in the EPM program.
-            </CardDescription>
-          </CardHeader>
-        </Card>
-
-        {/* Analysis Insights */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {keyInsights.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Lightbulb className="h-4 w-4 text-yellow-500" />
-                  Key Insights
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2 text-sm">
-                  {keyInsights.slice(0, 3).map((insight, idx) => (
-                    <li key={idx} className="flex items-start gap-2">
-                      <span className="text-primary font-bold mt-0.5">•</span>
-                      <span className="text-muted-foreground">{insight}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
-
-          {criticalGaps.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-orange-500" />
-                  Critical Gaps to Address
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2 text-sm">
-                  {criticalGaps.slice(0, 3).map((gap, idx) => (
-                    <li key={idx} className="flex items-start gap-2">
-                      <span className="text-orange-500 font-bold mt-0.5">•</span>
-                      <span className="text-muted-foreground">{gap}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+      <div className="flex gap-6 relative">
+        {/* Main Content */}
+        <div className="flex-1 space-y-6 min-w-0">
+          {/* Instructions */}
+          <Card className="border-primary">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-primary" />
+                Finalize Your Strategic Priorities
+              </CardTitle>
+              <CardDescription>
+                Your strategic choices are listed below. Use the arrows to reorder them by priority. 
+                The top item will become your primary focus in the EPM program.
+              </CardDescription>
+            </CardHeader>
+          </Card>
 
         {/* Prioritized Items */}
         <Card>
@@ -702,6 +664,71 @@ export default function PrioritizationPage() {
             }}
           />
         )}
+        </div>
+
+        {/* Context Sidebar - Collapsible on Right */}
+        <div className={`hidden lg:block transition-all duration-300 ${sidebarOpen ? 'w-80' : 'w-0'}`}>
+          {sidebarOpen && (
+            <div className="space-y-4 sticky top-4">
+              {keyInsights.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <Lightbulb className="h-4 w-4 text-yellow-500" />
+                      Key Insights
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="space-y-2 text-xs">
+                      {keyInsights.map((insight, idx) => (
+                        <li key={idx} className="flex items-start gap-2">
+                          <span className="text-primary font-bold mt-0.5">•</span>
+                          <span className="text-muted-foreground">{insight}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              )}
+
+              {criticalGaps.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-orange-500" />
+                      Critical Gaps
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="space-y-2 text-xs">
+                      {criticalGaps.map((gap, idx) => (
+                        <li key={idx} className="flex items-start gap-2">
+                          <span className="text-orange-500 font-bold mt-0.5">•</span>
+                          <span className="text-muted-foreground">{gap}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Sidebar Toggle Button */}
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="hidden lg:flex fixed right-4 top-24 z-40 shadow-lg"
+          data-testid="button-toggle-sidebar"
+        >
+          {sidebarOpen ? (
+            <ChevronRight className="h-4 w-4" />
+          ) : (
+            <ChevronLeft className="h-4 w-4" />
+          )}
+        </Button>
       </div>
     </AppLayout>
   );

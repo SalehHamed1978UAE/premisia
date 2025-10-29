@@ -362,10 +362,17 @@ export class BackgroundJobService {
       });
 
       if (result.length === 0) {
+        // Only log occasionally to avoid spam
+        if (Math.random() < 0.05) { // 5% of checks
+          console.log('[Background Job Dispatcher] No pending jobs');
+        }
         return;
       }
 
-      console.log(`[Background Job Dispatcher] Found ${result.length} pending job(s)`);
+      console.log(`[Background Job Dispatcher] Found ${result.length} pending job(s):`);
+      result.forEach(job => {
+        console.log(`  - ${job.jobType} (ID: ${job.id.substring(0, 8)}..., created: ${job.createdAt})`);
+      });
 
       // Process each job
       for (const job of result) {
@@ -382,20 +389,23 @@ export class BackgroundJobService {
    * Process a single job by routing to appropriate worker
    */
   private async processJob(job: SelectBackgroundJob): Promise<void> {
-    console.log(`[Background Job Dispatcher] Processing ${job.jobType} job:`, job.id);
+    console.log(`[Background Job Dispatcher] >>> Processing ${job.jobType} job: ${job.id}`);
 
     try {
       // Import worker dynamically to avoid circular dependencies
       if (job.jobType === 'document_enrichment') {
+        console.log(`[Background Job Dispatcher] Importing document enrichment worker...`);
         const { processDocumentEnrichmentJob } = await import('./document-enrichment-worker');
+        console.log(`[Background Job Dispatcher] Calling worker for job: ${job.id}`);
         await processDocumentEnrichmentJob(job);
+        console.log(`[Background Job Dispatcher] ✓ Worker completed for job: ${job.id}`);
       }
       // Add other job types here as needed
       else {
-        console.log(`[Background Job Dispatcher] No worker for job type: ${job.jobType}`);
+        console.log(`[Background Job Dispatcher] ⚠ No worker for job type: ${job.jobType}`);
       }
     } catch (error: any) {
-      console.error(`[Background Job Dispatcher] Job ${job.id} failed:`, error);
+      console.error(`[Background Job Dispatcher] ❌ Job ${job.id} failed:`, error);
       await this.failJob(job.id, error);
     }
   }
