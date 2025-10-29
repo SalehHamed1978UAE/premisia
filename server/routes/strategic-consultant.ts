@@ -76,6 +76,7 @@ router.post('/extract-file', upload.single('file'), async (req: Request, res: Re
       success: true,
       content: processedInput.content,
       metadata: processedInput.metadata,
+      fileName: file.originalname, // Include fileName for enrichment tracking
     });
   } catch (error: any) {
     console.error('Error in /extract-file:', error);
@@ -221,7 +222,7 @@ router.post('/check-ambiguities', async (req: Request, res: Response) => {
 
 router.post('/understanding', async (req: Request, res: Response) => {
   try {
-    const { input, clarifications } = req.body;
+    const { input, clarifications, fileMetadata } = req.body;
 
     if (!input || !input.trim()) {
       return res.status(400).json({ error: 'Input text is required' });
@@ -266,6 +267,33 @@ router.post('/understanding', async (req: Request, res: Response) => {
     });
     
     console.log('[Understanding] ✓ Initiative classification saved to database with encryption');
+
+    // Step 4: If file was uploaded, queue background enrichment job (matching /analyze behavior)
+    if (fileMetadata?.fileName && fileMetadata?.content) {
+      const userId = (req.user as any)?.claims?.sub || null;
+      const { backgroundJobService } = await import('../services/background-job-service');
+      
+      // Reconstruct processedInput format matching /analyze route
+      const processedInput = {
+        content: fileMetadata.content,
+        metadata: fileMetadata.metadata || {},
+      };
+      
+      await backgroundJobService.createJob({
+        userId,
+        jobType: 'document_enrichment',
+        sessionId,
+        relatedEntityId: result.understandingId,
+        relatedEntityType: 'strategic_understanding',
+        inputData: {
+          processedInput,
+          sessionId,
+          understandingId: result.understandingId,
+          fileName: fileMetadata.fileName,
+        },
+      });
+      console.log('[Understanding] ✓ Queued document enrichment job for:', fileMetadata.fileName);
+    }
 
     res.json({
       success: true,

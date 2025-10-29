@@ -37,6 +37,7 @@ export default function InputPage() {
   const [showClarificationModal, setShowClarificationModal] = useState(false);
   const [clarificationQuestions, setClarificationQuestions] = useState<any[]>([]);
   const [isCheckingAmbiguities, setIsCheckingAmbiguities] = useState(false);
+  const [pendingFileMetadata, setPendingFileMetadata] = useState<{ fileName: string; content: string; metadata: any } | null>(null);
 
   // Get URL parameters
   const urlParams = new URLSearchParams(window.location.search);
@@ -107,7 +108,7 @@ export default function InputPage() {
         throw new Error(errorData.error || 'File extraction failed');
       }
 
-      const { content } = await extractResponse.json();
+      const { content, metadata, fileName } = await extractResponse.json();
       
       toast({
         title: "File extracted",
@@ -121,6 +122,13 @@ export default function InputPage() {
       const finalInput = text.trim() 
         ? `${text.trim()}\n\n--- Content from ${file.name} ---\n${content}`
         : content;
+
+      // Store file metadata for enrichment job creation
+      const fileMetadata = {
+        fileName: fileName || file.name,
+        content: content,
+        metadata: metadata || {},
+      };
 
       // Check for ambiguities first
       const ambiguityResponse = await fetch('/api/strategic-consultant/check-ambiguities', {
@@ -139,13 +147,14 @@ export default function InputPage() {
       if (ambiguityResult.hasAmbiguities) {
         // Show clarification modal
         setText(finalInput); // Save extracted content to state for later use
+        setPendingFileMetadata(fileMetadata); // Save file metadata for later use
         setClarificationQuestions(ambiguityResult.questions);
         setShowClarificationModal(true);
         setIsAnalyzing(false);
         setProgress(0);
       } else {
-        // No ambiguities, proceed directly to understanding
-        await startStrategicUnderstanding(finalInput, null);
+        // No ambiguities, proceed directly to understanding with file metadata
+        await startStrategicUnderstanding(finalInput, null, fileMetadata);
       }
 
     } catch (error: any) {
@@ -214,7 +223,7 @@ export default function InputPage() {
     }
   };
 
-  const startStrategicUnderstanding = async (input: string, clarifications: Record<string, string> | null) => {
+  const startStrategicUnderstanding = async (input: string, clarifications: Record<string, string> | null, fileMetadata?: { fileName: string; content: string; metadata: any }) => {
     setIsAnalyzing(true);
     setProgress(0);
 
@@ -229,13 +238,14 @@ export default function InputPage() {
     }, 300); // Update every 300ms for smoother feel
 
     try {
-      // Create understanding record with optional clarifications
+      // Create understanding record with optional clarifications and file metadata
       const understandingResponse = await fetch('/api/strategic-consultant/understanding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           input: input,
-          clarifications: clarifications 
+          clarifications: clarifications,
+          fileMetadata: fileMetadata // Pass file metadata for enrichment job creation
         })
       });
       
@@ -283,12 +293,14 @@ export default function InputPage() {
       }
     });
 
-    startStrategicUnderstanding(text.trim(), clarifications);
+    // Pass file metadata if available (from file upload flow)
+    startStrategicUnderstanding(text.trim(), clarifications, pendingFileMetadata || undefined);
   };
 
   const handleSkipClarifications = () => {
     setShowClarificationModal(false);
-    startStrategicUnderstanding(text.trim(), null);
+    // Pass file metadata if available (from file upload flow)
+    startStrategicUnderstanding(text.trim(), null, pendingFileMetadata || undefined);
   };
 
   const getFileIcon = () => {
