@@ -29,12 +29,13 @@ const ONBOARDING_STEPS = [
     id: 1,
     title: "Strategic Consultant",
     icon: Sparkles,
-    description: "Turn your business ideas into actionable strategies",
+    description: "AI-powered strategic analysis with evidence-based insights",
     features: [
-      "Share your strategic challenge or business idea",
-      "AI analyzes using frameworks like Business Model Canvas, Porter's Five Forces",
-      "Get evidence-based strategic decisions with supporting rationale",
-      "Interactive exploration with Five Whys analysis"
+      "Multi-agent AI system tests assumptions and frames problems",
+      "Real-time web research with source validation and anti-bias checks",
+      "Battle-tested frameworks: Five Whys, BMC, PESTLE, Porter's Forces",
+      "AI coaching validates your thinking against quality criteria",
+      "Upload documents (PDF, Word, Excel, images) for context enrichment"
     ],
     color: "from-blue-500 to-blue-600",
     path: "/strategic-consultant/input"
@@ -43,12 +44,13 @@ const ONBOARDING_STEPS = [
     id: 2,
     title: "Analysis Repository",
     icon: Archive,
-    description: "Browse and explore all your strategic analyses",
+    description: "Access your strategic intelligence knowledge base",
     features: [
-      "Access all your completed strategic analyses",
-      "View framework-specific insights (BMC, Porter's, PESTLE)",
-      "Compare different versions of your strategy",
-      "Export and share your strategic findings"
+      "All completed analyses with framework-specific insights",
+      "Knowledge graph tracks entities, relationships, and contradictions",
+      "Export professional reports in multiple formats (PDF, Word, Markdown)",
+      "Compare strategy versions and track how decisions evolved",
+      "Encrypted storage protects your strategic IP"
     ],
     color: "from-purple-500 to-purple-600",
     path: "/repository"
@@ -57,12 +59,13 @@ const ONBOARDING_STEPS = [
     id: 3,
     title: "EPM Programs",
     icon: FileText,
-    description: "Convert strategies into executable programs",
+    description: "Complete execution blueprints ready to launch",
     features: [
-      "AI generates complete 14-component EPM programs",
-      "Interactive Gantt charts with dependencies",
-      "Workstreams, milestones, and deliverables",
-      "Risk registers, resource plans, and financial tracking"
+      "14-component programs: workstreams, timelines, resources, financials",
+      "AI-powered scheduling with critical path and dependency management",
+      "Risk registers, KPIs, governance, and benefits realization",
+      "Interactive Gantt charts with resource conflict detection",
+      "Board-ready outputs in one session vs. weeks of consulting work"
     ],
     color: "from-green-500 to-green-600",
     path: "/strategy-workspace/programs"
@@ -88,11 +91,14 @@ function OnboardingFlow() {
           <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-primary to-primary/80 rounded-2xl mb-6 shadow-lg">
             <Sparkles className="h-10 w-10 text-white" />
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-4">
-            Welcome to Qgentic EPM
-          </h1>
-          <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
-            Turn strategic ideas into executable enterprise programs with AI-powered guidance
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <h1 className="text-4xl md:text-5xl font-bold text-foreground">
+              Welcome to QGentic
+            </h1>
+            <span className="px-3 py-1 text-sm font-semibold bg-primary/10 text-primary rounded-lg">BETA</span>
+          </div>
+          <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
+            AI-enhanced strategic intelligence platform that transforms your ideas into complete, execution-ready EPM programs. <span className="font-semibold text-foreground">15-30 minutes first time, 10-20 when familiar</span>—vs. weeks of traditional consulting.
           </p>
         </div>
 
@@ -199,7 +205,7 @@ function OnboardingFlow() {
                       data-testid="button-get-started"
                     >
                       <Sparkles className="mr-2 h-5 w-5" />
-                      Try It Now - Strategic Consultant
+                      Start Your First Analysis
                     </Button>
                   )}
                 </div>

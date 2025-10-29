@@ -30,61 +30,64 @@ export default function AuthPage() {
               <ShieldCheck className="h-8 w-8" />
             </div>
             <div>
-              <h1 className="text-xl md:text-2xl font-bold">Qgentic EPM</h1>
-              <p className="text-primary-foreground/80">Intelligent Strategic EPM</p>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl md:text-2xl font-bold">QGentic</h1>
+                <span className="px-2 py-0.5 text-xs font-semibold bg-white/20 rounded">BETA</span>
+              </div>
+              <p className="text-primary-foreground/80">AI-Enhanced Strategic Intelligence</p>
             </div>
           </div>
           <div className="space-y-6">
             <div>
               <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                Manage Complex Programs with Confidence
+                Turn Strategic Ideas into Executable Programs — Without Waiting Weeks
               </h2>
               <p className="text-lg md:text-xl text-primary-foreground/90 leading-relaxed">
-                Track timelines, manage risks, monitor KPIs, and realize benefits across your enterprise transformation initiatives.
+                An AI-enhanced platform that transforms your insight into complete, execution-ready Enterprise Program Management plans. One focused session instead of one month.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-6 mt-12">
               <div className="space-y-2">
                 <div className="flex items-center space-x-2">
                   <CheckCircle className="h-5 w-5" />
-                  <span className="font-medium">Timeline Management</span>
+                  <span className="font-medium">Multi-Agent AI System</span>
                 </div>
                 <p className="text-sm text-primary-foreground/70 ml-7">
-                  Gantt charts, dependencies, and milestone tracking
+                  Not a chatbot—specialized agents for strategy, building, and QA
                 </p>
               </div>
               <div className="space-y-2">
                 <div className="flex items-center space-x-2">
                   <CheckCircle className="h-5 w-5" />
-                  <span className="font-medium">Risk Register</span>
+                  <span className="font-medium">15-30 Minutes First Time</span>
                 </div>
                 <p className="text-sm text-primary-foreground/70 ml-7">
-                  Comprehensive risk assessment and mitigation planning
+                  10-20 minutes when familiar—vs. traditional 2-3 week timeline
                 </p>
               </div>
               <div className="space-y-2">
                 <div className="flex items-center space-x-2">
                   <CheckCircle className="h-5 w-5" />
-                  <span className="font-medium">KPI Tracking</span>
+                  <span className="font-medium">Evidence-Based Insights</span>
                 </div>
                 <p className="text-sm text-primary-foreground/70 ml-7">
-                  Real-time performance metrics and trend analysis
+                  Real-time research with source validation and anti-bias checks
                 </p>
               </div>
               <div className="space-y-2">
                 <div className="flex items-center space-x-2">
                   <CheckCircle className="h-5 w-5" />
-                  <span className="font-medium">Benefits Realization</span>
+                  <span className="font-medium">14-Component EPM Programs</span>
                 </div>
                 <p className="text-sm text-primary-foreground/70 ml-7">
-                  Track ROI and measure program success
+                  Complete execution blueprints with timelines, resources, and financials
                 </p>
               </div>
             </div>
           </div>
         </div>
         <div className="text-sm text-primary-foreground/60">
-          © 2024 Qgentic. All rights reserved.
+          © 2025 QGentic. All rights reserved.
         </div>
       </div>
 
@@ -94,8 +97,11 @@ export default function AuthPage() {
           <Card className="shadow-2xl border-0 bg-card/50 backdrop-blur">
             <CardContent className="p-8">
               <div className="text-center mb-8">
-                <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-2">Welcome</h2>
-                <p className="text-muted-foreground">Access your program management dashboard</p>
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <h2 className="text-2xl md:text-3xl font-bold text-foreground">Welcome to QGentic</h2>
+                  <span className="px-2 py-1 text-xs font-semibold bg-primary/10 text-primary rounded">BETA</span>
+                </div>
+                <p className="text-muted-foreground">Transform strategic thinking into executable programs</p>
               </div>
 
               <div className="space-y-4">
