@@ -7,6 +7,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, CheckCircle2, Clock, ArrowRight } from "lucide-react";
+import { queryClient } from "@/lib/queryClient";
 
 // Journey definitions (MUST match server-side registry exactly)
 const JOURNEYS = [
@@ -142,6 +143,9 @@ export default function JourneySelectionPage() {
       
       // Store journey type in localStorage for downstream pages to know which results page to navigate to
       localStorage.setItem(`journey-type-${result.sessionId}`, journeyType);
+
+      // Invalidate session context cache so it shows the new journey data
+      queryClient.invalidateQueries({ queryKey: ["/api/session-context"] });
 
       toast({
         title: "Journey started!",
