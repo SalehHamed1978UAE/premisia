@@ -900,9 +900,8 @@ Marketing and events: $3k/month`,
         return res.json(sessionContext);
       }
 
-      // Fallback to standalone session context (legacy system)
-      const activeContext = await storage.getActiveSessionContext();
-      res.json(activeContext || null);
+      // No active journey - return null instead of falling back to old standalone sessions
+      res.json(null);
     } catch (error) {
       console.error('[Session Context] Error:', error);
       res.status(500).json({ message: "Failed to fetch session context" });
