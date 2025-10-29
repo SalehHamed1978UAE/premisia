@@ -3,11 +3,13 @@ import { useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Sparkles, Archive, FileText, ArrowRight, CheckCircle, Menu, TrendingUp, Target, Calendar } from "lucide-react";
+import { Sparkles, Archive, FileText, ArrowRight, CheckCircle, Menu, TrendingUp, Target, Calendar, ShieldCheck, Zap } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
+import { useAuth } from "@/hooks/use-auth";
+import { SiGoogle } from "react-icons/si";
 
 interface DashboardSummary {
   counts: {
@@ -404,12 +406,169 @@ function Dashboard({ summary }: { summary: DashboardSummary }) {
   );
 }
 
+function PublicLandingPage() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
+      <div className="container mx-auto px-4 py-8 md:py-16">
+        {/* Hero Section */}
+        <div className="text-center mb-12 md:mb-16">
+          <div className="inline-flex items-center justify-center w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-primary to-primary/80 rounded-2xl mb-6 shadow-lg">
+            <Sparkles className="h-8 w-8 md:h-10 md:w-10 text-white" />
+          </div>
+          <div className="flex items-center justify-center gap-2 md:gap-3 mb-4">
+            <h1 className="text-3xl md:text-5xl font-bold text-foreground">
+              QGentic
+            </h1>
+            <span className="px-2 md:px-3 py-1 text-xs md:text-sm font-semibold bg-primary/10 text-primary rounded-lg">BETA</span>
+          </div>
+          <p className="text-lg md:text-2xl font-semibold text-foreground mb-4">
+            Strategic Ideas into Executable Programs
+          </p>
+          <p className="text-base md:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
+            AI-enhanced strategic intelligence platform that transforms your ideas into complete, execution-ready EPM programs. <span className="font-semibold text-foreground">10-30 minutes</span>—vs. weeks of traditional consulting.
+          </p>
+        </div>
+
+        {/* Features Grid */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                </div>
+                <CardTitle className="text-lg">Multi-Agent AI</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Specialized AI agents for strategy, building, and QA—not just a chatbot
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <Zap className="h-5 w-5 text-primary" />
+                </div>
+                <CardTitle className="text-lg">Lightning Fast</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                15-30 minutes first time, 10-20 when familiar—vs. traditional 2-3 week timeline
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <CheckCircle className="h-5 w-5 text-primary" />
+                </div>
+                <CardTitle className="text-lg">Evidence-Based</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Real-time research with source validation and built-in anti-bias checks
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <Target className="h-5 w-5 text-primary" />
+                </div>
+                <CardTitle className="text-lg">Battle-Tested Frameworks</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                Five Whys, Business Model Canvas, PESTLE, Porter's Five Forces
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <FileText className="h-5 w-5 text-primary" />
+                </div>
+                <CardTitle className="text-lg">Complete EPM Programs</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                14-component execution blueprints with timelines, resources, and financials
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <ShieldCheck className="h-5 w-5 text-primary" />
+                </div>
+                <CardTitle className="text-lg">Enterprise Security</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                AES-256 encryption, secure authentication, and protected strategic IP
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* CTA Section */}
+        <div className="text-center">
+          <Card className="max-w-md mx-auto">
+            <CardContent className="p-6 md:p-8">
+              <h3 className="text-xl md:text-2xl font-bold mb-4">Ready to Get Started?</h3>
+              <p className="text-muted-foreground mb-6">
+                Sign in to transform your strategic ideas into executable programs
+              </p>
+              <Button 
+                onClick={() => window.location.href = '/api/login'}
+                size="lg"
+                className="w-full"
+                data-testid="button-landing-login"
+              >
+                <SiGoogle className="mr-2 h-5 w-5" />
+                Sign in with Replit
+              </Button>
+              <p className="text-xs text-muted-foreground mt-4">
+                Secure OAuth 2.0 / OIDC authentication via Replit
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function HomePage() {
+  const { user, isLoading } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const { data: summary, isLoading } = useQuery<DashboardSummary>({
+  const { data: summary, isLoading: summaryLoading } = useQuery<DashboardSummary>({
     queryKey: ['/api/dashboard-summary'],
+    enabled: !!user, // Only fetch when user is authenticated
   });
+
+  // Show public landing page if not authenticated
+  if (!user && !isLoading) {
+    return <PublicLandingPage />;
+  }
 
   const hasWork = summary && (
     summary.counts.analyses > 0 || 
@@ -440,7 +599,7 @@ export default function HomePage() {
         </div>
       )}
       
-      {isLoading ? (
+      {(isLoading || summaryLoading) ? (
         <div className="p-6 space-y-6">
           <Skeleton className="h-12 w-64" />
           <div className="grid gap-6 md:grid-cols-3">

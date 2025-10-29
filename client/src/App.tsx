@@ -48,7 +48,7 @@ function Router() {
   return (
     <>
       <Switch>
-        <ProtectedRoute path="/" component={HomePage} />
+        <Route path="/" component={HomePage} />
         <ProtectedRoute path="/programs" component={ProgramsPage} />
         <ProtectedRoute path="/strategy/test" component={StrategyTest} />
         <ProtectedRoute path="/bmc/test" component={BMCTestPage} />
