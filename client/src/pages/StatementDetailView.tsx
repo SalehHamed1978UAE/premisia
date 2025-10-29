@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { ArrowLeft, Calendar, Clock, TrendingUp, FileText, ExternalLink, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { StatementDetail } from '@/types/repository';
@@ -188,12 +189,18 @@ export default function StatementDetailView() {
               {statement.title || statement.statement}
             </h1>
             {statement.title && (
-              <div className="mb-4 p-4 bg-muted/50 rounded-lg border border-border">
-                <h2 className="text-sm font-semibold text-muted-foreground mb-1">Original Input</h2>
-                <p className="text-base text-foreground" data-testid="statement-original-input">
-                  {statement.statement}
-                </p>
-              </div>
+              <Accordion type="single" collapsible className="mb-4">
+                <AccordionItem value="original-input" className="border rounded-lg bg-muted/50">
+                  <AccordionTrigger className="px-4 py-3 hover:no-underline" data-testid="accordion-original-input">
+                    <h2 className="text-sm font-semibold text-muted-foreground">Original Input</h2>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-4 pb-4">
+                    <p className="text-base text-foreground whitespace-pre-wrap" data-testid="statement-original-input">
+                      {statement.statement}
+                    </p>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
             )}
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <div className="flex items-center gap-1">
