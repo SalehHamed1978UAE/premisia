@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Menu, Bell, Search, FolderKanban } from "lucide-react";
 import { useProgram } from "@/contexts/ProgramContext";
+import { useDocumentInsights } from "@/contexts/DocumentInsightsContext";
 
 interface TopBarProps {
   title: string;
@@ -11,6 +12,7 @@ interface TopBarProps {
 
 export function TopBar({ title, subtitle, onToggleSidebar }: TopBarProps) {
   const { selectedProgramId, setSelectedProgramId, programs, isLoading } = useProgram();
+  const { pendingInsights, setPanelOpen } = useDocumentInsights();
 
   return (
     <header className="sticky top-0 z-20 bg-card border-b border-border">
@@ -53,10 +55,13 @@ export function TopBar({ title, subtitle, onToggleSidebar }: TopBarProps) {
             variant="outline"
             size="icon"
             className="relative hidden sm:flex"
+            onClick={() => setPanelOpen(true)}
             data-testid="button-notifications"
           >
             <Bell className="h-4 w-4" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
+            {pendingInsights.length > 0 && (
+              <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
+            )}
           </Button>
           <Button
             variant="outline"

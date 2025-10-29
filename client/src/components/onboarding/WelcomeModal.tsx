@@ -36,9 +36,9 @@ export function WelcomeModal() {
               <Sparkles className="h-6 w-6 text-white" />
             </div>
             <div>
-              <DialogTitle className="text-2xl">Welcome to Qgentic!</DialogTitle>
+              <DialogTitle className="text-2xl">Welcome to QGentic!</DialogTitle>
               <DialogDescription className="text-base">
-                Your AI-powered Enterprise Program Management system
+                AI-Enhanced Strategic Intelligence Platform
               </DialogDescription>
             </div>
           </div>
@@ -46,7 +46,7 @@ export function WelcomeModal() {
 
         <div className="space-y-6 py-4">
           <p className="text-muted-foreground">
-            Qgentic helps you turn strategic ideas into fully-structured enterprise programs with AI-powered guidance every step of the way.
+            QGentic transforms your strategic ideas into complete, execution-ready EPM programs in 15-30 minutes—vs. weeks of traditional consulting.
           </p>
 
           <div className="space-y-4">
