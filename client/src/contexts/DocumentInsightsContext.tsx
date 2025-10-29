@@ -45,20 +45,10 @@ export function DocumentInsightsProvider({ children }: { children: ReactNode }) 
   }, [pendingInsights]);
 
   const addNotification = (notification: DocumentEnrichmentNotification) => {
-    // Check if we've already seen this job
-    const seenJobs = JSON.parse(localStorage.getItem(SEEN_JOBS_KEY) || '[]');
-    if (seenJobs.includes(notification.id)) {
-      return;
-    }
-
-    // Add to seen jobs
-    seenJobs.push(notification.id);
-    localStorage.setItem(SEEN_JOBS_KEY, JSON.stringify(seenJobs));
-
-    // Add to pending if not already there
+    // Add to pending if not already there (state handles deduplication)
     setPendingInsights(prev => {
       if (prev.find(n => n.id === notification.id)) {
-        return prev;
+        return prev; // Already in the list, don't add again
       }
       return [...prev, notification];
     });

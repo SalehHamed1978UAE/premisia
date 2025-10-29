@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { storage } from "./storage";
-import { insertProgramSchema, insertWorkstreamSchema, insertStageGateSchema, insertTaskSchema, insertKpiSchema, insertRiskSchema, insertBenefitSchema, insertFundingSourceSchema, insertExpenseSchema, insertResourceSchema, insertSessionContextSchema, orchestratorTaskSchema, backgroundJobs } from "@shared/schema";
+import { insertProgramSchema, insertWorkstreamSchema, insertStageGateSchema, insertTaskSchema, insertKpiSchema, insertRiskSchema, insertBenefitSchema, insertFundingSourceSchema, insertExpenseSchema, insertResourceSchema, insertSessionContextSchema, orchestratorTaskSchema, backgroundJobs, journeySessions } from "@shared/schema";
 import { ontologyService } from "./ontology-service";
 import { assessmentService } from "./assessment-service";
 import { Orchestrator } from "./orchestrator";
@@ -847,11 +847,64 @@ Marketing and events: $3k/month`,
   });
 
   // Session Context API endpoints
-  app.get("/api/session-context", requireAuth, async (req, res) => {
+  app.get("/api/session-context", requireAuth, async (req: any, res) => {
     try {
+      const userId = req.user?.claims?.sub;
+      if (!userId) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+
+      // Try to get active journey session first (new journey-based system)
+      const [activeJourney] = await db.select()
+        .from(journeySessions)
+        .where(
+          and(
+            eq(journeySessions.userId, userId),
+            eq(journeySessions.status, 'in_progress')
+          )
+        )
+        .orderBy(desc(journeySessions.updatedAt))
+        .limit(1);
+
+      if (activeJourney) {
+        // Transform journey data into SessionContext format
+        const accumulatedContext: any = activeJourney.accumulatedContext || {};
+        const currentFramework = accumulatedContext.currentFramework || 'Unknown Framework';
+        const completedFrameworks = activeJourney.completedFrameworks || [];
+        const insights = accumulatedContext.insights || {};
+        
+        // Extract key insights from the accumulated context
+        const keyInsights: string[] = [];
+        if (insights.rootCauses && Array.isArray(insights.rootCauses)) {
+          keyInsights.push(...insights.rootCauses.slice(0, 3));
+        }
+        if (insights.strategicImplications && Array.isArray(insights.strategicImplications)) {
+          keyInsights.push(...insights.strategicImplications.slice(0, 2));
+        }
+        
+        const sessionContext = {
+          id: activeJourney.id,
+          goal: `Strategic Analysis Journey: ${activeJourney.journeyType}`,
+          successCriteria: [
+            `✓ Complete ${currentFramework} analysis`,
+            `${completedFrameworks.length} of ${(activeJourney.currentFrameworkIndex || 0) + 1} frameworks completed`,
+            ...keyInsights.slice(0, 3).map(insight => `• ${insight}`)
+          ],
+          currentPhase: `Analyzing: ${currentFramework}`,
+          decisionsLog: [],
+          isActive: true,
+          createdAt: activeJourney.createdAt,
+          updatedAt: activeJourney.updatedAt
+        };
+
+        return res.json(sessionContext);
+      }
+
+      // Fallback to standalone session context (legacy system)
       const activeContext = await storage.getActiveSessionContext();
       res.json(activeContext || null);
     } catch (error) {
+      console.error('[Session Context] Error:', error);
       res.status(500).json({ message: "Failed to fetch session context" });
     }
   });

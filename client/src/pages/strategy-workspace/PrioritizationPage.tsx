@@ -604,8 +604,8 @@ export default function PrioritizationPage() {
         
         {/* Non-Blocking Progress Tracker */}
         {showProgress && !isMinimized && (
-          <Card className="fixed bottom-4 right-4 w-96 shadow-lg z-50" data-testid="progress-tracker-card">
-            <CardHeader>
+          <Card className="fixed top-4 bottom-4 right-4 w-96 shadow-lg z-50 flex flex-col max-h-[calc(100vh-2rem)] overflow-hidden" data-testid="progress-tracker-card">
+            <CardHeader className="flex-shrink-0">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg flex items-center gap-2 flex-1 min-w-0">
                   <Loader2 className="h-5 w-5 animate-spin flex-shrink-0" />
@@ -621,7 +621,7 @@ export default function PrioritizationPage() {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 overflow-y-auto flex-1">
               <PlanningProgressTracker />
               
               <Alert>
