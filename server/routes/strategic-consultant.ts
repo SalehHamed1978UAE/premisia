@@ -1802,7 +1802,7 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
     let understanding;
     const journeySession = await getJourneySession(sessionId);
     
-    if (journeySession) {
+    if (journeySession && journeySession.understandingId) {
       // This is a journey session ID, get understanding via understandingId
       console.log('[BMC-RESEARCH-STREAM] Found journey session, fetching understanding via understandingId:', journeySession.understandingId);
       understanding = await getStrategicUnderstanding(journeySession.understandingId);
