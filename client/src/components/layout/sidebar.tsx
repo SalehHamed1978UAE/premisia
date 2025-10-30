@@ -11,7 +11,8 @@ import {
   LogOut,
   X,
   LayoutDashboard,
-  Map
+  Map,
+  Target
 } from "lucide-react";
 
 interface SidebarProps {
@@ -139,6 +140,23 @@ export function Sidebar({ isOpen = false, onToggle = () => {} }: SidebarProps) {
               <div className="text-left">
                 <div className="font-medium">Strategic Consultant</div>
                 <div className="text-xs opacity-70">AI-powered strategy</div>
+              </div>
+            </Button>
+
+            {/* Strategies Hub */}
+            <Button
+              variant={location.startsWith('/strategies') ? 'default' : 'ghost'}
+              className={cn(
+                "w-full justify-start h-auto p-3",
+                location.startsWith('/strategies') && "bg-primary text-primary-foreground"
+              )}
+              onClick={() => navigate('/strategies')}
+              data-testid="nav-strategies"
+            >
+              <Target className="h-5 w-5 mr-3 flex-shrink-0" />
+              <div className="text-left">
+                <div className="font-medium">Strategies Hub</div>
+                <div className="text-xs opacity-70">Unified initiatives</div>
               </div>
             </Button>
 
