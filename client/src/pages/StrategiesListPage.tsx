@@ -171,7 +171,7 @@ export default function StrategiesListPage() {
               <CardHeader className="pb-3">
                 <CardDescription>Total Journeys</CardDescription>
                 <CardTitle className="text-3xl" data-testid="stat-total-journeys">
-                  {strategies.reduce((sum, s) => sum + s.journeyCount, 0)}
+                  {strategies.reduce((sum, s) => sum + Number(s.journeyCount), 0)}
                 </CardTitle>
               </CardHeader>
             </Card>

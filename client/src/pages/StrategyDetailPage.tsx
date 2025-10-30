@@ -216,11 +216,9 @@ function JourneyTimelineTab({ sessions }: { sessions: JourneySession[] }) {
                   </CardDescription>
                 </div>
                 <Link href={`/strategic-consultant/journey-results/${session.id}`}>
-                  <a>
-                    <Button variant="ghost" size="sm" data-testid={`button-view-journey-${session.id}`}>
-                      <ExternalLink className="h-4 w-4" />
-                    </Button>
-                  </a>
+                  <Button variant="ghost" size="sm" data-testid={`button-view-journey-${session.id}`}>
+                    <ExternalLink className="h-4 w-4" />
+                  </Button>
                 </Link>
               </div>
             </CardHeader>
@@ -410,11 +408,9 @@ function EPMProgramsTab({ programs }: { programs: EPMProgram[] }) {
                   </CardDescription>
                 </div>
                 <Link href={`/strategy-workspace/epm/${program.id}`}>
-                  <a>
-                    <Button variant="default" size="sm" data-testid={`button-view-program-${program.id}`}>
-                      View Program
-                    </Button>
-                  </a>
+                  <Button variant="default" size="sm" data-testid={`button-view-program-${program.id}`}>
+                    View Program
+                  </Button>
                 </Link>
               </div>
             </CardHeader>
@@ -451,12 +447,10 @@ export default function StrategyDetailPage() {
           <h3 className="text-lg font-semibold mb-2">Strategy not found</h3>
           <p className="text-muted-foreground mb-4">The strategy you're looking for doesn't exist or you don't have access to it.</p>
           <Link href="/strategies">
-            <a>
-              <Button>
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to Strategies
-              </Button>
-            </a>
+            <Button>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Strategies
+            </Button>
           </Link>
         </Card>
       </div>
@@ -470,12 +464,10 @@ export default function StrategyDetailPage() {
       {/* Header */}
       <div className="mb-6">
         <Link href="/strategies">
-          <a>
-            <Button variant="ghost" size="sm" className="mb-4" data-testid="button-back">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Strategies
-            </Button>
-          </a>
+          <Button variant="ghost" size="sm" className="mb-4" data-testid="button-back">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Strategies
+          </Button>
         </Link>
         <div className="flex items-start justify-between">
           <div className="flex items-start gap-4">
@@ -494,12 +486,10 @@ export default function StrategyDetailPage() {
             </div>
           </div>
           <Link href={`/strategic-consultant/input?understandingId=${strategyId}`}>
-            <a>
-              <Button data-testid="button-new-journey">
-                <Plus className="h-4 w-4 mr-2" />
-                Start New Journey
-              </Button>
-            </a>
+            <Button data-testid="button-new-journey">
+              <Plus className="h-4 w-4 mr-2" />
+              Start New Journey
+            </Button>
           </Link>
         </div>
       </div>
