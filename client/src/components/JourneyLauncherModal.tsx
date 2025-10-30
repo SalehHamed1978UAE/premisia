@@ -300,27 +300,27 @@ export default function JourneyLauncherModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-0">
-        <div className="px-6 pt-6">
+      <DialogContent className="max-w-[95vw] sm:max-w-[90vw] lg:max-w-4xl max-h-[90vh] sm:max-h-[85vh] flex flex-col p-0">
+        <div className="px-4 sm:px-6 pt-4 sm:pt-6">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Rocket className="h-5 w-5" />
+            <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
+              <Rocket className="h-4 w-4 sm:h-5 sm:w-5" />
               Run Additional Analysis
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-sm">
               Continue analyzing <span className="font-semibold">{strategyTitle}</span> with full journeys or individual frameworks
             </DialogDescription>
           </DialogHeader>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 space-y-4" data-modal-scroll>
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 space-y-4" data-modal-scroll>
           {/* Context Summary */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium">Available Context</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex gap-4 text-sm">
+              <div className="flex flex-wrap gap-3 sm:gap-4 text-sm">
                 <div>
                   <span className="text-muted-foreground">References:</span>{" "}
                   <span className="font-semibold">{contextMetrics.referenceCount}</span>
@@ -473,7 +473,7 @@ export default function JourneyLauncherModal({
 
         {/* Sticky Footer - Shows when journey or frameworks selected */}
         {(selectedJourney || selectedFrameworks.length > 0) && !isLoadingData && (
-          <div className="border-t bg-background px-6 py-4 space-y-3">
+          <div className="border-t bg-background px-4 sm:px-6 py-4 space-y-3">
             {/* Readiness Status */}
             {checkingReadiness ? (
               <Alert>
@@ -502,7 +502,7 @@ export default function JourneyLauncherModal({
             ) : null}
 
             {/* Action Buttons */}
-            <div className="flex justify-end gap-3">
+            <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
               <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel">
                 Cancel
               </Button>
