@@ -2143,9 +2143,21 @@ router.post('/journeys/execute-background', async (req: Request, res: Response) 
       userId
     );
 
-    // Execute in background (fire and forget with job tracking)
+    // Mark job as completed (since journey session is created synchronously)
     // TODO: Wire up actual background execution with journey orchestrator
-    // For now, return job ID for tracking
+    // For now, we mark the job complete since the session is already created
+    if (jobId) {
+      await backgroundJobService.updateJob(jobId, {
+        status: 'completed',
+        progress: 100,
+        progressMessage: 'Journey session created successfully',
+        resultData: {
+          journeySessionId,
+          understandingId: targetUnderstandingId,
+          isFollowOn,
+        }
+      });
+    }
     
     res.json({
       success: true,
