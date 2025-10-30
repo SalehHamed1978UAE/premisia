@@ -14,7 +14,7 @@ interface StrategicSummary {
   summaryVersion: number;
   strategySnapshot: {
     baselineInput: string;
-    clarifiedInput: string | null;
+    title: string | null;
     currentGoal: string | null;
   };
   latestJourney: {
@@ -90,8 +90,8 @@ export async function buildStrategicSummary(understandingId: string): Promise<st
     strategySnapshot: {
       // Truncate baseline input to 2000 chars max
       baselineInput: truncate(understanding.userInput, 2000),
-      clarifiedInput: understanding.clarifiedInput 
-        ? truncate(understanding.clarifiedInput, 500) 
+      title: understanding.title 
+        ? truncate(understanding.title, 200) 
         : null,
       currentGoal: understanding.initiativeDescription
         ? truncate(understanding.initiativeDescription, 300)
@@ -260,15 +260,13 @@ function formatSummaryAsMarkdown(summary: StrategicSummary): string {
   lines.push('# Strategic Context Summary\n');
   
   // Baseline
+  if (summary.strategySnapshot.title) {
+    lines.push(`## ${summary.strategySnapshot.title}\n`);
+  }
+  
   lines.push('## Executive Summary');
   lines.push(summary.strategySnapshot.baselineInput);
   lines.push('');
-
-  if (summary.strategySnapshot.clarifiedInput) {
-    lines.push('## Clarified Context');
-    lines.push(summary.strategySnapshot.clarifiedInput);
-    lines.push('');
-  }
 
   if (summary.strategySnapshot.currentGoal) {
     lines.push('## Current Goal');

@@ -23,6 +23,7 @@ import { InitiativeClassifier } from '../strategic-consultant/initiative-classif
 import { ambiguityDetector } from '../services/ambiguity-detector.js';
 import { getStrategicUnderstanding, getStrategicUnderstandingBySession, updateStrategicUnderstanding, getJourneySession } from '../services/secure-data-service';
 import { fiveWhysCoach } from '../services/five-whys-coach.js';
+import { buildStrategicSummary } from '../services/strategic-summary-builder';
 
 const router = Router();
 const upload = multer({ 
@@ -41,138 +42,6 @@ const marketResearcher = new MarketResearcher();
 const frameworkSelector = new FrameworkSelector();
 const bmcResearcher = new BMCResearcher();
 const journeyOrchestrator = new JourneyOrchestrator();
-
-/**
- * Build a rich strategic summary for follow-on journeys
- * Aggregates executive summary, decisions, insights, and references
- */
-async function buildStrategicSummary(understandingId: string): Promise<string> {
-  // Get the strategic understanding
-  const understanding = await getStrategicUnderstanding(understandingId);
-  if (!understanding) {
-    throw new Error('Strategic understanding not found');
-  }
-
-  // Get completed journey sessions (limit to most recent 3)
-  const sessions = await db.query.journeySessions.findMany({
-    where: (sessions, { eq }) => eq(sessions.understandingId, understandingId),
-    orderBy: (sessions, { desc }) => [desc(sessions.createdAt)],
-    limit: 3,
-  });
-
-  // Get strategic versions from most recent journey session only
-  const allVersions: any[] = [];
-  
-  // Only include versions from the 2 most recent sessions to keep it concise
-  const recentSessions = sessions.slice(0, 2);
-  for (const session of recentSessions) {
-    const sessionVersions = await db.query.strategyVersions.findMany({
-      where: (versions, { eq }) => eq(versions.sessionId, session.id),
-      orderBy: (versions, { desc }) => [desc(versions.createdAt)],
-      limit: 2, // Only 2 versions per session
-    });
-    allVersions.push(...sessionVersions);
-  }
-  
-  const versions = allVersions.slice(0, 3); // Max 3 versions total
-
-  // Get strategic entities (limit to 5 most recent)
-  const entities = await db.query.strategicEntities.findMany({
-    where: (entities, { eq }) => eq(entities.understandingId, understandingId),
-    orderBy: (entities, { desc }) => [desc(entities.createdAt)],
-    limit: 5,
-  });
-
-  // Get references (limit to 5 most recent)
-  const references = await db.query.references.findMany({
-    where: (refs, { eq }) => eq(refs.understandingId, understandingId),
-    orderBy: (refs, { desc }) => [desc(refs.createdAt)],
-    limit: 5,
-  });
-
-  // Build concise summary with strict length limits
-  const summaryParts: string[] = [];
-
-  // Helper function to truncate text
-  const truncate = (text: string, maxLength: number) => {
-    if (!text) return '';
-    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-  };
-
-  // Header
-  summaryParts.push('# Strategic Context Summary\n');
-  summaryParts.push(`## Executive Summary`);
-  // Truncate user input to 2000 chars to prevent massive summaries
-  summaryParts.push(truncate(understanding.userInput || '', 2000));
-  summaryParts.push('');
-
-  // Initiative Details (concise)
-  if (understanding.initiativeType) {
-    summaryParts.push(`## Initiative: ${understanding.initiativeType}`);
-    if (understanding.initiativeDescription) {
-      summaryParts.push(truncate(understanding.initiativeDescription, 300));
-    }
-    summaryParts.push('');
-  }
-
-  // Completed Analysis (very concise)
-  if (sessions.length > 0) {
-    summaryParts.push(`## Completed Analysis (${sessions.length} session${sessions.length > 1 ? 's' : ''})`);
-    sessions.slice(0, 3).forEach((session, idx) => {
-      const frameworks = session.completedFrameworks?.slice(0, 3).join(', ') || 'N/A';
-      summaryParts.push(`${idx + 1}. ${session.journeyType} - ${frameworks}`);
-    });
-    summaryParts.push('');
-  }
-
-  // Strategic Decisions (highly condensed)
-  if (versions.length > 0) {
-    summaryParts.push(`## Key Decisions`);
-    versions.forEach((version, idx) => {
-      const approach = truncate(version.strategicApproach || '', 150);
-      summaryParts.push(`${idx + 1}. v${version.versionNumber}: ${approach}`);
-      
-      // Only include first decision title, no details
-      if (version.decisionsData) {
-        try {
-          const decisions = typeof version.decisionsData === 'string' 
-            ? JSON.parse(version.decisionsData)
-            : version.decisionsData;
-          if (Array.isArray(decisions) && decisions.length > 0 && decisions[0].title) {
-            summaryParts.push(`   ${truncate(decisions[0].title, 100)}`);
-          }
-        } catch (e) {
-          // Skip if can't parse
-        }
-      }
-    });
-    summaryParts.push('');
-  }
-
-  // Key Insights (condensed, no evidence details)
-  if (entities.length > 0) {
-    summaryParts.push(`## Key Insights (${entities.length} finding${entities.length > 1 ? 's' : ''})`);
-    entities.slice(0, 3).forEach((entity, idx) => {
-      const claim = truncate(entity.claim || '', 120);
-      summaryParts.push(`${idx + 1}. ${claim}`);
-    });
-    summaryParts.push('');
-  }
-
-  // Research References (titles only)
-  if (references.length > 0) {
-    summaryParts.push(`## References (${references.length} source${references.length > 1 ? 's' : ''})`);
-    references.slice(0, 3).forEach((ref, idx) => {
-      summaryParts.push(`${idx + 1}. ${truncate(ref.title || 'Reference', 80)}`);
-    });
-    summaryParts.push('');
-  }
-
-  // Concise context note
-  summaryParts.push(`*Based on ${sessions.length} session(s), ${entities.length} finding(s), ${references.length} source(s)*`);
-
-  return summaryParts.join('\n');
-}
 
 /**
  * POST /api/strategic-consultant/extract-file
