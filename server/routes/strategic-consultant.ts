@@ -2119,12 +2119,20 @@ router.post('/journeys/execute-background', async (req: Request, res: Response) 
       }
     }
 
-    // Create background job record
+    // Start journey session (initializing state)
+    const journeySessionId = await journeyOrchestrator.startJourney(
+      targetUnderstandingId,
+      journeyType as JourneyType,
+      userId
+    );
+
+    // Create background job record with session ID
     const { backgroundJobService } = await import('../services/background-job-service');
     const jobId = await backgroundJobService.createJob({
       userId,
       jobType: journeyType ? 'strategic_understanding' : 'web_research',
       inputData: {
+        sessionId: journeySessionId, // CRITICAL: Worker needs session ID
         understandingId: targetUnderstandingId,
         journeyType,
         frameworks,
@@ -2135,13 +2143,6 @@ router.post('/journeys/execute-background', async (req: Request, res: Response) 
       relatedEntityId: targetUnderstandingId,
       relatedEntityType: 'strategic_understanding',
     });
-
-    // Start journey session (initializing state)
-    const journeySessionId = await journeyOrchestrator.startJourney(
-      targetUnderstandingId,
-      journeyType as JourneyType,
-      userId
-    );
 
     // Background worker will execute the journey and update job status
     console.log(`[execute-background] Journey session ${journeySessionId} queued for background execution by worker`);

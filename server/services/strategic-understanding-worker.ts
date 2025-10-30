@@ -16,18 +16,19 @@ export async function processStrategicUnderstandingJob(job: SelectBackgroundJob)
   console.log('[StrategicUnderstanding Worker] Processing job:', job.id);
   
   try {
-    const { understandingId, journeyType, isFollowOn, baseUnderstandingId } = job.inputData as {
+    const { sessionId, understandingId, journeyType, isFollowOn, baseUnderstandingId } = job.inputData as {
+      sessionId: string;
       understandingId: string;
       journeyType: JourneyType;
       isFollowOn?: boolean;
       baseUnderstandingId?: string;
     };
 
-    if (!understandingId || !journeyType) {
-      throw new Error('Missing required input data: understandingId or journeyType');
+    if (!sessionId || !journeyType) {
+      throw new Error('Missing required input data: sessionId or journeyType');
     }
 
-    console.log(`[StrategicUnderstanding Worker] Executing ${journeyType} journey for understanding ${understandingId}${isFollowOn ? ' (follow-on)' : ''}`);
+    console.log(`[StrategicUnderstanding Worker] Executing ${journeyType} journey for session ${sessionId}${isFollowOn ? ' (follow-on)' : ''}`);
 
     // Update status to running
     await backgroundJobService.updateJob(job.id, {
@@ -38,9 +39,7 @@ export async function processStrategicUnderstandingJob(job: SelectBackgroundJob)
 
     // Execute the journey with progress tracking
     await journeyOrchestrator.executeJourney(
-      understandingId,
-      journeyType,
-      job.userId,
+      sessionId,
       // Progress callback to update job status
       async (progress) => {
         const percentComplete = Math.min(95, 10 + Math.round(progress.percentComplete * 0.85));
