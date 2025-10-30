@@ -33,6 +33,62 @@ The frontend utilizes React, TypeScript, and Vite, enhanced with Shadcn/ui (Radi
 - **Database Connection Management**: `DBConnectionManager` handles Neon serverless connections with connection pooling and retry mechanisms.
 - **Authentication/Authorization**: Session-based authentication via Passport.js with Replit OIDC, HTTP-only cookies, and a three-tier role system (Admin, Editor, Viewer).
 
+## Background Jobs Architecture
+
+**Overview:**
+The application uses a hybrid background job system with database persistence and real-time progress tracking. Jobs are dispatched every 15 seconds by polling the database for pending jobs, then routing them to appropriate workers.
+
+**Core Components:**
+
+1. **Background Job Service** (`server/services/background-job-service.ts`)
+   - Manages job lifecycle (create, update, complete, fail)
+   - Dispatcher polls database every 15 seconds for pending jobs
+   - Routes jobs to appropriate workers based on `jobType`
+
+2. **Workers** (implement job-specific execution logic)
+   - `document-enrichment-worker.ts` - Extracts knowledge from uploaded documents
+   - `strategic-understanding-worker.ts` - Executes strategic analysis journeys in background
+
+3. **Modular Framework Executor Registry** (`server/journey/framework-executor-registry.ts`)
+   - Plugin system for strategic analysis frameworks
+   - Frameworks register themselves at application startup
+   - Zero coupling between orchestrator and specific framework implementations
+
+**Framework Execution Architecture:**
+
+```
+Journey Orchestrator (framework-agnostic)
+    ↓
+Framework Executor Registry (plugin hub)
+    ↓
+Individual Framework Executors (five_whys, bmc, porters, etc.)
+```
+
+**Registered Frameworks:**
+- `FiveWhysExecutor` - Root cause analysis using Five Whys technique
+- `BMCExecutor` - Business Model Canvas research across 9 building blocks
+- Future frameworks: Porter's Five Forces, PESTLE, SWOT, etc.
+
+**Wiring Requirements:**
+
+**When Adding a New Journey or Framework:**
+1. Create framework executor implementing `FrameworkExecutor` interface in `server/journey/executors/`
+2. Register executor in `server/journey/register-frameworks.ts`
+3. Add journey definition to `server/journey/journey-registry.ts` with framework list
+4. Add framework type to `FrameworkName` enum in `shared/journey-types.ts`
+
+**When Adding a New Background Job Type:**
+1. Create worker file in `server/services/` (e.g., `new-job-type-worker.ts`)
+2. Implement `process[JobType]Job(job: SelectBackgroundJob): Promise<void>` function
+3. Register worker in `server/services/background-job-service.ts` dispatcher's `processJob()` method
+4. Add job type to allowed types in `BackgroundJobService.createJob()` method
+
+**Key Principles:**
+- `strategic-understanding-worker` executes whatever the Journey Orchestrator defines via the framework registry
+- Journey Orchestrator is completely framework-agnostic - it just calls `frameworkRegistry.execute()`
+- Adding frameworks requires NO changes to orchestrator code - just create executor and register it
+- Background workers handle actual execution; job service handles lifecycle and tracking
+
 ## Feature Specifications
 - **AI Multi-Agent System**: Ontology-based architecture comprising an Executive Agent, Builder Specialist Agent, QA Specialist Agent, and a Multi-Agent Orchestrator, supporting multiple AI providers.
 - **Strategic Consultant & EPM Integration**: Transforms executive input into AI-analyzed strategic decisions and EPM program structures, incorporating Five Whys (with AI validation and coaching), Anti-Confirmation Bias Research, EPM Conversion, Version Management, Strategic Decisions, and Intelligent Framework Selection.
