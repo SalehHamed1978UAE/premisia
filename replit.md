@@ -13,7 +13,18 @@ Preferred communication style: Simple, everyday language.
 # System Architecture
 
 ## UI/UX Decisions
-The frontend utilizes React, TypeScript, and Vite, enhanced with Shadcn/ui (Radix UI and Tailwind CSS) to deliver a themeable "New York" style UI. It offers a single-page application experience, ensuring mobile responsiveness, skeleton loading, and toast notifications, with a focus on responsive design principles using Tailwind's `sm:` breakpoint for adaptive layouts.
+The frontend utilizes React, TypeScript, and Vite, enhanced with Shadcn/ui (Radix UI and Tailwind CSS) to deliver a themeable "New York" style UI. It offers a single-page application experience, ensuring mobile responsiveness, skeleton loading, and toast notifications.
+
+**Mobile-First Responsive Design Strategy:**
+- **Breakpoint System**: Mobile (default, <640px), Tablet (sm: 640-1023px), Desktop (lg: 1024px+)
+- **Layout Patterns**: 
+  - Headers: Stack vertically on mobile (`flex-col`), horizontal on desktop (`lg:flex-row`)
+  - Grids: Single column mobile (`grid-cols-1`), progressive enhancement to multi-column (`sm:grid-cols-2 lg:grid-cols-4`)
+  - Buttons: Full-width on mobile (`w-full`), auto-width on desktop (`lg:w-auto`)
+- **Typography**: Responsive scaling (e.g., `text-xl sm:text-2xl lg:text-3xl`)
+- **Text Handling**: `break-words` for wrapping, `min-w-0` for flex shrinking
+- **Spacing**: Reduced gaps/padding on mobile, increased on larger screens
+- **Key Pages**: StrategiesListPage, StrategyDetailPage, and JourneyLauncherModal follow these principles to prevent horizontal overflow and ensure accessibility on all device sizes.
 
 ## Technical Implementations
 - **Frontend**: React, TypeScript, Vite, TanStack Query, Wouter.
