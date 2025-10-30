@@ -2252,19 +2252,25 @@ router.post('/journeys/run-now', async (req: Request, res: Response) => {
       userId
     );
 
-    // Execute journey synchronously
-    console.log(`[Run Now] Starting execution for journey session ${journeySessionId}${isFollowOn ? ' (follow-on with strategic summary)' : ''}`);
-    const finalContext = await journeyOrchestrator.executeJourney(journeySessionId);
-    console.log(`[Run Now] Journey execution completed successfully`);
+    // Execute journey asynchronously (don't wait for completion)
+    console.log(`[Run Now] Starting async execution for journey session ${journeySessionId}${isFollowOn ? ' (follow-on with strategic summary)' : ''}`);
+    
+    // Execute in background without blocking the response
+    journeyOrchestrator.executeJourney(journeySessionId)
+      .then(() => {
+        console.log(`[Run Now] Journey ${journeySessionId} completed successfully`);
+      })
+      .catch((error) => {
+        console.error(`[Run Now] Journey ${journeySessionId} failed:`, error);
+      });
 
+    // Return immediately with session ID so user can navigate to results page
     res.json({
       success: true,
       journeySessionId,
-      message: `Journey "${journeyType}" completed successfully${isFollowOn ? ' using strategic summary from previous analysis' : ''}`,
-      context: {
-        understandingId: finalContext.understandingId,
-        completedFrameworks: finalContext.completedFrameworks,
-      },
+      understandingId: targetUnderstandingId,
+      message: `Journey "${journeyType}" started${isFollowOn ? ' using strategic summary from previous analysis' : ''}`,
+      redirectUrl: `/strategic-consultant/journey-results/${journeySessionId}`,
     });
   } catch (error: any) {
     console.error('Error in /journeys/run-now:', error);
