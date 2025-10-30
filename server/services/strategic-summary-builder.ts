@@ -47,11 +47,12 @@ interface StrategicSummary {
 }
 
 /**
- * Truncate text to max length
+ * Truncate text to max length (hard limit, no ellipsis to enforce strict size constraints)
  */
 function truncate(text: string | null | undefined, maxLength: number): string {
   if (!text) return '';
-  return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+  // Hard truncation without ellipsis to enforce ≤maxLength guarantee
+  return text.length > maxLength ? text.substring(0, maxLength) : text;
 }
 
 /**
