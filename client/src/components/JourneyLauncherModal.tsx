@@ -199,6 +199,10 @@ export default function JourneyLauncherModal({
         description: data.message || "Your journey has been started.",
       });
       onOpenChange(false);
+      // Store journey session ID for later use
+      if (data.journeySessionId) {
+        localStorage.setItem(`current-journey-session-${understandingId}`, data.journeySessionId);
+      }
       // Navigate to the journey wizard
       if (data.navigationUrl) {
         window.location.href = data.navigationUrl;

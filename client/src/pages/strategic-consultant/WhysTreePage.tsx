@@ -180,15 +180,19 @@ export default function WhysTreePage() {
       
       if (!understanding) return;
       
-      localStorage.setItem(`strategic-rootCause-${understanding.sessionId}`, variables.rootCause);
-      localStorage.setItem(`strategic-whysPath-${understanding.sessionId}`, JSON.stringify(variables.completePath));
-      localStorage.setItem(`strategic-input-${understanding.sessionId}`, understanding.userInput);
+      // Use the journey session ID if available, otherwise fall back to understanding session ID
+      const journeySessionId = localStorage.getItem(`current-journey-session-${understanding.id}`) || understanding.sessionId;
+      
+      localStorage.setItem(`strategic-rootCause-${journeySessionId}`, variables.rootCause);
+      localStorage.setItem(`strategic-whysPath-${journeySessionId}`, JSON.stringify(variables.completePath));
+      localStorage.setItem(`strategic-input-${journeySessionId}`, understanding.userInput);
+      localStorage.setItem(`journey-type-${journeySessionId}`, understanding.journeyType || '');
       
       toast({
         title: "Root cause identified",
         description: "Proceeding to research phase",
       });
-      setLocation(`/strategic-consultant/research/${understanding.sessionId}`);
+      setLocation(`/strategic-consultant/research/${journeySessionId}`);
     },
     onError: (error: any) => {
       setIsProcessingAction(false);
@@ -234,15 +238,18 @@ export default function WhysTreePage() {
         }
         const data = await response.json();
         
+        // Check if there's a current journey session ID in localStorage
+        const journeySessionId = localStorage.getItem(`current-journey-session-${data.id}`);
+        
         // Fetch journey session to get journey type
-        if (data.sessionId) {
+        if (journeySessionId) {
           try {
-            const journeyResponse = await fetch(`/api/strategic-consultant/journey-sessions/${data.sessionId}`);
+            const journeyResponse = await fetch(`/api/strategic-consultant/journey-sessions/${journeySessionId}`);
             if (journeyResponse.ok) {
               const journeyData = await journeyResponse.json();
               if (journeyData.journeyType) {
                 // Store journey type in localStorage for ResearchPage
-                localStorage.setItem(`journey-type-${data.sessionId}`, journeyData.journeyType);
+                localStorage.setItem(`journey-type-${journeySessionId}`, journeyData.journeyType);
                 data.journeyType = journeyData.journeyType;
               }
             }
