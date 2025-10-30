@@ -71,11 +71,15 @@ Individual Framework Executors (five_whys, bmc, porters, etc.)
 
 **Wiring Requirements:**
 
-**When Adding a New Journey or Framework:**
+**When Adding a New Framework (Analysis Tool):**
 1. Create framework executor implementing `FrameworkExecutor` interface in `server/journey/executors/`
-2. Register executor in `server/journey/register-frameworks.ts`
-3. Add journey definition to `server/journey/journey-registry.ts` with framework list
-4. Add framework type to `FrameworkName` enum in `shared/journey-types.ts`
+2. Import and register it in `server/journey/register-frameworks.ts` via `frameworkRegistry.register(new YourExecutor())`
+3. That's it! The framework is now available to ALL journeys that reference it
+
+**When Adding a New Journey (Pre-Planned Sequence):**
+1. Add journey definition to `server/journey/journey-registry.ts` with its framework list
+2. Add journey type to `JourneyType` in `shared/journey-types.ts`
+3. Ensure all frameworks used in the journey are already registered (see above)
 
 **When Adding a New Background Job Type:**
 1. Create worker file in `server/services/` (e.g., `new-job-type-worker.ts`)
@@ -84,10 +88,12 @@ Individual Framework Executors (five_whys, bmc, porters, etc.)
 4. Add job type to allowed types in `BackgroundJobService.createJob()` method
 
 **Key Principles:**
-- `strategic-understanding-worker` executes whatever the Journey Orchestrator defines via the framework registry
-- Journey Orchestrator is completely framework-agnostic - it just calls `frameworkRegistry.execute()`
-- Adding frameworks requires NO changes to orchestrator code - just create executor and register it
-- Background workers handle actual execution; job service handles lifecycle and tracking
+- **Frameworks** (Five Whys, BMC, Porter's) are analysis tools that register as plugins
+- **Journeys** (Business Model Innovation, Market Entry) are pre-planned sequences of frameworks
+- `strategic-understanding-worker` executes whatever Journey Orchestrator defines via the framework registry
+- Journey Orchestrator is framework-agnostic - it calls `frameworkRegistry.execute(frameworkName, context)`
+- Adding frameworks requires NO orchestrator changes - just create executor and register it
+- Background workers handle execution; job service handles lifecycle and tracking
 
 ## Feature Specifications
 - **AI Multi-Agent System**: Ontology-based architecture comprising an Executive Agent, Builder Specialist Agent, QA Specialist Agent, and a Multi-Agent Orchestrator, supporting multiple AI providers.
