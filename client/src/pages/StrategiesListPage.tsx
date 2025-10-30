@@ -37,67 +37,65 @@ function StrategyCard({ strategy }: { strategy: Strategy }) {
   }[strategy.latestJourneyStatus || ''] || 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
 
   return (
-    <Link href={`/strategies/${strategy.id}`}>
-      <a data-testid={`card-strategy-${strategy.id}`}>
-        <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-          <CardHeader>
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <CardTitle className="text-xl mb-2 truncate" data-testid={`text-strategy-title-${strategy.id}`}>
-                  {displayTitle}
-                </CardTitle>
-                <CardDescription className="flex items-center gap-2 flex-wrap">
-                  {strategy.initiativeType && (
-                    <Badge variant="outline" className="capitalize" data-testid={`badge-initiative-type-${strategy.id}`}>
-                      {strategy.initiativeType.replace(/_/g, ' ')}
-                    </Badge>
-                  )}
-                  {strategy.latestJourneyStatus && (
-                    <Badge className={statusColor} data-testid={`badge-status-${strategy.id}`}>
-                      {strategy.latestJourneyStatus.replace(/_/g, ' ')}
-                    </Badge>
-                  )}
-                </CardDescription>
-              </div>
-              <Rocket className="h-8 w-8 text-muted-foreground flex-shrink-0" />
+    <Link href={`/strategies/${strategy.id}`} data-testid={`card-strategy-${strategy.id}`}>
+      <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+        <CardHeader>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <CardTitle className="text-xl mb-2 truncate" data-testid={`text-strategy-title-${strategy.id}`}>
+                {displayTitle}
+              </CardTitle>
+              <CardDescription className="flex items-center gap-2 flex-wrap">
+                {strategy.initiativeType && (
+                  <Badge variant="outline" className="capitalize" data-testid={`badge-initiative-type-${strategy.id}`}>
+                    {strategy.initiativeType.replace(/_/g, ' ')}
+                  </Badge>
+                )}
+                {strategy.latestJourneyStatus && (
+                  <Badge className={statusColor} data-testid={`badge-status-${strategy.id}`}>
+                    {strategy.latestJourneyStatus.replace(/_/g, ' ')}
+                  </Badge>
+                )}
+              </CardDescription>
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-muted-foreground">Journeys</p>
-                <p className="font-semibold" data-testid={`text-journey-count-${strategy.id}`}>
-                  {strategy.journeyCount}
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Frameworks</p>
-                <p className="font-semibold" data-testid={`text-framework-count-${strategy.id}`}>
-                  {availableFrameworks}
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">References</p>
-                <p className="font-semibold" data-testid={`text-reference-count-${strategy.id}`}>
-                  {availableReferences}
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Confidence</p>
-                <p className="font-semibold" data-testid={`text-confidence-${strategy.id}`}>
-                  {confidence > 0 ? `${(confidence * 100).toFixed(0)}%` : 'N/A'}
-                </p>
-              </div>
+            <Rocket className="h-8 w-8 text-muted-foreground flex-shrink-0" />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-muted-foreground">Journeys</p>
+              <p className="font-semibold" data-testid={`text-journey-count-${strategy.id}`}>
+                {strategy.journeyCount}
+              </p>
             </div>
-            <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
-              <Calendar className="h-3 w-3" />
-              <span data-testid={`text-last-updated-${strategy.id}`}>
-                Updated {formatDistanceToNow(new Date(strategy.latestJourneyUpdated || strategy.updatedAt), { addSuffix: true })}
-              </span>
+            <div>
+              <p className="text-muted-foreground">Frameworks</p>
+              <p className="font-semibold" data-testid={`text-framework-count-${strategy.id}`}>
+                {availableFrameworks}
+              </p>
             </div>
-          </CardContent>
-        </Card>
-      </a>
+            <div>
+              <p className="text-muted-foreground">References</p>
+              <p className="font-semibold" data-testid={`text-reference-count-${strategy.id}`}>
+                {availableReferences}
+              </p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Confidence</p>
+              <p className="font-semibold" data-testid={`text-confidence-${strategy.id}`}>
+                {confidence > 0 ? `${(confidence * 100).toFixed(0)}%` : 'N/A'}
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+            <Calendar className="h-3 w-3" />
+            <span data-testid={`text-last-updated-${strategy.id}`}>
+              Updated {formatDistanceToNow(new Date(strategy.latestJourneyUpdated || strategy.updatedAt), { addSuffix: true })}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
     </Link>
   );
 }
@@ -143,12 +141,10 @@ export default function StrategiesListPage() {
             </p>
           </div>
           <Link href="/strategic-consultant/input">
-            <a>
-              <Button data-testid="button-new-strategy">
-                <Plus className="h-4 w-4 mr-2" />
-                New Strategy
-              </Button>
-            </a>
+            <Button data-testid="button-new-strategy">
+              <Plus className="h-4 w-4 mr-2" />
+              New Strategy
+            </Button>
           </Link>
         </div>
         
@@ -200,12 +196,10 @@ export default function StrategiesListPage() {
             Start your first strategic analysis to see it here
           </p>
           <Link href="/strategic-consultant/input">
-            <a>
-              <Button data-testid="button-get-started">
-                <Plus className="h-4 w-4 mr-2" />
-                Get Started
-              </Button>
-            </a>
+            <Button data-testid="button-get-started">
+              <Plus className="h-4 w-4 mr-2" />
+              Get Started
+            </Button>
           </Link>
         </Card>
       ) : (
