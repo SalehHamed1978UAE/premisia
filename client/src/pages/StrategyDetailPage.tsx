@@ -105,18 +105,23 @@ function OverviewTab({ strategy, onNavigateToTab }: { strategy: StrategyDetail; 
           )}
           
           {strategy.understanding.initiativeDescription && (
-            <Accordion type="single" collapsible className="w-full">
-              <AccordionItem value="original-input">
-                <AccordionTrigger className="text-sm font-semibold">
-                  Original Input
-                </AccordionTrigger>
-                <AccordionContent>
-                  <p className="text-muted-foreground whitespace-pre-wrap" data-testid="text-initiative-description">
-                    {strategy.understanding.initiativeDescription}
-                  </p>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
+            <div>
+              <h4 className="font-semibold mb-2">Original Input</h4>
+              <Accordion type="single" collapsible className="w-full">
+                <AccordionItem value="original-input" className="border-0">
+                  <AccordionTrigger className="text-sm hover:no-underline py-2 px-0">
+                    <p className="text-muted-foreground text-left line-clamp-2 break-words" data-testid="text-initiative-preview">
+                      {strategy.understanding.initiativeDescription}
+                    </p>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <p className="text-muted-foreground whitespace-pre-wrap pt-2" data-testid="text-initiative-description">
+                      {strategy.understanding.initiativeDescription}
+                    </p>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </div>
           )}
         </CardContent>
       </Card>
