@@ -2213,64 +2213,41 @@ router.post('/journeys/run-now', async (req: Request, res: Response) => {
       where: (sessions, { eq }) => eq(sessions.understandingId, understandingId),
     });
 
-    let targetUnderstandingId = understandingId;
-    let isFollowOn = false;
-
-    // If follow-on journey, build strategic summary from completed journeys
+    // If follow-on journey, build strategic summary and update the understanding's input
     if (existingSessions.length > 0) {
       try {
         const strategicSummary = await buildStrategicSummary(understandingId);
         
-        // Create new understanding with the summary as input
-        const summaryResult = await strategicUnderstandingService.extractUnderstanding({
-          sessionId: understanding.sessionId || '',
+        // Update the existing understanding with the strategic summary as the new input
+        await updateStrategicUnderstanding(understandingId, {
           userInput: strategicSummary,
-          companyContext: null,
+          initiativeDescription: `Follow-on analysis v${existingSessions.length + 1} - built from strategic summary`,
         });
 
-        // Mark as derived from original understanding
-        await updateStrategicUnderstanding(summaryResult.understandingId, {
-          initiativeType: understanding.initiativeType || 'strategic_analysis',
-          initiativeDescription: `Follow-on analysis derived from ${understanding.id} (v${existingSessions.length + 1})`,
-          userConfirmed: true,
-        });
-
-        targetUnderstandingId = summaryResult.understandingId;
-        isFollowOn = true;
-
-        console.log(`[Run Now] Follow-on journey detected. Created new understanding ${targetUnderstandingId} from summary of ${understandingId}`);
+        console.log(`[Run Now] Follow-on journey detected. Updated understanding ${understandingId} with strategic summary`);
       } catch (summaryError: any) {
-        console.warn('[Run Now] Failed to build strategic summary, using original understanding:', summaryError.message);
-        // Fall back to original understanding if summary fails
+        console.warn('[Run Now] Failed to build strategic summary, using existing input:', summaryError.message);
       }
     }
 
-    // Start journey session with the target understanding (either new summary-based or original)
+    // Start journey session and navigate to first page (interactive wizard mode)
     const journeySessionId = await journeyOrchestrator.startJourney(
-      targetUnderstandingId,
+      understandingId,
       journeyType as JourneyType,
       userId
     );
 
-    // Execute journey asynchronously (don't wait for completion)
-    console.log(`[Run Now] Starting async execution for journey session ${journeySessionId}${isFollowOn ? ' (follow-on with strategic summary)' : ''}`);
-    
-    // Execute in background without blocking the response
-    journeyOrchestrator.executeJourney(journeySessionId)
-      .then(() => {
-        console.log(`[Run Now] Journey ${journeySessionId} completed successfully`);
-      })
-      .catch((error) => {
-        console.error(`[Run Now] Journey ${journeySessionId} failed:`, error);
-      });
+    // Get the first page of the journey to redirect to
+    const firstPageUrl = journey.pageSequence?.[0]?.replace(':understandingId', understandingId).replace(':sessionId', journeySessionId);
 
-    // Return immediately with session ID so user can navigate to results page
+    console.log(`[Run Now] Journey session ${journeySessionId} created, redirecting to wizard`);
+
     res.json({
       success: true,
       journeySessionId,
-      understandingId: targetUnderstandingId,
-      message: `Journey "${journeyType}" started${isFollowOn ? ' using strategic summary from previous analysis' : ''}`,
-      redirectUrl: `/strategic-consultant/journey-results/${journeySessionId}`,
+      understandingId,
+      message: `Journey "${journeyType}" started${existingSessions.length > 0 ? ' using strategic summary from previous analysis' : ''}`,
+      navigationUrl: firstPageUrl || `/strategic-consultant/analysis/${journeySessionId}`,
     });
   } catch (error: any) {
     console.error('Error in /journeys/run-now:', error);

@@ -182,7 +182,7 @@ export default function JourneyLauncherModal({
     },
   });
 
-  // Run Now mutation - executes journey using strategic summary from completed sessions
+  // Run Now mutation - starts journey wizard using strategic summary from completed sessions
   const runNowMutation = useMutation({
     mutationFn: async () => {
       const payload: any = {
@@ -195,16 +195,21 @@ export default function JourneyLauncherModal({
     },
     onSuccess: (data: any) => {
       toast({
-        title: "Analysis Complete",
-        description: data.message || "Your analysis has been completed successfully.",
+        title: "Journey Started",
+        description: data.message || "Your journey has been started.",
       });
       onOpenChange(false);
-      window.location.reload();
+      // Navigate to the journey wizard
+      if (data.navigationUrl) {
+        window.location.href = data.navigationUrl;
+      } else {
+        window.location.reload();
+      }
     },
     onError: (error: any) => {
       toast({
-        title: "Analysis Failed",
-        description: error.message || "An error occurred during analysis.",
+        title: "Failed to Start Journey",
+        description: error.message || "An error occurred while starting the journey.",
         variant: "destructive",
       });
     },
