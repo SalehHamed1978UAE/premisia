@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -6,8 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Rocket, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
-import { useMutation } from "@tanstack/react-query";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Rocket, CheckCircle2, AlertCircle, Loader2, Play, Clock } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -135,6 +136,19 @@ const FRAMEWORKS: FrameworkDefinition[] = [
   },
 ];
 
+interface ReadinessResponse {
+  success: boolean;
+  ready: boolean;
+  canRunInBackground: boolean;
+  context: {
+    entityCount: number;
+    referenceCount: number;
+    hasUserInput: boolean;
+  };
+  missingRequirements: string[];
+  recommendation: string;
+}
+
 export default function JourneyLauncherModal({
   open,
   onOpenChange,
@@ -144,7 +158,25 @@ export default function JourneyLauncherModal({
 }: JourneyLauncherModalProps) {
   const [selectedJourney, setSelectedJourney] = useState<string | null>(null);
   const [selectedFrameworks, setSelectedFrameworks] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState("journey");
   const { toast } = useToast();
+
+  // Check readiness when modal opens or selection changes
+  const { data: readiness, isLoading: checkingReadiness } = useQuery<ReadinessResponse>({
+    queryKey: ['/api/strategic-consultant/journeys/check-readiness', understandingId, selectedJourney, selectedFrameworks],
+    enabled: open && (!!selectedJourney || selectedFrameworks.length > 0),
+    queryFn: async () => {
+      const response = await apiRequest('/api/strategic-consultant/journeys/check-readiness', {
+        method: 'POST',
+        body: JSON.stringify({
+          understandingId,
+          journeyType: selectedJourney,
+          frameworks: selectedFrameworks,
+        }),
+      });
+      return response;
+    },
+  });
 
   const handleJourneySelect = (journeyType: string) => {
     setSelectedJourney(journeyType);
@@ -159,9 +191,18 @@ export default function JourneyLauncherModal({
     );
   };
 
-  const handleNavigateToJourney = () => {
+  const handleRunNow = () => {
     // Navigate to strategic consultant with preloaded context
     window.location.href = `/strategic-consultant/journey-selection/${understandingId}`;
+    onOpenChange(false);
+  };
+
+  const handleStartInBackground = async () => {
+    // TODO: Implement background job creation
+    toast({
+      title: "Starting Analysis",
+      description: "Your analysis has been queued and will run in the background.",
+    });
     onOpenChange(false);
   };
 
@@ -261,15 +302,51 @@ export default function JourneyLauncherModal({
               </div>
 
               {selectedJourney && (
-                <div className="flex justify-end gap-3 pt-4">
-                  <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel">
-                    Cancel
-                  </Button>
-                  <Button onClick={handleNavigateToJourney} data-testid="button-start-journey">
-                    <Rocket className="h-4 w-4 mr-2" />
-                    Start Journey
-                  </Button>
-                </div>
+                <>
+                  {/* Readiness Status */}
+                  {checkingReadiness ? (
+                    <Alert>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <AlertDescription>Checking context availability...</AlertDescription>
+                    </Alert>
+                  ) : readiness && !readiness.ready ? (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        <p className="font-semibold mb-2">{readiness.recommendation}</p>
+                        <ul className="list-disc list-inside space-y-1 text-sm">
+                          {readiness.missingRequirements.map((req, idx) => (
+                            <li key={idx}>{req}</li>
+                          ))}
+                        </ul>
+                      </AlertDescription>
+                    </Alert>
+                  ) : readiness?.ready ? (
+                    <Alert className="border-green-200 bg-green-50 dark:bg-green-950 dark:border-green-800">
+                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                      <AlertDescription className="text-green-800 dark:text-green-200">
+                        {readiness.recommendation}
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
+
+                  {/* Action Buttons */}
+                  <div className="flex justify-end gap-3 pt-4">
+                    <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel">
+                      Cancel
+                    </Button>
+                    <Button onClick={handleRunNow} variant="secondary" data-testid="button-run-now">
+                      <Play className="h-4 w-4 mr-2" />
+                      Run Now
+                    </Button>
+                    {readiness?.canRunInBackground && (
+                      <Button onClick={handleStartInBackground} data-testid="button-start-background">
+                        <Clock className="h-4 w-4 mr-2" />
+                        Start in Background
+                      </Button>
+                    )}
+                  </div>
+                </>
               )}
             </TabsContent>
 
@@ -318,15 +395,51 @@ export default function JourneyLauncherModal({
               </div>
 
               {selectedFrameworks.length > 0 && (
-                <div className="flex justify-end gap-3 pt-4">
-                  <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-framework">
-                    Cancel
-                  </Button>
-                  <Button onClick={handleNavigateToJourney} data-testid="button-run-frameworks">
-                    <Rocket className="h-4 w-4 mr-2" />
-                    Run {selectedFrameworks.length} Framework{selectedFrameworks.length > 1 ? 's' : ''}
-                  </Button>
-                </div>
+                <>
+                  {/* Readiness Status */}
+                  {checkingReadiness ? (
+                    <Alert>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <AlertDescription>Checking context availability...</AlertDescription>
+                    </Alert>
+                  ) : readiness && !readiness.ready ? (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        <p className="font-semibold mb-2">{readiness.recommendation}</p>
+                        <ul className="list-disc list-inside space-y-1 text-sm">
+                          {readiness.missingRequirements.map((req, idx) => (
+                            <li key={idx}>{req}</li>
+                          ))}
+                        </ul>
+                      </AlertDescription>
+                    </Alert>
+                  ) : readiness?.ready ? (
+                    <Alert className="border-green-200 bg-green-50 dark:bg-green-950 dark:border-green-800">
+                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                      <AlertDescription className="text-green-800 dark:text-green-200">
+                        {readiness.recommendation}
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
+
+                  {/* Action Buttons */}
+                  <div className="flex justify-end gap-3 pt-4">
+                    <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-framework">
+                      Cancel
+                    </Button>
+                    <Button onClick={handleRunNow} variant="secondary" data-testid="button-run-now-framework">
+                      <Play className="h-4 w-4 mr-2" />
+                      Run Now
+                    </Button>
+                    {readiness?.canRunInBackground && (
+                      <Button onClick={handleStartInBackground} data-testid="button-start-background-framework">
+                        <Clock className="h-4 w-4 mr-2" />
+                        Start in Background
+                      </Button>
+                    )}
+                  </div>
+                </>
               )}
             </TabsContent>
           </Tabs>

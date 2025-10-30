@@ -1897,6 +1897,85 @@ router.post('/five-whys/coach', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * POST /api/strategic-consultant/journeys/check-readiness
+ * Evaluate if sufficient context exists for background execution
+ */
+router.post('/journeys/check-readiness', async (req: Request, res: Response) => {
+  try {
+    const { understandingId, journeyType, frameworks } = req.body;
+
+    if (!understandingId) {
+      return res.status(400).json({ 
+        error: 'understandingId is required' 
+      });
+    }
+
+    // Get strategic understanding with context
+    const understanding = await getStrategicUnderstanding(understandingId);
+    if (!understanding) {
+      return res.status(404).json({ error: 'Strategy not found' });
+    }
+
+    // Query knowledge graph for entities and references
+    const [entities, referencesData] = await Promise.all([
+      db.query.strategicEntities.findMany({
+        where: (entities, { eq }) => eq(entities.understandingId, understandingId),
+      }),
+      db.query.references.findMany({
+        where: (refs, { eq }) => eq(refs.understandingId, understandingId),
+      }),
+    ]);
+
+    // Calculate context sufficiency
+    const entityCount = entities.length;
+    const referenceCount = referencesData.length;
+    const hasUserInput = !!understanding.userInput;
+    
+    // Readiness thresholds
+    const MIN_REFERENCES_FOR_BACKGROUND = 3;
+    const MIN_ENTITIES_FOR_BACKGROUND = 5;
+    
+    const isReady = hasUserInput && 
+                     referenceCount >= MIN_REFERENCES_FOR_BACKGROUND && 
+                     entityCount >= MIN_ENTITIES_FOR_BACKGROUND;
+
+    // Calculate missing requirements
+    const missingRequirements: string[] = [];
+    if (!hasUserInput) {
+      missingRequirements.push("Original strategic input is missing");
+    }
+    if (referenceCount < MIN_REFERENCES_FOR_BACKGROUND) {
+      missingRequirements.push(`Need ${MIN_REFERENCES_FOR_BACKGROUND - referenceCount} more reference(s)`);
+    }
+    if (entityCount < MIN_ENTITIES_FOR_BACKGROUND) {
+      missingRequirements.push(`Need ${MIN_ENTITIES_FOR_BACKGROUND - entityCount} more strategic entit${entityCount === 1 ? 'y' : 'ies'}`);
+    }
+
+    // Return readiness assessment
+    res.json({
+      success: true,
+      ready: isReady,
+      canRunInBackground: isReady,
+      context: {
+        entityCount,
+        referenceCount,
+        hasUserInput,
+      },
+      missingRequirements,
+      recommendation: isReady 
+        ? "Sufficient context available for background execution"
+        : "Interactive journey recommended to gather more context",
+    });
+  } catch (error: any) {
+    console.error('Error in /journeys/check-readiness:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message || 'Readiness check failed' 
+    });
+  }
+});
+
 router.get('/health', (req: Request, res: Response) => {
   res.json({
     success: true,
