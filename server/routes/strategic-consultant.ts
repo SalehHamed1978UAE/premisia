@@ -53,151 +53,123 @@ async function buildStrategicSummary(understandingId: string): Promise<string> {
     throw new Error('Strategic understanding not found');
   }
 
-  // Get completed journey sessions
+  // Get completed journey sessions (limit to most recent 3)
   const sessions = await db.query.journeySessions.findMany({
     where: (sessions, { eq }) => eq(sessions.understandingId, understandingId),
     orderBy: (sessions, { desc }) => [desc(sessions.createdAt)],
+    limit: 3,
   });
 
-  // Get strategic versions from ALL journey sessions (not just the base session)
+  // Get strategic versions from most recent journey session only
   const allVersions: any[] = [];
   
-  // Include base understanding session versions
-  if (understanding.sessionId) {
-    const baseVersions = await db.query.strategyVersions.findMany({
-      where: (versions, { eq }) => eq(versions.sessionId, understanding.sessionId || ''),
-      orderBy: (versions, { desc }) => [desc(versions.createdAt)],
-    });
-    allVersions.push(...baseVersions);
-  }
-  
-  // Include versions from each journey session
-  for (const session of sessions) {
+  // Only include versions from the 2 most recent sessions to keep it concise
+  const recentSessions = sessions.slice(0, 2);
+  for (const session of recentSessions) {
     const sessionVersions = await db.query.strategyVersions.findMany({
-      where: (versions, { and, eq }) => and(
-        eq(versions.sessionId, session.id),
-      ),
+      where: (versions, { eq }) => eq(versions.sessionId, session.id),
       orderBy: (versions, { desc }) => [desc(versions.createdAt)],
+      limit: 2, // Only 2 versions per session
     });
     allVersions.push(...sessionVersions);
   }
   
-  // Sort all versions by creation date and take most recent
-  const versions = allVersions
-    .sort((a, b) => {
-      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return bTime - aTime;
-    })
-    .slice(0, 5); // Take top 5 most recent decisions across all sessions
+  const versions = allVersions.slice(0, 3); // Max 3 versions total
 
-  // Get strategic entities (for key insights)
+  // Get strategic entities (limit to 5 most recent)
   const entities = await db.query.strategicEntities.findMany({
     where: (entities, { eq }) => eq(entities.understandingId, understandingId),
     orderBy: (entities, { desc }) => [desc(entities.createdAt)],
-    limit: 10,
+    limit: 5,
   });
 
-  // Get references
+  // Get references (limit to 5 most recent)
   const references = await db.query.references.findMany({
     where: (refs, { eq }) => eq(refs.understandingId, understandingId),
     orderBy: (refs, { desc }) => [desc(refs.createdAt)],
-    limit: 10,
+    limit: 5,
   });
 
-  // Build comprehensive summary
+  // Build concise summary with strict length limits
   const summaryParts: string[] = [];
+
+  // Helper function to truncate text
+  const truncate = (text: string, maxLength: number) => {
+    if (!text) return '';
+    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+  };
 
   // Header
   summaryParts.push('# Strategic Context Summary\n');
   summaryParts.push(`## Executive Summary`);
-  summaryParts.push(understanding.userInput || '');
+  // Truncate user input to 2000 chars to prevent massive summaries
+  summaryParts.push(truncate(understanding.userInput || '', 2000));
   summaryParts.push('');
 
-  // Initiative Details
+  // Initiative Details (concise)
   if (understanding.initiativeType) {
-    summaryParts.push(`## Initiative Classification`);
-    summaryParts.push(`Type: ${understanding.initiativeType}`);
+    summaryParts.push(`## Initiative: ${understanding.initiativeType}`);
     if (understanding.initiativeDescription) {
-      summaryParts.push(`Description: ${understanding.initiativeDescription}`);
+      summaryParts.push(truncate(understanding.initiativeDescription, 300));
     }
     summaryParts.push('');
   }
 
-  // Completed Analysis
+  // Completed Analysis (very concise)
   if (sessions.length > 0) {
-    summaryParts.push(`## Completed Strategic Analysis`);
-    summaryParts.push(`Previous analysis included ${sessions.length} journey session(s):`);
-    sessions.forEach((session, idx) => {
-      const statusText = session.status === 'completed' ? 'Completed' : session.status;
-      summaryParts.push(`${idx + 1}. ${session.journeyType} (v${session.versionNumber}) - ${statusText}`);
-      if (session.completedFrameworks && session.completedFrameworks.length > 0) {
-        summaryParts.push(`   Frameworks: ${session.completedFrameworks.join(', ')}`);
-      }
+    summaryParts.push(`## Completed Analysis (${sessions.length} session${sessions.length > 1 ? 's' : ''})`);
+    sessions.slice(0, 3).forEach((session, idx) => {
+      const frameworks = session.completedFrameworks?.slice(0, 3).join(', ') || 'N/A';
+      summaryParts.push(`${idx + 1}. ${session.journeyType} - ${frameworks}`);
     });
     summaryParts.push('');
   }
 
-  // Strategic Decisions
+  // Strategic Decisions (highly condensed)
   if (versions.length > 0) {
-    summaryParts.push(`## Strategic Decisions & Analysis`);
+    summaryParts.push(`## Key Decisions`);
     versions.forEach((version, idx) => {
-      summaryParts.push(`${idx + 1}. Version ${version.versionNumber}${version.versionLabel ? ` (${version.versionLabel})` : ''}`);
-      if (version.strategicApproach) {
-        summaryParts.push(`   Approach: ${version.strategicApproach}`);
-      }
+      const approach = truncate(version.strategicApproach || '', 150);
+      summaryParts.push(`${idx + 1}. v${version.versionNumber}: ${approach}`);
+      
+      // Only include first decision title, no details
       if (version.decisionsData) {
-        const decisions = typeof version.decisionsData === 'string' 
-          ? JSON.parse(version.decisionsData)
-          : version.decisionsData;
-        if (Array.isArray(decisions) && decisions.length > 0) {
-          decisions.slice(0, 2).forEach((d: any) => {
-            if (d.title) {
-              summaryParts.push(`   Decision: ${d.title}`);
-            }
-          });
+        try {
+          const decisions = typeof version.decisionsData === 'string' 
+            ? JSON.parse(version.decisionsData)
+            : version.decisionsData;
+          if (Array.isArray(decisions) && decisions.length > 0 && decisions[0].title) {
+            summaryParts.push(`   ${truncate(decisions[0].title, 100)}`);
+          }
+        } catch (e) {
+          // Skip if can't parse
         }
       }
     });
     summaryParts.push('');
   }
 
-  // Key Insights from Strategic Entities
+  // Key Insights (condensed, no evidence details)
   if (entities.length > 0) {
-    summaryParts.push(`## Key Strategic Insights`);
-    const topEntities = entities.slice(0, 5);
-    topEntities.forEach((entity, idx) => {
-      const entityType = entity.type || 'Insight';
-      const category = entity.category ? ` (${entity.category})` : '';
-      summaryParts.push(`${idx + 1}. ${entityType}${category}: ${entity.claim}`);
-      if (entity.evidence) {
-        summaryParts.push(`   Evidence: ${entity.evidence.substring(0, 150)}${entity.evidence.length > 150 ? '...' : ''}`);
-      }
+    summaryParts.push(`## Key Insights (${entities.length} finding${entities.length > 1 ? 's' : ''})`);
+    entities.slice(0, 3).forEach((entity, idx) => {
+      const claim = truncate(entity.claim || '', 120);
+      summaryParts.push(`${idx + 1}. ${claim}`);
     });
     summaryParts.push('');
   }
 
-  // Research References
+  // Research References (titles only)
   if (references.length > 0) {
-    summaryParts.push(`## Supporting Research`);
-    summaryParts.push(`Based on ${references.length} research source(s):`);
-    const topReferences = references.slice(0, 5);
-    topReferences.forEach((ref, idx) => {
-      summaryParts.push(`${idx + 1}. ${ref.title || 'Reference'}`);
-      if (ref.description) {
-        summaryParts.push(`   ${ref.description.substring(0, 150)}${ref.description.length > 150 ? '...' : ''}`);
-      }
-      if (ref.url) {
-        summaryParts.push(`   Source: ${ref.url}`);
-      }
+    summaryParts.push(`## References (${references.length} source${references.length > 1 ? 's' : ''})`);
+    references.slice(0, 3).forEach((ref, idx) => {
+      summaryParts.push(`${idx + 1}. ${truncate(ref.title || 'Reference', 80)}`);
     });
     summaryParts.push('');
   }
 
-  // Context for follow-on analysis
-  summaryParts.push(`## Follow-On Analysis Context`);
-  summaryParts.push(`This strategic summary incorporates insights from ${sessions.length} previous analysis session(s), ${entities.length} strategic findings, and ${references.length} research sources. Use this comprehensive context to inform deeper strategic exploration and identify new opportunities or risks.`);
-  summaryParts.push('');
+  // Concise context note
+  summaryParts.push(`*Based on ${sessions.length} session(s), ${entities.length} finding(s), ${references.length} source(s)*`);
 
   return summaryParts.join('\n');
 }
