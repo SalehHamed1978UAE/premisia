@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { ArrowLeft, Rocket, Calendar, BookOpen, TrendingUp, FileText, Plus, ExternalLink } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
+import JourneyLauncherModal from "@/components/JourneyLauncherModal";
 
 interface StrategicUnderstanding {
   id: string;
@@ -440,6 +441,7 @@ export default function StrategyDetailPage() {
   const [, params] = useRoute("/strategies/:id");
   const strategyId = params?.id;
   const [activeTab, setActiveTab] = useState("overview");
+  const [showLauncherModal, setShowLauncherModal] = useState(false);
 
   const { data: strategy, isLoading, error } = useQuery<StrategyDetail>({
     queryKey: ['/api/strategies', strategyId],
@@ -501,12 +503,10 @@ export default function StrategyDetailPage() {
               )}
             </div>
           </div>
-          <Link href={`/strategic-consultant/input?understandingId=${strategyId}`}>
-            <Button data-testid="button-new-journey">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Journey Version
-            </Button>
-          </Link>
+          <Button onClick={() => setShowLauncherModal(true)} data-testid="button-run-analysis">
+            <Rocket className="h-4 w-4 mr-2" />
+            Run Additional Analysis
+          </Button>
         </div>
       </div>
 
@@ -543,6 +543,19 @@ export default function StrategyDetailPage() {
           <EPMProgramsTab programs={strategy.programs} />
         </TabsContent>
       </Tabs>
+
+      {/* Journey Launcher Modal */}
+      <JourneyLauncherModal
+        open={showLauncherModal}
+        onOpenChange={setShowLauncherModal}
+        understandingId={strategyId!}
+        strategyTitle={displayTitle}
+        contextMetrics={{
+          entityCount: 0, // TODO: Add entity count from metadata
+          referenceCount: strategy.referenceCount,
+          completedFrameworks: strategy.sessions.flatMap(s => s.completedFrameworks),
+        }}
+      />
     </div>
   );
 }
