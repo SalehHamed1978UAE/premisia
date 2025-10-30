@@ -51,6 +51,7 @@ export default function WhysTreePage() {
   const understandingId = params?.understandingId;
 
   const [understanding, setUnderstanding] = useState<{ id: string; sessionId: string; userInput: string; journeyType?: string } | null>(null);
+  const [isLoadingUnderstanding, setIsLoadingUnderstanding] = useState(true);
   const [tree, setTree] = useState<WhyTree | null>(null);
   const [selectedPath, setSelectedPath] = useState<{ nodeId: string; option: string; depth: number }[]>([]);
   const [currentLevel, setCurrentLevel] = useState(1);
@@ -228,8 +229,12 @@ export default function WhysTreePage() {
 
   useEffect(() => {
     const fetchUnderstanding = async () => {
-      if (!understandingId) return;
+      if (!understandingId) {
+        setIsLoadingUnderstanding(false);
+        return;
+      }
       
+      setIsLoadingUnderstanding(true);
       try {
         const response = await fetch(`/api/strategic-consultant/understanding/${understandingId}`);
         if (!response.ok) {
@@ -264,6 +269,8 @@ export default function WhysTreePage() {
           description: error.message || "Could not load strategic understanding",
           variant: "destructive",
         });
+      } finally {
+        setIsLoadingUnderstanding(false);
       }
     };
     
@@ -753,21 +760,24 @@ export default function WhysTreePage() {
     );
   }
 
-  if (generateTreeMutation.isPending) {
+  if (isLoadingUnderstanding || generateTreeMutation.isPending) {
     return (
       <AppLayout title="Five Whys Analysis" subtitle="Generating analysis..." onViewChange={() => {}}>
         <div className="flex items-center justify-center">
           <div className="text-center space-y-4">
             <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-            <p className="text-muted-foreground">Generating Five Whys analysis...</p>
-            {isLongGeneration ? (
+            <p className="text-muted-foreground">
+              {isLoadingUnderstanding ? "Loading journey data..." : "Generating Five Whys analysis..."}
+            </p>
+            {!isLoadingUnderstanding && isLongGeneration && (
               <>
                 <p className="text-sm text-amber-600 dark:text-amber-400 font-medium">
                   Generated Level 1 completely, Level 2 generating...
                 </p>
                 <p className="text-xs text-muted-foreground">This is taking longer than usual, please wait</p>
               </>
-            ) : (
+            )}
+            {!isLoadingUnderstanding && !isLongGeneration && (
               <p className="text-sm text-muted-foreground">This may take 20-30 seconds</p>
             )}
           </div>
