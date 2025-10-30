@@ -53,7 +53,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user.claims.sub;
       
-      // Get all strategic understandings with journey sessions
+      // Get all strategic understandings with journey sessions for this user
       const strategies = await db
         .select({
           id: strategicUnderstanding.id,
@@ -68,16 +68,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           latestJourneyUpdated: sql<Date>`MAX(${journeySessions.updatedAt})`,
         })
         .from(strategicUnderstanding)
-        .leftJoin(
+        .innerJoin(
           journeySessions,
-          eq(strategicUnderstanding.id, journeySessions.understandingId)
-        )
-        .where(
           and(
-            eq(journeySessions.userId, userId),
-            eq(strategicUnderstanding.archived, false)
+            eq(strategicUnderstanding.id, journeySessions.understandingId),
+            eq(journeySessions.userId, userId)
           )
         )
+        .where(eq(strategicUnderstanding.archived, false))
         .groupBy(strategicUnderstanding.id)
         .orderBy(desc(strategicUnderstanding.updatedAt));
 
