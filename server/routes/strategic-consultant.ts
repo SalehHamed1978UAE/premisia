@@ -1967,6 +1967,28 @@ router.post('/journeys/execute-background', async (req: Request, res: Response) 
 });
 
 /**
+ * GET /api/strategic-consultant/journey-registry
+ * Returns all pre-planned journeys from the journey registry
+ */
+router.get('/journey-registry', async (req: Request, res: Response) => {
+  try {
+    const allJourneys = journeyRegistry.getAllJourneys();
+    
+    res.json({
+      success: true,
+      journeys: allJourneys,
+      count: allJourneys.length,
+    });
+  } catch (error: any) {
+    console.error('Error in /journey-registry:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message || 'Failed to fetch journey registry' 
+    });
+  }
+});
+
+/**
  * POST /api/strategic-consultant/journeys/check-readiness
  * Evaluate if sufficient context exists for background execution
  */
