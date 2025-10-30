@@ -505,6 +505,38 @@ router.get('/understanding/:understandingId', async (req: Request, res: Response
   }
 });
 
+// GET /api/strategic-consultant/journey-sessions/:sessionId
+// Fetch journey session by ID
+router.get('/journey-sessions/:sessionId', async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.params;
+
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Session ID is required' });
+    }
+
+    // Use secure service to get decrypted journey session data
+    const session = await getJourneySession(sessionId);
+
+    if (!session) {
+      return res.status(404).json({ error: 'Journey session not found' });
+    }
+
+    res.json({
+      id: session.id,
+      understandingId: session.understandingId,
+      journeyType: session.journeyType,
+      currentFrameworkIndex: session.currentFrameworkIndex,
+      completedFrameworks: session.completedFrameworks,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+    });
+  } catch (error: any) {
+    console.error('Error in /journey-sessions/:sessionId:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch journey session' });
+  }
+});
+
 // PATCH /classification - Update initiative classification (user confirmation/correction)
 router.patch('/classification', async (req: Request, res: Response) => {
   try {
