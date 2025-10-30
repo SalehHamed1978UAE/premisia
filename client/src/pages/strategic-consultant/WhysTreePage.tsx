@@ -50,7 +50,7 @@ export default function WhysTreePage() {
   const { toast } = useToast();
   const understandingId = params?.understandingId;
 
-  const [understanding, setUnderstanding] = useState<{ id: string; sessionId: string; userInput: string } | null>(null);
+  const [understanding, setUnderstanding] = useState<{ id: string; sessionId: string; userInput: string; journeyType?: string } | null>(null);
   const [tree, setTree] = useState<WhyTree | null>(null);
   const [selectedPath, setSelectedPath] = useState<{ nodeId: string; option: string; depth: number }[]>([]);
   const [currentLevel, setCurrentLevel] = useState(1);
@@ -182,6 +182,7 @@ export default function WhysTreePage() {
       
       localStorage.setItem(`strategic-rootCause-${understanding.sessionId}`, variables.rootCause);
       localStorage.setItem(`strategic-whysPath-${understanding.sessionId}`, JSON.stringify(variables.completePath));
+      localStorage.setItem(`strategic-input-${understanding.sessionId}`, understanding.userInput);
       
       toast({
         title: "Root cause identified",
@@ -232,6 +233,24 @@ export default function WhysTreePage() {
           throw new Error('Failed to fetch understanding');
         }
         const data = await response.json();
+        
+        // Fetch journey session to get journey type
+        if (data.sessionId) {
+          try {
+            const journeyResponse = await fetch(`/api/strategic-consultant/journey-sessions/${data.sessionId}`);
+            if (journeyResponse.ok) {
+              const journeyData = await journeyResponse.json();
+              if (journeyData.journeyType) {
+                // Store journey type in localStorage for ResearchPage
+                localStorage.setItem(`journey-type-${data.sessionId}`, journeyData.journeyType);
+                data.journeyType = journeyData.journeyType;
+              }
+            }
+          } catch (journeyError) {
+            console.warn('Could not fetch journey session:', journeyError);
+          }
+        }
+        
         setUnderstanding(data);
       } catch (error: any) {
         toast({
