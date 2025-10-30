@@ -70,6 +70,16 @@ export default function JourneyLauncherModal({
   const [activeTab, setActiveTab] = useState("journey");
   const { toast } = useToast();
 
+  // Reset scroll position when modal opens
+  useEffect(() => {
+    if (open) {
+      const scrollContainer = document.querySelector('[data-modal-scroll]');
+      if (scrollContainer) {
+        scrollContainer.scrollTop = 0;
+      }
+    }
+  }, [open]);
+
   // Fetch prebuilt journeys from registry
   const { data: prebuiltJourneysData, isLoading: loadingPrebuilt } = useQuery<any>({
     queryKey: ['/api/strategic-consultant/journey-registry'],
@@ -303,7 +313,7 @@ export default function JourneyLauncherModal({
           </DialogHeader>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 space-y-4">
+        <div className="flex-1 overflow-y-auto px-6 space-y-4" data-modal-scroll>
           {/* Context Summary */}
           <Card>
             <CardHeader className="pb-3">
