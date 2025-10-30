@@ -124,6 +124,9 @@ export interface SecureJourneySession {
   currentFrameworkIndex?: number;
   completedFrameworks?: string[];
   accumulatedContext?: any;
+  versionNumber?: number;
+  startedAt?: Date;
+  background?: boolean;
   completedAt?: Date | null;
   createdAt?: Date;
   updatedAt?: Date;
