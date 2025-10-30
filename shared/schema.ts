@@ -84,6 +84,7 @@ export const journeyTypeEnum = pgEnum('journey_type', [
   'growth_strategy'
 ]);
 export const journeyStatusEnum = pgEnum('journey_status', [
+  'queued',
   'initializing',
   'in_progress',
   'paused',
@@ -120,12 +121,18 @@ export const jobTypeEnum = pgEnum('job_type', [
   'pestle_analysis',
   'web_research',
   'strategic_understanding',
-  'document_enrichment'
+  'document_enrichment',
+  'journey_execution',
+  'framework_execution'
 ]);
 
 // Task Assignment enums  
 export const assignmentSourceEnum = pgEnum('assignment_source', ['ai_generated', 'manual', 'bulk_import']);
 export const assignmentResourceTypeEnum = pgEnum('assignment_resource_type', ['internal_team', 'external_resource']);
+
+// Reference source type enum (for research provenance)
+export const referenceSourceTypeEnum = pgEnum('reference_source_type', ['article', 'report', 'document', 'dataset', 'manual_entry']);
+export const referenceOriginEnum = pgEnum('reference_origin', ['web_search', 'manual_upload', 'document_extract', 'manual_entry']);
 
 // Session storage table for Replit Auth
 export const sessions = pgTable(
@@ -537,6 +544,11 @@ export const strategicUnderstanding = pgTable("strategic_understanding", {
   lastEnrichedBy: varchar("last_enriched_by", { length: 50 }),
   lastEnrichedAt: timestamp("last_enriched_at"),
   archived: boolean("archived").notNull().default(false),
+  
+  // Strategy readiness metadata cache
+  strategyMetadata: jsonb("strategy_metadata").default(sql`'{}'::jsonb`),
+  // Format: { availableEntities: number, availableReferences: number, completedFrameworks: string[], clarificationsProvided: {}, confidence: number, lastUpdated: timestamp }
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -555,6 +567,12 @@ export const journeySessions = pgTable("journey_sessions", {
   currentFrameworkIndex: integer("current_framework_index").default(0),
   completedFrameworks: frameworkNameEnum("completed_frameworks").array().default(sql`ARRAY[]::framework_name[]`),
   accumulatedContext: jsonb("accumulated_context").notNull().default(sql`'{}'::jsonb`),
+  
+  // Versioning and background execution fields
+  versionNumber: integer("version_number").notNull().default(1),
+  startedAt: timestamp("started_at").defaultNow(),
+  background: boolean("background").notNull().default(false),
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   completedAt: timestamp("completed_at"),
@@ -562,6 +580,47 @@ export const journeySessions = pgTable("journey_sessions", {
   understandingIdx: index("idx_journey_sessions_understanding").on(table.understandingId),
   userIdx: index("idx_journey_sessions_user").on(table.userId),
   statusIdx: index("idx_journey_sessions_status").on(table.status),
+}));
+
+// Research References - Full provenance tracking for all research sources
+export const references = pgTable("references", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  
+  // Link to artifacts (at least one required)
+  understandingId: varchar("understanding_id").references(() => strategicUnderstanding.id, { onDelete: 'cascade' }),
+  sessionId: varchar("session_id").references(() => journeySessions.id, { onDelete: 'cascade' }),
+  programId: varchar("program_id").references(() => epmPrograms.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  
+  // Source metadata
+  sourceType: referenceSourceTypeEnum("source_type").notNull(),
+  title: text("title").notNull(),
+  url: text("url"), // Nullable for manual uploads/documents
+  description: text("description"),
+  topics: text("topics").array().default(sql`ARRAY[]::text[]`),
+  confidence: decimal("confidence", { precision: 3, scale: 2 }), // 0.00-1.00
+  
+  // Usage tracking
+  extractedQuotes: jsonb("extracted_quotes").default(sql`'[]'::jsonb`),
+  // Format: [{ snippet: "text", page?: number, usedIn?: "BMC.customerSegments" }]
+  
+  usedInComponents: text("used_in_components").array().default(sql`ARRAY[]::text[]`),
+  // Format: ["BMC.customerSegments", "RiskRegister[2]", "Porter.buyerPower"]
+  
+  // Provenance
+  origin: referenceOriginEnum("origin").notNull(),
+  lastValidated: timestamp("last_validated"),
+  
+  // Metadata
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  understandingIdx: index("idx_references_understanding").on(table.understandingId),
+  sessionIdx: index("idx_references_session").on(table.sessionId),
+  programIdx: index("idx_references_program").on(table.programId),
+  sourceTypeIdx: index("idx_references_source_type").on(table.sourceType),
+  confidenceIdx: index("idx_references_confidence").on(table.confidence),
+  userIdx: index("idx_references_user").on(table.userId),
 }));
 
 // Strategy Decisions table - Links to Strategy Workspace (new system)
@@ -1003,6 +1062,7 @@ export const insertBMCFindingSchema = createInsertSchema(bmcFindings).omit({ id:
 // Strategic Understanding (Knowledge Graph) insert schemas
 export const insertStrategicUnderstandingSchema = createInsertSchema(strategicUnderstanding).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertJourneySessionSchema = createInsertSchema(journeySessions).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertReferenceSchema = createInsertSchema(references).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertStrategyDecisionSchema = createInsertSchema(strategyDecisions).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertEpmProgramSchema = createInsertSchema(epmPrograms).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertTaskAssignmentSchema = createInsertSchema(taskAssignments).omit({ id: true, createdAt: true, updatedAt: true });
@@ -1065,6 +1125,8 @@ export type StrategicUnderstanding = typeof strategicUnderstanding.$inferSelect;
 export type InsertStrategicUnderstanding = z.infer<typeof insertStrategicUnderstandingSchema>;
 export type JourneySession = typeof journeySessions.$inferSelect;
 export type InsertJourneySession = z.infer<typeof insertJourneySessionSchema>;
+export type Reference = typeof references.$inferSelect;
+export type InsertReference = z.infer<typeof insertReferenceSchema>;
 export type StrategicEntity = typeof strategicEntities.$inferSelect;
 export type InsertStrategicEntity = z.infer<typeof insertStrategicEntitySchema>;
 export type StrategicRelationship = typeof strategicRelationships.$inferSelect;
