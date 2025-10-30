@@ -1,0 +1,112 @@
+## Alignment Decisions (No Open Questions)
+
+  ### 1. Reference data model
+
+  - topics: store as text[] (Postgres array).
+  - confidence: decimal(3,2), 0.00–1.00 scale.
+  - usedInComponents: text[] with values like "BMC.customerSegments",
+    "RiskRegister[2]".
+  - extractedQuotes: jsonb, array of { snippet, page?, usedIn? }.
+  - url: optional (NULL allowed for manual uploads).
+  - origin: enum-like string: web_search, manual_upload, document_extract,
+    manual_entry.
+
+  ### 2. Readiness thresholds
+
+  - A single framework is “ready” if:
+      - Required knowledge entities count ≥ total required (track confidence;
+        treat ≥0.6 as usable).
+      - Required references exist with confidence ≥0.6.
+      - All mandatory clarifications have been answered.
+  - Journeys are ready only if every framework in them is ready.
+  - Optional items: if missing, we run but display a yellow “Consider adding
+    X” message.
+    No override button required—if required prerequisites aren’t met, show the
+    missing list and block “Run” until supplied.
+
+  ### 3. UI build order
+
+  1. Strategy Hub + navigation + modals (Phases 2 & 4) before reference library
+     UI.
+     References can be stored in the backend meantime; the Research Library
+     (Phase 3) comes right after.
+  2. Background execution (Phase 5) can begin once the Strategy Hub and
+     readiness logic exist.
+
+  ### 4. Backfill strategy
+
+  - When migrations add versionNumber, startedAt, completedAt, etc.:
+      - For existing journey_sessions, set versionNumber = 1 per
+        understandingId, startedAt = completedAt = createdAt.
+      - Mark status = 'completed' unless evidence shows otherwise.
+      - For strategic_understanding.title, copy current descriptions, default to
+        truncated user input if empty.
+      - Run a script to upsert references for earlier runs if there’s metadata
+        (optional; otherwise start fresh from here).
+
+  ### 5. Exports: references.csv
+
+  - Columns: referenceId, title, url, sourceType, confidence, topics (pipe-
+    delimited), origin, usedIn (pipe-delimited), createdAt.
+  - Include in ZIP alongside references.json.
+
+  ### 6. Clarify single-framework execution
+
+  - Journey launcher modal includes a “Run additional analysis” mode with a list
+    of frameworks and readiness indicators per framework.
+  - Backend ReadinessEvaluator must accept either { journeyType } or
+    { frameworkName }.
+  - Background jobs must handle jobType = 'framework_execution', storing results
+    in a journey_sessions row labeled “Single Framework: [name]”.
+
+  ### 7. Document enrichment (journey flow)
+
+  - After /api/strategic-consultant/extract-file or /understanding completes,
+    immediately enqueue the same document_enrichment job we use for /analyze,
+    adding understandingId and source metadata.
+
+  ### 8. Notifications
+
+  - Reuse existing useJobNotifications channel. Emit events for both journey and
+    single-framework background runs (queued/in-progress/completed).
+  - Document enrichment notifications must fire once references/entities are
+    saved (“Extracted 4 insights from MarketReport.pdf — View details”).
+
+  ### 9. Breadcrumb format
+
+  - Strategies > [Strategy Title] > [Journey Name or Single Framework] >
+    [Framework or Component].
+
+  ———
+
+  ## Development Order (Replit can work straight through)
+
+  1. Phase 1 – Migrations + reference extraction service + metadata cache.
+  2. Phase 2 – Strategies list & Strategy Hub scaffolding (with timeline).
+  3. Phase 4 – Readiness evaluator, journey/framework launchers, context
+     inheritance.
+  4. Phase 5 – Background job types for journeys & frameworks + notifications.
+  5. Phase 3 – Research Library UI + inline citations + Research Foundation tab.
+  6. Phase 6 – Knowledge graph panel and entity usage navigation.
+  7. Phase 7 – Export enhancements (references section, JSON/CSV) and final QA.
+
+  (Phases 3 and 4 can overlap once the core data structures exist; 5 depends on
+  4, etc.)
+
+  ———
+
+  ## Success Criteria (for final verification)
+
+  - Strategy Hub lists each initiative with editable title, journey timeline,
+    counts.
+  - Research Library shows sources with confidence badges and “See usage”
+    linking inside frameworks.
+  - Readiness API blocks runs unless required inputs exist; optional suggestions
+    display.
+  - “Run in background” executes both journeys and single frameworks and posts
+    notifications.
+  - Knowledge graph panel shows entities and their references.
+  - report.pdf/report.docx include reference sections + footnotes; ZIP has
+    references.json/csv.
+  - Document uploads enrich the KG and trigger a notification.
+

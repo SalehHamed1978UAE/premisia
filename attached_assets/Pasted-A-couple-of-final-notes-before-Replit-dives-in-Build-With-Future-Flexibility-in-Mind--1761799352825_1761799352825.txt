@@ -1,0 +1,52 @@
+A couple of final notes before Replit dives in:
+
+  ———
+
+  ### Build With Future Flexibility in Mind
+
+  1. Collaboration & Access Control
+     We’ll likely add comments, approvals, and role-specific views later.
+     Please avoid assumptions that a strategy has only one owner. When you wire
+     new tables (references, journey_sessions updates, etc.), keep userId or
+     createdBy fields available so we can layer controls on top.
+  2. Framework Configurability
+     All readiness rules, required entities, and framework metadata should come
+     from a config (not hard-coded switch statements). That lets us add new
+     frameworks/journeys without sprawling code changes.
+  3. Reference Scaling
+     Research libraries can grow large. Use indexed columns (sourceType, topics,
+     confidence) and pagination-friendly APIs. Also, keep the reference schema
+     generic so we can plug in new source types (e.g., API connectors, internal
+     databases) later.
+  4. Job System Reuse
+     Treat background journeys and single-framework runs as generic job types
+     so we can add more automation (scheduled re-runs, nightly refreshes, etc.).
+     The worker should pull job metadata rather than assuming one specific flow.
+  5. Exports & API
+     Assume we’ll expose exports via API/webhooks later. Keep generation logic
+     modular and stateless—so a CLI or integration could call it without the UI.
+  6. Knowledge Graph Evolution
+     Store enough metadata (entity IDs, source links, timestamps) so we can
+     visualize changes over time or compare journeys in the future.
+
+  ———
+
+  ### Design Guidelines Reminder
+
+  Please follow the existing design system documented in design_guidelines.md:
+
+  - Layout and spacing (8px grid, section padding, etc.)
+  - Typography hierarchy (heading, body, captions)
+  - Component styling (cards, badges, buttons, alert colors)
+  - Dark-mode compatibility
+  - Accessibility (contrast, keyboard focus states, ARIA labels for new panels/
+    modals)
+
+  Every new component (Strategy Hub cards, modals, research lists) must fit the
+  existing look and feel.
+
+  ———
+
+  If you stick to those guardrails while implementing the plan, we won’t paint
+  ourselves into a corner when we add collaboration, external integrations, or
+  more automation later.
