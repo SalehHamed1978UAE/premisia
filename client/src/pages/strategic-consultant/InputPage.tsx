@@ -629,6 +629,15 @@ export default function InputPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Clarification Modal for Journey Mode */}
+        {showClarificationModal && (
+          <ClarificationModal
+            questions={clarificationQuestions}
+            onSubmit={handleJourneyClarificationsSubmit}
+            onSkip={handleJourneySkipClarifications}
+          />
+        )}
       </AppLayout>
     );
   }
