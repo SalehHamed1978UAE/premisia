@@ -16,18 +16,13 @@ import { db } from '../db';
 import { references, strategicUnderstanding } from '../../shared/schema';
 import type { InsertReference, Reference } from '../../shared/schema';
 import { eq, and, sql } from 'drizzle-orm';
+import type { RawReference as AnalyzerRawReference } from '../intelligence/types';
 
-export interface RawReference {
-  title: string;
-  url?: string;
-  description?: string;
-  sourceType?: 'article' | 'report' | 'document' | 'dataset' | 'manual_entry';
-  topics?: string[];
-  confidence?: number;
-  snippet?: string;
-  page?: number;
-  origin?: 'web_search' | 'manual_upload' | 'document_extract' | 'manual_entry';
-}
+/**
+ * Raw reference data from analyzers before normalization
+ * Re-export the shared type for consistency
+ */
+export type RawReference = AnalyzerRawReference;
 
 export interface NormalizedReference extends InsertReference {
   // Extends InsertReference with required fields populated
@@ -41,6 +36,43 @@ export interface ReferenceUsage {
 }
 
 export class ReferenceService {
+  /**
+   * Map analyzer sourceType to database enum values
+   */
+  private mapSourceType(sourceType?: string): 'article' | 'report' | 'document' | 'dataset' | 'manual_entry' {
+    const mapping: Record<string, 'article' | 'report' | 'document' | 'dataset' | 'manual_entry'> = {
+      'article': 'article',
+      'report': 'report',
+      'document': 'document',
+      'dataset': 'dataset',
+      'manual_entry': 'manual_entry',
+      // Map analyzer types to closest database types
+      'website': 'article',
+      'book': 'report',
+      'interview': 'document',
+      'internal_doc': 'document',
+      'other': 'document',
+    };
+    return mapping[sourceType || 'article'] || 'article';
+  }
+
+  /**
+   * Map analyzer origin to database enum values
+   */
+  private mapOrigin(origin?: string): 'web_search' | 'manual_upload' | 'document_extract' | 'manual_entry' {
+    const mapping: Record<string, 'web_search' | 'manual_upload' | 'document_extract' | 'manual_entry'> = {
+      'web_search': 'web_search',
+      'manual_upload': 'manual_upload',
+      'document_extract': 'document_extract',
+      'manual_entry': 'manual_entry',
+      // Map analyzer types to closest database types
+      'user_upload': 'manual_upload',
+      'llm_generation': 'document_extract', // LLM-generated counts as extracted/synthesized
+      'third_party_api': 'web_search',
+    };
+    return mapping[origin || 'web_search'] || 'web_search';
+  }
+
   /**
    * Normalize a raw reference into the standard format
    */
@@ -64,7 +96,7 @@ export class ReferenceService {
       sessionId: options.sessionId || null,
       programId: options.programId || null,
       userId,
-      sourceType: raw.sourceType || 'article',
+      sourceType: this.mapSourceType(raw.sourceType),
       title: raw.title.trim(),
       url: raw.url?.trim() || null,
       description: raw.description?.trim() || null,
@@ -77,7 +109,7 @@ export class ReferenceService {
         claim: usage.claim
       }] : [],
       usedInComponents: [usage.component],
-      origin: raw.origin || 'web_search',
+      origin: this.mapOrigin(raw.origin),
       lastValidated: new Date(),
     };
   }
