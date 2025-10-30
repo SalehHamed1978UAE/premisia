@@ -121,7 +121,7 @@ function OverviewTab({ strategy, onNavigateToTab }: { strategy: StrategyDetail; 
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => onNavigateToTab('journeys')} data-testid="card-stat-journeys">
           <CardHeader className="pb-3">
             <CardDescription>Journeys</CardDescription>
@@ -514,16 +514,18 @@ export default function StrategyDetailPage() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4" data-testid="tabs-strategy-detail">
+        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4" data-testid="tabs-strategy-detail">
           <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
           <TabsTrigger value="journeys" data-testid="tab-journeys">
-            Journeys ({strategy.sessions.length})
+            <span className="hidden sm:inline">Journeys</span>
+            <span className="sm:hidden">Journey</span> ({strategy.sessions.length})
           </TabsTrigger>
           <TabsTrigger value="research" data-testid="tab-research">
             Research ({strategy.referenceCount})
           </TabsTrigger>
           <TabsTrigger value="programs" data-testid="tab-programs">
-            EPM Programs ({strategy.programs.length})
+            <span className="hidden sm:inline">EPM Programs</span>
+            <span className="sm:hidden">Programs</span> ({strategy.programs.length})
           </TabsTrigger>
         </TabsList>
 
