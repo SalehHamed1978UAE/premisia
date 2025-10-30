@@ -169,8 +169,9 @@ export async function buildStrategicSummary(understandingId: string): Promise<st
     const fiveWhysData = accumulatedContext.fiveWhys;
     summary.latestJourney.frameworks.fiveWhys = {
       rootCause: truncate(fiveWhysData.rootCause || fiveWhysData.finalRootCause, 200),
+      // Limit to 3 path items max (enforcing ≤3 items guarantee)
       path: (fiveWhysData.selectedPath || [])
-        .slice(0, 5)
+        .slice(0, 3)
         .map((p: string) => truncate(p, 100)),
     };
   }
