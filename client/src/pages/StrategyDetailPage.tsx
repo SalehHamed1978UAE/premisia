@@ -487,13 +487,13 @@ export default function StrategyDetailPage() {
             Back to Strategies
           </Button>
         </Link>
-        <div className="flex items-start justify-between">
-          <div className="flex items-start gap-4">
-            <div className="p-3 bg-primary/10 rounded-lg">
-              <Rocket className="h-8 w-8 text-primary" />
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="p-2 sm:p-3 bg-primary/10 rounded-lg flex-shrink-0">
+              <Rocket className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
             </div>
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight mb-2" data-testid="heading-strategy-title">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight mb-2 break-words" data-testid="heading-strategy-title">
                 {displayTitle}
               </h1>
               {strategy.understanding.initiativeType && (
@@ -503,7 +503,7 @@ export default function StrategyDetailPage() {
               )}
             </div>
           </div>
-          <Button onClick={() => setShowLauncherModal(true)} data-testid="button-run-analysis">
+          <Button onClick={() => setShowLauncherModal(true)} className="w-full lg:w-auto flex-shrink-0" data-testid="button-run-analysis">
             <Rocket className="h-4 w-4 mr-2" />
             Run Additional Analysis
           </Button>
