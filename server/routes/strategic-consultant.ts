@@ -2221,7 +2221,7 @@ router.post('/journeys/run-now', async (req: Request, res: Response) => {
         // Update the existing understanding with the strategic summary as the new input
         await updateStrategicUnderstanding(understandingId, {
           userInput: strategicSummary,
-          initiativeDescription: `Follow-on analysis v${existingSessions.length + 1} - built from strategic summary`,
+          initiativeDescription: strategicSummary, // Show the actual summary, not a technical message
         });
 
         console.log(`[Run Now] Follow-on journey detected. Updated understanding ${understandingId} with strategic summary`);
