@@ -65,6 +65,7 @@ export default function JourneyLauncherModal({
   contextMetrics,
 }: JourneyLauncherModalProps) {
   const [selectedJourney, setSelectedJourney] = useState<string | null>(null);
+  const [selectedJourneyType, setSelectedJourneyType] = useState<'prebuilt' | 'custom' | null>(null);
   const [selectedFrameworks, setSelectedFrameworks] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState("journey");
   const { toast } = useToast();
@@ -125,24 +126,49 @@ export default function JourneyLauncherModal({
 
   // Check readiness when modal opens or selection changes
   const { data: readiness, isLoading: checkingReadiness } = useQuery<ReadinessResponse>({
-    queryKey: ['/api/strategic-consultant/journeys/check-readiness', understandingId, selectedJourney, selectedFrameworks],
+    queryKey: ['/api/strategic-consultant/journeys/check-readiness', understandingId, selectedJourney, selectedJourneyType, selectedFrameworks, activeTab],
     enabled: open && (!!selectedJourney || selectedFrameworks.length > 0),
     queryFn: async () => {
+      const payload: any = {
+        understandingId,
+      };
+      
+      // Only include journey fields when in journey tab
+      if (activeTab === 'journey' && selectedJourney) {
+        if (selectedJourneyType === 'custom') {
+          payload.templateId = selectedJourney;
+        } else {
+          payload.journeyType = selectedJourney;
+        }
+      }
+      
+      // Only include frameworks when in framework tab
+      if (activeTab === 'framework' && selectedFrameworks.length > 0) {
+        payload.frameworks = selectedFrameworks;
+      }
+      
       const response = await apiRequest('/api/strategic-consultant/journeys/check-readiness', {
         method: 'POST',
-        body: JSON.stringify({
-          understandingId,
-          journeyType: selectedJourney,
-          frameworks: selectedFrameworks,
-        }),
+        body: JSON.stringify(payload),
       });
       return response;
     },
   });
 
-  const handleJourneySelect = (journeyType: string) => {
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    // Clear opposite selection when switching tabs
+    if (value === 'journey') {
+      setSelectedFrameworks([]);
+    } else if (value === 'framework') {
+      setSelectedJourney(null);
+      setSelectedJourneyType(null);
+    }
+  };
+
+  const handleJourneySelect = (journeyType: string, isCustom: boolean) => {
     setSelectedJourney(journeyType);
-    setSelectedFrameworks([]); // Clear framework selection when switching tabs
+    setSelectedJourneyType(isCustom ? 'custom' : 'prebuilt');
   };
 
   const handleFrameworkToggle = (frameworkId: string) => {
@@ -161,13 +187,27 @@ export default function JourneyLauncherModal({
 
   const startBackgroundMutation = useMutation({
     mutationFn: async () => {
+      const payload: any = {
+        understandingId,
+      };
+      
+      // Only include journey fields when in journey tab
+      if (activeTab === 'journey' && selectedJourney) {
+        if (selectedJourneyType === 'custom') {
+          payload.templateId = selectedJourney;
+        } else {
+          payload.journeyType = selectedJourney;
+        }
+      }
+      
+      // Only include frameworks when in framework tab
+      if (activeTab === 'framework' && selectedFrameworks.length > 0) {
+        payload.frameworks = selectedFrameworks;
+      }
+      
       return await apiRequest('/api/strategic-consultant/journeys/execute-background', {
         method: 'POST',
-        body: JSON.stringify({
-          understandingId,
-          journeyType: selectedJourney,
-          frameworks: selectedFrameworks,
-        }),
+        body: JSON.stringify(payload),
       });
     },
     onSuccess: (data: any) => {
@@ -230,7 +270,7 @@ export default function JourneyLauncherModal({
           </Card>
 
           {/* Tabs for Full Journey vs Single Framework */}
-          <Tabs defaultValue="journey" className="w-full">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="journey" data-testid="tab-full-journey">Full Journey</TabsTrigger>
               <TabsTrigger value="framework" data-testid="tab-single-framework">Single Framework</TabsTrigger>
@@ -262,7 +302,7 @@ export default function JourneyLauncherModal({
                         ? 'ring-2 ring-primary'
                         : 'hover:shadow-md'
                     } ${!journey.available ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    onClick={() => journey.available && handleJourneySelect(journey.type)}
+                    onClick={() => journey.available && handleJourneySelect(journey.type, journey.isCustom || false)}
                     data-testid={`card-journey-${journey.type}`}
                   >
                     <CardHeader className="pb-3">
