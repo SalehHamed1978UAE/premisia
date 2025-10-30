@@ -88,8 +88,8 @@ export async function buildStrategicSummary(understandingId: string): Promise<st
   const summary: StrategicSummary = {
     summaryVersion: 2,
     strategySnapshot: {
-      // Truncate baseline input to 2000 chars max
-      baselineInput: truncate(understanding.userInput, 2000),
+      // Truncate baseline input to 300 chars max (enforcing ≤300 char limit for all text fields)
+      baselineInput: truncate(understanding.userInput, 300),
       title: understanding.title 
         ? truncate(understanding.title, 200) 
         : null,

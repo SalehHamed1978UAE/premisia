@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
+import { randomUUID } from 'crypto';
 import { InputProcessor } from '../strategic-consultant/input-processor';
 import { StrategyAnalyzer } from '../strategic-consultant/strategy-analyzer';
 import { DecisionGenerator } from '../strategic-consultant/decision-generator';
@@ -859,7 +860,35 @@ router.post('/whys-tree/generate', async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error in /whys-tree/generate:', error);
-    res.status(500).json({ error: error.message || 'Whys tree generation failed' });
+    
+    // Provide graceful fallback - return a minimal tree structure
+    // This allows the flow to continue even if AI generation fails
+    const fallbackTree = {
+      rootQuestion: "Why is this strategic initiative important?",
+      branches: [
+        {
+          id: randomUUID(),
+          question: "Why is this strategic initiative important?",
+          option: "It aligns with our business goals",
+          depth: 1,
+          isLeaf: false,
+          branches: [],
+          supporting_evidence: [],
+          counter_arguments: [],
+          consideration: "Generated fallback due to AI service unavailability"
+        }
+      ],
+      maxDepth: 5,
+      sessionId: req.body.sessionId,
+      warning: 'AI service unavailable - using fallback tree structure'
+    };
+    
+    console.warn('[WhysTreeGenerator] Returning fallback tree due to AI failure');
+    res.json({
+      tree: fallbackTree,
+      estimatedTime: '0s',
+      warning: 'AI service temporarily unavailable. You can skip this step and proceed with your analysis.'
+    });
   }
 });
 

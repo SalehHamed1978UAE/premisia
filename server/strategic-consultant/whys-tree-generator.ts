@@ -31,10 +31,17 @@ interface BranchContext {
 export class WhysTreeGenerator {
   private readonly maxDepth = 5;
 
-  private extractJSON(response: { content: string; provider: string; model: string }, context: string): any {
+  private extractJSON(response: { content: string; provider: string; model: string }, context: string, fallback?: any): any {
     console.log(`[WhysTreeGenerator] ${context} - AI provider:`, response.provider, 'model:', response.model);
     console.log(`[WhysTreeGenerator] ${context} - Response length:`, response.content.length);
     console.log(`[WhysTreeGenerator] ${context} - Response preview:`, response.content.substring(0, 200));
+    
+    // Handle empty or whitespace-only responses
+    if (!response.content || response.content.trim().length === 0) {
+      console.warn(`[WhysTreeGenerator] ${context} - Empty response from ${response.provider}, using fallback`);
+      if (fallback) return fallback;
+      throw new Error(`Empty response from ${response.provider} ${context}`);
+    }
     
     let cleanedContent = response.content.trim();
     
@@ -49,6 +56,10 @@ export class WhysTreeGenerator {
       console.error(`[WhysTreeGenerator] ${context} - Failed to extract JSON from AI response`);
       console.error(`[WhysTreeGenerator] ${context} - Provider:`, response.provider);
       console.error(`[WhysTreeGenerator] ${context} - Full response:`, response.content);
+      if (fallback) {
+        console.warn(`[WhysTreeGenerator] ${context} - Using fallback value`);
+        return fallback;
+      }
       throw new Error(`Failed to extract JSON from ${response.provider} ${context}. Response was: ${response.content.substring(0, 300)}`);
     }
 
@@ -59,6 +70,10 @@ export class WhysTreeGenerator {
     } catch (parseError: any) {
       console.error(`[WhysTreeGenerator] ${context} - JSON parse error:`, parseError.message);
       console.error(`[WhysTreeGenerator] ${context} - Attempted to parse:`, jsonMatch[0].substring(0, 300));
+      if (fallback) {
+        console.warn(`[WhysTreeGenerator] ${context} - Using fallback value due to parse error`);
+        return fallback;
+      }
       throw new Error(`Failed to parse JSON from ${response.provider} ${context}: ${parseError.message}`);
     }
   }
