@@ -31,110 +31,18 @@ interface JourneyDefinition {
   frameworks: string[];
   estimatedDuration: string;
   available: boolean;
+  isCustom?: boolean;
+  templateId?: string;
 }
 
 interface FrameworkDefinition {
   id: string;
+  frameworkKey?: string;
   name: string;
   description: string;
   available: boolean;
+  isActive?: boolean;
 }
-
-const JOURNEY_TYPES: JourneyDefinition[] = [
-  {
-    type: 'market_entry',
-    name: 'Market Entry Strategy',
-    description: 'Analyze market conditions, competitive forces, and business model for entering new markets',
-    frameworks: ['five_whys', 'porters', 'bmc'],
-    estimatedDuration: '15-20 minutes',
-    available: true,
-  },
-  {
-    type: 'business_model_innovation',
-    name: 'Business Model Innovation',
-    description: 'Design and validate innovative business models with root cause analysis and market research',
-    frameworks: ['five_whys', 'bmc', 'pestle'],
-    estimatedDuration: '15-20 minutes',
-    available: true,
-  },
-  {
-    type: 'competitive_strategy',
-    name: 'Competitive Strategy',
-    description: 'Assess competitive dynamics and develop differentiation strategies',
-    frameworks: ['porters', 'pestle', 'bmc'],
-    estimatedDuration: '15-20 minutes',
-    available: true,
-  },
-  {
-    type: 'digital_transformation',
-    name: 'Digital Transformation',
-    description: 'Plan technology-driven transformation with business model and trend analysis',
-    frameworks: ['pestle', 'bmc', 'five_whys'],
-    estimatedDuration: '15-20 minutes',
-    available: true,
-  },
-  {
-    type: 'crisis_recovery',
-    name: 'Crisis Recovery',
-    description: 'Identify root causes, assess external factors, and rebuild strategic foundations',
-    frameworks: ['five_whys', 'pestle', 'porters'],
-    estimatedDuration: '15-20 minutes',
-    available: true,
-  },
-  {
-    type: 'growth_strategy',
-    name: 'Growth Strategy',
-    description: 'Explore growth opportunities through comprehensive strategic analysis',
-    frameworks: ['bmc', 'pestle', 'porters'],
-    estimatedDuration: '15-20 minutes',
-    available: true,
-  },
-];
-
-const FRAMEWORKS: FrameworkDefinition[] = [
-  {
-    id: 'five_whys',
-    name: "Five Whys Analysis",
-    description: "Root cause analysis to uncover fundamental problems",
-    available: true,
-  },
-  {
-    id: 'bmc',
-    name: "Business Model Canvas",
-    description: "Comprehensive business model design and validation",
-    available: true,
-  },
-  {
-    id: 'porters',
-    name: "Porter's Five Forces",
-    description: "Competitive forces and industry structure analysis",
-    available: true,
-  },
-  {
-    id: 'pestle',
-    name: "PESTLE Analysis",
-    description: "External macro-environmental trends and factors",
-    available: true,
-  },
-  {
-    id: 'swot',
-    name: "SWOT Analysis",
-    description: "Strengths, weaknesses, opportunities, and threats",
-    available: false,
-  },
-  {
-    id: 'ansoff',
-    name: "Ansoff Matrix",
-    description: "Product and market growth strategies",
-    available: false,
-  },
-  {
-    id: 'blue_ocean',
-    name: "Blue Ocean Strategy",
-    description: "Value innovation and uncontested market spaces",
-    available: false,
-  },
-];
 
 interface ReadinessResponse {
   success: boolean;
@@ -160,6 +68,60 @@ export default function JourneyLauncherModal({
   const [selectedFrameworks, setSelectedFrameworks] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState("journey");
   const { toast } = useToast();
+
+  // Fetch prebuilt journeys from registry
+  const { data: prebuiltJourneysData, isLoading: loadingPrebuilt } = useQuery<any>({
+    queryKey: ['/api/strategic-consultant/journey-registry'],
+    enabled: open,
+  });
+
+  // Fetch custom journey templates
+  const { data: customTemplatesData, isLoading: loadingCustom } = useQuery<any>({
+    queryKey: ['/api/journey-builder/templates'],
+    enabled: open,
+  });
+
+  // Fetch available frameworks for single framework mode
+  const { data: frameworksData, isLoading: loadingFrameworks } = useQuery<any>({
+    queryKey: ['/api/journey-builder/frameworks'],
+    enabled: open,
+  });
+
+  // Merge and transform journey data
+  const journeys: JourneyDefinition[] = [
+    // Prebuilt journeys from registry
+    ...(prebuiltJourneysData?.journeys || []).map((j: any) => ({
+      type: j.type,
+      name: j.name,
+      description: j.description,
+      frameworks: j.frameworks,
+      estimatedDuration: j.estimatedDuration,
+      available: j.available,
+      isCustom: false,
+    })),
+    // Custom templates
+    ...(customTemplatesData?.templates || []).map((t: any) => ({
+      type: t.id,
+      name: `Custom: ${t.name}`,
+      description: t.description || 'User-created journey template',
+      frameworks: (t.steps || []).map((s: any) => s.frameworkKey),
+      estimatedDuration: t.estimatedDuration ? `${t.estimatedDuration} minutes` : 'Variable',
+      available: t.isPublished !== false,
+      isCustom: true,
+      templateId: t.id,
+    })),
+  ];
+
+  // Transform frameworks data
+  const frameworks: FrameworkDefinition[] = (frameworksData?.frameworks || []).map((f: any) => ({
+    id: f.frameworkKey || f.id,
+    frameworkKey: f.frameworkKey,
+    name: f.name,
+    description: f.description || '',
+    available: f.isActive !== false,
+  }));
+
+  const isLoadingData = loadingPrebuilt || loadingCustom || loadingFrameworks;
 
   // Check readiness when modal opens or selection changes
   const { data: readiness, isLoading: checkingReadiness } = useQuery<ReadinessResponse>({
@@ -279,8 +241,20 @@ export default function JourneyLauncherModal({
               <p className="text-sm text-muted-foreground">
                 Select a comprehensive analysis journey that runs multiple frameworks in sequence
               </p>
-              <div className="grid gap-3">
-                {JOURNEY_TYPES.map(journey => (
+              
+              {isLoadingData ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-sm text-muted-foreground">Loading available journeys...</span>
+                </div>
+              ) : journeys.length === 0 ? (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>No journeys available at this time.</AlertDescription>
+                </Alert>
+              ) : (
+                <div className="grid gap-3">
+                  {journeys.map(journey => (
                   <Card
                     key={journey.type}
                     className={`cursor-pointer transition-all ${
@@ -322,10 +296,11 @@ export default function JourneyLauncherModal({
                       </div>
                     </CardContent>
                   </Card>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
 
-              {selectedJourney && (
+              {selectedJourney && !isLoadingData && (
                 <>
                   {/* Readiness Status */}
                   {checkingReadiness ? (
@@ -387,8 +362,20 @@ export default function JourneyLauncherModal({
               <p className="text-sm text-muted-foreground">
                 Select one or more individual frameworks to analyze specific aspects of your strategy
               </p>
-              <div className="grid gap-3">
-                {FRAMEWORKS.map(framework => (
+              
+              {isLoadingData ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-sm text-muted-foreground">Loading available frameworks...</span>
+                </div>
+              ) : frameworks.length === 0 ? (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>No frameworks available at this time.</AlertDescription>
+                </Alert>
+              ) : (
+                <div className="grid gap-3">
+                  {frameworks.map(framework => (
                   <Card
                     key={framework.id}
                     className={`${
@@ -423,10 +410,11 @@ export default function JourneyLauncherModal({
                       </div>
                     </CardHeader>
                   </Card>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
 
-              {selectedFrameworks.length > 0 && (
+              {selectedFrameworks.length > 0 && !isLoadingData && (
                 <>
                   {/* Readiness Status */}
                   {checkingReadiness ? (
