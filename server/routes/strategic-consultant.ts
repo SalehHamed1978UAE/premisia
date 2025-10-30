@@ -43,6 +43,166 @@ const bmcResearcher = new BMCResearcher();
 const journeyOrchestrator = new JourneyOrchestrator();
 
 /**
+ * Build a rich strategic summary for follow-on journeys
+ * Aggregates executive summary, decisions, insights, and references
+ */
+async function buildStrategicSummary(understandingId: string): Promise<string> {
+  // Get the strategic understanding
+  const understanding = await getStrategicUnderstanding(understandingId);
+  if (!understanding) {
+    throw new Error('Strategic understanding not found');
+  }
+
+  // Get completed journey sessions
+  const sessions = await db.query.journeySessions.findMany({
+    where: (sessions, { eq }) => eq(sessions.understandingId, understandingId),
+    orderBy: (sessions, { desc }) => [desc(sessions.createdAt)],
+  });
+
+  // Get strategic versions from ALL journey sessions (not just the base session)
+  const allVersions: any[] = [];
+  
+  // Include base understanding session versions
+  if (understanding.sessionId) {
+    const baseVersions = await db.query.strategyVersions.findMany({
+      where: (versions, { eq }) => eq(versions.sessionId, understanding.sessionId || ''),
+      orderBy: (versions, { desc }) => [desc(versions.createdAt)],
+    });
+    allVersions.push(...baseVersions);
+  }
+  
+  // Include versions from each journey session
+  for (const session of sessions) {
+    const sessionVersions = await db.query.strategyVersions.findMany({
+      where: (versions, { and, eq }) => and(
+        eq(versions.sessionId, session.id),
+      ),
+      orderBy: (versions, { desc }) => [desc(versions.createdAt)],
+    });
+    allVersions.push(...sessionVersions);
+  }
+  
+  // Sort all versions by creation date and take most recent
+  const versions = allVersions
+    .sort((a, b) => {
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bTime - aTime;
+    })
+    .slice(0, 5); // Take top 5 most recent decisions across all sessions
+
+  // Get strategic entities (for key insights)
+  const entities = await db.query.strategicEntities.findMany({
+    where: (entities, { eq }) => eq(entities.understandingId, understandingId),
+    orderBy: (entities, { desc }) => [desc(entities.createdAt)],
+    limit: 10,
+  });
+
+  // Get references
+  const references = await db.query.references.findMany({
+    where: (refs, { eq }) => eq(refs.understandingId, understandingId),
+    orderBy: (refs, { desc }) => [desc(refs.createdAt)],
+    limit: 10,
+  });
+
+  // Build comprehensive summary
+  const summaryParts: string[] = [];
+
+  // Header
+  summaryParts.push('# Strategic Context Summary\n');
+  summaryParts.push(`## Executive Summary`);
+  summaryParts.push(understanding.userInput || '');
+  summaryParts.push('');
+
+  // Initiative Details
+  if (understanding.initiativeType) {
+    summaryParts.push(`## Initiative Classification`);
+    summaryParts.push(`Type: ${understanding.initiativeType}`);
+    if (understanding.initiativeDescription) {
+      summaryParts.push(`Description: ${understanding.initiativeDescription}`);
+    }
+    summaryParts.push('');
+  }
+
+  // Completed Analysis
+  if (sessions.length > 0) {
+    summaryParts.push(`## Completed Strategic Analysis`);
+    summaryParts.push(`Previous analysis included ${sessions.length} journey session(s):`);
+    sessions.forEach((session, idx) => {
+      const statusText = session.status === 'completed' ? 'Completed' : session.status;
+      summaryParts.push(`${idx + 1}. ${session.journeyType} (v${session.versionNumber}) - ${statusText}`);
+      if (session.completedFrameworks && session.completedFrameworks.length > 0) {
+        summaryParts.push(`   Frameworks: ${session.completedFrameworks.join(', ')}`);
+      }
+    });
+    summaryParts.push('');
+  }
+
+  // Strategic Decisions
+  if (versions.length > 0) {
+    summaryParts.push(`## Strategic Decisions & Analysis`);
+    versions.forEach((version, idx) => {
+      summaryParts.push(`${idx + 1}. Version ${version.versionNumber}${version.versionLabel ? ` (${version.versionLabel})` : ''}`);
+      if (version.strategicApproach) {
+        summaryParts.push(`   Approach: ${version.strategicApproach}`);
+      }
+      if (version.decisionsData) {
+        const decisions = typeof version.decisionsData === 'string' 
+          ? JSON.parse(version.decisionsData)
+          : version.decisionsData;
+        if (Array.isArray(decisions) && decisions.length > 0) {
+          decisions.slice(0, 2).forEach((d: any) => {
+            if (d.title) {
+              summaryParts.push(`   Decision: ${d.title}`);
+            }
+          });
+        }
+      }
+    });
+    summaryParts.push('');
+  }
+
+  // Key Insights from Strategic Entities
+  if (entities.length > 0) {
+    summaryParts.push(`## Key Strategic Insights`);
+    const topEntities = entities.slice(0, 5);
+    topEntities.forEach((entity, idx) => {
+      const entityType = entity.type || 'Insight';
+      const category = entity.category ? ` (${entity.category})` : '';
+      summaryParts.push(`${idx + 1}. ${entityType}${category}: ${entity.claim}`);
+      if (entity.evidence) {
+        summaryParts.push(`   Evidence: ${entity.evidence.substring(0, 150)}${entity.evidence.length > 150 ? '...' : ''}`);
+      }
+    });
+    summaryParts.push('');
+  }
+
+  // Research References
+  if (references.length > 0) {
+    summaryParts.push(`## Supporting Research`);
+    summaryParts.push(`Based on ${references.length} research source(s):`);
+    const topReferences = references.slice(0, 5);
+    topReferences.forEach((ref, idx) => {
+      summaryParts.push(`${idx + 1}. ${ref.title || 'Reference'}`);
+      if (ref.description) {
+        summaryParts.push(`   ${ref.description.substring(0, 150)}${ref.description.length > 150 ? '...' : ''}`);
+      }
+      if (ref.url) {
+        summaryParts.push(`   Source: ${ref.url}`);
+      }
+    });
+    summaryParts.push('');
+  }
+
+  // Context for follow-on analysis
+  summaryParts.push(`## Follow-On Analysis Context`);
+  summaryParts.push(`This strategic summary incorporates insights from ${sessions.length} previous analysis session(s), ${entities.length} strategic findings, and ${references.length} research sources. Use this comprehensive context to inform deeper strategic exploration and identify new opportunities or risks.`);
+  summaryParts.push('');
+
+  return summaryParts.join('\n');
+}
+
+/**
  * POST /api/strategic-consultant/extract-file
  * Extract text content from uploaded file only (no analysis)
  */
@@ -1922,24 +2082,63 @@ router.post('/journeys/execute-background', async (req: Request, res: Response) 
       return res.status(404).json({ error: 'Strategy not found' });
     }
 
+    // Check if this is a follow-on journey (has previous sessions)
+    const existingSessions = await db.query.journeySessions.findMany({
+      where: (sessions, { eq }) => eq(sessions.understandingId, understandingId),
+    });
+
+    let targetUnderstandingId = understandingId;
+    let isFollowOn = false;
+
+    // If follow-on journey, build strategic summary and create new understanding
+    if (existingSessions.length > 0) {
+      try {
+        const strategicSummary = await buildStrategicSummary(understandingId);
+        
+        // Create new understanding with the summary
+        const summaryResult = await strategicUnderstandingService.extractUnderstanding({
+          sessionId: understanding.sessionId || '',
+          userInput: strategicSummary,
+          companyContext: null,
+        });
+
+        // Mark as derived from original understanding
+        await updateStrategicUnderstanding(summaryResult.understandingId, {
+          initiativeType: understanding.initiativeType || 'strategic_analysis',
+          initiativeDescription: `Follow-on analysis derived from ${understanding.id} (v${existingSessions.length + 1})`,
+          userConfirmed: true,
+        });
+
+        targetUnderstandingId = summaryResult.understandingId;
+        isFollowOn = true;
+
+        console.log(`Follow-on journey detected. Created new understanding ${targetUnderstandingId} from summary of ${understandingId}`);
+      } catch (summaryError: any) {
+        console.warn('Failed to build strategic summary, using original understanding:', summaryError.message);
+        // Fall back to original understanding if summary fails
+      }
+    }
+
     // Create background job record
     const { backgroundJobService } = await import('../services/background-job-service');
     const jobId = await backgroundJobService.createJob({
       userId,
       jobType: journeyType ? 'strategic_understanding' : 'web_research',
       inputData: {
-        understandingId,
+        understandingId: targetUnderstandingId,
         journeyType,
         frameworks,
         mode: 'background',
+        isFollowOn,
+        baseUnderstandingId: isFollowOn ? understandingId : undefined,
       },
-      relatedEntityId: understandingId,
+      relatedEntityId: targetUnderstandingId,
       relatedEntityType: 'strategic_understanding',
     });
 
     // Start journey session
     const journeySessionId = await journeyOrchestrator.startJourney(
-      understanding.id!,
+      targetUnderstandingId,
       journeyType as JourneyType,
       userId
     );
@@ -1952,9 +2151,11 @@ router.post('/journeys/execute-background', async (req: Request, res: Response) 
       success: true,
       jobId,
       journeySessionId,
+      understandingId: targetUnderstandingId,
+      isFollowOn,
       message: journeyType 
-        ? `Journey "${journeyType}" queued for background execution`
-        : `${frameworks.length} framework(s) queued for background execution`,
+        ? `Journey "${journeyType}" queued for background execution${isFollowOn ? ' (follow-on analysis with strategic summary)' : ''}`
+        : `${frameworks.length} framework(s) queued for background execution${isFollowOn ? ' (follow-on analysis with strategic summary)' : ''}`,
       estimatedDuration: '10-15 minutes',
     });
   } catch (error: any) {
@@ -2107,24 +2308,31 @@ router.post('/journeys/check-readiness', async (req: Request, res: Response) => 
     const referenceCount = referencesData.length;
     const hasUserInput = !!understanding.userInput;
     
-    // Readiness thresholds
-    const MIN_REFERENCES_FOR_BACKGROUND = 3;
-    const MIN_ENTITIES_FOR_BACKGROUND = 5;
+    // Journey-aware readiness thresholds
+    const readinessConfig: Record<string, { minReferences: number; minEntities: number }> = {
+      business_model_innovation: { minReferences: 0, minEntities: 0 },
+      business_model_canvas: { minReferences: 0, minEntities: 0 },
+    };
+
+    const { minReferences, minEntities } = readinessConfig[journeyType as string] ?? {
+      minReferences: 3,
+      minEntities: 5,
+    };
     
     const isReady = hasUserInput && 
-                     referenceCount >= MIN_REFERENCES_FOR_BACKGROUND && 
-                     entityCount >= MIN_ENTITIES_FOR_BACKGROUND;
+                     referenceCount >= minReferences && 
+                     entityCount >= minEntities;
 
     // Calculate missing requirements
     const missingRequirements: string[] = [];
     if (!hasUserInput) {
       missingRequirements.push("Original strategic input is missing");
     }
-    if (referenceCount < MIN_REFERENCES_FOR_BACKGROUND) {
-      missingRequirements.push(`Need ${MIN_REFERENCES_FOR_BACKGROUND - referenceCount} more reference(s)`);
+    if (referenceCount < minReferences) {
+      missingRequirements.push(`Need ${minReferences - referenceCount} more reference(s)`);
     }
-    if (entityCount < MIN_ENTITIES_FOR_BACKGROUND) {
-      missingRequirements.push(`Need ${MIN_ENTITIES_FOR_BACKGROUND - entityCount} more strategic entit${entityCount === 1 ? 'y' : 'ies'}`);
+    if (entityCount < minEntities) {
+      missingRequirements.push(`Need ${minEntities - entityCount} more strategic entit${entityCount === 1 ? 'y' : 'ies'}`);
     }
 
     // Return readiness assessment

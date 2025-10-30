@@ -361,6 +361,10 @@ export default function InputPage() {
       const ambiguityResult = await ambiguityResponse.json();
 
       if (ambiguityResult.hasAmbiguities) {
+        // Save trimmed input before showing modal (clarifications will be applied when submitted)
+        const trimmedInput = text.trim();
+        setText(trimmedInput);
+        
         // Show clarification modal
         setClarificationQuestions(ambiguityResult.questions);
         setShowClarificationModal(true);
