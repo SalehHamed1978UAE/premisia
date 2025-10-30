@@ -1798,8 +1798,20 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
     
     console.log('[BMC-RESEARCH-STREAM] SSE headers set, fetching input from strategic understanding...');
     
-    // Fetch input from strategic understanding using sessionId (session-{timestamp}-{random} format)
-    const understanding = await getStrategicUnderstandingBySession(sessionId);
+    // First try to get journey session to find understandingId
+    let understanding;
+    const journeySession = await getJourneySession(sessionId);
+    
+    if (journeySession) {
+      // This is a journey session ID, get understanding via understandingId
+      console.log('[BMC-RESEARCH-STREAM] Found journey session, fetching understanding via understandingId:', journeySession.understandingId);
+      understanding = await getStrategicUnderstanding(journeySession.understandingId);
+    } else {
+      // Fall back to old behavior for base session IDs
+      console.log('[BMC-RESEARCH-STREAM] No journey session found, trying as base session ID');
+      understanding = await getStrategicUnderstandingBySession(sessionId);
+    }
+    
     if (!understanding || !understanding.userInput) {
       res.write(`data: ${JSON.stringify({ type: 'error', error: 'Strategic understanding not found for this session' })}\n\n`);
       res.end();
