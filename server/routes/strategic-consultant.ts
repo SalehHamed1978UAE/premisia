@@ -2177,27 +2177,14 @@ router.post('/journeys/execute-background', async (req: Request, res: Response) 
  */
 router.post('/journeys/run-now', async (req: Request, res: Response) => {
   try {
-    const { understandingId, journeyType, templateId, frameworks } = req.body;
+    const { understandingId, journeyType } = req.body;
     const userId = (req.user as any)?.claims?.sub || null;
 
     if (!understandingId) {
       return res.status(400).json({ error: 'understandingId is required' });
     }
 
-    // Currently only prebuilt journeys are supported for interactive execution
     if (!journeyType) {
-      if (templateId) {
-        return res.status(501).json({ 
-          error: 'Custom template execution is not yet supported. Please use background execution instead.',
-          suggestion: 'Use POST /api/strategic-consultant/journeys/execute-background'
-        });
-      }
-      if (frameworks && frameworks.length > 0) {
-        return res.status(501).json({ 
-          error: 'Framework-only execution is not yet supported. Please use background execution instead.',
-          suggestion: 'Use POST /api/strategic-consultant/journeys/execute-background'
-        });
-      }
       return res.status(400).json({ 
         error: 'journeyType is required for interactive execution'
       });
@@ -2221,22 +2208,59 @@ router.post('/journeys/run-now', async (req: Request, res: Response) => {
       });
     }
 
-    // Start journey session
+    // Check if there are existing journey sessions (follow-on journey)
+    const existingSessions = await db.query.journeySessions.findMany({
+      where: (sessions, { eq }) => eq(sessions.understandingId, understandingId),
+    });
+
+    let targetUnderstandingId = understandingId;
+    let isFollowOn = false;
+
+    // If follow-on journey, build strategic summary from completed journeys
+    if (existingSessions.length > 0) {
+      try {
+        const strategicSummary = await buildStrategicSummary(understandingId);
+        
+        // Create new understanding with the summary as input
+        const summaryResult = await strategicUnderstandingService.extractUnderstanding({
+          sessionId: understanding.sessionId || '',
+          userInput: strategicSummary,
+          companyContext: null,
+        });
+
+        // Mark as derived from original understanding
+        await updateStrategicUnderstanding(summaryResult.understandingId, {
+          initiativeType: understanding.initiativeType || 'strategic_analysis',
+          initiativeDescription: `Follow-on analysis derived from ${understanding.id} (v${existingSessions.length + 1})`,
+          userConfirmed: true,
+        });
+
+        targetUnderstandingId = summaryResult.understandingId;
+        isFollowOn = true;
+
+        console.log(`[Run Now] Follow-on journey detected. Created new understanding ${targetUnderstandingId} from summary of ${understandingId}`);
+      } catch (summaryError: any) {
+        console.warn('[Run Now] Failed to build strategic summary, using original understanding:', summaryError.message);
+        // Fall back to original understanding if summary fails
+      }
+    }
+
+    // Start journey session with the target understanding (either new summary-based or original)
     const journeySessionId = await journeyOrchestrator.startJourney(
-      understanding.id!,
+      targetUnderstandingId,
       journeyType as JourneyType,
       userId
     );
 
     // Execute journey synchronously
-    console.log(`[Run Now] Starting interactive execution for journey session ${journeySessionId}`);
+    console.log(`[Run Now] Starting execution for journey session ${journeySessionId}${isFollowOn ? ' (follow-on with strategic summary)' : ''}`);
     const finalContext = await journeyOrchestrator.executeJourney(journeySessionId);
     console.log(`[Run Now] Journey execution completed successfully`);
 
     res.json({
       success: true,
       journeySessionId,
-      message: `Journey "${journeyType}" completed successfully`,
+      message: `Journey "${journeyType}" completed successfully${isFollowOn ? ' using strategic summary from previous analysis' : ''}`,
       context: {
         understandingId: finalContext.understandingId,
         completedFrameworks: finalContext.completedFrameworks,

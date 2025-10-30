@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Rocket, CheckCircle2, AlertCircle, Loader2, Play, Clock, ArrowRight } from "lucide-react";
+import { Rocket, CheckCircle2, AlertCircle, Loader2, Play } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -42,19 +42,6 @@ interface FrameworkDefinition {
   description: string;
   available: boolean;
   isActive?: boolean;
-}
-
-interface ReadinessResponse {
-  success: boolean;
-  ready: boolean;
-  canRunInBackground: boolean;
-  context: {
-    entityCount: number;
-    referenceCount: number;
-    hasUserInput: boolean;
-  };
-  missingRequirements: string[];
-  recommendation: string;
 }
 
 export default function JourneyLauncherModal({
@@ -134,34 +121,6 @@ export default function JourneyLauncherModal({
 
   const isLoadingData = loadingPrebuilt || loadingCustom || loadingFrameworks;
 
-  // Check readiness when modal opens or selection changes
-  const { data: readiness, isLoading: checkingReadiness } = useQuery<ReadinessResponse>({
-    queryKey: ['/api/strategic-consultant/journeys/check-readiness', understandingId, selectedJourney, selectedJourneyType, selectedFrameworks, activeTab],
-    enabled: open && (!!selectedJourney || selectedFrameworks.length > 0),
-    queryFn: async () => {
-      const payload: any = {
-        understandingId,
-      };
-      
-      // Only include journey fields when in journey tab
-      if (activeTab === 'journey' && selectedJourney) {
-        if (selectedJourneyType === 'custom') {
-          payload.templateId = selectedJourney;
-        } else {
-          payload.journeyType = selectedJourney;
-        }
-      }
-      
-      // Only include frameworks when in framework tab
-      if (activeTab === 'framework' && selectedFrameworks.length > 0) {
-        payload.frameworks = selectedFrameworks;
-      }
-      
-      const response = await apiRequest('POST', '/api/strategic-consultant/journeys/check-readiness', payload);
-      return response.json();
-    },
-  });
-
   const handleTabChange = (value: string) => {
     setActiveTab(value);
     // Clear opposite selection when switching tabs
@@ -223,12 +182,12 @@ export default function JourneyLauncherModal({
     },
   });
 
-  // Run Now mutation - executes interactively for prebuilt journeys only
+  // Run Now mutation - executes journey using strategic summary from completed sessions
   const runNowMutation = useMutation({
     mutationFn: async () => {
       const payload: any = {
         understandingId,
-        journeyType: selectedJourney, // Only used with prebuilt journeys
+        journeyType: selectedJourney,
       };
       
       const response = await apiRequest('POST', '/api/strategic-consultant/journeys/run-now', payload);
@@ -240,7 +199,6 @@ export default function JourneyLauncherModal({
         description: data.message || "Your analysis has been completed successfully.",
       });
       onOpenChange(false);
-      // Refresh the page to show updated timeline
       window.location.reload();
     },
     onError: (error: any) => {
@@ -251,52 +209,6 @@ export default function JourneyLauncherModal({
       });
     },
   });
-
-  // Background execution mutation - used when explicitly requested
-  const startBackgroundMutation = useMutation({
-    mutationFn: async () => {
-      const payload: any = {
-        understandingId,
-      };
-      
-      // Only include journey fields when in journey tab
-      if (activeTab === 'journey' && selectedJourney) {
-        if (selectedJourneyType === 'custom') {
-          payload.templateId = selectedJourney;
-        } else {
-          payload.journeyType = selectedJourney;
-        }
-      }
-      
-      // Only include frameworks when in framework tab
-      if (activeTab === 'framework' && selectedFrameworks.length > 0) {
-        payload.frameworks = selectedFrameworks;
-      }
-      
-      const response = await apiRequest('POST', '/api/strategic-consultant/journeys/execute-background', payload);
-      return response.json();
-    },
-    onSuccess: (data: any) => {
-      toast({
-        title: "Analysis Started",
-        description: data.message || "Your analysis is running in the background.",
-      });
-      onOpenChange(false);
-      // Optionally redirect to tracking page or refresh current page
-      window.location.reload();
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Failed to Start Analysis",
-        description: error.message || "An error occurred while starting the analysis.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleStartInBackground = () => {
-    startBackgroundMutation.mutate();
-  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -471,101 +383,28 @@ export default function JourneyLauncherModal({
           </Tabs>
         </div>
 
-        {/* Sticky Footer - Shows when journey or frameworks selected */}
-        {(selectedJourney || selectedFrameworks.length > 0) && !isLoadingData && (
-          <div className="border-t bg-background px-4 sm:px-6 py-4 space-y-3">
-            {/* Readiness Status */}
-            {checkingReadiness ? (
-              <Alert>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <AlertDescription>Checking context availability...</AlertDescription>
-              </Alert>
-            ) : readiness && !readiness.ready ? (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  <p className="font-semibold mb-2">{readiness.recommendation}</p>
-                  <ul className="list-disc list-inside space-y-1 text-sm">
-                    {readiness.missingRequirements.map((req, idx) => (
-                      <li key={idx}>{req}</li>
-                    ))}
-                  </ul>
-                </AlertDescription>
-              </Alert>
-            ) : readiness?.ready ? (
-              <Alert className="border-green-200 bg-green-50 dark:bg-green-950 dark:border-green-800">
-                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-                <AlertDescription className="text-green-800 dark:text-green-200">
-                  {readiness.recommendation}
-                </AlertDescription>
-              </Alert>
-            ) : null}
-
-            {/* Action Buttons */}
+        {/* Sticky Footer - Shows when journey selected */}
+        {selectedJourney && !isLoadingData && (
+          <div className="border-t bg-background px-4 sm:px-6 py-4">
             <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
               <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel">
                 Cancel
               </Button>
               
-              {/* Show different buttons based on readiness and selection type */}
-              {readiness?.ready ? (
-                <>
-                  {/* Run Now button - only for prebuilt journeys (interactive execution supported) */}
-                  {activeTab === 'journey' && selectedJourneyType === 'prebuilt' && (
-                    <Button 
-                      onClick={() => runNowMutation.mutate()} 
-                      disabled={runNowMutation.isPending}
-                      data-testid="button-run-now"
-                    >
-                      {runNowMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <Play className="h-4 w-4 mr-2" />
-                      )}
-                      {runNowMutation.isPending ? 'Running...' : 'Run Now'}
-                    </Button>
-                  )}
-                  
-                  {/* Start in Background - available for all ready selections */}
-                  {readiness?.canRunInBackground && (
-                    <Button 
-                      onClick={handleStartInBackground} 
-                      disabled={startBackgroundMutation.isPending}
-                      variant={activeTab === 'framework' || selectedJourneyType === 'custom' ? 'default' : 'outline'}
-                      data-testid="button-start-background"
-                    >
-                      {startBackgroundMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <Clock className="h-4 w-4 mr-2" />
-                      )}
-                      Start in Background
-                    </Button>
-                  )}
-                </>
-              ) : (
-                <>
-                  {/* Only show Continue button for prebuilt journeys */}
-                  {activeTab === 'journey' && selectedJourneyType === 'prebuilt' ? (
-                    <Button 
-                      onClick={() => executeJourneyMutation.mutate()} 
-                      disabled={executeJourneyMutation.isPending}
-                      variant="secondary" 
-                      data-testid="button-continue-journey"
-                    >
-                      {executeJourneyMutation.isPending ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <ArrowRight className="h-4 w-4 mr-2" />
-                      )}
-                      {executeJourneyMutation.isPending ? 'Starting...' : 'Continue in Journey Builder'}
-                    </Button>
+              {/* Run Now button - only for prebuilt journeys */}
+              {activeTab === 'journey' && selectedJourneyType === 'prebuilt' && (
+                <Button 
+                  onClick={() => runNowMutation.mutate()} 
+                  disabled={runNowMutation.isPending}
+                  data-testid="button-run-now"
+                >
+                  {runNowMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
-                    <div className="text-sm text-muted-foreground" data-testid="text-need-more-context">
-                      Add more references or entities to your strategy to enable analysis.
-                    </div>
+                    <Play className="h-4 w-4 mr-2" />
                   )}
-                </>
+                  {runNowMutation.isPending ? 'Running...' : 'Run Now'}
+                </Button>
               )}
             </div>
           </div>
