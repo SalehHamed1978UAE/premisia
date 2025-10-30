@@ -176,17 +176,42 @@ export default function JourneyLauncherModal({
     );
   };
 
-  const handleRunNow = () => {
-    // If context is ready, execute in background
-    // If not ready, navigate to journey builder for more input
-    if (readiness?.ready) {
-      handleStartInBackground();
-    } else {
-      // Navigate to strategic consultant with preloaded context to gather more input
-      window.location.href = `/strategic-consultant/journey-selection/${understandingId}`;
+  // Execute mutation - when NOT ready, initialize journey and navigate to wizard
+  const executeJourneyMutation = useMutation({
+    mutationFn: async () => {
+      const payload: any = {
+        understandingId,
+      };
+      
+      // Include journey type for prebuilt journeys
+      if (activeTab === 'journey' && selectedJourney && selectedJourneyType === 'prebuilt') {
+        payload.journeyType = selectedJourney;
+      } else {
+        // For framework-only or custom templates, we'd need different handling
+        // For now, this flow is primarily for prebuilt journeys
+        throw new Error('Interactive wizard currently only supports prebuilt journeys');
+      }
+      
+      const response = await apiRequest('POST', '/api/strategic-consultant/journeys/execute', payload);
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Journey Started",
+        description: "Let's gather the information needed for your analysis.",
+      });
       onOpenChange(false);
-    }
-  };
+      // Navigate to the first page in the journey wizard
+      window.location.href = data.navigationUrl;
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to Start Journey",
+        description: error.message || "An error occurred.",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Run Now mutation - executes interactively for prebuilt journeys only
   const runNowMutation = useMutation({
@@ -509,9 +534,18 @@ export default function JourneyLauncherModal({
                   )}
                 </>
               ) : (
-                <Button onClick={handleRunNow} variant="secondary" data-testid="button-continue-journey">
-                  <ArrowRight className="h-4 w-4 mr-2" />
-                  Continue in Journey Builder
+                <Button 
+                  onClick={() => executeJourneyMutation.mutate()} 
+                  disabled={executeJourneyMutation.isPending}
+                  variant="secondary" 
+                  data-testid="button-continue-journey"
+                >
+                  {executeJourneyMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <ArrowRight className="h-4 w-4 mr-2" />
+                  )}
+                  {executeJourneyMutation.isPending ? 'Starting...' : 'Continue in Journey Builder'}
                 </Button>
               )}
             </div>
