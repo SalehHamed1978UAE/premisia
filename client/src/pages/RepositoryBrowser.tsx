@@ -257,7 +257,7 @@ export default function RepositoryBrowser() {
               </div>
 
               {selectedIds.size > 0 && (
-                <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:ml-auto w-full sm:w-auto">
                   <Button
                     size="sm"
                     variant="outline"
