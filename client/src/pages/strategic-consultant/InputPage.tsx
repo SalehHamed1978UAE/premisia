@@ -311,7 +311,28 @@ export default function InputPage() {
     return <FileText className="h-4 w-4" />;
   };
 
-  // Handle journey step execution
+  // Handle journey clarifications submission
+  const handleJourneyClarificationsSubmit = (answers: Record<string, string>) => {
+    setShowClarificationModal(false);
+
+    // Convert answers to human-readable clarifications
+    const clarifications: Record<string, string> = {};
+    clarificationQuestions.forEach(q => {
+      const selectedOption = q.options.find((opt: any) => opt.value === answers[q.id]);
+      if (selectedOption) {
+        clarifications[q.question] = selectedOption.label;
+      }
+    });
+
+    startJourneyStepUnderstanding(text.trim(), clarifications);
+  };
+
+  const handleJourneySkipClarifications = () => {
+    setShowClarificationModal(false);
+    startJourneyStepUnderstanding(text.trim(), null);
+  };
+
+  // Handle journey step execution (with ambiguity check)
   const handleJourneyStepSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -324,6 +345,45 @@ export default function InputPage() {
       return;
     }
 
+    // Step 1: Check for ambiguities first (same as normal flow)
+    setIsCheckingAmbiguities(true);
+    try {
+      const ambiguityResponse = await fetch('/api/strategic-consultant/check-ambiguities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userInput: text.trim() })
+      });
+
+      if (!ambiguityResponse.ok) {
+        throw new Error('Failed to check ambiguities');
+      }
+
+      const ambiguityResult = await ambiguityResponse.json();
+
+      if (ambiguityResult.hasAmbiguities) {
+        // Show clarification modal
+        setClarificationQuestions(ambiguityResult.questions);
+        setShowClarificationModal(true);
+        setIsCheckingAmbiguities(false);
+      } else {
+        // No ambiguities, proceed directly
+        setIsCheckingAmbiguities(false);
+        await startJourneyStepUnderstanding(text.trim(), null);
+      }
+    } catch (error: any) {
+      setIsCheckingAmbiguities(false);
+      toast({
+        title: "Check failed",
+        description: "Could not check for ambiguities. Proceeding with original input.",
+        variant: "default"
+      });
+      // Proceed anyway on error
+      await startJourneyStepUnderstanding(text.trim(), null);
+    }
+  };
+
+  // Handle journey step execution with clarifications
+  const startJourneyStepUnderstanding = async (input: string, clarifications: Record<string, string> | null) => {
     setIsAnalyzing(true);
     setProgress(0);
 
@@ -332,12 +392,13 @@ export default function InputPage() {
     }, 300);
 
     try {
-      // Create understanding record with journey context
+      // Create understanding record with journey context and clarifications
       const understandingResponse = await fetch('/api/strategic-consultant/understanding', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          input: text.trim(),
+          input: input,
+          clarifications: clarifications,
           journeySessionId: journeySessionId,
           currentStep: journeyData?.journey?.steps?.[currentStepIndex]
         })
@@ -692,8 +753,8 @@ export default function InputPage() {
       {showClarificationModal && (
         <ClarificationModal
           questions={clarificationQuestions}
-          onSubmit={handleClarificationsSubmit}
-          onSkip={handleSkipClarifications}
+          onSubmit={journeySessionId ? handleJourneyClarificationsSubmit : handleClarificationsSubmit}
+          onSkip={journeySessionId ? handleJourneySkipClarifications : handleSkipClarifications}
         />
       )}
     </AppLayout>

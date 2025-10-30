@@ -1273,7 +1273,11 @@ Marketing and events: $3k/month`,
 
       const apiKey = process.env.BRAVE_SEARCH_API_KEY;
       if (!apiKey) {
-        throw new Error('BRAVE_SEARCH_API_KEY environment variable is not set');
+        console.error('[WebSearch] BRAVE_SEARCH_API_KEY environment variable is not set');
+        return res.status(503).json({ 
+          error: 'External research is unavailable',
+          details: 'The BRAVE_SEARCH_API_KEY is not configured in this environment. Please add it to enable web research capabilities.'
+        });
       }
 
       const searchUrl = new URL('https://api.search.brave.com/res/v1/web/search');

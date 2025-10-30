@@ -122,16 +122,23 @@ export default function ResearchPage() {
     const input = localStorage.getItem(`strategic-input-${sessionId}`) || '';
     const journeyType = localStorage.getItem(`journey-type-${sessionId}`);
 
-    if (!rootCause || !whysPath.length || !input) {
+    // Only require Five-Whys data for journeys that use it (Porter's, etc.)
+    // BMI/BMC journeys don't go through Five Whys, so skip this check for them
+    const isBMCJourney = journeyType === 'business_model_innovation';
+    const requiresFiveWhys = !isBMCJourney;
+
+    if (requiresFiveWhys && (!rootCause || !whysPath.length || !input)) {
       setError('Missing required data from previous steps');
+      return;
+    }
+
+    if (!isBMCJourney && !input) {
+      setError('Missing required input from previous steps');
       return;
     }
 
     setIsResearching(true);
     const startTime = Date.now();
-
-    // BMC journeys use the BMC research endpoint
-    const isBMCJourney = journeyType === 'business_model_innovation';
     
     let eventSource: EventSource;
     
