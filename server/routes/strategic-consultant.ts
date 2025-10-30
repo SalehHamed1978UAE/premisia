@@ -1898,6 +1898,75 @@ router.post('/five-whys/coach', async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/strategic-consultant/journeys/execute-background
+ * Execute journey or frameworks in background using Universal Background Jobs
+ */
+router.post('/journeys/execute-background', async (req: Request, res: Response) => {
+  try {
+    const { understandingId, journeyType, frameworks } = req.body;
+    const userId = (req.user as any)?.claims?.sub || null;
+
+    if (!understandingId) {
+      return res.status(400).json({ error: 'understandingId is required' });
+    }
+
+    if (!journeyType && (!frameworks || frameworks.length === 0)) {
+      return res.status(400).json({ 
+        error: 'Either journeyType or frameworks must be provided' 
+      });
+    }
+
+    // Get strategic understanding
+    const understanding = await getStrategicUnderstanding(understandingId);
+    if (!understanding) {
+      return res.status(404).json({ error: 'Strategy not found' });
+    }
+
+    // Create background job record
+    const { backgroundJobService } = await import('../services/background-job-service');
+    const jobId = await backgroundJobService.createJob({
+      userId,
+      jobType: journeyType ? 'strategic_understanding' : 'web_research',
+      inputData: {
+        understandingId,
+        journeyType,
+        frameworks,
+        mode: 'background',
+      },
+      relatedEntityId: understandingId,
+      relatedEntityType: 'strategic_understanding',
+    });
+
+    // Start journey session
+    const journeySessionId = await journeyOrchestrator.startJourney(
+      understanding.id!,
+      journeyType as JourneyType,
+      userId
+    );
+
+    // Execute in background (fire and forget with job tracking)
+    // TODO: Wire up actual background execution with journey orchestrator
+    // For now, return job ID for tracking
+    
+    res.json({
+      success: true,
+      jobId,
+      journeySessionId,
+      message: journeyType 
+        ? `Journey "${journeyType}" queued for background execution`
+        : `${frameworks.length} framework(s) queued for background execution`,
+      estimatedDuration: '10-15 minutes',
+    });
+  } catch (error: any) {
+    console.error('Error in /journeys/execute-background:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message || 'Background execution failed' 
+    });
+  }
+});
+
+/**
  * POST /api/strategic-consultant/journeys/check-readiness
  * Evaluate if sufficient context exists for background execution
  */

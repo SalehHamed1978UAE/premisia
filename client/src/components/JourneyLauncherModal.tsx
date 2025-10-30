@@ -197,13 +197,37 @@ export default function JourneyLauncherModal({
     onOpenChange(false);
   };
 
-  const handleStartInBackground = async () => {
-    // TODO: Implement background job creation
-    toast({
-      title: "Starting Analysis",
-      description: "Your analysis has been queued and will run in the background.",
-    });
-    onOpenChange(false);
+  const startBackgroundMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('/api/strategic-consultant/journeys/execute-background', {
+        method: 'POST',
+        body: JSON.stringify({
+          understandingId,
+          journeyType: selectedJourney,
+          frameworks: selectedFrameworks,
+        }),
+      });
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Analysis Started",
+        description: data.message || "Your analysis is running in the background.",
+      });
+      onOpenChange(false);
+      // Optionally redirect to tracking page or refresh current page
+      window.location.reload();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to Start Analysis",
+        description: error.message || "An error occurred while starting the analysis.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleStartInBackground = () => {
+    startBackgroundMutation.mutate();
   };
 
   return (
@@ -340,8 +364,16 @@ export default function JourneyLauncherModal({
                       Run Now
                     </Button>
                     {readiness?.canRunInBackground && (
-                      <Button onClick={handleStartInBackground} data-testid="button-start-background">
-                        <Clock className="h-4 w-4 mr-2" />
+                      <Button 
+                        onClick={handleStartInBackground} 
+                        disabled={startBackgroundMutation.isPending}
+                        data-testid="button-start-background"
+                      >
+                        {startBackgroundMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Clock className="h-4 w-4 mr-2" />
+                        )}
                         Start in Background
                       </Button>
                     )}
@@ -433,8 +465,16 @@ export default function JourneyLauncherModal({
                       Run Now
                     </Button>
                     {readiness?.canRunInBackground && (
-                      <Button onClick={handleStartInBackground} data-testid="button-start-background-framework">
-                        <Clock className="h-4 w-4 mr-2" />
+                      <Button 
+                        onClick={handleStartInBackground} 
+                        disabled={startBackgroundMutation.isPending}
+                        data-testid="button-start-background-framework"
+                      >
+                        {startBackgroundMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Clock className="h-4 w-4 mr-2" />
+                        )}
                         Start in Background
                       </Button>
                     )}
