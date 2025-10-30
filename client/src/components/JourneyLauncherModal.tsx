@@ -534,19 +534,28 @@ export default function JourneyLauncherModal({
                   )}
                 </>
               ) : (
-                <Button 
-                  onClick={() => executeJourneyMutation.mutate()} 
-                  disabled={executeJourneyMutation.isPending}
-                  variant="secondary" 
-                  data-testid="button-continue-journey"
-                >
-                  {executeJourneyMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                <>
+                  {/* Only show Continue button for prebuilt journeys */}
+                  {activeTab === 'journey' && selectedJourneyType === 'prebuilt' ? (
+                    <Button 
+                      onClick={() => executeJourneyMutation.mutate()} 
+                      disabled={executeJourneyMutation.isPending}
+                      variant="secondary" 
+                      data-testid="button-continue-journey"
+                    >
+                      {executeJourneyMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <ArrowRight className="h-4 w-4 mr-2" />
+                      )}
+                      {executeJourneyMutation.isPending ? 'Starting...' : 'Continue in Journey Builder'}
+                    </Button>
                   ) : (
-                    <ArrowRight className="h-4 w-4 mr-2" />
+                    <div className="text-sm text-muted-foreground" data-testid="text-need-more-context">
+                      Add more references or entities to your strategy to enable analysis.
+                    </div>
                   )}
-                  {executeJourneyMutation.isPending ? 'Starting...' : 'Continue in Journey Builder'}
-                </Button>
+                </>
               )}
             </div>
           </div>
