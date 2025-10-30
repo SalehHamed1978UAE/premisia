@@ -1967,6 +1967,90 @@ router.post('/journeys/execute-background', async (req: Request, res: Response) 
 });
 
 /**
+ * POST /api/strategic-consultant/journeys/run-now
+ * Execute journey interactively (synchronously) with progress
+ * Used when context is ready - runs immediately and returns results
+ * 
+ * NOTE: Currently only supports prebuilt journeys. Framework-only and custom
+ * template execution will be added in future iterations.
+ */
+router.post('/journeys/run-now', async (req: Request, res: Response) => {
+  try {
+    const { understandingId, journeyType, templateId, frameworks } = req.body;
+    const userId = (req.user as any)?.claims?.sub || null;
+
+    if (!understandingId) {
+      return res.status(400).json({ error: 'understandingId is required' });
+    }
+
+    // Currently only prebuilt journeys are supported for interactive execution
+    if (!journeyType) {
+      if (templateId) {
+        return res.status(501).json({ 
+          error: 'Custom template execution is not yet supported. Please use background execution instead.',
+          suggestion: 'Use POST /api/strategic-consultant/journeys/execute-background'
+        });
+      }
+      if (frameworks && frameworks.length > 0) {
+        return res.status(501).json({ 
+          error: 'Framework-only execution is not yet supported. Please use background execution instead.',
+          suggestion: 'Use POST /api/strategic-consultant/journeys/execute-background'
+        });
+      }
+      return res.status(400).json({ 
+        error: 'journeyType is required for interactive execution'
+      });
+    }
+
+    // Get strategic understanding
+    const understanding = await getStrategicUnderstanding(understandingId);
+    if (!understanding) {
+      return res.status(404).json({ error: 'Strategy not found' });
+    }
+
+    // Validate journey
+    const journey = journeyRegistry.getJourney(journeyType as JourneyType);
+    if (!journey) {
+      return res.status(404).json({ error: 'Journey not found' });
+    }
+    if (!journey.available) {
+      return res.status(400).json({ 
+        error: 'This journey is not yet available',
+        journeyName: journey.name
+      });
+    }
+
+    // Start journey session
+    const journeySessionId = await journeyOrchestrator.startJourney(
+      understanding.id!,
+      journeyType as JourneyType,
+      userId
+    );
+
+    // Execute journey synchronously
+    console.log(`[Run Now] Starting interactive execution for journey session ${journeySessionId}`);
+    const finalContext = await journeyOrchestrator.executeJourney(journeySessionId);
+    console.log(`[Run Now] Journey execution completed successfully`);
+
+    res.json({
+      success: true,
+      journeySessionId,
+      message: `Journey "${journeyType}" completed successfully`,
+      context: {
+        understandingId: finalContext.understandingId,
+        completedFrameworks: finalContext.completedFrameworks,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error in /journeys/run-now:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error.message || 'Journey execution failed' 
+    });
+  }
+});
+
+/**
  * GET /api/strategic-consultant/journey-registry
  * Returns all pre-planned journeys from the journey registry
  */

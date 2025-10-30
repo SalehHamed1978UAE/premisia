@@ -188,6 +188,36 @@ export default function JourneyLauncherModal({
     }
   };
 
+  // Run Now mutation - executes interactively for prebuilt journeys only
+  const runNowMutation = useMutation({
+    mutationFn: async () => {
+      const payload: any = {
+        understandingId,
+        journeyType: selectedJourney, // Only used with prebuilt journeys
+      };
+      
+      const response = await apiRequest('POST', '/api/strategic-consultant/journeys/run-now', payload);
+      return response.json();
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Analysis Complete",
+        description: data.message || "Your analysis has been completed successfully.",
+      });
+      onOpenChange(false);
+      // Refresh the page to show updated timeline
+      window.location.reload();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Analysis Failed",
+        description: error.message || "An error occurred during analysis.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Background execution mutation - used when explicitly requested
   const startBackgroundMutation = useMutation({
     mutationFn: async () => {
       const payload: any = {
@@ -442,21 +472,41 @@ export default function JourneyLauncherModal({
                 Cancel
               </Button>
               
-              {/* Show different buttons based on readiness */}
+              {/* Show different buttons based on readiness and selection type */}
               {readiness?.ready ? (
                 <>
-                  <Button 
-                    onClick={handleStartInBackground} 
-                    disabled={startBackgroundMutation.isPending}
-                    data-testid="button-run-now"
-                  >
-                    {startBackgroundMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Play className="h-4 w-4 mr-2" />
-                    )}
-                    Run Now
-                  </Button>
+                  {/* Run Now button - only for prebuilt journeys (interactive execution supported) */}
+                  {activeTab === 'journey' && selectedJourneyType === 'prebuilt' && (
+                    <Button 
+                      onClick={() => runNowMutation.mutate()} 
+                      disabled={runNowMutation.isPending}
+                      data-testid="button-run-now"
+                    >
+                      {runNowMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Play className="h-4 w-4 mr-2" />
+                      )}
+                      {runNowMutation.isPending ? 'Running...' : 'Run Now'}
+                    </Button>
+                  )}
+                  
+                  {/* Start in Background - available for all ready selections */}
+                  {readiness?.canRunInBackground && (
+                    <Button 
+                      onClick={handleStartInBackground} 
+                      disabled={startBackgroundMutation.isPending}
+                      variant={activeTab === 'framework' || selectedJourneyType === 'custom' ? 'default' : 'outline'}
+                      data-testid="button-start-background"
+                    >
+                      {startBackgroundMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Clock className="h-4 w-4 mr-2" />
+                      )}
+                      Start in Background
+                    </Button>
+                  )}
                 </>
               ) : (
                 <Button onClick={handleRunNow} variant="secondary" data-testid="button-continue-journey">
