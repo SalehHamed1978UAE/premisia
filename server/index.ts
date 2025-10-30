@@ -3,10 +3,14 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { validateEncryptionKey } from "./utils/encryption";
 import { backgroundJobService } from "./services/background-job-service";
+import { registerFrameworkExecutors } from "./journey/register-frameworks";
 
 const app = express();
 
 validateEncryptionKey();
+
+// Register framework executors for modular journey execution
+registerFrameworkExecutors();
 
 declare module 'http' {
   interface IncomingMessage {

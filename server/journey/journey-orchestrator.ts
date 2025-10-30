@@ -217,56 +217,14 @@ export class JourneyOrchestrator {
   }
 
   /**
-   * Execute a single framework
+   * Execute a single framework using the modular registry system
    */
   private async executeFramework(
     frameworkName: import('@shared/journey-types').FrameworkName,
     context: StrategicContext
   ): Promise<FrameworkResult> {
-    const startTime = Date.now();
-
-    try {
-      let data: any;
-
-      switch (frameworkName) {
-        case 'five_whys':
-          // Execute Five Whys framework
-          // For now, this is a stub - in reality, this would call the actual framework
-          data = await this.executeFiveWhys(context);
-          break;
-
-        case 'bmc':
-          // Execute Business Model Canvas framework
-          data = await this.executeBMC(context);
-          break;
-
-        case 'porters':
-          // Execute Porter's Five Forces (not implemented yet)
-          throw new Error('Porter\'s Five Forces not yet implemented');
-
-        case 'pestle':
-          // Execute PESTLE analysis (not implemented yet)
-          throw new Error('PESTLE analysis not yet implemented');
-
-        default:
-          throw new Error(`Unknown framework: ${frameworkName}`);
-      }
-
-      return {
-        frameworkName,
-        executedAt: new Date(),
-        duration: Date.now() - startTime,
-        data,
-      };
-    } catch (error) {
-      return {
-        frameworkName,
-        executedAt: new Date(),
-        duration: Date.now() - startTime,
-        data: {},
-        errors: [error instanceof Error ? error.message : 'Unknown error'],
-      };
-    }
+    const { frameworkRegistry } = await import('./framework-executor-registry');
+    return frameworkRegistry.execute(frameworkName, context);
   }
 
   /**
