@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Rocket, CheckCircle2, AlertCircle, Loader2, Play, Clock } from "lucide-react";
+import { Rocket, CheckCircle2, AlertCircle, Loader2, Play, Clock, ArrowRight } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -147,11 +147,8 @@ export default function JourneyLauncherModal({
         payload.frameworks = selectedFrameworks;
       }
       
-      const response = await apiRequest('/api/strategic-consultant/journeys/check-readiness', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      return response;
+      const response = await apiRequest('POST', '/api/strategic-consultant/journeys/check-readiness', payload);
+      return response.json();
     },
   });
 
@@ -180,9 +177,15 @@ export default function JourneyLauncherModal({
   };
 
   const handleRunNow = () => {
-    // Navigate to strategic consultant with preloaded context
-    window.location.href = `/strategic-consultant/journey-selection/${understandingId}`;
-    onOpenChange(false);
+    // If context is ready, execute in background
+    // If not ready, navigate to journey builder for more input
+    if (readiness?.ready) {
+      handleStartInBackground();
+    } else {
+      // Navigate to strategic consultant with preloaded context to gather more input
+      window.location.href = `/strategic-consultant/journey-selection/${understandingId}`;
+      onOpenChange(false);
+    }
   };
 
   const startBackgroundMutation = useMutation({
@@ -205,10 +208,8 @@ export default function JourneyLauncherModal({
         payload.frameworks = selectedFrameworks;
       }
       
-      return await apiRequest('/api/strategic-consultant/journeys/execute-background', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
+      const response = await apiRequest('POST', '/api/strategic-consultant/journeys/execute-background', payload);
+      return response.json();
     },
     onSuccess: (data: any) => {
       toast({
@@ -234,18 +235,20 @@ export default function JourneyLauncherModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Rocket className="h-5 w-5" />
-            Run Additional Analysis
-          </DialogTitle>
-          <DialogDescription>
-            Continue analyzing <span className="font-semibold">{strategyTitle}</span> with full journeys or individual frameworks
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-0">
+        <div className="px-6 pt-6">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Rocket className="h-5 w-5" />
+              Run Additional Analysis
+            </DialogTitle>
+            <DialogDescription>
+              Continue analyzing <span className="font-semibold">{strategyTitle}</span> with full journeys or individual frameworks
+            </DialogDescription>
+          </DialogHeader>
+        </div>
 
-        <div className="space-y-4">
+        <div className="flex-1 overflow-y-auto px-6 space-y-4">
           {/* Context Summary */}
           <Card>
             <CardHeader className="pb-3">
@@ -340,61 +343,6 @@ export default function JourneyLauncherModal({
                 </div>
               )}
 
-              {selectedJourney && !isLoadingData && (
-                <>
-                  {/* Readiness Status */}
-                  {checkingReadiness ? (
-                    <Alert>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <AlertDescription>Checking context availability...</AlertDescription>
-                    </Alert>
-                  ) : readiness && !readiness.ready ? (
-                    <Alert variant="destructive">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>
-                        <p className="font-semibold mb-2">{readiness.recommendation}</p>
-                        <ul className="list-disc list-inside space-y-1 text-sm">
-                          {readiness.missingRequirements.map((req, idx) => (
-                            <li key={idx}>{req}</li>
-                          ))}
-                        </ul>
-                      </AlertDescription>
-                    </Alert>
-                  ) : readiness?.ready ? (
-                    <Alert className="border-green-200 bg-green-50 dark:bg-green-950 dark:border-green-800">
-                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-                      <AlertDescription className="text-green-800 dark:text-green-200">
-                        {readiness.recommendation}
-                      </AlertDescription>
-                    </Alert>
-                  ) : null}
-
-                  {/* Action Buttons */}
-                  <div className="flex justify-end gap-3 pt-4">
-                    <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel">
-                      Cancel
-                    </Button>
-                    <Button onClick={handleRunNow} variant="secondary" data-testid="button-run-now">
-                      <Play className="h-4 w-4 mr-2" />
-                      Run Now
-                    </Button>
-                    {readiness?.canRunInBackground && (
-                      <Button 
-                        onClick={handleStartInBackground} 
-                        disabled={startBackgroundMutation.isPending}
-                        data-testid="button-start-background"
-                      >
-                        {startBackgroundMutation.isPending ? (
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        ) : (
-                          <Clock className="h-4 w-4 mr-2" />
-                        )}
-                        Start in Background
-                      </Button>
-                    )}
-                  </div>
-                </>
-              )}
             </TabsContent>
 
             {/* Single Framework Tab */}
@@ -454,64 +402,71 @@ export default function JourneyLauncherModal({
                 </div>
               )}
 
-              {selectedFrameworks.length > 0 && !isLoadingData && (
-                <>
-                  {/* Readiness Status */}
-                  {checkingReadiness ? (
-                    <Alert>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <AlertDescription>Checking context availability...</AlertDescription>
-                    </Alert>
-                  ) : readiness && !readiness.ready ? (
-                    <Alert variant="destructive">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>
-                        <p className="font-semibold mb-2">{readiness.recommendation}</p>
-                        <ul className="list-disc list-inside space-y-1 text-sm">
-                          {readiness.missingRequirements.map((req, idx) => (
-                            <li key={idx}>{req}</li>
-                          ))}
-                        </ul>
-                      </AlertDescription>
-                    </Alert>
-                  ) : readiness?.ready ? (
-                    <Alert className="border-green-200 bg-green-50 dark:bg-green-950 dark:border-green-800">
-                      <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
-                      <AlertDescription className="text-green-800 dark:text-green-200">
-                        {readiness.recommendation}
-                      </AlertDescription>
-                    </Alert>
-                  ) : null}
-
-                  {/* Action Buttons */}
-                  <div className="flex justify-end gap-3 pt-4">
-                    <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel-framework">
-                      Cancel
-                    </Button>
-                    <Button onClick={handleRunNow} variant="secondary" data-testid="button-run-now-framework">
-                      <Play className="h-4 w-4 mr-2" />
-                      Run Now
-                    </Button>
-                    {readiness?.canRunInBackground && (
-                      <Button 
-                        onClick={handleStartInBackground} 
-                        disabled={startBackgroundMutation.isPending}
-                        data-testid="button-start-background-framework"
-                      >
-                        {startBackgroundMutation.isPending ? (
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        ) : (
-                          <Clock className="h-4 w-4 mr-2" />
-                        )}
-                        Start in Background
-                      </Button>
-                    )}
-                  </div>
-                </>
-              )}
             </TabsContent>
           </Tabs>
         </div>
+
+        {/* Sticky Footer - Shows when journey or frameworks selected */}
+        {(selectedJourney || selectedFrameworks.length > 0) && !isLoadingData && (
+          <div className="border-t bg-background px-6 py-4 space-y-3">
+            {/* Readiness Status */}
+            {checkingReadiness ? (
+              <Alert>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <AlertDescription>Checking context availability...</AlertDescription>
+              </Alert>
+            ) : readiness && !readiness.ready ? (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <p className="font-semibold mb-2">{readiness.recommendation}</p>
+                  <ul className="list-disc list-inside space-y-1 text-sm">
+                    {readiness.missingRequirements.map((req, idx) => (
+                      <li key={idx}>{req}</li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            ) : readiness?.ready ? (
+              <Alert className="border-green-200 bg-green-50 dark:bg-green-950 dark:border-green-800">
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                <AlertDescription className="text-green-800 dark:text-green-200">
+                  {readiness.recommendation}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel">
+                Cancel
+              </Button>
+              
+              {/* Show different buttons based on readiness */}
+              {readiness?.ready ? (
+                <>
+                  <Button 
+                    onClick={handleStartInBackground} 
+                    disabled={startBackgroundMutation.isPending}
+                    data-testid="button-run-now"
+                  >
+                    {startBackgroundMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Play className="h-4 w-4 mr-2" />
+                    )}
+                    Run Now
+                  </Button>
+                </>
+              ) : (
+                <Button onClick={handleRunNow} variant="secondary" data-testid="button-continue-journey">
+                  <ArrowRight className="h-4 w-4 mr-2" />
+                  Continue in Journey Builder
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
