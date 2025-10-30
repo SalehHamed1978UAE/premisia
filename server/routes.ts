@@ -15,6 +15,7 @@ import journeyBuilderRoutes from "./routes/journey-builder";
 import taskAssignmentsRoutes from "./routes/task-assignments";
 import exportsRoutes from "./routes/exports";
 import { backgroundJobService } from "./services/background-job-service";
+import { decrypt } from "./utils/encryption";
 import { eq, and, or, desc, sql } from "drizzle-orm";
 import { db } from "./db";
 
@@ -161,8 +162,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           )
         );
 
+      // Decrypt sensitive fields
+      const understanding = understandingData.strategic_understanding;
+      const decryptedUnderstanding = {
+        ...understanding,
+        userInput: understanding.userInput ? decrypt(understanding.userInput) || understanding.userInput : understanding.userInput,
+        initiativeDescription: understanding.initiativeDescription ? decrypt(understanding.initiativeDescription) || understanding.initiativeDescription : understanding.initiativeDescription,
+      };
+
       res.json({
-        understanding: understandingData.strategic_understanding,
+        understanding: decryptedUnderstanding,
         sessions,
         programs,
         referenceCount: refCount?.count || 0,

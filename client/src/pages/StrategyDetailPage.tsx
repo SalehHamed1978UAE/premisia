@@ -1,11 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
+import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { ArrowLeft, Rocket, Calendar, BookOpen, TrendingUp, FileText, Plus, ExternalLink } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 
@@ -66,10 +68,15 @@ interface StrategyDetail {
   referenceCount: number;
 }
 
-function OverviewTab({ strategy }: { strategy: StrategyDetail }) {
+function OverviewTab({ strategy, onNavigateToTab }: { strategy: StrategyDetail; onNavigateToTab: (tab: string) => void }) {
+  // Compute unique frameworks from all journey sessions
+  const uniqueFrameworks = new Set<string>();
+  strategy.sessions.forEach(session => {
+    session.completedFrameworks.forEach(fw => uniqueFrameworks.add(fw));
+  });
+  const frameworksCount = uniqueFrameworks.size;
+  
   const metadata = strategy.understanding.strategyMetadata || {};
-  const availableFrameworks = (metadata.completedFrameworks || []).length;
-  const availableReferences = metadata.availableReferences || 0;
   const confidence = metadata.confidence || 0;
 
   return (
@@ -96,17 +103,25 @@ function OverviewTab({ strategy }: { strategy: StrategyDetail }) {
             </div>
           )}
           
-          <div>
-            <h4 className="font-semibold mb-2">Original Input</h4>
-            <p className="text-muted-foreground" data-testid="text-user-input">
-              {strategy.understanding.userInput}
-            </p>
-          </div>
+          {strategy.understanding.initiativeDescription && (
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="original-input">
+                <AccordionTrigger className="text-sm font-semibold">
+                  Original Input
+                </AccordionTrigger>
+                <AccordionContent>
+                  <p className="text-muted-foreground whitespace-pre-wrap" data-testid="text-initiative-description">
+                    {strategy.understanding.initiativeDescription}
+                  </p>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          )}
         </CardContent>
       </Card>
 
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
+        <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => onNavigateToTab('journeys')} data-testid="card-stat-journeys">
           <CardHeader className="pb-3">
             <CardDescription>Journeys</CardDescription>
             <CardTitle className="text-2xl" data-testid="stat-journeys">
@@ -114,15 +129,15 @@ function OverviewTab({ strategy }: { strategy: StrategyDetail }) {
             </CardTitle>
           </CardHeader>
         </Card>
-        <Card>
+        <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => onNavigateToTab('journeys')} data-testid="card-stat-frameworks">
           <CardHeader className="pb-3">
             <CardDescription>Frameworks</CardDescription>
             <CardTitle className="text-2xl" data-testid="stat-frameworks">
-              {availableFrameworks}
+              {frameworksCount}
             </CardTitle>
           </CardHeader>
         </Card>
-        <Card>
+        <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => onNavigateToTab('research')} data-testid="card-stat-references">
           <CardHeader className="pb-3">
             <CardDescription>References</CardDescription>
             <CardTitle className="text-2xl" data-testid="stat-references">
@@ -130,7 +145,7 @@ function OverviewTab({ strategy }: { strategy: StrategyDetail }) {
             </CardTitle>
           </CardHeader>
         </Card>
-        <Card>
+        <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => onNavigateToTab('programs')} data-testid="card-stat-programs">
           <CardHeader className="pb-3">
             <CardDescription>EPM Programs</CardDescription>
             <CardTitle className="text-2xl" data-testid="stat-programs">
@@ -424,6 +439,7 @@ function EPMProgramsTab({ programs }: { programs: EPMProgram[] }) {
 export default function StrategyDetailPage() {
   const [, params] = useRoute("/strategies/:id");
   const strategyId = params?.id;
+  const [activeTab, setActiveTab] = useState("overview");
 
   const { data: strategy, isLoading, error } = useQuery<StrategyDetail>({
     queryKey: ['/api/strategies', strategyId],
@@ -488,7 +504,7 @@ export default function StrategyDetailPage() {
           <Link href={`/strategic-consultant/input?understandingId=${strategyId}`}>
             <Button data-testid="button-new-journey">
               <Plus className="h-4 w-4 mr-2" />
-              Start New Journey
+              Add Journey Version
             </Button>
           </Link>
         </div>
@@ -497,7 +513,7 @@ export default function StrategyDetailPage() {
       <Separator className="my-6" />
 
       {/* Tabs */}
-      <Tabs defaultValue="overview" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-4" data-testid="tabs-strategy-detail">
           <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
           <TabsTrigger value="journeys" data-testid="tab-journeys">
@@ -512,7 +528,7 @@ export default function StrategyDetailPage() {
         </TabsList>
 
         <TabsContent value="overview">
-          <OverviewTab strategy={strategy} />
+          <OverviewTab strategy={strategy} onNavigateToTab={setActiveTab} />
         </TabsContent>
 
         <TabsContent value="journeys">

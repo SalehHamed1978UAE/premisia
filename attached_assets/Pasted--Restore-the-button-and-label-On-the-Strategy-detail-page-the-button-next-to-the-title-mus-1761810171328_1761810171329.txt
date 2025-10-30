@@ -1,0 +1,152 @@
+ ### Restore the button and label
+
+  - On the Strategy detail page, the button next to the title must be “Start New
+    Journey” (not “New Strategy” or anything else).
+  - Clicking it should not navigate away immediately.
+
+  ### Launch the Journey modal instead of redirecting
+
+  - Keep the existing “Start New Journey” button wired to the Journey Launcher
+    modal (the one we planned in Phase 4).
+  - Opening the modal should pull context from the current understandingId.
+    Show what’s already available (entity count, reference count, previous
+    frameworks, etc.).
+
+  ### Journey options in the modal
+
+  - Modal needs two paths (same interface we specced):
+      1. Run a full journey – user chooses a journey type.
+      2. Run a single framework – user picks one or more frameworks.
+  - For each choice, call POST /api/journeys/check-readiness with the current
+    understandingId and the selected journey/framework. Use the result to decide
+    whether we can run immediately or need more info.
+
+  ### If ready to run
+
+  - When the readiness API returns ready, give the user the option to “Start in
+    Background” (call the background execution API and close the modal).
+  - In parallel, drop a toast like “Journey queued – you’ll get a notification
+    when it’s done.”
+
+  ### If more input is required
+
+  - Show the missing items in the modal (e.g., “Need pricing clarification”)
+    along with buttons/links to gather that input.
+  - If running immediately is still useful (user is willing to supply info
+    manually), the modal can offer a “Continue in Journey Builder” button.
+
+  ### When we do need manual input
+
+  - Navigating into the Strategic Consultant should happen only if the readiness
+    check says We need more input.
+  - The link should be to "/strategic-consultant/journey-selection/
+    ${understandingId}" (or the full wizard route), not the raw input page.
+  - In that flow, preload the stored strategic input and clarifications so the
+    user doesn’t have to re-type anything.
+
+  ### Ensure context reuse
+
+  - Any time /strategic-consultant/... is opened with an understandingId,
+    automatically load the existing understanding (title, text, clarifications,
+    document extracts).
+  - Hide or disable the raw text area when context is already present; show “You
+    are continuing the strategy: <title>”.
+
+  ### Summary of acceptance criteria
+
+  - Button label back to “Start New Journey”.
+  - Modal opens with current strategy context.
+  - Readiness check runs for both journeys and single frameworks.
+  - If ready, allow background start (no redirection).
+  - If not ready, list what’s missing and link to the right part of the wizard.
+  - If we redirect into the Strategic Consultant flow, it must land on journey
+    selection with all prior inputs loaded.
+
+  Once this is implemented, users can truly kick off new journeys or single
+  frameworks using existing context without being dumped into the blank input
+  form.
+
+
+› i made a mistake. it chenged th eburtton from "start new journey" to "add
+  journey version" which is still dont like. i think it should be something
+  like "reanalyze your hourney" or "continue your journey" or something. think
+  about it and provide a better name for the button and then reprovide me the
+  whole direction you just sentto correct replit and fix the mistakes its
+  missing.
+
+
+• Let’s get the button and flow aligned with the architecture we designed:
+
+  ———
+
+  ### 1. Button label & behavior
+
+  - Change the button label on the Strategy detail header to “Run Additional
+    Analysis”.
+  - Clicking it should open the Journey Launcher modal (do not navigate away
+    immediately).
+
+  ### 2. Journey Launcher modal
+
+  When the modal opens:
+
+  - Pull the current strategy context using the understandingId.
+  - Display summary chips (e.g., “47 knowledge entities”, “23 references”,
+    completed frameworks).
+  - Provide two tabs/options inside the modal:
+      1. Full Journey – user selects a journey type (Business Model Innovation,
+         Competitive Strategy, etc.).
+      2. Single Framework – user selects one or more frameworks (Porter’s,
+         PESTLE, SWOT, etc.).
+
+  ### 3. Readiness evaluation
+
+  - When the user selects a journey or framework, call the readiness API (POST /
+    api/journeys/check-readiness) with the understandingId and the requested
+    journey/framework.
+  - If the response returns ready: true, enable “Run Now” and “Run in
+    Background”.
+  - If ready: false, show the missing requirements with actionable items (e.g.,
+    “Add pricing reference”, “Clarify buyer profile”) in the modal.
+
+  ### 4. Background execution
+
+  - If the user chooses “Run in Background,” enqueue the job using the
+    background execution endpoints we planned and close the modal. Drop a toast
+    like “Analysis queued—you’ll be notified when it’s complete.”
+  - Notification system should already surface status updates via
+    useJobNotifications.
+
+  ### 5. Handling missing inputs
+
+  - If the readiness check says we still need user input, provide a button
+    labeled “Continue in Journey Builder” (or similar) inside the modal.
+  - That link should route to the Strategic Consultant’s journey selection path:
+    "/strategic-consultant/journey-selection/${understandingId}".
+  - When this route loads and there’s an understandingId, it must preload
+    the existing strategic input, clarifications, and uploaded documents
+    automatically. Hide the raw text box to make it clear the user is continuing
+    an existing initiative.
+
+  ### 6. No surprise redirects
+
+  - The button should never drop users into the blank Strategic Consultant
+    input screen unless the readiness evaluator explicitly says more input
+    is required, and even then, send them directly to journey selection with
+    context loaded.
+
+  ### 7. Acceptance criteria
+
+  - Button reads “Run Additional Analysis” and only opens the modal.
+  - Modal shows strategy context and offers journey or single-framework options.
+  - Readiness check runs for both paths and controls whether the job can start
+    or you need more input.
+  - Background queue available when ready; no navigation if the user chooses
+    that path.
+  - “Continue” routes to the journey selection wizard with existing context
+    filled in.
+
+  Once you make these changes, the user experience will be: see what you’ve
+  already built, press “Run Additional Analysis,” decide whether to run a full
+  journey or a single framework, and either fire it off in the background or
+  supply the missing inputs—all without getting kicked back to a blank canvas.
