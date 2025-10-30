@@ -41,6 +41,22 @@ export class JourneyOrchestrator {
       throw new Error(`Understanding ${understandingId} not found`);
     }
 
+    // Get the highest version number for this understanding to increment it
+    const existingSessions = await dbConnectionManager.retryWithBackoff(async (database) => {
+      return await database
+        .select({ versionNumber: journeySessions.versionNumber })
+        .from(journeySessions)
+        .where(eq(journeySessions.understandingId, understandingId))
+        .orderBy(journeySessions.versionNumber);
+    });
+
+    const maxVersion = existingSessions.length > 0 
+      ? Math.max(...existingSessions.map(s => s.versionNumber || 1))
+      : 0;
+    const nextVersion = maxVersion + 1;
+
+    console.log(`[JourneyOrchestrator] Creating new journey session version ${nextVersion} for understanding ${understandingId}`);
+
     // Initialize context (cast to full type since we've confirmed it exists)
     const context = initializeContext(understanding as any, journeyType);
 
@@ -54,8 +70,10 @@ export class JourneyOrchestrator {
       currentFrameworkIndex: 0,
       completedFrameworks: [],
       accumulatedContext: context, // Will be encrypted by secure service
+      versionNumber: nextVersion,
+      startedAt: new Date(),
     });
-    console.log('[JourneyOrchestrator] ✓ Journey session saved with encryption');
+    console.log(`[JourneyOrchestrator] ✓ Journey session saved with encryption (Version ${nextVersion})`);
 
     return journeySession.id!;
   }
@@ -112,23 +130,24 @@ export class JourneyOrchestrator {
           context = bridgedContext;
         }
 
-        // STEP 3a: Save framework insights
+        // STEP 3a: Save framework insights linked to this journey session
         await dbConnectionManager.retryWithBackoff(async (db) => {
           // Save framework insight to framework_insights table
-          console.log(`[Journey] Saving ${result.frameworkName} insights for understanding ${context.understandingId}`);
+          console.log(`[Journey] Saving ${result.frameworkName} insights for journey session ${journeySessionId} (version ${session.versionNumber})`);
           await db
             .insert(frameworkInsights)
             .values({
               understandingId: context.understandingId,
+              sessionId: journeySessionId,
               frameworkName: result.frameworkName,
-              frameworkVersion: '1.0',
+              frameworkVersion: `${session.versionNumber}.0`,
               insights: result.data as any,
               telemetry: {
                 duration: result.duration,
                 executedAt: result.executedAt,
               } as any,
             });
-          console.log(`[Journey] ✓ Saved ${result.frameworkName} insights`);
+          console.log(`[Journey] ✓ Saved ${result.frameworkName} insights (Version ${session.versionNumber})`);
         });
 
         // STEP 3b: Save journey progress using secure service (encrypts accumulatedContext)

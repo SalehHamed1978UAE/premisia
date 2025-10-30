@@ -861,6 +861,7 @@ export const trendAnalysisJobs = pgTable("trend_analysis_jobs", {
 export const frameworkInsights = pgTable("framework_insights", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   understandingId: varchar("understanding_id").notNull().references(() => strategicUnderstanding.id, { onDelete: 'cascade' }),
+  sessionId: varchar("session_id").references(() => journeySessions.id, { onDelete: 'cascade' }),
   frameworkName: varchar("framework_name", { length: 50 }).notNull(),
   frameworkVersion: varchar("framework_version", { length: 20 }),
   insights: jsonb("insights").notNull(),
@@ -868,6 +869,7 @@ export const frameworkInsights = pgTable("framework_insights", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
   understandingIdx: index("idx_framework_insights_understanding").on(table.understandingId),
+  sessionIdx: index("idx_framework_insights_session").on(table.sessionId),
   frameworkIdx: index("idx_framework_insights_framework").on(table.frameworkName),
 }));
 

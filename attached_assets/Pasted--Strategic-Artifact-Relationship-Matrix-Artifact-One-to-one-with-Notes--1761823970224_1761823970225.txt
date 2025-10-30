@@ -1,0 +1,78 @@
+## Strategic Artifact Relationship Matrix
+
+  | Artifact | One-to-one with | Notes |
+  |---------|-----------------|-------|
+  | Strategic Understanding (understandingId) | A strategic initiative | Owns
+  the knowledge graph, references, clarifications, versioning metadata |
+  | Journey Session (journeySessionId) | A single run of a journey or framework
+  | Must always be a new record. Contains version metadata, references added,
+  outputs produced |
+  | Framework Results | Journey session | Each run produces its own results
+  (e.g., BMC blocks, Five Whys answers) and references |
+  | References | Journey session, understanding | New references should be
+  attached to both the journey session (version‑specific) and the understanding
+  (global reuse). Never overwrite old ones |
+  | EPM Program | Journey session or understanding | Generated from a specific
+  journey; it should have a unique record with convertedProgramId pointing back
+  to the journey session version that produced it |
+
+  ———
+
+  ## Required Behavior
+
+  1. Journey session versioning
+      - Every time you run Business Model Innovation (or any journey), create a
+        new row in journey_sessions with an incremented versionNumber for that
+        understanding.
+      - startedAt, completedAt, status, and referencesAdded should reflect that
+        run.
+      - Never reuse an old session ID.
+  2. Framework outputs
+      - The BMC/Porter’s/Five Whys data produced in that run must be saved under
+        the new journey session ID.
+      - Prior outputs remain intact for traceability.
+  3. References
+      - New references cited in the run must be saved both under the journey
+        session ID and in the overall understanding.
+      - Do not delete or overwrite previous references; dedupe only by URL/
+        title.
+  4. EPM generation
+      - When a journey run completes, the EPM tab should show “Generate
+        EPM” (not “View EPM”) until a new EPM is generated for that version.
+      - Generating the EPM must create a new program record, even if an older
+        version exists. Link it back via journeySessionId or strategyVersionId.
+  5. Timeline implications
+      - The Strategy Hub timeline must show Journey 1, Journey 2, etc., each
+        with their creation timestamps and references added.
+      - Clicking into a journey should show the version-specific results and
+        allow generating its own EPM.
+
+  ———
+
+  ## What to change in code (Replit’s action items)
+
+  - Journey orchestration:
+    When a new journey is launched, create a fresh journey_sessions record
+    with status = 'in_progress'. After completion, set status = 'completed' and
+    populate referencesAdded, frameworks, etc.
+  - EPM tab logic:
+    The “Generate EPM” button should be shown whenever the current journey
+    session has no linked program. As soon as you generate an EPM for that
+    session, update the UI to show “View EPM” and link it to the new record.
+  - Exports & reports:
+    Make sure exports (reports/zip) pull the journey session ID they were
+    created from, not the last run.
+  - Metadata cache:
+    When a journey completes, update the strategy metadata cache to record the
+    journey version, frameworks completed, and references added, so readiness
+    checks and displays have accurate data per version.
+
+  ———
+
+  With this matrix, Replit can always answer:
+
+  - “We’re on Journey 2. Show me what it produced.”
+  - “Generate an EPM for Journey 2—don’t reuse Journey 1’s program.”
+  - “Add new references from Journey 2 without heavy-handed dedupe that wipes
+    Journey 1.”
+
