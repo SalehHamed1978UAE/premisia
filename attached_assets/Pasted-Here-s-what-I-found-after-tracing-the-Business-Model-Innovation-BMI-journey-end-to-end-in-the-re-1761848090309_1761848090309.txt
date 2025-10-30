@@ -1,0 +1,91 @@
+Here’s what I found after tracing the Business Model Innovation (BMI) journey
+  end‑to‑end in the repo you just pulled:
+
+  ———
+
+  ### 1. Journey step input skips the ambiguity workflow
+
+  File: client/src/pages/strategic-consultant/InputPage.tsx
+
+  - handleSubmit (the normal “Paste text → Run” path) calls /api/strategic-
+    consultant/check-ambiguities and only proceeds after the user answers
+    clarifications.
+  - handleJourneyStepSubmit (the BMI journey path) goes straight to /api/
+    strategic-consultant/understanding with whatever text is in the box—
+    no ambiguity check, no clarifications. That’s why the journey behaves
+    differently: any missing or contradictory context simply passes through, and
+    downstream stages don’t have the data they expect.
+
+  👉 Fix: mirror the exact ambiguity flow inside handleJourneyStepSubmit (store
+  clarifications, call startStrategicUnderstanding only after open questions are
+  resolved). Replit’s earlier changes removed it.
+
+  ———
+
+  ### 2. Research page requires Five‑Whys artifacts even for BMI runs
+
+  File: client/src/pages/strategic-consultant/ResearchPage.tsx
+
+  if (!rootCause || !whysPath.length || !input) {
+    setError('Missing required data from previous steps');
+    return;
+  }
+
+  The BMI journey now lets you “Run Now” from the new Strategy Hub without
+  walking through the Five Whys UI. In that scenario none of those localStorage
+  keys (strategic-rootCause-*, strategic-whysPath-*) exist, so the research step
+  bails out with “Missing required data” before it even opens the SSE. That’s
+  the “constant bug” you’re seeing.
+
+  👉 Fix options:
+
+  - If this page is shared with Porter’s/Five Whys, make the guard conditional
+    (only demand rootCause/whysPath when the journey type actually needs them).
+  - Or populate those values when BMI is triggered from the hub.
+
+  ———
+
+  ### 3. External research fails quietly when the Brave API key isn’t present
+
+  File: server/routes.ts, /api/web-search
+
+  const apiKey = process.env.BRAVE_SEARCH_API_KEY;
+  if (!apiKey) {
+    throw new Error('BRAVE_SEARCH_API_KEY environment variable is not set');
+  }
+
+  Every BMI run (and the general research flow) ends up here. In environments
+  where that secret isn’t provided (e.g. fresh Replit, local copy), /api/
+  web-search throws, the SSE closes with a generic “research failed”, and the
+  journey stops. Earlier builds masked this, but now the code is strict.
+
+  👉 Fix: add BRAVE_SEARCH_API_KEY to your .env / Replit secrets. If you want
+  to be defensive, wrap this in a fallback that returns a descriptive front-
+  end error.
+
+  ———
+
+  ### 4. Journey session versioning isn’t complete (bonus observation)
+
+  There’s a new requirement that each BMI run produce sequential versions
+  (v1, v2…), but the repo only ever creates version 1. The label you see in
+  Strategy Hub is read straight from journeySessions.versionNumber, which never
+  increments.
+
+  👉 Fix: When finishing a journey, look up the latest session for that
+  understanding and increment the version (or add a migration that tracks run
+  counts). Otherwise every execution stays at “Version 1”.
+
+  ———
+
+  ### How to debug quickly
+
+  1. Have BMI fail once, then inspect the server log:
+     grep ‘BMC-RESEARCH-STREAM’ -r server/logs – if you see Strategic
+     understanding not found or the Brave key error, you’ve hit one of the above
+     cases.
+  2. Drop a console log in handleJourneyStepSubmit to confirm the ambiguity path
+     never runs.
+  3. Comment out the rootCause guard in ResearchPage.tsx and retry—BMI suddenly
+     “works”, which confirms that check is the culprit.
+
