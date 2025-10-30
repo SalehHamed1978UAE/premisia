@@ -7,7 +7,7 @@
 import { db } from '../db';
 import { journeySessions, strategicUnderstanding, frameworkInsights } from '@shared/schema';
 import { StrategicContext, JourneyType, FrameworkResult, JourneyProgress } from '@shared/journey-types';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import {
   initializeContext,
   addFrameworkResult,
@@ -19,6 +19,7 @@ import { WhysTreeGenerator } from '../strategic-consultant/whys-tree-generator';
 import { BMCResearcher } from '../strategic-consultant/bmc-researcher';
 import { dbConnectionManager } from '../db-connection-manager';
 import { getStrategicUnderstanding, saveJourneySession, getJourneySession, updateJourneySession } from '../services/secure-data-service';
+import { encryptJSON } from '../utils/encryption';
 
 export class JourneyOrchestrator {
   /**
@@ -41,41 +42,70 @@ export class JourneyOrchestrator {
       throw new Error(`Understanding ${understandingId} not found`);
     }
 
-    // Get the highest version number for this understanding to increment it
-    const existingSessions = await dbConnectionManager.retryWithBackoff(async (database) => {
-      return await database
+    // Initialize context (cast to full type since we've confirmed it exists)
+    const context = initializeContext(understanding as any, journeyType);
+
+    // Use a database transaction with advisory lock to serialize version allocation
+    // This ensures all operations (lock, query, insert, unlock) happen on the same connection
+    const lockId = this.hashStringToInt64(understandingId);
+    
+    return await db.transaction(async (tx) => {
+      // Acquire advisory lock (blocks if another transaction holds it)
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${lockId})`);
+      console.log(`[JourneyOrchestrator] Acquired transaction advisory lock for understanding ${understandingId}`);
+
+      // Query max version on the SAME connection
+      const existingSessions = await tx
         .select({ versionNumber: journeySessions.versionNumber })
         .from(journeySessions)
         .where(eq(journeySessions.understandingId, understandingId))
         .orderBy(journeySessions.versionNumber);
+
+      const maxVersion = existingSessions.length > 0 
+        ? Math.max(...existingSessions.map(s => s.versionNumber || 1))
+        : 0;
+      const nextVersion = maxVersion + 1;
+
+      console.log(`[JourneyOrchestrator] Creating journey session version ${nextVersion} for understanding ${understandingId}`);
+
+      // Encrypt accumulated context before inserting
+      const encryptedContext = encryptJSON(context);
+
+      // Insert new session on the SAME connection
+      const [newSession] = await tx
+        .insert(journeySessions)
+        .values({
+          understandingId,
+          userId,
+          journeyType: journeyType as any,
+          status: 'initializing' as any,
+          currentFrameworkIndex: 0,
+          completedFrameworks: [],
+          accumulatedContext: encryptedContext as any,
+          versionNumber: nextVersion,
+          startedAt: new Date(),
+        })
+        .returning();
+
+      console.log(`[JourneyOrchestrator] ✓ Journey session saved with encryption (Version ${nextVersion})`);
+      // Lock is automatically released when transaction commits
+      
+      return newSession.id;
     });
+  }
 
-    const maxVersion = existingSessions.length > 0 
-      ? Math.max(...existingSessions.map(s => s.versionNumber || 1))
-      : 0;
-    const nextVersion = maxVersion + 1;
-
-    console.log(`[JourneyOrchestrator] Creating new journey session version ${nextVersion} for understanding ${understandingId}`);
-
-    // Initialize context (cast to full type since we've confirmed it exists)
-    const context = initializeContext(understanding as any, journeyType);
-
-    // Create journey session in database using secure service (encrypts accumulatedContext)
-    console.log('[JourneyOrchestrator] 🔐 Encrypting and saving journey session...');
-    const journeySession = await saveJourneySession({
-      understandingId,
-      userId,
-      journeyType: journeyType as any,
-      status: 'initializing',
-      currentFrameworkIndex: 0,
-      completedFrameworks: [],
-      accumulatedContext: context, // Will be encrypted by secure service
-      versionNumber: nextVersion,
-      startedAt: new Date(),
-    });
-    console.log(`[JourneyOrchestrator] ✓ Journey session saved with encryption (Version ${nextVersion})`);
-
-    return journeySession.id!;
+  /**
+   * Hash a UUID string to a 64-bit integer for PostgreSQL advisory locks
+   */
+  private hashStringToInt64(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    // Ensure the number is within PostgreSQL's int8 range
+    return Math.abs(hash);
   }
 
   /**

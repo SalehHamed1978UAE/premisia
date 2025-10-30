@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, timestamp, decimal, boolean, pgEnum, jsonb, index, vector, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, timestamp, decimal, boolean, pgEnum, jsonb, index, vector, primaryKey, unique } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -580,6 +580,7 @@ export const journeySessions = pgTable("journey_sessions", {
   understandingIdx: index("idx_journey_sessions_understanding").on(table.understandingId),
   userIdx: index("idx_journey_sessions_user").on(table.userId),
   statusIdx: index("idx_journey_sessions_status").on(table.status),
+  uniqueVersionConstraint: unique("unique_understanding_version").on(table.understandingId, table.versionNumber),
 }));
 
 // Research References - Full provenance tracking for all research sources
