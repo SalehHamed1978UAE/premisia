@@ -77,7 +77,7 @@ export default function ProgramsPage() {
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
             <div className="flex items-center gap-3">
               <Link href="/">
@@ -85,16 +85,16 @@ export default function ProgramsPage() {
                   <ArrowLeft className="h-5 w-5" />
                 </Button>
               </Link>
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight" data-testid="text-page-title">Programs Management</h1>
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight break-words" data-testid="text-page-title">Programs Management</h1>
             </div>
-            <p className="text-muted-foreground" data-testid="text-page-subtitle">
+            <p className="text-sm sm:text-base text-muted-foreground" data-testid="text-page-subtitle">
               Manage all enterprise programs in one place
             </p>
           </div>
           
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button data-testid="button-create-program">
+              <Button className="w-full sm:w-auto" data-testid="button-create-program">
                 <Plus className="mr-2 h-4 w-4" />
                 Create Program
               </Button>

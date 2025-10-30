@@ -244,7 +244,7 @@ export default function RepositoryBrowser() {
 
           {/* Batch action bar */}
           {statements && statements.length > 0 && (
-            <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center p-4 bg-muted/50 rounded-lg">
               <div className="flex items-center gap-2">
                 <Checkbox
                   checked={statements.length > 0 && selectedIds.size === statements.length}
@@ -257,7 +257,7 @@ export default function RepositoryBrowser() {
               </div>
 
               {selectedIds.size > 0 && (
-                <div className="flex items-center gap-2 ml-auto">
+                <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
                   <Button
                     size="sm"
                     variant="outline"

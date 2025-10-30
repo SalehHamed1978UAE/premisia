@@ -280,7 +280,7 @@ function Dashboard({ summary }: { summary: DashboardSummary }) {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Analyses Complete</CardTitle>
@@ -376,7 +376,7 @@ function Dashboard({ summary }: { summary: DashboardSummary }) {
         <CardHeader>
           <CardTitle>Quick Actions</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-3">
+        <CardContent className="grid gap-4 grid-cols-1 md:grid-cols-3">
           <Button
             className="justify-start h-auto p-4"
             variant="outline"
