@@ -38,6 +38,8 @@ import PrioritizationPage from "@/pages/strategy-workspace/PrioritizationPage";
 import EPMProgramView from "@/pages/strategy-workspace/EPMProgramView";
 import { ProgramsListPage } from "@/pages/strategy-workspace/ProgramsListPage";
 import { JourneyHub } from "@/pages/journeys/JourneyHub";
+import StrategiesListPage from "@/pages/StrategiesListPage";
+import StrategyDetailPage from "@/pages/StrategyDetailPage";
 import { ProtectedRoute } from "./lib/protected-route";
 import { Loader2 } from "lucide-react";
 
@@ -71,6 +73,8 @@ function Router() {
         <ProtectedRoute path="/strategy-workspace/prioritization/:sessionId/:versionNumber" component={PrioritizationPage} />
         <ProtectedRoute path="/strategy-workspace/epm/:id" component={EPMProgramView} />
         <ProtectedRoute path="/journeys" component={JourneyHub} />
+        <ProtectedRoute path="/strategies/:id" component={StrategyDetailPage} />
+        <ProtectedRoute path="/strategies" component={StrategiesListPage} />
         <ProtectedRoute path="/repository" component={RepositoryBrowser} />
         <ProtectedRoute path="/repository/:understandingId" component={StatementDetailView} />
         <Route path="/auth" component={AuthPage} />

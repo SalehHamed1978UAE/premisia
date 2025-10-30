@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { storage } from "./storage";
-import { insertProgramSchema, insertWorkstreamSchema, insertStageGateSchema, insertTaskSchema, insertKpiSchema, insertRiskSchema, insertBenefitSchema, insertFundingSourceSchema, insertExpenseSchema, insertResourceSchema, insertSessionContextSchema, orchestratorTaskSchema, backgroundJobs, journeySessions } from "@shared/schema";
+import { insertProgramSchema, insertWorkstreamSchema, insertStageGateSchema, insertTaskSchema, insertKpiSchema, insertRiskSchema, insertBenefitSchema, insertFundingSourceSchema, insertExpenseSchema, insertResourceSchema, insertSessionContextSchema, orchestratorTaskSchema, backgroundJobs, journeySessions, strategicUnderstanding, sessionContext, references, strategyVersions, epmPrograms } from "@shared/schema";
 import { ontologyService } from "./ontology-service";
 import { assessmentService } from "./assessment-service";
 import { Orchestrator } from "./orchestrator";
@@ -43,6 +43,188 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching dashboard summary:", error);
       res.status(500).json({ message: "Failed to fetch dashboard summary" });
+    }
+  });
+
+  // Strategies Hub API Routes
+  // List all strategies for current user
+  app.get('/api/strategies', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Get all strategic understandings with journey sessions
+      const strategies = await db
+        .select({
+          id: strategicUnderstanding.id,
+          title: strategicUnderstanding.title,
+          initiativeType: strategicUnderstanding.initiativeType,
+          initiativeDescription: strategicUnderstanding.initiativeDescription,
+          strategyMetadata: strategicUnderstanding.strategyMetadata,
+          createdAt: strategicUnderstanding.createdAt,
+          updatedAt: strategicUnderstanding.updatedAt,
+          journeyCount: sql<number>`COUNT(DISTINCT ${journeySessions.id})`,
+          latestJourneyStatus: sql<string>`MAX(${journeySessions.status})`,
+          latestJourneyUpdated: sql<Date>`MAX(${journeySessions.updatedAt})`,
+        })
+        .from(strategicUnderstanding)
+        .leftJoin(
+          journeySessions,
+          eq(strategicUnderstanding.id, journeySessions.understandingId)
+        )
+        .where(
+          and(
+            eq(journeySessions.userId, userId),
+            eq(strategicUnderstanding.archived, false)
+          )
+        )
+        .groupBy(strategicUnderstanding.id)
+        .orderBy(desc(strategicUnderstanding.updatedAt));
+
+      res.json(strategies);
+    } catch (error) {
+      console.error("Error fetching strategies:", error);
+      res.status(500).json({ message: "Failed to fetch strategies" });
+    }
+  });
+
+  // Get strategy detail with all artifacts
+  app.get('/api/strategies/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const strategyId = req.params.id;
+
+      // Get strategic understanding and verify ownership via journey sessions
+      const [understandingData] = await db
+        .select()
+        .from(strategicUnderstanding)
+        .leftJoin(
+          journeySessions,
+          eq(strategicUnderstanding.id, journeySessions.understandingId)
+        )
+        .where(
+          and(
+            eq(strategicUnderstanding.id, strategyId),
+            eq(journeySessions.userId, userId)
+          )
+        );
+
+      if (!understandingData) {
+        return res.status(404).json({ message: "Strategy not found" });
+      }
+
+      // Get all journey sessions for this strategy (with ownership verification)
+      const sessions = await db
+        .select()
+        .from(journeySessions)
+        .where(
+          and(
+            eq(journeySessions.understandingId, strategyId),
+            eq(journeySessions.userId, userId)
+          )
+        )
+        .orderBy(desc(journeySessions.versionNumber));
+
+      // Get all EPM programs linked via strategy versions (with ownership verification)
+      const programs = await db
+        .select({
+          id: epmPrograms.id,
+          userId: epmPrograms.userId,
+          frameworkType: epmPrograms.frameworkType,
+          status: epmPrograms.status,
+          createdAt: epmPrograms.createdAt,
+          strategyVersionId: strategyVersions.id,
+        })
+        .from(strategyVersions)
+        .innerJoin(
+          epmPrograms,
+          eq(strategyVersions.convertedProgramId, epmPrograms.id)
+        )
+        .innerJoin(
+          journeySessions,
+          eq(strategyVersions.sessionId, journeySessions.id)
+        )
+        .where(
+          and(
+            eq(journeySessions.understandingId, strategyId),
+            eq(epmPrograms.userId, userId)
+          )
+        );
+
+      // Get count of references (with ownership verification)
+      const [refCount] = await db
+        .select({ count: sql<number>`COUNT(*)` })
+        .from(references)
+        .where(
+          and(
+            eq(references.understandingId, strategyId),
+            eq(references.userId, userId)
+          )
+        );
+
+      res.json({
+        understanding: understandingData.strategic_understanding,
+        sessions,
+        programs,
+        referenceCount: refCount?.count || 0,
+      });
+    } catch (error) {
+      console.error("Error fetching strategy detail:", error);
+      res.status(500).json({ message: "Failed to fetch strategy detail" });
+    }
+  });
+
+  // Get research library for a strategy
+  app.get('/api/strategies/:id/references', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const strategyId = req.params.id;
+
+      // Verify ownership via journey sessions
+      const [understandingData] = await db
+        .select()
+        .from(strategicUnderstanding)
+        .leftJoin(
+          journeySessions,
+          eq(strategicUnderstanding.id, journeySessions.understandingId)
+        )
+        .where(
+          and(
+            eq(strategicUnderstanding.id, strategyId),
+            eq(journeySessions.userId, userId)
+          )
+        );
+
+      if (!understandingData) {
+        return res.status(404).json({ message: "Strategy not found" });
+      }
+
+      // Get all references for this strategy (from understanding, sessions, and programs) with ownership verification
+      const strategyReferences = await db
+        .select()
+        .from(references)
+        .where(
+          and(
+            eq(references.userId, userId),
+            or(
+              eq(references.understandingId, strategyId),
+              sql`${references.sessionId} IN (
+                SELECT id FROM ${journeySessions} WHERE ${journeySessions.understandingId} = ${strategyId} AND ${journeySessions.userId} = ${userId}
+              )`,
+              sql`${references.programId} IN (
+                SELECT ${epmPrograms.id} FROM ${epmPrograms}
+                INNER JOIN ${strategyVersions} ON ${epmPrograms.id} = ${strategyVersions.convertedProgramId}
+                INNER JOIN ${journeySessions} ON ${strategyVersions.sessionId} = ${journeySessions.id}
+                WHERE ${journeySessions.understandingId} = ${strategyId} AND ${epmPrograms.userId} = ${userId}
+              )`
+            )
+          )
+        )
+        .orderBy(desc(references.confidence), desc(references.createdAt));
+
+      res.json(strategyReferences);
+    } catch (error) {
+      console.error("Error fetching strategy references:", error);
+      res.status(500).json({ message: "Failed to fetch strategy references" });
     }
   });
 

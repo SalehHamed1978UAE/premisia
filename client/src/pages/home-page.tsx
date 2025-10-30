@@ -44,6 +44,21 @@ const ONBOARDING_STEPS = [
   },
   {
     id: 2,
+    title: "Strategies Hub",
+    icon: Target,
+    description: "Unified view of all strategic initiatives with full provenance",
+    features: [
+      "AI-generated titles for easy navigation and recognition",
+      "Journey timeline showing framework progression and versioning",
+      "Research library with confidence scores and component mapping",
+      "Context inheritance - start new journeys from existing strategies",
+      "Full artifact hierarchy: journeys, analyses, decisions, EPM programs"
+    ],
+    color: "from-indigo-500 to-indigo-600",
+    path: "/strategies"
+  },
+  {
+    id: 3,
     title: "Analysis Repository",
     icon: Archive,
     description: "Access your strategic intelligence knowledge base",
@@ -58,7 +73,7 @@ const ONBOARDING_STEPS = [
     path: "/repository"
   },
   {
-    id: 3,
+    id: 4,
     title: "EPM Programs",
     icon: FileText,
     description: "Complete execution blueprints ready to launch",
