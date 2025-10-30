@@ -19,9 +19,56 @@ import type {
   PESTLEFactor,
   StrategyInsights,
   StrategyInsight,
+  RawReference,
 } from './types';
 
 export class PESTLEAnalyzer implements FrameworkAnalyzer<PESTLEResults> {
+  
+  /**
+   * Generate references from PESTLE analysis
+   */
+  private generateReferences(frameworkResults: PESTLEResults): RawReference[] {
+    const references: RawReference[] = [];
+    
+    const factors: Array<{ name: string; factor: PESTLEFactor }> = [
+      { name: 'Political', factor: frameworkResults.political },
+      { name: 'Economic', factor: frameworkResults.economic },
+      { name: 'Social', factor: frameworkResults.social },
+      { name: 'Technological', factor: frameworkResults.technological },
+      { name: 'Legal', factor: frameworkResults.legal },
+      { name: 'Environmental', factor: frameworkResults.environmental },
+    ];
+    
+    // Extract references from trends (which have source citations)
+    factors.forEach(({ name, factor }) => {
+      factor.trends.forEach((trend, idx) => {
+        references.push({
+          title: `PESTLE ${name}: ${trend.description.substring(0, 50)}...`,
+          sourceType: trend.source ? 'article' : 'internal_doc',
+          description: trend.description,
+          topics: ['pestle analysis', name.toLowerCase(), 'macro trends'],
+          confidence: trend.strength / 10, // Normalize 0-10 to 0-1
+          snippet: `${trend.description} (${trend.timeframe})`,
+          origin: trend.source ? 'web_search' : 'llm_generation',
+        });
+      });
+      
+      // Add opportunities as references
+      factor.opportunities.forEach((opp, idx) => {
+        references.push({
+          title: `PESTLE ${name} Opportunity: ${opp.description.substring(0, 50)}...`,
+          sourceType: 'internal_doc',
+          description: opp.description,
+          topics: ['pestle analysis', name.toLowerCase(), 'opportunities'],
+          confidence: 0.7,
+          snippet: `${opp.description} - Requirements: ${opp.requirements.join(', ')}`,
+          origin: 'llm_generation',
+        });
+      });
+    });
+    
+    return references;
+  }
   
   async analyze(frameworkResults: PESTLEResults): Promise<StrategyInsights> {
     const insights: StrategyInsight[] = [];
@@ -75,11 +122,13 @@ export class PESTLEAnalyzer implements FrameworkAnalyzer<PESTLEResults> {
     }
 
     const overallConfidence = this.calculateConfidence(insights);
+    const references = this.generateReferences(frameworkResults);
 
     return {
       frameworkType: 'pestle',
       frameworkRunId: 'pestle-run-id', // Will be set by caller
       insights,
+      references,
       marketContext: {
         urgency: this.inferUrgency(frameworkResults),
         riskTolerance: this.inferRiskTolerance(frameworkResults),

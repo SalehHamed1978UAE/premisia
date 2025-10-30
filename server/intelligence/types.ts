@@ -6,6 +6,21 @@
  */
 
 // ============================================================================
+// Reference Tracking for Provenance
+// ============================================================================
+
+export interface RawReference {
+  title: string;
+  url?: string;
+  sourceType: 'article' | 'report' | 'website' | 'book' | 'interview' | 'internal_doc' | 'other';
+  description?: string;
+  topics: string[];
+  confidence: number;
+  snippet?: string;
+  origin: 'web_search' | 'user_upload' | 'llm_generation' | 'third_party_api';
+}
+
+// ============================================================================
 // EPM Program Components (The 14 Required Components)
 // ============================================================================
 
@@ -338,6 +353,7 @@ export interface StrategyInsights {
   frameworkType: 'bmc' | 'porters' | 'pestle';
   frameworkRunId: string;
   insights: StrategyInsight[];
+  references: RawReference[];
   marketContext: {
     industry?: string;
     urgency: 'ASAP' | 'Strategic' | 'Exploratory';

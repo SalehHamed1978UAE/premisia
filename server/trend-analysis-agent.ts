@@ -2,6 +2,7 @@ import { domainExtractionService } from './domain-extraction-service.js';
 import { pestleClaimsService, type PESTLEFactors } from './pestle-claims-service.js';
 import { assumptionComparisonService, type AssumptionComparison } from './assumption-comparison-service.js';
 import { trendSynthesisService, type TrendSynthesis, type TrendTelemetry } from './trend-synthesis-service.js';
+import type { RawReference } from './intelligence/types.js';
 
 // Trend analysis result
 export interface TrendResult {
@@ -9,6 +10,7 @@ export interface TrendResult {
   pestleFactors: PESTLEFactors;
   comparisons: AssumptionComparison[];
   synthesis: TrendSynthesis;
+  references: RawReference[];
   telemetry: TrendTelemetry;
   completedAt: Date;
 }
@@ -18,6 +20,60 @@ export interface TrendResult {
  * Coordinates all sub-services to produce comprehensive PESTLE analysis
  */
 export class TrendAnalysisAgent {
+  
+  /**
+   * Generate references from PESTLE claims and comparisons
+   */
+  private generateReferences(pestleFactors: PESTLEFactors, comparisons: AssumptionComparison[]): RawReference[] {
+    const references: RawReference[] = [];
+    
+    // Extract references from each PESTLE category
+    const categories = [
+      { name: 'Political', claims: pestleFactors.political },
+      { name: 'Economic', claims: pestleFactors.economic },
+      { name: 'Social', claims: pestleFactors.social },
+      { name: 'Technological', claims: pestleFactors.technological },
+      { name: 'Legal', claims: pestleFactors.legal },
+      { name: 'Environmental', claims: pestleFactors.environmental },
+    ];
+    
+    categories.forEach(({ name, claims }) => {
+      claims.forEach((claimObj) => {
+        references.push({
+          title: `PESTLE Trend: ${name} - ${claimObj.claim.substring(0, 60)}...`,
+          sourceType: 'internal_doc',
+          description: claimObj.claim,
+          topics: ['pestle trends', name.toLowerCase(), claimObj.timeHorizon],
+          confidence: 0.7, // Default confidence for LLM-generated claims
+          snippet: `${claimObj.claim} (${claimObj.timeHorizon})`,
+          origin: 'llm_generation',
+        });
+      });
+    });
+    
+    // Add comparisons as references (showing validation results)
+    comparisons.forEach((comp) => {
+      if (comp.relationship !== 'neutral') {
+        // Average confidence from related claims
+        const avgConfidence = comp.relatedClaims.length > 0
+          ? comp.relatedClaims.reduce((sum, rc) => sum + rc.confidence, 0) / comp.relatedClaims.length
+          : 0.5;
+        
+        references.push({
+          title: `Assumption ${comp.relationship}: ${comp.assumption.substring(0, 50)}...`,
+          sourceType: 'internal_doc',
+          description: comp.assumption,
+          topics: ['assumption validation', comp.relationship],
+          confidence: avgConfidence,
+          snippet: `${comp.assumption} (${comp.relatedClaims.length} related claims)`,
+          origin: 'llm_generation',
+        });
+      }
+    });
+    
+    return references;
+  }
+  
   /**
    * Analyze trends for a strategic understanding
    */
@@ -94,11 +150,16 @@ export class TrendAnalysisAgent {
       console.log(`[TrendAnalysis] Analysis complete in ${telemetry.totalLatencyMs}ms`);
       console.log('[TrendAnalysis] Telemetry:', telemetry);
       
+      // Generate references for provenance tracking
+      const references = this.generateReferences(pestleFactors, significantComparisons);
+      console.log(`[TrendAnalysis] Generated ${references.length} references`);
+      
       return {
         understandingId,
         pestleFactors,
         comparisons: significantComparisons,
         synthesis,
+        references,
         telemetry,
         completedAt: new Date()
       };

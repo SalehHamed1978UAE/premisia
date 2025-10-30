@@ -1,5 +1,6 @@
 import { BMCQueryGenerator, type BMCQuery, type BMCBlockType } from './bmc-query-generator';
 import { MarketResearcher, type Finding, type Source } from './market-researcher';
+import type { RawReference } from '../intelligence/types';
 import { AssumptionExtractor, type Assumption } from './assumption-extractor';
 import { AssumptionValidator, type Contradiction } from './assumption-validator';
 import { aiClients } from '../ai-clients';
@@ -24,6 +25,7 @@ export interface BMCBlockFindings {
 export interface BMCResearchResult {
   blocks: BMCBlockFindings[];
   sources: Source[];
+  references: RawReference[];
   overallConfidence: number;
   viability: string;
   keyInsights: string[];
@@ -45,6 +47,50 @@ export class BMCResearcher {
     this.marketResearcher = new MarketResearcher();
     this.assumptionExtractor = new AssumptionExtractor();
     this.assumptionValidator = new AssumptionValidator();
+  }
+
+  /**
+   * Convert BMC findings and sources to normalized references
+   */
+  private bmcToReferences(blocks: BMCBlockFindings[], sources: Source[]): RawReference[] {
+    const references: RawReference[] = [];
+    const seenUrls = new Set<string>();
+    
+    // Extract references from each block
+    for (const block of blocks) {
+      const confidenceMap: Record<string, number> = {
+        'strong': 0.85,
+        'moderate': 0.65,
+        'weak': 0.45
+      };
+      
+      const blockConfidence = confidenceMap[block.confidence] || 0.5;
+      
+      // Process each finding
+      for (const finding of block.findings) {
+        const url = finding.citation;
+        
+        if (url && !seenUrls.has(url)) {
+          seenUrls.add(url);
+          
+          // Find matching source for additional metadata
+          const source = sources.find(s => s.url === url);
+          
+          references.push({
+            title: source?.title || url,
+            url: url,
+            sourceType: 'article',
+            description: finding.fact.substring(0, 200),
+            topics: ['business model canvas', block.blockName.toLowerCase()],
+            confidence: blockConfidence,
+            snippet: finding.fact,
+            origin: 'web_search',
+          });
+        }
+      }
+    }
+    
+    return references;
   }
 
   /**
@@ -330,9 +376,13 @@ export class BMCResearcher {
     // Step 7 (Task 17): Store BMC findings back into knowledge graph
     await this.storeBMCFindingsInGraph(understandingId, entities, blocks, contradictionResult.contradictions, synthesis.criticalGaps);
     
+    // Convert BMC findings to references for provenance tracking
+    const references = this.bmcToReferences(blocks, topSources);
+    
     return {
       blocks,
       sources: topSources,
+      references,
       overallConfidence,
       viability: synthesis.viability,
       keyInsights: synthesis.keyInsights,

@@ -19,9 +19,53 @@ import type {
   PortersForce,
   StrategyInsights,
   StrategyInsight,
+  RawReference,
 } from './types';
 
 export class PortersAnalyzer implements FrameworkAnalyzer<PortersResults> {
+  
+  /**
+   * Generate references from Porter's Five Forces analysis
+   */
+  private generateReferences(frameworkResults: PortersResults): RawReference[] {
+    const references: RawReference[] = [];
+    
+    // Create references for each force analysis
+    const forces: Array<{ name: string; force: PortersForce }> = [
+      { name: "Threat of New Entrants", force: frameworkResults.threatOfNewEntrants },
+      { name: "Bargaining Power of Suppliers", force: frameworkResults.bargainingPowerOfSuppliers },
+      { name: "Bargaining Power of Buyers", force: frameworkResults.bargainingPowerOfBuyers },
+      { name: "Threat of Substitutes", force: frameworkResults.threatOfSubstitutes },
+      { name: "Competitive Rivalry", force: frameworkResults.competitiveRivalry },
+    ];
+    
+    forces.forEach(({ name, force }) => {
+      references.push({
+        title: `Porter's Five Forces: ${name}`,
+        sourceType: 'internal_doc',
+        description: force.analysis.substring(0, 200),
+        topics: ["porter's five forces", name.toLowerCase(), 'competitive analysis'],
+        confidence: force.score / 10, // Normalize 0-10 to 0-1
+        snippet: force.analysis,
+        origin: 'llm_generation',
+      });
+    });
+    
+    // Add overall attractiveness summary
+    if (frameworkResults.overallAttractiveness) {
+      references.push({
+        title: "Porter's Five Forces: Market Attractiveness Summary",
+        sourceType: 'internal_doc',
+        description: frameworkResults.overallAttractiveness.summary.substring(0, 200),
+        topics: ["porter's five forces", 'market attractiveness', 'strategic recommendations'],
+        confidence: frameworkResults.overallAttractiveness.score / 10,
+        snippet: frameworkResults.overallAttractiveness.summary,
+        origin: 'llm_generation',
+      });
+    }
+    
+    return references;
+  }
   
   async analyze(frameworkResults: PortersResults): Promise<StrategyInsights> {
     const insights: StrategyInsight[] = [];
@@ -62,11 +106,13 @@ export class PortersAnalyzer implements FrameworkAnalyzer<PortersResults> {
     }
 
     const overallConfidence = this.calculateConfidence(insights);
+    const references = this.generateReferences(frameworkResults);
 
     return {
       frameworkType: 'porters',
       frameworkRunId: 'porters-run-id', // Will be set by caller
       insights,
+      references,
       marketContext: {
         urgency: this.inferUrgency(frameworkResults),
         riskTolerance: this.inferRiskTolerance(frameworkResults),

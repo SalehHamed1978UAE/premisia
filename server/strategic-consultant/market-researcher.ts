@@ -1,6 +1,7 @@
 import { SourceValidator, type ValidationResult } from './source-validator';
 import { aiClients } from '../ai-clients';
 import { parseAIJson } from '../utils/parse-ai-json';
+import type { RawReference } from '../intelligence/types';
 
 const API_BASE = process.env.API_BASE_URL || 'http://localhost:5000';
 
@@ -24,6 +25,7 @@ export interface ResearchFindings {
   buyer_behavior: Finding[];
   regulatory_factors: Finding[];
   sources: Source[];
+  references: RawReference[];
   validation?: ValidationResult[];
 }
 
@@ -37,6 +39,54 @@ export class MarketResearcher {
 
   constructor() {
     this.validator = new SourceValidator();
+  }
+
+  /**
+   * Convert sources and findings to normalized references for provenance tracking
+   */
+  private convertToReferences(sources: Source[], findings: Finding[], category: string): RawReference[] {
+    const references: RawReference[] = [];
+    
+    // Extract topics from findings
+    const topics = new Set<string>();
+    topics.add(category);
+    topics.add('market research');
+    
+    // Map each source to a reference
+    for (const source of sources) {
+      const confidenceMap: Record<string, number> = {
+        'high': 0.85,
+        'medium': 0.65,
+        'low': 0.45
+      };
+      
+      // Find findings that cite this source
+      const relatedFindings = findings.filter(f => f.citation === source.url);
+      const avgConfidence = relatedFindings.length > 0
+        ? relatedFindings.reduce((sum, f) => sum + (confidenceMap[f.confidence] || 0.5), 0) / relatedFindings.length
+        : source.relevance_score || 0.5;
+      
+      // Extract topic keywords from findings
+      relatedFindings.forEach(f => {
+        const keywords = f.fact.toLowerCase();
+        if (keywords.includes('market')) topics.add('market analysis');
+        if (keywords.includes('competitive')) topics.add('competitive landscape');
+        if (keywords.includes('regulatory')) topics.add('regulatory');
+        if (keywords.includes('customer') || keywords.includes('buyer')) topics.add('customer behavior');
+      });
+      
+      references.push({
+        title: source.title,
+        url: source.url,
+        sourceType: 'article',
+        description: relatedFindings.length > 0 ? relatedFindings[0].fact.substring(0, 200) : undefined,
+        topics: Array.from(topics),
+        confidence: Math.min(Math.max(avgConfidence, 0), 1),
+        origin: 'web_search',
+      });
+    }
+    
+    return references;
   }
 
   async conductResearch(
@@ -454,6 +504,16 @@ Return ONLY valid JSON (no markdown, no explanation):
 
     const synthesized = parseAIJson(textContent, 'market-researcher synthesis');
 
+    const allFindings: Finding[] = [
+      ...(synthesized.market_dynamics || []),
+      ...(synthesized.competitive_landscape || []),
+      ...(synthesized.language_preferences || []),
+      ...(synthesized.buyer_behavior || []),
+      ...(synthesized.regulatory_factors || []),
+    ];
+
+    const references = this.convertToReferences(topSources, allFindings, 'strategic research');
+
     return {
       market_dynamics: synthesized.market_dynamics || [],
       competitive_landscape: synthesized.competitive_landscape || [],
@@ -461,6 +521,7 @@ Return ONLY valid JSON (no markdown, no explanation):
       buyer_behavior: synthesized.buyer_behavior || [],
       regulatory_factors: synthesized.regulatory_factors || [],
       sources: topSources,
+      references,
     };
   }
 }
