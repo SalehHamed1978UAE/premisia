@@ -400,6 +400,13 @@ export class BackgroundJobService {
         await processDocumentEnrichmentJob(job);
         console.log(`[Background Job Dispatcher] ✓ Worker completed for job: ${job.id}`);
       }
+      else if (job.jobType === 'strategic_understanding') {
+        console.log(`[Background Job Dispatcher] Importing strategic understanding worker...`);
+        const { processStrategicUnderstandingJob } = await import('./strategic-understanding-worker');
+        console.log(`[Background Job Dispatcher] Calling worker for job: ${job.id}`);
+        await processStrategicUnderstandingJob(job);
+        console.log(`[Background Job Dispatcher] ✓ Worker completed for job: ${job.id}`);
+      }
       // Add other job types here as needed
       else {
         console.log(`[Background Job Dispatcher] ⚠ No worker for job type: ${job.jobType}`);

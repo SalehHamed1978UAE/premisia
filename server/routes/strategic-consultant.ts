@@ -2136,28 +2136,15 @@ router.post('/journeys/execute-background', async (req: Request, res: Response) 
       relatedEntityType: 'strategic_understanding',
     });
 
-    // Start journey session
+    // Start journey session (initializing state)
     const journeySessionId = await journeyOrchestrator.startJourney(
       targetUnderstandingId,
       journeyType as JourneyType,
       userId
     );
 
-    // Mark job as completed (since journey session is created synchronously)
-    // TODO: Wire up actual background execution with journey orchestrator
-    // For now, we mark the job complete since the session is already created
-    if (jobId) {
-      await backgroundJobService.updateJob(jobId, {
-        status: 'completed',
-        progress: 100,
-        progressMessage: 'Journey session created successfully',
-        resultData: {
-          journeySessionId,
-          understandingId: targetUnderstandingId,
-          isFollowOn,
-        }
-      });
-    }
+    // Background worker will execute the journey and update job status
+    console.log(`[execute-background] Journey session ${journeySessionId} queued for background execution by worker`);
     
     res.json({
       success: true,
