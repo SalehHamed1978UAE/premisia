@@ -1478,6 +1478,42 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
       clearInterval(progressInterval);
     }
 
+    // Persist references to knowledge graph if present
+    if (result.references && result.references.length > 0 && sessionId) {
+      try {
+        const { referenceService } = await import('../services/reference-service.js');
+        const { getStrategicUnderstandingBySession } = await import('../services/secure-data-service.js');
+        
+        // Get understandingId from sessionId
+        const understanding = await getStrategicUnderstandingBySession(sessionId);
+        if (understanding) {
+          console.log(`[BMC-RESEARCH] Persisting ${result.references.length} references to knowledge graph...`);
+          
+          const userId = (req.user as any)?.claims?.sub || 'system';
+          
+          // Normalize references first
+          const normalized = result.references.map((ref, idx) => 
+            referenceService.normalizeReference(
+              ref,
+              userId,
+              { component: 'bmc_research', claim: ref.description },
+              { understandingId: understanding.id, sessionId }
+            )
+          );
+          
+          await referenceService.persistReferences(normalized, {
+            understandingId: understanding.id,
+            sessionId,
+          });
+          
+          console.log(`[BMC-RESEARCH] ✓ Persisted ${normalized.length} references and updated metadata cache`);
+        }
+      } catch (error) {
+        console.error('[BMC-RESEARCH] Failed to persist references:', error);
+        // Don't fail the entire request if reference persistence fails
+      }
+    }
+
     // Save to version - ALWAYS persist results
     if (sessionId) {
       const userId = (req.user as any)?.claims?.sub || 'system';

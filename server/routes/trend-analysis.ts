@@ -102,6 +102,36 @@ router.post('/:understandingId', async (req: Request, res: Response) => {
     // Run the actual analysis
     const result = await trendAgent.analyzeTrends(understandingId);
 
+    // Persist references to knowledge graph if present
+    if (result.references && result.references.length > 0) {
+      try {
+        const { referenceService } = await import('../services/reference-service.js');
+        console.log(`[TrendAnalysis] Persisting ${result.references.length} references to knowledge graph...`);
+        
+        const userId = (req.user as any)?.claims?.sub || 'system';
+        
+        // Normalize references first
+        const normalized = result.references.map((ref, idx) => 
+          referenceService.normalizeReference(
+            ref,
+            userId,
+            { component: 'pestle_trends', claim: ref.description },
+            { understandingId, sessionId }
+          )
+        );
+        
+        await referenceService.persistReferences(normalized, {
+          understandingId,
+          sessionId,
+        });
+        
+        console.log(`[TrendAnalysis] ✓ Persisted ${normalized.length} references and updated metadata cache`);
+      } catch (error) {
+        console.error('[TrendAnalysis] Failed to persist references:', error);
+        // Don't fail the entire request if reference persistence fails
+      }
+    }
+
     // Phase 3 & 4 messages
     res.write(
       `data: ${JSON.stringify({
