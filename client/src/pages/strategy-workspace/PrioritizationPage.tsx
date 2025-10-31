@@ -66,8 +66,27 @@ export default function PrioritizationPage() {
   const { toast } = useToast();
   const { runningJobs } = useJobs();
 
-  const sessionId = params?.sessionId || '';
-  const versionNumber = params?.versionNumber ? parseInt(params.versionNumber) : 1;
+  const sessionIdParam = params?.sessionId;
+  const sessionId = sessionIdParam ?? '';
+
+  const routeVersionNumber = params?.versionNumber ? parseInt(params.versionNumber, 10) : NaN;
+  const storedVersionNumber =
+    typeof window !== 'undefined' && sessionId
+      ? parseInt(window.localStorage.getItem(`strategic-versionNumber-${sessionId}`) || '', 10)
+      : NaN;
+
+  const versionNumber =
+    !Number.isNaN(routeVersionNumber) && routeVersionNumber > 0
+      ? routeVersionNumber
+      : !Number.isNaN(storedVersionNumber) && storedVersionNumber > 0
+        ? storedVersionNumber
+        : 1;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!sessionId || !versionNumber || Number.isNaN(versionNumber)) return;
+    window.localStorage.setItem(`strategic-versionNumber-${sessionId}`, versionNumber.toString());
+  }, [sessionId, versionNumber]);
   
   // Context sidebar state (collapsed by default on smaller screens)
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -89,7 +108,7 @@ export default function PrioritizationPage() {
   // Fetch strategy version data
   const { data: response, isLoading, error } = useQuery<{ success: boolean; version: VersionData }>({
     queryKey: ['/api/strategic-consultant/versions', sessionId, versionNumber],
-    enabled: !!sessionId,
+    enabled: !!sessionIdParam,
   });
 
   const versionData = response?.version;

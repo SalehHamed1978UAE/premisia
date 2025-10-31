@@ -54,15 +54,35 @@ export default function EPMPage() {
   const [, params] = useRoute("/strategic-consultant/epm/:sessionId/:versionNumber");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const sessionId = params?.sessionId;
-  const versionNumber = params?.versionNumber ? parseInt(params.versionNumber) : 1;
+  
+  const sessionIdParam = params?.sessionId;
+  const sessionId = sessionIdParam ?? '';
+
+  const routeVersionNumber = params?.versionNumber ? parseInt(params.versionNumber, 10) : NaN;
+  const storedVersionNumber =
+    typeof window !== 'undefined' && sessionId
+      ? parseInt(window.localStorage.getItem(`strategic-versionNumber-${sessionId}`) || '', 10)
+      : NaN;
+
+  const versionNumber =
+    !Number.isNaN(routeVersionNumber) && routeVersionNumber > 0
+      ? routeVersionNumber
+      : !Number.isNaN(storedVersionNumber) && storedVersionNumber > 0
+        ? storedVersionNumber
+        : 1;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!sessionId || !versionNumber || Number.isNaN(versionNumber)) return;
+    window.localStorage.setItem(`strategic-versionNumber-${sessionId}`, versionNumber.toString());
+  }, [sessionId, versionNumber]);
 
   const [isConverting, setIsConverting] = useState(false);
   const [isIntegrating, setIsIntegrating] = useState(false);
 
   const { data, isLoading, error } = useQuery<EPMData>({
     queryKey: ['/api/strategic-consultant/versions', sessionId, versionNumber],
-    enabled: !!sessionId && !isConverting,
+    enabled: !!sessionIdParam && !isConverting,
     retry: false
   });
 

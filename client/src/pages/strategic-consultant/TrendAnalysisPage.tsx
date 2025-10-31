@@ -18,8 +18,28 @@ export default function TrendAnalysisPage() {
   const [, params] = useRoute("/strategic-consultant/trend-analysis/:sessionId/:versionNumber");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const sessionId = params?.sessionId;
-  const versionNumber = params?.versionNumber ? parseInt(params.versionNumber) : 1;
+  
+  const sessionIdParam = params?.sessionId;
+  const sessionId = sessionIdParam ?? '';
+
+  const routeVersionNumber = params?.versionNumber ? parseInt(params.versionNumber, 10) : NaN;
+  const storedVersionNumber =
+    typeof window !== 'undefined' && sessionId
+      ? parseInt(window.localStorage.getItem(`strategic-versionNumber-${sessionId}`) || '', 10)
+      : NaN;
+
+  const versionNumber =
+    !Number.isNaN(routeVersionNumber) && routeVersionNumber > 0
+      ? routeVersionNumber
+      : !Number.isNaN(storedVersionNumber) && storedVersionNumber > 0
+        ? storedVersionNumber
+        : 1;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!sessionId || !versionNumber || Number.isNaN(versionNumber)) return;
+    window.localStorage.setItem(`strategic-versionNumber-${sessionId}`, versionNumber.toString());
+  }, [sessionId, versionNumber]);
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisComplete, setAnalysisComplete] = useState(false);
@@ -35,7 +55,7 @@ export default function TrendAnalysisPage() {
   // Get understanding ID from strategic understanding table
   const { data: understandingData } = useQuery<{ understandingId: string }>({
     queryKey: ['/api/strategic-consultant/understanding', sessionId],
-    enabled: !!sessionId,
+    enabled: !!sessionIdParam,
   });
 
   const understandingId = understandingData?.understandingId;
