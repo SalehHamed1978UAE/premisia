@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Rocket, Calendar, TrendingUp, Archive, Plus } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { AppLayout } from "@/components/layout/AppLayout";
 
 interface Strategy {
   id: string;
@@ -123,24 +125,24 @@ function StrategyListSkeleton() {
 }
 
 export default function StrategiesListPage() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { data: strategies, isLoading, error } = useQuery<Strategy[]>({
     queryKey: ['/api/strategies'],
   });
 
   return (
-    <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8" data-testid="page-strategies-list">
+    <AppLayout
+      showTopBar={true}
+      title="Strategies Hub"
+      subtitle="Your unified strategic initiatives"
+      sidebarOpen={sidebarOpen}
+      onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}
+    >
+      <div data-testid="page-strategies-list">
       {/* Header */}
       <div className="mb-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight break-words" data-testid="heading-strategies">
-              Strategies Hub
-            </h1>
-            <p className="text-sm sm:text-base text-muted-foreground mt-2">
-              Your unified strategic initiatives with full research provenance
-            </p>
-          </div>
-          <Link href="/strategic-consultant/input" className="w-full sm:w-auto">
+          <Link href="/strategic-consultant/input" className="w-full sm:w-auto ml-auto">
             <Button className="w-full sm:w-auto" data-testid="button-new-strategy">
               <Plus className="h-4 w-4 mr-2" />
               New Strategy
@@ -209,6 +211,7 @@ export default function StrategiesListPage() {
           ))}
         </div>
       )}
-    </div>
+      </div>
+    </AppLayout>
   );
 }
