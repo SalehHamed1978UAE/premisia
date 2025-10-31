@@ -46,7 +46,12 @@ The application employs a hybrid background job system with database persistence
 - **Enterprise Data Encryption**: AES-256-GCM encryption for sensitive business data at rest.
 - **Full-Pass Export System**: Comprehensive export generating ZIP bundles with strategic analysis and EPM program data in multiple formats (Markdown, PDF, DOCX, HTML).
 - **Document Intelligence Enrichment**: Background job pipeline for asynchronously extracting knowledge from uploaded documents (PDF, DOCX, Excel, images), populating the encrypted knowledge graph with provenance. Features a notification system.
-- **Strategies Hub**: Unified view for all strategic initiatives, providing artifact hierarchy and research provenance, with list and detailed views. Supports context inheritance.
+- **Strategies Hub**: Unified view for all strategic initiatives, providing artifact hierarchy and research provenance, with list and detailed views. Supports context inheritance. Enhanced with:
+  - **Version Metadata Enrichment**: Strategy versions track versionLabel, confidence scores (0-1), ROI estimates, and lineage via derivedFromVersionId
+  - **EPM Program Visibility**: Programs display version number, created date, journey deep links, and metadata badges (confidence%, ROI%)
+  - **Research Tab Tags**: Framework and journey tags extracted from references with version badges (e.g., "BMI v2")
+  - **Delete/Archive Operations**: Individual strategy deletion with cascade preview showing affected journeys, versions, programs, assignments, and references, with user-scoped security
+  - **Version-Specific EPM Filtering**: Prioritization page checks strategyVersionId to prevent cross-version leakage
 - **Journey Launcher Modal**: Intelligent modal for initiating additional strategic analysis, with two modes (Full Journey, Single Framework). Includes journey-aware readiness checks and uses a `Strategic Summary Builder` for context, implementing a single-snapshot architecture to prevent token limit overruns.
 - **Ambiguity Resolution & Clarifications**: AI-powered clarification workflows for strategic inputs, prompting users to resolve unclear inputs, which are then merged and persisted for follow-on analysis.
 
