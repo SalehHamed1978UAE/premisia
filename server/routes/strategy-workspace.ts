@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db';
 import { strategyDecisions, epmPrograms, journeySessions, strategyVersions, strategicUnderstanding, taskAssignments } from '@shared/schema';
-import { eq, desc, inArray } from 'drizzle-orm';
+import { eq, desc, inArray, count } from 'drizzle-orm';
 import { BMCAnalyzer, PortersAnalyzer, PESTLEAnalyzer, EPMSynthesizer } from '../intelligence';
 import type { BMCResults, PortersResults, PESTLEResults } from '../intelligence/types';
 import { storage } from '../storage';
@@ -814,7 +814,7 @@ router.post('/epm/batch-deletion-preview', async (req: Request, res: Response) =
 
     // Count task assignments that will be deleted
     const [taskAssignmentsResult] = await db
-      .select({ count: db.fn.count() })
+      .select({ count: count() })
       .from(taskAssignments)
       .where(inArray(taskAssignments.epmProgramId, ids));
     

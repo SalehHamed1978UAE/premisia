@@ -35,7 +35,7 @@ export function BatchDeleteEPMDialog({
   isDeleting = false,
 }: BatchDeleteEPMDialogProps) {
   const { data: preview, isLoading } = useQuery<BatchDeletionPreview>({
-    queryKey: [`/api/strategy-workspace/epm/batch-deletion-preview`],
+    queryKey: ['/api/strategy-workspace/epm/batch-deletion-preview', programIds],
     queryFn: async () => {
       const response = await fetch('/api/strategy-workspace/epm/batch-deletion-preview', {
         method: 'POST',
