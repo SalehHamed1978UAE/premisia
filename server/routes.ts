@@ -16,7 +16,7 @@ import taskAssignmentsRoutes from "./routes/task-assignments";
 import exportsRoutes from "./routes/exports";
 import { backgroundJobService } from "./services/background-job-service";
 import { decrypt } from "./utils/encryption";
-import { eq, and, or, desc, sql } from "drizzle-orm";
+import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
 import { db } from "./db";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -123,31 +123,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         )
         .orderBy(desc(journeySessions.versionNumber));
 
+      // Build list of allowed session IDs (intake session + all journey sessions)
+      const sessionIds = new Set<string>();
+      if (understandingData?.strategic_understanding?.sessionId) {
+        sessionIds.add(understandingData.strategic_understanding.sessionId);
+      }
+      sessions.forEach(session => sessionIds.add(session.id));
+      const sessionIdList = Array.from(sessionIds);
+
       // Get all EPM programs linked via strategy versions (with ownership verification)
-      const programs = await db
-        .select({
-          id: epmPrograms.id,
-          userId: epmPrograms.userId,
-          frameworkType: epmPrograms.frameworkType,
-          status: epmPrograms.status,
-          createdAt: epmPrograms.createdAt,
-          strategyVersionId: strategyVersions.id,
-        })
-        .from(strategyVersions)
-        .innerJoin(
-          strategicUnderstanding,
-          eq(strategyVersions.sessionId, strategicUnderstanding.sessionId)
-        )
-        .innerJoin(
-          epmPrograms,
-          eq(strategyVersions.convertedProgramId, epmPrograms.id)
-        )
-        .where(
-          and(
-            eq(strategicUnderstanding.id, strategyId),
-            eq(epmPrograms.userId, userId)
-          )
-        );
+      const programs = sessionIdList.length > 0
+        ? await db
+            .select({
+              id: epmPrograms.id,
+              userId: epmPrograms.userId,
+              frameworkType: epmPrograms.frameworkType,
+              status: epmPrograms.status,
+              createdAt: epmPrograms.createdAt,
+              strategyVersionId: strategyVersions.id,
+            })
+            .from(strategyVersions)
+            .innerJoin(
+              epmPrograms,
+              eq(strategyVersions.convertedProgramId, epmPrograms.id)
+            )
+            .where(
+              and(
+                inArray(strategyVersions.sessionId, sessionIdList),
+                eq(epmPrograms.userId, userId)
+              )
+            )
+        : [];
 
       // Get count of references (with ownership verification)
       const [refCount] = await db
