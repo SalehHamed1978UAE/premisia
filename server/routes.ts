@@ -143,6 +143,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
               strategyVersionId: epmPrograms.strategyVersionId,
               versionNumber: strategyVersions.versionNumber,
               sessionId: strategyVersions.sessionId,
+              versionLabel: strategyVersions.versionLabel,
+              confidence: strategyVersions.confidence,
+              roiEstimate: strategyVersions.roiEstimate,
+              derivedFromVersionId: strategyVersions.derivedFromVersionId,
             })
             .from(epmPrograms)
             .innerJoin(

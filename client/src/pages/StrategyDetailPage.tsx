@@ -49,6 +49,10 @@ interface EPMProgram {
   strategyVersionId: string;
   versionNumber: number;
   sessionId: string;
+  versionLabel: string | null;
+  confidence: string | null;
+  roiEstimate: string | null;
+  derivedFromVersionId: string | null;
 }
 
 interface Reference {
@@ -448,7 +452,7 @@ function EPMProgramsTab({ programs }: { programs: EPMProgram[] }) {
             <CardHeader>
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
+                  <div className="flex items-center gap-2 flex-wrap mb-2">
                     <CardTitle className="text-lg capitalize" data-testid={`text-program-framework-${program.id}`}>
                       {program.frameworkType.replace(/_/g, ' ')} Program
                     </CardTitle>
@@ -456,14 +460,29 @@ function EPMProgramsTab({ programs }: { programs: EPMProgram[] }) {
                       {program.status}
                     </Badge>
                     <Badge variant="secondary" data-testid={`badge-program-version-${program.id}`}>
-                      Version {program.versionNumber}
+                      {program.versionLabel || `Version ${program.versionNumber}`}
                     </Badge>
+                    {program.confidence && (
+                      <Badge variant="outline" data-testid={`badge-program-confidence-${program.id}`}>
+                        {(parseFloat(program.confidence) * 100).toFixed(0)}% Confidence
+                      </Badge>
+                    )}
+                    {program.roiEstimate && (
+                      <Badge variant="outline" data-testid={`badge-program-roi-${program.id}`}>
+                        {(parseFloat(program.roiEstimate) * 100).toFixed(1)}% ROI
+                      </Badge>
+                    )}
                   </div>
-                  <CardDescription className="flex items-center gap-4">
+                  <CardDescription className="flex items-center gap-4 flex-wrap">
                     <span className="flex items-center gap-1">
                       <Calendar className="h-3 w-3" />
                       Created {format(new Date(program.createdAt), 'MMM dd, yyyy')}
                     </span>
+                    {program.derivedFromVersionId && (
+                      <span className="text-xs text-muted-foreground" data-testid={`text-program-lineage-${program.id}`}>
+                        Derived from previous version
+                      </span>
+                    )}
                   </CardDescription>
                 </div>
                 <div className="flex flex-col gap-2">
