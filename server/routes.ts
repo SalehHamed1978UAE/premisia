@@ -135,16 +135,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
         .from(strategyVersions)
         .innerJoin(
+          strategicUnderstanding,
+          eq(strategyVersions.sessionId, strategicUnderstanding.sessionId)
+        )
+        .innerJoin(
           epmPrograms,
           eq(strategyVersions.convertedProgramId, epmPrograms.id)
         )
-        .innerJoin(
-          journeySessions,
-          eq(strategyVersions.sessionId, journeySessions.id)
-        )
         .where(
           and(
-            eq(journeySessions.understandingId, strategyId),
+            eq(strategicUnderstanding.id, strategyId),
             eq(epmPrograms.userId, userId)
           )
         );
