@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db';
-import { strategicUnderstanding, frameworkInsights, strategicEntities, strategyVersions } from '@shared/schema';
+import { strategicUnderstanding, frameworkInsights, strategicEntities, strategyVersions, journeySessions, epmPrograms, references, strategyDecisions } from '@shared/schema';
 import { eq, desc, sql, inArray } from 'drizzle-orm';
 import { getStrategicUnderstanding } from '../services/secure-data-service';
 import { decrypt } from '../utils/encryption';
@@ -384,6 +384,64 @@ router.get('/statements/:understandingId', async (req, res) => {
   }
 });
 
+// Get deletion preview - shows what will be deleted
+router.get('/:id/deletion-preview', async (req, res) => {
+  try {
+    const understandingId = req.params.id;
+
+    // Get understanding with sessionId
+    const [understanding] = await db
+      .select({ sessionId: strategicUnderstanding.sessionId })
+      .from(strategicUnderstanding)
+      .where(eq(strategicUnderstanding.id, understandingId));
+
+    if (!understanding) {
+      return res.status(404).json({ error: 'Analysis not found' });
+    }
+
+    const sessionId = understanding.sessionId;
+
+    // Count journey sessions
+    const [journeyCount] = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(journeySessions)
+      .where(eq(journeySessions.understandingId, understandingId));
+
+    // Count strategy versions
+    const [versionCount] = sessionId
+      ? await db
+          .select({ count: sql<number>`COUNT(*)` })
+          .from(strategyVersions)
+          .where(eq(strategyVersions.sessionId, sessionId))
+      : [{ count: 0 }];
+
+    // Count EPM programs (via strategy versions)
+    const [epmCount] = sessionId
+      ? await db
+          .select({ count: sql<number>`COUNT(DISTINCT ${epmPrograms.id})` })
+          .from(epmPrograms)
+          .innerJoin(strategyVersions, eq(epmPrograms.strategyVersionId, strategyVersions.id))
+          .where(eq(strategyVersions.sessionId, sessionId))
+      : [{ count: 0 }];
+
+    // Count references
+    const [refCount] = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(references)
+      .where(eq(references.understandingId, understandingId));
+
+    res.json({
+      journeys: journeyCount?.count || 0,
+      versions: versionCount?.count || 0,
+      epmPrograms: epmCount?.count || 0,
+      references: refCount?.count || 0,
+    });
+  } catch (error) {
+    console.error('Error fetching deletion preview:', error);
+    res.status(500).json({ error: 'Failed to fetch deletion preview' });
+  }
+});
+
 // Batch operations
 router.post('/batch-delete', async (req, res) => {
   try {
@@ -403,15 +461,42 @@ router.post('/batch-delete', async (req, res) => {
       .map(u => u.sessionId)
       .filter((id): id is string => id !== null);
 
-    // Delete all related data for each understanding
+    // CASCADE DELETE in proper order:
+    // 1. Delete journey_sessions (references understanding_id with CASCADE)
+    await db.delete(journeySessions).where(inArray(journeySessions.understandingId, ids));
+
+    // 2. Delete references (references understanding_id with CASCADE)
+    await db.delete(references).where(inArray(references.understandingId, ids));
+
+    // 3. Delete old framework insights
     await db.delete(frameworkInsights).where(inArray(frameworkInsights.understandingId, ids));
+
+    // 4. Delete strategic entities and relationships (CASCADE handles relationships)
     await db.delete(strategicEntities).where(inArray(strategicEntities.understandingId, ids));
-    
-    // CASCADE DELETE: Delete all related strategyVersions
+
+    // 5. Delete strategy versions and their dependencies
     if (sessionIds.length > 0) {
+      // Get all strategy version IDs
+      const versions = await db
+        .select({ id: strategyVersions.id })
+        .from(strategyVersions)
+        .where(inArray(strategyVersions.sessionId, sessionIds));
+      
+      const versionIds = versions.map(v => v.id);
+
+      if (versionIds.length > 0) {
+        // Delete EPM programs (CASCADE from strategy_versions)
+        await db.delete(epmPrograms).where(inArray(epmPrograms.strategyVersionId, versionIds));
+        
+        // Delete strategy decisions (CASCADE from strategy_versions)
+        await db.delete(strategyDecisions).where(inArray(strategyDecisions.strategyVersionId, versionIds));
+      }
+
+      // Delete strategy versions
       await db.delete(strategyVersions).where(inArray(strategyVersions.sessionId, sessionIds));
     }
     
+    // 6. Finally delete the strategic understanding root
     await db.delete(strategicUnderstanding).where(inArray(strategicUnderstanding.id, ids));
 
     res.json({ success: true, count: ids.length });

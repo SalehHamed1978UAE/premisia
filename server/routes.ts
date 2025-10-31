@@ -140,12 +140,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               frameworkType: epmPrograms.frameworkType,
               status: epmPrograms.status,
               createdAt: epmPrograms.createdAt,
-              strategyVersionId: strategyVersions.id,
+              strategyVersionId: epmPrograms.strategyVersionId,
             })
-            .from(strategyVersions)
+            .from(epmPrograms)
             .innerJoin(
-              epmPrograms,
-              eq(strategyVersions.convertedProgramId, epmPrograms.id)
+              strategyVersions,
+              eq(epmPrograms.strategyVersionId, strategyVersions.id)
             )
             .where(
               and(

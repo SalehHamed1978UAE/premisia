@@ -146,7 +146,7 @@ export default function RepositoryBrowser() {
       });
       
       // Download as JSON file
-      const dataStr = JSON.stringify(response.data, null, 2);
+      const dataStr = JSON.stringify(response, null, 2);
       const dataBlob = new Blob([dataStr], { type: 'application/json' });
       const url = URL.createObjectURL(dataBlob);
       const link = document.createElement('a');
@@ -182,25 +182,54 @@ export default function RepositoryBrowser() {
 
     setIsDeleting(true);
     try {
-      await apiRequest('DELETE', `/api/repository/statements/${deleteUnderstandingId}`);
+      await apiRequest('POST', '/api/repository/batch-delete', {
+        ids: [deleteUnderstandingId],
+      });
       
       toast({
-        title: 'Statement deleted',
-        description: 'The statement and all its analyses have been permanently deleted',
+        title: 'Analysis deleted',
+        description: 'The analysis and all related artifacts have been permanently deleted',
       });
 
       await queryClient.invalidateQueries({ queryKey: ['/api/repository/statements'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/dashboard-summary'] });
     } catch (error) {
       console.error('Error deleting statement:', error);
       toast({
         title: 'Failed to delete',
-        description: error instanceof Error ? error.message : 'Could not delete statement',
+        description: error instanceof Error ? error.message : 'Could not delete analysis',
         variant: 'destructive',
       });
     } finally {
       setIsDeleting(false);
       setShowDeleteDialog(false);
       setDeleteUnderstandingId(null);
+    }
+  };
+
+  const handleArchiveFromDialog = async () => {
+    if (!deleteUnderstandingId) return;
+
+    try {
+      await apiRequest('POST', '/api/repository/batch-archive', {
+        ids: [deleteUnderstandingId],
+        archive: true,
+      });
+      
+      toast({
+        title: 'Analysis archived',
+        description: 'The analysis and all related artifacts have been archived',
+      });
+
+      await queryClient.invalidateQueries({ queryKey: ['/api/repository/statements'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/dashboard-summary'] });
+    } catch (error) {
+      console.error('Error archiving statement:', error);
+      toast({
+        title: 'Failed to archive',
+        description: error instanceof Error ? error.message : 'Could not archive analysis',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -226,7 +255,6 @@ export default function RepositoryBrowser() {
     <AppLayout
       title="Analysis Repository"
       subtitle="Browse all strategic analyses and statements"
-      onViewChange={(view) => setLocation('/')}
     >
       <div className="max-w-7xl mx-auto p-6 space-y-6">
         <div className="flex flex-col gap-4">
@@ -457,13 +485,16 @@ export default function RepositoryBrowser() {
         )}
 
         {/* Delete Confirmation Dialog */}
-        <DeleteAnalysisDialog
-          open={showDeleteDialog}
-          onOpenChange={setShowDeleteDialog}
-          onConfirm={handleDeleteConfirm}
-          frameworkName="Statement and All Analyses"
-          isDeleting={isDeleting}
-        />
+        {deleteUnderstandingId && (
+          <DeleteAnalysisDialog
+            open={showDeleteDialog}
+            onOpenChange={setShowDeleteDialog}
+            onDelete={handleDeleteConfirm}
+            onArchive={handleArchiveFromDialog}
+            understandingId={deleteUnderstandingId}
+            isDeleting={isDeleting}
+          />
+        )}
       </div>
     </AppLayout>
   );
