@@ -1,0 +1,90 @@
+1. Make Session IDs the Single Source of Truth
+
+  - Audit every place we store or read journey type.
+    client/src/components/JourneyLauncherModal.tsx, JourneySelectionPage.tsx,
+    WhysTreePage.tsx, any quick‑start buttons, plus SSE auto-reconnect code.
+  - Persist with the journey session id returned by the backend
+    (data.journeySessionId).
+
+    const key = `journey-type-${data.journeySessionId}`;
+    localStorage.setItem(key, selectedJourneyType);
+    If the API also returns sessionId, set both keys; never store under the
+    understanding id.
+  - Update readers (ResearchPage, other pages) to fetch by session id only;
+    remove any fallbacks that try understanding ids.
+
+  Successful check: Start a BMI journey → open DevTools → localStorage shows
+  journey-type-session-* set to business_model_innovation.
+
+  ———
+
+  2. Strip Journey-Specific Logic from the Frontend
+
+  - In client/src/pages/strategic-consultant/ResearchPage.tsx remove:
+      - The BMI check that skips Porters.
+      - The explicit calls to /api/strategic-consultant/analyze-enhanced and /
+        decisions/generate-with-research.
+  - The research page should just stream research, show progress, store the
+    returned versionNumber, and navigate to the next URL supplied by the journey
+    definition (see next step). It must not decide which frameworks run.
+
+  ———
+
+  3. Let the Journey Orchestrator Drive Framework Execution
+
+  - Ensure the BMI entry in server/journey/journey-registry.ts (and the seeded
+    template) lists the correct framework order: ['five_whys', 'bmc'].
+  - After BMC finishes inside the orchestrator (or via the framework executor
+    callback):
+      1. Persist BMC output to the new version (storage.updateStrategyVersion
+         with analysisData.bmc_research).
+      2. Trigger the strategic decisions step by pushing the user to /strategy-
+         workspace/decisions/:sessionId/:versionNumber. The orchestrator already
+         knows the next route—emit it in the API response so the frontend can
+         navigate without guesses.
+  - Remove any remaining fallback calls to the Porters pipeline for BMI
+    journeys.
+
+  ———
+
+  4. Guarantee BMC Results Are Saved
+
+  - In server/routes/strategic-consultant.ts, confirm both POST /bmc-research
+    and the streaming /bmc-research/stream/:sessionId end by:
+
+    await storage.updateStrategyVersion(version.id, {
+      analysisData: {
+        ...existingAnalysis,
+        bmc_research: result,
+      },
+    });
+  - Add logging on success:
+    [BMC] Saved bmc_research for ${sessionId}@v${versionNumber}.
+  - Unit check: run the API manually (curl) and confirm analysis_data contains
+    the block payload.
+
+  ———
+
+  5. Clean EPM Expectations
+
+  - In the EPM generation route (server/routes/strategy-workspace.ts), keep the
+    guard that throws when analysisData.bmc_research is missing.
+  - After the fixes above, generating a BMI EPM should pass because the BMC
+    block is present.
+
+  ———
+
+  6. Verification Plan
+
+  1. Launch BMI through Strategic Consultant. Confirm journey-type-session-* key
+     is set.
+  2. Finish Five Whys. When research completes, the UI should go straight to
+     Decisions (no Porters overlay, no /analyze-enhanced calls in the network
+     tab).
+  3. Accept decisions → Prioritization → Generate EPM. Watch logs for [BMC]
+     Saved ... and ensure the background job reaches 100%.
+  4. In DB (strategy_versions), confirm analysis_data->'bmc_research' exists; in
+     epm_programs, confirm strategy_version_id is set.
+  5. Check Strategy detail: Programs tab lists the new EPM; Research tab shows
+     the new references.
+
