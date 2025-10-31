@@ -63,6 +63,9 @@ interface Reference {
   usedInComponents: string[];
   origin: string;
   createdAt: Date;
+  sessionId: string | null;
+  journeyType: string | null;
+  versionNumber: number | null;
 }
 
 interface StrategyDetail {
@@ -293,6 +296,22 @@ function ResearchLibraryTab({ strategyId }: { strategyId: string }) {
     return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
   };
 
+  // Extract unique framework tags from usedInComponents
+  const getFrameworkTags = (usedInComponents: string[] | null | undefined): string[] => {
+    if (!usedInComponents || !Array.isArray(usedInComponents)) return [];
+    
+    const frameworks = new Set<string>();
+    usedInComponents.forEach(component => {
+      // Handle multiple delimiters: '.', '/', '-', and extract first segment
+      const framework = component.split(/[.\/\-\[\]]/)[0].trim();
+      if (framework) {
+        // Normalize to uppercase for consistency (BMC, PESTLE, etc.)
+        frameworks.add(framework.toUpperCase());
+      }
+    });
+    return Array.from(frameworks);
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -340,6 +359,16 @@ function ResearchLibraryTab({ strategyId }: { strategyId: string }) {
                     <Badge variant="secondary" data-testid={`badge-origin-${ref.id}`}>
                       {ref.origin.replace(/_/g, ' ')}
                     </Badge>
+                    {ref.journeyType && ref.versionNumber && (
+                      <Badge variant="default" className="capitalize" data-testid={`badge-journey-version-${ref.id}`}>
+                        {ref.journeyType === 'business_model_innovation' ? 'BMI' : ref.journeyType.replace(/_/g, ' ')} v{ref.versionNumber}
+                      </Badge>
+                    )}
+                    {getFrameworkTags(ref.usedInComponents).map((framework, idx) => (
+                      <Badge key={idx} variant="outline" className="font-mono text-xs" data-testid={`badge-framework-${ref.id}-${idx}`}>
+                        {framework}
+                      </Badge>
+                    ))}
                   </CardDescription>
                 </div>
                 {ref.url && (

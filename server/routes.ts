@@ -213,30 +213,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Strategy not found" });
       }
 
-      // Get all references for this strategy (from understanding, sessions, and programs) with ownership verification
-      const strategyReferences = await db
-        .select()
-        .from(references)
-        .where(
-          and(
-            eq(references.userId, userId),
-            or(
-              eq(references.understandingId, strategyId),
-              sql`${references.sessionId} IN (
-                SELECT id FROM ${journeySessions} WHERE ${journeySessions.understandingId} = ${strategyId} AND ${journeySessions.userId} = ${userId}
-              )`,
-              sql`${references.programId} IN (
-                SELECT ${epmPrograms.id} FROM ${epmPrograms}
-                INNER JOIN ${strategyVersions} ON ${epmPrograms.strategyVersionId} = ${strategyVersions.id}
-                INNER JOIN ${journeySessions} ON ${strategyVersions.sessionId} = ${journeySessions.id}
-                WHERE ${journeySessions.understandingId} = ${strategyId} AND ${epmPrograms.userId} = ${userId}
-              )`
-            )
+      // Get all references for this strategy with journey context
+      // Use SQL to derive journey metadata even for understanding/program-level references
+      const strategyReferences = await db.execute(sql`
+        SELECT 
+          r.id,
+          r.source_type as "sourceType",
+          r.title,
+          r.url,
+          r.description,
+          r.topics,
+          r.confidence,
+          r.extracted_quotes as "extractedQuotes",
+          r.used_in_components as "usedInComponents",
+          r.origin,
+          r.created_at as "createdAt",
+          r.session_id as "sessionId",
+          COALESCE(
+            js.journey_type,
+            (SELECT js2.journey_type FROM ${journeySessions} js2 
+             WHERE js2.understanding_id = r.understanding_id 
+             AND js2.user_id = ${userId}
+             ORDER BY js2.created_at DESC LIMIT 1),
+            (SELECT js3.journey_type FROM ${journeySessions} js3
+             INNER JOIN ${strategyVersions} sv ON js3.id = sv.session_id
+             INNER JOIN ${epmPrograms} ep ON sv.id = ep.strategy_version_id
+             WHERE ep.id = r.program_id
+             AND ep.user_id = ${userId}
+             LIMIT 1)
+          ) as "journeyType",
+          COALESCE(
+            js.version_number,
+            (SELECT js2.version_number FROM ${journeySessions} js2 
+             WHERE js2.understanding_id = r.understanding_id 
+             AND js2.user_id = ${userId}
+             ORDER BY js2.created_at DESC LIMIT 1),
+            (SELECT js3.version_number FROM ${journeySessions} js3
+             INNER JOIN ${strategyVersions} sv ON js3.id = sv.session_id
+             INNER JOIN ${epmPrograms} ep ON sv.id = ep.strategy_version_id
+             WHERE ep.id = r.program_id
+             AND ep.user_id = ${userId}
+             LIMIT 1)
+          ) as "versionNumber"
+        FROM ${references} r
+        LEFT JOIN ${journeySessions} js ON r.session_id = js.id
+        WHERE r.user_id = ${userId}
+        AND (
+          r.understanding_id = ${strategyId}
+          OR r.session_id IN (
+            SELECT id FROM ${journeySessions} WHERE understanding_id = ${strategyId} AND user_id = ${userId}
+          )
+          OR r.program_id IN (
+            SELECT ep.id FROM ${epmPrograms} ep
+            INNER JOIN ${strategyVersions} sv ON ep.strategy_version_id = sv.id
+            INNER JOIN ${journeySessions} js ON sv.session_id = js.id
+            WHERE js.understanding_id = ${strategyId} AND ep.user_id = ${userId}
           )
         )
-        .orderBy(desc(references.confidence), desc(references.createdAt));
+        ORDER BY r.confidence DESC NULLS LAST, r.created_at DESC
+      `);
 
-      res.json(strategyReferences);
+      res.json(strategyReferences.rows);
     } catch (error) {
       console.error("Error fetching strategy references:", error);
       res.status(500).json({ message: "Failed to fetch strategy references" });
