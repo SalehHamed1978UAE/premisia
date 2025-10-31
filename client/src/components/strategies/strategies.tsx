@@ -24,7 +24,6 @@ interface StrategyVersion {
   versionLabel?: string;
   inputSummary?: string;
   status: string;
-  convertedProgramId?: string;
   createdAt: string;
   sessionId: string;
 }
@@ -191,7 +190,7 @@ export function Strategies() {
                     <Calendar className="h-4 w-4" />
                     Created {formatDistanceToNow(new Date(version.createdAt), { addSuffix: true })}
                   </div>
-                  {version.convertedProgramId && (
+                  {version.status === 'converted_to_program' && (
                     <Badge variant="outline" className="gap-1">
                       <CheckCircle className="h-3 w-3" />
                       Integrated
@@ -208,17 +207,6 @@ export function Strategies() {
                     <Eye className="h-4 w-4 mr-2" />
                     View Strategy
                   </Button>
-                  {version.convertedProgramId && (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      onClick={() => handleViewProgram(version.convertedProgramId!)}
-                      data-testid={`button-view-program-${version.id}`}
-                    >
-                      View Program
-                      <ExternalLink className="h-4 w-4 ml-2" />
-                    </Button>
-                  )}
                 </div>
               </div>
             </CardContent>

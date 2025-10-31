@@ -32,12 +32,6 @@ export class EPMIntegrator {
       summary.programId = program.id;
       console.log(`[EPMIntegrator] Created program: ${program.id}`);
 
-      // Immediately set convertedProgramId for idempotency (prevents duplicates on retry)
-      await storage.updateStrategyVersion(versionId, {
-        convertedProgramId: program.id,
-      });
-      console.log(`[EPMIntegrator] Marked version ${versionId} with program ID for idempotency`);
-
       // 2. Create Workstreams and Tasks
       const workstreamMap = await this.createWorkstreamsAndTasks(
         epmProgram,

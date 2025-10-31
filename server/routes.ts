@@ -225,7 +225,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               )`,
               sql`${references.programId} IN (
                 SELECT ${epmPrograms.id} FROM ${epmPrograms}
-                INNER JOIN ${strategyVersions} ON ${epmPrograms.id} = ${strategyVersions.convertedProgramId}
+                INNER JOIN ${strategyVersions} ON ${epmPrograms.strategyVersionId} = ${strategyVersions.id}
                 INNER JOIN ${journeySessions} ON ${strategyVersions.sessionId} = ${journeySessions.id}
                 WHERE ${journeySessions.understandingId} = ${strategyId} AND ${epmPrograms.userId} = ${userId}
               )`

@@ -799,8 +799,7 @@ router.post('/integrate/:sessionId/:versionNumber', async (req: Request, res: Re
     if (!startedVersion) {
       // Already integrated or currently integrating
       return res.status(400).json({
-        error: 'This version is already integrated or currently being integrated',
-        programId: version.convertedProgramId
+        error: 'This version is already integrated or currently being integrated'
       });
     }
 
@@ -825,20 +824,10 @@ router.post('/integrate/:sessionId/:versionNumber', async (req: Request, res: Re
         message: 'Strategic Consultant program successfully integrated into EPM Suite',
       });
     } catch (error: any) {
-      // Check current state to determine rollback strategy
-      const currentVersion = await storage.getStrategyVersion(sessionId, parseInt(versionNumber));
-      
-      if (currentVersion?.convertedProgramId) {
-        // Program was created - mark as converted to prevent duplicate on retry
-        await storage.updateStrategyVersion(version.id, {
-          status: 'converted_to_program',
-        });
-      } else {
-        // Program not created - allow retry
-        await storage.updateStrategyVersion(version.id, {
-          status: version.status, // Restore original status
-        });
-      }
+      // Rollback - allow retry by restoring original status
+      await storage.updateStrategyVersion(version.id, {
+        status: version.status, // Restore original status
+      });
       throw error;
     }
 
