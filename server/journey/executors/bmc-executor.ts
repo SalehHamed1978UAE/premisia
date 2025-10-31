@@ -2,6 +2,9 @@ import type { FrameworkExecutor } from '../framework-executor-registry';
 import type { StrategicContext } from '@shared/journey-types';
 import { BMCResearcher } from '../../strategic-consultant/bmc-researcher';
 import { ReferenceService } from '../../services/reference-service';
+import { db } from '../../db';
+import { journeySessions } from '@shared/schema';
+import { eq } from 'drizzle-orm';
 
 /**
  * Business Model Canvas Framework Executor
@@ -38,10 +41,22 @@ export class BMCExecutor implements FrameworkExecutor {
     if (bmcResults.references && bmcResults.references.length > 0) {
       console.log(`[BMC Executor] Persisting ${bmcResults.references.length} references to database...`);
       
+      // Get userId from journey session
+      const [session] = await db
+        .select({ userId: journeySessions.userId })
+        .from(journeySessions)
+        .where(eq(journeySessions.id, context.sessionId))
+        .limit(1);
+      
+      if (!session) {
+        console.warn(`[BMC Executor] Could not find session ${context.sessionId}, skipping reference persistence`);
+        return bmcResults;
+      }
+      
       const normalizedRefs = bmcResults.references.map(ref =>
         this.referenceService.normalizeReference(
           ref,
-          context.userId,
+          session.userId,
           { component: 'BMC', claim: ref.description },
           {
             understandingId: context.understandingId,
