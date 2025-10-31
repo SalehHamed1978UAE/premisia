@@ -1,0 +1,81 @@
+  ## 1. Persist research references from the main journey flow
+
+  Files: server/routes/strategic-consultant.ts
+
+  Where to add code: inside /api/strategic-consultant/research/stream
+  after findingsWithValidation is built and before the SSE type: 'complete'
+  event is sent (around the block that currently sets searchQueriesUsed and
+  sourcesAnalyzed).
+
+  What to do:
+
+  if (findingsWithValidation.sources?.length) {
+    const { referenceService } = await import('../services/reference-
+  service.js');
+    const { getStrategicUnderstandingBySession } = await import('../services/
+  secure-data-service.js');
+
+    const understanding = await getStrategicUnderstandingBySession(sessionId);
+    if (understanding) {
+      const userId = (req.user as any)?.claims?.sub || 'system';
+
+      const normalized = findingsWithValidation.sources.map((source) =>
+        referenceService.normalizeReference(
+          source,
+          userId,
+          { component: 'research.pestle', claim: source.description },
+          { understandingId: understanding.id, sessionId }
+        )
+      );
+
+      await referenceService.persistReferences(normalized, {
+        understandingId: understanding.id,
+        sessionId,
+      });
+    }
+  }
+
+  That’s the only chunk missing from the research stream. Once it’s there, /api/
+  strategies/:id/references returns data and the “Research” tab will populate
+  automatically.
+
+  ———
+
+  ## 2. Return EPM programs for the current strategy
+
+  Files: server/routes.ts
+
+  Endpoint: /api/strategies/:id
+
+  What to change: Replace the existing program query (currently joining
+  strategy_versions.session_id to journey_sessions.id) with a join against
+  strategic_understanding.session_id. Example:
+
+  const programs = await db
+    .select({
+      id: epmPrograms.id,
+      userId: epmPrograms.userId,
+      frameworkType: epmPrograms.frameworkType,
+      status: epmPrograms.status,
+      createdAt: epmPrograms.createdAt,
+      strategyVersionId: strategyVersions.id,
+    })
+    .from(strategyVersions)
+    .innerJoin(
+      strategicUnderstanding,
+      eq(strategyVersions.sessionId, strategicUnderstanding.sessionId)
+    )
+    .innerJoin(
+      epmPrograms,
+      eq(strategyVersions.convertedProgramId, epmPrograms.id)
+    )
+    .where(
+      and(
+        eq(strategicUnderstanding.id, strategyId),
+        eq(epmPrograms.userId, userId)
+      )
+    );
+
+  Remove the old join to journey_sessions in this block—after this change
+  the EPM tab will list every program that was generated for the strategy,
+  regardless of new journey IDs.
