@@ -1842,11 +1842,13 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
     }
 
     // Try to save to database, but don't fail the stream if this fails
+    let targetVersionNumber = 1; // Default version number
+    let version: any = null; // Declare version at outer scope
+    
     try {
       const userId = (req.user as any)?.claims?.sub || 'system';
       
       // Determine version number with fallback logic
-      let targetVersionNumber: number;
       const versionNumberFromQuery = req.query.versionNumber ? parseInt(req.query.versionNumber as string) : undefined;
       
       if (versionNumberFromQuery) {
@@ -1952,7 +1954,7 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
       data: {
         findings,
         searchQueriesUsed: [],
-        versionNumber: version?.versionNumber || 1,
+        versionNumber: version?.versionNumber || targetVersionNumber,
         sourcesAnalyzed: findings.sources.length || 9,
         timeElapsed: '~2 minutes',
       }
