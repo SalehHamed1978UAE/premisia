@@ -13,6 +13,7 @@ import type { StatementSummary } from '@/types/repository';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { DeleteAnalysisDialog } from '@/components/DeleteAnalysisDialog';
+import { BatchDeleteAnalysisDialog } from '@/components/BatchDeleteAnalysisDialog';
 import { ExportFullReportButton } from '@/components/epm/ExportFullReportButton';
 
 export default function RepositoryBrowser() {
@@ -26,6 +27,7 @@ export default function RepositoryBrowser() {
   // Selection state for batch operations
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+  const [showBatchDeleteDialog, setShowBatchDeleteDialog] = useState(false);
 
   const { data: statements, isLoading, error } = useQuery<StatementSummary[]>({
     queryKey: ['/api/repository/statements'],
@@ -77,7 +79,12 @@ export default function RepositoryBrowser() {
   };
 
   // Batch operations
-  const handleBatchDelete = async () => {
+  const handleBatchDeleteClick = () => {
+    if (selectedIds.size === 0) return;
+    setShowBatchDeleteDialog(true);
+  };
+
+  const handleBatchDeleteConfirm = async () => {
     if (selectedIds.size === 0) return;
 
     setIsBatchProcessing(true);
@@ -87,18 +94,19 @@ export default function RepositoryBrowser() {
       });
       
       toast({
-        title: 'Statements deleted',
-        description: `${selectedIds.size} statement(s) deleted successfully`,
+        title: 'Analyses deleted',
+        description: `${selectedIds.size} analysis/analyses deleted successfully`,
       });
 
       setSelectedIds(new Set());
+      setShowBatchDeleteDialog(false);
       await queryClient.invalidateQueries({ queryKey: ['/api/repository/statements'] });
       await queryClient.invalidateQueries({ queryKey: ['/api/dashboard-summary'] });
     } catch (error) {
       console.error('Error batch deleting:', error);
       toast({
         title: 'Failed to delete',
-        description: error instanceof Error ? error.message : 'Could not delete statements',
+        description: error instanceof Error ? error.message : 'Could not delete analyses',
         variant: 'destructive',
       });
     } finally {
@@ -106,7 +114,7 @@ export default function RepositoryBrowser() {
     }
   };
 
-  const handleBatchArchive = async () => {
+  const handleBatchArchiveFromDialog = async () => {
     if (selectedIds.size === 0) return;
 
     setIsBatchProcessing(true);
@@ -117,18 +125,19 @@ export default function RepositoryBrowser() {
       });
       
       toast({
-        title: 'Statements archived',
-        description: `${selectedIds.size} statement(s) archived successfully`,
+        title: 'Analyses archived',
+        description: `${selectedIds.size} analysis/analyses archived successfully`,
       });
 
       setSelectedIds(new Set());
+      setShowBatchDeleteDialog(false);
       await queryClient.invalidateQueries({ queryKey: ['/api/repository/statements'] });
       await queryClient.invalidateQueries({ queryKey: ['/api/dashboard-summary'] });
     } catch (error) {
       console.error('Error batch archiving:', error);
       toast({
         title: 'Failed to archive',
-        description: error instanceof Error ? error.message : 'Could not archive statements',
+        description: error instanceof Error ? error.message : 'Could not archive analyses',
         variant: 'destructive',
       });
     } finally {
@@ -298,18 +307,8 @@ export default function RepositoryBrowser() {
                   </Button>
                   <Button
                     size="sm"
-                    variant="outline"
-                    onClick={handleBatchArchive}
-                    disabled={isBatchProcessing}
-                    data-testid="button-batch-archive"
-                  >
-                    <ArchiveIcon className="h-4 w-4 mr-2" />
-                    Archive ({selectedIds.size})
-                  </Button>
-                  <Button
-                    size="sm"
                     variant="destructive"
-                    onClick={handleBatchDelete}
+                    onClick={handleBatchDeleteClick}
                     disabled={isBatchProcessing}
                     data-testid="button-batch-delete"
                   >
@@ -493,6 +492,18 @@ export default function RepositoryBrowser() {
             onArchive={handleArchiveFromDialog}
             understandingId={deleteUnderstandingId}
             isDeleting={isDeleting}
+          />
+        )}
+
+        {/* Batch Delete Confirmation Dialog */}
+        {selectedIds.size > 0 && (
+          <BatchDeleteAnalysisDialog
+            open={showBatchDeleteDialog}
+            onOpenChange={setShowBatchDeleteDialog}
+            onDelete={handleBatchDeleteConfirm}
+            onArchive={handleBatchArchiveFromDialog}
+            understandingIds={Array.from(selectedIds)}
+            isDeleting={isBatchProcessing}
           />
         )}
       </div>

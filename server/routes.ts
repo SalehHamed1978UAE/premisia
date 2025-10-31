@@ -68,7 +68,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           latestJourneyUpdated: sql<Date>`MAX(${journeySessions.updatedAt})`,
         })
         .from(strategicUnderstanding)
-        .innerJoin(
+        .leftJoin(
           journeySessions,
           and(
             eq(strategicUnderstanding.id, journeySessions.understandingId),

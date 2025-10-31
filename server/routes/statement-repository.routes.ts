@@ -442,6 +442,67 @@ router.get('/:id/deletion-preview', async (req, res) => {
   }
 });
 
+// Batch deletion preview
+router.post('/batch-deletion-preview', async (req, res) => {
+  try {
+    const { ids } = req.body;
+    
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Invalid request: ids array is required' });
+    }
+
+    // Get understandings with sessionIds
+    const understandings = await db
+      .select({ sessionId: strategicUnderstanding.sessionId })
+      .from(strategicUnderstanding)
+      .where(inArray(strategicUnderstanding.id, ids));
+    
+    const sessionIds = understandings
+      .map(u => u.sessionId)
+      .filter((id): id is string => id !== null);
+
+    // Count journey sessions
+    const [journeyCount] = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(journeySessions)
+      .where(inArray(journeySessions.understandingId, ids));
+
+    // Count strategy versions
+    const [versionCount] = sessionIds.length > 0
+      ? await db
+          .select({ count: sql<number>`COUNT(*)` })
+          .from(strategyVersions)
+          .where(inArray(strategyVersions.sessionId, sessionIds))
+      : [{ count: 0 }];
+
+    // Count EPM programs (via strategy versions)
+    const [epmCount] = sessionIds.length > 0
+      ? await db
+          .select({ count: sql<number>`COUNT(DISTINCT ${epmPrograms.id})` })
+          .from(epmPrograms)
+          .innerJoin(strategyVersions, eq(epmPrograms.strategyVersionId, strategyVersions.id))
+          .where(inArray(strategyVersions.sessionId, sessionIds))
+      : [{ count: 0 }];
+
+    // Count references
+    const [refCount] = await db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(references)
+      .where(inArray(references.understandingId, ids));
+
+    res.json({
+      totalAnalyses: ids.length,
+      totalJourneys: journeyCount?.count || 0,
+      totalVersions: versionCount?.count || 0,
+      totalEpmPrograms: epmCount?.count || 0,
+      totalReferences: refCount?.count || 0,
+    });
+  } catch (error) {
+    console.error('Error fetching batch deletion preview:', error);
+    res.status(500).json({ error: 'Failed to fetch batch deletion preview' });
+  }
+});
+
 // Batch operations
 router.post('/batch-delete', async (req, res) => {
   try {
