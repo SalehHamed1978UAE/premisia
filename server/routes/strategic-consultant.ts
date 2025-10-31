@@ -1751,7 +1751,6 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
 
     let result;
     let decisions;
-    let version;
     let researchError = false;
 
     try {

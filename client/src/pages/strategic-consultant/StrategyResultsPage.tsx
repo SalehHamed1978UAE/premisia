@@ -91,7 +91,20 @@ export default function StrategyResultsPage() {
   const { runningJobs } = useJobs();
   
   const sessionId = params?.sessionId || '';
-  const versionNumber = params?.versionNumber ? parseInt(params.versionNumber) : 1;
+  
+  // Try to get versionNumber from URL, then localStorage, then default to 1
+  let versionNumber = 1;
+  if (params?.versionNumber) {
+    versionNumber = parseInt(params.versionNumber);
+  } else if (sessionId) {
+    // Check multiple localStorage keys for version number
+    const storedVersion = 
+      localStorage.getItem(`strategic-versionNumber-${sessionId}`) ||
+      localStorage.getItem(`journey-version-${sessionId}`);
+    if (storedVersion) {
+      versionNumber = parseInt(storedVersion);
+    }
+  }
 
   const { data: response, isLoading, error } = useQuery<{ success: boolean; version: VersionData }>({
     queryKey: ['/api/strategic-consultant/versions', sessionId, versionNumber],
