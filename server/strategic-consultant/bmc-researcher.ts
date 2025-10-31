@@ -149,6 +149,30 @@ export class BMCResearcher {
     input: string, 
     sessionId?: string
   ): Promise<BMCResearchResult> {
+    // Step 0: Check for Five Whys constraints from journey session
+    let bmcConstraints: any = null;
+    if (sessionId) {
+      try {
+        const { getJourneySession } = await import('../services/secure-data-service.js');
+        const journeySession = await getJourneySession(sessionId);
+        
+        if (journeySession && journeySession.accumulatedContext) {
+          const context = journeySession.accumulatedContext as any;
+          bmcConstraints = context.insights?.bmcDesignConstraints;
+          
+          if (bmcConstraints) {
+            console.log('[BMCResearcher] ✓ Found Five Whys constraints from journey session:', {
+              problems: bmcConstraints.problemsToSolve?.length || 0,
+              capabilities: bmcConstraints.mustHaveCapabilities?.length || 0,
+              principles: bmcConstraints.designPrinciples?.length || 0,
+            });
+          }
+        }
+      } catch (error) {
+        console.log('[BMCResearcher] No journey session found, proceeding with raw input');
+      }
+    }
+    
     // Step 1: Extract understanding from user input using knowledge graph
     
     const effectiveSessionId = sessionId || `bmc-${Date.now()}`;
@@ -165,8 +189,14 @@ export class BMCResearcher {
     const assumptions = this.entitiesToAssumptions(entities);
     console.log(`[BMCResearcher] Converted to ${assumptions.length} assumptions for BMC flow`);
 
-    // Step 2: Generate BMC block queries
-    const querySet = await this.queryGenerator.generateQueriesForAllBlocks(input);
+    // Step 2: Generate BMC block queries (enhanced with Five Whys constraints if available)
+    let enrichedInput = input;
+    if (bmcConstraints) {
+      enrichedInput = `${input}\n\n--- Five Whys Analysis Context ---\nProblems to Solve: ${bmcConstraints.problemsToSolve?.join('; ')}\nMust-Have Capabilities: ${bmcConstraints.mustHaveCapabilities?.join('; ')}\nDesign Principles: ${bmcConstraints.designPrinciples?.join('; ')}\nBackground: ${bmcConstraints.contextualBackground}`;
+      console.log('[BMCResearcher] ✓ Enriched input with Five Whys constraints for better BMC research');
+    }
+    
+    const querySet = await this.queryGenerator.generateQueriesForAllBlocks(enrichedInput);
 
     // Step 3: Generate assumption-specific queries
     const assumptionQueries = await this.assumptionValidator.generateAssumptionQueries(assumptions);
