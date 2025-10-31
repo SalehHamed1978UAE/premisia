@@ -25,6 +25,7 @@ import { ambiguityDetector } from '../services/ambiguity-detector.js';
 import { getStrategicUnderstanding, getStrategicUnderstandingBySession, updateStrategicUnderstanding, getJourneySession } from '../services/secure-data-service';
 import { fiveWhysCoach } from '../services/five-whys-coach.js';
 import { buildStrategicSummary } from '../services/strategic-summary-builder';
+import { referenceService } from '../services/reference-service';
 
 const router = Router();
 const upload = multer({ 
@@ -1201,6 +1202,35 @@ router.get('/research/stream/:sessionId', async (req: Request, res: Response) =>
         research: findingsWithValidation,
       },
     });
+
+    // Persist research references to the knowledge graph
+    try {
+      const understanding = await getStrategicUnderstandingBySession(sessionId);
+      if (understanding && req.user?.id) {
+        const userId = req.user.id;
+        
+        // Normalize each source with proper metadata
+        const normalizedReferences = findingsWithValidation.sources.map((source: any) => 
+          referenceService.normalizeReference(
+            source,
+            userId,
+            { component: 'research.pestle', claim: source.description || source.title },
+            { understandingId: understanding.id, sessionId }
+          )
+        );
+        
+        // Persist all references
+        await referenceService.persistReferences(normalizedReferences, { 
+          understandingId: understanding.id, 
+          sessionId 
+        });
+        
+        console.log(`[PESTLE Research] ✅ Persisted ${normalizedReferences.length} references to knowledge graph`);
+      }
+    } catch (refError) {
+      console.error('[PESTLE Research] ⚠️ Failed to persist references:', refError);
+      // Don't fail the entire request if reference persistence fails
+    }
 
     const searchQueriesUsed = findingsWithValidation.sources.map(s => s.title);
     const sourcesAnalyzed = findingsWithValidation.sources.length;
