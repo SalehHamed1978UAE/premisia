@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRoute, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Loader2, CheckCircle2, ExternalLink, ChevronDown, AlertCircle, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -110,17 +110,37 @@ export default function ResearchPage() {
   const [error, setError] = useState<string | null>(null);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [autoNavigateCountdown, setAutoNavigateCountdown] = useState<number | null>(null);
-  const [isUpdatingDecisions, setIsUpdatingDecisions] = useState(false);
   const [decisionsUpdated, setDecisionsUpdated] = useState(false);
+  
+  // Use ref to prevent double execution in React Strict Mode
+  const hasInitiatedResearch = useRef(false);
+
+  // Fetch journey session to get authoritative journey type
+  const { data: journeySession, isLoading: loadingJourney } = useQuery({
+    queryKey: ['journey-session', sessionId],
+    queryFn: async () => {
+      if (!sessionId) return null;
+      const res = await fetch(`/api/strategic-consultant/journey-sessions/by-session/${sessionId}`);
+      if (!res.ok) {
+        console.warn(`[ResearchPage] Journey session not found for ${sessionId}, will use fallback`);
+        return null;
+      }
+      return res.json();
+    },
+    enabled: !!sessionId,
+  });
 
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId || loadingJourney || hasInitiatedResearch.current) return;
 
     const rootCause = localStorage.getItem(`strategic-rootCause-${sessionId}`) || '';
     const whysPathStr = localStorage.getItem(`strategic-whysPath-${sessionId}`) || '[]';
     const whysPath = JSON.parse(whysPathStr);
     const input = localStorage.getItem(`strategic-input-${sessionId}`) || '';
-    const journeyType = localStorage.getItem(`journey-type-${sessionId}`);
+    
+    // Use backend journey type if available, fallback to localStorage
+    const journeyType = journeySession?.journeyType || localStorage.getItem(`journey-type-${sessionId}`) || 'business_model_innovation';
+    console.log(`[ResearchPage] Journey type: ${journeyType} (from ${journeySession?.journeyType ? 'backend' : 'localStorage or default'})`);
 
     // Only require Five-Whys data for journeys that use it (Porter's, etc.)
     // BMI/BMC journeys don't go through Five Whys, so skip this check for them
@@ -146,6 +166,7 @@ export default function ResearchPage() {
       // For BMC journeys, use GET /bmc-research/stream with SSE
       // Note: Input is fetched from journey session on the backend, not passed as query param
       eventSource = new EventSource(`/api/strategic-consultant/bmc-research/stream/${sessionId}`);
+      console.log('[ResearchPage] Using BMC research endpoint for BMI journey');
     } else {
       // For Porter's-based journeys, use the standard research stream
       const params = new URLSearchParams({
@@ -154,6 +175,7 @@ export default function ResearchPage() {
         input,
       });
       eventSource = new EventSource(`/api/strategic-consultant/research/stream/${sessionId}?${params.toString()}`);
+      console.log('[ResearchPage] Using Porter\'s research endpoint');
     }
 
     console.log('[ResearchPage] Connecting to research stream:', eventSource.url);
@@ -205,6 +227,7 @@ export default function ResearchPage() {
       
       setError(errorMessage);
       setIsResearching(false);
+      hasInitiatedResearch.current = false; // Reset to allow retries
       eventSource.close();
       
       toast({
@@ -216,6 +239,8 @@ export default function ResearchPage() {
 
     eventSource.onopen = () => {
       console.log('[ResearchPage] EventSource connection opened successfully');
+      // Mark as initiated only after successful connection (prevents Strict Mode double execution)
+      hasInitiatedResearch.current = true;
     };
 
     const timerInterval = setInterval(() => {
@@ -226,99 +251,29 @@ export default function ResearchPage() {
       eventSource.close();
       clearInterval(timerInterval);
     };
-  }, [sessionId]);
+  }, [sessionId, loadingJourney, journeySession, toast]);
 
-  // After research completes, run framework-specific post-processing
+  // After research completes, navigate to next page (no framework-specific logic)
   useEffect(() => {
     if (!researchData || !sessionId) return;
-    if (isUpdatingDecisions || decisionsUpdated) return;
+    if (decisionsUpdated) return;
 
-    const journeyType = localStorage.getItem(`journey-type-${sessionId}`);
-    const rootCause = localStorage.getItem(`strategic-rootCause-${sessionId}`) || '';
-    const whysPathStr = localStorage.getItem(`strategic-whysPath-${sessionId}`) || '[]';
-    const whysPath = JSON.parse(whysPathStr);
-    const versionNumber = researchData.versionNumber;
-
-    // BMC journeys skip Porter's analysis but need to show strategic decisions
-    if (journeyType === 'business_model_innovation') {
-      toast({
-        title: "✓ Research complete",
-        description: "Strategic decisions ready for your review",
-      });
-      setDecisionsUpdated(true); // Skip Porter's-specific processing
-      setAutoNavigateCountdown(3);
-      return;
-    }
-
-    // For Porter's-based journeys (competitive_strategy, market_entry, etc.)
-    const updateDecisions = async () => {
-      setIsUpdatingDecisions(true);
-
-      try {
-        // Step 1: Run enhanced analysis (Porter's)
-        toast({
-          title: "⟳ Updating strategic decisions...",
-          description: "Running Porter's Five Forces analysis based on research findings",
-        });
-
-        await apiRequest('POST', '/api/strategic-consultant/analyze-enhanced', {
-          sessionId,
-          rootCause,
-          whysPath,
-          versionNumber
-        });
-
-        // Step 2: Regenerate decisions with research
-        toast({
-          title: "⟳ Regenerating decisions...",
-          description: "Updating recommendations to reflect research insights",
-        });
-
-        await apiRequest('POST', '/api/strategic-consultant/decisions/generate-with-research', {
-          sessionId,
-          versionNumber
-        });
-
-        setDecisionsUpdated(true);
-        setIsUpdatingDecisions(false);
-
-        toast({
-          title: "✓ Decisions updated",
-          description: "Recommendations now reflect research insights",
-        });
-
-        // Start auto-navigate countdown after decisions are updated
-        setAutoNavigateCountdown(3);
-      } catch (error: any) {
-        console.error('Failed to update decisions:', error);
-        setIsUpdatingDecisions(false);
-        toast({
-          title: "Warning: Decision update failed",
-          description: "Continuing with original decisions. " + (error.message || ''),
-          variant: "destructive",
-        });
-        // Still navigate even if decision update fails
-        setAutoNavigateCountdown(3);
-      }
-    };
-
-    updateDecisions();
-  }, [researchData, sessionId, isUpdatingDecisions, decisionsUpdated, toast]);
+    toast({
+      title: "✓ Research complete",
+      description: "Proceeding to next step in your journey",
+    });
+    setDecisionsUpdated(true);
+    setAutoNavigateCountdown(3);
+  }, [researchData, sessionId, decisionsUpdated, toast]);
 
   useEffect(() => {
     if (autoNavigateCountdown === null) return;
 
     if (autoNavigateCountdown === 0) {
-      const version = researchData?.versionNumber || 1;
-      const journeyType = localStorage.getItem(`journey-type-${sessionId}`);
-      
-      // BMC journeys go to Decision Summary to review strategic decisions
-      if (journeyType === 'business_model_innovation') {
-        setLocation(`/strategy-workspace/decisions/${sessionId}/${version}`);
-      } else {
-        // Porter's journeys go to results page
-        setLocation(`/strategic-consultant/results/${sessionId}/${version}`);
-      }
+      // Use nextUrl from backend if available, otherwise fallback to analysis page
+      const nextUrl = (researchData as any)?.nextUrl || `/strategic-consultant/analysis/${sessionId}`;
+      console.log('[ResearchPage] Navigating to:', nextUrl);
+      setLocation(nextUrl);
       return;
     }
 
@@ -331,16 +286,10 @@ export default function ResearchPage() {
 
   const handleContinue = () => {
     setAutoNavigateCountdown(null);
-    const version = researchData?.versionNumber || 1;
-    const journeyType = localStorage.getItem(`journey-type-${sessionId}`);
-    
-    // BMC journeys go to Decision Summary to review strategic decisions
-    if (journeyType === 'business_model_innovation') {
-      setLocation(`/strategy-workspace/decisions/${sessionId}/${version}`);
-    } else {
-      // Porter's journeys go to results page
-      setLocation(`/strategic-consultant/results/${sessionId}/${version}`);
-    }
+    // Use nextUrl from backend if available, otherwise fallback to analysis page
+    const nextUrl = (researchData as any)?.nextUrl || `/strategic-consultant/analysis/${sessionId}`;
+    console.log('[ResearchPage] Manual continue to:', nextUrl);
+    setLocation(nextUrl);
   };
 
   const handleRetry = () => {
@@ -468,42 +417,15 @@ export default function ResearchPage() {
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {isUpdatingDecisions ? (
-              <Loader2 className="h-6 w-6 animate-spin text-primary" data-testid="icon-updating" />
-            ) : (
-              <CheckCircle2 className="h-6 w-6 text-green-500" data-testid="icon-complete" />
-            )}
+            <CheckCircle2 className="h-6 w-6 text-green-500" data-testid="icon-complete" />
             <div>
-              {isUpdatingDecisions ? (
-                <>
-                  <h2 className="text-xl font-semibold" data-testid="text-updating-decisions">
-                    ⟳ Updating strategic decisions based on research findings...
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    Running Porter's analysis and regenerating recommendations
-                  </p>
-                </>
-              ) : decisionsUpdated ? (
-                <>
-                  <h2 className="text-xl font-semibold text-green-600" data-testid="text-decisions-updated">
-                    ✓ Decisions updated - recommendations now reflect research insights
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    Sources analyzed: <span className="font-medium" data-testid="text-sources-count">{sourcesAnalyzed}</span> • 
-                    Time: <span className="font-medium" data-testid="text-time-elapsed">{timeElapsed}</span>
-                  </p>
-                </>
-              ) : (
-                <>
-                  <h2 className="text-xl font-semibold" data-testid="text-research-complete">
-                    ✓ Research complete
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    Sources analyzed: <span className="font-medium" data-testid="text-sources-count">{sourcesAnalyzed}</span> • 
-                    Time: <span className="font-medium" data-testid="text-time-elapsed">{timeElapsed}</span>
-                  </p>
-                </>
-              )}
+              <h2 className="text-xl font-semibold text-green-600" data-testid="text-research-complete">
+                ✓ Research complete
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Sources analyzed: <span className="font-medium" data-testid="text-sources-count">{sourcesAnalyzed}</span> • 
+                Time: <span className="font-medium" data-testid="text-time-elapsed">{timeElapsed}</span>
+              </p>
             </div>
           </div>
           {autoNavigateCountdown !== null && (

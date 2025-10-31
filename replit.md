@@ -32,7 +32,7 @@ The application employs a hybrid background job system with database persistence
 - **Strategic Understanding Service (Knowledge Graph Architecture)**: Uses PostgreSQL with `pgvector` for entity categorization, relationship mapping, semantic search, and contradiction validation.
 - **Robustness and Performance**: Multi-provider AI fallback, extended socket timeouts, and request throttling with exponential backoff.
 - **Trend Analysis Agent**: Provides production-ready PESTLE analysis with an evidence-first architecture.
-- **Journey-Based Strategic Analysis**: Guides users through interactive sequences for strategic frameworks.
+- **Journey-Based Strategic Analysis**: Guides users through interactive sequences for strategic frameworks. Features backend-controlled orchestration with framework-agnostic navigation using `nextUrl` from research endpoints.
 - **Modular Framework Renderer Architecture**: Extensible system for displaying analysis results.
 - **Strategy Intelligence Layer**: Core AI engine for converting strategic frameworks into executable EPM programs.
 - **Strategy Workspace**: Bridges AI analysis and EPM programs through a 4-page wizard and EPM Program View.

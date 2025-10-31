@@ -252,8 +252,8 @@ export default function WhysTreePage() {
             if (journeyResponse.ok) {
               const journeyData = await journeyResponse.json();
               if (journeyData.journeyType) {
-                // Store journey type in localStorage for ResearchPage
-                localStorage.setItem(`journey-type-${journeySessionId}`, journeyData.journeyType);
+                // Store journey type using understanding.sessionId (consistent with URL routing)
+                localStorage.setItem(`journey-type-${data.sessionId}`, journeyData.journeyType);
                 data.journeyType = journeyData.journeyType;
               }
             }

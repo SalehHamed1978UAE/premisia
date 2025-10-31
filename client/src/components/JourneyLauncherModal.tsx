@@ -203,6 +203,11 @@ export default function JourneyLauncherModal({
       if (data.journeySessionId) {
         localStorage.setItem(`current-journey-session-${understandingId}`, data.journeySessionId);
       }
+      // Store journey type using sessionId (consistent with URL routing)
+      if (data.sessionId && selectedJourney) {
+        localStorage.setItem(`journey-type-${data.sessionId}`, selectedJourney);
+        console.log(`[JourneyLauncher] Stored journey type ${selectedJourney} for sessionId ${data.sessionId}`);
+      }
       if (data.versionNumber) {
         // Store by BOTH sessionId formats so all downstream requests can find it
         localStorage.setItem(`journey-version-${data.journeySessionId}`, String(data.versionNumber));

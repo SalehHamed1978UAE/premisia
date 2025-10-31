@@ -349,7 +349,7 @@ router.get('/understanding/:understandingId', async (req: Request, res: Response
 });
 
 // GET /api/strategic-consultant/journey-sessions/:sessionId
-// Fetch journey session by ID
+// Fetch journey session by UUID
 router.get('/journey-sessions/:sessionId', async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params;
@@ -376,6 +376,39 @@ router.get('/journey-sessions/:sessionId', async (req: Request, res: Response) =
     });
   } catch (error: any) {
     console.error('Error in /journey-sessions/:sessionId:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch journey session' });
+  }
+});
+
+// GET /api/strategic-consultant/journey-sessions/by-session/:sessionId
+// Fetch journey session by understanding sessionId (session-xxx format)
+router.get('/journey-sessions/by-session/:sessionId', async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.params;
+
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Session ID is required' });
+    }
+
+    // Use secure service to get decrypted journey session data
+    const session = await getJourneySessionByUnderstandingSessionId(sessionId);
+
+    if (!session) {
+      return res.status(404).json({ error: 'Journey session not found' });
+    }
+
+    res.json({
+      id: session.id,
+      understandingId: session.understandingId,
+      understandingSessionId: session.understandingSessionId,
+      journeyType: session.journeyType,
+      currentFrameworkIndex: session.currentFrameworkIndex,
+      completedFrameworks: session.completedFrameworks,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+    });
+  } catch (error: any) {
+    console.error('Error in /journey-sessions/by-session/:sessionId:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch journey session' });
   }
 });
@@ -1243,6 +1276,7 @@ router.get('/research/stream/:sessionId', async (req: Request, res: Response) =>
         sourcesAnalyzed,
         timeElapsed,
         versionNumber: targetVersionNumber,
+        nextUrl: `/strategic-consultant/results/${sessionId}/${targetVersionNumber}`,
       },
       progress: 100 
     })}\n\n`);
@@ -1986,10 +2020,11 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
         versionNumber: version?.versionNumber || targetVersionNumber,
         sourcesAnalyzed: findings.sources.length || 9,
         timeElapsed: '~2 minutes',
+        nextUrl: `/strategic-consultant/analysis/${sessionId}`,
       }
     })}\n\n`);
     res.end();
-    console.log('[BMC-RESEARCH-STREAM] Stream ended successfully');
+    console.log('[BMC-RESEARCH-STREAM] Stream ended successfully, nextUrl: /strategic-consultant/analysis/' + sessionId);
   } catch (error: any) {
     console.error('Error in /bmc-research/stream:', error);
     // Ensure error has type field for frontend handling

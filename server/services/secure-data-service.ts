@@ -171,6 +171,23 @@ export async function getJourneySession(id: string) {
   return result[0] ? decryptJourneySession(result[0]) : null;
 }
 
+export async function getJourneySessionByUnderstandingSessionId(understandingSessionId: string) {
+  // First find the understanding by session ID
+  const understanding = await getStrategicUnderstandingBySession(understandingSessionId);
+  
+  if (!understanding) {
+    return null;
+  }
+
+  // Then find the journey session by understanding ID
+  const result = await db.select()
+    .from(journeySessions)
+    .where(eq(journeySessions.understandingId, understanding.id!))
+    .limit(1);
+
+  return result[0] ? decryptJourneySession(result[0]) : null;
+}
+
 function decryptJourneySession(record: any): SecureJourneySession {
   return {
     ...record,
