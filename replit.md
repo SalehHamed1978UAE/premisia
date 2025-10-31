@@ -1,5 +1,5 @@
 # Overview
-QGentic Intelligent Strategic EPM is an AI-enhanced, full-stack web application designed for comprehensive enterprise program management. It supports the entire program lifecycle, from managing programs, workstreams, and tasks to tracking resources, risks, benefits, KPIs, and financials through an intuitive dashboard. The project aims to provide a holistic solution for strategic decision-making and EPM integration, featuring real-time AI intelligence, a multi-agent architecture, and a formal ontology for expert guidance. Key capabilities include multi-modal input analysis, anti-bias research, document intelligence enrichment, and the conversion of strategic decisions into actionable EPM program structures.
+QGentic Intelligent Strategic EPM is an AI-enhanced, full-stack web application for comprehensive enterprise program management. It supports the entire program lifecycle, from managing programs, workstreams, and tasks to tracking resources, risks, benefits, KPIs, and financials through an intuitive dashboard. The project aims to provide a holistic solution for strategic decision-making and EPM integration, featuring real-time AI intelligence, a multi-agent architecture, and a formal ontology for expert guidance. Key capabilities include multi-modal input analysis, anti-bias research, document intelligence enrichment, and the conversion of strategic decisions into actionable EPM program structures.
 
 # User Preferences
 Preferred communication style: Simple, everyday language.
@@ -10,131 +10,45 @@ Preferred communication style: Simple, everyday language.
 - Take time to understand the proper data flow before implementing fixes
 - Clean separation of concerns - don't mix old and new system architectures
 
-# Recent Changes (October 31, 2025)
-
-## Version Isolation & Reference Persistence Fixes
-
-**Problem Solved:** Strategy version navigation was silently reverting to version 1, and PESTLE research references weren't persisting to the knowledge graph.
-
-**Changes Made:**
-1. **Version Fallback Logic (4 Pages)** - Added localStorage-based version fallback to DecisionPage, PrioritizationPage, TrendAnalysisPage, and EPMPage. Pattern: `routeVersionNumber → storedVersionNumber → 1`, preventing silent version 1 fallback on navigation.
-
-2. **PrioritizationPage EPM Button Fix** - "View EPM" button now only shows when `job.inputData.versionNumber === currentVersion`, preventing display of old version EPM programs.
-
-3. **PESTLE Reference Persistence** - `/research/stream` endpoint now persists all research sources to the knowledge graph via `referenceService.normalizeReference()` and `referenceService.persistReferences()`, making PESTLE citations visible in Strategy Research tabs.
-
-**Impact:** Users can now run multiple BMI journeys on the same strategy without version confusion. Research accumulates properly in the unified knowledge base per strategy.
-
 # System Architecture
 
 ## UI/UX Decisions
-The frontend utilizes React, TypeScript, and Vite, enhanced with Shadcn/ui (Radix UI and Tailwind CSS) to deliver a themeable "New York" style UI. It offers a single-page application experience, ensuring mobile responsiveness, skeleton loading, and toast notifications.
-
-**Mobile-First Responsive Design Strategy:**
-- **Breakpoint System**: Mobile (default, <640px), Tablet (sm: 640-1023px), Desktop (lg: 1024px+)
-- **Layout Patterns**: 
-  - Headers: Stack vertically on mobile (`flex-col`), horizontal on desktop (`lg:flex-row`)
-  - Grids: Single column mobile (`grid-cols-1`), progressive enhancement to multi-column (`sm:grid-cols-2 lg:grid-cols-4`)
-  - Buttons: Full-width on mobile (`w-full`), auto-width on desktop (`lg:w-auto`)
-- **Typography**: Responsive scaling (e.g., `text-xl sm:text-2xl lg:text-3xl`)
-- **Text Handling**: `break-words` for wrapping, `min-w-0` for flex shrinking
-- **Spacing**: Reduced gaps/padding on mobile, increased on larger screens
-- **Key Pages**: StrategiesListPage, StrategyDetailPage, and JourneyLauncherModal follow these principles to prevent horizontal overflow and ensure accessibility on all device sizes.
+The frontend utilizes React, TypeScript, and Vite, enhanced with Shadcn/ui (Radix UI and Tailwind CSS) to deliver a themeable "New York" style UI. It offers a single-page application experience, ensuring mobile responsiveness, skeleton loading, and toast notifications. A mobile-first responsive design strategy is implemented with a breakpoint system, adaptive layout patterns (headers, grids, buttons), responsive typography, and careful spacing adjustments.
 
 ## Technical Implementations
 - **Frontend**: React, TypeScript, Vite, TanStack Query, Wouter.
 - **Backend**: Node.js with Express.js (ES modules), Passport.js for session-based authentication, Express sessions, and a RESTful API with role-based middleware.
-- **Data Storage**: PostgreSQL with Neon serverless driver and Drizzle ORM for type-safe schema and Zod validation.
-- **Database Connection Management**: `DBConnectionManager` handles Neon serverless connections with connection pooling and retry mechanisms.
+- **Data Storage**: PostgreSQL with Neon serverless driver and Drizzle ORM for type-safe schema and Zod validation. `DBConnectionManager` handles database connections with pooling and retry mechanisms.
 - **Authentication/Authorization**: Session-based authentication via Passport.js with Replit OIDC, HTTP-only cookies, and a three-tier role system (Admin, Editor, Viewer).
 
 ## Background Jobs Architecture
-
-**Overview:**
-The application uses a hybrid background job system with database persistence and real-time progress tracking. Jobs are dispatched every 15 seconds by polling the database for pending jobs, then routing them to appropriate workers.
-
-**Core Components:**
-
-1. **Background Job Service** (`server/services/background-job-service.ts`)
-   - Manages job lifecycle (create, update, complete, fail)
-   - Dispatcher polls database every 15 seconds for pending jobs
-   - Routes jobs to appropriate workers based on `jobType`
-
-2. **Workers** (implement job-specific execution logic)
-   - `document-enrichment-worker.ts` - Extracts knowledge from uploaded documents
-   - `strategic-understanding-worker.ts` - Executes strategic analysis journeys in background
-
-3. **Modular Framework Executor Registry** (`server/journey/framework-executor-registry.ts`)
-   - Plugin system for strategic analysis frameworks
-   - Frameworks register themselves at application startup
-   - Zero coupling between orchestrator and specific framework implementations
-
-**Framework Execution Architecture:**
-
-```
-Journey Orchestrator (framework-agnostic)
-    ↓
-Framework Executor Registry (plugin hub)
-    ↓
-Individual Framework Executors (five_whys, bmc, porters, etc.)
-```
-
-**Registered Frameworks:**
-- `FiveWhysExecutor` - Root cause analysis using Five Whys technique
-- `BMCExecutor` - Business Model Canvas research across 9 building blocks
-- Future frameworks: Porter's Five Forces, PESTLE, SWOT, etc.
-
-**Wiring Requirements:**
-
-**When Adding a New Framework (Analysis Tool):**
-1. Create framework executor implementing `FrameworkExecutor` interface in `server/journey/executors/`
-2. Import and register it in `server/journey/register-frameworks.ts` via `frameworkRegistry.register(new YourExecutor())`
-3. That's it! The framework is now available to ALL journeys that reference it
-
-**When Adding a New Journey (Pre-Planned Sequence):**
-1. Add journey definition to `server/journey/journey-registry.ts` with its framework list
-2. Add journey type to `JourneyType` in `shared/journey-types.ts`
-3. Ensure all frameworks used in the journey are already registered (see above)
-
-**When Adding a New Background Job Type:**
-1. Create worker file in `server/services/` (e.g., `new-job-type-worker.ts`)
-2. Implement `process[JobType]Job(job: SelectBackgroundJob): Promise<void>` function
-3. Register worker in `server/services/background-job-service.ts` dispatcher's `processJob()` method
-4. Add job type to allowed types in `BackgroundJobService.createJob()` method
-
-**Key Principles:**
-- **Frameworks** (Five Whys, BMC, Porter's) are analysis tools that register as plugins
-- **Journeys** (Business Model Innovation, Market Entry) are pre-planned sequences of frameworks
-- `strategic-understanding-worker` executes whatever Journey Orchestrator defines via the framework registry
-- Journey Orchestrator is framework-agnostic - it calls `frameworkRegistry.execute(frameworkName, context)`
-- Adding frameworks requires NO orchestrator changes - just create executor and register it
-- Background workers handle execution; job service handles lifecycle and tracking
+The application employs a hybrid background job system with database persistence and real-time progress tracking. A `Background Job Service` dispatches jobs every 15 seconds to appropriate workers (e.g., `document-enrichment-worker`, `strategic-understanding-worker`). A `Modular Framework Executor Registry` provides a plugin system for strategic analysis frameworks (e.g., Five Whys, BMC), allowing for easy integration of new frameworks without modifying the orchestrator. Journeys are pre-defined sequences of these frameworks.
 
 ## Feature Specifications
-- **AI Multi-Agent System**: Ontology-based architecture comprising an Executive Agent, Builder Specialist Agent, QA Specialist Agent, and a Multi-Agent Orchestrator, supporting multiple AI providers.
-- **Strategic Consultant & EPM Integration**: Transforms executive input into AI-analyzed strategic decisions and EPM program structures, incorporating Five Whys (with AI validation and coaching), Anti-Confirmation Bias Research, EPM Conversion, Version Management, Strategic Decisions, and Intelligent Framework Selection.
-- **Five Whys AI Coaching System**: Validates Five Whys analysis using AI, evaluating causality, relevance, specificity, evidence, duplication, contradiction, and circular logic. Provides interactive coaching, suggestions, and conditional overrides.
-- **Business Model Canvas (BMC) Analysis**: Full 9-block implementation with query generation, parallel research, cross-block consistency validation, and real-time progress streaming via Server-Sent Events (SSE).
-- **Strategic Understanding Service (Knowledge Graph Architecture)**: Utilizes a knowledge graph with PostgreSQL and `pgvector` for entity categorization, relationship mapping, semantic search, and contradiction validation.
-- **Robustness and Performance**: Features multi-provider AI fallback, extended socket timeouts, and request throttling with exponential backoff.
+- **AI Multi-Agent System**: Ontology-based architecture with Executive, Builder, QA Specialist Agents, and a Multi-Agent Orchestrator supporting multiple AI providers.
+- **Strategic Consultant & EPM Integration**: Transforms executive input into AI-analyzed strategic decisions and EPM program structures, including Five Whys (AI-coached), Anti-Confirmation Bias Research, Version Management, and Intelligent Framework Selection.
+- **Five Whys AI Coaching System**: Validates Five Whys analysis for causality, relevance, specificity, evidence, and logical consistency.
+- **Business Model Canvas (BMC) Analysis**: Full 9-block implementation with query generation, parallel research, cross-block consistency validation, and real-time progress streaming.
+- **Strategic Understanding Service (Knowledge Graph Architecture)**: Uses PostgreSQL with `pgvector` for entity categorization, relationship mapping, semantic search, and contradiction validation.
+- **Robustness and Performance**: Multi-provider AI fallback, extended socket timeouts, and request throttling with exponential backoff.
 - **Trend Analysis Agent**: Provides production-ready PESTLE analysis with an evidence-first architecture.
-- **Journey-Based Strategic Analysis**: Guides users through interactive page sequences for strategic frameworks.
-- **Modular Framework Renderer Architecture**: An extensible system for displaying strategic analysis results across various frameworks.
+- **Journey-Based Strategic Analysis**: Guides users through interactive sequences for strategic frameworks.
+- **Modular Framework Renderer Architecture**: Extensible system for displaying analysis results.
 - **Strategy Intelligence Layer**: Core AI engine for converting strategic frameworks into executable EPM programs.
-- **Strategy Workspace**: Bridges AI analysis and EPM programs through a 4-page wizard, decision validation, and an EPM Program View.
+- **Strategy Workspace**: Bridges AI analysis and EPM programs through a 4-page wizard and EPM Program View.
 - **EPM Display Formatters**: Enterprise-grade visual components for EPM data across 7 tabs, with 14 specialized formatters.
-- **Dynamic Home Page**: Adaptive landing page providing personalized experiences.
-- **Batch Operations & Archive**: Supports batch actions (delete, archive, export) for Analysis Repository and EPM Programs pages.
+- **Dynamic Home Page**: Adaptive, personalized landing page.
+- **Batch Operations & Archive**: Supports batch actions for Analysis Repository and EPM Programs pages.
 - **Intelligent Planning System**: AI-powered project planning library for schedule optimization, resource allocation, and validation, including an LLM Task Extractor, CPM Scheduler, Resource Manager, AI Optimizer, and LLM Validator.
-- **Journey Builder System**: Allows users to choose from 6 pre-defined strategic journeys or create custom ones with AI-powered validation for EPM generation.
-- **Universal Background Jobs System**: A hybrid system for tracking long-running operations (e.g., EPM generation) with database persistence and real-time SSE streaming.
-- **Non-Blocking Progress UX**: Replaces blocking modals with navigable experiences, using a fixed-position progress card, `MinimizedJobTracker`, and polling-based notifications.
-- **Enterprise Data Encryption**: AES-256-GCM encryption for sensitive business data at rest, applied to Strategic Understanding, Journey Sessions, and Strategic Entities/Knowledge Graph tables.
-- **Full-Pass Export System**: Comprehensive enterprise-grade export generating ZIP bundles with strategic analysis and EPM program data in multiple formats (Markdown, PDF, DOCX, HTML) including rich framework analysis and detailed EPM components.
-- **Document Intelligence Enrichment**: Background job pipeline for asynchronously extracting knowledge from uploaded documents (PDF, DOCX, Excel, images), populating the encrypted knowledge graph with provenance metadata. Features a notification system with a Floating Action Button (FAB) and slide-over panel for insights.
-- **Strategies Hub**: Unified view for all strategic initiatives, providing complete artifact hierarchy and research provenance tracking. Includes a list view with aggregated metrics and a detailed view with journey timelines, a research library, and linked EPM programs. Supports context inheritance for new journey creation.
-- **Journey Launcher Modal**: Intelligent modal system for initiating additional strategic analysis on existing strategies. Features two modes: Full Journey (6 pre-planned journeys) and Single Framework (surgical analysis). Includes journey-aware readiness checks with journey-specific minimums (BMI/BMC: 0/0, others: 3 references/5 entities). For follow-on journeys, uses the **Strategic Summary Builder** (`server/services/strategic-summary-builder.ts`) which implements a single-snapshot architecture that uses only the latest completed journey session with strict size limits (<8KB total, all text fields ≤300 chars, decisions ≤5, references ≤3, framework insights ≤3 per framework). This prevents token limit overruns (previous multi-session aggregation caused 526K token payloads exceeding 272K limits) while providing rich context from the most recent strategic analysis. Conditional UI shows "Run Now" for interactive execution or "Start in Background" when sufficient context exists. Integrates with Universal Background Jobs for non-blocking execution.
-- **Ambiguity Resolution & Clarifications**: Strategic input flows include ambiguity detection with AI-powered clarification workflows. When unclear inputs are detected, users are prompted to answer targeted questions. Clarified inputs are merged using `ambiguityDetector.buildClarifiedInput` and persisted on the understanding record, ensuring follow-on analysis benefits from resolved context.
+- **Journey Builder System**: Allows users to choose from 6 pre-defined journeys or create custom ones with AI validation.
+- **Universal Background Jobs System**: Hybrid system for tracking long-running operations with database persistence and real-time SSE streaming.
+- **Non-Blocking Progress UX**: Replaces blocking modals with navigable experiences using a fixed-position progress card (`MinimizedJobTracker`) and polling.
+- **Enterprise Data Encryption**: AES-256-GCM encryption for sensitive business data at rest.
+- **Full-Pass Export System**: Comprehensive export generating ZIP bundles with strategic analysis and EPM program data in multiple formats (Markdown, PDF, DOCX, HTML).
+- **Document Intelligence Enrichment**: Background job pipeline for asynchronously extracting knowledge from uploaded documents (PDF, DOCX, Excel, images), populating the encrypted knowledge graph with provenance. Features a notification system.
+- **Strategies Hub**: Unified view for all strategic initiatives, providing artifact hierarchy and research provenance, with list and detailed views. Supports context inheritance.
+- **Journey Launcher Modal**: Intelligent modal for initiating additional strategic analysis, with two modes (Full Journey, Single Framework). Includes journey-aware readiness checks and uses a `Strategic Summary Builder` for context, implementing a single-snapshot architecture to prevent token limit overruns.
+- **Ambiguity Resolution & Clarifications**: AI-powered clarification workflows for strategic inputs, prompting users to resolve unclear inputs, which are then merged and persisted for follow-on analysis.
 
 # External Dependencies
 - **Database Service**: Neon serverless PostgreSQL
