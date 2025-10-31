@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db';
-import { strategyDecisions, epmPrograms, journeySessions, strategyVersions, strategicUnderstanding, taskAssignments } from '@shared/schema';
+import { strategyDecisions, epmPrograms, journeySessions, strategyVersions, strategicUnderstanding, taskAssignments, references, strategicEntities } from '@shared/schema';
 import { eq, desc, inArray } from 'drizzle-orm';
 import { BMCAnalyzer, PortersAnalyzer, PESTLEAnalyzer, EPMSynthesizer } from '../intelligence';
 import type { BMCResults, PortersResults, PESTLEResults } from '../intelligence/types';
@@ -856,6 +856,44 @@ router.post('/epm/batch-export', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error batch exporting EPM programs:', error);
     res.status(500).json({ error: error.message || 'Failed to export EPM programs' });
+  }
+});
+
+// GET /api/strategies/:understandingId/references
+// Fetch all research references for a strategic understanding
+router.get('/strategies/:understandingId/references', async (req: Request, res: Response) => {
+  try {
+    const { understandingId } = req.params;
+
+    const refs = await db
+      .select()
+      .from(references)
+      .where(eq(references.understandingId, understandingId))
+      .orderBy(desc(references.createdAt));
+
+    res.json(refs);
+  } catch (error: any) {
+    console.error('Error fetching references:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch references' });
+  }
+});
+
+// GET /api/strategies/:understandingId/entities
+// Fetch all strategic entities/insights for a strategic understanding
+router.get('/strategies/:understandingId/entities', async (req: Request, res: Response) => {
+  try {
+    const { understandingId } = req.params;
+
+    const entities = await db
+      .select()
+      .from(strategicEntities)
+      .where(eq(strategicEntities.understandingId, understandingId))
+      .orderBy(desc(strategicEntities.createdAt));
+
+    res.json(entities);
+  } catch (error: any) {
+    console.error('Error fetching entities:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch entities' });
   }
 });
 
