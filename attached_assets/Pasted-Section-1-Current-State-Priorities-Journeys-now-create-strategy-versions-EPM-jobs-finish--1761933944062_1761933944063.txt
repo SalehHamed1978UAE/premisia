@@ -1,0 +1,107 @@
+Section 1 – Current State & Priorities
+
+  - Journeys now create strategy_versions, EPM jobs finish, and
+    programs persist, but the Strategies detail endpoint still joins on
+    strategy_versions.converted_program_id, so only legacy programs surface.
+  - Prioritization UI flips to “View EPM” as soon as it sees any completed job
+    for the session, even if it belongs to an older version.
+  - Strategy cards and version listings still expose only “Version X”, giving no
+    context about intent, lineage, or value; users can’t tell which journey to
+    re-run.
+  - Cleaning up a strategy (delete/archive) has gaps—no user confirmation,
+    and related artifacts (sessions, references, programs) aren’t consistently
+    removed or archived together.
+
+  Section 2 – Backend Fix: Strategy Programs Query
+
+  - In server/routes.ts (strategy detail handler around line 138), change the
+    join to eq(strategyVersions.id, epmPrograms.strategyVersionId) and keep the
+    inArray(strategyVersions.sessionId, sessionIdList) filter so every version-
+    specific program is returned.
+  - Audit downstream program fetches (/api/strategies/:id, /api/strategies/:id/
+    references) to ensure they use strategyVersionId or the session list—drop
+    any remaining reliance on convertedProgramId.
+  - After code changes, rerun a migration or manual constraint patch only if the
+    DB still references programs.id; otherwise no schema change is required.
+
+  Section 3 – Backend Fix: Delete / Archive Flow
+
+  - Add a new confirmed action endpoint (e.g., DELETE /api/strategies/:id?
+    mode=archive|delete) that:
+      1. Validates ownership.
+      2. When delete: cascades through journey_sessions, strategy_versions,
+         epm_programs, references, framework_insights, background_jobs tied to
+         those session IDs (use inArray).
+      3. When archive: toggles archived=true on strategy, versions, and programs
+         without data loss.
+  - Return a summary payload listing counts removed/archived to drive the modal
+    preview.
+
+  Section 4 – Frontend Fixes: EPM Visibility & Buttons
+
+  - StrategyDetailPage.tsx: the Programs tab already maps programs, but show
+    them once backend join is fixed. Add a guard that displays the strategy
+    version number, created date, and a deep link back to the originating
+    journey (use /strategic-consultant/journey-results/:sessionId).
+  - strategy-workspace/PrioritizationPage.tsx: keep completedJobResult only
+    if job.resultData.strategyVersionId === strategyVersionId; otherwise skip.
+    Fetch /api/strategy-workspace/epm and show “View EPM” only when a program
+    exists for this version. Ensure Generate button stays visible for older
+    programs.
+  - Optionally add a small callout on top of the Prioritization page showing
+    “Working on Version N for [Journey Type]” with a link back to the version
+    selector.
+
+  Section 5 – Research Tab Assurance
+
+  - BMC executor and stream now call referenceService.persistReferences.
+    Confirm research SSE completion includes journeySession.id (it does via
+    orchestrator) and references persist with that ID.
+  - In StrategyDetailPage Research tab, label sources with the framework/
+    journey they came from. Use usedInComponents to map (e.g.,
+    bmc_research.blocks.value_propositions) and show the journey version tag.
+  - Double-check /api/strategies/:id/references query still includes session IDs
+    from the aggregated list so new references appear immediately.
+
+  Section 6 – Strategy & Version Metadata Upgrades
+
+  - Introduce enriched metadata on strategy cards:
+      - Populate strategy_versions.versionLabel, strategicApproach,
+        marketContext, costMin/Max, timelineMonths whenever Five Whys/BMC
+        results finalize. Source: root cause, key value proposition, cost/
+        timeline from decisions/ontology.
+      - In Strategy detail Journey list, replace “Version X” with versionLabel
+        || "Version X", display journey type icon, confidence %, ROI estimate
+        if available, and indicate lineage (e.g., “Derived from Version 2 (Five
+        Whys) → Business Model Innovation”).
+      - Store a derivedFromVersionId (new column) when a journey is launched
+        from an existing version; wire the Journey Launcher to include the
+        parent version so cards can show “Follow-on from…”.
+  - Update StrategiesListPage cards to surface the latest version label,
+    confidence, average ROI, and whether research & EPM are available—help users
+    pick meaningful follow-up journeys.
+
+  Section 7 – Verification Checklist
+
+  - Run a new Strategies Hub journey end-to-end:
+      1. Confirm strategy_versions row auto-creates with populated metadata.
+      2. Generate EPM; ensure Prioritization page keeps “Generate” until the new
+         program completes, then flips to “View” only for that version.
+      3. Confirm /api/strategies/:id now lists all programs (validate IDs in
+         response).
+      4. Go to Strategy detail → Programs tab: verify each program shows correct
+         version label, created timestamp, and navigation works.
+      5. Run references query and ensure Research tab shows new citations tagged
+         with framework/journey.
+  - Test delete/archive modal flows:
+      - Preview lists counts by artifact type.
+      - Archive, then reopen strategy to ensure it’s hidden from default list
+        and references/programs flagged archived.
+      - Delete, then check DB tables (strategy_versions, journey_sessions,
+        epm_programs, references) to verify cascading removal.
+  - Lint/type-check (npm run lint, tsc --noEmit) and rerun targeted integration
+    tests if available.
+
+  Let Replit handle the queued plan (join fix, delete workflow,
+  RepositoryBrowser fixes) plus the metadata/UI enhancements above so the
+  Strategies Hub becomes truly actionable.
