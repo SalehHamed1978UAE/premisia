@@ -37,21 +37,24 @@ export class BMCExecutor implements FrameworkExecutor {
     
     console.log(`[BMC Executor] Completed - generated ${Object.keys(bmcResults.blocks || {}).length} blocks`);
     
+    // Get userId and versionNumber from journey session
+    const [session] = await db
+      .select({ 
+        userId: journeySessions.userId,
+        versionNumber: journeySessions.versionNumber 
+      })
+      .from(journeySessions)
+      .where(eq(journeySessions.id, context.sessionId))
+      .limit(1);
+    
+    if (!session) {
+      console.warn(`[BMC Executor] Could not find session ${context.sessionId}`);
+      return bmcResults;
+    }
+    
     // Persist references to database for provenance tracking
     if (bmcResults.references && bmcResults.references.length > 0) {
       console.log(`[BMC Executor] Persisting ${bmcResults.references.length} references to database...`);
-      
-      // Get userId from journey session
-      const [session] = await db
-        .select({ userId: journeySessions.userId })
-        .from(journeySessions)
-        .where(eq(journeySessions.id, context.sessionId))
-        .limit(1);
-      
-      if (!session) {
-        console.warn(`[BMC Executor] Could not find session ${context.sessionId}, skipping reference persistence`);
-        return bmcResults;
-      }
       
       const normalizedRefs = bmcResults.references.map(ref =>
         this.referenceService.normalizeReference(
@@ -71,6 +74,23 @@ export class BMCExecutor implements FrameworkExecutor {
       });
       
       console.log(`[BMC Executor] ✓ Persisted references: ${result.created.length} created, ${result.updated.length} updated, ${result.skipped} skipped`);
+    }
+    
+    // Save BMC results to strategy version analysisData for EPM generation
+    const { storage } = await import('../../storage');
+    const version = await storage.getStrategyVersion(context.sessionId, session.versionNumber);
+    
+    if (version) {
+      const existingAnalysisData = version.analysisData as any || {};
+      await storage.updateStrategyVersion(version.id, {
+        analysisData: {
+          ...existingAnalysisData,
+          bmc_research: bmcResults,
+        },
+      });
+      console.log(`[BMC Executor] ✓ Saved BMC results to strategy version ${session.versionNumber} analysisData`);
+    } else {
+      console.warn(`[BMC Executor] Strategy version ${session.versionNumber} not found, could not save analysisData`);
     }
     
     return bmcResults;
