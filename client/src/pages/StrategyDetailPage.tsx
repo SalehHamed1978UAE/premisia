@@ -47,12 +47,6 @@ interface EPMProgram {
   status: string;
   createdAt: Date;
   strategyVersionId: string;
-  versionNumber: number;
-  sessionId: string;
-  versionLabel: string | null;
-  confidence: string | null;
-  roiEstimate: string | null;
-  derivedFromVersionId: string | null;
 }
 
 interface Reference {
@@ -67,9 +61,6 @@ interface Reference {
   usedInComponents: string[];
   origin: string;
   createdAt: Date;
-  sessionId: string | null;
-  journeyType: string | null;
-  versionNumber: number | null;
 }
 
 interface StrategyDetail {
@@ -300,22 +291,6 @@ function ResearchLibraryTab({ strategyId }: { strategyId: string }) {
     return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
   };
 
-  // Extract unique framework tags from usedInComponents
-  const getFrameworkTags = (usedInComponents: string[] | null | undefined): string[] => {
-    if (!usedInComponents || !Array.isArray(usedInComponents)) return [];
-    
-    const frameworks = new Set<string>();
-    usedInComponents.forEach(component => {
-      // Handle multiple delimiters: '.', '/', '-', and extract first segment
-      const framework = component.split(/[.\/\-\[\]]/)[0].trim();
-      if (framework) {
-        // Normalize to uppercase for consistency (BMC, PESTLE, etc.)
-        frameworks.add(framework.toUpperCase());
-      }
-    });
-    return Array.from(frameworks);
-  };
-
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -363,16 +338,6 @@ function ResearchLibraryTab({ strategyId }: { strategyId: string }) {
                     <Badge variant="secondary" data-testid={`badge-origin-${ref.id}`}>
                       {ref.origin.replace(/_/g, ' ')}
                     </Badge>
-                    {ref.journeyType && ref.versionNumber && (
-                      <Badge variant="default" className="capitalize" data-testid={`badge-journey-version-${ref.id}`}>
-                        {ref.journeyType === 'business_model_innovation' ? 'BMI' : ref.journeyType.replace(/_/g, ' ')} v{ref.versionNumber}
-                      </Badge>
-                    )}
-                    {getFrameworkTags(ref.usedInComponents).map((framework, idx) => (
-                      <Badge key={idx} variant="outline" className="font-mono text-xs" data-testid={`badge-framework-${ref.id}-${idx}`}>
-                        {framework}
-                      </Badge>
-                    ))}
                   </CardDescription>
                 </div>
                 {ref.url && (
@@ -450,54 +415,25 @@ function EPMProgramsTab({ programs }: { programs: EPMProgram[] }) {
         programs.map((program) => (
           <Card key={program.id} data-testid={`card-program-${program.id}`}>
             <CardHeader>
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 flex-wrap mb-2">
+                  <div className="flex items-center gap-2 mb-2">
                     <CardTitle className="text-lg capitalize" data-testid={`text-program-framework-${program.id}`}>
                       {program.frameworkType.replace(/_/g, ' ')} Program
                     </CardTitle>
                     <Badge variant="outline" className="capitalize" data-testid={`badge-program-status-${program.id}`}>
                       {program.status}
                     </Badge>
-                    <Badge variant="secondary" data-testid={`badge-program-version-${program.id}`}>
-                      {program.versionLabel || `Version ${program.versionNumber}`}
-                    </Badge>
-                    {program.confidence && (
-                      <Badge variant="outline" data-testid={`badge-program-confidence-${program.id}`}>
-                        {(parseFloat(program.confidence) * 100).toFixed(0)}% Confidence
-                      </Badge>
-                    )}
-                    {program.roiEstimate && (
-                      <Badge variant="outline" data-testid={`badge-program-roi-${program.id}`}>
-                        {(parseFloat(program.roiEstimate) * 100).toFixed(1)}% ROI
-                      </Badge>
-                    )}
                   </div>
-                  <CardDescription className="flex items-center gap-4 flex-wrap">
-                    <span className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      Created {format(new Date(program.createdAt), 'MMM dd, yyyy')}
-                    </span>
-                    {program.derivedFromVersionId && (
-                      <span className="text-xs text-muted-foreground" data-testid={`text-program-lineage-${program.id}`}>
-                        Derived from previous version
-                      </span>
-                    )}
+                  <CardDescription>
+                    Created {formatDistanceToNow(new Date(program.createdAt), { addSuffix: true })}
                   </CardDescription>
                 </div>
-                <div className="flex flex-col gap-2">
-                  <Link href={`/strategy-workspace/epm/${program.id}`}>
-                    <Button variant="default" size="sm" data-testid={`button-view-program-${program.id}`}>
-                      View Program
-                    </Button>
-                  </Link>
-                  <Link href={`/strategic-consultant/journey-results/${program.sessionId}`}>
-                    <Button variant="ghost" size="sm" data-testid={`button-view-journey-${program.id}`}>
-                      <ExternalLink className="h-3 w-3 mr-1" />
-                      View Journey
-                    </Button>
-                  </Link>
-                </div>
+                <Link href={`/strategy-workspace/epm/${program.id}`}>
+                  <Button variant="default" size="sm" data-testid={`button-view-program-${program.id}`}>
+                    View Program
+                  </Button>
+                </Link>
               </div>
             </CardHeader>
           </Card>

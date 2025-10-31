@@ -24,7 +24,6 @@ import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { ExportFullReportButton } from '@/components/epm/ExportFullReportButton';
-import { BatchDeleteEPMDialog } from '@/components/BatchDeleteEPMDialog';
 
 interface EPMProgram {
   id: string;
@@ -45,7 +44,6 @@ export function ProgramsListPage() {
   // Selection state for batch operations
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   const { data, isLoading } = useQuery<{ programs: EPMProgram[] }>({
     queryKey: ['/api/strategy-workspace/epm'],
@@ -84,12 +82,7 @@ export function ProgramsListPage() {
   };
 
   // Batch operations
-  const handleBatchDeleteClick = () => {
-    if (selectedIds.size === 0) return;
-    setDeleteDialogOpen(true);
-  };
-
-  const handleBatchDeleteConfirm = async () => {
+  const handleBatchDelete = async () => {
     if (selectedIds.size === 0) return;
 
     setIsBatchProcessing(true);
@@ -104,7 +97,6 @@ export function ProgramsListPage() {
       });
 
       setSelectedIds(new Set());
-      setDeleteDialogOpen(false);
       await queryClient.invalidateQueries({ queryKey: ['/api/strategy-workspace/epm'] });
       await queryClient.invalidateQueries({ queryKey: ['/api/dashboard-summary'] });
     } catch (error) {
@@ -262,7 +254,7 @@ export function ProgramsListPage() {
                 <Button
                   size="sm"
                   variant="destructive"
-                  onClick={handleBatchDeleteClick}
+                  onClick={handleBatchDelete}
                   disabled={isBatchProcessing}
                   data-testid="button-batch-delete"
                 >
@@ -448,16 +440,6 @@ export function ProgramsListPage() {
             ))}
           </div>
         )}
-
-        {/* Batch Delete Warning Dialog */}
-        <BatchDeleteEPMDialog
-          open={deleteDialogOpen}
-          onOpenChange={setDeleteDialogOpen}
-          onDelete={handleBatchDeleteConfirm}
-          onArchive={handleBatchArchive}
-          programIds={Array.from(selectedIds)}
-          isDeleting={isBatchProcessing}
-        />
       </div>
     </AppLayout>
   );

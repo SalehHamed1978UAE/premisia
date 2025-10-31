@@ -478,14 +478,9 @@ export const strategyVersions = pgTable("strategy_versions", {
   decisions: jsonb("decisions").notNull().default(sql`'[]'::jsonb`),
   programStructure: jsonb("program_structure"),
   status: strategyStatusEnum("status").notNull().default('draft'),
+  convertedProgramId: varchar("converted_program_id").references(() => epmPrograms.id),
   finalizedAt: timestamp("finalized_at"),
   archived: boolean("archived").notNull().default(false),
-  
-  // Metadata enrichment fields
-  confidence: decimal("confidence", { precision: 3, scale: 2 }), // 0.00-1.00
-  roiEstimate: decimal("roi_estimate", { precision: 5, scale: 2 }), // % return
-  derivedFromVersionId: varchar("derived_from_version_id").references(() => strategyVersions.id),
-  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   createdBy: varchar("created_by").notNull(),
@@ -494,7 +489,6 @@ export const strategyVersions = pgTable("strategy_versions", {
   statusIdx: index("idx_strategy_versions_status").on(table.status),
   sessionVersionIdx: index("idx_strategy_versions_session_version").on(table.sessionId, table.versionNumber),
   archivedIdx: index("idx_strategy_versions_archived").on(table.archived),
-  derivedFromIdx: index("idx_strategy_versions_derived_from").on(table.derivedFromVersionId),
 }));
 
 export const strategicDecisions = pgTable("strategic_decisions", {

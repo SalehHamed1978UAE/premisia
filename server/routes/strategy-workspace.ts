@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db';
 import { strategyDecisions, epmPrograms, journeySessions, strategyVersions, strategicUnderstanding, taskAssignments } from '@shared/schema';
-import { eq, desc, inArray, count } from 'drizzle-orm';
+import { eq, desc, inArray } from 'drizzle-orm';
 import { BMCAnalyzer, PortersAnalyzer, PESTLEAnalyzer, EPMSynthesizer } from '../intelligence';
 import type { BMCResults, PortersResults, PESTLEResults } from '../intelligence/types';
 import { storage } from '../storage';
@@ -802,45 +802,6 @@ router.post('/epm/:id/finalize', async (req: Request, res: Response) => {
 });
 
 // Batch operations for EPM programs
-// POST /api/strategy-workspace/epm/batch-deletion-preview
-// Preview the impact of batch deleting EPM programs
-router.post('/epm/batch-deletion-preview', async (req: Request, res: Response) => {
-  try {
-    const { ids } = req.body;
-    
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({ error: 'Invalid request: ids array is required' });
-    }
-
-    // Count task assignments that will be deleted
-    const [taskAssignmentsResult] = await db
-      .select({ count: count() })
-      .from(taskAssignments)
-      .where(inArray(taskAssignments.epmProgramId, ids));
-    
-    const taskAssignmentsCount = Number(taskAssignmentsResult?.count || 0);
-
-    // Get strategy version IDs that these programs belong to
-    const strategyVersionsWithPrograms = await db
-      .select({ strategyVersionId: epmPrograms.strategyVersionId })
-      .from(epmPrograms)
-      .where(inArray(epmPrograms.id, ids));
-    
-    const uniqueStrategyVersions = new Set(
-      strategyVersionsWithPrograms.map(r => r.strategyVersionId).filter(Boolean)
-    );
-
-    res.json({
-      totalPrograms: ids.length,
-      totalTaskAssignments: taskAssignmentsCount,
-      totalStrategyVersions: uniqueStrategyVersions.size,
-    });
-  } catch (error: any) {
-    console.error('Error getting batch deletion preview:', error);
-    res.status(500).json({ error: error.message || 'Failed to get deletion preview' });
-  }
-});
-
 router.post('/epm/batch-delete', async (req: Request, res: Response) => {
   try {
     const { ids } = req.body;
@@ -849,10 +810,6 @@ router.post('/epm/batch-delete', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid request: ids array is required' });
     }
 
-    // Delete task assignments first (cascade)
-    await db.delete(taskAssignments).where(inArray(taskAssignments.epmProgramId, ids));
-
-    // Then delete the programs
     await db.delete(epmPrograms).where(inArray(epmPrograms.id, ids));
 
     res.json({ success: true, count: ids.length });

@@ -727,8 +727,8 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           eq(strategyVersions.id, versionId),
-          not(eq(strategyVersions.status, 'converting')),
-          not(eq(strategyVersions.status, 'converted_to_program'))
+          isNull(strategyVersions.convertedProgramId),
+          not(eq(strategyVersions.status, 'converting'))
         )
       )
       .returning();
