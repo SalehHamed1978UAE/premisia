@@ -9,8 +9,7 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
   /**
    * Business Model Innovation Journey
    * For rethinking business models, revenue streams, and value creation
-   * AVAILABLE: Five Whys → BMC → Strategic Decisions
-   * Note: Input page happens before journey starts (not in sequence)
+   * AVAILABLE: Strategic Understanding → Five Whys → BMC → Strategic Decisions (complete workflow)
    */
   business_model_innovation: {
     type: 'business_model_innovation',
@@ -18,13 +17,14 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
     description: 'Reimagine your business model by identifying root causes of problems, then designing innovative value propositions, revenue streams, and partnerships',
     frameworks: ['five_whys', 'bmc'],
     pageSequence: [
+      '/strategic-consultant/input',
       '/strategic-consultant/whys-tree/:understandingId',
       '/strategic-consultant/research/:sessionId',
       '/strategic-consultant/analysis/:sessionId',
       '/strategy-workspace/decisions/:sessionId',
     ],
-    estimatedDuration: '25-30 minutes',
-    available: true, // FULLY IMPLEMENTED
+    estimatedDuration: '30-35 minutes',
+    available: true, // FULLY IMPLEMENTED - includes input & decisions workflow
   },
 
   /**
