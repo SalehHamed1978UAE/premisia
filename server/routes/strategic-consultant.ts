@@ -1612,7 +1612,7 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
           version = await storage.createStrategyVersion({
             sessionId,
             versionNumber,
-            status: 'in_progress',
+            status: 'draft',
             analysisData: {},
             userId,
             createdBy: userId,
@@ -1628,7 +1628,7 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
           version = await storage.createStrategyVersion({
             sessionId,
             versionNumber: 1,
-            status: 'in_progress',
+            status: 'draft',
             analysisData: {},
             userId,
             createdBy: userId,
@@ -1886,7 +1886,7 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
         version = await storage.createStrategyVersion({
           sessionId,
           versionNumber: targetVersionNumber,
-          status: 'in_progress',
+          status: 'draft',
           analysisData: { bmc_research: result },
           decisionsData: decisions,
           userId,
