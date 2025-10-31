@@ -1,0 +1,40 @@
+Section 1 – Keep Converted Journeys From Reusing Version 1
+
+  - When startJourney runs it already allocates nextVersion; include that value
+    in the return payload (journeySessionId, sessionId, versionNumber).
+  - Update /api/strategic-consultant/journeys/execute to pass back that version
+    number and store it client‑side (selection page + journey launcher).
+  - Every downstream request (Five Whys finalize, research stream, BMC
+    analyzer, etc.) must send this version number. If none is supplied, fetch
+    max(versionNumber) for the session and insert max+1; never silently fall
+    back to 1.
+  - Add a safeguard: before inserting, check (sessionId, versionNumber); if it
+    exists, allocate the next number. That keeps each converted journey isolated
+    so the Strategy Results page sees “Generate EPM” instead of the old program.
+
+  Section 2 – Persist Research References
+
+  - /api/strategic-consultant/research/stream currently stores findings in
+    strategy_versions.analysisData.research but never writes to the references
+    table. That’s why the Strategies Hub research tab is empty.
+  - After findingsWithValidation is built (right before
+    the SSE type: 'complete'), fetch the understanding via
+    getStrategicUnderstandingBySession(sessionId) and userId from req.user.
+  - Map each source to referenceService.normalizeReference, using a component
+    tag such as research.market_dynamics and include the relevant claim/snippet.
+  - Call referenceService.persistReferences(...) with { understandingId,
+    sessionId }. Do the same for any follow‑on journey workers so subsequent
+    runs append new citations. Once this lands, the existing /api/
+    strategies/:id/references endpoint will feed the research tab automatically.
+
+  Section 3 – Quick Validation Checklist
+
+  - Launch a second journey from Strategies Hub and confirm the new response
+    carries versionNumber 2; verify strategy_versions now has rows for
+    versions 1 and 2 and only the new version shows “Generate EPM”.
+  - Run journey research, wait for completion, then hit /api/strategies/:id/
+    references; you should see the new rows with confidence/origin fields.
+    Confirm the Research tab populates.
+  - Regression: ensure background job UI still tracks runs (JobContext polling
+    unchanged) and that existing journeys with stored EPMs still display
+    “View EPM Program”.
