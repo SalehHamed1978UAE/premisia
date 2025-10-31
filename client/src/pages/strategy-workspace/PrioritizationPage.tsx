@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { PlanningProgressTracker } from "@/components/intelligent-planning/PlanningProgressTracker";
 import { MinimizedJobTracker } from "@/components/MinimizedJobTracker";
 import { useJobs } from "@/contexts/JobContext";
@@ -113,6 +113,16 @@ export default function PrioritizationPage() {
 
   const versionData = response?.version;
   const strategyVersionId = versionData?.id;
+
+  // Check if an EPM program exists for THIS specific version
+  const { data: epmPrograms } = useQuery<{ programs: Array<{ id: string; strategyVersionId: string }> }>({
+    queryKey: ['/api/strategy-workspace/epm'],
+    enabled: !!strategyVersionId,
+  });
+
+  const existingProgramForThisVersion = epmPrograms?.programs.find(
+    prog => prog.strategyVersionId === strategyVersionId
+  );
 
   // Build prioritized items from selected decisions
   const [prioritizedItems, setPrioritizedItems] = useState<PrioritizedItem[]>([]);
@@ -325,6 +335,9 @@ export default function PrioritizationPage() {
 
         console.log('[Progress] ✅ EPM generation complete with ID:', data.epmProgramId);
         
+        // Invalidate EPM cache so version-specific checks update immediately
+        queryClient.invalidateQueries({ queryKey: ['/api/strategy-workspace/epm'] });
+        
         toast({
           title: "EPM Program Generated",
           description: `Created with ${Math.round(parseFloat(data.overallConfidence || '0') * 100)}% confidence`,
@@ -388,7 +401,8 @@ export default function PrioritizationPage() {
         setProgressId(data.progressId);
         setShowProgress(true);
       } else {
-        // Fallback to old format
+        // Fallback to old format - invalidate cache and navigate
+        queryClient.invalidateQueries({ queryKey: ['/api/strategy-workspace/epm'] });
         toast({
           title: "EPM Program Generated",
           description: `Created with ${Math.round(parseFloat(data.overallConfidence) * 100)}% confidence`,
@@ -562,7 +576,30 @@ export default function PrioritizationPage() {
         </Card>
 
         {/* Actions */}
-        {completedJobResult ? (
+        {existingProgramForThisVersion ? (
+          <Card className="border-2 border-green-500">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                    <h3 className="font-semibold">EPM Program Already Generated</h3>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    An EPM program exists for this version. Click below to view it.
+                  </p>
+                </div>
+                <Button
+                  size="lg"
+                  onClick={() => setLocation(`/strategy-workspace/epm/${existingProgramForThisVersion.id}`)}
+                  data-testid="button-view-epm"
+                >
+                  View EPM Program
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : completedJobResult ? (
           <Card className="border-2 border-green-500">
             <CardContent className="p-6">
               <div className="flex items-center justify-between">

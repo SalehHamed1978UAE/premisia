@@ -47,6 +47,8 @@ interface EPMProgram {
   status: string;
   createdAt: Date;
   strategyVersionId: string;
+  versionNumber: number;
+  sessionId: string;
 }
 
 interface Reference {
@@ -415,7 +417,7 @@ function EPMProgramsTab({ programs }: { programs: EPMProgram[] }) {
         programs.map((program) => (
           <Card key={program.id} data-testid={`card-program-${program.id}`}>
             <CardHeader>
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
                     <CardTitle className="text-lg capitalize" data-testid={`text-program-framework-${program.id}`}>
@@ -424,16 +426,30 @@ function EPMProgramsTab({ programs }: { programs: EPMProgram[] }) {
                     <Badge variant="outline" className="capitalize" data-testid={`badge-program-status-${program.id}`}>
                       {program.status}
                     </Badge>
+                    <Badge variant="secondary" data-testid={`badge-program-version-${program.id}`}>
+                      Version {program.versionNumber}
+                    </Badge>
                   </div>
-                  <CardDescription>
-                    Created {formatDistanceToNow(new Date(program.createdAt), { addSuffix: true })}
+                  <CardDescription className="flex items-center gap-4">
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      Created {format(new Date(program.createdAt), 'MMM dd, yyyy')}
+                    </span>
                   </CardDescription>
                 </div>
-                <Link href={`/strategy-workspace/epm/${program.id}`}>
-                  <Button variant="default" size="sm" data-testid={`button-view-program-${program.id}`}>
-                    View Program
-                  </Button>
-                </Link>
+                <div className="flex flex-col gap-2">
+                  <Link href={`/strategy-workspace/epm/${program.id}`}>
+                    <Button variant="default" size="sm" data-testid={`button-view-program-${program.id}`}>
+                      View Program
+                    </Button>
+                  </Link>
+                  <Link href={`/strategic-consultant/journey-results/${program.sessionId}`}>
+                    <Button variant="ghost" size="sm" data-testid={`button-view-journey-${program.id}`}>
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      View Journey
+                    </Button>
+                  </Link>
+                </div>
               </div>
             </CardHeader>
           </Card>

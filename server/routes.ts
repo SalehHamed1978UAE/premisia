@@ -141,6 +141,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               status: epmPrograms.status,
               createdAt: epmPrograms.createdAt,
               strategyVersionId: epmPrograms.strategyVersionId,
+              versionNumber: strategyVersions.versionNumber,
+              sessionId: strategyVersions.sessionId,
             })
             .from(epmPrograms)
             .innerJoin(
