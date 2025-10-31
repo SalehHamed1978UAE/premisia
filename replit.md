@@ -10,6 +10,21 @@ Preferred communication style: Simple, everyday language.
 - Take time to understand the proper data flow before implementing fixes
 - Clean separation of concerns - don't mix old and new system architectures
 
+# Recent Changes (October 31, 2025)
+
+## Version Isolation & Reference Persistence Fixes
+
+**Problem Solved:** Strategy version navigation was silently reverting to version 1, and PESTLE research references weren't persisting to the knowledge graph.
+
+**Changes Made:**
+1. **Version Fallback Logic (4 Pages)** - Added localStorage-based version fallback to DecisionPage, PrioritizationPage, TrendAnalysisPage, and EPMPage. Pattern: `routeVersionNumber → storedVersionNumber → 1`, preventing silent version 1 fallback on navigation.
+
+2. **PrioritizationPage EPM Button Fix** - "View EPM" button now only shows when `job.inputData.versionNumber === currentVersion`, preventing display of old version EPM programs.
+
+3. **PESTLE Reference Persistence** - `/research/stream` endpoint now persists all research sources to the knowledge graph via `referenceService.normalizeReference()` and `referenceService.persistReferences()`, making PESTLE citations visible in Strategy Research tabs.
+
+**Impact:** Users can now run multiple BMI journeys on the same strategy without version confusion. Research accumulates properly in the unified knowledge base per strategy.
+
 # System Architecture
 
 ## UI/UX Decisions
