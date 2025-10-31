@@ -280,6 +280,161 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get delete preview for a strategy (shows what will be cascade deleted)
+  app.get('/api/strategies/:id/delete-preview', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const strategyId = req.params.id;
+
+      // Verify ownership
+      const [understanding] = await db
+        .select()
+        .from(strategicUnderstanding)
+        .where(
+          and(
+            eq(strategicUnderstanding.id, strategyId),
+            eq(strategicUnderstanding.userId, userId)
+          )
+        );
+
+      if (!understanding) {
+        return res.status(404).json({ message: "Strategy not found" });
+      }
+
+      // Count journey sessions (with user scoping)
+      const journeyCount = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(journeySessions)
+        .where(
+          and(
+            eq(journeySessions.understandingId, strategyId),
+            eq(journeySessions.userId, userId)
+          )
+        );
+
+      // Count strategy versions (through sessions, with user scoping)
+      const versionCount = await db.execute<{ count: number }>(sql`
+        SELECT COUNT(*)::int as count
+        FROM ${strategyVersions}
+        WHERE ${strategyVersions.sessionId} IN (
+          SELECT id FROM ${journeySessions} 
+          WHERE ${journeySessions.understandingId} = ${strategyId}
+          AND ${journeySessions.userId} = ${userId}
+        )
+      `);
+
+      // Count EPM programs (through versions, with user scoping)
+      const programCount = await db.execute<{ count: number }>(sql`
+        SELECT COUNT(*)::int as count
+        FROM ${epmPrograms}
+        WHERE ${epmPrograms.userId} = ${userId}
+        AND ${epmPrograms.strategyVersionId} IN (
+          SELECT ${strategyVersions.id} FROM ${strategyVersions}
+          WHERE ${strategyVersions.sessionId} IN (
+            SELECT id FROM ${journeySessions} 
+            WHERE ${journeySessions.understandingId} = ${strategyId}
+            AND ${journeySessions.userId} = ${userId}
+          )
+        )
+      `);
+
+      // Count task assignments (through programs, with user scoping)
+      const assignmentCount = await db.execute<{ count: number }>(sql`
+        SELECT COUNT(*)::int as count
+        FROM ${taskAssignments}
+        WHERE ${taskAssignments.epmProgramId} IN (
+          SELECT ${epmPrograms.id} FROM ${epmPrograms}
+          WHERE ${epmPrograms.userId} = ${userId}
+          AND ${epmPrograms.strategyVersionId} IN (
+            SELECT ${strategyVersions.id} FROM ${strategyVersions}
+            WHERE ${strategyVersions.sessionId} IN (
+              SELECT id FROM ${journeySessions} 
+              WHERE ${journeySessions.understandingId} = ${strategyId}
+              AND ${journeySessions.userId} = ${userId}
+            )
+          )
+        )
+      `);
+
+      // Count references (linked to understanding, sessions, or programs, with user scoping)
+      const referenceCount = await db.execute<{ count: number }>(sql`
+        SELECT COUNT(*)::int as count
+        FROM ${references}
+        WHERE ${references.userId} = ${userId}
+        AND (
+          ${references.understandingId} = ${strategyId}
+          OR ${references.sessionId} IN (
+            SELECT id FROM ${journeySessions} 
+            WHERE ${journeySessions.understandingId} = ${strategyId}
+            AND ${journeySessions.userId} = ${userId}
+          )
+          OR ${references.programId} IN (
+            SELECT ${epmPrograms.id} FROM ${epmPrograms}
+            WHERE ${epmPrograms.userId} = ${userId}
+            AND ${epmPrograms.strategyVersionId} IN (
+              SELECT ${strategyVersions.id} FROM ${strategyVersions}
+              WHERE ${strategyVersions.sessionId} IN (
+                SELECT id FROM ${journeySessions} 
+                WHERE ${journeySessions.understandingId} = ${strategyId}
+                AND ${journeySessions.userId} = ${userId}
+              )
+            )
+          )
+        )
+      `);
+
+      res.json({
+        strategyTitle: understanding.title || understanding.initiativeDescription || "Untitled Strategy",
+        counts: {
+          journeys: journeyCount[0]?.count || 0,
+          versions: versionCount.rows[0]?.count || 0,
+          programs: programCount.rows[0]?.count || 0,
+          assignments: assignmentCount.rows[0]?.count || 0,
+          references: referenceCount.rows[0]?.count || 0,
+        }
+      });
+    } catch (error) {
+      console.error("Error getting delete preview:", error);
+      res.status(500).json({ message: "Failed to get delete preview" });
+    }
+  });
+
+  // Delete a strategy and all related artifacts (cascade delete)
+  app.delete('/api/strategies/:id', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const strategyId = req.params.id;
+
+      // Verify ownership
+      const [understanding] = await db
+        .select()
+        .from(strategicUnderstanding)
+        .where(
+          and(
+            eq(strategicUnderstanding.id, strategyId),
+            eq(strategicUnderstanding.userId, userId)
+          )
+        );
+
+      if (!understanding) {
+        return res.status(404).json({ message: "Strategy not found" });
+      }
+
+      // Delete the strategy (cascade will handle related artifacts)
+      await db
+        .delete(strategicUnderstanding)
+        .where(eq(strategicUnderstanding.id, strategyId));
+
+      res.json({ 
+        success: true, 
+        message: "Strategy and all related artifacts deleted successfully" 
+      });
+    } catch (error) {
+      console.error("Error deleting strategy:", error);
+      res.status(500).json({ message: "Failed to delete strategy" });
+    }
+  });
+
   // Test endpoint for intelligent planning system
   // Uses request-scoped override - no global state mutation
   // TEMPORARY: Auth bypassed for testing
