@@ -104,7 +104,6 @@ export class ReferenceService {
       confidence: (raw.confidence !== null && raw.confidence !== undefined) ? String(Math.min(Math.max(raw.confidence, 0), 1)) as any : null,
       extractedQuotes: raw.snippet ? [{
         snippet: raw.snippet,
-        page: raw.page,
         usedIn: usage.component,
         claim: usage.claim
       }] : [],

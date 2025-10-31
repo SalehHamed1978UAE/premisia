@@ -1,5 +1,5 @@
 import type { FrameworkExecutor } from '../framework-executor-registry';
-import type { StrategicContext } from '../journey-types';
+import type { StrategicContext } from '@shared/journey-types';
 import { BMCResearcher } from '../../strategic-consultant/bmc-researcher';
 import { ReferenceService } from '../../services/reference-service';
 
