@@ -547,7 +547,6 @@ router.get('/journeys/:sessionId/results', async (req: Request, res: Response) =
 router.post('/decisions/select', async (req: Request, res: Response) => {
   try {
     const { sessionId, versionNumber, selectedDecisions } = req.body;
-    const userId = (req.user as any)?.claims?.sub || null;
 
     if (!sessionId || !versionNumber || !selectedDecisions) {
       return res.status(400).json({ 
@@ -561,46 +560,7 @@ router.post('/decisions/select', async (req: Request, res: Response) => {
       selectedDecisions
     );
 
-    // Automatically trigger EPM generation after decisions are saved
-    // This runs in the background so the response returns immediately
-    console.log(`[Decisions] Triggering EPM generation for session ${sessionId} v${versionNumber}`);
-    
-    // Fetch the updated version with persisted decisions
-    const version = await storage.getStrategyVersion(sessionId, versionNumber);
-    if (version && version.analysisData && version.decisionsData && version.selectedDecisions) {
-      // Trigger EPM conversion asynchronously (don't await)
-      (async () => {
-        try {
-          // Use persisted decisions from version, not raw request payload
-          const program = await epmConverter.convertToEPM(
-            version.analysisData as any,
-            version.decisionsData as any,
-            version.selectedDecisions as Record<string, string>
-          );
-
-          // Validate structure
-          const structureValidation = await epmConverter.validateEPMStructure(program);
-          if (!structureValidation.valid) {
-            console.error(`[Decisions] EPM structure validation failed:`, structureValidation.issues);
-            return;
-          }
-
-          // Validate against ontology (critical safeguard)
-          const ontologyValidation = await epmConverter.validateAgainstOntology(program);
-          console.log(`[Decisions] Ontology validation:`, {
-            valid: ontologyValidation.valid,
-            recommendations: ontologyValidation.recommendations?.length || 0,
-          });
-
-          // Finalize version with validated program
-          await versionManager.finalizeVersion(sessionId, versionNumber, program);
-          console.log(`[Decisions] ✓ EPM generated and finalized for session ${sessionId} v${versionNumber}`);
-        } catch (epmError: any) {
-          console.error(`[Decisions] Failed to generate EPM:`, epmError.message);
-          // Don't fail the decision save if EPM generation fails
-        }
-      })();
-    }
+    console.log(`[Decisions] Saved decisions for session ${sessionId} v${versionNumber}. Frontend will auto-trigger EPM conversion.`);
 
     res.json({
       success: true,
