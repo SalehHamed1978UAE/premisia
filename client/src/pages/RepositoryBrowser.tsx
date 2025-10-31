@@ -68,8 +68,6 @@ export default function RepositoryBrowser() {
       });
 
       await queryClient.invalidateQueries({ queryKey: ['/api/repository/statements'] });
-      await queryClient.invalidateQueries({ queryKey: ['/api/dashboard-summary'] });
-      await queryClient.invalidateQueries({ queryKey: ['/api/strategies'] });
     } catch (error) {
       console.error('Error archiving statement:', error);
       toast({
@@ -104,7 +102,6 @@ export default function RepositoryBrowser() {
       setShowBatchDeleteDialog(false);
       await queryClient.invalidateQueries({ queryKey: ['/api/repository/statements'] });
       await queryClient.invalidateQueries({ queryKey: ['/api/dashboard-summary'] });
-      await queryClient.invalidateQueries({ queryKey: ['/api/strategies'] });
     } catch (error) {
       console.error('Error batch deleting:', error);
       toast({
@@ -136,7 +133,6 @@ export default function RepositoryBrowser() {
       setShowBatchDeleteDialog(false);
       await queryClient.invalidateQueries({ queryKey: ['/api/repository/statements'] });
       await queryClient.invalidateQueries({ queryKey: ['/api/dashboard-summary'] });
-      await queryClient.invalidateQueries({ queryKey: ['/api/strategies'] });
     } catch (error) {
       console.error('Error batch archiving:', error);
       toast({
@@ -206,7 +202,6 @@ export default function RepositoryBrowser() {
 
       await queryClient.invalidateQueries({ queryKey: ['/api/repository/statements'] });
       await queryClient.invalidateQueries({ queryKey: ['/api/dashboard-summary'] });
-      await queryClient.invalidateQueries({ queryKey: ['/api/strategies'] });
     } catch (error) {
       console.error('Error deleting statement:', error);
       toast({
@@ -237,7 +232,6 @@ export default function RepositoryBrowser() {
 
       await queryClient.invalidateQueries({ queryKey: ['/api/repository/statements'] });
       await queryClient.invalidateQueries({ queryKey: ['/api/dashboard-summary'] });
-      await queryClient.invalidateQueries({ queryKey: ['/api/strategies'] });
     } catch (error) {
       console.error('Error archiving statement:', error);
       toast({
