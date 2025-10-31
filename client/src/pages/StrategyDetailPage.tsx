@@ -11,6 +11,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { ArrowLeft, Rocket, Calendar, BookOpen, TrendingUp, FileText, Plus, ExternalLink } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import JourneyLauncherModal from "@/components/JourneyLauncherModal";
+import { AppLayout } from "@/components/layout/AppLayout";
 
 interface StrategicUnderstanding {
   id: string;
@@ -447,24 +448,39 @@ export default function StrategyDetailPage() {
   const strategyId = params?.id;
   const [activeTab, setActiveTab] = useState("overview");
   const [showLauncherModal, setShowLauncherModal] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const { data: strategy, isLoading, error } = useQuery<StrategyDetail>({
     queryKey: ['/api/strategies', strategyId],
     enabled: !!strategyId,
   });
 
+  const displayTitle = strategy?.understanding.title || strategy?.understanding.initiativeDescription || "Strategy Details";
+
   if (isLoading) {
     return (
-      <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <AppLayout
+        showTopBar={true}
+        title="Strategy Details"
+        subtitle="Loading..."
+        sidebarOpen={sidebarOpen}
+        onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}
+      >
         <Skeleton className="h-10 w-48 mb-8" />
         <Skeleton className="h-96 w-full" />
-      </div>
+      </AppLayout>
     );
   }
 
   if (error || !strategy) {
     return (
-      <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <AppLayout
+        showTopBar={true}
+        title="Strategy Not Found"
+        subtitle="Error loading strategy"
+        sidebarOpen={sidebarOpen}
+        onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}
+      >
         <Card className="p-8 text-center">
           <TrendingUp className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
           <h3 className="text-lg font-semibold mb-2">Strategy not found</h3>
@@ -476,93 +492,99 @@ export default function StrategyDetailPage() {
             </Button>
           </Link>
         </Card>
-      </div>
+      </AppLayout>
     );
   }
 
-  const displayTitle = strategy.understanding.title || strategy.understanding.initiativeDescription || "Untitled Strategy";
-
   return (
-    <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8" data-testid="page-strategy-detail">
-      {/* Header */}
-      <div className="mb-6">
-        <Link href="/strategies">
-          <Button variant="ghost" size="sm" className="mb-4" data-testid="button-back">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Strategies
-          </Button>
-        </Link>
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex items-start gap-3 sm:gap-4">
-            <div className="p-2 sm:p-3 bg-primary/10 rounded-lg flex-shrink-0">
-              <Rocket className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+    <AppLayout
+      showTopBar={true}
+      title={displayTitle}
+      subtitle="Strategic Initiative"
+      sidebarOpen={sidebarOpen}
+      onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}
+    >
+      <div className="container mx-auto max-w-7xl" data-testid="page-strategy-detail">
+        {/* Header */}
+        <div className="mb-6">
+          <Link href="/strategies">
+            <Button variant="ghost" size="sm" className="mb-4" data-testid="button-back">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Strategies
+            </Button>
+          </Link>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className="p-2 sm:p-3 bg-primary/10 rounded-lg flex-shrink-0">
+                <Rocket className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight mb-2 break-words" data-testid="heading-strategy-title">
+                  {displayTitle}
+                </h1>
+                {strategy.understanding.initiativeType && (
+                  <Badge variant="outline" className="capitalize">
+                    {strategy.understanding.initiativeType.replace(/_/g, ' ')}
+                  </Badge>
+                )}
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight mb-2 break-words" data-testid="heading-strategy-title">
-                {displayTitle}
-              </h1>
-              {strategy.understanding.initiativeType && (
-                <Badge variant="outline" className="capitalize">
-                  {strategy.understanding.initiativeType.replace(/_/g, ' ')}
-                </Badge>
-              )}
-            </div>
+            <Button onClick={() => setShowLauncherModal(true)} className="w-full lg:w-auto flex-shrink-0" data-testid="button-run-analysis">
+              <Rocket className="h-4 w-4 mr-2" />
+              Run Additional Analysis
+            </Button>
           </div>
-          <Button onClick={() => setShowLauncherModal(true)} className="w-full lg:w-auto flex-shrink-0" data-testid="button-run-analysis">
-            <Rocket className="h-4 w-4 mr-2" />
-            Run Additional Analysis
-          </Button>
         </div>
+
+        <Separator className="my-6" />
+
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4" data-testid="tabs-strategy-detail">
+            <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
+            <TabsTrigger value="journeys" data-testid="tab-journeys">
+              <span className="hidden sm:inline">Journeys</span>
+              <span className="sm:hidden">Journey</span> ({strategy.sessions.length})
+            </TabsTrigger>
+            <TabsTrigger value="research" data-testid="tab-research">
+              Research ({strategy.referenceCount})
+            </TabsTrigger>
+            <TabsTrigger value="programs" data-testid="tab-programs">
+              <span className="hidden sm:inline">EPM Programs</span>
+              <span className="sm:hidden">Programs</span> ({strategy.programs.length})
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview">
+            <OverviewTab strategy={strategy} onNavigateToTab={setActiveTab} />
+          </TabsContent>
+
+          <TabsContent value="journeys">
+            <JourneyTimelineTab sessions={strategy.sessions} />
+          </TabsContent>
+
+          <TabsContent value="research">
+            <ResearchLibraryTab strategyId={strategyId!} />
+          </TabsContent>
+
+          <TabsContent value="programs">
+            <EPMProgramsTab programs={strategy.programs} />
+          </TabsContent>
+        </Tabs>
+
+        {/* Journey Launcher Modal */}
+        <JourneyLauncherModal
+          open={showLauncherModal}
+          onOpenChange={setShowLauncherModal}
+          understandingId={strategyId!}
+          strategyTitle={displayTitle}
+          contextMetrics={{
+            entityCount: 0, // TODO: Add entity count from metadata
+            referenceCount: strategy.referenceCount,
+            completedFrameworks: strategy.sessions.flatMap(s => s.completedFrameworks),
+          }}
+        />
       </div>
-
-      <Separator className="my-6" />
-
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4" data-testid="tabs-strategy-detail">
-          <TabsTrigger value="overview" data-testid="tab-overview">Overview</TabsTrigger>
-          <TabsTrigger value="journeys" data-testid="tab-journeys">
-            <span className="hidden sm:inline">Journeys</span>
-            <span className="sm:hidden">Journey</span> ({strategy.sessions.length})
-          </TabsTrigger>
-          <TabsTrigger value="research" data-testid="tab-research">
-            Research ({strategy.referenceCount})
-          </TabsTrigger>
-          <TabsTrigger value="programs" data-testid="tab-programs">
-            <span className="hidden sm:inline">EPM Programs</span>
-            <span className="sm:hidden">Programs</span> ({strategy.programs.length})
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview">
-          <OverviewTab strategy={strategy} onNavigateToTab={setActiveTab} />
-        </TabsContent>
-
-        <TabsContent value="journeys">
-          <JourneyTimelineTab sessions={strategy.sessions} />
-        </TabsContent>
-
-        <TabsContent value="research">
-          <ResearchLibraryTab strategyId={strategyId!} />
-        </TabsContent>
-
-        <TabsContent value="programs">
-          <EPMProgramsTab programs={strategy.programs} />
-        </TabsContent>
-      </Tabs>
-
-      {/* Journey Launcher Modal */}
-      <JourneyLauncherModal
-        open={showLauncherModal}
-        onOpenChange={setShowLauncherModal}
-        understandingId={strategyId!}
-        strategyTitle={displayTitle}
-        contextMetrics={{
-          entityCount: 0, // TODO: Add entity count from metadata
-          referenceCount: strategy.referenceCount,
-          completedFrameworks: strategy.sessions.flatMap(s => s.completedFrameworks),
-        }}
-      />
-    </div>
+    </AppLayout>
   );
 }
