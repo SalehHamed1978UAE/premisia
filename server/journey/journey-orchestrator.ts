@@ -29,7 +29,7 @@ export class JourneyOrchestrator {
     understandingId: string,
     journeyType: JourneyType,
     userId: string
-  ): Promise<string> {
+  ): Promise<{ journeySessionId: string; versionNumber: number }> {
     // Verify journey is available
     if (!isJourneyAvailable(journeyType)) {
       throw new Error(`Journey "${journeyType}" is not yet implemented`);
@@ -90,7 +90,10 @@ export class JourneyOrchestrator {
       console.log(`[JourneyOrchestrator] ✓ Journey session saved with encryption (Version ${nextVersion})`);
       // Lock is automatically released when transaction commits
       
-      return newSession.id;
+      return {
+        journeySessionId: newSession.id,
+        versionNumber: nextVersion
+      };
     });
   }
 

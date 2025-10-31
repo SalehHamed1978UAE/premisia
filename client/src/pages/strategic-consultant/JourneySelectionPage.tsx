@@ -141,8 +141,16 @@ export default function JourneySelectionPage() {
 
       const result = await response.json();
       
-      // Store journey type in localStorage for downstream pages to know which results page to navigate to
+      // Store journey type and version number in localStorage for downstream pages
       localStorage.setItem(`journey-type-${result.sessionId}`, journeyType);
+      if (result.versionNumber) {
+        // Store by BOTH sessionId formats so all downstream requests can find it
+        localStorage.setItem(`journey-version-${result.sessionId}`, String(result.versionNumber));
+        if (result.journeySessionId) {
+          localStorage.setItem(`journey-version-${result.journeySessionId}`, String(result.versionNumber));
+        }
+        console.log(`[JourneySelection] Stored version ${result.versionNumber} for both sessionId formats`);
+      }
 
       // Invalidate session context cache so it shows the new journey data
       queryClient.invalidateQueries({ queryKey: ["/api/session-context"] });

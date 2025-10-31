@@ -489,8 +489,8 @@ router.post('/journeys/execute', async (req: Request, res: Response) => {
 
     const userId = (req.user as any)?.claims?.sub || null;
 
-    // Create journey session to track progress
-    const journeySessionId = await journeyOrchestrator.startJourney(
+    // Create journey session to track progress and get version number
+    const { journeySessionId, versionNumber } = await journeyOrchestrator.startJourney(
       understanding.id!,
       journeyType as JourneyType,
       userId
@@ -504,6 +504,7 @@ router.post('/journeys/execute', async (req: Request, res: Response) => {
       success: true,
       journeySessionId,
       sessionId: understanding.sessionId, // Session ID used in navigation URLs
+      versionNumber, // Version number for this journey session
       journeyType,
       message: 'Journey initialized successfully',
       navigationUrl,
@@ -1001,41 +1002,56 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
     let version;
     const userId = (req.user as any)?.claims?.sub || null;
 
-    // Check if version already exists
-    let targetVersionNumber: number | undefined;
+    // Determine target version number with fallback logic
+    let targetVersionNumber: number;
     if (versionNumber) {
+      // Version number provided in request (from journey flow)
       targetVersionNumber = versionNumber;
     } else {
+      // Fallback: query max version and increment
       const versions = await storage.getStrategyVersionsBySession(sessionId);
       if (versions.length > 0) {
-        targetVersionNumber = versions[versions.length - 1].versionNumber;
+        const maxVersion = Math.max(...versions.map(v => v.versionNumber));
+        targetVersionNumber = maxVersion + 1;
+        console.log(`[FiveWhys] No versionNumber provided, computed max+1: ${targetVersionNumber}`);
+      } else {
+        targetVersionNumber = 1;
+        console.log(`[FiveWhys] No existing versions, using version 1`);
       }
     }
 
-    if (targetVersionNumber) {
+    // Check if version already exists
+    const existingVersion = await storage.getStrategyVersion(sessionId, targetVersionNumber);
+    
+    if (existingVersion) {
       // Update existing version
-      version = await storage.getStrategyVersion(sessionId, targetVersionNumber);
-      if (!version) {
-        return res.status(404).json({ error: 'Version not found' });
-      }
-
-      const existingAnalysisData = version.analysisData as any || {};
-      await storage.updateStrategyVersion(version.id, {
+      console.log(`[FiveWhys] Updating existing version ${targetVersionNumber} for session ${sessionId}`);
+      const existingAnalysisData = existingVersion.analysisData as any || {};
+      await storage.updateStrategyVersion(existingVersion.id, {
         analysisData: {
           ...existingAnalysisData,
           ...analysisData,
         },
       });
+      version = existingVersion;
     } else {
-      // Create new version (Five Whys flow without pre-existing analysis)
-      // Get descriptive title from strategic understanding
+      // Create new version
+      console.log(`[FiveWhys] Creating new version ${targetVersionNumber} for session ${sessionId}`);
+      
+      // Safeguard: double-check version doesn't exist (race condition protection)
+      const doubleCheck = await storage.getStrategyVersion(sessionId, targetVersionNumber);
+      if (doubleCheck) {
+        // Collision detected, increment and retry
+        targetVersionNumber++;
+        console.warn(`[FiveWhys] Version collision detected, incremented to ${targetVersionNumber}`);
+      }
+      
       const initiativeDescription = await storage.getInitiativeDescriptionForSession(sessionId);
       const inputSummary = initiativeDescription || 'Strategic Analysis';
       
-      // Use storage.createStrategyVersion directly since we don't have complete StrategyAnalysis yet
       version = await storage.createStrategyVersion({
         sessionId,
-        versionNumber: 1,
+        versionNumber: targetVersionNumber,
         analysisData: analysisData,
         decisionsData: { decisions: [] },
         selectedDecisions: null,
@@ -1776,27 +1792,110 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
       decisions = { decisions: [] };
     }
 
+    // Persist references from BMC research
+    try {
+      if (result.blocks && Array.isArray(result.blocks) && understanding) {
+        const { referenceService } = await import('../services/reference-service.js');
+        const userId = (req.user as any)?.claims?.sub || 'system';
+        
+        // Extract all citations from BMC blocks
+        const allCitations: any[] = [];
+        result.blocks.forEach((block: any) => {
+          if (block.research && Array.isArray(block.research)) {
+            block.research.forEach((item: any) => {
+              if (item.citations && Array.isArray(item.citations)) {
+                item.citations.forEach((citation: any) => {
+                  allCitations.push({
+                    ...citation,
+                    component: `research.${block.name || 'unknown'}`,
+                    claim: item.finding || item.summary || '',
+                  });
+                });
+              }
+            });
+          }
+        });
+        
+        if (allCitations.length > 0) {
+          console.log(`[BMC-RESEARCH-STREAM] Persisting ${allCitations.length} references...`);
+          
+          const normalized = allCitations.map(citation => 
+            referenceService.normalizeReference(
+              citation,
+              userId,
+              { component: citation.component, claim: citation.claim },
+              { understandingId: understanding.id, sessionId }
+            )
+          );
+          
+          await referenceService.persistReferences(normalized, {
+            understandingId: understanding.id,
+            sessionId,
+          });
+          
+          console.log(`[BMC-RESEARCH-STREAM] ✓ Persisted ${normalized.length} references`);
+        }
+      }
+    } catch (error: any) {
+      console.error('[BMC-RESEARCH-STREAM] Reference persistence failed (non-critical):', error);
+      // Continue - we still have the results to send to frontend
+    }
+
     // Try to save to database, but don't fail the stream if this fails
     try {
       const userId = (req.user as any)?.claims?.sub || 'system';
+      
+      // Determine version number with fallback logic
+      let targetVersionNumber: number;
+      const versionNumberFromQuery = req.query.versionNumber ? parseInt(req.query.versionNumber as string) : undefined;
+      
+      if (versionNumberFromQuery) {
+        targetVersionNumber = versionNumberFromQuery;
+      } else if (journeySession && journeySession.versionNumber) {
+        targetVersionNumber = journeySession.versionNumber;
+      } else {
+        // Fallback: query max version and increment
+        const versions = await storage.getStrategyVersionsBySession(sessionId);
+        if (versions.length > 0) {
+          const maxVersion = Math.max(...versions.map(v => v.versionNumber));
+          targetVersionNumber = maxVersion + 1;
+          console.log(`[BMC-RESEARCH-STREAM] No versionNumber provided, computed max+1: ${targetVersionNumber}`);
+        } else {
+          targetVersionNumber = 1;
+          console.log(`[BMC-RESEARCH-STREAM] No existing versions, using version 1`);
+        }
+      }
       
       // Get descriptive title from strategic understanding
       const initiativeDescription = await storage.getInitiativeDescriptionForSession(sessionId);
       const inputSummary = initiativeDescription || 'Strategic Analysis';
       
-      version = await storage.getStrategyVersion(sessionId, 1) || 
-                      await storage.createStrategyVersion({
-                        sessionId,
-                        versionNumber: 1,
-                        status: 'in_progress',
-                        analysisData: {},
-                        decisionsData: decisions,
-                        userId,
-                        createdBy: userId,
-                        inputSummary,
-                      });
+      // Check if version exists
+      version = await storage.getStrategyVersion(sessionId, targetVersionNumber);
       
-      if (version) {
+      if (!version) {
+        // Safeguard: double-check version doesn't exist (race condition protection)
+        const doubleCheck = await storage.getStrategyVersion(sessionId, targetVersionNumber);
+        if (doubleCheck) {
+          // Collision detected, increment and retry
+          targetVersionNumber++;
+          console.warn(`[BMC-RESEARCH-STREAM] Version collision detected, incremented to ${targetVersionNumber}`);
+        }
+        
+        // Create new version
+        version = await storage.createStrategyVersion({
+          sessionId,
+          versionNumber: targetVersionNumber,
+          status: 'in_progress',
+          analysisData: { bmc_research: result },
+          decisionsData: decisions,
+          userId,
+          createdBy: userId,
+          inputSummary,
+        });
+        console.log(`[BMC-RESEARCH-STREAM] Created new version ${targetVersionNumber}`);
+      } else {
+        // Update existing version
         const existingAnalysisData = version.analysisData as any || {};
         await storage.updateStrategyVersion(version.id, {
           analysisData: {
@@ -1805,8 +1904,10 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
           },
           decisionsData: decisions,
         });
-        console.log(`[BMC-RESEARCH-STREAM] Saved BMC results and ${decisions.decisions.length} decisions to version ${version.versionNumber}`);
+        console.log(`[BMC-RESEARCH-STREAM] Updated existing version ${targetVersionNumber}`);
       }
+      
+      console.log(`[BMC-RESEARCH-STREAM] Saved BMC results and ${decisions.decisions.length} decisions to version ${version.versionNumber}`);
     } catch (error: any) {
       console.error('[BMC-RESEARCH-STREAM] Database save failed (non-critical):', error);
       // Continue - we still have the results to send to frontend
@@ -2036,7 +2137,7 @@ router.post('/journeys/execute-background', async (req: Request, res: Response) 
     }
 
     // Start journey session (initializing state)
-    const journeySessionId = await journeyOrchestrator.startJourney(
+    const { journeySessionId, versionNumber } = await journeyOrchestrator.startJourney(
       targetUnderstandingId,
       journeyType as JourneyType,
       userId
@@ -2050,6 +2151,7 @@ router.post('/journeys/execute-background', async (req: Request, res: Response) 
       inputData: {
         sessionId: journeySessionId, // CRITICAL: Worker needs session ID
         understandingId: targetUnderstandingId,
+        versionNumber, // Include version number for background worker
         journeyType,
         frameworks,
         mode: 'background',
@@ -2061,12 +2163,13 @@ router.post('/journeys/execute-background', async (req: Request, res: Response) 
     });
 
     // Background worker will execute the journey and update job status
-    console.log(`[execute-background] Journey session ${journeySessionId} queued for background execution by worker`);
+    console.log(`[execute-background] Journey session ${journeySessionId} (v${versionNumber}) queued for background execution by worker`);
     
     res.json({
       success: true,
       jobId,
       journeySessionId,
+      versionNumber, // Return version number to client
       understandingId: targetUnderstandingId,
       isFollowOn,
       message: journeyType 
@@ -2147,7 +2250,7 @@ router.post('/journeys/run-now', async (req: Request, res: Response) => {
     }
 
     // Start journey session and navigate to first page (interactive wizard mode)
-    const journeySessionId = await journeyOrchestrator.startJourney(
+    const { journeySessionId, versionNumber } = await journeyOrchestrator.startJourney(
       understandingId,
       journeyType as JourneyType,
       userId
@@ -2156,11 +2259,12 @@ router.post('/journeys/run-now', async (req: Request, res: Response) => {
     // Get the first page of the journey to redirect to
     const firstPageUrl = journey.pageSequence?.[0]?.replace(':understandingId', understandingId).replace(':sessionId', journeySessionId);
 
-    console.log(`[Run Now] Journey session ${journeySessionId} created, redirecting to wizard`);
+    console.log(`[Run Now] Journey session ${journeySessionId} created (v${versionNumber}), redirecting to wizard`);
 
     res.json({
       success: true,
       journeySessionId,
+      versionNumber, // Version number for this journey session
       understandingId,
       message: `Journey "${journeyType}" started${existingSessions.length > 0 ? ' using strategic summary from previous analysis' : ''}`,
       navigationUrl: firstPageUrl || `/strategic-consultant/analysis/${journeySessionId}`,

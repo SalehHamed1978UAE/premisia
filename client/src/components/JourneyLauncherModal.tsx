@@ -199,9 +199,17 @@ export default function JourneyLauncherModal({
         description: data.message || "Your journey has been started.",
       });
       onOpenChange(false);
-      // Store journey session ID for later use
+      // Store journey session ID and version number for later use
       if (data.journeySessionId) {
         localStorage.setItem(`current-journey-session-${understandingId}`, data.journeySessionId);
+      }
+      if (data.versionNumber) {
+        // Store by BOTH sessionId formats so all downstream requests can find it
+        localStorage.setItem(`journey-version-${data.journeySessionId}`, String(data.versionNumber));
+        if (data.sessionId) {
+          localStorage.setItem(`journey-version-${data.sessionId}`, String(data.versionNumber));
+        }
+        console.log(`[JourneyLauncher] Stored version ${data.versionNumber} for both sessionId formats`);
       }
       // Navigate to the journey wizard
       if (data.navigationUrl) {

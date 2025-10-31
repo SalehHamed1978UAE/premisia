@@ -385,49 +385,8 @@ export class BMCResearcher {
     // Convert BMC findings to references for provenance tracking
     const references = this.bmcToReferences(blocks, topSources);
     
-    // Step 8: Persist references to database for Strategies Hub Research tab
-    if (references.length > 0 && sessionId) {
-      try {
-        console.log(`[BMCResearcher] Persisting ${references.length} references to database...`);
-        
-        // Get userId from journey session if available
-        const sessions = await db
-          .select({ userId: journeySessions.userId, id: journeySessions.id })
-          .from(journeySessions)
-          .where(eq(journeySessions.id, sessionId))
-          .limit(1);
-        
-        const session = sessions[0];
-        
-        if (session?.userId) {
-          // Normalize references with proper metadata
-          const normalizedRefs = references.map(ref =>
-            this.referenceService.normalizeReference(
-              ref,
-              session.userId,
-              { component: 'BMC', claim: ref.description || ref.snippet || '' },
-              {
-                understandingId,
-                sessionId,
-              }
-            )
-          );
-          
-          // Persist to database
-          const result = await this.referenceService.persistReferences(normalizedRefs, {
-            understandingId,
-            sessionId,
-          });
-          
-          console.log(`[BMCResearcher] ✓ Persisted references: ${result.created.length} created, ${result.updated.length} updated, ${result.skipped} skipped`);
-        } else {
-          console.warn(`[BMCResearcher] Could not find session ${sessionId}, skipping reference persistence`);
-        }
-      } catch (error: any) {
-        console.error(`[BMCResearcher] Failed to persist references:`, error.message);
-        // Don't fail the entire BMC research if reference persistence fails
-      }
-    }
+    // Note: Reference persistence now handled by stream endpoint (has better context)
+    // Removed duplicate persistence logic to maintain single source of truth
     
     return {
       blocks,
