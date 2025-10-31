@@ -202,6 +202,13 @@ export default function PrioritizationPage() {
     
     if (job.jobType !== 'epm_generation') return;
     
+    // CRITICAL: Only process jobs for THIS version, not old versions
+    const jobVersionNumber = job.inputData?.versionNumber;
+    if (jobVersionNumber !== versionNumber) {
+      console.log(`[Reconnection] Job version (${jobVersionNumber}) doesn't match current version (${versionNumber}), skipping`);
+      return;
+    }
+    
     // Extract progressId from job inputData (stored during job creation)
     const storedProgressId = job.inputData?.progressId;
     
