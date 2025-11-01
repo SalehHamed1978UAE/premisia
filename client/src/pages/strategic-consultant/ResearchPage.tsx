@@ -414,22 +414,22 @@ export default function ResearchPage() {
       subtitle="Comprehensive market intelligence gathered"
       onViewChange={(view) => setLocation('/')}
     >
-      <div className="max-w-6xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6 p-4 sm:p-0">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
-            <CheckCircle2 className="h-6 w-6 text-green-500" data-testid="icon-complete" />
+            <CheckCircle2 className="h-6 w-6 text-green-500 flex-shrink-0" data-testid="icon-complete" />
             <div>
               <h2 className="text-xl font-semibold text-green-600" data-testid="text-research-complete">
                 ✓ Research complete
               </h2>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground break-words">
                 Sources analyzed: <span className="font-medium" data-testid="text-sources-count">{sourcesAnalyzed}</span> • 
                 Time: <span className="font-medium" data-testid="text-time-elapsed">{timeElapsed}</span>
               </p>
             </div>
           </div>
           {autoNavigateCountdown !== null && (
-            <div className="text-sm text-muted-foreground">
+            <div className="text-sm text-muted-foreground text-center sm:text-left">
               Auto-navigating in {autoNavigateCountdown}s...
             </div>
           )}
@@ -437,11 +437,11 @@ export default function ResearchPage() {
 
         {findings && findings.sources && findings.sources.length > 0 && (
           <Card>
-            <CardHeader>
+            <CardHeader className="p-4 sm:p-6">
               <CardTitle className="text-lg">Research Sources</CardTitle>
               <CardDescription>Top sources used for analysis</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 sm:p-6">
               <div className="grid gap-2">
                 {findings.sources.map((source: { url: string; title: string; relevance_score: number }, idx: number) => (
                   <div
@@ -569,6 +569,7 @@ export default function ResearchPage() {
             size="lg"
             onClick={handleContinue}
             data-testid="button-continue-analysis"
+            className="w-full sm:w-auto"
           >
             Continue to Strategic Analysis
             {autoNavigateCountdown !== null && ` (${autoNavigateCountdown})`}

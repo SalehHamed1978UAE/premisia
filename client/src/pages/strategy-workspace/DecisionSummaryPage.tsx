@@ -315,22 +315,22 @@ export default function DecisionSummaryPage() {
       title="Strategic Decision Summary"
       subtitle="Make key strategic choices to guide EPM program generation"
     >
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6 p-4 sm:p-0">
         {/* Strategic Decisions Section - Show AI-generated decisions first */}
         {generatedDecisions && generatedDecisions.decisions && generatedDecisions.decisions.length > 0 && (
           <Card className="border-primary" data-testid="card-strategic-decisions">
-            <CardHeader>
+            <CardHeader className="p-4 sm:p-6">
               <CardTitle>Strategic Decisions</CardTitle>
               <CardDescription>
                 Select strategic options for your EPM program
               </CardDescription>
               {generatedDecisions.decision_flow && (
-                <p className="text-sm text-muted-foreground mt-2">{generatedDecisions.decision_flow}</p>
+                <p className="text-sm text-muted-foreground mt-2 break-words">{generatedDecisions.decision_flow}</p>
               )}
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="space-y-4 sm:space-y-6 p-4 sm:p-6">
               {generatedDecisions.decisions.map((decision, index) => (
-                <div key={decision.id} className="space-y-4 p-4 border rounded-lg" data-testid={`decision-${index}`}>
+                <div key={decision.id} className="space-y-3 sm:space-y-4 p-3 sm:p-4 border rounded-lg" data-testid={`decision-${index}`}>
                   <div>
                     <h3 className="text-lg font-semibold">{decision.title}</h3>
                     <p className="text-sm text-muted-foreground mt-1">{decision.context}</p>
@@ -408,9 +408,9 @@ export default function DecisionSummaryPage() {
                 </div>
               ))}
               
-              <div className="flex justify-end gap-4 pt-4">
+              <div className="flex flex-col sm:flex-row sm:justify-end gap-3 sm:gap-4 pt-4">
                 {Object.keys(selectedOptions).length < generatedDecisions.decisions.length && (
-                  <p className="text-sm text-amber-600 mr-auto">
+                  <p className="text-sm text-amber-600 sm:mr-auto">
                     Please select an option for all {generatedDecisions.decisions.length} strategic decisions
                     ({Object.keys(selectedOptions).length}/{generatedDecisions.decisions.length} selected)
                   </p>
@@ -432,6 +432,8 @@ export default function DecisionSummaryPage() {
                   }}
                   disabled={Object.keys(selectedOptions).length < generatedDecisions.decisions.length || saveSelectedDecisionsMutation.isPending}
                   data-testid="button-proceed-prioritization"
+                  className="w-full sm:w-auto"
+                  size="lg"
                 >
                   {saveSelectedDecisionsMutation.isPending ? (
                     <>

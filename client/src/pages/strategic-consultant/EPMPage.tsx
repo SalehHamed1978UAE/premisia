@@ -256,26 +256,26 @@ export default function EPMPage() {
       subtitle="Complete EPM program with metadata and validation"
       onViewChange={(view) => setLocation('/')}
     >
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex items-start justify-between gap-4">
+      <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6 p-4 sm:p-0">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
           <div className="flex-1">
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <span>Session: {sessionId}</span>
-              <span>•</span>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-sm text-muted-foreground">
+              <span className="break-words">Session: {sessionId}</span>
+              <span className="hidden sm:inline">•</span>
               <span>Version: {versionNumber}</span>
-              <span>•</span>
+              <span className="hidden sm:inline">•</span>
               <Badge variant={data.version.status === 'finalized' ? 'default' : 'secondary'}>
                 {data.version.status}
               </Badge>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
             {data.version.status !== 'converted_to_program' && (
               <Button
                 onClick={() => integrateMutation.mutate()}
                 disabled={isIntegrating || integrateMutation.isPending}
                 size="lg"
-                className="bg-green-600 hover:bg-green-700"
+                className="bg-green-600 hover:bg-green-700 w-full sm:w-auto"
                 data-testid="button-integrate-epm"
               >
                 {isIntegrating || integrateMutation.isPending ? (
@@ -292,7 +292,7 @@ export default function EPMPage() {
               </Button>
             )}
             {data.version.status === 'converted_to_program' && (
-              <Badge variant="default" className="bg-green-600 text-lg px-4 py-2">
+              <Badge variant="default" className="bg-green-600 text-base sm:text-lg px-3 sm:px-4 py-2 w-full sm:w-auto justify-center">
                 <CheckCircle2 className="h-4 w-4 mr-2" />
                 Integrated to EPM Suite
               </Badge>
@@ -301,6 +301,7 @@ export default function EPMPage() {
               onClick={() => setLocation(`/strategic-consultant/versions/${sessionId}`)}
               variant="outline"
               data-testid="button-view-versions"
+              className="w-full sm:w-auto"
             >
               View All Versions
             </Button>

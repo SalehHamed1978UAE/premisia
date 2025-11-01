@@ -199,7 +199,7 @@ export function ProgramsListPage() {
       title="EPM Programs" 
       subtitle="All your generated EPM programs from strategic analysis"
     >
-      <div className="p-8 max-w-7xl mx-auto space-y-6">
+      <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-4 sm:space-y-6">
 
         {/* Search Bar */}
         <div className="flex items-center gap-4">
@@ -217,7 +217,7 @@ export function ProgramsListPage() {
 
         {/* Batch action bar */}
         {!isLoading && filteredPrograms.length > 0 && (
-          <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 bg-muted/50 rounded-lg">
             <div className="flex items-center gap-2">
               <Checkbox
                 checked={filteredPrograms.length > 0 && selectedIds.size === filteredPrograms.length}
@@ -230,13 +230,14 @@ export function ProgramsListPage() {
             </div>
 
             {selectedIds.size > 0 && (
-              <div className="flex items-center gap-2 ml-auto">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:ml-auto w-full sm:w-auto">
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={handleBatchExport}
                   disabled={isBatchProcessing}
                   data-testid="button-batch-export"
+                  className="w-full sm:w-auto"
                 >
                   <Download className="h-4 w-4 mr-2" />
                   Export ({selectedIds.size})
@@ -247,6 +248,7 @@ export function ProgramsListPage() {
                   onClick={handleBatchArchive}
                   disabled={isBatchProcessing}
                   data-testid="button-batch-archive"
+                  className="w-full sm:w-auto"
                 >
                   <Archive className="h-4 w-4 mr-2" />
                   Archive ({selectedIds.size})
@@ -257,6 +259,7 @@ export function ProgramsListPage() {
                   onClick={handleBatchDelete}
                   disabled={isBatchProcessing}
                   data-testid="button-batch-delete"
+                  className="w-full sm:w-auto"
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
                   Delete ({selectedIds.size})

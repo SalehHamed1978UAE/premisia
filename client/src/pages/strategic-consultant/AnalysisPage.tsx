@@ -222,10 +222,10 @@ export default function AnalysisPage() {
       subtitle={hasEnhancedAnalysis ? "Research-backed AI strategic insights" : "AI-powered strategic insights and recommendations"}
       onViewChange={(view) => setLocation('/')}
     >
-      <div className="max-w-6xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <p className="text-sm text-muted-foreground" data-testid="text-session-id">Session: {sessionId}</p>
+      <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6 p-4 sm:p-0">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm text-muted-foreground break-words" data-testid="text-session-id">Session: {sessionId}</p>
             {hasEnhancedAnalysis && (
               <Badge variant="default" className="bg-blue-600" data-testid="badge-research-backed">
                 <CheckCircle2 className="h-3 w-3 mr-1" />
@@ -236,6 +236,8 @@ export default function AnalysisPage() {
           <Button
             onClick={() => setLocation(`/strategic-consultant/decisions/${sessionId}/${data.version.versionNumber}`)}
             data-testid="button-proceed-decisions"
+            className="w-full sm:w-auto"
+            size="lg"
           >
             Proceed to Decisions <ArrowRight className="ml-2 h-4 w-4" />
           </Button>

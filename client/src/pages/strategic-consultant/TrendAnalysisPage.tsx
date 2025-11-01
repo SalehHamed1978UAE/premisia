@@ -295,12 +295,13 @@ export default function TrendAnalysisPage() {
             />
 
             {/* Action Buttons */}
-            <div className="flex justify-between items-center">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-between sm:items-center gap-3">
               <Button
                 variant="destructive"
                 size="lg"
                 onClick={() => setShowDeleteDialog(true)}
                 data-testid="button-delete-analysis"
+                className="w-full sm:w-auto"
               >
                 <Trash2 className="mr-2 h-4 w-4" />
                 Delete Analysis
@@ -309,6 +310,7 @@ export default function TrendAnalysisPage() {
                 size="lg"
                 onClick={() => setLocation(`/strategic-consultant/decisions/${sessionId}/${versionNumber}`)}
                 data-testid="button-proceed-decisions"
+                className="w-full sm:w-auto"
               >
                 Proceed to Strategic Decisions <ArrowRight className="ml-2 h-4 w-4" />
               </Button>

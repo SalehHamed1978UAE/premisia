@@ -196,15 +196,15 @@ export default function JourneySelectionPage() {
       subtitle="Choose the strategic analysis approach that fits your challenge"
       onViewChange={() => setLocation('/')}
     >
-      <div className="max-w-6xl mx-auto space-y-6">
+      <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6 p-4 sm:p-0">
         {/* User Input Summary */}
         {understanding?.userInput && (
           <Card className="bg-muted/50">
-            <CardHeader>
+            <CardHeader className="p-4 sm:p-6">
               <CardTitle className="text-lg">Your Challenge</CardTitle>
             </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground line-clamp-3">
+            <CardContent className="p-4 sm:p-6">
+              <p className="text-sm text-muted-foreground line-clamp-3 break-words">
                 {understanding.userInput}
               </p>
             </CardContent>
@@ -212,7 +212,7 @@ export default function JourneySelectionPage() {
         )}
 
         {/* Journey Grid */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
           {JOURNEYS.map((journey) => (
             <Card
               key={journey.type}

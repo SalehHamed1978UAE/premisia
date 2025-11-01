@@ -803,13 +803,13 @@ export default function WhysTreePage() {
       title="Five Whys Analysis"
       subtitle="Discover root causes through strategic questioning"
     >
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6 p-4 sm:p-0">
         {/* Progress Indicator */}
-        <div className="flex items-center justify-between">
-          <Badge variant="outline" className="text-sm px-3 py-1" data-testid="level-indicator">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <Badge variant="outline" className="text-sm px-3 py-1 w-fit" data-testid="level-indicator">
             Level {currentLevel} of 5
           </Badge>
-          <p className="text-sm text-muted-foreground" data-testid="root-question">
+          <p className="text-sm text-muted-foreground break-words" data-testid="root-question">
             {tree.rootQuestion}
           </p>
         </div>
@@ -817,7 +817,7 @@ export default function WhysTreePage() {
         {/* Breadcrumb Trail */}
         {selectedPath.length > 0 && (
           <Card className="bg-muted/50">
-            <CardContent className="p-4">
+            <CardContent className="p-3 sm:p-4">
               <p className="text-xs text-muted-foreground mb-2 font-medium">Your path so far:</p>
               <div className="flex flex-wrap gap-2" data-testid="breadcrumb-path">
                 {selectedPath.map((pathItem, idx) => (
@@ -932,18 +932,19 @@ export default function WhysTreePage() {
               )}
 
               {/* Navigation Buttons */}
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <Button
                   variant="outline"
                   onClick={handlePrevious}
                   disabled={currentOptionIndex === 0}
                   data-testid="button-previous"
+                  className="w-full sm:w-auto"
                 >
                   <ChevronLeft className="h-4 w-4 mr-2" />
                   Previous
                 </Button>
 
-                <span className="text-sm text-muted-foreground">
+                <span className="text-sm text-muted-foreground text-center">
                   {currentOptionIndex + 1} / {totalOptions}
                 </span>
 
@@ -952,6 +953,7 @@ export default function WhysTreePage() {
                   onClick={handleNext}
                   disabled={currentOptionIndex === totalOptions - 1}
                   data-testid="button-next"
+                  className="w-full sm:w-auto"
                 >
                   Next
                   <ChevronRight className="h-4 w-4 ml-2" />

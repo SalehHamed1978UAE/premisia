@@ -197,21 +197,23 @@ export default function DecisionPage() {
       subtitle="Select strategic options for your EPM program"
       onViewChange={(view) => setLocation('/')}
     >
-      <div className="max-w-6xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6 p-4 sm:p-0">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground break-words">
               Session: {sessionId} | Version: {versionNumber}
             </p>
           </div>
-          <div className="text-right">
-            <div className="text-sm text-muted-foreground mb-2" data-testid="text-selection-progress">
+          <div className="flex flex-col sm:items-end gap-2">
+            <div className="text-sm text-muted-foreground" data-testid="text-selection-progress">
               {selectionCount} / {decisions.length} selected
             </div>
             <Button
               onClick={handleProceed}
               disabled={!allSelected || selectDecisionsMutation.isPending}
               data-testid="button-convert-epm"
+              className="w-full sm:w-auto"
+              size="lg"
             >
               {selectDecisionsMutation.isPending ? (
                 <>
@@ -313,7 +315,7 @@ export default function DecisionPage() {
                             )}
                           </div>
 
-                          <div className="grid grid-cols-2 gap-4 pt-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-2">
                             {option.pros && option.pros.length > 0 && (
                               <div>
                                 <p className="text-xs font-medium text-green-600 dark:text-green-400 mb-1">Pros:</p>
@@ -351,6 +353,7 @@ export default function DecisionPage() {
             onClick={handleProceed}
             disabled={!allSelected || selectDecisionsMutation.isPending}
             data-testid="button-convert-epm-bottom"
+            className="w-full sm:w-auto"
           >
             {selectDecisionsMutation.isPending ? (
               <>

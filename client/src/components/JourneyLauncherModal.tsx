@@ -409,7 +409,12 @@ export default function JourneyLauncherModal({
         {selectedJourney && !isLoadingData && (
           <div className="border-t bg-background px-4 sm:px-6 py-4">
             <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
-              <Button variant="outline" onClick={() => onOpenChange(false)} data-testid="button-cancel">
+              <Button 
+                variant="outline" 
+                onClick={() => onOpenChange(false)} 
+                data-testid="button-cancel"
+                className="w-full sm:w-auto"
+              >
                 Cancel
               </Button>
               
@@ -419,6 +424,8 @@ export default function JourneyLauncherModal({
                   onClick={() => runNowMutation.mutate()} 
                   disabled={runNowMutation.isPending}
                   data-testid="button-run-now"
+                  size="lg"
+                  className="w-full sm:w-auto"
                 >
                   {runNowMutation.isPending ? (
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
