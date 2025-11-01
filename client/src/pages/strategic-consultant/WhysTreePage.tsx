@@ -286,22 +286,32 @@ export default function WhysTreePage() {
 
   // Intersection Observer for mobile scroll-snap
   useEffect(() => {
-    if (typeof window === 'undefined' || window.innerWidth >= 640) return; // Only on mobile
+    if (typeof window === 'undefined' || window.innerWidth >= 640) {
+      console.log('[Intersection Observer] Skipping - desktop viewport');
+      return; // Only on mobile
+    }
     
     const container = scrollContainerRef.current;
-    if (!container) return;
+    if (!container) {
+      console.log('[Intersection Observer] Container ref not ready');
+      return;
+    }
 
-    // Wait for refs to be populated before setting up observer
-    const elements = Array.from(optionRefs.current.values());
-    if (elements.length === 0) return;
+    console.log('[Intersection Observer] Setting up observer...');
 
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
+          console.log('OBSERVER FIRED:', {
+            isIntersecting: entry.isIntersecting,
+            ratio: entry.intersectionRatio,
+            optionId: entry.target.getAttribute('data-option-id')
+          });
+          
           if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
             const optionId = entry.target.getAttribute('data-option-id');
+            console.log('SETTING CENTERED OPTION:', optionId);
             if (optionId) {
-              console.log('[Intersection Observer] Centered option:', optionId);
               setCenteredOptionId(optionId);
             }
           }
@@ -314,12 +324,23 @@ export default function WhysTreePage() {
       }
     );
 
-    // Observe all elements
-    elements.forEach((element) => {
-      if (element) observer.observe(element);
-    });
+    // Wait for refs to be populated before observing
+    setTimeout(() => {
+      const elements = Array.from(optionRefs.current.values());
+      console.log('[Intersection Observer] Found', elements.length, 'elements to observe');
+      
+      elements.forEach((element) => {
+        if (element) {
+          console.log('OBSERVING ELEMENT:', element.getAttribute('data-option-id'));
+          observer.observe(element);
+        }
+      });
+    }, 100);
 
-    return () => observer.disconnect();
+    return () => {
+      console.log('[Intersection Observer] Cleanup - disconnecting');
+      observer.disconnect();
+    };
   }, [tree, selectedPath, currentLevel]); // Re-run when navigation state changes
 
   useEffect(() => {
@@ -417,6 +438,16 @@ export default function WhysTreePage() {
 
   const currentOptions = getCurrentOptions();
   const selectedOption = currentOptions.find(o => o.id === selectedOptionId);
+
+  // Set initial centered option for mobile scroll-snap
+  useEffect(() => {
+    if (typeof window === 'undefined' || window.innerWidth >= 640) return; // Only on mobile
+    
+    if (currentOptions.length > 0 && !centeredOptionId) {
+      console.log('[Initial Center] Setting first option as centered:', currentOptions[0].id);
+      setCenteredOptionId(currentOptions[0].id);
+    }
+  }, [currentOptions.length, centeredOptionId]);
 
   const handleSelectAndContinue = async () => {
     if (!selectedOption || !tree) return;
@@ -889,34 +920,50 @@ export default function WhysTreePage() {
       subtitle="Discover root causes through strategic questioning"
     >
       <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6 p-4 sm:p-0">
-        {/* Part 1: New Collapsible Breadcrumb */}
-        <Collapsible open={isBreadcrumbExpanded} onOpenChange={setIsBreadcrumbExpanded}>
+        {/* Part 1: Breadcrumb - Simple at Level 1, Collapsible at Level 2+ */}
+        {currentLevel === 1 ? (
+          /* Level 1: Just show current question, no collapse */
           <Card className="bg-muted/30" data-testid="breadcrumb-card">
             <CardContent className="p-4">
-              <CollapsibleTrigger asChild>
-                <button 
-                  className="flex items-center justify-between w-full text-left group"
-                  data-testid="breadcrumb-toggle"
-                >
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Your Path So Far...
-                  </span>
-                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isBreadcrumbExpanded ? 'rotate-180' : ''}`} />
-                </button>
-              </CollapsibleTrigger>
+              <div className="flex items-start gap-2" data-testid="breadcrumb-level-1">
+                <Badge variant="outline" className="shrink-0 mt-1">
+                  1st
+                </Badge>
+                <p className="text-lg font-bold text-primary">
+                  {getCurrentQuestion()}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          /* Level 2+: Show collapsible breadcrumb */
+          <Collapsible open={isBreadcrumbExpanded} onOpenChange={setIsBreadcrumbExpanded}>
+            <Card className="bg-muted/30" data-testid="breadcrumb-card">
+              <CardContent className="p-4">
+                <CollapsibleTrigger asChild>
+                  <button 
+                    className="flex items-center justify-between w-full text-left group"
+                    data-testid="breadcrumb-toggle"
+                  >
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Your Path So Far...
+                    </span>
+                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isBreadcrumbExpanded ? 'rotate-180' : ''}`} />
+                  </button>
+                </CollapsibleTrigger>
 
-              <div className="mt-3 space-y-2">
-                {/* When collapsed - show only current question */}
-                {!isBreadcrumbExpanded && (
-                  <div className="flex items-start gap-2" data-testid="breadcrumb-current-collapsed">
-                    <Badge variant="outline" className="shrink-0 mt-1">
-                      {getOrdinalLabel(currentLevel)}
-                    </Badge>
-                    <p className="text-lg font-bold text-primary">
-                      {getCurrentQuestion()}
-                    </p>
-                  </div>
-                )}
+                <div className="mt-3 space-y-2">
+                  {/* When collapsed - show only current question */}
+                  {!isBreadcrumbExpanded && (
+                    <div className="flex items-start gap-2" data-testid="breadcrumb-current-collapsed">
+                      <Badge variant="outline" className="shrink-0 mt-1">
+                        {getOrdinalLabel(currentLevel)}
+                      </Badge>
+                      <p className="text-lg font-bold text-primary">
+                        {getCurrentQuestion()}
+                      </p>
+                    </div>
+                  )}
 
                 {/* When expanded - show full path */}
                 <CollapsibleContent className="space-y-3">
@@ -991,11 +1038,12 @@ export default function WhysTreePage() {
                       </p>
                     </div>
                   )}
-                </CollapsibleContent>
-              </div>
-            </CardContent>
-          </Card>
-        </Collapsible>
+                  </CollapsibleContent>
+                </div>
+              </CardContent>
+            </Card>
+          </Collapsible>
+        )}
 
         {/* Loading state for branch expansion */}
         {expandBranchMutation.isPending ? (
