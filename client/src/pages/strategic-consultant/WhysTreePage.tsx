@@ -950,13 +950,15 @@ export default function WhysTreePage() {
                 </CollapsibleTrigger>
 
                 <div className="mt-3 space-y-2">
-                  {/* When collapsed - show only current question */}
+                  {/* When collapsed - show only current question with faded number background */}
                   {!isBreadcrumbExpanded && (
-                    <div className="flex items-start gap-2" data-testid="breadcrumb-current-collapsed">
-                      <Badge variant="outline" className="shrink-0 mt-1">
-                        {getOrdinalLabel(currentLevel)}
-                      </Badge>
-                      <p className="text-lg font-bold text-primary">
+                    <div className="relative py-2" data-testid="breadcrumb-current-collapsed">
+                      {/* Large faded background number */}
+                      <div className="absolute inset-0 flex items-center justify-start opacity-5 pointer-events-none overflow-hidden">
+                        <span className="text-[120px] sm:text-[140px] font-black leading-none">{currentLevel}</span>
+                      </div>
+                      {/* Question text */}
+                      <p className="relative text-base sm:text-lg font-bold text-primary">
                         {getCurrentQuestion()}
                       </p>
                     </div>
