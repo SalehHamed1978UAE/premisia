@@ -530,8 +530,8 @@ router.post('/journeys/execute', async (req: Request, res: Response) => {
       userId
     );
 
-    // Return the first page in the journey sequence for client-side navigation
-    const firstPage = (journey as any).pageSequence?.[0] || '/strategic-consultant/whys-tree/:understandingId';
+    // Return the first actual journey page (skip input page at index 0)
+    const firstPage = (journey as any).pageSequence?.[1] || '/strategic-consultant/whys-tree/:understandingId';
     const navigationUrl = firstPage.replace(':understandingId', understandingId).replace(':sessionId', understanding.sessionId);
 
     res.json({
