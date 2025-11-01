@@ -971,8 +971,8 @@ export default function WhysTreePage() {
                     </div>
                   </div>
 
-                  {/* Previous whys */}
-                  {selectedPath.map((pathItem, idx) => {
+                  {/* Previous whys (exclude current level) */}
+                  {selectedPath.slice(0, -1).map((pathItem, idx) => {
                     // Get the question for this level by navigating to the node's branches
                     let questionText = `Why ${pathItem.option}?`;
                     if (tree) {
@@ -999,31 +999,17 @@ export default function WhysTreePage() {
                           {getOrdinalLabel(idx + 2)}
                         </Badge>
                         <div className="flex-1">
-                          <p className={idx === selectedPath.length - 1 && currentLevel === pathItem.depth ? "text-lg font-bold text-primary" : "text-sm text-muted-foreground"}>
+                          <p className="text-sm text-muted-foreground">
                             {questionText}
                           </p>
-                          {idx < selectedPath.length - 1 && (
-                            <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                              <ArrowRight className="h-3 w-3" />
-                              <span>{selectedPath[idx + 1].option}</span>
-                            </div>
-                          )}
+                          <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                            <ArrowRight className="h-3 w-3" />
+                            <span>{selectedPath[idx + 1].option}</span>
+                          </div>
                         </div>
                       </div>
                     );
                   })}
-
-                  {/* Current question if different from last path item */}
-                  {currentLevel > selectedPath.length && (
-                    <div className="flex items-start gap-2" data-testid="breadcrumb-current">
-                      <Badge variant="outline" className="shrink-0 mt-1">
-                        {getOrdinalLabel(currentLevel)}
-                      </Badge>
-                      <p className="text-lg font-bold text-primary">
-                        {getCurrentQuestion()}
-                      </p>
-                    </div>
-                  )}
                   </CollapsibleContent>
                 </div>
               </CardContent>
