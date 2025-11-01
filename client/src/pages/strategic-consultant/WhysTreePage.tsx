@@ -740,7 +740,7 @@ export default function WhysTreePage() {
 
   if (!understandingId) {
     return (
-      <AppLayout title="Five Whys Analysis" subtitle="Error" onViewChange={() => {}}>
+      <AppLayout title="Five Whys Analysis" subtitle="Error">
         <div className="flex items-center justify-center p-8">
           <Alert variant="destructive" className="max-w-md">
             <AlertDescription>No understanding ID provided</AlertDescription>
@@ -752,7 +752,7 @@ export default function WhysTreePage() {
 
   if (isLoadingUnderstanding || generateTreeMutation.isPending) {
     return (
-      <AppLayout title="Five Whys Analysis" subtitle="Generating analysis..." onViewChange={() => {}}>
+      <AppLayout title="Five Whys Analysis" subtitle="Generating analysis...">
         <div className="flex items-center justify-center">
           <div className="text-center space-y-4">
             <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
@@ -778,7 +778,7 @@ export default function WhysTreePage() {
 
   if (!tree) {
     return (
-      <AppLayout title="Five Whys Analysis" subtitle="Error loading" onViewChange={() => {}}>
+      <AppLayout title="Five Whys Analysis" subtitle="Error loading">
         <div className="flex items-center justify-center p-8">
           <Alert variant="destructive" className="max-w-md">
             <AlertDescription>Failed to load decision tree</AlertDescription>

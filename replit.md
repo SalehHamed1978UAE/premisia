@@ -15,6 +15,15 @@ Preferred communication style: Simple, everyday language.
 ## UI/UX Decisions
 The frontend utilizes React, TypeScript, and Vite, enhanced with Shadcn/ui (Radix UI and Tailwind CSS) to deliver a themeable "New York" style UI. It offers a single-page application experience, ensuring mobile responsiveness, skeleton loading, and toast notifications. A mobile-first responsive design strategy is implemented with a breakpoint system, adaptive layout patterns (headers, grids, buttons), responsive typography, and careful spacing adjustments.
 
+**Five Whys Interactive UX Pattern:**
+The Five Whys page uses a grid-based selection pattern instead of a carousel:
+- **Layout**: All 4 answer options displayed simultaneously (mobile: vertical stack, desktop: 2×2 grid)
+- **Selection Flow**: Click option → card highlights → evidence/counter-arguments appear below
+- **Navigation**: Single "Continue to Next Why" button at bottom, disabled until selection made
+- **State Management**: `selectedOptionId` tracks current selection, `selectedPath` persists navigation history
+- **Mobile-First**: 44px+ touch targets, w-full buttons on mobile, responsive grid on desktop
+- **Benefits**: Users can compare all options before choosing, reducing cognitive load and navigation friction
+
 ## Technical Implementations
 - **Frontend**: React, TypeScript, Vite, TanStack Query, Wouter.
 - **Backend**: Node.js with Express.js (ES modules), Passport.js for session-based authentication, Express sessions, and a RESTful API with role-based middleware.
