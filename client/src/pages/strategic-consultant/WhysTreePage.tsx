@@ -8,6 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1194,24 +1195,35 @@ export default function WhysTreePage() {
                         setSelectedOptionId(centeredOptionId);
                         setIsAnswerSelected(true);
                       } else {
-                        // Second click: continue to next level
-                        handleSelectAndContinue();
+                        // Second click: finalize if at max depth, otherwise continue
+                        if (currentLevel >= 5) {
+                          handleFinalize();
+                        } else {
+                          handleSelectAndContinue();
+                        }
                       }
                     }}
-                    disabled={!centeredOptionId || isProcessingAction || expandBranchMutation.isPending}
+                    disabled={!centeredOptionId || isProcessingAction || expandBranchMutation.isPending || finalizeMutation.isPending || validateRootCauseMutation.isPending}
                     className="min-h-[36px] px-6 shadow-lg"
                     data-testid="button-select-answer"
                   >
-                    {(isProcessingAction || expandBranchMutation.isPending) ? (
+                    {(isProcessingAction || expandBranchMutation.isPending || finalizeMutation.isPending || validateRootCauseMutation.isPending) ? (
                       <>
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Loading...
+                        {finalizeMutation.isPending || validateRootCauseMutation.isPending ? 'Finalizing...' : 'Loading...'}
                       </>
                     ) : isAnswerSelected ? (
-                      <>
-                        <ArrowRight className="h-4 w-4 mr-2" />
-                        Continue
-                      </>
+                      currentLevel >= 5 ? (
+                        <>
+                          <CheckCircle2 className="h-4 w-4 mr-2" />
+                          This is my root cause
+                        </>
+                      ) : (
+                        <>
+                          <ArrowRight className="h-4 w-4 mr-2" />
+                          Continue
+                        </>
+                      )
                     ) : (
                       'Select This Answer'
                     )}
@@ -1482,6 +1494,43 @@ export default function WhysTreePage() {
           onOverride={handleOverride}
         />
       )}
+
+      {/* Mobile Edit Dialog */}
+      <Dialog open={isEditingWhy} onOpenChange={setIsEditingWhy}>
+        <DialogContent className="sm:max-w-[425px]" data-testid="dialog-edit-why">
+          <DialogHeader>
+            <DialogTitle>Edit this Why</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Textarea
+              value={editedWhyText}
+              onChange={(e) => setEditedWhyText(e.target.value)}
+              placeholder="Edit your Why statement..."
+              rows={4}
+              data-testid="textarea-edit-why-mobile"
+            />
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={handleCancelEdit}
+              className="w-full sm:w-auto"
+              data-testid="button-cancel-edit-mobile"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleEditWhy}
+              disabled={!editedWhyText.trim()}
+              className="w-full sm:w-auto"
+              data-testid="button-save-edit-mobile"
+            >
+              <CheckCircle2 className="h-4 w-4 mr-2" />
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Mobile Bottom Sheet for detailed content */}
       <Sheet open={!!sheetContent} onOpenChange={(open) => !open && setSheetContent(null)}>
