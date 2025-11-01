@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, ChevronLeft, ChevronRight, ArrowRight, CheckCircle2, Edit, Plus, ChevronDown, Lightbulb, AlertTriangle } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, ArrowRight, CheckCircle2, Edit, Plus, ChevronDown, Lightbulb, AlertTriangle, Pencil } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -905,22 +905,20 @@ export default function WhysTreePage() {
       title="Five Whys Analysis"
       subtitle="Discover root causes through strategic questioning"
     >
-      <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6 p-4 sm:p-0">
+      <div className="max-w-4xl mx-auto space-y-2 sm:space-y-6 p-2 sm:p-0">
         {/* Part 1: Breadcrumb - Simple at Level 1, Collapsible at Level 2+ */}
         {currentLevel === 1 ? (
-          /* Level 1: Just show current question, no collapse */
-          <Card className="bg-muted/30" data-testid="breadcrumb-card">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-2" data-testid="breadcrumb-level-1">
-                <Badge variant="outline" className="shrink-0 mt-1">
-                  1st
-                </Badge>
-                <p className="text-lg font-bold text-primary">
-                  {getCurrentQuestion()}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          /* Level 1: Large faded number background */
+          <div className="relative py-2 px-3 sm:py-4 sm:px-0" data-testid="breadcrumb-level-1">
+            {/* Large faded background number */}
+            <div className="absolute inset-0 flex items-center justify-start opacity-5 pointer-events-none overflow-hidden">
+              <span className="text-[120px] sm:text-[140px] font-black leading-none">1</span>
+            </div>
+            {/* Question text */}
+            <p className="relative text-base sm:text-lg font-bold text-primary">
+              {getCurrentQuestion()}
+            </p>
+          </div>
         ) : (
           /* Level 2+: Show collapsible breadcrumb */
           <Collapsible open={isBreadcrumbExpanded} onOpenChange={setIsBreadcrumbExpanded}>
@@ -1036,20 +1034,20 @@ export default function WhysTreePage() {
             {/* Mobile: Carousel Wheel Picker (<640px) */}
             <div className="sm:hidden relative">
               {/* Fixed viewport window with fade masks */}
-              <div className="relative h-[320px] overflow-hidden border border-border rounded-lg bg-background/50">
+              <div className="relative h-[280px] overflow-hidden border-2 border-primary/30 rounded-lg bg-background/50">
                 {/* Top fade mask */}
-                <div className="absolute top-0 left-0 right-0 h-12 bg-gradient-to-b from-background to-transparent z-10 pointer-events-none" />
+                <div className="absolute top-0 left-0 right-0 h-10 bg-gradient-to-b from-background to-transparent z-10 pointer-events-none" />
                 
                 {/* Bottom fade mask */}
-                <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-background to-transparent z-10 pointer-events-none" />
+                <div className="absolute bottom-12 left-0 right-0 h-10 bg-gradient-to-t from-background to-transparent z-10 pointer-events-none" />
                 
-                {/* Center highlight indicator */}
-                <div className="absolute top-1/2 left-0 right-0 -translate-y-1/2 h-[140px] border-y-2 border-primary/20 pointer-events-none z-0" />
+                {/* Center highlight window */}
+                <div className="absolute top-1/2 left-0 right-0 -translate-y-1/2 h-[110px] border-y-2 border-primary/40 pointer-events-none z-0 bg-primary/5" />
 
                 {/* Scrollable content */}
                 <div
                   ref={scrollContainerRef}
-                  className="h-full overflow-y-auto px-4 py-[140px]"
+                  className="h-[calc(100%-48px)] overflow-y-auto px-3 py-[100px]"
                   style={{
                     scrollSnapType: 'y mandatory',
                   }}
@@ -1069,14 +1067,14 @@ export default function WhysTreePage() {
                         data-option-id={option.id}
                         style={{
                           scrollSnapAlign: 'center',
-                          transform: isCentered ? 'scale(1.1)' : 'scale(1)',
-                          opacity: isCentered ? 1 : 0.6,
+                          transform: isCentered ? 'scale(1.05)' : 'scale(1)',
+                          opacity: isCentered ? 1 : 0.5,
                           transition: 'transform 250ms ease, opacity 250ms ease',
                         }}
-                        className="mb-4 last:mb-0"
+                        className="mb-3 last:mb-0"
                       >
                         <Card
-                          className={`cursor-pointer transition-all min-h-[44px] ${
+                          className={`cursor-pointer transition-all relative ${
                             isSelected
                               ? 'border-primary bg-primary/10 shadow-lg'
                               : isCentered
@@ -1084,7 +1082,6 @@ export default function WhysTreePage() {
                               : 'border-border'
                           }`}
                           onClick={() => {
-                            setSelectedOptionId(option.id);
                             // Scroll clicked option to center
                             const element = optionRefs.current.get(option.id);
                             if (element) {
@@ -1096,56 +1093,65 @@ export default function WhysTreePage() {
                           }}
                           data-testid={`option-card-mobile-${option.id}`}
                         >
-                          <CardContent className="p-3">
-                            <p className="font-medium text-base">{option.option}</p>
+                          <CardContent className="p-2.5 relative">
+                            {/* Pencil icon for editing */}
+                            <button
+                              className="absolute top-2 right-2 p-1 rounded hover:bg-muted transition-colors opacity-60 hover:opacity-100"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedOptionId(option.id);
+                                setEditedWhyText(option.option);
+                                setIsEditingWhy(true);
+                              }}
+                              data-testid="button-edit-option"
+                              title="Edit this option"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            
+                            <p className="font-medium text-sm pr-6">{option.option}</p>
 
                             {/* Icon Action Bar - Only show on centered option */}
                             {isCentered && (
-                              <div className="flex items-center gap-2 mt-3" data-testid="icon-action-bar">
+                              <div className="flex items-center justify-center gap-3 mt-2.5" data-testid="icon-action-bar">
                                 {option.consideration && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="flex-1 min-h-[44px]"
+                                  <button
+                                    className="p-2 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors animate-wiggle"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleIconClick('consider', option);
                                     }}
                                     data-testid="button-consider"
+                                    title="View considerations"
                                   >
-                                    <Lightbulb className="h-4 w-4 mr-2" />
-                                    Consider
-                                  </Button>
+                                    <Lightbulb className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                  </button>
                                 )}
                                 {option.supporting_evidence?.length > 0 && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="flex-1 min-h-[44px]"
+                                  <button
+                                    className="p-2 rounded-full hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors animate-wiggle"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleIconClick('evidence', option);
                                     }}
                                     data-testid="button-evidence"
+                                    title="View supporting evidence"
                                   >
-                                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                                    Evidence
-                                  </Button>
+                                    <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+                                  </button>
                                 )}
                                 {option.counter_arguments?.length > 0 && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="flex-1 min-h-[44px]"
+                                  <button
+                                    className="p-2 rounded-full hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors animate-wiggle"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleIconClick('counter', option);
                                     }}
                                     data-testid="button-counter"
+                                    title="View counter-arguments"
                                   >
-                                    <AlertTriangle className="h-4 w-4 mr-2" />
-                                    Counter
-                                  </Button>
+                                    <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                                  </button>
                                 )}
                               </div>
                             )}
@@ -1154,6 +1160,22 @@ export default function WhysTreePage() {
                       </div>
                     );
                   })}
+                </div>
+                
+                {/* Select button integrated into frame */}
+                <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-primary/20 to-transparent z-20 flex items-end justify-center pb-2">
+                  <Button
+                    onClick={() => {
+                      if (centeredOptionId) {
+                        setSelectedOptionId(centeredOptionId);
+                      }
+                    }}
+                    disabled={!centeredOptionId}
+                    className="min-h-[36px] px-6 shadow-lg"
+                    data-testid="button-select-answer"
+                  >
+                    Select This Answer
+                  </Button>
                 </div>
               </div>
             </div>
