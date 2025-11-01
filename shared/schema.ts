@@ -1701,6 +1701,28 @@ export const backgroundJobs = pgTable("background_jobs", {
   relatedEntityIdx: index("idx_background_jobs_related_entity").on(table.relatedEntityId, table.relatedEntityType),
 }));
 
+// Research Batches table - Raw research capture for durability and audit
+export const researchBatches = pgTable("research_batches", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  sessionId: varchar("session_id").notNull(),
+  understandingId: varchar("understanding_id"),
+  journeyType: journeyTypeEnum("journey_type"),
+  requestedAt: timestamp("requested_at").notNull().defaultNow(),
+  query: text("query").notNull(),
+  rawDataPath: text("raw_data_path").notNull(),
+  status: researchBatchStatusEnum("status").notNull().default('captured'),
+  sourcesCount: integer("sources_count").default(0),
+  dataSizeKb: integer("data_size_kb").default(0),
+  enrichedAt: timestamp("enriched_at"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  sessionIdx: index("idx_research_batches_session").on(table.sessionId),
+  understandingIdx: index("idx_research_batches_understanding").on(table.understandingId),
+  statusIdx: index("idx_research_batches_status").on(table.status),
+  requestedIdx: index("idx_research_batches_requested").on(table.requestedAt),
+}));
+
 // Insert Schemas for Strategy Workspace
 export const insertSwProblemSchema = createInsertSchema(swProblems).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertSwProblem = z.infer<typeof insertSwProblemSchema>;
@@ -1755,3 +1777,7 @@ export type SelectFrameworkRegistry = typeof frameworkRegistry.$inferSelect;
 export const insertBackgroundJobSchema = createInsertSchema(backgroundJobs).omit({ id: true, createdAt: true, updatedAt: true, startedAt: true, completedAt: true, failedAt: true });
 export type InsertBackgroundJob = z.infer<typeof insertBackgroundJobSchema>;
 export type SelectBackgroundJob = typeof backgroundJobs.$inferSelect;
+
+export const insertResearchBatchSchema = createInsertSchema(researchBatches).omit({ id: true, createdAt: true, enrichedAt: true });
+export type InsertResearchBatch = z.infer<typeof insertResearchBatchSchema>;
+export type SelectResearchBatch = typeof researchBatches.$inferSelect;

@@ -2,6 +2,7 @@ import { SourceValidator, type ValidationResult } from './source-validator';
 import { aiClients } from '../ai-clients';
 import { parseAIJson } from '../utils/parse-ai-json';
 import type { RawReference } from '../intelligence/types';
+import { researchCaptureWrapper, type CaptureContext } from '../services/research-capture-wrapper.js';
 
 const API_BASE = process.env.API_BASE_URL || 'http://localhost:5000';
 
@@ -93,15 +94,16 @@ export class MarketResearcher {
     sessionId: string,
     rootCause: string,
     input: string,
-    whysPath: string[]
+    whysPath: string[],
+    captureContext?: CaptureContext
   ): Promise<ResearchFindings> {
     const queries = await this.generateResearchQueries(rootCause, input, whysPath);
     
-    const searchResults = await this.performWebSearch(queries);
+    const searchResults = await this.performWebSearch(queries, captureContext);
     
     const topSources = this.selectTopSources(searchResults);
     
-    const sourceContents = await this.fetchSourceContent(topSources.slice(0, 3));
+    const sourceContents = await this.fetchSourceContent(topSources.slice(0, 3), captureContext);
     
     const findings = await this.synthesizeFindings(
       rootCause,
@@ -267,9 +269,9 @@ Example for "Arabic language differentiates our enterprise software in UAE":
     }
   }
 
-  private async performWebSearch(queries: ResearchQuery[]): Promise<any[]> {
+  private async performWebSearch(queries: ResearchQuery[], captureContext?: CaptureContext): Promise<any[]> {
     const searchPromises = queries.map(async (queryObj) => {
-      try {
+      const searchFn = async () => {
         const response = await fetch(`${API_BASE}/api/web-search`, {
           method: 'POST',
           headers: {
@@ -280,33 +282,60 @@ Example for "Arabic language differentiates our enterprise software in UAE":
 
         if (!response.ok) {
           console.error(`Search failed for query "${queryObj.query}": ${response.status}`);
-          return { query: queryObj.query, organic: [] };
+          return { organic: [] };
         }
 
-        const data = await response.json();
-        
-        const results = (data.organic || []).map((result: any) => ({
-          url: result.link,
-          title: result.title,
-          snippet: result.snippet || '',
-          relevance: result.position ? 1 / result.position : 0.5,
-        }));
+        return await response.json();
+      };
 
-        return { query: queryObj.query, results };
-      } catch (error) {
-        console.error(`Error searching for "${queryObj.query}":`, error);
-        return { query: queryObj.query, results: [] };
+      // If capture context is provided, wrap with raw capture
+      if (captureContext) {
+        try {
+          const { result: data } = await researchCaptureWrapper.captureWebSearch(
+            queryObj.query,
+            captureContext,
+            searchFn
+          );
+
+          const results = (data.organic || []).map((result: any) => ({
+            url: result.link,
+            title: result.title,
+            snippet: result.snippet || '',
+            relevance: result.position ? 1 / result.position : 0.5,
+          }));
+
+          return { query: queryObj.query, results };
+        } catch (error) {
+          console.error(`Error searching for "${queryObj.query}":`, error);
+          return { query: queryObj.query, results: [] };
+        }
+      } else {
+        // Fallback to direct search without capture
+        try {
+          const data = await searchFn();
+          const results = (data.organic || []).map((result: any) => ({
+            url: result.link,
+            title: result.title,
+            snippet: result.snippet || '',
+            relevance: result.position ? 1 / result.position : 0.5,
+          }));
+
+          return { query: queryObj.query, results };
+        } catch (error) {
+          console.error(`Error searching for "${queryObj.query}":`, error);
+          return { query: queryObj.query, results: [] };
+        }
       }
     });
 
     return Promise.all(searchPromises);
   }
 
-  private async fetchSourceContent(sources: Source[]): Promise<Map<string, string>> {
+  private async fetchSourceContent(sources: Source[], captureContext?: CaptureContext): Promise<Map<string, string>> {
     const contentMap = new Map<string, string>();
     
     const fetchPromises = sources.map(async (source) => {
-      try {
+      const fetchFn = async () => {
         const response = await fetch(`${API_BASE}/api/web-fetch`, {
           method: 'POST',
           headers: {
@@ -317,16 +346,32 @@ Example for "Arabic language differentiates our enterprise software in UAE":
 
         if (!response.ok) {
           console.error(`Failed to fetch ${source.url}: ${response.status}`);
-          return;
+          return { content: '' };
         }
 
-        const data = await response.json();
+        return await response.json();
+      };
+
+      try {
+        let data;
+        
+        // If capture context is provided, wrap with raw capture
+        if (captureContext) {
+          const captured = await researchCaptureWrapper.captureContentFetch(
+            source.url,
+            captureContext,
+            fetchFn
+          );
+          data = captured.result;
+        } else {
+          data = await fetchFn();
+        }
         
         if (data.metadata?.publicationDate) {
           source.publication_date = data.metadata.publicationDate;
         }
         
-        const textContent = data.content
+        const textContent = (data.content || '')
           .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
           .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
           .replace(/<[^>]+>/g, ' ')
