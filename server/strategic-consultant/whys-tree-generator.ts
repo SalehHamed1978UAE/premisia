@@ -173,6 +173,20 @@ Counter-arguments (2-3 points): What might poke holes in this explanation? Are t
 
 Something to consider (1 sentence): A neutral observation that helps them compare this option to the others. Start with "Consider: [something insightful]"
 
+**CRITICAL: The next_question field**
+This is where you create the follow-up question IF they choose this option. The next question MUST directly interrogate THIS SPECIFIC OPTION - not jump to a different topic.
+
+Examples of CORRECT next questions:
+- If option is "Traditional cafes have lower operational complexity" → "Why do traditional cafes have lower operational complexity?"
+- If option is "The market is growing 40% yearly" → "Why is the market growing 40% yearly?"
+- If option is "Customers prefer premium experiences" → "Why do customers prefer premium experiences?"
+
+Examples of WRONG next questions (these jump to unrelated topics):
+- If option is "Traditional cafes have lower operational complexity" → "What specific aspects of Dubai's tourist traffic patterns..." ✗ (completely different topic!)
+- If option is "The market is growing" → "How does competition affect pricing?" ✗ (didn't ask WHY it's growing)
+
+The next question must always be: "Why [this exact option statement]?" - Keep the logical thread tight!
+
 Remember - we're not at the final answer yet. We're just helping them figure out which path feels most accurate so they can keep digging.
 
 Return ONLY valid JSON (no markdown, no extra text):
@@ -181,7 +195,7 @@ Return ONLY valid JSON (no markdown, no extra text):
   "branches": [
     {
       "option": "Clear explanation in everyday language",
-      "next_question": "The next why question if they pick this",
+      "next_question": "Why [directly ask about THIS option - must interrogate this specific claim]?",
       "supporting_evidence": [
         "Specific, concrete reason this makes sense",
         "Another solid piece of evidence",
