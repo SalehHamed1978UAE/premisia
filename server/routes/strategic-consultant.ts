@@ -2323,8 +2323,8 @@ router.post('/journeys/run-now', async (req: Request, res: Response) => {
       userId
     );
 
-    // Get the first page of the journey to redirect to
-    const firstPageUrl = journey.pageSequence?.[0]?.replace(':understandingId', understandingId).replace(':sessionId', journeySessionId);
+    // Get the first page of the journey to redirect to (skip input page at index 0)
+    const firstPageUrl = journey.pageSequence?.[1]?.replace(':understandingId', understandingId).replace(':sessionId', journeySessionId);
 
     console.log(`[Run Now] Journey session ${journeySessionId} created (v${versionNumber}), redirecting to wizard`);
 
@@ -2334,7 +2334,7 @@ router.post('/journeys/run-now', async (req: Request, res: Response) => {
       versionNumber, // Version number for this journey session
       understandingId,
       message: `Journey "${journeyType}" started${existingSessions.length > 0 ? ' using strategic summary from previous analysis' : ''}`,
-      navigationUrl: firstPageUrl || `/strategic-consultant/analysis/${journeySessionId}`,
+      navigationUrl: firstPageUrl || `/strategic-consultant/whys-tree/${journeySessionId}`,
     });
   } catch (error: any) {
     console.error('Error in /journeys/run-now:', error);
