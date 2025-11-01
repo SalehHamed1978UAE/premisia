@@ -565,8 +565,8 @@ export default function PrioritizationPage() {
         {completedJobResult ? (
           <Card className="border-2 border-green-500">
             <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <CheckCircle className="h-5 w-5 text-green-500" />
                     <h3 className="font-semibold">EPM Program Generated</h3>
@@ -579,6 +579,7 @@ export default function PrioritizationPage() {
                 <Button
                   size="lg"
                   onClick={handleViewProgram}
+                  className="w-full sm:w-auto"
                   data-testid="button-view-epm"
                 >
                   View EPM Program
@@ -589,8 +590,8 @@ export default function PrioritizationPage() {
         ) : (
           <Card className="border-2 border-primary">
             <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex-1">
                   <h3 className="font-semibold mb-1">Ready to Generate Your EPM Program?</h3>
                   <p className="text-sm text-muted-foreground">
                     Your strategic initiatives will be converted into a complete EPM program with workstreams 
@@ -601,6 +602,7 @@ export default function PrioritizationPage() {
                   size="lg"
                   onClick={() => generateEPMMutation.mutate()}
                   disabled={generateEPMMutation.isPending || prioritizedItems.length === 0}
+                  className="w-full sm:w-auto"
                   data-testid="button-generate-epm"
                 >
                   {generateEPMMutation.isPending ? (
