@@ -243,6 +243,43 @@ export default function WhysTreePage() {
     return labels[level - 1] || `${level}th`;
   };
 
+  const getCurrentQuestion = (): string => {
+    if (!tree) return '';
+    
+    // Level 1: root question
+    if (currentLevel === 1) {
+      return tree.rootQuestion;
+    }
+    
+    // For deeper levels: the question is in the last selected node's branches
+    // When we select an option and continue, that option's branches contain the NEXT question
+    if (selectedPath.length > 0) {
+      // Navigate to the last selected node
+      let currentNodes = tree.branches;
+      for (let i = 0; i < selectedPath.length; i++) {
+        const selectedNode = currentNodes.find(n => n.id === selectedPath[i].nodeId);
+        if (!selectedNode) return `Why ${selectedPath[i].option}?`;
+        
+        // If this is the last item in path and it has branches, get question from first branch
+        if (i === selectedPath.length - 1 && selectedNode.branches && selectedNode.branches.length > 0) {
+          return selectedNode.branches[0].question;
+        }
+        
+        // Otherwise continue navigating
+        if (selectedNode.branches) {
+          currentNodes = selectedNode.branches;
+        }
+      }
+    }
+    
+    // Fallback: construct question from last selected option
+    if (selectedPath.length > 0) {
+      return `Why ${selectedPath[selectedPath.length - 1].option}?`;
+    }
+    
+    return '';
+  };
+
   const handleIconClick = (type: 'consider' | 'evidence' | 'counter', option: WhyNode) => {
     setSheetContent({ type, option });
   };
@@ -254,12 +291,17 @@ export default function WhysTreePage() {
     const container = scrollContainerRef.current;
     if (!container) return;
 
+    // Wait for refs to be populated before setting up observer
+    const elements = Array.from(optionRefs.current.values());
+    if (elements.length === 0) return;
+
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
             const optionId = entry.target.getAttribute('data-option-id');
             if (optionId) {
+              console.log('[Intersection Observer] Centered option:', optionId);
               setCenteredOptionId(optionId);
             }
           }
@@ -272,12 +314,13 @@ export default function WhysTreePage() {
       }
     );
 
-    optionRefs.current.forEach((element) => {
+    // Observe all elements
+    elements.forEach((element) => {
       if (element) observer.observe(element);
     });
 
     return () => observer.disconnect();
-  }, [tree, selectedPath, currentLevel]); // Use tree and path instead of currentOptions
+  }, [tree, selectedPath, currentLevel]); // Re-run when navigation state changes
 
   useEffect(() => {
     const fetchUnderstanding = async () => {
@@ -870,7 +913,7 @@ export default function WhysTreePage() {
                       {getOrdinalLabel(currentLevel)}
                     </Badge>
                     <p className="text-lg font-bold text-primary">
-                      {currentLevel === 1 ? tree.rootQuestion : currentOptions[0]?.question || `Level ${currentLevel} Question`}
+                      {getCurrentQuestion()}
                     </p>
                   </div>
                 )}
@@ -896,24 +939,46 @@ export default function WhysTreePage() {
                   </div>
 
                   {/* Previous whys */}
-                  {selectedPath.map((pathItem, idx) => (
-                    <div key={idx} className="flex items-start gap-2" data-testid={`breadcrumb-item-${idx}`}>
-                      <Badge variant="outline" className="shrink-0 mt-1">
-                        {getOrdinalLabel(pathItem.depth)}
-                      </Badge>
-                      <div className="flex-1">
-                        <p className={idx === selectedPath.length - 1 && currentLevel === pathItem.depth ? "text-lg font-bold text-primary" : "text-sm text-muted-foreground"}>
-                          {currentOptions.find(o => o.id === pathItem.nodeId)?.question || `Why ${pathItem.option}?`}
-                        </p>
-                        {idx < selectedPath.length - 1 && (
-                          <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                            <ArrowRight className="h-3 w-3" />
-                            <span>{selectedPath[idx + 1].option}</span>
-                          </div>
-                        )}
+                  {selectedPath.map((pathItem, idx) => {
+                    // Get the question for this level by navigating to the node's branches
+                    let questionText = `Why ${pathItem.option}?`;
+                    if (tree) {
+                      let currentNodes = tree.branches;
+                      for (let i = 0; i <= idx; i++) {
+                        const node = currentNodes.find(n => n.id === selectedPath[i].nodeId);
+                        if (!node) break;
+                        
+                        // If this is the target level and has branches, get question from first branch
+                        if (i === idx && node.branches && node.branches.length > 0) {
+                          questionText = node.branches[0].question;
+                          break;
+                        }
+                        
+                        if (node.branches) {
+                          currentNodes = node.branches;
+                        }
+                      }
+                    }
+                    
+                    return (
+                      <div key={idx} className="flex items-start gap-2" data-testid={`breadcrumb-item-${idx}`}>
+                        <Badge variant="outline" className="shrink-0 mt-1">
+                          {getOrdinalLabel(idx + 2)}
+                        </Badge>
+                        <div className="flex-1">
+                          <p className={idx === selectedPath.length - 1 && currentLevel === pathItem.depth ? "text-lg font-bold text-primary" : "text-sm text-muted-foreground"}>
+                            {questionText}
+                          </p>
+                          {idx < selectedPath.length - 1 && (
+                            <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                              <ArrowRight className="h-3 w-3" />
+                              <span>{selectedPath[idx + 1].option}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
 
                   {/* Current question if different from last path item */}
                   {currentLevel > selectedPath.length && (
@@ -922,7 +987,7 @@ export default function WhysTreePage() {
                         {getOrdinalLabel(currentLevel)}
                       </Badge>
                       <p className="text-lg font-bold text-primary">
-                        {currentOptions[0]?.question || `Level ${currentLevel} Question`}
+                        {getCurrentQuestion()}
                       </p>
                     </div>
                   )}
@@ -932,7 +997,7 @@ export default function WhysTreePage() {
           </Card>
         </Collapsible>
 
-        {/* Question Card */}
+        {/* Loading state for branch expansion */}
         {expandBranchMutation.isPending ? (
           <Card className="border-2">
             <CardContent className="py-12">
@@ -947,23 +1012,15 @@ export default function WhysTreePage() {
           </Card>
         ) : currentOptions.length > 0 ? (
           <>
-            {/* Current Question Card */}
-            <Card className="border-2 bg-muted/30" data-testid="question-card">
-              <CardContent className="p-4 sm:p-6">
-                <p className="text-lg sm:text-xl font-semibold text-center" data-testid="current-question">
-                  {currentOptions[0]?.question || `Level ${currentLevel} Question`}
-                </p>
-              </CardContent>
-            </Card>
-
             {/* Part 2: Mobile Scroll-Snap & Desktop Grid */}
             {/* Mobile: Vertical Scroll-Snap (<640px) */}
             <div
               ref={scrollContainerRef}
-              className="sm:hidden flex flex-col gap-4 overflow-y-auto py-8 px-2"
+              className="sm:hidden flex flex-col gap-4 py-8 px-2"
               style={{
                 scrollSnapType: 'y mandatory',
                 height: '60vh',
+                overflowY: 'auto',
               }}
               data-testid="options-mobile-scroll"
             >
