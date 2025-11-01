@@ -2020,11 +2020,11 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
         versionNumber: version?.versionNumber || targetVersionNumber,
         sourcesAnalyzed: findings.sources.length || 9,
         timeElapsed: '~2 minutes',
-        nextUrl: `/strategic-consultant/analysis/${sessionId}`,
+        nextUrl: `/strategy-workspace/decisions/${sessionId}`,
       }
     })}\n\n`);
     res.end();
-    console.log('[BMC-RESEARCH-STREAM] Stream ended successfully, nextUrl: /strategic-consultant/analysis/' + sessionId);
+    console.log('[BMC-RESEARCH-STREAM] Stream ended successfully, nextUrl: /strategy-workspace/decisions/' + sessionId);
   } catch (error: any) {
     console.error('Error in /bmc-research/stream:', error);
     // Ensure error has type field for frontend handling
