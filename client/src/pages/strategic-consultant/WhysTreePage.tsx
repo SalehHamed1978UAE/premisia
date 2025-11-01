@@ -55,7 +55,7 @@ export default function WhysTreePage() {
   const [tree, setTree] = useState<WhyTree | null>(null);
   const [selectedPath, setSelectedPath] = useState<{ nodeId: string; option: string; depth: number }[]>([]);
   const [currentLevel, setCurrentLevel] = useState(1);
-  const [currentOptionIndex, setCurrentOptionIndex] = useState(0);
+  const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [customWhyText, setCustomWhyText] = useState("");
   const [isEditingWhy, setIsEditingWhy] = useState(false);
   const [editedWhyText, setEditedWhyText] = useState("");
@@ -139,7 +139,7 @@ export default function WhysTreePage() {
           branches: updateNodeBranches(tree.branches),
         });
         setCurrentLevel(prev => prev + 1);
-        setCurrentOptionIndex(0);
+        setSelectedOptionId(null);
       }
     },
     onError: (error: any) => {
@@ -321,19 +321,10 @@ export default function WhysTreePage() {
   };
 
   const currentOptions = getCurrentOptions();
-  const currentOption = currentOptions[currentOptionIndex];
-  const totalOptions = currentOptions.length;
-
-  const handlePrevious = () => {
-    setCurrentOptionIndex(prev => Math.max(0, prev - 1));
-  };
-
-  const handleNext = () => {
-    setCurrentOptionIndex(prev => Math.min(totalOptions - 1, prev + 1));
-  };
+  const selectedOption = currentOptions.find(o => o.id === selectedOptionId);
 
   const handleSelectAndContinue = async () => {
-    if (!currentOption || !tree) return;
+    if (!selectedOption || !tree) return;
 
     // Set loading state immediately for instant user feedback
     flushSync(() => {
@@ -342,7 +333,7 @@ export default function WhysTreePage() {
 
     // ONLY validate if this is a CUSTOM user input
     // System-provided Whys are already validated and don't need coaching
-    const isUserCustomInput = currentOption.isCustom === true;
+    const isUserCustomInput = selectedOption.isCustom === true;
 
     if (isUserCustomInput) {
       try {
@@ -350,7 +341,7 @@ export default function WhysTreePage() {
         const previousWhys = selectedPath.map(p => p.option);
         const validation = await validateWhyMutation.mutateAsync({
           level: currentLevel,
-          candidate: currentOption.option,
+          candidate: selectedOption.option,
           previousWhys,
           rootQuestion: tree.rootQuestion,
         });
@@ -391,36 +382,36 @@ export default function WhysTreePage() {
   };
 
   const proceedWithContinue = (overrideOption?: string, overrideIsCustom?: boolean) => {
-    if (!currentOption) return;
+    if (!selectedOption) return;
 
     // Use override values if provided (e.g., from revised answer), otherwise use current option
-    const optionToUse = overrideOption ?? currentOption.option;
-    const isCustomToUse = overrideIsCustom ?? currentOption.isCustom ?? false;
+    const optionToUse = overrideOption ?? selectedOption.option;
+    const isCustomToUse = overrideIsCustom ?? selectedOption.isCustom ?? false;
 
     // Check if we need to call expansion (no existing branches)
-    const needsExpansion = !currentOption.branches || currentOption.branches.length === 0;
+    const needsExpansion = !selectedOption.branches || selectedOption.branches.length === 0;
     
     // Note: isProcessingAction is already true from handleSelectAndContinue
     // Keep it true if expansion is needed, clear it if just navigating
 
     const newPath = [...selectedPath, {
-      nodeId: currentOption.id,
+      nodeId: selectedOption.id,
       option: optionToUse, // Use the possibly-overridden option
-      depth: currentOption.depth
+      depth: selectedOption.depth
     }];
     setSelectedPath(newPath);
 
     if (!needsExpansion) {
       // Branches exist, just navigate - clear loading state
       setCurrentLevel(prev => prev + 1);
-      setCurrentOptionIndex(0);
+      setSelectedOptionId(null);
       setIsProcessingAction(false);
     } else {
       // Need to expand - call mutation (loading state stays true, cleared in mutation onSuccess/onError)
       expandBranchMutation.mutate({
-        nodeId: currentOption.id,
-        parentQuestion: currentOption.question,
-        currentDepth: currentOption.depth,
+        nodeId: selectedOption.id,
+        parentQuestion: selectedOption.question,
+        currentDepth: selectedOption.depth,
         isCustom: isCustomToUse, // Use the possibly-overridden custom flag
         customOption: isCustomToUse ? optionToUse : undefined, // Use the revised option if custom
       });
@@ -428,7 +419,7 @@ export default function WhysTreePage() {
   };
 
   const handleFinalize = async () => {
-    if (!currentOption) return;
+    if (!selectedOption) return;
     
     // Set immediate processing state for instant UI feedback - use flushSync for instant UI update
     flushSync(() => {
@@ -437,7 +428,7 @@ export default function WhysTreePage() {
     
     // Validate root cause first
     try {
-      const validation = await validateRootCauseMutation.mutateAsync(currentOption.option);
+      const validation = await validateRootCauseMutation.mutateAsync(selectedOption.option);
       
       if (!validation.valid) {
         // Show warning modal if validation fails
@@ -449,14 +440,14 @@ export default function WhysTreePage() {
       
       // If validation passes, proceed with finalization
       const finalPath = [...selectedPath, {
-        nodeId: currentOption.id,
-        option: currentOption.option,
-        depth: currentOption.depth
+        nodeId: selectedOption.id,
+        option: selectedOption.option,
+        depth: selectedOption.depth
       }];
       
       const pathOptions = finalPath.map(p => p.option);
       finalizeMutation.mutate({
-        rootCause: currentOption.option,
+        rootCause: selectedOption.option,
         completePath: pathOptions
       });
     } catch (error: any) {
@@ -491,7 +482,7 @@ export default function WhysTreePage() {
         ...tree,
         branches: [...tree.branches, customNode],
       });
-      setCurrentOptionIndex(tree.branches.length); // Select the new custom option
+      setSelectedOptionId(customNodeId); // Select the new custom option
     } else {
       // Navigate to the custom option's parent and add it there
       const updateTreeWithCustom = (nodes: WhyNode[]): WhyNode[] => {
@@ -513,8 +504,7 @@ export default function WhysTreePage() {
         ...tree,
         branches: updateTreeWithCustom(tree.branches),
       });
-      const currentOptionsLength = getCurrentOptions().length;
-      setCurrentOptionIndex(currentOptionsLength); // Select the new custom option
+      setSelectedOptionId(customNodeId); // Select the new custom option
     }
 
     setCustomWhyText("");
@@ -525,11 +515,11 @@ export default function WhysTreePage() {
   };
 
   const handleEditWhy = () => {
-    if (!currentOption || !editedWhyText.trim() || !tree) return;
+    if (!selectedOption || !editedWhyText.trim() || !tree) return;
 
     const updateNodeOption = (nodes: WhyNode[]): WhyNode[] => {
       return nodes.map(node => {
-        if (node.id === currentOption.id) {
+        if (node.id === selectedOption.id) {
           return {
             ...node,
             option: editedWhyText.trim(),
@@ -558,8 +548,8 @@ export default function WhysTreePage() {
   };
 
   const handleStartEdit = () => {
-    if (currentOption) {
-      setEditedWhyText(currentOption.option);
+    if (selectedOption) {
+      setEditedWhyText(selectedOption.option);
       setIsEditingWhy(true);
     }
   };
@@ -573,7 +563,7 @@ export default function WhysTreePage() {
   const handleRevision = async (newAnswer: string, isCoachGenerated: boolean = false) => {
     if (!tree || !pendingAction) return;
 
-    if (pendingAction.type === 'continue' && currentOption) {
+    if (pendingAction.type === 'continue' && selectedOption) {
       // Close modal and show loading state
       setShowCoachingModal(false);
       flushSync(() => {
@@ -835,7 +825,7 @@ export default function WhysTreePage() {
           </Card>
         )}
 
-        {/* Main Option Card (Carousel) */}
+        {/* Question Card */}
         {expandBranchMutation.isPending ? (
           <Card className="border-2">
             <CardContent className="py-12">
@@ -848,154 +838,127 @@ export default function WhysTreePage() {
               </div>
             </CardContent>
           </Card>
-        ) : currentOption ? (
-          <Card className="border-2" data-testid={`option-card-${currentOption.id}`}>
-            <CardHeader>
-              <div className="flex items-start justify-between gap-4">
-                <CardTitle className="text-2xl font-bold">
-                  {currentOption.option}
-                </CardTitle>
-                <Badge variant="default">
-                  Option {currentOptionIndex + 1} of {totalOptions}
-                </Badge>
-              </div>
-              {currentOption.question && (
-                <p className="text-muted-foreground italic mt-2">
-                  Next question: {currentOption.question}
+        ) : currentOptions.length > 0 ? (
+          <>
+            {/* Current Question Card */}
+            <Card className="border-2 bg-muted/30" data-testid="question-card">
+              <CardContent className="p-4 sm:p-6">
+                <p className="text-lg sm:text-xl font-semibold text-center" data-testid="current-question">
+                  {currentOptions[0]?.question || `Level ${currentLevel} Question`}
                 </p>
-              )}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Consideration Section (Always Visible) */}
-              {currentOption.consideration && (
-                <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4" data-testid="consideration-section">
-                  <div className="flex items-start gap-3">
-                    <Lightbulb className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
-                    <p className="text-sm text-blue-900 dark:text-blue-100">{currentOption.consideration}</p>
-                  </div>
-                </div>
-              )}
+              </CardContent>
+            </Card>
 
-              {/* Evidence Sections (Collapsible) */}
-              {(currentOption.supporting_evidence?.length > 0 || currentOption.counter_arguments?.length > 0) && (
-                <div className="space-y-3">
-                  {/* Supporting Evidence */}
-                  {currentOption.supporting_evidence?.length > 0 && (
-                    <Collapsible>
-                      <CollapsibleTrigger className="w-full" data-testid="trigger-supporting-evidence">
-                        <div className="flex items-center justify-between w-full p-3 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 hover:bg-green-100 dark:hover:bg-green-950/50 transition-colors">
-                          <span className="font-medium text-green-900 dark:text-green-100 flex items-center gap-2">
-                            <span className="text-lg">✅</span>
-                            Supporting Evidence
-                          </span>
-                          <ChevronDown className="h-4 w-4 text-green-700 dark:text-green-300" />
+            {/* Options Grid */}
+            <div className="flex flex-col md:grid md:grid-cols-2 gap-3 md:gap-4" data-testid="options-grid">
+              {currentOptions.map((option) => (
+                <Card
+                  key={option.id}
+                  className={`cursor-pointer transition-all min-h-[44px] ${
+                    selectedOptionId === option.id
+                      ? 'border-primary bg-primary/5 shadow-md'
+                      : 'hover:border-primary/50 hover:shadow-sm'
+                  }`}
+                  onClick={() => setSelectedOptionId(option.id)}
+                  data-testid={`option-card-${option.id}`}
+                >
+                  <CardContent className="p-4">
+                    <p className="font-medium text-sm sm:text-base">{option.option}</p>
+                    {option.consideration && (
+                      <div className="mt-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                        <div className="flex items-start gap-2">
+                          <Lightbulb className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                          <p className="text-xs text-blue-900 dark:text-blue-100">{option.consideration}</p>
                         </div>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent className="mt-2 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg p-4" data-testid="content-supporting-evidence">
-                        <ul className="space-y-2">
-                          {currentOption.supporting_evidence.map((point, i) => (
-                            <li key={i} className="text-sm text-green-900 dark:text-green-100 flex gap-2">
-                              <span className="text-green-600 dark:text-green-400 mt-1">•</span>
-                              <span>{point}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </CollapsibleContent>
-                    </Collapsible>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Evidence Box - Shows below selected option */}
+            {selectedOption && (selectedOption.supporting_evidence?.length > 0 || selectedOption.counter_arguments?.length > 0) && (
+              <Card className="border-primary/50 bg-muted/50" data-testid="evidence-box">
+                <CardHeader>
+                  <CardTitle className="text-base">Evidence for: {selectedOption.option}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {/* Supporting Evidence */}
+                  {selectedOption.supporting_evidence?.length > 0 && (
+                    <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg p-4" data-testid="supporting-evidence">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-lg">✅</span>
+                        <span className="font-medium text-green-900 dark:text-green-100 text-sm">Supporting Evidence</span>
+                      </div>
+                      <ul className="space-y-2">
+                        {selectedOption.supporting_evidence.map((point, i) => (
+                          <li key={i} className="text-sm text-green-900 dark:text-green-100 flex gap-2">
+                            <span className="text-green-600 dark:text-green-400 mt-1">•</span>
+                            <span>{point}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   )}
 
                   {/* Counter-Arguments */}
-                  {currentOption.counter_arguments?.length > 0 && (
-                    <Collapsible>
-                      <CollapsibleTrigger className="w-full" data-testid="trigger-counter-arguments">
-                        <div className="flex items-center justify-between w-full p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors">
-                          <span className="font-medium text-amber-900 dark:text-amber-100 flex items-center gap-2">
-                            <span className="text-lg">⚠️</span>
-                            Counter-Arguments
-                          </span>
-                          <ChevronDown className="h-4 w-4 text-amber-700 dark:text-amber-300" />
-                        </div>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent className="mt-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4" data-testid="content-counter-arguments">
-                        <ul className="space-y-2">
-                          {currentOption.counter_arguments.map((point, i) => (
-                            <li key={i} className="text-sm text-amber-900 dark:text-amber-100 flex gap-2">
-                              <span className="text-amber-600 dark:text-amber-400 mt-1">•</span>
-                              <span>{point}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </CollapsibleContent>
-                    </Collapsible>
+                  {selectedOption.counter_arguments?.length > 0 && (
+                    <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4" data-testid="counter-arguments">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-lg">⚠️</span>
+                        <span className="font-medium text-amber-900 dark:text-amber-100 text-sm">Counter-Arguments</span>
+                      </div>
+                      <ul className="space-y-2">
+                        {selectedOption.counter_arguments.map((point, i) => (
+                          <li key={i} className="text-sm text-amber-900 dark:text-amber-100 flex gap-2">
+                            <span className="text-amber-600 dark:text-amber-400 mt-1">•</span>
+                            <span>{point}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   )}
-                </div>
-              )}
+                </CardContent>
+              </Card>
+            )}
 
-              {/* Navigation Buttons */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <Button
-                  variant="outline"
-                  onClick={handlePrevious}
-                  disabled={currentOptionIndex === 0}
-                  data-testid="button-previous"
-                  className="w-full sm:w-auto"
-                >
-                  <ChevronLeft className="h-4 w-4 mr-2" />
-                  Previous
-                </Button>
-
-                <span className="text-sm text-muted-foreground text-center">
-                  {currentOptionIndex + 1} / {totalOptions}
-                </span>
-
-                <Button
-                  variant="outline"
-                  onClick={handleNext}
-                  disabled={currentOptionIndex === totalOptions - 1}
-                  data-testid="button-next"
-                  className="w-full sm:w-auto"
-                >
-                  Next
-                  <ChevronRight className="h-4 w-4 ml-2" />
-                </Button>
-              </div>
-
-              {/* Edit Why Section */}
-              {isEditingWhy ? (
-                <div className="pt-4 border-t space-y-3">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Edit this Why</label>
-                    <Textarea
-                      value={editedWhyText}
-                      onChange={(e) => setEditedWhyText(e.target.value)}
-                      placeholder="Edit your Why statement..."
-                      rows={3}
-                      data-testid="textarea-edit-why"
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      className="flex-1"
-                      onClick={handleEditWhy}
-                      disabled={!editedWhyText.trim()}
-                      data-testid="button-save-edit"
-                    >
-                      <CheckCircle2 className="h-4 w-4 mr-2" />
-                      Save Changes
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={handleCancelEdit}
-                      data-testid="button-cancel-edit"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  {/* Edit Button */}
-                  <div className="pt-4 border-t">
+            {/* Edit Section - Only for selected option */}
+            {selectedOption && (
+              <Card className="border-dashed">
+                <CardContent className="p-4">
+                  {isEditingWhy ? (
+                    <div className="space-y-3">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Edit this Why</label>
+                        <Textarea
+                          value={editedWhyText}
+                          onChange={(e) => setEditedWhyText(e.target.value)}
+                          placeholder="Edit your Why statement..."
+                          rows={3}
+                          data-testid="textarea-edit-why"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          className="flex-1"
+                          onClick={handleEditWhy}
+                          disabled={!editedWhyText.trim()}
+                          data-testid="button-save-edit"
+                        >
+                          <CheckCircle2 className="h-4 w-4 mr-2" />
+                          Save Changes
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={handleCancelEdit}
+                          data-testid="button-cancel-edit"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
                     <Button
                       variant="outline"
                       size="sm"
@@ -1004,116 +967,98 @@ export default function WhysTreePage() {
                       data-testid="button-start-edit"
                     >
                       <Edit className="h-4 w-4 mr-2" />
-                      Edit this Why
+                      Edit selected Why
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Continue Button */}
+            <div className="flex justify-center mt-6">
+              <div className="w-full md:w-auto flex flex-col gap-3">
+                {!showOnlyFinalize && canShowContinueButton && (
+                  <Button
+                    className="w-full md:w-auto md:min-w-[280px]"
+                    size="lg"
+                    onClick={handleSelectAndContinue}
+                    disabled={!selectedOptionId || isProcessingAction || expandBranchMutation.isPending || finalizeMutation.isPending}
+                    data-testid="button-continue"
+                  >
+                    {(isProcessingAction || expandBranchMutation.isPending) ? (
+                      <>
+                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                        Loading next level...
+                      </>
+                    ) : (
+                      <>
+                        <ArrowRight className="h-5 w-5 mr-2" />
+                        Continue to Next Why
+                      </>
+                    )}
+                  </Button>
+                )}
+
+                {canShowRootCauseButton && (
+                  <Button
+                    variant={showOnlyFinalize ? "default" : "secondary"}
+                    className="w-full md:w-auto md:min-w-[280px]"
+                    size="lg"
+                    onClick={handleFinalize}
+                    disabled={!selectedOptionId || isProcessingAction || validateRootCauseMutation.isPending || finalizeMutation.isPending}
+                    data-testid="button-finalize"
+                  >
+                    {(isProcessingAction || validateRootCauseMutation.isPending || finalizeMutation.isPending) ? (
+                      <>
+                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                        {validateRootCauseMutation.isPending ? "Validating..." : "Processing..."}
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="h-5 w-5 mr-2" />
+                        This is my root cause
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Custom Why Input Section */}
+            {!expandBranchMutation.isPending && (
+              <Card className="border-dashed">
+                <CardContent className="p-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Plus className="h-4 w-4 text-muted-foreground" />
+                      <label className="text-sm font-medium">Add your own Why</label>
+                    </div>
+                    <Textarea
+                      value={customWhyText}
+                      onChange={(e) => setCustomWhyText(e.target.value)}
+                      placeholder="If none of the options fit, type your own Why statement here..."
+                      rows={2}
+                      data-testid="textarea-custom-why"
+                    />
+                    <Button
+                      variant="outline"
+                      onClick={handleAddCustomWhy}
+                      disabled={!customWhyText.trim()}
+                      className="w-full"
+                      data-testid="button-add-custom-why"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Custom Why
                     </Button>
                   </div>
-
-                  {/* Action Buttons */}
-                  <div className="pt-2 space-y-3">
-                    {!showOnlyFinalize && canShowContinueButton && (
-                      <Button
-                        className="w-full"
-                        size="lg"
-                        onClick={handleSelectAndContinue}
-                        disabled={isProcessingAction || expandBranchMutation.isPending || finalizeMutation.isPending}
-                        data-testid="button-continue"
-                      >
-                        {(isProcessingAction || expandBranchMutation.isPending) ? (
-                          <>
-                            <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                            Loading next level...
-                          </>
-                        ) : (
-                          <>
-                            <ArrowRight className="h-5 w-5 mr-2" />
-                            Continue to next Why
-                          </>
-                        )}
-                      </Button>
-                    )}
-
-                    {canShowRootCauseButton && (
-                      <Button
-                        variant={showOnlyFinalize ? "default" : "secondary"}
-                        className="w-full"
-                        size="lg"
-                        onClick={handleFinalize}
-                        disabled={isProcessingAction || validateRootCauseMutation.isPending || finalizeMutation.isPending}
-                        data-testid="button-finalize"
-                      >
-                        {(isProcessingAction || validateRootCauseMutation.isPending || finalizeMutation.isPending) ? (
-                          <>
-                            <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                            {validateRootCauseMutation.isPending ? "Validating..." : "Processing..."}
-                          </>
-                        ) : (
-                          <>
-                            <CheckCircle2 className="h-5 w-5 mr-2" />
-                            This is my root cause
-                          </>
-                        )}
-                      </Button>
-                    )}
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+            )}
+          </>
         ) : (
           <Alert>
             <AlertDescription>No options available at this level</AlertDescription>
           </Alert>
-        )}
-
-        {/* Custom Why Input Section */}
-        {!expandBranchMutation.isPending && (
-          <Card className="border-dashed">
-            <CardContent className="p-4">
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Plus className="h-4 w-4 text-muted-foreground" />
-                  <label className="text-sm font-medium">Add your own Why</label>
-                </div>
-                <Textarea
-                  value={customWhyText}
-                  onChange={(e) => setCustomWhyText(e.target.value)}
-                  placeholder="If none of the options fit, type your own Why statement here..."
-                  rows={2}
-                  data-testid="textarea-custom-why"
-                />
-                <Button
-                  variant="outline"
-                  onClick={handleAddCustomWhy}
-                  disabled={!customWhyText.trim()}
-                  className="w-full"
-                  data-testid="button-add-custom-why"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Custom Why
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Mini Thumbnails (Optional visual aid) */}
-        {totalOptions > 1 && (
-          <div className="flex gap-2 justify-center flex-wrap">
-            {currentOptions.map((option, idx) => (
-              <button
-                key={option.id}
-                onClick={() => setCurrentOptionIndex(idx)}
-                className={`px-3 py-1 rounded-md text-xs transition-colors ${
-                  idx === currentOptionIndex
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted hover:bg-muted/80'
-                }`}
-                data-testid={`thumbnail-${idx}`}
-              >
-                {idx + 1}
-              </button>
-            ))}
-          </div>
         )}
       </div>
 
@@ -1143,7 +1088,7 @@ export default function WhysTreePage() {
           open={showCoachingModal}
           onOpenChange={setShowCoachingModal}
           evaluation={currentEvaluation}
-          candidate={currentOption?.option || customWhyText || editedWhyText}
+          candidate={selectedOption?.option || customWhyText || editedWhyText}
           rootQuestion={tree.rootQuestion}
           previousWhys={selectedPath.map(p => p.option)}
           sessionId={tree.sessionId}
