@@ -22,7 +22,7 @@ import { journeyRegistry } from '../journey/journey-registry';
 import type { JourneyType } from '@shared/journey-types';
 import { InitiativeClassifier } from '../strategic-consultant/initiative-classifier';
 import { ambiguityDetector } from '../services/ambiguity-detector.js';
-import { getStrategicUnderstanding, getStrategicUnderstandingBySession, updateStrategicUnderstanding, getJourneySession } from '../services/secure-data-service';
+import { getStrategicUnderstanding, getStrategicUnderstandingBySession, updateStrategicUnderstanding, getJourneySession, getJourneySessionByUnderstandingSessionId } from '../services/secure-data-service';
 import { fiveWhysCoach } from '../services/five-whys-coach.js';
 import { buildStrategicSummary } from '../services/strategic-summary-builder';
 import { referenceService } from '../services/reference-service';
@@ -400,7 +400,6 @@ router.get('/journey-sessions/by-session/:sessionId', async (req: Request, res: 
     res.json({
       id: session.id,
       understandingId: session.understandingId,
-      understandingSessionId: session.understandingSessionId,
       journeyType: session.journeyType,
       currentFrameworkIndex: session.currentFrameworkIndex,
       completedFrameworks: session.completedFrameworks,
@@ -1626,14 +1625,20 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
     if (result.references && result.references.length > 0 && sessionId) {
       try {
         const { referenceService } = await import('../services/reference-service.js');
-        const { getStrategicUnderstandingBySession } = await import('../services/secure-data-service.js');
+        const { getStrategicUnderstandingBySession, getJourneySessionByUnderstandingSessionId } = await import('../services/secure-data-service.js');
         
         // Get understandingId from sessionId
         const understanding = await getStrategicUnderstandingBySession(sessionId);
         if (understanding) {
           console.log(`[BMC-RESEARCH] Persisting ${result.references.length} references to knowledge graph...`);
           
-          const userId = (req.user as any)?.claims?.sub || 'system';
+          // Get userId from journey session instead of falling back to "system"
+          const journeySession = await getJourneySessionByUnderstandingSessionId(sessionId);
+          const userId = journeySession?.userId || (req.user as any)?.claims?.sub;
+          
+          if (!userId) {
+            throw new Error('Cannot persist research references without a user');
+          }
           
           // Normalize references first
           const normalized = result.references.map((ref, idx) => 
@@ -1660,7 +1665,14 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
 
     // Save to version - ALWAYS persist results
     if (sessionId) {
-      const userId = (req.user as any)?.claims?.sub || 'system';
+      // Get userId from journey session instead of falling back to "system"
+      const journeySession = await getJourneySessionByUnderstandingSessionId(sessionId);
+      const userId = journeySession?.userId || (req.user as any)?.claims?.sub;
+      
+      if (!userId) {
+        throw new Error('Cannot persist version without a user');
+      }
+      
       let version;
       
       // Get descriptive title from strategic understanding
@@ -1859,7 +1871,14 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
     try {
       if (result.blocks && Array.isArray(result.blocks) && understanding) {
         const { referenceService } = await import('../services/reference-service.js');
-        const userId = (req.user as any)?.claims?.sub || 'system';
+        
+        // Get userId from journey session instead of falling back to "system"
+        const journeySession = await getJourneySessionByUnderstandingSessionId(sessionId);
+        const userId = journeySession?.userId || (req.user as any)?.claims?.sub;
+        
+        if (!userId) {
+          throw new Error('Cannot persist BMC block references without a user');
+        }
         
         // Extract all citations from BMC blocks
         const allCitations: any[] = [];
@@ -1909,7 +1928,13 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
     let version: any = null; // Declare version at outer scope
     
     try {
-      const userId = (req.user as any)?.claims?.sub || 'system';
+      // Get userId from journey session instead of falling back to "system"
+      const journeySession = await getJourneySessionByUnderstandingSessionId(sessionId);
+      const userId = journeySession?.userId || (req.user as any)?.claims?.sub;
+      
+      if (!userId) {
+        throw new Error('Cannot persist BMC stream version without a user');
+      }
       
       // Determine version number with fallback logic
       const versionNumberFromQuery = req.query.versionNumber ? parseInt(req.query.versionNumber as string) : undefined;
