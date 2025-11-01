@@ -468,6 +468,7 @@ export default function PrioritizationPage() {
           <div className="mt-4">
             <Button 
               onClick={() => setLocation(`/strategy-workspace/decisions/${sessionId}/${versionNumber}`)}
+              className="w-full sm:w-auto"
               data-testid="button-go-decisions"
             >
               Go to Decisions
