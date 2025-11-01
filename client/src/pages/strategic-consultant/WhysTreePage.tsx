@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, ChevronLeft, ChevronRight, ArrowRight, CheckCircle2, Edit, Plus, ChevronDown, Lightbulb, AlertTriangle, Pencil } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, ArrowRight, CheckCircle2, Edit, Plus, ChevronDown, ChevronUp, Lightbulb, AlertTriangle, Pencil } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -1050,14 +1050,20 @@ export default function WhysTreePage() {
             <div className="sm:hidden relative">
               {/* Fixed viewport window with fade masks */}
               <div className="relative h-[280px] overflow-hidden border-2 border-primary/30 rounded-lg bg-background/50">
-                {/* Top fade mask */}
-                <div className="absolute top-0 left-0 right-0 h-10 bg-gradient-to-b from-background to-transparent z-10 pointer-events-none" />
+                {/* Top fade mask with scroll indicator */}
+                <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-b from-background via-background/70 to-transparent z-10 pointer-events-none" />
+                <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+                  <ChevronUp className="h-5 w-5 text-muted-foreground/60 animate-bounce" />
+                </div>
                 
-                {/* Bottom fade mask */}
-                <div className="absolute bottom-12 left-0 right-0 h-10 bg-gradient-to-t from-background to-transparent z-10 pointer-events-none" />
+                {/* Bottom fade mask with scroll indicator */}
+                <div className="absolute bottom-12 left-0 right-0 h-16 bg-gradient-to-t from-background via-background/70 to-transparent z-10 pointer-events-none" />
+                <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+                  <ChevronDown className="h-5 w-5 text-muted-foreground/60 animate-bounce" />
+                </div>
                 
-                {/* Center highlight window */}
-                <div className="absolute top-1/2 left-0 right-0 -translate-y-1/2 h-[110px] border-y-2 border-primary/40 pointer-events-none z-0 bg-primary/5" />
+                {/* Center highlight window - removed horizontal lines, kept subtle background */}
+                <div className="absolute top-1/2 left-0 right-0 -translate-y-1/2 h-[110px] pointer-events-none z-0 bg-primary/5" />
 
                 {/* Scrollable content */}
                 <div
