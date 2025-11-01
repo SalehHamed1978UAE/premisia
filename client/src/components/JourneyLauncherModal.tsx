@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,7 @@ export default function JourneyLauncherModal({
   strategyTitle,
   contextMetrics,
 }: JourneyLauncherModalProps) {
+  const [, setLocation] = useLocation();
   const [selectedJourney, setSelectedJourney] = useState<string | null>(null);
   const [selectedJourneyType, setSelectedJourneyType] = useState<'prebuilt' | 'custom' | null>(null);
   const [selectedFrameworks, setSelectedFrameworks] = useState<string[]>([]);
@@ -167,8 +169,8 @@ export default function JourneyLauncherModal({
     onSuccess: (data: any) => {
       // Don't close modal - keep it open with loading state until navigation
       // This prevents black screen during transition
-      // Navigate to the first page in the journey wizard
-      window.location.href = data.navigationUrl;
+      // Navigate to the first page in the journey wizard using client-side routing
+      setLocation(data.navigationUrl);
     },
     onError: (error: any) => {
       toast({
@@ -211,10 +213,11 @@ export default function JourneyLauncherModal({
         }
         console.log(`[JourneyLauncher] Stored version ${data.versionNumber} for both sessionId formats`);
       }
-      // Navigate to the journey wizard
+      // Navigate to the journey wizard using client-side routing
       if (data.navigationUrl) {
-        window.location.href = data.navigationUrl;
+        setLocation(data.navigationUrl);
       } else {
+        // Fallback - reload page if no navigation URL provided
         window.location.reload();
       }
     },
