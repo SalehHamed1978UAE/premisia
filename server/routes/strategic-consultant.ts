@@ -1835,6 +1835,13 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
       result = await bmcResearcher.conductBMCResearch(input, sessionId);
       console.log('[BMC-RESEARCH-STREAM] BMC research completed successfully');
       
+      // DEBUG: Check if references were generated
+      console.log('[DEBUG-REFS] result.references exists:', !!result.references);
+      console.log('[DEBUG-REFS] result.references.length:', result.references?.length || 0);
+      if (result.references && result.references.length > 0) {
+        console.log('[DEBUG-REFS] Sample reference:', JSON.stringify(result.references[0], null, 2));
+      }
+      
       // Stop progress timer
       if (progressInterval) {
         clearInterval(progressInterval);
@@ -1869,12 +1876,20 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
 
     // Persist references from BMC research
     try {
+      console.log('[DEBUG-REFS] Checking persistence conditions...');
+      console.log('[DEBUG-REFS] result.blocks exists:', !!result.blocks);
+      console.log('[DEBUG-REFS] result.blocks is array:', Array.isArray(result.blocks));
+      console.log('[DEBUG-REFS] understanding exists:', !!understanding);
+      
       if (result.blocks && Array.isArray(result.blocks) && understanding) {
+        console.log('[DEBUG-REFS] ✓ Entered persistence block');
         const { referenceService } = await import('../services/reference-service.js');
         
         // Get userId from journey session instead of falling back to "system"
         const journeySession = await getJourneySessionByUnderstandingSessionId(sessionId);
         const userId = journeySession?.userId || (req.user as any)?.claims?.sub;
+        
+        console.log('[DEBUG-REFS] userId from journey session:', userId);
         
         if (!userId) {
           throw new Error('Cannot persist BMC block references without a user');
@@ -1882,9 +1897,14 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
         
         // Extract all citations from BMC blocks
         const allCitations: any[] = [];
+        console.log('[DEBUG-REFS] Extracting citations from', result.blocks.length, 'blocks');
+        
         result.blocks.forEach((block: any) => {
+          console.log('[DEBUG-REFS] Block:', block.name || 'unnamed', 'has research:', !!block.research);
           if (block.research && Array.isArray(block.research)) {
-            block.research.forEach((item: any) => {
+            console.log('[DEBUG-REFS] Block has', block.research.length, 'research items');
+            block.research.forEach((item: any, idx: number) => {
+              console.log(`[DEBUG-REFS] Research item ${idx} has citations:`, !!item.citations, 'count:', item.citations?.length || 0);
               if (item.citations && Array.isArray(item.citations)) {
                 item.citations.forEach((citation: any) => {
                   allCitations.push({
@@ -1898,8 +1918,10 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
           }
         });
         
+        console.log('[DEBUG-REFS] Total citations extracted:', allCitations.length);
+        
         if (allCitations.length > 0) {
-          console.log(`[BMC-RESEARCH-STREAM] Persisting ${allCitations.length} references...`);
+          console.log(`[DEBUG-REFS] About to persist ${allCitations.length} references with userId: ${userId}`);
           
           const normalized = allCitations.map(citation => 
             referenceService.normalizeReference(
@@ -1910,12 +1932,17 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
             )
           );
           
-          await referenceService.persistReferences(normalized, {
+          console.log('[DEBUG-REFS] Normalized', normalized.length, 'references, calling persistReferences...');
+          
+          const persistResult = await referenceService.persistReferences(normalized, {
             understandingId: understanding.id,
             sessionId,
           });
           
-          console.log(`[BMC-RESEARCH-STREAM] ✓ Persisted ${normalized.length} references`);
+          console.log('[DEBUG-REFS] Persistence result:', JSON.stringify(persistResult, null, 2));
+          console.log(`[BMC-RESEARCH-STREAM] ✓ Persisted references - created: ${persistResult.created}, updated: ${persistResult.updated}, skipped: ${persistResult.skipped}`);
+        } else {
+          console.log('[DEBUG-REFS] ⚠️ No citations found in blocks!');
         }
       }
     } catch (error: any) {
