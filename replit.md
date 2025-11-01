@@ -50,6 +50,127 @@ The application employs a hybrid background job system with database persistence
 - **Journey Launcher Modal**: Intelligent modal for initiating additional strategic analysis, with two modes (Full Journey, Single Framework). Includes journey-aware readiness checks and uses a `Strategic Summary Builder` for context, implementing a single-snapshot architecture to prevent token limit overruns.
 - **Ambiguity Resolution & Clarifications**: AI-powered clarification workflows for strategic inputs, prompting users to resolve unclear inputs, which are then merged and persisted for follow-on analysis.
 
+# Journey Navigation Architecture
+
+## Critical Navigation Patterns
+The application has two entry points for strategic journeys, both using orchestrator-driven navigation:
+
+### 1. Strategic Consultant Journey (New Analysis)
+**Entry Point:** `/strategic-consultant/input`  
+**Flow:**
+```
+Input Page → Classification → Journey Selection → Execute Journey
+  → Framework Pages (e.g., Whys Tree, BMC Research)
+  → Strategic Decisions → EPM Conversion
+```
+
+**Key Endpoints:**
+- `POST /api/strategic-consultant/journeys/execute` - Starts a new journey after classification
+- Returns `navigationUrl` pointing to first framework page
+
+### 2. Strategies Hub "Run Now" (Follow-on Analysis)
+**Entry Point:** Strategies Hub → Click "Run Now" on existing strategy  
+**Flow:**
+```
+Strategies Hub → Run Now Modal → Journey Selection
+  → Framework Pages (e.g., Whys Tree, BMC Research)
+  → Strategic Decisions → EPM Conversion
+```
+
+**Key Endpoints:**
+- `POST /api/strategic-consultant/journeys/run-now` - Starts journey from existing strategy
+- Builds strategic summary from previous sessions
+- Returns `navigationUrl` pointing to first framework page
+
+## PageSequence Navigation Rules
+
+**CRITICAL:** Both entry points use `journey.pageSequence` array to determine navigation order.
+
+### Array Structure:
+```javascript
+pageSequence = [
+  '/strategic-consultant/input/:understandingId',        // [0] Input page (already completed for Run Now)
+  '/strategic-consultant/whys-tree/:sessionId',          // [1] First interactive framework
+  '/strategic-consultant/research/:sessionId',           // [2] Research/BMC analysis
+  '/strategy-workspace/decisions/:sessionId/:versionNumber' // [3] Strategic decisions
+]
+```
+
+### Navigation Index Rules:
+- **Execute Journey (new analysis):** Uses `pageSequence[1]` - skips input page (just completed)
+- **Run Now (follow-on):** Uses `pageSequence[1]` - skips input page (using strategic summary)
+- **Backend Research:** Returns `nextUrl` with complete path including all required parameters
+
+**File Locations:**
+- `/journeys/execute` endpoint: `server/routes/strategic-consultant.ts` line ~534
+- `/journeys/run-now` endpoint: `server/routes/strategic-consultant.ts` line ~2330
+- Journey registry: `server/journey/journey-registry.ts`
+
+## BMC Research Endpoint Behavior
+
+### Endpoint:
+`GET /api/strategic-consultant/bmc-research/stream/:sessionId`
+
+### Response Format:
+```javascript
+{
+  type: 'complete',
+  data: {
+    findings: { /* BMC research results */ },
+    versionNumber: 3,  // CRITICAL: Must be included
+    nextUrl: '/strategy-workspace/decisions/:sessionId/:versionNumber'
+  }
+}
+```
+
+### Frontend Navigation:
+`ResearchPage.tsx` (line ~274) uses the `nextUrl` from backend response:
+```javascript
+const nextUrl = (researchData as any)?.nextUrl || fallbackUrl;
+setLocation(nextUrl);
+```
+
+**File Locations:**
+- BMC research endpoint: `server/routes/strategic-consultant.ts` line ~2027
+- Research page navigation: `client/src/pages/strategic-consultant/ResearchPage.tsx` line ~274
+
+## Version Number Requirements
+
+**CRITICAL:** The Strategic Decisions page route requires BOTH `sessionId` AND `versionNumber`:
+
+**Route Definition:**
+```javascript
+/strategy-workspace/decisions/:sessionId/:versionNumber
+```
+
+**Common Pitfalls:**
+1. ❌ Missing versionNumber: `/strategy-workspace/decisions/${sessionId}` → 404 error
+2. ✅ Correct format: `/strategy-workspace/decisions/${sessionId}/${versionNumber}` → Works
+
+**Fix Pattern:**
+Always include versionNumber when constructing nextUrl in research endpoints:
+```javascript
+const finalVersionNumber = version?.versionNumber || targetVersionNumber;
+nextUrl: `/strategy-workspace/decisions/${sessionId}/${finalVersionNumber}`
+```
+
+## Troubleshooting Guide
+
+### Issue: Navigation loops back to input page
+**Symptom:** After starting journey, user lands on already-completed input page  
+**Cause:** Using `pageSequence[0]` instead of `pageSequence[1]`  
+**Fix:** Change to `pageSequence[1]` in both `/journeys/execute` and `/journeys/run-now` endpoints
+
+### Issue: 404 error after BMC research completes
+**Symptom:** Research finishes successfully but navigates to 404  
+**Cause:** Missing versionNumber in nextUrl  
+**Fix:** Include versionNumber in nextUrl construction in BMC research endpoint
+
+### Issue: Research endpoint doesn't navigate
+**Symptom:** Research completes but stays on research page  
+**Cause:** Backend not returning nextUrl in complete event  
+**Fix:** Ensure all research endpoints include nextUrl in their completion response
+
 # External Dependencies
 - **Database Service**: Neon serverless PostgreSQL
 - **Session Store**: `connect-pg-simple`
