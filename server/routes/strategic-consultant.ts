@@ -2012,19 +2012,20 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
       });
     }
     
+    const finalVersionNumber = version?.versionNumber || targetVersionNumber;
     res.write(`data: ${JSON.stringify({ 
       type: 'complete', 
       data: {
         findings,
         searchQueriesUsed: [],
-        versionNumber: version?.versionNumber || targetVersionNumber,
+        versionNumber: finalVersionNumber,
         sourcesAnalyzed: findings.sources.length || 9,
         timeElapsed: '~2 minutes',
-        nextUrl: `/strategy-workspace/decisions/${sessionId}`,
+        nextUrl: `/strategy-workspace/decisions/${sessionId}/${finalVersionNumber}`,
       }
     })}\n\n`);
     res.end();
-    console.log('[BMC-RESEARCH-STREAM] Stream ended successfully, nextUrl: /strategy-workspace/decisions/' + sessionId);
+    console.log('[BMC-RESEARCH-STREAM] Stream ended successfully, nextUrl: /strategy-workspace/decisions/' + sessionId + '/' + finalVersionNumber);
   } catch (error: any) {
     console.error('Error in /bmc-research/stream:', error);
     // Ensure error has type field for frontend handling
