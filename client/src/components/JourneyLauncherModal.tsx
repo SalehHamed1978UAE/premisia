@@ -165,11 +165,8 @@ export default function JourneyLauncherModal({
       return response.json();
     },
     onSuccess: (data: any) => {
-      toast({
-        title: "Journey Started",
-        description: "Let's gather the information needed for your analysis.",
-      });
-      onOpenChange(false);
+      // Don't close modal - keep it open with loading state until navigation
+      // This prevents black screen during transition
       // Navigate to the first page in the journey wizard
       window.location.href = data.navigationUrl;
     },
@@ -194,11 +191,9 @@ export default function JourneyLauncherModal({
       return response.json();
     },
     onSuccess: (data: any) => {
-      toast({
-        title: "Journey Started",
-        description: data.message || "Your journey has been started.",
-      });
-      onOpenChange(false);
+      // Don't close modal - keep it open with loading state until navigation
+      // This prevents black screen during transition
+      
       // Store journey session ID and version number for later use
       if (data.journeySessionId) {
         localStorage.setItem(`current-journey-session-${understandingId}`, data.journeySessionId);
@@ -232,9 +227,24 @@ export default function JourneyLauncherModal({
     },
   });
 
+  const isLoading = executeMutation.isPending || runNowMutation.isPending;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={isLoading ? undefined : onOpenChange}>
       <DialogContent className="max-w-[95vw] sm:max-w-[90vw] lg:max-w-4xl max-h-[90vh] sm:max-h-[85vh] flex flex-col p-0">
+        {/* Loading Overlay - prevents black screen during journey start */}
+        {isLoading && (
+          <div className="absolute inset-0 bg-background/95 backdrop-blur-sm z-50 flex items-center justify-center">
+            <div className="text-center space-y-4">
+              <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
+              <div>
+                <p className="text-lg font-semibold">Starting your journey...</p>
+                <p className="text-sm text-muted-foreground mt-1">Please wait while we prepare your analysis</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="px-4 sm:px-6 pt-4 sm:pt-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
