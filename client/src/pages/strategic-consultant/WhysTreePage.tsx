@@ -284,64 +284,50 @@ export default function WhysTreePage() {
     setSheetContent({ type, option });
   };
 
-  // Intersection Observer for mobile scroll-snap
+  // Scroll event listener for carousel centering (mobile only)
   useEffect(() => {
     if (typeof window === 'undefined' || window.innerWidth >= 640) {
-      console.log('[Intersection Observer] Skipping - desktop viewport');
       return; // Only on mobile
     }
     
     const container = scrollContainerRef.current;
     if (!container) {
-      console.log('[Intersection Observer] Container ref not ready');
       return;
     }
 
-    console.log('[Intersection Observer] Setting up observer...');
+    const findCenteredOption = () => {
+      const containerRect = container.getBoundingClientRect();
+      const centerY = containerRect.top + containerRect.height / 2;
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          console.log('OBSERVER FIRED:', {
-            isIntersecting: entry.isIntersecting,
-            ratio: entry.intersectionRatio,
-            optionId: entry.target.getAttribute('data-option-id')
-          });
-          
-          if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
-            const optionId = entry.target.getAttribute('data-option-id');
-            console.log('SETTING CENTERED OPTION:', optionId);
-            if (optionId) {
-              setCenteredOptionId(optionId);
-            }
-          }
-        });
-      },
-      {
-        root: container,
-        threshold: 0.5,
-        rootMargin: '-50% 0px -50% 0px',
-      }
-    );
+      let closestOption: string | null = null;
+      let minDistance = Infinity;
 
-    // Wait for refs to be populated before observing
-    setTimeout(() => {
-      const elements = Array.from(optionRefs.current.values());
-      console.log('[Intersection Observer] Found', elements.length, 'elements to observe');
-      
-      elements.forEach((element) => {
-        if (element) {
-          console.log('OBSERVING ELEMENT:', element.getAttribute('data-option-id'));
-          observer.observe(element);
+      optionRefs.current.forEach((element, optionId) => {
+        const rect = element.getBoundingClientRect();
+        const elementCenterY = rect.top + rect.height / 2;
+        const distance = Math.abs(centerY - elementCenterY);
+
+        if (distance < minDistance) {
+          minDistance = distance;
+          closestOption = optionId;
         }
       });
-    }, 100);
+
+      if (closestOption && closestOption !== centeredOptionId) {
+        setCenteredOptionId(closestOption);
+      }
+    };
+
+    // Find centered option on scroll
+    container.addEventListener('scroll', findCenteredOption);
+    
+    // Initial check after mount
+    setTimeout(findCenteredOption, 100);
 
     return () => {
-      console.log('[Intersection Observer] Cleanup - disconnecting');
-      observer.disconnect();
+      container.removeEventListener('scroll', findCenteredOption);
     };
-  }, [tree, selectedPath, currentLevel]); // Re-run when navigation state changes
+  }, [tree, selectedPath, currentLevel, centeredOptionId]); // Re-run when navigation state changes
 
   useEffect(() => {
     const fetchUnderstanding = async () => {
@@ -1060,105 +1046,130 @@ export default function WhysTreePage() {
           </Card>
         ) : currentOptions.length > 0 ? (
           <>
-            {/* Part 2: Mobile Scroll-Snap & Desktop Grid */}
-            {/* Mobile: Vertical Scroll-Snap (<640px) */}
-            <div
-              ref={scrollContainerRef}
-              className="sm:hidden flex flex-col gap-4 py-8 px-2"
-              style={{
-                scrollSnapType: 'y mandatory',
-                height: '60vh',
-                overflowY: 'auto',
-              }}
-              data-testid="options-mobile-scroll"
-            >
-              {currentOptions.map((option) => {
-                const isCentered = centeredOptionId === option.id;
-                const isSelected = selectedOptionId === option.id;
+            {/* Part 2: Mobile Carousel Wheel & Desktop Grid */}
+            {/* Mobile: Carousel Wheel Picker (<640px) */}
+            <div className="sm:hidden relative">
+              {/* Fixed viewport window with fade masks */}
+              <div className="relative h-[320px] overflow-hidden border border-border rounded-lg bg-background/50">
+                {/* Top fade mask */}
+                <div className="absolute top-0 left-0 right-0 h-12 bg-gradient-to-b from-background to-transparent z-10 pointer-events-none" />
+                
+                {/* Bottom fade mask */}
+                <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-background to-transparent z-10 pointer-events-none" />
+                
+                {/* Center highlight indicator */}
+                <div className="absolute top-1/2 left-0 right-0 -translate-y-1/2 h-[140px] border-y-2 border-primary/20 pointer-events-none z-0" />
 
-                return (
-                  <div
-                    key={option.id}
-                    ref={(el) => {
-                      if (el) optionRefs.current.set(option.id, el);
-                      else optionRefs.current.delete(option.id);
-                    }}
-                    data-option-id={option.id}
-                    style={{
-                      scrollSnapAlign: 'center',
-                      transform: isCentered ? 'scale(1.15)' : 'scale(0.9)',
-                      opacity: isCentered ? 1 : 0.7,
-                      transition: 'transform 300ms ease, opacity 300ms ease',
-                    }}
-                    className="shrink-0"
-                  >
-                    <Card
-                      className={`cursor-pointer transition-all min-h-[44px] ${
-                        isSelected
-                          ? 'border-primary bg-primary/10 shadow-lg'
-                          : 'border-border hover:border-primary/50'
-                      }`}
-                      onClick={() => setSelectedOptionId(option.id)}
-                      data-testid={`option-card-mobile-${option.id}`}
-                    >
-                      <CardContent className="p-3">
-                        <p className="font-medium text-base">{option.option}</p>
+                {/* Scrollable content */}
+                <div
+                  ref={scrollContainerRef}
+                  className="h-full overflow-y-auto px-4 py-[140px]"
+                  style={{
+                    scrollSnapType: 'y mandatory',
+                  }}
+                  data-testid="options-mobile-scroll"
+                >
+                  {currentOptions.map((option) => {
+                    const isCentered = centeredOptionId === option.id;
+                    const isSelected = selectedOptionId === option.id;
 
-                        {/* Icon Action Bar - Only show on centered option */}
-                        {isCentered && (
-                          <div className="flex items-center gap-2 mt-3" data-testid="icon-action-bar">
-                            {option.consideration && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="flex-1 min-h-[44px]"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleIconClick('consider', option);
-                                }}
-                                data-testid="button-consider"
-                              >
-                                <Lightbulb className="h-4 w-4 mr-2" />
-                                Consider
-                              </Button>
+                    return (
+                      <div
+                        key={option.id}
+                        ref={(el) => {
+                          if (el) optionRefs.current.set(option.id, el);
+                          else optionRefs.current.delete(option.id);
+                        }}
+                        data-option-id={option.id}
+                        style={{
+                          scrollSnapAlign: 'center',
+                          transform: isCentered ? 'scale(1.1)' : 'scale(1)',
+                          opacity: isCentered ? 1 : 0.6,
+                          transition: 'transform 250ms ease, opacity 250ms ease',
+                        }}
+                        className="mb-4 last:mb-0"
+                      >
+                        <Card
+                          className={`cursor-pointer transition-all min-h-[44px] ${
+                            isSelected
+                              ? 'border-primary bg-primary/10 shadow-lg'
+                              : isCentered
+                              ? 'border-primary/50 shadow-md'
+                              : 'border-border'
+                          }`}
+                          onClick={() => {
+                            setSelectedOptionId(option.id);
+                            // Scroll clicked option to center
+                            const element = optionRefs.current.get(option.id);
+                            if (element) {
+                              element.scrollIntoView({
+                                behavior: 'smooth',
+                                block: 'center',
+                              });
+                            }
+                          }}
+                          data-testid={`option-card-mobile-${option.id}`}
+                        >
+                          <CardContent className="p-3">
+                            <p className="font-medium text-base">{option.option}</p>
+
+                            {/* Icon Action Bar - Only show on centered option */}
+                            {isCentered && (
+                              <div className="flex items-center gap-2 mt-3" data-testid="icon-action-bar">
+                                {option.consideration && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="flex-1 min-h-[44px]"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleIconClick('consider', option);
+                                    }}
+                                    data-testid="button-consider"
+                                  >
+                                    <Lightbulb className="h-4 w-4 mr-2" />
+                                    Consider
+                                  </Button>
+                                )}
+                                {option.supporting_evidence?.length > 0 && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="flex-1 min-h-[44px]"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleIconClick('evidence', option);
+                                    }}
+                                    data-testid="button-evidence"
+                                  >
+                                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                                    Evidence
+                                  </Button>
+                                )}
+                                {option.counter_arguments?.length > 0 && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="flex-1 min-h-[44px]"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleIconClick('counter', option);
+                                    }}
+                                    data-testid="button-counter"
+                                  >
+                                    <AlertTriangle className="h-4 w-4 mr-2" />
+                                    Counter
+                                  </Button>
+                                )}
+                              </div>
                             )}
-                            {option.supporting_evidence?.length > 0 && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="flex-1 min-h-[44px]"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleIconClick('evidence', option);
-                                }}
-                                data-testid="button-evidence"
-                              >
-                                <CheckCircle2 className="h-4 w-4 mr-2" />
-                                Evidence
-                              </Button>
-                            )}
-                            {option.counter_arguments?.length > 0 && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="flex-1 min-h-[44px]"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleIconClick('counter', option);
-                                }}
-                                data-testid="button-counter"
-                              >
-                                <AlertTriangle className="h-4 w-4 mr-2" />
-                                Counter
-                              </Button>
-                            )}
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </div>
-                );
-              })}
+                          </CardContent>
+                        </Card>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
             {/* Desktop: Grid Layout (≥640px) */}
