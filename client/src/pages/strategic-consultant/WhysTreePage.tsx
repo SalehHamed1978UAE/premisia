@@ -74,6 +74,7 @@ export default function WhysTreePage() {
   const [isBreadcrumbExpanded, setIsBreadcrumbExpanded] = useState(false);
   const [centeredOptionId, setCenteredOptionId] = useState<string | null>(null);
   const [sheetContent, setSheetContent] = useState<{ type: 'consider' | 'evidence' | 'counter', option: WhyNode } | null>(null);
+  const [isAnswerSelected, setIsAnswerSelected] = useState(false);
   
   // Refs for intersection observer
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -328,6 +329,13 @@ export default function WhysTreePage() {
       container.removeEventListener('scroll', findCenteredOption);
     };
   }, [tree, selectedPath, currentLevel, centeredOptionId]); // Re-run when navigation state changes
+
+  // Reset isAnswerSelected when user scrolls to different option
+  useEffect(() => {
+    if (isAnswerSelected) {
+      setIsAnswerSelected(false);
+    }
+  }, [centeredOptionId]); // Only depend on centeredOptionId to avoid infinite loop
 
   useEffect(() => {
     const fetchUnderstanding = async () => {
@@ -1166,15 +1174,34 @@ export default function WhysTreePage() {
                 <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-primary/20 to-transparent z-20 flex items-end justify-center pb-2">
                   <Button
                     onClick={() => {
-                      if (centeredOptionId) {
+                      if (!centeredOptionId) return;
+                      
+                      if (!isAnswerSelected) {
+                        // First click: select the answer
                         setSelectedOptionId(centeredOptionId);
+                        setIsAnswerSelected(true);
+                      } else {
+                        // Second click: continue to next level
+                        handleSelectAndContinue();
                       }
                     }}
-                    disabled={!centeredOptionId}
+                    disabled={!centeredOptionId || isProcessingAction || expandBranchMutation.isPending}
                     className="min-h-[36px] px-6 shadow-lg"
                     data-testid="button-select-answer"
                   >
-                    Select This Answer
+                    {(isProcessingAction || expandBranchMutation.isPending) ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Loading...
+                      </>
+                    ) : isAnswerSelected ? (
+                      <>
+                        <ArrowRight className="h-4 w-4 mr-2" />
+                        Continue
+                      </>
+                    ) : (
+                      'Select This Answer'
+                    )}
                   </Button>
                 </div>
               </div>
@@ -1269,9 +1296,9 @@ export default function WhysTreePage() {
               </Card>
             )}
 
-            {/* Edit Section - Only for selected option */}
+            {/* Edit Section - Only for selected option (hidden on mobile) */}
             {selectedOption && (
-              <Card className="border-dashed">
+              <Card className="hidden sm:block border-dashed">
                 <CardContent className="p-4">
                   {isEditingWhy ? (
                     <div className="space-y-3">
@@ -1320,8 +1347,8 @@ export default function WhysTreePage() {
               </Card>
             )}
 
-            {/* Continue Button */}
-            <div className="flex justify-center mt-6">
+            {/* Continue Button (hidden on mobile) */}
+            <div className="hidden sm:flex justify-center mt-6">
               <div className="w-full md:w-auto flex flex-col gap-3">
                 {!showOnlyFinalize && canShowContinueButton && (
                   <Button
