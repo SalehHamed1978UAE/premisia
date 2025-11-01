@@ -47,7 +47,7 @@ The application employs a hybrid background job system with database persistence
 - **Full-Pass Export System**: Comprehensive export generating ZIP bundles with strategic analysis and EPM program data in multiple formats (Markdown, PDF, DOCX, HTML).
 - **Document Intelligence Enrichment**: Background job pipeline for asynchronously extracting knowledge from uploaded documents (PDF, DOCX, Excel, images), populating the encrypted knowledge graph with provenance. Features a notification system.
 - **Strategies Hub**: Unified view for all strategic initiatives, providing artifact hierarchy and research provenance, with list and detailed views. Supports context inheritance.
-- **Journey Launcher Modal**: Intelligent modal for initiating additional strategic analysis, with two modes (Full Journey, Single Framework). Includes journey-aware readiness checks and uses a `Strategic Summary Builder` for context, implementing a single-snapshot architecture to prevent token limit overruns.
+- **Journey Launcher Modal**: Intelligent modal for initiating additional strategic analysis, with two modes (Full Journey, Single Framework). Includes journey-aware readiness checks and uses a `Strategic Summary Builder` for context, implementing a single-snapshot architecture to prevent token limit overruns. Features loading overlay that prevents black screen during journey execution by keeping modal visible with "Starting your journey..." message until navigation completes.
 - **Ambiguity Resolution & Clarifications**: AI-powered clarification workflows for strategic inputs, prompting users to resolve unclear inputs, which are then merged and persisted for follow-on analysis.
 
 # Journey Navigation Architecture
