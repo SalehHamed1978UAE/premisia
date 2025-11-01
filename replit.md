@@ -16,13 +16,32 @@ Preferred communication style: Simple, everyday language.
 The frontend utilizes React, TypeScript, and Vite, enhanced with Shadcn/ui (Radix UI and Tailwind CSS) to deliver a themeable "New York" style UI. It offers a single-page application experience, ensuring mobile responsiveness, skeleton loading, and toast notifications. A mobile-first responsive design strategy is implemented with a breakpoint system, adaptive layout patterns (headers, grids, buttons), responsive typography, and careful spacing adjustments.
 
 **Five Whys Interactive UX Pattern:**
-The Five Whys page uses a grid-based selection pattern instead of a carousel:
-- **Layout**: All 4 answer options displayed simultaneously (mobile: vertical stack, desktop: 2×2 grid)
-- **Selection Flow**: Click option → card highlights → evidence/counter-arguments appear below
-- **Navigation**: Single "Continue to Next Why" button at bottom, disabled until selection made
-- **State Management**: `selectedOptionId` tracks current selection, `selectedPath` persists navigation history
-- **Mobile-First**: 44px+ touch targets, w-full buttons on mobile, responsive grid on desktop
-- **Benefits**: Users can compare all options before choosing, reducing cognitive load and navigation friction
+The Five Whys page features a progressive breadcrumb and responsive layout optimized for both mobile and desktop:
+
+**Breadcrumb Design (All Devices):**
+- **"Your Path So Far..."** collapsible header showing numbered progression (1st, 2nd, 3rd, 4th, 5th)
+- **Current question** displayed prominently in large, bold text
+- **Previous whys** collapsed by default, expandable to review the path taken
+- **State**: `isBreadcrumbExpanded` controls collapse/expand behavior
+
+**Mobile Experience (<640px):**
+- **Layout**: Vertical scroll-snap container with snap-to-center behavior
+- **Magnification**: Centered option scales to 1.15x, non-centered options scale to 0.9x with reduced opacity
+- **Icon Action Bar**: Three buttons (💡 Consider, ✅ Evidence, ⚠️ Counter) appear on centered option only
+- **Evidence Display**: Bottom sheet (Shadcn Sheet) for detailed evidence/counter-arguments
+- **Intersection Observer**: Detects centered option with 0.5 threshold
+- **Optimized Spacing**: Compact text, reduced padding, 44px+ touch targets
+- **State**: `centeredOptionId` tracks magnified option, `sheetContent` controls bottom sheet
+
+**Desktop Experience (≥640px):**
+- **Layout**: 2×2 grid displaying all 4 options simultaneously
+- **Evidence Display**: Expands inline below selected option
+- **Selection Flow**: Click option → highlights → evidence appears → Continue enabled
+
+**Shared Features:**
+- **State Management**: `selectedOptionId` tracks selection, `selectedPath` persists navigation history
+- **Navigation**: Single "Continue to Next Why" button, disabled until selection made
+- **Benefits**: Mobile users get focused, scrollable experience; desktop users compare all options at once
 
 ## Technical Implementations
 - **Frontend**: React, TypeScript, Vite, TanStack Query, Wouter.
