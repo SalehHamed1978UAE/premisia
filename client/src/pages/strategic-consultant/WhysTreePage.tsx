@@ -337,6 +337,11 @@ export default function WhysTreePage() {
     }
   }, [centeredOptionId]); // Only depend on centeredOptionId to avoid infinite loop
 
+  // Reset isAnswerSelected when navigating to a new level
+  useEffect(() => {
+    setIsAnswerSelected(false);
+  }, [currentLevel]);
+
   useEffect(() => {
     const fetchUnderstanding = async () => {
       if (!understandingId) {
