@@ -1052,13 +1052,13 @@ export default function WhysTreePage() {
               <div className="relative h-[280px] overflow-hidden border-2 border-primary/30 rounded-lg bg-background/50">
                 {/* Top fade mask with scroll indicator */}
                 <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-b from-background via-background/70 to-transparent z-10 pointer-events-none" />
-                <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+                <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none" data-testid="scroll-indicator-up">
                   <ChevronUp className="h-5 w-5 text-muted-foreground/60 animate-bounce" />
                 </div>
                 
                 {/* Bottom fade mask with scroll indicator */}
                 <div className="absolute bottom-12 left-0 right-0 h-16 bg-gradient-to-t from-background via-background/70 to-transparent z-10 pointer-events-none" />
-                <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+                <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-20 pointer-events-none" data-testid="scroll-indicator-down">
                   <ChevronDown className="h-5 w-5 text-muted-foreground/60 animate-bounce" />
                 </div>
                 
