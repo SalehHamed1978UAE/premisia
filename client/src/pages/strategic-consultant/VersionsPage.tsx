@@ -212,7 +212,7 @@ export default function VersionsPage() {
                 <CardDescription>Select two versions to see differences in approach, market, and decisions</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-sm font-medium">Version 1</label>
                     <select
@@ -279,7 +279,7 @@ export default function VersionsPage() {
                   <div className="space-y-2">
                     <h4 className="font-semibold">Strategic Approach</h4>
                     {comparison.differences.approach_changed ? (
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <p className="text-sm text-muted-foreground mb-1">Version {compareVersion1}</p>
                           <div className="flex flex-wrap gap-1">

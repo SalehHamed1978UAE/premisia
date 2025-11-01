@@ -149,7 +149,7 @@ export function ExecutiveSummaryFormatter({ data }: { data: ExecutiveSummary }) 
         <p className="text-sm">{data.riskSummary}</p>
       </Section>
 
-      <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t">
         <KeyValue label="Investment Required" value={data.investmentRequired} />
         <KeyValue label="Expected Outcomes" value={data.expectedOutcomes} />
       </div>
@@ -438,7 +438,7 @@ export function BenefitsRealizationFormatter({ data }: { data: BenefitsRealizati
   return (
     <div className="space-y-6">
       {(data.totalFinancialValue || data.roi || data.npv || data.paybackPeriod) && (
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {data.totalFinancialValue && (
             <Card>
               <CardContent className="pt-6">
@@ -669,7 +669,7 @@ export function KPIsFormatter({ data }: { data: KPIs }) {
               </Badge>
             </div>
 
-            <div className="grid grid-cols-3 gap-4 mb-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-3">
               <div>
                 <div className="text-xs text-muted-foreground">Baseline</div>
                 <div className="font-semibold">{kpi.baseline}</div>
@@ -730,7 +730,7 @@ export function StakeholderMapFormatter({ data }: { data: StakeholderMap }) {
                     <Badge className={quadrant.color}>{quadrant.label}</Badge>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4 mb-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-3">
                     <div>
                       <span className="text-xs text-muted-foreground">Power:</span>
                       <Badge variant="outline" className="ml-2">{stakeholder.power}</Badge>

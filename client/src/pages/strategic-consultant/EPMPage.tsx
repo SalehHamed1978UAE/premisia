@@ -326,7 +326,7 @@ export default function EPMPage() {
                 </div>
                 <Progress value={completenessPercent} className="h-2" data-testid="progress-completeness" />
             </div>
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground">Critical Fields:</span>
                 <span className="ml-2 font-medium">{completeness.critical.passed}/{completeness.critical.total}</span>
@@ -348,7 +348,7 @@ export default function EPMPage() {
         </Card>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="pb-3">
               <CardDescription className="flex items-center gap-2">
@@ -417,7 +417,7 @@ export default function EPMPage() {
                   <CardDescription>{ws.description}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
                     <div>
                       <span className="text-muted-foreground">Budget:</span>
                       <p className="font-medium">${(ws.cost_allocation.min / 1000).toFixed(0)}K - ${(ws.cost_allocation.max / 1000).toFixed(0)}K</p>
@@ -493,7 +493,7 @@ export default function EPMPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                     <div>
                       <span className="text-muted-foreground">Target:</span>
                       <p className="font-medium">{kpi.target}</p>
