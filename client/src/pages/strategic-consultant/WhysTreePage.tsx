@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { flushSync } from "react-dom";
 import { useRoute, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Textarea } from "@/components/ui/textarea";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, ChevronLeft, ChevronRight, ArrowRight, CheckCircle2, Edit, Plus, ChevronDown, Lightbulb } from "lucide-react";
+import { Loader2, ChevronLeft, ChevronRight, ArrowRight, CheckCircle2, Edit, Plus, ChevronDown, Lightbulb, AlertTriangle } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -68,6 +69,15 @@ export default function WhysTreePage() {
   const [showCoachingModal, setShowCoachingModal] = useState(false);
   const [currentEvaluation, setCurrentEvaluation] = useState<any>(null);
   const [pendingAction, setPendingAction] = useState<{ type: 'continue' | 'custom' | 'edit'; data?: any } | null>(null);
+
+  // New state for redesign
+  const [isBreadcrumbExpanded, setIsBreadcrumbExpanded] = useState(false);
+  const [centeredOptionId, setCenteredOptionId] = useState<string | null>(null);
+  const [sheetContent, setSheetContent] = useState<{ type: 'consider' | 'evidence' | 'counter', option: WhyNode } | null>(null);
+  
+  // Refs for intersection observer
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const optionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const generateTreeMutation = useMutation({
     mutationFn: async () => {
@@ -226,6 +236,48 @@ export default function WhysTreePage() {
       return await response.json() as { success: boolean; evaluation: any };
     },
   });
+
+  // Helper Functions
+  const getOrdinalLabel = (level: number): string => {
+    const labels = ['1st', '2nd', '3rd', '4th', '5th'];
+    return labels[level - 1] || `${level}th`;
+  };
+
+  const handleIconClick = (type: 'consider' | 'evidence' | 'counter', option: WhyNode) => {
+    setSheetContent({ type, option });
+  };
+
+  // Intersection Observer for mobile scroll-snap
+  useEffect(() => {
+    if (typeof window === 'undefined' || window.innerWidth >= 640) return; // Only on mobile
+    
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+            const optionId = entry.target.getAttribute('data-option-id');
+            if (optionId) {
+              setCenteredOptionId(optionId);
+            }
+          }
+        });
+      },
+      {
+        root: container,
+        threshold: 0.5,
+        rootMargin: '-50% 0px -50% 0px',
+      }
+    );
+
+    optionRefs.current.forEach((element) => {
+      if (element) observer.observe(element);
+    });
+
+    return () => observer.disconnect();
+  }, [tree, selectedPath, currentLevel]); // Use tree and path instead of currentOptions
 
   useEffect(() => {
     const fetchUnderstanding = async () => {
@@ -794,36 +846,91 @@ export default function WhysTreePage() {
       subtitle="Discover root causes through strategic questioning"
     >
       <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6 p-4 sm:p-0">
-        {/* Progress Indicator */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <Badge variant="outline" className="text-sm px-3 py-1 w-fit" data-testid="level-indicator">
-            Level {currentLevel} of 5
-          </Badge>
-          <p className="text-sm text-muted-foreground break-words" data-testid="root-question">
-            {tree.rootQuestion}
-          </p>
-        </div>
+        {/* Part 1: New Collapsible Breadcrumb */}
+        <Collapsible open={isBreadcrumbExpanded} onOpenChange={setIsBreadcrumbExpanded}>
+          <Card className="bg-muted/30" data-testid="breadcrumb-card">
+            <CardContent className="p-4">
+              <CollapsibleTrigger asChild>
+                <button 
+                  className="flex items-center justify-between w-full text-left group"
+                  data-testid="breadcrumb-toggle"
+                >
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Your Path So Far...
+                  </span>
+                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isBreadcrumbExpanded ? 'rotate-180' : ''}`} />
+                </button>
+              </CollapsibleTrigger>
 
-        {/* Breadcrumb Trail */}
-        {selectedPath.length > 0 && (
-          <Card className="bg-muted/50">
-            <CardContent className="p-3 sm:p-4">
-              <p className="text-xs text-muted-foreground mb-2 font-medium">Your path so far:</p>
-              <div className="flex flex-wrap gap-2" data-testid="breadcrumb-path">
-                {selectedPath.map((pathItem, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <Badge variant="secondary" className="text-xs">
-                      L{pathItem.depth}: {pathItem.option}
+              <div className="mt-3 space-y-2">
+                {/* When collapsed - show only current question */}
+                {!isBreadcrumbExpanded && (
+                  <div className="flex items-start gap-2" data-testid="breadcrumb-current-collapsed">
+                    <Badge variant="outline" className="shrink-0 mt-1">
+                      {getOrdinalLabel(currentLevel)}
                     </Badge>
-                    {idx < selectedPath.length - 1 && (
-                      <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                    )}
+                    <p className="text-lg font-bold text-primary">
+                      {currentLevel === 1 ? tree.rootQuestion : currentOptions[0]?.question || `Level ${currentLevel} Question`}
+                    </p>
                   </div>
-                ))}
+                )}
+
+                {/* When expanded - show full path */}
+                <CollapsibleContent className="space-y-3">
+                  {/* Root question */}
+                  <div className="flex items-start gap-2" data-testid="breadcrumb-root">
+                    <Badge variant="outline" className="shrink-0 mt-1">
+                      1st
+                    </Badge>
+                    <div className="flex-1">
+                      <p className={currentLevel === 1 ? "text-lg font-bold text-primary" : "text-sm text-muted-foreground"}>
+                        {tree.rootQuestion}
+                      </p>
+                      {selectedPath.length > 0 && (
+                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                          <ArrowRight className="h-3 w-3" />
+                          <span>{selectedPath[0].option}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Previous whys */}
+                  {selectedPath.map((pathItem, idx) => (
+                    <div key={idx} className="flex items-start gap-2" data-testid={`breadcrumb-item-${idx}`}>
+                      <Badge variant="outline" className="shrink-0 mt-1">
+                        {getOrdinalLabel(pathItem.depth)}
+                      </Badge>
+                      <div className="flex-1">
+                        <p className={idx === selectedPath.length - 1 && currentLevel === pathItem.depth ? "text-lg font-bold text-primary" : "text-sm text-muted-foreground"}>
+                          {currentOptions.find(o => o.id === pathItem.nodeId)?.question || `Why ${pathItem.option}?`}
+                        </p>
+                        {idx < selectedPath.length - 1 && (
+                          <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                            <ArrowRight className="h-3 w-3" />
+                            <span>{selectedPath[idx + 1].option}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Current question if different from last path item */}
+                  {currentLevel > selectedPath.length && (
+                    <div className="flex items-start gap-2" data-testid="breadcrumb-current">
+                      <Badge variant="outline" className="shrink-0 mt-1">
+                        {getOrdinalLabel(currentLevel)}
+                      </Badge>
+                      <p className="text-lg font-bold text-primary">
+                        {currentOptions[0]?.question || `Level ${currentLevel} Question`}
+                      </p>
+                    </div>
+                  )}
+                </CollapsibleContent>
               </div>
             </CardContent>
           </Card>
-        )}
+        </Collapsible>
 
         {/* Question Card */}
         {expandBranchMutation.isPending ? (
@@ -849,8 +956,108 @@ export default function WhysTreePage() {
               </CardContent>
             </Card>
 
-            {/* Options Grid */}
-            <div className="flex flex-col md:grid md:grid-cols-2 gap-3 md:gap-4" data-testid="options-grid">
+            {/* Part 2: Mobile Scroll-Snap & Desktop Grid */}
+            {/* Mobile: Vertical Scroll-Snap (<640px) */}
+            <div
+              ref={scrollContainerRef}
+              className="sm:hidden flex flex-col gap-4 overflow-y-auto py-8 px-2"
+              style={{
+                scrollSnapType: 'y mandatory',
+                height: '60vh',
+              }}
+              data-testid="options-mobile-scroll"
+            >
+              {currentOptions.map((option) => {
+                const isCentered = centeredOptionId === option.id;
+                const isSelected = selectedOptionId === option.id;
+
+                return (
+                  <div
+                    key={option.id}
+                    ref={(el) => {
+                      if (el) optionRefs.current.set(option.id, el);
+                      else optionRefs.current.delete(option.id);
+                    }}
+                    data-option-id={option.id}
+                    style={{
+                      scrollSnapAlign: 'center',
+                      transform: isCentered ? 'scale(1.15)' : 'scale(0.9)',
+                      opacity: isCentered ? 1 : 0.7,
+                      transition: 'transform 300ms ease, opacity 300ms ease',
+                    }}
+                    className="shrink-0"
+                  >
+                    <Card
+                      className={`cursor-pointer transition-all min-h-[44px] ${
+                        isSelected
+                          ? 'border-primary bg-primary/10 shadow-lg'
+                          : 'border-border hover:border-primary/50'
+                      }`}
+                      onClick={() => setSelectedOptionId(option.id)}
+                      data-testid={`option-card-mobile-${option.id}`}
+                    >
+                      <CardContent className="p-3">
+                        <p className="font-medium text-base">{option.option}</p>
+
+                        {/* Icon Action Bar - Only show on centered option */}
+                        {isCentered && (
+                          <div className="flex items-center gap-2 mt-3" data-testid="icon-action-bar">
+                            {option.consideration && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1 min-h-[44px]"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleIconClick('consider', option);
+                                }}
+                                data-testid="button-consider"
+                              >
+                                <Lightbulb className="h-4 w-4 mr-2" />
+                                Consider
+                              </Button>
+                            )}
+                            {option.supporting_evidence?.length > 0 && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1 min-h-[44px]"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleIconClick('evidence', option);
+                                }}
+                                data-testid="button-evidence"
+                              >
+                                <CheckCircle2 className="h-4 w-4 mr-2" />
+                                Evidence
+                              </Button>
+                            )}
+                            {option.counter_arguments?.length > 0 && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1 min-h-[44px]"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleIconClick('counter', option);
+                                }}
+                                data-testid="button-counter"
+                              >
+                                <AlertTriangle className="h-4 w-4 mr-2" />
+                                Counter
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop: Grid Layout (≥640px) */}
+            <div className="hidden sm:grid sm:grid-cols-2 gap-3 md:gap-4" data-testid="options-grid">
               {currentOptions.map((option) => (
                 <Card
                   key={option.id}
@@ -863,7 +1070,7 @@ export default function WhysTreePage() {
                   data-testid={`option-card-${option.id}`}
                 >
                   <CardContent className="p-4">
-                    <p className="font-medium text-sm sm:text-base">{option.option}</p>
+                    <p className="font-medium text-base">{option.option}</p>
                     {option.consideration && (
                       <div className="mt-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
                         <div className="flex items-start gap-2">
@@ -877,9 +1084,9 @@ export default function WhysTreePage() {
               ))}
             </div>
 
-            {/* Evidence Box - Shows below selected option */}
+            {/* Desktop Evidence Box - Shows below selected option */}
             {selectedOption && (selectedOption.supporting_evidence?.length > 0 || selectedOption.counter_arguments?.length > 0) && (
-              <Card className="border-primary/50 bg-muted/50" data-testid="evidence-box">
+              <Card className="hidden sm:block border-primary/50 bg-muted/50" data-testid="evidence-box">
                 <CardHeader>
                   <CardTitle className="text-base">Evidence for: {selectedOption.option}</CardTitle>
                 </CardHeader>
@@ -1096,6 +1303,67 @@ export default function WhysTreePage() {
           onOverride={handleOverride}
         />
       )}
+
+      {/* Mobile Bottom Sheet for detailed content */}
+      <Sheet open={!!sheetContent} onOpenChange={(open) => !open && setSheetContent(null)}>
+        <SheetContent side="bottom" className="max-h-[80vh] overflow-y-auto" data-testid="detail-sheet">
+          {sheetContent && (
+            <>
+              <SheetHeader>
+                <SheetTitle data-testid="sheet-title">
+                  {sheetContent.type === 'consider' && 'Consider This'}
+                  {sheetContent.type === 'evidence' && 'Supporting Evidence'}
+                  {sheetContent.type === 'counter' && 'Counter-Arguments'}
+                </SheetTitle>
+              </SheetHeader>
+              <div className="mt-4 space-y-3">
+                {sheetContent.type === 'consider' && sheetContent.option.consideration && (
+                  <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                    <div className="flex items-start gap-2">
+                      <Lightbulb className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                      <p className="text-sm text-blue-900 dark:text-blue-100">{sheetContent.option.consideration}</p>
+                    </div>
+                  </div>
+                )}
+
+                {sheetContent.type === 'evidence' && sheetContent.option.supporting_evidence && (
+                  <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      <span className="font-medium text-green-900 dark:text-green-100">Supporting Evidence</span>
+                    </div>
+                    <ul className="space-y-2">
+                      {sheetContent.option.supporting_evidence.map((point, i) => (
+                        <li key={i} className="text-sm text-green-900 dark:text-green-100 flex gap-2">
+                          <span className="text-green-600 dark:text-green-400 mt-1">•</span>
+                          <span>{point}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {sheetContent.type === 'counter' && sheetContent.option.counter_arguments && (
+                  <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                      <span className="font-medium text-amber-900 dark:text-amber-100">Counter-Arguments</span>
+                    </div>
+                    <ul className="space-y-2">
+                      {sheetContent.option.counter_arguments.map((point, i) => (
+                        <li key={i} className="text-sm text-amber-900 dark:text-amber-100 flex gap-2">
+                          <span className="text-amber-600 dark:text-amber-400 mt-1">•</span>
+                          <span>{point}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
     </AppLayout>
   );
 }
