@@ -83,14 +83,14 @@ export class WhysTreeGenerator {
     
     const level1Branches = await this.generateLevelInParallel(
       rootQuestion,
-      { input, previousAnswers: [] },
+      { input, history: [] },
       1
     );
 
     const level2BranchesPromises = level1Branches.map(level1Node =>
       this.generateLevelInParallel(
         level1Node.question,
-        { input, previousAnswers: [level1Node.option] },
+        { input, history: [{ question: rootQuestion, answer: level1Node.option }] },
         2,
         level1Node.id
       ).then(level2Branches => {
@@ -135,7 +135,7 @@ Return a JSON object with the question:
 
   async generateLevelInParallel(
     question: string,
-    context: { input: string; previousAnswers: string[] },
+    context: { input: string; history: Array<{ question: string; answer: string }> },
     depth: number,
     parentId?: string
   ): Promise<WhyNode[]> {
@@ -159,7 +159,7 @@ ${context.input}
 The question we're asking now:
 ${question}
 
-${context.previousAnswers.length > 0 ? `Here's the path we've taken so far:\n${context.previousAnswers.map((a, i) => `${i + 1}. ${a}`).join('\n')}` : ''}
+${context.history.length > 0 ? `Here's the path we've explored so far:\n${context.history.map((step, i) => `${i + 1}. Q: ${step.question}\n   A: ${step.answer}`).join('\n\n')}` : ''}
 
 We're at step ${depth} of ${this.maxDepth}.
 
@@ -216,8 +216,8 @@ Return ONLY valid JSON (no markdown, no extra text):
     const parsed = this.extractJSON(response, 'generateLevelInParallel');
 
     // Log the AI prompt context for debugging custom input issues
-    if (context.previousAnswers.length > 0) {
-      console.log(`[generateLevelInParallel] Depth ${depth} - Previous answers sent to AI:`, context.previousAnswers);
+    if (context.history.length > 0) {
+      console.log(`[generateLevelInParallel] Depth ${depth} - Q&A history sent to AI:`, context.history);
     }
 
     const nodes: WhyNode[] = parsed.branches.map((branch: { 
@@ -244,7 +244,7 @@ Return ONLY valid JSON (no markdown, no extra text):
 
   async expandBranch(
     nodeId: string,
-    selectedPath: string[],
+    selectedPath: string[] | Array<{ question: string; answer: string }>,
     input: string,
     sessionId: string,
     currentDepth: number,
@@ -254,10 +254,19 @@ Return ONLY valid JSON (no markdown, no extra text):
       throw new Error('Cannot expand beyond maximum depth');
     }
 
+    // Convert old format (string[]) to new format for backward compatibility
+    const history: Array<{ question: string; answer: string }> = 
+      Array.isArray(selectedPath) && selectedPath.length > 0 && typeof selectedPath[0] === 'string'
+        ? (selectedPath as string[]).map((answer, idx) => ({ 
+            question: `Step ${idx + 1}`, // Placeholder for old format
+            answer 
+          }))
+        : selectedPath as Array<{ question: string; answer: string }>;
+
     const nextDepth = currentDepth + 1;
     const branches = await this.generateLevelInParallel(
       parentQuestion,
-      { input, previousAnswers: selectedPath },
+      { input, history },
       nextDepth,
       nodeId
     );
@@ -267,7 +276,7 @@ Return ONLY valid JSON (no markdown, no extra text):
 
   async generateCustomBranches(
     customOption: string,
-    selectedPath: string[],
+    selectedPath: string[] | Array<{ question: string; answer: string }>,
     input: string,
     sessionId: string,
     currentDepth: number
@@ -280,6 +289,15 @@ Return ONLY valid JSON (no markdown, no extra text):
     console.log('[generateCustomBranches] Received customOption:', customOption);
     console.log('[generateCustomBranches] Custom option already in path - using selectedPath directly');
 
+    // Convert old format (string[]) to new format for backward compatibility
+    const history: Array<{ question: string; answer: string }> = 
+      Array.isArray(selectedPath) && selectedPath.length > 0 && typeof selectedPath[0] === 'string'
+        ? (selectedPath as string[]).map((answer, idx) => ({ 
+            question: `Step ${idx + 1}`, // Placeholder for old format
+            answer 
+          }))
+        : selectedPath as Array<{ question: string; answer: string }>;
+
     // Generate a follow-up question based on the custom option
     const nextQuestion = `Why is this? (${customOption})`;
     
@@ -288,7 +306,7 @@ Return ONLY valid JSON (no markdown, no extra text):
     // Don't add it again - that causes duplication and confuses the AI
     const branches = await this.generateLevelInParallel(
       nextQuestion,
-      { input, previousAnswers: selectedPath },
+      { input, history },
       nextDepth
     );
 
@@ -307,12 +325,12 @@ Return ONLY valid JSON (no markdown, no extra text):
     const rootQuestion = await this.generateRootQuestion(input);
     const path: WhyNode[] = [];
     let currentQuestion = rootQuestion;
-    let previousAnswers: string[] = [];
+    let history: Array<{ question: string; answer: string }> = [];
 
     for (let depth = 1; depth <= Math.min(selectedOptions.length + 1, this.maxDepth); depth++) {
       const branches = await this.generateLevelInParallel(
         currentQuestion,
-        { input, previousAnswers },
+        { input, history },
         depth,
         path.length > 0 ? path[path.length - 1].id : undefined
       );
@@ -326,8 +344,8 @@ Return ONLY valid JSON (no markdown, no extra text):
         }
 
         path.push(selectedNode);
+        history.push({ question: currentQuestion, answer: selectedNode.option });
         currentQuestion = selectedNode.question;
-        previousAnswers.push(selectedNode.option);
       } else {
         path.push(...branches);
         break;
@@ -351,15 +369,15 @@ Return ONLY valid JSON (no markdown, no extra text):
     path: WhyNode[]
   ): Promise<{ root_cause: string; strategic_implications: string[]; recommended_actions: string[] }> {
     const pathDescription = path
-      .map((node, i) => `Level ${node.depth}: ${node.option}`)
-      .join('\n');
+      .map((node, i) => `Level ${node.depth}:\n  Q: ${node.question}\n  A: ${node.option}`)
+      .join('\n\n');
 
     const response = await aiClients.callWithFallback({
       systemPrompt: 'You\'re helping someone understand what their 5 Whys analysis revealed. Explain it clearly in everyday language, like you\'re talking to a friend.',
       userMessage: `Here's what they started with:
 ${input}
 
-And here's the path we took to get to the bottom of it:
+And here's the path we took to get to the bottom of it (showing the question asked and answer selected at each level):
 ${pathDescription}
 
 Okay, time to wrap this up! Based on everything we uncovered, I need you to:

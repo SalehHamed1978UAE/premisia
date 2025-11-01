@@ -55,7 +55,7 @@ export default function WhysTreePage() {
   const [understanding, setUnderstanding] = useState<{ id: string; sessionId: string; userInput: string; journeyType?: string } | null>(null);
   const [isLoadingUnderstanding, setIsLoadingUnderstanding] = useState(true);
   const [tree, setTree] = useState<WhyTree | null>(null);
-  const [selectedPath, setSelectedPath] = useState<{ nodeId: string; option: string; depth: number }[]>([]);
+  const [selectedPath, setSelectedPath] = useState<{ nodeId: string; question: string; answer: string; depth: number }[]>([]);
   const [currentLevel, setCurrentLevel] = useState(1);
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
   const [customWhyText, setCustomWhyText] = useState("");
@@ -117,11 +117,11 @@ export default function WhysTreePage() {
         throw new Error('Understanding data not loaded. Please wait...');
       }
       
-      const pathOptions = selectedPath.map(p => p.option);
+      const pathHistory = selectedPath.map(p => ({ question: p.question, answer: p.answer }));
       const response = await apiRequest('POST', '/api/strategic-consultant/whys-tree/expand', {
         sessionId: understanding.sessionId,
         nodeId,
-        selectedPath: pathOptions,
+        selectedPath: pathHistory,
         currentDepth,
         parentQuestion,
         input: understanding.userInput,
@@ -175,7 +175,7 @@ export default function WhysTreePage() {
   });
 
   const finalizeMutation = useMutation({
-    mutationFn: async ({ rootCause, completePath }: { rootCause: string; completePath: string[] }) => {
+    mutationFn: async ({ rootCause, completePath }: { rootCause: string; completePath: Array<{question: string; answer: string}> }) => {
       if (!understanding) {
         throw new Error('Understanding data not loaded. Please wait...');
       }
@@ -253,18 +253,19 @@ export default function WhysTreePage() {
       return tree.rootQuestion;
     }
     
-    // For deeper levels: the question is in the last selected node's branches
-    // When we select an option and continue, that option's branches contain the NEXT question
+    // For level 2+: the current question is stored in the parent node's question field
+    // The parent is the last item in selectedPath
     if (selectedPath.length > 0) {
-      // Navigate to the last selected node
+      // Navigate to the last selected node (the parent of current options)
       let currentNodes = tree.branches;
       for (let i = 0; i < selectedPath.length; i++) {
         const selectedNode = currentNodes.find(n => n.id === selectedPath[i].nodeId);
-        if (!selectedNode) return `Why ${selectedPath[i].option}?`;
+        if (!selectedNode) return `Why ${selectedPath[i].answer}?`;
         
-        // If this is the last item in path and it has branches, get question from first branch
-        if (i === selectedPath.length - 1 && selectedNode.branches && selectedNode.branches.length > 0) {
-          return selectedNode.branches[0].question;
+        // If this is the last item in path, return its question field
+        // This is the question for the CURRENT level (children of this node)
+        if (i === selectedPath.length - 1) {
+          return selectedNode.question;
         }
         
         // Otherwise continue navigating
@@ -276,7 +277,7 @@ export default function WhysTreePage() {
     
     // Fallback: construct question from last selected option
     if (selectedPath.length > 0) {
-      return `Why ${selectedPath[selectedPath.length - 1].option}?`;
+      return `Why ${selectedPath[selectedPath.length - 1].answer}?`;
     }
     
     return '';
@@ -464,7 +465,7 @@ export default function WhysTreePage() {
     if (isUserCustomInput) {
       try {
         // Validate the user's custom input
-        const previousWhys = selectedPath.map(p => p.option);
+        const previousWhys = selectedPath.map(p => p.answer);
         const validation = await validateWhyMutation.mutateAsync({
           level: currentLevel,
           candidate: selectedOption.option,
@@ -520,9 +521,13 @@ export default function WhysTreePage() {
     // Note: isProcessingAction is already true from handleSelectAndContinue
     // Keep it true if expansion is needed, clear it if just navigating
 
+    // Capture the CURRENT question that was asked, not the next one
+    const currentQuestion = getCurrentQuestion();
+
     const newPath = [...selectedPath, {
       nodeId: selectedOption.id,
-      option: optionToUse, // Use the possibly-overridden option
+      question: currentQuestion, // The question that was actually asked
+      answer: optionToUse, // Use the possibly-overridden option
       depth: selectedOption.depth
     }];
     setSelectedPath(newPath);
@@ -565,16 +570,20 @@ export default function WhysTreePage() {
       }
       
       // If validation passes, proceed with finalization
+      // Capture the CURRENT question that was asked, not the next one
+      const currentQuestion = getCurrentQuestion();
+      
       const finalPath = [...selectedPath, {
         nodeId: selectedOption.id,
-        option: selectedOption.option,
+        question: currentQuestion, // The question that was actually asked
+        answer: selectedOption.option,
         depth: selectedOption.depth
       }];
       
-      const pathOptions = finalPath.map(p => p.option);
+      const pathHistory = finalPath.map(p => ({ question: p.question, answer: p.answer }));
       finalizeMutation.mutate({
         rootCause: selectedOption.option,
-        completePath: pathOptions
+        completePath: pathHistory
       });
     } catch (error: any) {
       setIsProcessingAction(false);
@@ -711,7 +720,7 @@ export default function WhysTreePage() {
 
       try {
         // Only re-validate if user manually edited the answer
-        const previousWhys = selectedPath.map(p => p.option);
+        const previousWhys = selectedPath.map(p => p.answer);
         const validation = await validateWhyMutation.mutateAsync({
           level: currentLevel,
           candidate: newAnswer,
@@ -778,7 +787,7 @@ export default function WhysTreePage() {
 
       try {
         // Only re-validate if user manually edited the answer
-        const previousWhys = selectedPath.map(p => p.option);
+        const previousWhys = selectedPath.map(p => p.answer);
         const validation = await validateWhyMutation.mutateAsync({
           level: currentLevel,
           candidate: newAnswer,
@@ -979,7 +988,7 @@ export default function WhysTreePage() {
                       {selectedPath.length > 0 && (
                         <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                           <ArrowRight className="h-3 w-3" />
-                          <span>{selectedPath[0].option}</span>
+                          <span>{selectedPath[0].answer}</span>
                         </div>
                       )}
                     </div>
@@ -988,7 +997,7 @@ export default function WhysTreePage() {
                   {/* Previous whys (exclude current level) */}
                   {selectedPath.slice(0, -1).map((pathItem, idx) => {
                     // Get the question for this level by navigating to the node's branches
-                    let questionText = `Why ${pathItem.option}?`;
+                    let questionText = `Why ${pathItem.answer}?`;
                     if (tree) {
                       let currentNodes = tree.branches;
                       for (let i = 0; i <= idx; i++) {
@@ -1018,7 +1027,7 @@ export default function WhysTreePage() {
                           </p>
                           <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                             <ArrowRight className="h-3 w-3" />
-                            <span>{selectedPath[idx + 1].option}</span>
+                            <span>{selectedPath[idx + 1].answer}</span>
                           </div>
                         </div>
                       </div>
@@ -1488,7 +1497,7 @@ export default function WhysTreePage() {
           evaluation={currentEvaluation}
           candidate={selectedOption?.option || customWhyText || editedWhyText}
           rootQuestion={tree.rootQuestion}
-          previousWhys={selectedPath.map(p => p.option)}
+          previousWhys={selectedPath.map(p => p.answer)}
           sessionId={tree.sessionId}
           onRevise={handleRevision}
           onOverride={handleOverride}
