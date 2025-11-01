@@ -123,8 +123,12 @@ export const jobTypeEnum = pgEnum('job_type', [
   'strategic_understanding',
   'document_enrichment',
   'journey_execution',
-  'framework_execution'
+  'framework_execution',
+  'research_enrichment'
 ]);
+
+// Research Batch enums
+export const researchBatchStatusEnum = pgEnum('research_batch_status', ['captured', 'enriched', 'failed']);
 
 // Task Assignment enums  
 export const assignmentSourceEnum = pgEnum('assignment_source', ['ai_generated', 'manual', 'bulk_import']);
