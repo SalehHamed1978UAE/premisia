@@ -227,7 +227,7 @@ export default function JourneyLauncherModal({
     },
   });
 
-  const isLoading = executeMutation.isPending || runNowMutation.isPending;
+  const isLoading = executeJourneyMutation.isPending || runNowMutation.isPending;
 
   return (
     <Dialog open={open} onOpenChange={isLoading ? undefined : onOpenChange}>
