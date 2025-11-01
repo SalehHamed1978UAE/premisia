@@ -1877,11 +1877,11 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
     // Persist references from BMC research
     try {
       console.log('[DEBUG-REFS] Checking persistence conditions...');
-      console.log('[DEBUG-REFS] result.blocks exists:', !!result.blocks);
-      console.log('[DEBUG-REFS] result.blocks is array:', Array.isArray(result.blocks));
+      console.log('[DEBUG-REFS] result.references exists:', !!result.references);
+      console.log('[DEBUG-REFS] result.references.length:', result.references?.length || 0);
       console.log('[DEBUG-REFS] understanding exists:', !!understanding);
       
-      if (result.blocks && Array.isArray(result.blocks) && understanding) {
+      if (result.references && result.references.length > 0 && understanding) {
         console.log('[DEBUG-REFS] ✓ Entered persistence block');
         const { referenceService } = await import('../services/reference-service.js');
         
@@ -1892,58 +1892,35 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
         console.log('[DEBUG-REFS] userId from journey session:', userId);
         
         if (!userId) {
-          throw new Error('Cannot persist BMC block references without a user');
+          throw new Error('Cannot persist BMC references without a user');
         }
         
-        // Extract all citations from BMC blocks
-        const allCitations: any[] = [];
-        console.log('[DEBUG-REFS] Extracting citations from', result.blocks.length, 'blocks');
+        console.log(`[DEBUG-REFS] About to persist ${result.references.length} references with userId: ${userId}`);
         
-        result.blocks.forEach((block: any) => {
-          console.log('[DEBUG-REFS] Block:', block.name || 'unnamed', 'has research:', !!block.research);
-          if (block.research && Array.isArray(block.research)) {
-            console.log('[DEBUG-REFS] Block has', block.research.length, 'research items');
-            block.research.forEach((item: any, idx: number) => {
-              console.log(`[DEBUG-REFS] Research item ${idx} has citations:`, !!item.citations, 'count:', item.citations?.length || 0);
-              if (item.citations && Array.isArray(item.citations)) {
-                item.citations.forEach((citation: any) => {
-                  allCitations.push({
-                    ...citation,
-                    component: `research.${block.name || 'unknown'}`,
-                    claim: item.finding || item.summary || '',
-                  });
-                });
-              }
-            });
-          }
+        // Normalize all references with userId and context
+        const normalized = result.references.map((reference: any) => 
+          referenceService.normalizeReference(
+            reference,
+            userId,
+            { 
+              component: `bmc.${reference.topics?.[1] || 'general'}`,
+              claim: reference.description || reference.snippet || ''
+            },
+            { understandingId: understanding.id, sessionId }
+          )
+        );
+        
+        console.log('[DEBUG-REFS] Normalized', normalized.length, 'references, calling persistReferences...');
+        
+        const persistResult = await referenceService.persistReferences(normalized, {
+          understandingId: understanding.id,
+          sessionId,
         });
         
-        console.log('[DEBUG-REFS] Total citations extracted:', allCitations.length);
-        
-        if (allCitations.length > 0) {
-          console.log(`[DEBUG-REFS] About to persist ${allCitations.length} references with userId: ${userId}`);
-          
-          const normalized = allCitations.map(citation => 
-            referenceService.normalizeReference(
-              citation,
-              userId,
-              { component: citation.component, claim: citation.claim },
-              { understandingId: understanding.id, sessionId }
-            )
-          );
-          
-          console.log('[DEBUG-REFS] Normalized', normalized.length, 'references, calling persistReferences...');
-          
-          const persistResult = await referenceService.persistReferences(normalized, {
-            understandingId: understanding.id,
-            sessionId,
-          });
-          
-          console.log('[DEBUG-REFS] Persistence result:', JSON.stringify(persistResult, null, 2));
-          console.log(`[BMC-RESEARCH-STREAM] ✓ Persisted references - created: ${persistResult.created}, updated: ${persistResult.updated}, skipped: ${persistResult.skipped}`);
-        } else {
-          console.log('[DEBUG-REFS] ⚠️ No citations found in blocks!');
-        }
+        console.log('[DEBUG-REFS] Persistence result:', JSON.stringify(persistResult, null, 2));
+        console.log(`[BMC-RESEARCH-STREAM] ✓ Persisted references - created: ${persistResult.created}, updated: ${persistResult.updated}, skipped: ${persistResult.skipped}`);
+      } else {
+        console.log('[DEBUG-REFS] ⚠️ No references to persist!');
       }
     } catch (error: any) {
       console.error('[BMC-RESEARCH-STREAM] Reference persistence failed (non-critical):', error);
