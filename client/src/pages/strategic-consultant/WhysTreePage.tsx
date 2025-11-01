@@ -1193,8 +1193,23 @@ export default function WhysTreePage() {
                   onClick={() => setSelectedOptionId(option.id)}
                   data-testid={`option-card-${option.id}`}
                 >
-                  <CardContent className="p-4">
-                    <p className="font-medium text-base">{option.option}</p>
+                  <CardContent className="p-4 relative">
+                    {/* Pencil icon for editing */}
+                    <button
+                      className="absolute top-3 right-3 p-1 rounded hover:bg-muted transition-colors opacity-60 hover:opacity-100"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedOptionId(option.id);
+                        setEditedWhyText(option.option);
+                        setIsEditingWhy(true);
+                      }}
+                      data-testid="button-edit-option"
+                      title="Edit this option"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    
+                    <p className="font-medium text-base pr-8">{option.option}</p>
                     {option.consideration && (
                       <div className="mt-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
                         <div className="flex items-start gap-2">
