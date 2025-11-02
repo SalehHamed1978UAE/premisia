@@ -260,7 +260,7 @@ describe('Journey Registry V2 Feature Flag Integration Tests', () => {
       vi.doMock('../server/journey/framework-executor-registry', () => ({
         frameworkRegistry: {
           execute: vi.fn().mockResolvedValue({
-            frameworkName: 'test_framework',
+            frameworkName: 'five_whys',
             executedAt: new Date(),
             duration: 100,
             data: {
@@ -305,7 +305,7 @@ describe('Journey Registry V2 Feature Flag Integration Tests', () => {
       vi.doMock('../server/journey/framework-executor-registry', () => ({
         frameworkRegistry: {
           execute: vi.fn().mockResolvedValue({
-            frameworkName: 'test_framework',
+            frameworkName: 'five_whys',
             executedAt: new Date(),
             duration: 100,
             data: {
