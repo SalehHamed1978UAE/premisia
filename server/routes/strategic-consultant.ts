@@ -1898,6 +1898,7 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
         console.log(`[DEBUG-REFS] About to persist ${result.references.length} references with userId: ${userId}`);
         
         // Normalize all references with userId and context
+        // Note: Only pass understandingId, not sessionId, to avoid foreign key constraint issues
         const normalized = result.references.map((reference: any) => 
           referenceService.normalizeReference(
             reference,
@@ -1906,7 +1907,7 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
               component: `bmc.${reference.topics?.[1] || 'general'}`,
               claim: reference.description || reference.snippet || ''
             },
-            { understandingId: understanding.id, sessionId }
+            { understandingId: understanding.id }
           )
         );
         
@@ -1914,7 +1915,6 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
         
         const persistResult = await referenceService.persistReferences(normalized, {
           understandingId: understanding.id,
-          sessionId,
         });
         
         console.log('[DEBUG-REFS] Persistence result:', JSON.stringify(persistResult, null, 2));
