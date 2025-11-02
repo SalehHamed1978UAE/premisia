@@ -449,23 +449,27 @@ function PublicLandingPage() {
             Multi-agent AI that turns leadership intent into EPM-grade roadmaps, budgets, and OKRs—with live evidence, governance, and change tracking.
           </p>
 
-          {/* IBM Proof Strip */}
+          {/* Leaders' Reality — By the Numbers */}
           <div className="flex flex-wrap justify-center gap-6 md:gap-12 mt-12 text-sm">
-            <div className="text-center">
-              <div className="text-3xl md:text-4xl font-bold text-primary">66%</div>
-              <div className="text-muted-foreground mt-1">of leaders see significant<br />AI productivity gains</div>
+            <div className="text-center max-w-xs">
+              <div className="text-3xl md:text-4xl font-bold text-primary">66% / 92%</div>
+              <div className="text-muted-foreground mt-1">already see AI productivity gains;<br />expect agent ROI in two years</div>
+              <div className="text-xs text-muted-foreground/70 mt-2">IBM Newsroom</div>
             </div>
-            <div className="text-center">
-              <div className="text-3xl md:text-4xl font-bold text-primary">92%</div>
-              <div className="text-muted-foreground mt-1">expect measurable ROI<br />within 2 years</div>
+            <div className="text-center max-w-xs">
+              <div className="text-3xl md:text-4xl font-bold text-primary">~26 min</div>
+              <div className="text-muted-foreground mt-1">saved per day in UK gov trial—<br />time to reinvest in thinking</div>
+              <div className="text-xs text-muted-foreground/70 mt-2">Microsoft</div>
             </div>
-            <div className="text-center">
+            <div className="text-center max-w-xs">
               <div className="text-3xl md:text-4xl font-bold text-primary">$2.6-4.4T</div>
-              <div className="text-muted-foreground mt-1">GenAI value potential<br />annually</div>
+              <div className="text-muted-foreground mt-1">gen-AI value pool<br />annually</div>
+              <div className="text-xs text-muted-foreground/70 mt-2">McKinsey & Company</div>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground text-center mt-6">
-            Sources: IBM EMEA Report 2025 • McKinsey GenAI Economic Impact 2023
+          <p className="text-xs text-muted-foreground text-center mt-8 italic max-w-2xl mx-auto">
+            "The pace of change has never been this fast—yet it will never be this slow again."
+            <span className="block mt-1 not-italic opacity-70">— World Economic Forum</span>
           </p>
         </div>
 
