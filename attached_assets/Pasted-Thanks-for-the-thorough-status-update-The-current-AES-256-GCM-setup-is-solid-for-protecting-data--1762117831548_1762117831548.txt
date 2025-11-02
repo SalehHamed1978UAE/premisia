@@ -1,0 +1,40 @@
+Thanks for the thorough status update. The current AES‑256‑GCM setup is solid
+  for protecting data at rest, but it still relies on a single app encryption
+  key stored in the environment (ENCRYPTION_KEY). Anyone with access to the
+  server environment or deployment pipeline can retrieve that key and decrypt
+  records. In other words, it’s not “zero‑knowledge”—admins (or an intruder who
+  gains shell access) can still read user data.
+
+  Because you asked specifically about preventing admins from reading user
+  content, we still need to take the next step: managed key infrastructure and
+  envelope encryption. The goal is to make it so even if someone has DB access
+  and source access, they still can’t read the data because they don’t have
+  privileges to call the KMS Decrypt.
+
+  Here’s what I suggest we do next, in order:
+
+  1. Move the master key into a managed KMS (AWS/Azure/GCP)
+      - Create a dedicated CMK.
+      - Lock the key policy so only the application’s execution role can call
+        Decrypt. No human users should have that permission.
+  2. Implement envelope encryption
+      - Generate a random data key per record.
+      - Encrypt the data key with the CMK and store the ciphertext alongside
+        the record.
+      - Encrypt the payload using the data key (AES‑GCM is fine).
+      - Zero the plaintext data key right after use.
+      - Update the secure data service so every decrypt call goes through KMS to
+        unwrap the encrypted data key.
+  3. Verify & test
+      - Write a test that inserts a record, ensures the DB shows ciphertext, and
+        fails if plaintext matches a known string.
+      - Manually confirm that, without KMS permissions, you can’t decrypt even
+        if you know the codebase.
+  4. Document & monitor
+      - Add a runbook covering key rotation and access monitoring.
+      - Log/analyze KMS decrypt calls to detect unusual activity.
+
+  The current encryption makes stored data unreadable without the key, which
+  is great. But for the “even admins shouldn’t be able to read it” requirement,
+  the remaining work is to put that key behind a controlled KMS boundary and use
+  per-record data keys.
