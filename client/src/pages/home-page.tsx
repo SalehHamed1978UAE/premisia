@@ -109,28 +109,32 @@ function OnboardingFlow() {
       <div className="max-w-6xl mx-auto">
         {/* Hero Section */}
         <div className="text-center mb-12">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-primary to-primary/80 rounded-2xl mb-6 shadow-lg">
-            <Sparkles className="h-10 w-10 text-white" />
-          </div>
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <h1 className="text-4xl md:text-5xl font-bold text-foreground">
-              Welcome to Premisia
-            </h1>
+          <div className="flex flex-col items-center mb-8">
+            <img 
+              src={logoFullLight} 
+              alt="Premisia - Think it through" 
+              className="h-32 md:h-40 w-auto dark:hidden mb-4"
+            />
+            <img 
+              src={logoFullDark} 
+              alt="Premisia - Think it through" 
+              className="h-32 md:h-40 w-auto hidden dark:block mb-4"
+            />
             <span className="px-3 py-1 text-sm font-semibold bg-primary/10 text-primary rounded-lg">BETA</span>
           </div>
           <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
-            Think it through. Premisia structures complex choices so leaders can align, commit, and move. <span className="font-semibold text-foreground">66% of EMEA leaders already see significant AI productivity gains</span>—it's time to turn that into strategic advantage.
+            Premisia structures complex choices so leaders can align, commit, and move. <span className="font-semibold text-foreground">66% of EMEA leaders already see significant AI productivity gains</span>—it's time to turn that into strategic advantage.
           </p>
         </div>
 
         {/* Step Indicators - Display only, not clickable */}
         <div className="flex justify-center mb-8">
-          <div className="flex items-center space-x-4">
+          <div className="flex flex-col md:flex-row items-center gap-3 md:gap-0">
             {ONBOARDING_STEPS.map((step, index) => (
-              <div key={step.id} className="flex items-center">
+              <div key={step.id} className="flex flex-col md:flex-row items-center">
                 <div
                   className={cn(
-                    "w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all",
+                    "w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all mx-auto",
                     index === currentStep
                       ? "bg-primary text-primary-foreground shadow-lg scale-110"
                       : index < currentStep
@@ -147,7 +151,7 @@ function OnboardingFlow() {
                 </div>
                 {index < ONBOARDING_STEPS.length - 1 && (
                   <div className={cn(
-                    "w-16 h-1 mx-2 transition-all",
+                    "w-1 h-8 md:w-16 md:h-1 md:mx-2 transition-all",
                     index < currentStep ? "bg-primary" : "bg-muted"
                   )} />
                 )}
@@ -399,14 +403,14 @@ function PublicLandingPage() {
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <img 
-              src={logoFullLight} 
-              alt="Premisia - Think it through" 
-              className="h-10 md:h-12 w-auto dark:hidden"
+              src={logoLight} 
+              alt="Premisia" 
+              className="h-8 w-auto dark:hidden"
             />
             <img 
-              src={logoFullDark} 
-              alt="Premisia - Think it through" 
-              className="h-10 md:h-12 w-auto hidden dark:block"
+              src={logoDark} 
+              alt="Premisia" 
+              className="h-8 w-auto hidden dark:block"
             />
             <span className="px-2 py-1 text-xs font-semibold bg-primary/10 text-primary rounded">BETA</span>
           </div>
