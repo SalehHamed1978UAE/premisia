@@ -1426,7 +1426,7 @@ Marketing and events: $3k/month`,
 
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; QgenticEPM/1.0; +https://qgentic.com)'
+          'User-Agent': 'Mozilla/5.0 (compatible; Premisia/1.0; +https://premisia.ai)'
         }
       });
 
