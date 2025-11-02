@@ -25,6 +25,18 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
     ],
     estimatedDuration: '30-35 minutes',
     available: true, // FULLY IMPLEMENTED - includes input & decisions workflow
+    summaryBuilder: 'fiveWhysBmc',
+    defaultReadiness: {
+      minReferences: 0,
+      minEntities: 0,
+    },
+    insightsConfig: {
+      requiresFiveWhys: true,
+      requiresBmc: true,
+    },
+    dependencies: [
+      { from: 'five_whys', to: 'bmc' },
+    ],
   },
 
   /**
@@ -39,6 +51,13 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
     frameworks: ['pestle', 'porters', 'swot'],
     estimatedDuration: '15-20 minutes',
     available: false, // Placeholder - not implemented
+    summaryBuilder: 'pestlePorters',
+    defaultReadiness: {
+      minReferences: 3,
+      minEntities: 5,
+    },
+    insightsConfig: {},
+    dependencies: [],
   },
 
   /**
@@ -53,6 +72,17 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
     frameworks: ['porters', 'bmc', 'blue_ocean'],
     estimatedDuration: '15-22 minutes',
     available: false, // Placeholder - not implemented
+    summaryBuilder: 'portersBmc',
+    defaultReadiness: {
+      minReferences: 3,
+      minEntities: 5,
+    },
+    insightsConfig: {
+      requiresBmc: true,
+    },
+    dependencies: [
+      { from: 'porters', to: 'bmc' },
+    ],
   },
 
   /**
@@ -67,6 +97,17 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
     frameworks: ['pestle', 'bmc', 'ansoff'],
     estimatedDuration: '18-25 minutes',
     available: false, // Placeholder - not implemented
+    summaryBuilder: 'pestleBmc',
+    defaultReadiness: {
+      minReferences: 3,
+      minEntities: 5,
+    },
+    insightsConfig: {
+      requiresBmc: true,
+    },
+    dependencies: [
+      { from: 'pestle', to: 'bmc' },
+    ],
   },
 
   /**
@@ -81,6 +122,17 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
     frameworks: ['five_whys', 'swot', 'bmc'],
     estimatedDuration: '14-20 minutes',
     available: false, // Placeholder - not implemented
+    summaryBuilder: 'fiveWhysSwot',
+    defaultReadiness: {
+      minReferences: 2,
+      minEntities: 4,
+    },
+    insightsConfig: {
+      requiresFiveWhys: true,
+    },
+    dependencies: [
+      { from: 'five_whys', to: 'swot' },
+    ],
   },
 
   /**
@@ -95,6 +147,15 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
     frameworks: ['pestle', 'ansoff', 'bmc'],
     estimatedDuration: '16-23 minutes',
     available: false, // Placeholder - not implemented
+    summaryBuilder: 'pestleAnsoff',
+    defaultReadiness: {
+      minReferences: 3,
+      minEntities: 5,
+    },
+    insightsConfig: {},
+    dependencies: [
+      { from: 'pestle', to: 'ansoff' },
+    ],
   },
 };
 

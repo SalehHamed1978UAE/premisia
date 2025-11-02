@@ -116,6 +116,19 @@ export interface JourneyDefinition {
   pageSequence?: string[];    // Optional: Interactive pages for this journey
   estimatedDuration: string;  // e.g., "10-15 minutes"
   available: boolean;          // Whether this journey is implemented
+  summaryBuilder: string;     // Which summarization routine to use (e.g., 'fiveWhysBmc', 'pestlePorters')
+  defaultReadiness: {         // Readiness thresholds for this journey
+    minReferences: number;
+    minEntities: number;
+  };
+  insightsConfig: {           // Framework-specific configuration requirements
+    requiresFiveWhys?: boolean;
+    requiresBmc?: boolean;
+  };
+  dependencies: Array<{       // Framework dependencies defining data flow
+    from: FrameworkName;
+    to: FrameworkName;
+  }>;
 }
 
 /**
