@@ -14,7 +14,8 @@ import {
   Map,
   Target
 } from "lucide-react";
-import logoDark from "@assets/PREMISIA Think it through (1)_1762085311768.png";
+import logoLight from "@assets/PREMISIA Think it through (1)-modified_1762085311768.png";
+import logoDark from "@assets/PREMISIA Think it through_20251102_180550_0000_1762092638684.png";
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -54,9 +55,14 @@ export function Sidebar({ isOpen = false, onToggle = () => {} }: SidebarProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <img 
+                src={logoLight} 
+                alt="Premisia Logo" 
+                className="h-8 w-auto dark:hidden"
+              />
+              <img 
                 src={logoDark} 
                 alt="Premisia Logo" 
-                className="h-8 w-auto"
+                className="h-8 w-auto hidden dark:block"
               />
               <span className="px-2 py-1 text-xs font-semibold bg-primary/10 text-primary rounded">BETA</span>
             </div>

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle, ShieldCheck } from "lucide-react";
 import { SiGoogle } from "react-icons/si";
 import logoLight from "@assets/PREMISIA Think it through (1)-modified_1762085311768.png";
-import logoDark from "@assets/PREMISIA Think it through (1)_1762085311768.png";
+import logoDark from "@assets/PREMISIA Think it through_20251102_180550_0000_1762092638684.png";
 
 export default function AuthPage() {
   const { user, isLoading } = useAuth();
