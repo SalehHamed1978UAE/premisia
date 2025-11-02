@@ -610,68 +610,77 @@ async function processEPMGeneration(
     // Save journey summary if this EPM was generated from a BMI journey
     if (isJourneyRegistryV2Enabled() && version.sessionId) {
       try {
-        // Look up journey session by sessionId and versionNumber
-        // version.sessionId contains the session ID string (e.g., "session-xxx")
-        // which matches journeySessions.sessionId, NOT journeySessions.understandingId
-        const [journeySession] = await db
+        // Look up journey session via understanding
+        // version.sessionId -> strategicUnderstanding.sessionId -> journeySessions.understandingId
+        const [understanding] = await db
           .select()
-          .from(journeySessions)
-          .where(
-            and(
-              eq(journeySessions.sessionId, version.sessionId),
-              eq(journeySessions.versionNumber, version.versionNumber)
-            )
-          )
+          .from(strategicUnderstanding)
+          .where(eq(strategicUnderstanding.sessionId, version.sessionId))
           .limit(1);
 
-        if (journeySession && journeySession.journeyType === 'business_model_innovation') {
-          console.log(`[EPM Completion Hook] Found BMI journey session ${journeySession.id}, saving summary...`);
-          
-          // Build strategic context from available data
-          const context: StrategicContext = {
-            understandingId: journeySession.understandingId!,
-            sessionId: version.sessionId,
-            userInput: version.inputSummary || version.marketContext || '',
-            journeyType: journeySession.journeyType as JourneyType,
-            currentFrameworkIndex: 2, // Completed Five Whys and BMC
-            completedFrameworks: ['five_whys', 'bmc'],
-            status: 'completed',
-            insights: {
-              rootCauses: [],
-              bmcBlocks: bmcAnalysis || {},
-              strategicImplications: [],
-              businessModelGaps: [],
-            },
-            createdAt: new Date(journeySession.createdAt || new Date()),
-            updatedAt: new Date(),
-          };
+        if (understanding) {
+          const [journeySession] = await db
+            .select()
+            .from(journeySessions)
+            .where(
+              and(
+                eq(journeySessions.understandingId, understanding.id),
+                eq(journeySessions.versionNumber, version.versionNumber)
+              )
+            )
+            .limit(1);
 
-          // Extract root causes from Five Whys if available
-          const fiveWhysData = (analysisData as any)?.five_whys;
-          if (fiveWhysData?.rootCauses) {
-            context.insights.rootCauses = fiveWhysData.rootCauses;
+          if (journeySession && journeySession.journeyType === 'business_model_innovation') {
+            console.log(`[EPM Completion Hook] Found BMI journey session ${journeySession.id}, saving summary...`);
+            
+            // Build strategic context from available data
+            const context: StrategicContext = {
+              understandingId: journeySession.understandingId!,
+              sessionId: version.sessionId,
+              userInput: version.inputSummary || version.marketContext || '',
+              journeyType: journeySession.journeyType as JourneyType,
+              currentFrameworkIndex: 2, // Completed Five Whys and BMC
+              completedFrameworks: ['five_whys', 'bmc'],
+              status: 'completed',
+              insights: {
+                rootCauses: [],
+                bmcBlocks: bmcAnalysis || {},
+                strategicImplications: [],
+                businessModelGaps: [],
+              },
+              createdAt: new Date(journeySession.createdAt || new Date()),
+              updatedAt: new Date(),
+            };
+
+            // Extract root causes from Five Whys if available
+            const fiveWhysData = (analysisData as any)?.five_whys;
+            if (fiveWhysData?.rootCauses) {
+              context.insights.rootCauses = fiveWhysData.rootCauses;
+            }
+
+            // Get journey definition to find summary builder
+            const journeyDef = journeyRegistry.getJourney('business_model_innovation');
+            if (journeyDef?.summaryBuilder) {
+              // Build and save summary
+              const summary = journeySummaryService.buildSummary(
+                journeyDef.summaryBuilder,
+                context,
+                {
+                  versionNumber: journeySession.versionNumber || 1,
+                  completedAt: new Date().toISOString(),
+                }
+              );
+
+              await journeySummaryService.saveSummary(journeySession.id, summary);
+              console.log(`[EPM Completion Hook] ✓ Journey summary saved for version ${journeySession.versionNumber}`);
+            }
+          } else if (journeySession) {
+            console.log(`[EPM Completion Hook] Journey type is ${journeySession.journeyType}, not BMI - skipping summary`);
+          } else {
+            console.log(`[EPM Completion Hook] No journey session found for understanding ${understanding.id} v${version.versionNumber}`);
           }
-
-          // Get journey definition to find summary builder
-          const journeyDef = journeyRegistry.getJourney('business_model_innovation');
-          if (journeyDef?.summaryBuilder) {
-            // Build and save summary
-            const summary = journeySummaryService.buildSummary(
-              journeyDef.summaryBuilder,
-              context,
-              {
-                versionNumber: journeySession.versionNumber || 1,
-                completedAt: new Date().toISOString(),
-              }
-            );
-
-            await journeySummaryService.saveSummary(journeySession.id, summary);
-            console.log(`[EPM Completion Hook] ✓ Journey summary saved for version ${journeySession.versionNumber}`);
-          }
-        } else if (journeySession) {
-          console.log(`[EPM Completion Hook] Journey type is ${journeySession.journeyType}, not BMI - skipping summary`);
         } else {
-          console.log(`[EPM Completion Hook] No journey session found for understanding ${version.sessionId} v${version.versionNumber}`);
+          console.log(`[EPM Completion Hook] No understanding found for sessionId ${version.sessionId}`);
         }
       } catch (summaryError: any) {
         // Don't fail EPM generation if summary saving fails
