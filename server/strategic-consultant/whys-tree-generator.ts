@@ -189,7 +189,7 @@ The next question must always be: "Why [this exact option statement]?" - Keep th
 
 Remember - we're not at the final answer yet. We're just helping them figure out which path feels most accurate so they can keep digging.
 
-Return ONLY valid JSON (no markdown, no extra text):
+CRITICAL: You MUST return your response in valid JSON format. Return ONLY valid JSON (no markdown, no extra text). Here is the exact JSON structure to use:
 
 {
   "branches": [
