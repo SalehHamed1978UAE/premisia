@@ -15,7 +15,7 @@ export function TopBar({ title, subtitle, onToggleSidebar }: TopBarProps) {
   const { pendingInsights, setPanelOpen } = useDocumentInsights();
 
   return (
-    <header className="sticky top-0 z-20 bg-card border-b border-border">
+    <header className="sticky top-0 z-20 bg-card/100 backdrop-blur-sm border-b border-border">
       <div className="flex items-center justify-between px-6 py-4">
         <div className="flex items-center gap-4">
           <Button
