@@ -400,20 +400,6 @@ export default function WhysTreePage() {
     }
   }, [understanding]);
 
-  // Auto-expand Level 1 when tree is first loaded with empty branches
-  useEffect(() => {
-    if (tree && currentLevel === 1 && tree.branches.length === 0 && !expandBranchMutation.isPending) {
-      console.log('[WhysTreePage] Auto-expanding Level 1 for newly generated tree');
-      // Trigger expansion of the root question to generate Level 1 options
-      expandBranchMutation.mutate({
-        nodeId: 'root',
-        parentQuestion: tree.rootQuestion,
-        currentDepth: 0,
-        isCustom: false,
-      });
-    }
-  }, [tree?.rootQuestion]); // Trigger when tree first loads with a rootQuestion
-
   // Timeout handler for long-running tree generation
   useEffect(() => {
     let timeoutId: NodeJS.Timeout | null = null;

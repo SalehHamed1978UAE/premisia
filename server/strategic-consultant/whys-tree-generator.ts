@@ -81,13 +81,29 @@ export class WhysTreeGenerator {
   async generateTree(input: string, sessionId: string): Promise<WhyTree> {
     const rootQuestion = await this.generateRootQuestion(input);
     
-    // Don't generate any branches upfront - they'll be generated on-demand via expandBranch
-    // This avoids the gpt-5 empty response issue and makes the system more responsive
-    // Previously this generated Level 1 + Level 2 upfront, which was failing
+    const level1Branches = await this.generateLevelInParallel(
+      rootQuestion,
+      { input, history: [] },
+      1
+    );
+
+    const level2BranchesPromises = level1Branches.map(level1Node =>
+      this.generateLevelInParallel(
+        level1Node.question,
+        { input, history: [{ question: rootQuestion, answer: level1Node.option }] },
+        2,
+        level1Node.id
+      ).then(level2Branches => {
+        level1Node.branches = level2Branches;
+        return level1Node;
+      })
+    );
+
+    const level1WithLevel2 = await Promise.all(level2BranchesPromises);
 
     return {
       rootQuestion,
-      branches: [], // Start with empty branches - user will expand to see options
+      branches: level1WithLevel2,
       maxDepth: this.maxDepth,
       sessionId,
     };
@@ -173,7 +189,7 @@ The next question must always be: "Why [this exact option statement]?" - Keep th
 
 Remember - we're not at the final answer yet. We're just helping them figure out which path feels most accurate so they can keep digging.
 
-CRITICAL: You MUST return your response in valid JSON format. Return ONLY valid JSON (no markdown, no extra text). Here is the exact JSON structure to use:
+Return ONLY valid JSON (no markdown, no extra text):
 
 {
   "branches": [
