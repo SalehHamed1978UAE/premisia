@@ -56,8 +56,8 @@ export function Sidebar({ isOpen = false, onToggle = () => {} }: SidebarProps) {
                 <LayoutDashboard className="h-6 w-6 text-primary-foreground" />
               </div>
               <div>
-                <h2 className="font-bold text-foreground">QGentic</h2>
-                <p className="text-xs text-muted-foreground">Strategic Intelligence</p>
+                <h2 className="font-bold text-foreground">Premisia</h2>
+                <p className="text-xs text-muted-foreground">Think it through</p>
               </div>
             </div>
             <Button

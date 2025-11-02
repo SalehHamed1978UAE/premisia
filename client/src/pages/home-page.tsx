@@ -110,22 +110,21 @@ function OnboardingFlow() {
           </div>
           <div className="flex items-center justify-center gap-3 mb-4">
             <h1 className="text-4xl md:text-5xl font-bold text-foreground">
-              Welcome to QGentic
+              Welcome to Premisia
             </h1>
             <span className="px-3 py-1 text-sm font-semibold bg-primary/10 text-primary rounded-lg">BETA</span>
           </div>
           <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
-            AI-enhanced strategic intelligence platform that transforms your ideas into complete, execution-ready EPM programs. <span className="font-semibold text-foreground">15-30 minutes first time, 10-20 when familiar</span>—vs. weeks of traditional consulting.
+            Think it through. Premisia structures complex choices so leaders can align, commit, and move. <span className="font-semibold text-foreground">66% of EMEA leaders already see significant AI productivity gains</span>—it's time to turn that into strategic advantage.
           </p>
         </div>
 
-        {/* Step Indicators */}
+        {/* Step Indicators - Display only, not clickable */}
         <div className="flex justify-center mb-8">
           <div className="flex items-center space-x-4">
             {ONBOARDING_STEPS.map((step, index) => (
               <div key={step.id} className="flex items-center">
-                <button
-                  onClick={() => setCurrentStep(index)}
+                <div
                   className={cn(
                     "w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all",
                     index === currentStep
@@ -141,7 +140,7 @@ function OnboardingFlow() {
                   ) : (
                     step.id
                   )}
-                </button>
+                </div>
                 {index < ONBOARDING_STEPS.length - 1 && (
                   <div className={cn(
                     "w-16 h-1 mx-2 transition-all",
@@ -230,39 +229,6 @@ function OnboardingFlow() {
             </div>
           </CardContent>
         </Card>
-
-        {/* Quick Access Cards */}
-        <div className="grid md:grid-cols-3 gap-6 mt-12 max-w-4xl mx-auto">
-          {ONBOARDING_STEPS.map((step, index) => {
-            const StepIcon = step.icon;
-            return (
-              <Card
-                key={step.id}
-                className={cn(
-                  "cursor-pointer transition-all hover:shadow-lg",
-                  index === currentStep && "ring-2 ring-primary"
-                )}
-                onClick={() => setCurrentStep(index)}
-                data-testid={`quick-access-${index}`}
-              >
-                <CardContent className="p-6">
-                  <div className={cn(
-                    "w-12 h-12 rounded-lg bg-gradient-to-br flex items-center justify-center mb-4",
-                    step.color
-                  )}>
-                    <StepIcon className="h-6 w-6 text-white" />
-                  </div>
-                  <h3 className="font-semibold text-foreground mb-2">
-                    {step.title}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {step.description}
-                  </p>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
       </div>
     </div>
   );
@@ -424,132 +390,166 @@ function Dashboard({ summary }: { summary: DashboardSummary }) {
 function PublicLandingPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
-      <div className="container mx-auto px-4 py-8 md:py-16">
+      {/* Sticky Header */}
+      <div className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
+        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold text-foreground">Premisia</h2>
+            <span className="px-2 py-1 text-xs font-semibold bg-primary/10 text-primary rounded">BETA</span>
+          </div>
+          <Button 
+            onClick={() => window.location.href = '/api/login'}
+            data-testid="button-header-signin"
+          >
+            Sign In
+          </Button>
+        </div>
+      </div>
+
+      <div className="container mx-auto px-4 py-12 md:py-20">
         {/* Hero Section */}
-        <div className="text-center mb-12 md:mb-16">
+        <div className="text-center mb-16 md:mb-20">
           <div className="inline-flex items-center justify-center w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-primary to-primary/80 rounded-2xl mb-6 shadow-lg">
-            <Sparkles className="h-8 w-8 md:h-10 md:w-10 text-white" />
+            <Target className="h-8 w-8 md:h-10 md:w-10 text-white" />
           </div>
-          <div className="flex items-center justify-center gap-2 md:gap-3 mb-4">
-            <h1 className="text-3xl md:text-5xl font-bold text-foreground">
-              QGentic
-            </h1>
-            <span className="px-2 md:px-3 py-1 text-xs md:text-sm font-semibold bg-primary/10 text-primary rounded-lg">BETA</span>
-          </div>
-          <p className="text-lg md:text-2xl font-semibold text-foreground mb-4">
-            Strategic Ideas into Executable Programs
+          <h1 className="text-4xl md:text-6xl font-bold text-foreground mb-4">
+            Think it through
+          </h1>
+          <p className="text-xl md:text-2xl text-foreground font-medium mb-6 max-w-4xl mx-auto">
+            Premisia structures complex choices so leaders can align, commit, and move—fast
           </p>
-          <p className="text-base md:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
-            AI-enhanced strategic intelligence platform that transforms your ideas into complete, execution-ready EPM programs. <span className="font-semibold text-foreground">10-30 minutes</span>—vs. weeks of traditional consulting.
+          <p className="text-base md:text-lg text-muted-foreground max-w-3xl mx-auto leading-relaxed mb-8">
+            Multi-agent AI that turns leadership intent into EPM-grade roadmaps, budgets, and OKRs—with live evidence, governance, and change tracking.
+          </p>
+
+          {/* IBM Proof Strip */}
+          <div className="flex flex-wrap justify-center gap-6 md:gap-12 mt-12 text-sm">
+            <div className="text-center">
+              <div className="text-3xl md:text-4xl font-bold text-primary">66%</div>
+              <div className="text-muted-foreground mt-1">of leaders see significant<br />AI productivity gains</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl md:text-4xl font-bold text-primary">92%</div>
+              <div className="text-muted-foreground mt-1">expect measurable ROI<br />within 2 years</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl md:text-4xl font-bold text-primary">$2.6-4.4T</div>
+              <div className="text-muted-foreground mt-1">GenAI value potential<br />annually</div>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground text-center mt-6">
+            Sources: IBM EMEA Report 2025 • McKinsey GenAI Economic Impact 2023
           </p>
         </div>
 
-        {/* Features Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-          <Card>
+        {/* Value Pillars */}
+        <div className="grid md:grid-cols-2 gap-8 mb-16">
+          <Card className="border-2">
             <CardHeader>
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <Sparkles className="h-5 w-5 text-primary" />
+              <div className="flex items-center space-x-3 mb-2">
+                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <Zap className="h-6 w-6 text-primary" />
                 </div>
-                <CardTitle className="text-lg">Multi-Agent AI</CardTitle>
+                <CardTitle className="text-xl">Speed with substance</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Specialized AI agents for strategy, building, and QA—not just a chatbot
+              <p className="text-muted-foreground leading-relaxed">
+                Compress weeks of slide-making and stakeholder wrangling into hours—with on-call agents for scenarios, risks, budgets, and benefits. Field studies show sizeable productivity lifts for knowledge work when AI assists complex tasks.
               </p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-2">
             <CardHeader>
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <Zap className="h-5 w-5 text-primary" />
+              <div className="flex items-center space-x-3 mb-2">
+                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <CheckCircle className="h-6 w-6 text-primary" />
                 </div>
-                <CardTitle className="text-lg">Lightning Fast</CardTitle>
+                <CardTitle className="text-xl">Evidence you can audit</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">
-                15-30 minutes first time, 10-20 when familiar—vs. traditional 2-3 week timeline
+              <p className="text-muted-foreground leading-relaxed">
+                Every recommendation carries sources, bias-checks, and assumptions so boards and auditors can trace decisions end-to-end. Your strategic IP backed by research provenance and knowledge graphs.
               </p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-2">
             <CardHeader>
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <CheckCircle className="h-5 w-5 text-primary" />
+              <div className="flex items-center space-x-3 mb-2">
+                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <FileText className="h-6 w-6 text-primary" />
                 </div>
-                <CardTitle className="text-lg">Evidence-Based</CardTitle>
+                <CardTitle className="text-xl">Execution-ready, not just ideas</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Real-time research with source validation and built-in anti-bias checks
+              <p className="text-muted-foreground leading-relaxed">
+                Output is EPM-structured (charter, milestones, costs, KPIs, RAID, RACI) with AI-powered scheduling, critical path analysis, and resource conflict detection. Board-ready programs that sync with your delivery stack.
               </p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-2">
             <CardHeader>
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <Target className="h-5 w-5 text-primary" />
+              <div className="flex items-center space-x-3 mb-2">
+                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                  <TrendingUp className="h-6 w-6 text-primary" />
                 </div>
-                <CardTitle className="text-lg">Battle-Tested Frameworks</CardTitle>
+                <CardTitle className="text-xl">Continuous refinement</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Five Whys, Business Model Canvas, PESTLE, Porter's Five Forces
+              <p className="text-muted-foreground leading-relaxed">
+                Strategies evolve as data changes—living programs that learn from outcomes. Add new context, run additional frameworks, or refine existing analyses. Your strategic intelligence compounds over time.
               </p>
             </CardContent>
           </Card>
+        </div>
 
-          <Card>
-            <CardHeader>
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <FileText className="h-5 w-5 text-primary" />
-                </div>
-                <CardTitle className="text-lg">Complete EPM Programs</CardTitle>
+        {/* How it works */}
+        <div className="mb-16">
+          <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">How it works</h2>
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="text-center">
+              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl font-bold text-primary">1</span>
               </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                14-component execution blueprints with timelines, resources, and financials
+              <h3 className="text-xl font-semibold mb-3">Ingest & orient</h3>
+              <p className="text-muted-foreground">
+                Securely connect policies, financials, KPIs, and prior initiatives. Premisia builds a knowledge graph of your enterprise context.
               </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <ShieldCheck className="h-5 w-5 text-primary" />
-                </div>
-                <CardTitle className="text-lg">Enterprise Security</CardTitle>
+            </div>
+            <div className="text-center">
+              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl font-bold text-primary">2</span>
               </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                AES-256 encryption, secure authentication, and protected strategic IP
+              <h3 className="text-xl font-semibold mb-3">Think it through</h3>
+              <p className="text-muted-foreground">
+                Advisory agents co-draft scenarios, explore trade-offs, and validate OKRs. Run risk and compliance checks in-line with traceable citations.
               </p>
-            </CardContent>
-          </Card>
+            </div>
+            <div className="text-center">
+              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl font-bold text-primary">3</span>
+              </div>
+              <h3 className="text-xl font-semibold mb-3">Commit & ship</h3>
+              <p className="text-muted-foreground">
+                Export to your PM suite with charter, plan, costs, KPIs, owners, and tracking—with full sources and assumptions. Keep iterating as conditions change.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* CTA Section */}
         <div className="text-center">
-          <Card className="max-w-md mx-auto">
+          <Card className="max-w-md mx-auto border-2">
             <CardContent className="p-6 md:p-8">
-              <h3 className="text-xl md:text-2xl font-bold mb-4">Ready to Get Started?</h3>
+              <h3 className="text-xl md:text-2xl font-bold mb-4">Turn debate into direction</h3>
               <p className="text-muted-foreground mb-6">
-                Sign in to transform your strategic ideas into executable programs
+                Sign in to start structuring your strategic choices with traceable evidence and execution-ready outputs
               </p>
               <Button 
                 onClick={() => window.location.href = '/api/login'}
@@ -561,7 +561,7 @@ function PublicLandingPage() {
                 Sign in with Replit
               </Button>
               <p className="text-xs text-muted-foreground mt-4">
-                Secure OAuth 2.0 / OIDC authentication via Replit
+                Secure OAuth 2.0 / OIDC authentication • AES-256 encryption
               </p>
             </CardContent>
           </Card>

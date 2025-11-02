@@ -31,19 +31,19 @@ export default function AuthPage() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl md:text-2xl font-bold">QGentic</h1>
+                <h1 className="text-xl md:text-2xl font-bold">Premisia</h1>
                 <span className="px-2 py-0.5 text-xs font-semibold bg-white/20 rounded">BETA</span>
               </div>
-              <p className="text-primary-foreground/80">AI-Enhanced Strategic Intelligence</p>
+              <p className="text-primary-foreground/80">Think it through</p>
             </div>
           </div>
           <div className="space-y-6">
             <div>
               <h2 className="text-3xl md:text-4xl font-bold mb-4">
-                Turn Strategic Ideas into Executable Programs — Without Waiting Weeks
+                From strategic question to execution-ready program—fast
               </h2>
               <p className="text-lg md:text-xl text-primary-foreground/90 leading-relaxed">
-                An AI-enhanced platform that transforms your insight into complete, execution-ready Enterprise Program Management plans. One focused session instead of one month.
+                Premisia structures complex choices so leaders can align, commit, and move. Multi-agent AI that turns leadership intent into EPM-grade roadmaps, budgets, and OKRs—with live evidence, governance, and change tracking.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-6 mt-12">
@@ -59,35 +59,35 @@ export default function AuthPage() {
               <div className="space-y-2">
                 <div className="flex items-center space-x-2">
                   <CheckCircle className="h-5 w-5" />
-                  <span className="font-medium">15-30 Minutes First Time</span>
+                  <span className="font-medium">Hours, Not Weeks</span>
                 </div>
                 <p className="text-sm text-primary-foreground/70 ml-7">
-                  10-20 minutes when familiar—vs. traditional 2-3 week timeline
+                  Compress strategy work from weeks to hours—with on-call agents for scenarios
                 </p>
               </div>
               <div className="space-y-2">
                 <div className="flex items-center space-x-2">
                   <CheckCircle className="h-5 w-5" />
-                  <span className="font-medium">Evidence-Based Insights</span>
+                  <span className="font-medium">Evidence You Can Audit</span>
                 </div>
                 <p className="text-sm text-primary-foreground/70 ml-7">
-                  Real-time research with source validation and anti-bias checks
+                  Every recommendation carries sources, bias-checks, and assumptions
                 </p>
               </div>
               <div className="space-y-2">
                 <div className="flex items-center space-x-2">
                   <CheckCircle className="h-5 w-5" />
-                  <span className="font-medium">14-Component EPM Programs</span>
+                  <span className="font-medium">Execution-Ready, Not Just Ideas</span>
                 </div>
                 <p className="text-sm text-primary-foreground/70 ml-7">
-                  Complete execution blueprints with timelines, resources, and financials
+                  EPM-structured outputs: charter, milestones, costs, KPIs, RAID, RACI
                 </p>
               </div>
             </div>
           </div>
         </div>
         <div className="text-sm text-primary-foreground/60">
-          © 2025 QGentic. All rights reserved.
+          © 2025 Premisia. All rights reserved.
         </div>
       </div>
 
@@ -98,10 +98,10 @@ export default function AuthPage() {
             <CardContent className="p-8">
               <div className="text-center mb-8">
                 <div className="flex items-center justify-center gap-2 mb-2">
-                  <h2 className="text-2xl md:text-3xl font-bold text-foreground">Welcome to QGentic</h2>
+                  <h2 className="text-2xl md:text-3xl font-bold text-foreground">Welcome to Premisia</h2>
                   <span className="px-2 py-1 text-xs font-semibold bg-primary/10 text-primary rounded">BETA</span>
                 </div>
-                <p className="text-muted-foreground">Transform strategic thinking into executable programs</p>
+                <p className="text-muted-foreground">Think it through</p>
               </div>
 
               <div className="space-y-4">

@@ -10,20 +10,20 @@ export function WelcomeModal() {
 
   useEffect(() => {
     // Disabled: Using new onboarding flow on Home page instead
-    // const hasSeenWelcome = localStorage.getItem("qgentic_welcome_seen");
+    // const hasSeenWelcome = localStorage.getItem("premisia_welcome_seen");
     // if (!hasSeenWelcome) {
     //   setOpen(true);
     // }
   }, []);
 
   const handleGetStarted = () => {
-    localStorage.setItem("qgentic_welcome_seen", "true");
+    localStorage.setItem("premisia_welcome_seen", "true");
     setOpen(false);
     setLocation("/strategic-consultant/input");
   };
 
   const handleClose = () => {
-    localStorage.setItem("qgentic_welcome_seen", "true");
+    localStorage.setItem("premisia_welcome_seen", "true");
     setOpen(false);
   };
 
@@ -36,9 +36,9 @@ export function WelcomeModal() {
               <Sparkles className="h-6 w-6 text-white" />
             </div>
             <div>
-              <DialogTitle className="text-2xl">Welcome to QGentic!</DialogTitle>
+              <DialogTitle className="text-2xl">Welcome to Premisia!</DialogTitle>
               <DialogDescription className="text-base">
-                AI-Enhanced Strategic Intelligence Platform
+                Think it through
               </DialogDescription>
             </div>
           </div>
@@ -46,7 +46,7 @@ export function WelcomeModal() {
 
         <div className="space-y-6 py-4">
           <p className="text-muted-foreground">
-            QGentic transforms your strategic ideas into complete, execution-ready EPM programs in 15-30 minutes—vs. weeks of traditional consulting.
+            Premisia structures complex choices so leaders can align, commit, and move—fast. Multi-agent AI that turns leadership intent into EPM-grade roadmaps with live evidence and governance.
           </p>
 
           <div className="space-y-4">

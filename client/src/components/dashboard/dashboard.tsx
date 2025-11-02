@@ -106,10 +106,10 @@ export function Dashboard() {
                 
                 <div className="space-y-2">
                   <h2 className="text-2xl font-bold text-foreground">
-                    Welcome to QGentic!
+                    Welcome to Premisia!
                   </h2>
                   <p className="text-muted-foreground text-lg">
-                    Turn your strategic ideas into actionable enterprise programs
+                    Think it through—turn strategic questions into execution-ready programs
                   </p>
                 </div>
 
