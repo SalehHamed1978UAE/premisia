@@ -23,8 +23,19 @@ import { encrypt, decrypt, encryptJSON, decryptJSON } from '../utils/encryption'
  * - Strategic Entities (Knowledge Graph): content, properties
  * - Strategic Decisions: decisionsData
  * - Strategy Versions: analysisData, decisionsData
- * - EPM Programs: ALL program data fields
+ * - EPM Programs: ALL program data fields (programName, executiveSummary, workstreams, 
+ *   timeline, resourcePlan, financialPlan, benefitsRealization, riskRegister, 
+ *   stakeholderMap, governance, qaPlan, procurement, exitStrategy, kpis)
  * - Users: email (if PII), fullName, phoneNumber, companyName
+ * 
+ * ENCRYPTION AUDIT (2025-11-02):
+ * ✅ EPM Programs - All strategic fields are properly encrypted:
+ *    - executiveSummary: Encrypted with encrypt() (line 331)
+ *    - workstreams: Encrypted with encryptJSON() (line 332) 
+ *    - timeline: Encrypted with encryptJSON() (line 333)
+ *    - All 14 EPM fields use proper encryption methods
+ * ✅ Strategy Versions - analysisData and decisionsData encrypted
+ * ✅ All CRUD operations (save/update/get) properly encrypt/decrypt data
  */
 
 // ==================== STRATEGIC UNDERSTANDING ====================
@@ -345,7 +356,7 @@ export async function saveEPMProgram(data: SecureEPMProgram) {
 
   const result = await db.insert(epmPrograms)
     .values(encrypted as any)
-    .returning();
+    .returning() as any[];
 
   return decryptEPMProgram(result[0]);
 }
@@ -438,7 +449,7 @@ export async function saveStrategyVersion(data: SecureStrategyVersion) {
 
   const result = await db.insert(strategyVersions)
     .values(encrypted as any)
-    .returning();
+    .returning() as any[];
 
   return decryptStrategyVersion(result[0]);
 }

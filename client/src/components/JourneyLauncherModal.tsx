@@ -253,7 +253,7 @@ export default function JourneyLauncherModal({
 
   return (
     <Dialog open={open} onOpenChange={isLoading ? undefined : onOpenChange}>
-      <DialogContent className="max-w-[95vw] sm:max-w-[90vw] lg:max-w-4xl max-h-[90vh] sm:max-h-[85vh] flex flex-col p-0">
+      <DialogContent className="max-w-[95vw] sm:max-w-[90vw] lg:max-w-4xl max-h-[90vh] sm:max-h-[85vh] flex flex-col p-0 bg-background/95 backdrop-blur-sm">
         {/* Loading Overlay - prevents black screen during journey start */}
         {isLoading && (
           <div className="absolute inset-0 bg-background/95 backdrop-blur-sm z-50 flex items-center justify-center">
@@ -335,7 +335,7 @@ export default function JourneyLauncherModal({
                       selectedJourney === journey.type
                         ? 'ring-2 ring-primary'
                         : 'hover:shadow-md'
-                    } ${!journey.available ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    } ${!journey.available ? 'opacity-40 cursor-not-allowed pointer-events-none' : ''}`}
                     onClick={() => journey.available && handleJourneySelect(journey.type, journey.isCustom || false)}
                     data-testid={`card-journey-${journey.type}`}
                   >
@@ -363,7 +363,7 @@ export default function JourneyLauncherModal({
                           </Badge>
                         ))}
                         {!journey.available && (
-                          <Badge variant="outline" className="text-xs">
+                          <Badge variant="outline" className="text-xs bg-purple-100 dark:bg-purple-900/30 border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300">
                             Coming Soon
                           </Badge>
                         )}

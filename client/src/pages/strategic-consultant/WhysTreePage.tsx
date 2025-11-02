@@ -1213,7 +1213,8 @@ export default function WhysTreePage() {
                       }
                     }}
                     disabled={!centeredOptionId || isProcessingAction || expandBranchMutation.isPending || finalizeMutation.isPending || validateRootCauseMutation.isPending}
-                    className="min-h-[36px] px-6 shadow-lg"
+                    size="lg"
+                    className={`text-base font-semibold min-h-[44px] px-8 shadow-xl hover:shadow-2xl ${isAnswerSelected ? 'animate-pulse-glow' : ''}`}
                     data-testid="button-select-answer"
                   >
                     {(isProcessingAction || expandBranchMutation.isPending || finalizeMutation.isPending || validateRootCauseMutation.isPending) ? (

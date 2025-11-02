@@ -35,7 +35,7 @@ export function ClarificationModal({ questions, onSubmit, onSkip }: Clarificatio
 
   return (
     <Dialog open onOpenChange={onSkip}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" data-testid="modal-clarification">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-background/95 backdrop-blur-sm" data-testid="modal-clarification">
         <DialogHeader>
           <DialogTitle className="text-2xl flex items-center gap-2">
             <AlertCircle className="w-6 h-6 text-orange-500" />

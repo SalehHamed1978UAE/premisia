@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, ArrowRight, AlertCircle } from "lucide-react";
+import { Loader2, ArrowRight, AlertCircle, Star } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -257,6 +257,8 @@ export default function DecisionPage() {
                       className={`border rounded-lg p-4 transition-all ${
                         selectedDecisions[decision.id] === option.id
                           ? 'border-primary bg-primary/5'
+                          : option.recommended && !option.warning
+                          ? 'border-2 border-primary bg-primary/5 hover:border-primary'
                           : 'border-border hover:border-primary/50'
                       }`}
                       data-testid={`option-${decision.id}-${option.id}`}
@@ -304,8 +306,9 @@ export default function DecisionPage() {
                               </Badge>
                             )}
                             {option.recommended && !option.warning && (
-                              <Badge variant="default" className="font-normal">
-                                ✓ Recommended
+                              <Badge variant="default" className="font-normal flex items-center gap-1">
+                                <Star className="w-3 h-3" />
+                                Recommended
                               </Badge>
                             )}
                             {option.warning && (

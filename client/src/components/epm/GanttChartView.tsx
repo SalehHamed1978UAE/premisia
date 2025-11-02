@@ -178,20 +178,20 @@ export default function GanttChartView({ workstreams, timeline, stageGates }: Ga
               {ganttData.tasks
                 .filter(t => t.isCriticalPath)
                 .map(task => (
-                  <div key={task.id} className="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded">
+                  <div key={task.id} className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded">
                     <div className="flex-1">
-                      <div className="font-semibold text-red-900">{task.name}</div>
-                      <div className="text-sm text-red-700">
+                      <div className="font-semibold text-red-900 dark:text-red-100">{task.name}</div>
+                      <div className="text-sm text-red-700 dark:text-red-300">
                         Months {task.startMonth}-{task.endMonth} ({task.duration} months)
                         {task.owner && ` • ${task.owner}`}
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm font-semibold text-red-900">
+                      <div className="text-sm font-semibold text-red-900 dark:text-red-100">
                         {Math.round(task.confidence * 100)}% confidence
                       </div>
                       {task.dependencies.length > 0 && (
-                        <div className="text-xs text-red-700">
+                        <div className="text-xs text-red-700 dark:text-red-300">
                           {task.dependencies.length} dependencies
                         </div>
                       )}
@@ -269,15 +269,15 @@ export default function GanttChartView({ workstreams, timeline, stageGates }: Ga
               .filter(t => t.deliverables && t.deliverables.length > 0)
               .map(task => (
                 <div key={task.id}>
-                  <div className="font-semibold text-sm mb-2">{task.name}</div>
+                  <div className="font-semibold text-sm mb-2 text-foreground">{task.name}</div>
                   <div className="space-y-1 ml-4">
                     {task.deliverables?.map(deliverable => (
-                      <div key={deliverable.id} className="flex items-center justify-between p-2 bg-blue-50 border border-blue-200 rounded text-sm">
+                      <div key={deliverable.id} className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded text-sm">
                         <div className="flex items-center gap-2">
                           <svg width="12" height="12">
-                            <path d="M 6 2 L 10 6 L 6 10 L 2 6 Z" fill="#3b82f6" />
+                            <path d="M 6 2 L 10 6 L 6 10 L 2 6 Z" fill="currentColor" className="text-blue-600 dark:text-blue-400" />
                           </svg>
-                          <span>{deliverable.name}</span>
+                          <span className="text-foreground">{deliverable.name}</span>
                         </div>
                         <div className="flex items-center gap-4 text-xs text-muted-foreground">
                           <span>Month {deliverable.dueMonth}</span>
