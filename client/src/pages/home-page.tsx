@@ -427,10 +427,10 @@ function PublicLandingPage() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-12 md:py-20">
+      <div className="container mx-auto px-4 py-6 md:py-8">
         {/* Hero Section */}
-        <div className="text-center mb-16 md:mb-20">
-          <div className="mb-8">
+        <div className="text-center mb-12 md:mb-16">
+          <div className="mb-6">
             <img 
               src={logoFullLight} 
               alt="Premisia - Think it through" 
