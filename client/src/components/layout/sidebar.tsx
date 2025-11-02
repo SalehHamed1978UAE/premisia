@@ -52,19 +52,18 @@ export function Sidebar({ isOpen = false, onToggle = () => {} }: SidebarProps) {
         <div className="p-6 border-b border-border">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-                <LayoutDashboard className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <div>
-                <h2 className="font-bold text-foreground">Premisia</h2>
-                <p className="text-xs text-muted-foreground">Think it through</p>
-              </div>
+              <img 
+                src="/attached_assets/PREMISIA Think it through (1)_1762085311768.png" 
+                alt="Premisia Logo" 
+                className="h-8 w-auto"
+              />
+              <span className="px-2 py-1 text-xs font-semibold bg-primary/10 text-primary rounded">BETA</span>
             </div>
             <Button
               variant="ghost"
               size="icon"
               onClick={onToggle}
-              className="lg:hidden"
+              className="lg:hidden text-white hover:text-white"
               data-testid="button-close-sidebar"
             >
               <X className="h-4 w-4" />

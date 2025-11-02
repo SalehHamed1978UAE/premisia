@@ -26,16 +26,12 @@ export default function AuthPage() {
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary to-primary/80 p-12 flex-col justify-between text-white">
         <div>
           <div className="flex items-center space-x-3 mb-8">
-            <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-              <ShieldCheck className="h-8 w-8" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl md:text-2xl font-bold">Premisia</h1>
-                <span className="px-2 py-0.5 text-xs font-semibold bg-white/20 rounded">BETA</span>
-              </div>
-              <p className="text-primary-foreground/80">Think it through</p>
-            </div>
+            <img 
+              src="/attached_assets/PREMISIA Think it through (1)_1762085311768.png" 
+              alt="Premisia Logo" 
+              className="h-10 w-auto"
+            />
+            <span className="px-2 py-0.5 text-xs font-semibold bg-white/20 rounded">BETA</span>
           </div>
           <div className="space-y-6">
             <div>
@@ -97,9 +93,21 @@ export default function AuthPage() {
           <Card className="shadow-2xl border-0 bg-card/50 backdrop-blur">
             <CardContent className="p-8">
               <div className="text-center mb-8">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <h2 className="text-2xl md:text-3xl font-bold text-foreground">Welcome to Premisia</h2>
-                  <span className="px-2 py-1 text-xs font-semibold bg-primary/10 text-primary rounded">BETA</span>
+                <div className="flex flex-col items-center gap-3 mb-2">
+                  <img 
+                    src="/attached_assets/PREMISIA Think it through (1)-modified_1762085311768.png" 
+                    alt="Premisia Logo" 
+                    className="h-12 w-auto dark:hidden"
+                  />
+                  <img 
+                    src="/attached_assets/PREMISIA Think it through (1)_1762085311768.png" 
+                    alt="Premisia Logo" 
+                    className="h-12 w-auto hidden dark:block"
+                  />
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-2xl md:text-3xl font-bold text-foreground">Welcome to Premisia</h2>
+                    <span className="px-2 py-1 text-xs font-semibold bg-primary/10 text-primary rounded">BETA</span>
+                  </div>
                 </div>
                 <p className="text-muted-foreground">Think it through</p>
               </div>

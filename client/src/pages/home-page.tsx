@@ -394,13 +394,16 @@ function PublicLandingPage() {
       <div className="sticky top-0 z-50 bg-background border-b border-border">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/80 rounded-lg flex items-center justify-center shadow-md">
-              <Target className="h-6 w-6 text-white" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-foreground leading-tight">Premisia</h2>
-              <p className="text-xs text-muted-foreground leading-tight">Think it through</p>
-            </div>
+            <img 
+              src="/attached_assets/PREMISIA Think it through (1)-modified_1762085311768.png" 
+              alt="Premisia Logo" 
+              className="h-8 w-auto dark:hidden"
+            />
+            <img 
+              src="/attached_assets/PREMISIA Think it through (1)_1762085311768.png" 
+              alt="Premisia Logo" 
+              className="h-8 w-auto hidden dark:block"
+            />
             <span className="px-2 py-1 text-xs font-semibold bg-primary/10 text-primary rounded">BETA</span>
           </div>
           <Button 
@@ -415,8 +418,17 @@ function PublicLandingPage() {
       <div className="container mx-auto px-4 py-12 md:py-20">
         {/* Hero Section */}
         <div className="text-center mb-16 md:mb-20">
-          <div className="inline-flex items-center justify-center w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-primary to-primary/80 rounded-2xl mb-6 shadow-lg">
-            <Target className="h-8 w-8 md:h-10 md:w-10 text-white" />
+          <div className="mb-8">
+            <img 
+              src="/attached_assets/PREMISIA Think it through (1)-modified_1762085311768.png" 
+              alt="Premisia" 
+              className="h-16 md:h-20 w-auto mx-auto dark:hidden"
+            />
+            <img 
+              src="/attached_assets/PREMISIA Think it through (1)_1762085311768.png" 
+              alt="Premisia" 
+              className="h-16 md:h-20 w-auto mx-auto hidden dark:block"
+            />
           </div>
           <h1 className="text-4xl md:text-6xl font-bold text-foreground mb-4">
             Think it through
