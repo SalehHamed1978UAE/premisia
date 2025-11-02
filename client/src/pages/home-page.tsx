@@ -113,12 +113,12 @@ function OnboardingFlow() {
             <img 
               src={logoFullLight} 
               alt="Premisia - Think it through" 
-              className="w-full max-w-4xl h-auto dark:hidden mb-6 px-4"
+              className="w-full h-auto dark:hidden mb-6"
             />
             <img 
               src={logoFullDark} 
               alt="Premisia - Think it through" 
-              className="w-full max-w-4xl h-auto hidden dark:block mb-6 px-4"
+              className="w-full h-auto hidden dark:block mb-6"
             />
             <span className="px-3 py-1 text-sm font-semibold bg-primary/10 text-primary rounded-lg">BETA</span>
           </div>
@@ -434,12 +434,12 @@ function PublicLandingPage() {
             <img 
               src={logoFullLight} 
               alt="Premisia - Think it through" 
-              className="w-full max-w-4xl h-auto mx-auto dark:hidden px-4"
+              className="w-full h-auto mx-auto dark:hidden"
             />
             <img 
               src={logoFullDark} 
               alt="Premisia - Think it through" 
-              className="w-full max-w-4xl h-auto mx-auto hidden dark:block px-4"
+              className="w-full h-auto mx-auto hidden dark:block"
             />
           </div>
           <p className="text-xl md:text-2xl text-foreground font-medium mb-6 max-w-4xl mx-auto">

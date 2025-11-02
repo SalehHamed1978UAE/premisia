@@ -22,10 +22,10 @@ export function TopBar({ title, subtitle, onToggleSidebar }: TopBarProps) {
             variant="ghost"
             size="icon"
             onClick={onToggleSidebar}
-            className="lg:hidden text-foreground hover:text-foreground hover:bg-accent"
+            className="lg:hidden text-white hover:text-white hover:bg-white/20 bg-white/10"
             data-testid="button-toggle-sidebar"
           >
-            <Menu className="h-5 w-5" />
+            <Menu className="h-6 w-6" />
           </Button>
           <div>
             <h2 className="text-lg md:text-xl font-bold text-foreground">{title}</h2>
