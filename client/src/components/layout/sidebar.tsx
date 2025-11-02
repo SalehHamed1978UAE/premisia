@@ -14,8 +14,8 @@ import {
   Map,
   Target
 } from "lucide-react";
-import logoLight from "@assets/PREMISIA Think it through (1)-modified_1762085311768.png";
-import logoDark from "@assets/PREMISIA Think it through_20251102_180550_0000_1762092638684.png";
+import logoLight from "@assets/Untitled (3600 x 1000 px)_1762102046406.png";
+import logoDark from "@assets/Untitled (3600 x 1000 px)-modified_1762102046405.png";
 
 interface SidebarProps {
   isOpen?: boolean;

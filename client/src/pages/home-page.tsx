@@ -10,10 +10,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
 import { SiGoogle } from "react-icons/si";
-import logoLight from "@assets/PREMISIA Think it through (1)-modified_1762085311768.png";
-import logoDark from "@assets/PREMISIA Think it through_20251102_180550_0000_1762092638684.png";
-import logoFullLight from "@assets/PREMISIA Think it through_20251102_180521_0000_1762092638692.png";
-import logoFullDark from "@assets/PREMISIA Think it through_20251102_180935_0000_1762092638652.png";
+import logoLight from "@assets/Untitled (3600 x 1000 px)_1762102046406.png";
+import logoDark from "@assets/Untitled (3600 x 1000 px)-modified_1762102046405.png";
+import logoFullLight from "@assets/Untitled (3600 x 1000 px)_1762102046406.png";
+import logoFullDark from "@assets/Untitled (3600 x 1000 px)-modified_1762102046405.png";
 
 interface DashboardSummary {
   counts: {
