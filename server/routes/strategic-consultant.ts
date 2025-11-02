@@ -2409,16 +2409,13 @@ router.post('/journeys/check-readiness', async (req: Request, res: Response) => 
     const referenceCount = referencesData.length;
     const hasUserInput = !!understanding.userInput;
     
-    // Journey-aware readiness thresholds
-    const readinessConfig: Record<string, { minReferences: number; minEntities: number }> = {
-      business_model_innovation: { minReferences: 0, minEntities: 0 },
-      business_model_canvas: { minReferences: 0, minEntities: 0 },
-    };
+    // Get readiness thresholds from journey registry
+    const journey = journeyRegistry.getJourney(journeyType as JourneyType);
+    if (!journey) {
+      return res.status(400).json({ error: 'Invalid journey type' });
+    }
 
-    const { minReferences, minEntities } = readinessConfig[journeyType as string] ?? {
-      minReferences: 3,
-      minEntities: 5,
-    };
+    const { minReferences, minEntities } = journey.defaultReadiness;
     
     const isReady = hasUserInput && 
                      referenceCount >= minReferences && 
