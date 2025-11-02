@@ -81,29 +81,13 @@ export class WhysTreeGenerator {
   async generateTree(input: string, sessionId: string): Promise<WhyTree> {
     const rootQuestion = await this.generateRootQuestion(input);
     
-    const level1Branches = await this.generateLevelInParallel(
-      rootQuestion,
-      { input, history: [] },
-      1
-    );
-
-    const level2BranchesPromises = level1Branches.map(level1Node =>
-      this.generateLevelInParallel(
-        level1Node.question,
-        { input, history: [{ question: rootQuestion, answer: level1Node.option }] },
-        2,
-        level1Node.id
-      ).then(level2Branches => {
-        level1Node.branches = level2Branches;
-        return level1Node;
-      })
-    );
-
-    const level1WithLevel2 = await Promise.all(level2BranchesPromises);
+    // Don't generate any branches upfront - they'll be generated on-demand via expandBranch
+    // This avoids the gpt-5 empty response issue and makes the system more responsive
+    // Previously this generated Level 1 + Level 2 upfront, which was failing
 
     return {
       rootQuestion,
-      branches: level1WithLevel2,
+      branches: [], // Start with empty branches - user will expand to see options
       maxDepth: this.maxDepth,
       sessionId,
     };
