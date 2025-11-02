@@ -182,6 +182,8 @@ export default function StrategiesListPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/strategies'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/repository/statements'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard-summary'] });
       toast({
         title: "Strategies deleted",
         description: `Successfully deleted ${selectedIds.length} ${selectedIds.length === 1 ? 'strategy' : 'strategies'} and all related artifacts.`,
