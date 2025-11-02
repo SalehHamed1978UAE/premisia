@@ -133,6 +133,54 @@ Return a JSON object with the question:
     return parsed.question || response.content.trim();
   }
 
+  private calculateTextSimilarity(text1: string, text2: string): number {
+    const normalize = (text: string) => text.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+    const words1 = new Set(normalize(text1).split(/\s+/));
+    const words2 = new Set(normalize(text2).split(/\s+/));
+    
+    const words1Array = Array.from(words1);
+    const words2Array = Array.from(words2);
+    
+    const intersection = new Set(words1Array.filter(word => words2.has(word)));
+    const union = new Set([...words1Array, ...words2Array]);
+    
+    return union.size > 0 ? intersection.size / union.size : 0;
+  }
+
+  private validateAnswerQuality(option: string, question: string): { valid: boolean; reason?: string } {
+    const normalizedOption = option.toLowerCase().trim();
+    const normalizedQuestion = question.toLowerCase().trim();
+
+    if (option.length < 15) {
+      return { valid: false, reason: 'Answer too short (less than 15 characters)' };
+    }
+
+    const similarity = this.calculateTextSimilarity(option, question);
+    if (similarity > 0.7) {
+      return { valid: false, reason: `Answer is too similar to question (${Math.round(similarity * 100)}% similarity)` };
+    }
+
+    const questionWords = normalizedQuestion.replace(/^why\s+/i, '').replace(/\?$/, '').split(/\s+/);
+    const optionWords = normalizedOption.split(/\s+/);
+    
+    if (optionWords.length > 5) {
+      const consecutiveMatches = questionWords.filter(word => 
+        word.length > 3 && normalizedOption.includes(word)
+      ).length;
+      
+      if (consecutiveMatches > questionWords.length * 0.6) {
+        return { valid: false, reason: 'Answer repeats too many words from question' };
+      }
+    }
+
+    const startsWithQuestion = normalizedOption.startsWith(normalizedQuestion.replace(/^why\s+/i, '').replace(/\?$/, '').substring(0, 30));
+    if (startsWithQuestion) {
+      return { valid: false, reason: 'Answer starts by repeating the question' };
+    }
+
+    return { valid: true };
+  }
+
   async generateLevelInParallel(
     question: string,
     context: { input: string; history: Array<{ question: string; answer: string }> },
@@ -140,10 +188,12 @@ Return a JSON object with the question:
     parentId?: string
   ): Promise<WhyNode[]> {
     const isLeaf = depth >= this.maxDepth;
+    const maxRetries = 3;
     
-    const response = await aiClients.callWithFallback({
-      systemPrompt: 'You\'re a friendly business advisor helping someone figure out what\'s really going on with their business. Talk to them like a supportive friend who gets business stuff.',
-      userMessage: `Alright, let's dig into this together! We're trying to understand the business reasons behind what's going on.
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const response = await aiClients.callWithFallback({
+        systemPrompt: 'You\'re a friendly business advisor helping someone figure out what\'s really going on with their business. Talk to them like a supportive friend who gets business stuff.',
+        userMessage: `Alright, let's dig into this together! We're trying to understand the business reasons behind what's going on.
 
 So here's the thing - we want to stay focused on business angles. That means looking at stuff like what's happening in the market, how customers are behaving, what the competition is doing, pricing dynamics, or resource constraints. Skip the cultural or social observations - those don't help us figure out the business logic here.
 
@@ -164,6 +214,12 @@ ${context.history.length > 0 ? `Here's the path we've explored so far:\n${contex
 We're at step ${depth} of ${this.maxDepth}.
 
 Give me 3-4 different answers to this "why" question - all focused on business reasons.
+
+**CRITICAL: Your answers must be EXPLANATIONS, not repetitions**
+❌ BAD: If question is "Why does your organization sit on massive proprietary datasets?" DON'T answer "Your organization sits on massive proprietary datasets"
+✓ GOOD: Instead answer with the REASON: "The data was collected over 15 years of operations and can't be easily replicated" or "It creates a competitive moat that new entrants can't overcome"
+
+Each answer should explain the underlying cause, mechanism, or reason - NOT just restate what the question already said.
 
 For each answer, I want you to help them evaluate whether this is the right path:
 
@@ -194,7 +250,7 @@ Return ONLY valid JSON (no markdown, no extra text):
 {
   "branches": [
     {
-      "option": "Clear explanation in everyday language",
+      "option": "Clear explanation in everyday language that answers WHY (not a restatement)",
       "next_question": "Why [directly ask about THIS option - must interrogate this specific claim]?",
       "supporting_evidence": [
         "Specific, concrete reason this makes sense",
@@ -210,36 +266,90 @@ Return ONLY valid JSON (no markdown, no extra text):
     }
   ]
 }`,
-      maxTokens: 2000,
-    });
+        maxTokens: 2000,
+      });
 
-    const parsed = this.extractJSON(response, 'generateLevelInParallel');
+      const parsed = this.extractJSON(response, 'generateLevelInParallel');
 
-    // Log the AI prompt context for debugging custom input issues
-    if (context.history.length > 0) {
-      console.log(`[generateLevelInParallel] Depth ${depth} - Q&A history sent to AI:`, context.history);
+      if (context.history.length > 0) {
+        console.log(`[generateLevelInParallel] Depth ${depth} - Q&A history sent to AI:`, context.history);
+      }
+
+      const validBranches: typeof parsed.branches = [];
+      const invalidBranches: Array<{ option: string; reason: string }> = [];
+
+      for (const branch of parsed.branches) {
+        const qualityCheck = this.validateAnswerQuality(branch.option, question);
+        
+        if (qualityCheck.valid) {
+          validBranches.push(branch);
+        } else {
+          invalidBranches.push({ option: branch.option, reason: qualityCheck.reason || 'Unknown' });
+          console.warn(`[Quality Control] Rejected answer (attempt ${attempt}/${maxRetries}): "${branch.option}" - Reason: ${qualityCheck.reason}`);
+        }
+      }
+
+      if (validBranches.length >= 3) {
+        console.log(`[Quality Control] ✓ Generated ${validBranches.length} valid answers on attempt ${attempt}/${maxRetries}`);
+        
+        const nodes: WhyNode[] = validBranches.map((branch: { 
+          option: string; 
+          next_question: string;
+          supporting_evidence: string[];
+          counter_arguments: string[];
+          consideration: string;
+        }) => ({
+          id: randomUUID(),
+          question: branch.next_question,
+          option: branch.option,
+          depth,
+          isLeaf,
+          parentId,
+          branches: isLeaf ? undefined : [],
+          supporting_evidence: branch.supporting_evidence || [],
+          counter_arguments: branch.counter_arguments || [],
+          consideration: branch.consideration || '',
+        }));
+
+        return nodes;
+      }
+
+      if (attempt < maxRetries) {
+        console.log(`[Quality Control] Only ${validBranches.length} valid answers. Retrying... (attempt ${attempt + 1}/${maxRetries})`);
+        if (invalidBranches.length > 0) {
+          console.log(`[Quality Control] Rejected answers:`, invalidBranches);
+        }
+      } else {
+        console.warn(`[Quality Control] Failed to generate 3+ valid answers after ${maxRetries} attempts. Using best available (${validBranches.length} valid answers)`);
+        
+        if (validBranches.length === 0) {
+          throw new Error(`Failed to generate any valid answers after ${maxRetries} attempts. All answers were circular or too similar to the question.`);
+        }
+
+        const nodes: WhyNode[] = validBranches.map((branch: { 
+          option: string; 
+          next_question: string;
+          supporting_evidence: string[];
+          counter_arguments: string[];
+          consideration: string;
+        }) => ({
+          id: randomUUID(),
+          question: branch.next_question,
+          option: branch.option,
+          depth,
+          isLeaf,
+          parentId,
+          branches: isLeaf ? undefined : [],
+          supporting_evidence: branch.supporting_evidence || [],
+          counter_arguments: branch.counter_arguments || [],
+          consideration: branch.consideration || '',
+        }));
+
+        return nodes;
+      }
     }
 
-    const nodes: WhyNode[] = parsed.branches.map((branch: { 
-      option: string; 
-      next_question: string;
-      supporting_evidence: string[];
-      counter_arguments: string[];
-      consideration: string;
-    }) => ({
-      id: randomUUID(),
-      question: branch.next_question,
-      option: branch.option,
-      depth,
-      isLeaf,
-      parentId,
-      branches: isLeaf ? undefined : [],
-      supporting_evidence: branch.supporting_evidence || [],
-      counter_arguments: branch.counter_arguments || [],
-      consideration: branch.consideration || '',
-    }));
-
-    return nodes;
+    throw new Error('Unexpected error in generateLevelInParallel - should not reach here');
   }
 
   async expandBranch(
