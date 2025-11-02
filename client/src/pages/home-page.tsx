@@ -113,12 +113,12 @@ function OnboardingFlow() {
             <img 
               src={logoFullLight} 
               alt="Premisia - Think it through" 
-              className="h-48 md:h-56 lg:h-64 w-auto dark:hidden mb-4"
+              className="w-full max-w-4xl h-auto dark:hidden mb-6 px-4"
             />
             <img 
               src={logoFullDark} 
               alt="Premisia - Think it through" 
-              className="h-48 md:h-56 lg:h-64 w-auto hidden dark:block mb-4"
+              className="w-full max-w-4xl h-auto hidden dark:block mb-6 px-4"
             />
             <span className="px-3 py-1 text-sm font-semibold bg-primary/10 text-primary rounded-lg">BETA</span>
           </div>
