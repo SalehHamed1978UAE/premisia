@@ -394,7 +394,13 @@ function PublicLandingPage() {
       <div className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-bold text-foreground">Premisia</h2>
+            <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/80 rounded-lg flex items-center justify-center shadow-md">
+              <Target className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-foreground leading-tight">Premisia</h2>
+              <p className="text-xs text-muted-foreground leading-tight">Think it through</p>
+            </div>
             <span className="px-2 py-1 text-xs font-semibold bg-primary/10 text-primary rounded">BETA</span>
           </div>
           <Button 
