@@ -401,12 +401,12 @@ function PublicLandingPage() {
             <img 
               src={logoFullLight} 
               alt="Premisia - Think it through" 
-              className="h-8 w-auto dark:hidden"
+              className="h-10 md:h-12 w-auto dark:hidden"
             />
             <img 
               src={logoFullDark} 
               alt="Premisia - Think it through" 
-              className="h-8 w-auto hidden dark:block"
+              className="h-10 md:h-12 w-auto hidden dark:block"
             />
             <span className="px-2 py-1 text-xs font-semibold bg-primary/10 text-primary rounded">BETA</span>
           </div>
