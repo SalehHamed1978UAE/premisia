@@ -22,34 +22,33 @@ import { strategicUnderstanding, journeySessions, strategicEntities, references,
 import { eq } from 'drizzle-orm';
 import strategicConsultantRoutes from '../server/routes/strategic-consultant';
 import type { JourneyType } from '@shared/journey-types';
+import { 
+  createTestUser, 
+  createTestUnderstanding, 
+  createTestJourneySession,
+  createTestEntity,
+  createTestReference,
+  type TestUser,
+  type TestUnderstanding
+} from './fixtures';
+import { cleanupTestData } from './test-db-setup';
+import { decryptJSON } from '../server/utils/encryption';
 
 describe('Journey Registry V2 Feature Flag Integration Tests', () => {
   let originalEnv: string | undefined;
-  let testUserId = 'test-user-id';
+  let sharedTestUser: TestUser;
 
   beforeAll(async () => {
-    // Create test user for foreign key constraints (if doesn't exist)
-    try {
-      const existingUsers = await db.select().from(users).where(eq(users.id, testUserId));
-      if (existingUsers.length === 0) {
-        await db.insert(users).values({
-          id: testUserId,
-          email: 'test@example.com',
-          role: 'Viewer' as any,
-        });
-      }
-    } catch (error) {
-      // Ignore errors, user likely exists
-    }
+    // Clean up any leftover test data from previous runs
+    await cleanupTestData();
+    
+    // Create a shared test user for all tests
+    sharedTestUser = await createTestUser({ id: 'test-user-smoke-tests' });
   });
 
   afterAll(async () => {
-    // Clean up test user
-    try {
-      await db.delete(users).where(eq(users.id, testUserId));
-    } catch (error) {
-      // Ignore cleanup errors
-    }
+    // Clean up all test data
+    await cleanupTestData();
   });
 
   beforeEach(() => {
@@ -109,39 +108,29 @@ describe('Journey Registry V2 Feature Flag Integration Tests', () => {
 
   /**
    * TEST CATEGORY 2: Orchestrator Integration Tests
-   * Actually executes journeyOrchestrator.startJourney() and verifies summary behavior
+   * Executes the REAL orchestrator completion pipeline with mocked framework executors
+   * to verify that the orchestrator respects the flag (not the test)
    */
   describe('Journey Orchestrator Integration', () => {
-    let testUnderstandingId: string;
+    let testUnderstanding: TestUnderstanding;
     
     beforeEach(async () => {
-      // Create test understanding record
-      const [understanding] = await db
-        .insert(strategicUnderstanding)
-        .values({
-          sessionId: `test-session-${Date.now()}`,
-          userInput: 'Test strategic input for journey orchestration',
-          title: 'Test Strategy',
-          archived: false,
-          createdAt: new Date(),
-        })
-        .returning();
-      
-      testUnderstandingId = understanding.id;
+      // Create test understanding using fixture
+      testUnderstanding = await createTestUnderstanding();
     });
 
     afterEach(async () => {
       // Clean up test data
-      if (testUnderstandingId) {
+      if (testUnderstanding) {
         // Delete journey sessions first (foreign key constraint)
         await db
           .delete(journeySessions)
-          .where(eq(journeySessions.understandingId, testUnderstandingId));
+          .where(eq(journeySessions.understandingId, testUnderstanding.id));
         
         // Delete understanding
         await db
           .delete(strategicUnderstanding)
-          .where(eq(strategicUnderstanding.id, testUnderstandingId));
+          .where(eq(strategicUnderstanding.id, testUnderstanding.id));
       }
     });
 
@@ -150,58 +139,16 @@ describe('Journey Registry V2 Feature Flag Integration Tests', () => {
       vi.resetModules();
 
       const { JourneyOrchestrator } = await import('../server/journey/journey-orchestrator');
-      const orchestrator = new JourneyOrchestrator();
-
-      // Execute startJourney
-      const result = await orchestrator.startJourney(
-        testUnderstandingId,
-        'business_model_innovation' as JourneyType,
-        testUserId
-      );
-
-      expect(result.journeySessionId).toBeDefined();
-      expect(result.versionNumber).toBe(1);
-
-      // Verify session was created
-      const [session] = await db
-        .select()
-        .from(journeySessions)
-        .where(eq(journeySessions.id, result.journeySessionId));
-
-      expect(session).toBeDefined();
-      expect(session.status).toBe('initializing');
-
-      // Verify context does NOT have baselineSummary (flag is OFF)
-      const context = session.accumulatedContext as any;
-      // Note: context will be encrypted, but the orchestrator logic should not have loaded summary
-      // We verify by checking that getLatestSummary was not called (implicit in flag check)
-      expect(result.versionNumber).toBe(1); // First version means no baseline
-    });
-
-    it('should load baseline summary when flag is ON (if previous session exists)', async () => {
-      process.env.FEATURE_JOURNEY_REGISTRY_V2 = 'true';
-      vi.resetModules();
-
-      const { JourneyOrchestrator } = await import('../server/journey/journey-orchestrator');
       const { journeySummaryService } = await import('../server/services/journey-summary-service');
       const orchestrator = new JourneyOrchestrator();
 
-      // First run - create initial journey session
+      // STEP 1: Create a COMPLETED journey session with saved summary
       const firstRun = await orchestrator.startJourney(
-        testUnderstandingId,
+        testUnderstanding.id,
         'business_model_innovation' as JourneyType,
-        testUserId
+        sharedTestUser.id
       );
 
-      expect(firstRun.versionNumber).toBe(1);
-
-      // Complete the first journey and save summary
-      const firstSession = await db
-        .select()
-        .from(journeySessions)
-        .where(eq(journeySessions.id, firstRun.journeySessionId));
-
-      // Mark as completed and add mock summary
       const mockSummary = {
         journeyType: 'business_model_innovation' as JourneyType,
         completedAt: new Date().toISOString(),
@@ -212,57 +159,196 @@ describe('Journey Registry V2 Feature Flag Integration Tests', () => {
       };
 
       await journeySummaryService.saveSummary(firstRun.journeySessionId, mockSummary);
-
       await db
         .update(journeySessions)
         .set({ status: 'completed' as any })
         .where(eq(journeySessions.id, firstRun.journeySessionId));
 
-      // Second run - should load baseline summary
+      // STEP 2: Call startJourney() for the SAME journey type with flag OFF
       const secondRun = await orchestrator.startJourney(
-        testUnderstandingId,
+        testUnderstanding.id,
         'business_model_innovation' as JourneyType,
-        testUserId
+        sharedTestUser.id
       );
 
       expect(secondRun.versionNumber).toBe(2);
 
-      // Verify baseline summary was loaded (implicitly tested by flag being ON)
-      // The context.baselineSummary field would be set inside startJourney
-      const latestSummary = await journeySummaryService.getLatestSummary(
-        testUnderstandingId,
-        'business_model_innovation' as JourneyType
-      );
+      // STEP 3: Load and decrypt the new session's context
+      const [newSession] = await db
+        .select()
+        .from(journeySessions)
+        .where(eq(journeySessions.id, secondRun.journeySessionId));
 
-      expect(latestSummary).toBeDefined();
-      expect(latestSummary?.versionNumber).toBe(1);
+      const decryptedContext = decryptJSON(newSession.accumulatedContext as string);
+
+      // STEP 4: Verify context does NOT have baselineSummary (flag is OFF)
+      expect(decryptedContext).toBeDefined();
+      expect(decryptedContext.baselineSummary).toBeUndefined();
+      console.log('[TEST] ✓ Verified baseline summary was NOT loaded when flag is OFF');
     });
 
-    it('should NOT save summary when flag is OFF', async () => {
-      process.env.FEATURE_JOURNEY_REGISTRY_V2 = 'false';
+    it('should load baseline summary when flag is ON (if previous session exists)', async () => {
+      process.env.FEATURE_JOURNEY_REGISTRY_V2 = 'true';
       vi.resetModules();
 
       const { JourneyOrchestrator } = await import('../server/journey/journey-orchestrator');
       const { journeySummaryService } = await import('../server/services/journey-summary-service');
       const orchestrator = new JourneyOrchestrator();
 
-      // Start journey
-      const result = await orchestrator.startJourney(
-        testUnderstandingId,
+      // STEP 1: Create a COMPLETED journey session with saved summary
+      const firstRun = await orchestrator.startJourney(
+        testUnderstanding.id,
         'business_model_innovation' as JourneyType,
-        testUserId
+        sharedTestUser.id
       );
 
-      // Note: Full journey execution requires framework executors which may not be available in test
-      // So we verify the flag check logic instead
+      expect(firstRun.versionNumber).toBe(1);
+
+      const mockSummary = {
+        journeyType: 'business_model_innovation' as JourneyType,
+        completedAt: new Date().toISOString(),
+        versionNumber: 1,
+        keyInsights: ['Test insight 1', 'Test insight 2'],
+        frameworks: { five_whys: {}, bmc: {} },
+        strategicImplications: ['Implication 1', 'Implication 2'],
+      };
+
+      await journeySummaryService.saveSummary(firstRun.journeySessionId, mockSummary);
+      await db
+        .update(journeySessions)
+        .set({ status: 'completed' as any })
+        .where(eq(journeySessions.id, firstRun.journeySessionId));
+
+      // STEP 2: Call startJourney() for the SAME journey type with flag ON
+      const secondRun = await orchestrator.startJourney(
+        testUnderstanding.id,
+        'business_model_innovation' as JourneyType,
+        sharedTestUser.id
+      );
+
+      expect(secondRun.versionNumber).toBe(2);
+
+      // STEP 3: Load and decrypt the new session's context
+      const [newSession] = await db
+        .select()
+        .from(journeySessions)
+        .where(eq(journeySessions.id, secondRun.journeySessionId));
+
+      const decryptedContext = decryptJSON(newSession.accumulatedContext as string);
+
+      // STEP 4: Verify context DOES have baselineSummary (flag is ON)
+      expect(decryptedContext).toBeDefined();
+      expect(decryptedContext.baselineSummary).toBeDefined();
+      expect(decryptedContext.baselineSummary.versionNumber).toBe(1);
+      expect(decryptedContext.baselineSummary.keyInsights).toEqual(['Test insight 1', 'Test insight 2']);
       
-      // Verify that with flag OFF, no summary would be saved
-      const summary = await journeySummaryService.getLatestSummary(
-        testUnderstandingId,
+      // STEP 5: Verify it was loaded from database
+      const latestSummary = await journeySummaryService.getLatestSummary(
+        testUnderstanding.id,
         'business_model_innovation' as JourneyType
       );
 
-      expect(summary).toBeNull(); // No summary should exist yet
+      expect(latestSummary).toBeDefined();
+      expect(latestSummary?.versionNumber).toBe(1);
+      console.log('[TEST] ✓ Verified baseline summary was loaded when flag is ON');
+    });
+
+    it('should NOT save summary when journey completes with flag OFF', async () => {
+      process.env.FEATURE_JOURNEY_REGISTRY_V2 = 'false';
+      
+      // Mock framework executors to return quickly without AI calls
+      vi.doMock('../server/journey/framework-executor-registry', () => ({
+        frameworkRegistry: {
+          execute: vi.fn().mockResolvedValue({
+            frameworkName: 'test_framework',
+            executedAt: new Date(),
+            duration: 100,
+            data: {
+              rootCauses: ['Test root cause'],
+              bmcBlocks: { value_propositions: ['Test VP'] },
+            },
+          }),
+        },
+      }));
+      
+      vi.resetModules();
+
+      const { JourneyOrchestrator } = await import('../server/journey/journey-orchestrator');
+      const orchestrator = new JourneyOrchestrator();
+
+      // STEP 1: Start journey
+      const result = await orchestrator.startJourney(
+        testUnderstanding.id,
+        'business_model_innovation' as JourneyType,
+        sharedTestUser.id
+      );
+
+      // STEP 2: Execute journey to completion (orchestrator handles flag internally)
+      await orchestrator.executeJourney(result.journeySessionId);
+
+      // STEP 3: Verify summary was NOT saved (flag is OFF, orchestrator skipped save)
+      const [session] = await db
+        .select()
+        .from(journeySessions)
+        .where(eq(journeySessions.id, result.journeySessionId));
+
+      expect(session.summary).toBeNull();
+      expect(session.status).toBe('completed');
+      
+      console.log('[TEST] ✓ Verified summary was NOT saved when flag is OFF');
+    });
+
+    it('should save summary when journey completes with flag ON', async () => {
+      process.env.FEATURE_JOURNEY_REGISTRY_V2 = 'true';
+      
+      // Mock framework executors to return quickly without AI calls
+      vi.doMock('../server/journey/framework-executor-registry', () => ({
+        frameworkRegistry: {
+          execute: vi.fn().mockResolvedValue({
+            frameworkName: 'test_framework',
+            executedAt: new Date(),
+            duration: 100,
+            data: {
+              rootCauses: ['Test root cause'],
+              bmcBlocks: { value_propositions: ['Test VP'] },
+            },
+          }),
+        },
+      }));
+      
+      vi.resetModules();
+
+      const { JourneyOrchestrator } = await import('../server/journey/journey-orchestrator');
+      const orchestrator = new JourneyOrchestrator();
+
+      // STEP 1: Start journey
+      const result = await orchestrator.startJourney(
+        testUnderstanding.id,
+        'business_model_innovation' as JourneyType,
+        sharedTestUser.id
+      );
+
+      // STEP 2: Execute journey to completion (orchestrator handles flag internally)
+      await orchestrator.executeJourney(result.journeySessionId);
+
+      // STEP 3: Verify summary WAS saved (flag is ON, orchestrator saved it)
+      const [session] = await db
+        .select()
+        .from(journeySessions)
+        .where(eq(journeySessions.id, result.journeySessionId));
+
+      expect(session.summary).not.toBeNull();
+      expect(session.status).toBe('completed');
+      
+      // Decrypt and verify summary contents
+      const decryptedSummary = decryptJSON(session.summary as string);
+      expect(decryptedSummary).toBeDefined();
+      expect(decryptedSummary.versionNumber).toBe(result.versionNumber);
+      expect(decryptedSummary.journeyType).toBe('business_model_innovation');
+      expect(decryptedSummary.keyInsights).toBeDefined();
+      expect(decryptedSummary.strategicImplications).toBeDefined();
+      
+      console.log('[TEST] ✓ Verified summary was saved when flag is ON');
     });
   });
 
@@ -272,7 +358,7 @@ describe('Journey Registry V2 Feature Flag Integration Tests', () => {
    */
   describe('Readiness Endpoint HTTP Tests', () => {
     let app: Express;
-    let testUnderstandingId: string;
+    let testUnderstanding: TestUnderstanding;
 
     beforeAll(async () => {
       // Create Express app with routes directly (bypass auth for tests)
@@ -282,46 +368,28 @@ describe('Journey Registry V2 Feature Flag Integration Tests', () => {
     });
 
     beforeEach(async () => {
-      // Create test understanding
-      const [understanding] = await db
-        .insert(strategicUnderstanding)
-        .values({
-          sessionId: `test-session-${Date.now()}`,
-          userInput: 'Test strategic input for readiness check',
-          title: 'Test Strategy',
-          archived: false,
-          createdAt: new Date(),
-        })
-        .returning();
-      
-      testUnderstandingId = understanding.id;
-
-      // Create some test entities and references
-      await db.insert(strategicEntities).values({
-        understandingId: testUnderstandingId,
-        type: 'explicit_assumption' as any,
-        claim: 'Test assumption',
-        source: 'Test input',
-        confidence: 'high' as any,
-        discoveredBy: 'user_input' as any,
+      // Create test understanding using fixture
+      testUnderstanding = await createTestUnderstanding({
+        userInput: 'Test strategic input for readiness check',
       });
 
-      await db.insert(references).values({
-        understandingId: testUnderstandingId,
-        userId: testUserId,
+      // Create test entities and references using fixtures
+      await createTestEntity(testUnderstanding.id, {
+        claim: 'Test assumption',
+      });
+
+      await createTestReference(testUnderstanding.id, sharedTestUser.id, {
         title: 'Test Reference',
         url: 'https://example.com',
-        sourceType: 'article' as any,
-        origin: 'manual_entry' as any,
       });
     });
 
     afterEach(async () => {
       // Clean up test data
-      if (testUnderstandingId) {
-        await db.delete(references).where(eq(references.understandingId, testUnderstandingId));
-        await db.delete(strategicEntities).where(eq(strategicEntities.understandingId, testUnderstandingId));
-        await db.delete(strategicUnderstanding).where(eq(strategicUnderstanding.id, testUnderstandingId));
+      if (testUnderstanding) {
+        await db.delete(references).where(eq(references.understandingId, testUnderstanding.id));
+        await db.delete(strategicEntities).where(eq(strategicEntities.understandingId, testUnderstanding.id));
+        await db.delete(strategicUnderstanding).where(eq(strategicUnderstanding.id, testUnderstanding.id));
       }
     });
 
@@ -331,7 +399,7 @@ describe('Journey Registry V2 Feature Flag Integration Tests', () => {
       const response = await request(app)
         .post('/api/strategic-consultant/journeys/check-readiness')
         .send({
-          understandingId: testUnderstandingId,
+          understandingId: testUnderstanding.id,
           journeyType: 'business_model_innovation',
         });
 
@@ -351,7 +419,7 @@ describe('Journey Registry V2 Feature Flag Integration Tests', () => {
       const response = await request(app)
         .post('/api/strategic-consultant/journeys/check-readiness')
         .send({
-          understandingId: testUnderstandingId,
+          understandingId: testUnderstanding.id,
           journeyType: 'market_entry',
         });
 
@@ -371,7 +439,7 @@ describe('Journey Registry V2 Feature Flag Integration Tests', () => {
       const response = await request(app)
         .post('/api/strategic-consultant/journeys/check-readiness')
         .send({
-          understandingId: testUnderstandingId,
+          understandingId: testUnderstanding.id,
           journeyType: 'business_model_innovation',
         });
 
@@ -389,7 +457,7 @@ describe('Journey Registry V2 Feature Flag Integration Tests', () => {
       const response = await request(app)
         .post('/api/strategic-consultant/journeys/check-readiness')
         .send({
-          understandingId: testUnderstandingId,
+          understandingId: testUnderstanding.id,
           journeyType: 'market_entry',
         });
 
@@ -409,7 +477,7 @@ describe('Journey Registry V2 Feature Flag Integration Tests', () => {
    */
   describe('Summary Endpoint HTTP Tests', () => {
     let app: Express;
-    let testUnderstandingId: string;
+    let testUnderstanding: TestUnderstanding;
 
     beforeAll(async () => {
       // Create Express app with routes directly (bypass auth for tests)
@@ -419,26 +487,17 @@ describe('Journey Registry V2 Feature Flag Integration Tests', () => {
     });
 
     beforeEach(async () => {
-      // Create test understanding
-      const [understanding] = await db
-        .insert(strategicUnderstanding)
-        .values({
-          sessionId: `test-session-${Date.now()}`,
-          userInput: 'Test strategic input for summary endpoint',
-          title: 'Test Strategy',
-          archived: false,
-          createdAt: new Date(),
-        })
-        .returning();
-      
-      testUnderstandingId = understanding.id;
+      // Create test understanding using fixture
+      testUnderstanding = await createTestUnderstanding({
+        userInput: 'Test strategic input for summary endpoint',
+      });
     });
 
     afterEach(async () => {
       // Clean up test data
-      if (testUnderstandingId) {
-        await db.delete(journeySessions).where(eq(journeySessions.understandingId, testUnderstandingId));
-        await db.delete(strategicUnderstanding).where(eq(strategicUnderstanding.id, testUnderstandingId));
+      if (testUnderstanding) {
+        await db.delete(journeySessions).where(eq(journeySessions.understandingId, testUnderstanding.id));
+        await db.delete(strategicUnderstanding).where(eq(strategicUnderstanding.id, testUnderstanding.id));
       }
     });
 
@@ -448,7 +507,7 @@ describe('Journey Registry V2 Feature Flag Integration Tests', () => {
       const response = await request(app)
         .post('/api/strategic-consultant/journeys/summary')
         .send({
-          understandingId: testUnderstandingId,
+          understandingId: testUnderstanding.id,
           journeyType: 'business_model_innovation',
         });
 
@@ -463,7 +522,7 @@ describe('Journey Registry V2 Feature Flag Integration Tests', () => {
       const response = await request(app)
         .post('/api/strategic-consultant/journeys/summary')
         .send({
-          understandingId: testUnderstandingId,
+          understandingId: testUnderstanding.id,
           journeyType: 'business_model_innovation',
         });
 
@@ -476,24 +535,17 @@ describe('Journey Registry V2 Feature Flag Integration Tests', () => {
       process.env.FEATURE_JOURNEY_REGISTRY_V2 = 'true';
 
       const { journeySummaryService } = await import('../server/services/journey-summary-service');
-      const { encryptJSON } = await import('../server/utils/encryption');
 
-      // Create a completed journey session with summary
-      const [session] = await db
-        .insert(journeySessions)
-        .values({
-          understandingId: testUnderstandingId,
-          userId: testUserId,
-          journeyType: 'business_model_innovation' as any,
-          status: 'completed' as any,
-          currentFrameworkIndex: 2,
-          completedFrameworks: ['five_whys', 'bmc'] as any,
-          accumulatedContext: encryptJSON({ test: 'context' }) as any,
+      // Create a completed journey session using fixture
+      const session = await createTestJourneySession(
+        testUnderstanding.id,
+        sharedTestUser.id,
+        'business_model_innovation',
+        {
+          status: 'completed',
           versionNumber: 1,
-          startedAt: new Date(),
-          completedAt: new Date(),
-        })
-        .returning();
+        }
+      );
 
       // Save summary
       const mockSummary = {
@@ -511,7 +563,7 @@ describe('Journey Registry V2 Feature Flag Integration Tests', () => {
       const response = await request(app)
         .post('/api/strategic-consultant/journeys/summary')
         .send({
-          understandingId: testUnderstandingId,
+          understandingId: testUnderstanding.id,
           journeyType: 'business_model_innovation',
         });
 
