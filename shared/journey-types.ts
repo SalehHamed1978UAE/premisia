@@ -154,6 +154,21 @@ export interface JourneyProgress {
   estimatedTimeRemaining?: string;
 }
 
+/**
+ * Journey Summary - Compact summary of completed journey for follow-on runs
+ * This is stored encrypted in the journey_sessions.summary field
+ */
+export interface JourneySummary {
+  journeyType: JourneyType;
+  completedAt: string;
+  versionNumber: number;
+  keyInsights: string[];
+  frameworks: {
+    [frameworkName: string]: any;
+  };
+  strategicImplications: string[];
+}
+
 // =============================================================================
 // Journey Builder Types (User-Composable Framework System)
 // =============================================================================

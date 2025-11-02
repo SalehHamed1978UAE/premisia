@@ -580,6 +580,7 @@ export const journeySessions = pgTable("journey_sessions", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   completedAt: timestamp("completed_at"),
+  summary: jsonb("summary"),
 }, (table) => ({
   understandingIdx: index("idx_journey_sessions_understanding").on(table.understandingId),
   userIdx: index("idx_journey_sessions_user").on(table.userId),
