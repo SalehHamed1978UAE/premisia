@@ -324,31 +324,29 @@ export function ProgramsListPage() {
             {draftPrograms.map((program) => (
               <Card key={program.id} className="hover:shadow-md transition-shadow">
                 <CardHeader>
-                  <div className="flex items-start gap-3">
-                    <Checkbox
-                      checked={selectedIds.has(program.id)}
-                      onCheckedChange={() => toggleSelection(program.id)}
-                      data-testid={`checkbox-${program.id}`}
-                      className="mt-1"
-                    />
-                    <div className="flex items-start justify-between flex-1">
-                      <div className="flex items-start gap-3 flex-1">
-                        {getFrameworkIcon(program.frameworkType)}
-                        <div className="flex-1">
-                          <CardTitle className="text-xl mb-1">{program.title}</CardTitle>
-                          <CardDescription>{program.frameworkType}</CardDescription>
+                  <div className="flex flex-col sm:flex-row items-start gap-3">
+                    <div className="flex items-start gap-3 w-full">
+                      <Checkbox
+                        checked={selectedIds.has(program.id)}
+                        onCheckedChange={() => toggleSelection(program.id)}
+                        data-testid={`checkbox-${program.id}`}
+                        className="mt-1 flex-shrink-0"
+                      />
+                      {getFrameworkIcon(program.frameworkType)}
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-lg sm:text-xl mb-2 pr-2">{program.title}</CardTitle>
+                        <CardDescription className="mb-3">{program.frameworkType}</CardDescription>
+                        <div className="flex flex-wrap gap-2">
+                          {getStatusBadge(program.status)}
+                          {getConfidenceBadge(program.overallConfidence)}
                         </div>
-                      </div>
-                      <div className="flex gap-2">
-                        {getStatusBadge(program.status)}
-                        {getConfidenceBadge(program.overallConfidence)}
                       </div>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-6 text-sm text-muted-foreground">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 text-sm text-muted-foreground">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4" />
                         Created {format(new Date(program.createdAt), 'MMM d, yyyy')}
@@ -358,7 +356,7 @@ export function ProgramsListPage() {
                         Updated {format(new Date(program.updatedAt), 'MMM d, yyyy')}
                       </div>
                     </div>
-                    <Button asChild data-testid={`button-view-program-${program.id}`}>
+                    <Button asChild data-testid={`button-view-program-${program.id}`} className="w-full sm:w-auto">
                       <Link href={`/strategy-workspace/epm/${program.id}`}>
                         View Program <ArrowRight className="ml-2 h-4 w-4" />
                       </Link>
@@ -388,31 +386,29 @@ export function ProgramsListPage() {
             {finalizedPrograms.map((program) => (
               <Card key={program.id} className="hover:shadow-md transition-shadow border-green-500/20">
                 <CardHeader>
-                  <div className="flex items-start gap-3">
-                    <Checkbox
-                      checked={selectedIds.has(program.id)}
-                      onCheckedChange={() => toggleSelection(program.id)}
-                      data-testid={`checkbox-${program.id}`}
-                      className="mt-1"
-                    />
-                    <div className="flex items-start justify-between flex-1">
-                      <div className="flex items-start gap-3 flex-1">
-                        {getFrameworkIcon(program.frameworkType)}
-                        <div className="flex-1">
-                          <CardTitle className="text-xl mb-1">{program.title}</CardTitle>
-                          <CardDescription>{program.frameworkType}</CardDescription>
+                  <div className="flex flex-col sm:flex-row items-start gap-3">
+                    <div className="flex items-start gap-3 w-full">
+                      <Checkbox
+                        checked={selectedIds.has(program.id)}
+                        onCheckedChange={() => toggleSelection(program.id)}
+                        data-testid={`checkbox-${program.id}`}
+                        className="mt-1 flex-shrink-0"
+                      />
+                      {getFrameworkIcon(program.frameworkType)}
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-lg sm:text-xl mb-2 pr-2">{program.title}</CardTitle>
+                        <CardDescription className="mb-3">{program.frameworkType}</CardDescription>
+                        <div className="flex flex-wrap gap-2">
+                          {getStatusBadge(program.status)}
+                          {getConfidenceBadge(program.overallConfidence)}
                         </div>
-                      </div>
-                      <div className="flex gap-2">
-                        {getStatusBadge(program.status)}
-                        {getConfidenceBadge(program.overallConfidence)}
                       </div>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-6 text-sm text-muted-foreground">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 text-sm text-muted-foreground">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4" />
                         Created {format(new Date(program.createdAt), 'MMM d, yyyy')}
@@ -424,7 +420,7 @@ export function ProgramsListPage() {
                         </div>
                       )}
                     </div>
-                    <Button asChild data-testid={`button-view-program-${program.id}`}>
+                    <Button asChild data-testid={`button-view-program-${program.id}`} className="w-full sm:w-auto">
                       <Link href={`/strategy-workspace/epm/${program.id}`}>
                         View Program <ArrowRight className="ml-2 h-4 w-4" />
                       </Link>
