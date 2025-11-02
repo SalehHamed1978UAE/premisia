@@ -12,6 +12,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { SiGoogle } from "react-icons/si";
 import logoLight from "@assets/PREMISIA Think it through (1)-modified_1762085311768.png";
 import logoDark from "@assets/PREMISIA Think it through (1)_1762085311768.png";
+import logoFullLight from "@assets/1-modified_1762085525103.png";
+import logoFullDark from "@assets/PREMISIA Think it through_1762085535386.jpg";
 
 interface DashboardSummary {
   counts: {
@@ -397,13 +399,13 @@ function PublicLandingPage() {
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <img 
-              src={logoLight} 
-              alt="Premisia Logo" 
+              src={logoFullLight} 
+              alt="Premisia - Think it through" 
               className="h-8 w-auto dark:hidden"
             />
             <img 
-              src={logoDark} 
-              alt="Premisia Logo" 
+              src={logoFullDark} 
+              alt="Premisia - Think it through" 
               className="h-8 w-auto hidden dark:block"
             />
             <span className="px-2 py-1 text-xs font-semibold bg-primary/10 text-primary rounded">BETA</span>
