@@ -1,0 +1,206 @@
+Perfect. Here’s **tight, paste-ready copy** for just two places:
+
+* **A. Main website homepage (public)**
+* **B. In-app onboarding (first login)**
+
+Use exactly as written or mix the interchangeable variants I’ve included.
+
+---
+
+# A) Main Website Homepage
+
+## Hero
+
+**H1:** Think it through.
+**Subhead:** Premisia structures complex choices so leaders can align, commit, and move—fast.
+**Primary CTA:** Run a Strategy Sprint →
+**Secondary CTA:** See a 5-minute demo →
+
+## Proof strip (optional, one line)
+
+Clear thinking for high-stakes decisions—used by strategy, finance, and delivery teams.
+
+## Value pillars (4 x short)
+
+* **Structured thinking** – Explore options, trade-offs, and constraints with guided prompts.
+* **Alignment that sticks** – Capture assumptions and risks in one place; reach a shared “yes.”
+* **Execution-ready** – Generate charters, budgets, KPIs, RAID/RACI, owners, and dates.
+* **Learns as you go** – Plans refine as outcomes land; your strategy stays live.
+
+## How it works (3 steps)
+
+1. **Ingest & orient** – Goals, policies, numbers, prior plans.
+2. **Think it through** – Scenarios, trade-offs, and stakeholder alignment.
+3. **Commit & ship** – Export an execution-ready program to your tools.
+
+## What you get
+
+* Program **charter** • **Costs & benefits** view • **OKRs/KPIs**
+* **RAID** log & **RACI** • **Timeline & milestones** • **Decision log** with assumptions
+
+## Integrations (short)
+
+Export: **Jira / Azure DevOps / Asana / Monday**
+Connect: **SharePoint / Google Drive / Confluence / Notion**
+Access: **SSO (Microsoft / Google)**
+
+## Trust (mini)
+
+Encryption at rest & in transit • RBAC & SSO/SAML • Configurable retention • Optional customer-managed keys • Decision logs & audit trails.
+
+## Closing band
+
+**H2:** Turn debate into direction.
+**CTA:** Start a Strategy Sprint →
+
+### Footer microcopy
+
+* Terms • Privacy • Security • Contact
+* © Premisia
+
+---
+
+# B) In-App Onboarding (First Login)
+
+## Welcome panel
+
+**Welcome to Premisia**
+**Tagline:** Think it through.
+
+**What we’ll do in ~10 minutes**
+
+1. Set your **goal & constraints**
+2. Add **context** (docs, numbers, prior plans)
+3. Explore **options & trade-offs**
+4. Generate an **execution-ready program**
+
+**Primary button:** Start a Strategy Sprint →
+**Secondary:** Explore a sample decision →
+
+---
+
+## Step 1: Goal & scope (card copy)
+
+* **Goal (required):** What outcome are we aiming for?
+* **Constraints (optional):** Budget, dates, compliance, capacity.
+* **Stakeholders (optional):** Who must agree?
+
+*Tip:* Be specific—Premisia will suggest scenarios based on this.
+
+**Button:** Continue →
+
+---
+
+## Step 2: Context (upload/connect)
+
+**Add context** (choose any):
+
+* Upload slides, briefs, or budgets
+* Link policies or prior programs
+* Connect SharePoint / Google Drive
+
+*Note:* You can start with zero files—attach more later.
+
+**Button:** Continue →
+
+---
+
+## Step 3: Scenarios & trade-offs
+
+**Proposed scenarios** (editable):
+
+* **Option A:** [Short label] – strengths, risks, dependencies
+* **Option B:** [Short label] – strengths, risks, dependencies
+* **Option C:** [Short label] – strengths, risks, dependencies
+
+**Compare:** impact • cost • time • risk • confidence
+**Capture:** assumptions you accept or reject.
+
+**Buttons:** Save comparison • Continue →
+
+---
+
+## Step 4: Alignment & decision
+
+**Alignment check**
+
+* Unresolved risks → suggestions
+* Stakeholder concerns → notes
+* Decision log → “why we chose X”
+
+**Decision:** Choose a path → (A / B / C)
+**Button:** Generate program →
+
+---
+
+## Output screen (Program generated)
+
+**Your program is ready**
+Included: Charter • Costs & benefits • OKRs/KPIs • RAID • RACI • Timeline & milestones • Decision log
+
+**Export to:** Jira / ADO / Asana / PDF • **Share** for review
+
+**Buttons:** Export to Jira • Share for approval • Edit components
+
+---
+
+## Ongoing loop (after export)
+
+**Live refinement**
+Premisia watches outcomes and changes in context, then proposes updates.
+**Buttons:** Review updates • Snooze • Adjust thresholds
+
+---
+
+## Onboarding side-tips (right rail / tooltips)
+
+* **Assumptions** – “The reasoning behind a recommendation. Change an assumption and Premisia re-evaluates.”
+* **Decision log** – “What changed minds—and why. Great for boards and audits.”
+* **RAID** – “Risks, Assumptions, Issues, Dependencies captured in one place.”
+* **Owners & dates** – “Assign real accountability before export.”
+
+---
+
+## Empty states (friendly, concise)
+
+* **No scenarios yet** – “Add an option or attach context to get suggestions.”
+* **No risks logged** – “Add your first risk. Premisia will suggest mitigations.”
+* **No stakeholders set** – “Add the people who must agree. We’ll track alignment.”
+
+---
+
+## Microcopy (buttons & modals)
+
+* **Buttons:** Start now • Continue • Save comparison • Generate program • Export • Share
+* **Success:** “Saved.” • “Program generated.” • “Export queued.”
+* **Warnings:** “One assumption is missing. Add or mark N/A to continue.”
+* **Errors:** “We couldn’t save this yet. Try again or export locally.”
+
+---
+
+## Security notice (inline)
+
+“Your data is encrypted at rest and in transit. Admins can set retention and residency preferences.”
+
+---
+
+## Quick presets (optional templates shown on first login)
+
+* **Cost takeout (30–90 days)** – trade-offs across scope, speed, impact
+* **AI adoption sprint (pilot → scale)** – value, risk, governance
+* **Portfolio reprioritization** – impact vs. capacity vs. risk
+* **Platform build (data/AI/ERP)** – time, budget, critical path, dependencies
+
+**Button (per card):** Use this template →
+
+---
+
+## Final nudge (if user pauses)
+
+**Still thinking?**
+Start with one option. You can add context and refine later.
+**Button:** Start a blank Sprint →
+
+---
+
+If you want, I can also turn these into **Tailwind components** (hero section + onboarding flow panels) or a **Gamma 4-slide script** for sales/demo—same copy, ready to paste.
