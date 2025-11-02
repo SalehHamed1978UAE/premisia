@@ -7,7 +7,7 @@ import { db } from '../db';
 import { journeySessions } from '@shared/schema';
 import { StrategicContext, JourneySummary, JourneyType } from '@shared/journey-types';
 import { eq, and, desc } from 'drizzle-orm';
-import { encryptJSON, decryptJSON } from '../utils/encryption';
+import { encryptJSONKMS, decryptJSONKMS } from '../utils/kms-encryption';
 
 /**
  * SummaryBuilder - Function that extracts key insights from a completed journey
@@ -327,7 +327,7 @@ export async function saveSummary(
   summary: JourneySummary
 ): Promise<void> {
   // Encrypt the summary before storing
-  const encryptedSummary = encryptJSON(summary);
+  const encryptedSummary = await encryptJSONKMS(summary);
 
   await db
     .update(journeySessions)
@@ -367,7 +367,7 @@ export async function getLatestSummary(
   }
 
   // Decrypt the summary
-  const decrypted = decryptJSON<JourneySummary>(sessions[0].summary as string);
+  const decrypted = await decryptJSONKMS<JourneySummary>(sessions[0].summary as string);
   return decrypted;
 }
 
@@ -390,7 +390,7 @@ export async function getSummaryForSession(
   }
 
   // Decrypt the summary
-  const decrypted = decryptJSON<JourneySummary>(sessions[0].summary as string);
+  const decrypted = await decryptJSONKMS<JourneySummary>(sessions[0].summary as string);
   return decrypted;
 }
 

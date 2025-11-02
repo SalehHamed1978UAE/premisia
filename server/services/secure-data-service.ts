@@ -10,7 +10,7 @@ import {
   users
 } from '@shared/schema';
 import { eq, and } from 'drizzle-orm';
-import { encrypt, decrypt, encryptJSON, decryptJSON } from '../utils/encryption';
+import { encryptKMS, decryptKMS, encryptJSONKMS, decryptJSONKMS } from '../utils/kms-encryption';
 
 /**
  * Secure Data Service
@@ -61,29 +61,29 @@ export interface SecureStrategicUnderstanding {
 export async function saveStrategicUnderstanding(data: SecureStrategicUnderstanding) {
   const encrypted = {
     ...data,
-    userInput: encrypt(data.userInput)!,
-    companyContext: data.companyContext ? encryptJSON(data.companyContext) : null,
-    initiativeDescription: data.initiativeDescription ? encrypt(data.initiativeDescription) : null,
+    userInput: await encryptKMS(data.userInput)!,
+    companyContext: data.companyContext ? await encryptJSONKMS(data.companyContext) : null,
+    initiativeDescription: data.initiativeDescription ? await encryptKMS(data.initiativeDescription) : null,
   };
 
   const result = await db.insert(strategicUnderstanding)
     .values(encrypted as any)
     .returning();
 
-  return decryptStrategicUnderstanding(result[0]);
+  return await decryptStrategicUnderstanding(result[0]);
 }
 
 export async function updateStrategicUnderstanding(id: string, data: Partial<SecureStrategicUnderstanding>) {
   const encrypted: any = { ...data };
 
   if (data.userInput !== undefined) {
-    encrypted.userInput = encrypt(data.userInput);
+    encrypted.userInput = await encryptKMS(data.userInput);
   }
   if (data.companyContext !== undefined) {
-    encrypted.companyContext = encryptJSON(data.companyContext);
+    encrypted.companyContext = await encryptJSONKMS(data.companyContext);
   }
   if (data.initiativeDescription !== undefined) {
-    encrypted.initiativeDescription = encrypt(data.initiativeDescription);
+    encrypted.initiativeDescription = await encryptKMS(data.initiativeDescription);
   }
 
   encrypted.updatedAt = new Date();
@@ -93,7 +93,7 @@ export async function updateStrategicUnderstanding(id: string, data: Partial<Sec
     .where(eq(strategicUnderstanding.id, id))
     .returning();
 
-  return result[0] ? decryptStrategicUnderstanding(result[0]) : null;
+  return result[0] ? await decryptStrategicUnderstanding(result[0]) : null;
 }
 
 export async function getStrategicUnderstanding(id: string) {
@@ -102,7 +102,7 @@ export async function getStrategicUnderstanding(id: string) {
     .where(eq(strategicUnderstanding.id, id))
     .limit(1);
 
-  return result[0] ? decryptStrategicUnderstanding(result[0]) : null;
+  return result[0] ? await decryptStrategicUnderstanding(result[0]) : null;
 }
 
 export async function getStrategicUnderstandingBySession(sessionId: string) {
@@ -111,15 +111,15 @@ export async function getStrategicUnderstandingBySession(sessionId: string) {
     .where(eq(strategicUnderstanding.sessionId, sessionId))
     .limit(1);
 
-  return result[0] ? decryptStrategicUnderstanding(result[0]) : null;
+  return result[0] ? await decryptStrategicUnderstanding(result[0]) : null;
 }
 
-function decryptStrategicUnderstanding(record: any): SecureStrategicUnderstanding {
+async function decryptStrategicUnderstanding(record: any): Promise<SecureStrategicUnderstanding> {
   return {
     ...record,
-    userInput: decrypt(record.userInput) || record.userInput,
-    companyContext: record.companyContext ? decryptJSON(record.companyContext) || record.companyContext : null,
-    initiativeDescription: record.initiativeDescription ? decrypt(record.initiativeDescription) || record.initiativeDescription : null,
+    userInput: await decryptKMS(record.userInput) || record.userInput,
+    companyContext: record.companyContext ? await decryptJSONKMS(record.companyContext) || record.companyContext : null,
+    initiativeDescription: record.initiativeDescription ? await decryptKMS(record.initiativeDescription) || record.initiativeDescription : null,
   };
 }
 
@@ -146,21 +146,21 @@ export interface SecureJourneySession {
 export async function saveJourneySession(data: SecureJourneySession) {
   const encrypted = {
     ...data,
-    accumulatedContext: data.accumulatedContext ? encryptJSON(data.accumulatedContext) : null,
+    accumulatedContext: data.accumulatedContext ? await encryptJSONKMS(data.accumulatedContext) : null,
   };
 
   const result = await db.insert(journeySessions)
     .values(encrypted as any)
     .returning();
 
-  return decryptJourneySession(result[0]);
+  return await decryptJourneySession(result[0]);
 }
 
 export async function updateJourneySession(id: string, data: Partial<SecureJourneySession>) {
   const encrypted: any = { ...data };
 
   if (data.accumulatedContext !== undefined) {
-    encrypted.accumulatedContext = encryptJSON(data.accumulatedContext);
+    encrypted.accumulatedContext = await encryptJSONKMS(data.accumulatedContext);
   }
 
   encrypted.updatedAt = new Date();
@@ -170,7 +170,7 @@ export async function updateJourneySession(id: string, data: Partial<SecureJourn
     .where(eq(journeySessions.id, id))
     .returning();
 
-  return result[0] ? decryptJourneySession(result[0]) : null;
+  return result[0] ? await decryptJourneySession(result[0]) : null;
 }
 
 export async function getJourneySession(id: string) {
@@ -179,7 +179,7 @@ export async function getJourneySession(id: string) {
     .where(eq(journeySessions.id, id))
     .limit(1);
 
-  return result[0] ? decryptJourneySession(result[0]) : null;
+  return result[0] ? await decryptJourneySession(result[0]) : null;
 }
 
 export async function getJourneySessionByUnderstandingSessionId(understandingSessionId: string) {
@@ -196,13 +196,13 @@ export async function getJourneySessionByUnderstandingSessionId(understandingSes
     .where(eq(journeySessions.understandingId, understanding.id!))
     .limit(1);
 
-  return result[0] ? decryptJourneySession(result[0]) : null;
+  return result[0] ? await decryptJourneySession(result[0]) : null;
 }
 
-function decryptJourneySession(record: any): SecureJourneySession {
+async function decryptJourneySession(record: any): Promise<SecureJourneySession> {
   return {
     ...record,
-    accumulatedContext: record.accumulatedContext ? decryptJSON(record.accumulatedContext) || record.accumulatedContext : null,
+    accumulatedContext: record.accumulatedContext ? await decryptJSONKMS(record.accumulatedContext) || record.accumulatedContext : null,
   };
 }
 
@@ -232,19 +232,19 @@ export interface SecureStrategicEntity {
 export async function saveStrategicEntity(data: SecureStrategicEntity) {
   const encrypted = {
     ...data,
-    claim: encrypt(data.claim)!,
-    source: encrypt(data.source)!,
-    evidence: data.evidence ? encrypt(data.evidence) : null,
-    category: data.category ? encrypt(data.category) : null,
-    subcategory: data.subcategory ? encrypt(data.subcategory) : null,
-    metadata: data.metadata ? encryptJSON(data.metadata) : null,
+    claim: await encryptKMS(data.claim)!,
+    source: await encryptKMS(data.source)!,
+    evidence: data.evidence ? await encryptKMS(data.evidence) : null,
+    category: data.category ? await encryptKMS(data.category) : null,
+    subcategory: data.subcategory ? await encryptKMS(data.subcategory) : null,
+    metadata: data.metadata ? await encryptJSONKMS(data.metadata) : null,
   };
 
   const result = await db.insert(strategicEntities)
     .values(encrypted as any)
     .returning();
 
-  return decryptStrategicEntity(result[0]);
+  return await decryptStrategicEntity(result[0]);
 }
 
 export async function getStrategicEntitiesByUnderstanding(understandingId: string) {
@@ -252,18 +252,18 @@ export async function getStrategicEntitiesByUnderstanding(understandingId: strin
     .from(strategicEntities)
     .where(eq(strategicEntities.understandingId, understandingId));
 
-  return result.map(decryptStrategicEntity);
+  return Promise.all(result.map(decryptStrategicEntity));
 }
 
-function decryptStrategicEntity(record: any): SecureStrategicEntity {
+async function decryptStrategicEntity(record: any): Promise<SecureStrategicEntity> {
   return {
     ...record,
-    claim: decrypt(record.claim) || record.claim,
-    source: decrypt(record.source) || record.source,
-    evidence: record.evidence ? decrypt(record.evidence) || record.evidence : null,
-    category: record.category ? decrypt(record.category) || record.category : null,
-    subcategory: record.subcategory ? decrypt(record.subcategory) || record.subcategory : null,
-    metadata: record.metadata ? decryptJSON(record.metadata) || record.metadata : null,
+    claim: await decryptKMS(record.claim) || record.claim,
+    source: await decryptKMS(record.source) || record.source,
+    evidence: record.evidence ? await decryptKMS(record.evidence) || record.evidence : null,
+    category: record.category ? await decryptKMS(record.category) || record.category : null,
+    subcategory: record.subcategory ? await decryptKMS(record.subcategory) || record.subcategory : null,
+    metadata: record.metadata ? await decryptJSONKMS(record.metadata) || record.metadata : null,
   };
 }
 
@@ -288,22 +288,22 @@ export interface SecureStrategicRelationship {
 export async function saveStrategicRelationship(data: SecureStrategicRelationship) {
   const encrypted = {
     ...data,
-    evidence: data.evidence ? encrypt(data.evidence) : null,
-    metadata: data.metadata ? encryptJSON(data.metadata) : null,
+    evidence: data.evidence ? await encryptKMS(data.evidence) : null,
+    metadata: data.metadata ? await encryptJSONKMS(data.metadata) : null,
   };
 
   const result = await db.insert(strategicRelationships)
     .values(encrypted as any)
     .returning();
 
-  return decryptStrategicRelationship(result[0]);
+  return await decryptStrategicRelationship(result[0]);
 }
 
-function decryptStrategicRelationship(record: any): SecureStrategicRelationship {
+async function decryptStrategicRelationship(record: any): Promise<SecureStrategicRelationship> {
   return {
     ...record,
-    evidence: record.evidence ? decrypt(record.evidence) || record.evidence : null,
-    metadata: record.metadata ? decryptJSON(record.metadata) || record.metadata : null,
+    evidence: record.evidence ? await decryptKMS(record.evidence) || record.evidence : null,
+    metadata: record.metadata ? await decryptJSONKMS(record.metadata) || record.metadata : null,
   };
 }
 
@@ -338,53 +338,53 @@ export interface SecureEPMProgram {
 export async function saveEPMProgram(data: SecureEPMProgram) {
   const encrypted = {
     ...data,
-    programName: data.programName ? encrypt(data.programName) : null,
-    executiveSummary: data.executiveSummary ? encrypt(data.executiveSummary) : null,
-    workstreams: data.workstreams ? encryptJSON(data.workstreams) : null,
-    timeline: data.timeline ? encryptJSON(data.timeline) : null,
-    resourcePlan: data.resourcePlan ? encryptJSON(data.resourcePlan) : null,
-    financialPlan: data.financialPlan ? encryptJSON(data.financialPlan) : null,
-    benefitsRealization: data.benefitsRealization ? encryptJSON(data.benefitsRealization) : null,
-    riskRegister: data.riskRegister ? encryptJSON(data.riskRegister) : null,
-    stakeholderMap: data.stakeholderMap ? encryptJSON(data.stakeholderMap) : null,
-    governance: data.governance ? encryptJSON(data.governance) : null,
-    qaPlan: data.qaPlan ? encryptJSON(data.qaPlan) : null,
-    procurement: data.procurement ? encryptJSON(data.procurement) : null,
-    exitStrategy: data.exitStrategy ? encryptJSON(data.exitStrategy) : null,
-    kpis: data.kpis ? encryptJSON(data.kpis) : null,
+    programName: data.programName ? await encryptKMS(data.programName) : null,
+    executiveSummary: data.executiveSummary ? await encryptKMS(data.executiveSummary) : null,
+    workstreams: data.workstreams ? await encryptJSONKMS(data.workstreams) : null,
+    timeline: data.timeline ? await encryptJSONKMS(data.timeline) : null,
+    resourcePlan: data.resourcePlan ? await encryptJSONKMS(data.resourcePlan) : null,
+    financialPlan: data.financialPlan ? await encryptJSONKMS(data.financialPlan) : null,
+    benefitsRealization: data.benefitsRealization ? await encryptJSONKMS(data.benefitsRealization) : null,
+    riskRegister: data.riskRegister ? await encryptJSONKMS(data.riskRegister) : null,
+    stakeholderMap: data.stakeholderMap ? await encryptJSONKMS(data.stakeholderMap) : null,
+    governance: data.governance ? await encryptJSONKMS(data.governance) : null,
+    qaPlan: data.qaPlan ? await encryptJSONKMS(data.qaPlan) : null,
+    procurement: data.procurement ? await encryptJSONKMS(data.procurement) : null,
+    exitStrategy: data.exitStrategy ? await encryptJSONKMS(data.exitStrategy) : null,
+    kpis: data.kpis ? await encryptJSONKMS(data.kpis) : null,
   };
 
   const result = await db.insert(epmPrograms)
     .values(encrypted as any)
     .returning() as any[];
 
-  return decryptEPMProgram(result[0]);
+  return await decryptEPMProgram(result[0]);
 }
 
 export async function updateEPMProgram(id: string, data: Partial<SecureEPMProgram>) {
   const encrypted: any = { ...data };
 
-  if (data.programName !== undefined) encrypted.programName = encrypt(data.programName);
-  if (data.executiveSummary !== undefined) encrypted.executiveSummary = encrypt(data.executiveSummary);
-  if (data.workstreams !== undefined) encrypted.workstreams = encryptJSON(data.workstreams);
-  if (data.timeline !== undefined) encrypted.timeline = encryptJSON(data.timeline);
-  if (data.resourcePlan !== undefined) encrypted.resourcePlan = encryptJSON(data.resourcePlan);
-  if (data.financialPlan !== undefined) encrypted.financialPlan = encryptJSON(data.financialPlan);
-  if (data.benefitsRealization !== undefined) encrypted.benefitsRealization = encryptJSON(data.benefitsRealization);
-  if (data.riskRegister !== undefined) encrypted.riskRegister = encryptJSON(data.riskRegister);
-  if (data.stakeholderMap !== undefined) encrypted.stakeholderMap = encryptJSON(data.stakeholderMap);
-  if (data.governance !== undefined) encrypted.governance = encryptJSON(data.governance);
-  if (data.qaPlan !== undefined) encrypted.qaPlan = encryptJSON(data.qaPlan);
-  if (data.procurement !== undefined) encrypted.procurement = encryptJSON(data.procurement);
-  if (data.exitStrategy !== undefined) encrypted.exitStrategy = encryptJSON(data.exitStrategy);
-  if (data.kpis !== undefined) encrypted.kpis = encryptJSON(data.kpis);
+  if (data.programName !== undefined) encrypted.programName = await encryptKMS(data.programName);
+  if (data.executiveSummary !== undefined) encrypted.executiveSummary = await encryptKMS(data.executiveSummary);
+  if (data.workstreams !== undefined) encrypted.workstreams = await encryptJSONKMS(data.workstreams);
+  if (data.timeline !== undefined) encrypted.timeline = await encryptJSONKMS(data.timeline);
+  if (data.resourcePlan !== undefined) encrypted.resourcePlan = await encryptJSONKMS(data.resourcePlan);
+  if (data.financialPlan !== undefined) encrypted.financialPlan = await encryptJSONKMS(data.financialPlan);
+  if (data.benefitsRealization !== undefined) encrypted.benefitsRealization = await encryptJSONKMS(data.benefitsRealization);
+  if (data.riskRegister !== undefined) encrypted.riskRegister = await encryptJSONKMS(data.riskRegister);
+  if (data.stakeholderMap !== undefined) encrypted.stakeholderMap = await encryptJSONKMS(data.stakeholderMap);
+  if (data.governance !== undefined) encrypted.governance = await encryptJSONKMS(data.governance);
+  if (data.qaPlan !== undefined) encrypted.qaPlan = await encryptJSONKMS(data.qaPlan);
+  if (data.procurement !== undefined) encrypted.procurement = await encryptJSONKMS(data.procurement);
+  if (data.exitStrategy !== undefined) encrypted.exitStrategy = await encryptJSONKMS(data.exitStrategy);
+  if (data.kpis !== undefined) encrypted.kpis = await encryptJSONKMS(data.kpis);
 
   const result = await db.update(epmPrograms)
     .set(encrypted)
     .where(eq(epmPrograms.id, id))
     .returning();
 
-  return result[0] ? decryptEPMProgram(result[0]) : null;
+  return result[0] ? await decryptEPMProgram(result[0]) : null;
 }
 
 export async function getEPMProgram(id: string) {
@@ -393,7 +393,7 @@ export async function getEPMProgram(id: string) {
     .where(eq(epmPrograms.id, id))
     .limit(1);
 
-  return result[0] ? decryptEPMProgram(result[0]) : null;
+  return result[0] ? await decryptEPMProgram(result[0]) : null;
 }
 
 export async function getEPMProgramsByUser(userId: string) {
@@ -401,26 +401,26 @@ export async function getEPMProgramsByUser(userId: string) {
     .from(epmPrograms)
     .where(eq(epmPrograms.userId, userId));
 
-  return result.map(decryptEPMProgram);
+  return Promise.all(result.map(decryptEPMProgram));
 }
 
-function decryptEPMProgram(record: any): SecureEPMProgram {
+async function decryptEPMProgram(record: any): Promise<SecureEPMProgram> {
   return {
     ...record,
-    programName: record.programName ? decrypt(record.programName) || record.programName : null,
-    executiveSummary: record.executiveSummary ? decrypt(record.executiveSummary) || record.executiveSummary : null,
-    workstreams: record.workstreams ? decryptJSON(record.workstreams) || record.workstreams : null,
-    timeline: record.timeline ? decryptJSON(record.timeline) || record.timeline : null,
-    resourcePlan: record.resourcePlan ? decryptJSON(record.resourcePlan) || record.resourcePlan : null,
-    financialPlan: record.financialPlan ? decryptJSON(record.financialPlan) || record.financialPlan : null,
-    benefitsRealization: record.benefitsRealization ? decryptJSON(record.benefitsRealization) || record.benefitsRealization : null,
-    riskRegister: record.riskRegister ? decryptJSON(record.riskRegister) || record.riskRegister : null,
-    stakeholderMap: record.stakeholderMap ? decryptJSON(record.stakeholderMap) || record.stakeholderMap : null,
-    governance: record.governance ? decryptJSON(record.governance) || record.governance : null,
-    qaPlan: record.qaPlan ? decryptJSON(record.qaPlan) || record.qaPlan : null,
-    procurement: record.procurement ? decryptJSON(record.procurement) || record.procurement : null,
-    exitStrategy: record.exitStrategy ? decryptJSON(record.exitStrategy) || record.exitStrategy : null,
-    kpis: record.kpis ? decryptJSON(record.kpis) || record.kpis : null,
+    programName: record.programName ? await decryptKMS(record.programName) || record.programName : null,
+    executiveSummary: record.executiveSummary ? await decryptKMS(record.executiveSummary) || record.executiveSummary : null,
+    workstreams: record.workstreams ? await decryptJSONKMS(record.workstreams) || record.workstreams : null,
+    timeline: record.timeline ? await decryptJSONKMS(record.timeline) || record.timeline : null,
+    resourcePlan: record.resourcePlan ? await decryptJSONKMS(record.resourcePlan) || record.resourcePlan : null,
+    financialPlan: record.financialPlan ? await decryptJSONKMS(record.financialPlan) || record.financialPlan : null,
+    benefitsRealization: record.benefitsRealization ? await decryptJSONKMS(record.benefitsRealization) || record.benefitsRealization : null,
+    riskRegister: record.riskRegister ? await decryptJSONKMS(record.riskRegister) || record.riskRegister : null,
+    stakeholderMap: record.stakeholderMap ? await decryptJSONKMS(record.stakeholderMap) || record.stakeholderMap : null,
+    governance: record.governance ? await decryptJSONKMS(record.governance) || record.governance : null,
+    qaPlan: record.qaPlan ? await decryptJSONKMS(record.qaPlan) || record.qaPlan : null,
+    procurement: record.procurement ? await decryptJSONKMS(record.procurement) || record.procurement : null,
+    exitStrategy: record.exitStrategy ? await decryptJSONKMS(record.exitStrategy) || record.exitStrategy : null,
+    kpis: record.kpis ? await decryptJSONKMS(record.kpis) || record.kpis : null,
   };
 }
 
@@ -443,25 +443,25 @@ export interface SecureStrategyVersion {
 export async function saveStrategyVersion(data: SecureStrategyVersion) {
   const encrypted = {
     ...data,
-    analysisData: data.analysisData ? encryptJSON(data.analysisData) : null,
-    decisionsData: data.decisionsData ? encryptJSON(data.decisionsData) : null,
+    analysisData: data.analysisData ? await encryptJSONKMS(data.analysisData) : null,
+    decisionsData: data.decisionsData ? await encryptJSONKMS(data.decisionsData) : null,
   };
 
   const result = await db.insert(strategyVersions)
     .values(encrypted as any)
     .returning() as any[];
 
-  return decryptStrategyVersion(result[0]);
+  return await decryptStrategyVersion(result[0]);
 }
 
 export async function updateStrategyVersion(id: string, data: Partial<SecureStrategyVersion>) {
   const encrypted: any = { ...data };
 
   if (data.analysisData !== undefined) {
-    encrypted.analysisData = encryptJSON(data.analysisData);
+    encrypted.analysisData = await encryptJSONKMS(data.analysisData);
   }
   if (data.decisionsData !== undefined) {
-    encrypted.decisionsData = encryptJSON(data.decisionsData);
+    encrypted.decisionsData = await encryptJSONKMS(data.decisionsData);
   }
 
   encrypted.updatedAt = new Date();
@@ -471,7 +471,7 @@ export async function updateStrategyVersion(id: string, data: Partial<SecureStra
     .where(eq(strategyVersions.id, id))
     .returning();
 
-  return result[0] ? decryptStrategyVersion(result[0]) : null;
+  return result[0] ? await decryptStrategyVersion(result[0]) : null;
 }
 
 export async function getStrategyVersion(sessionId: string, versionNumber: number) {
@@ -485,13 +485,13 @@ export async function getStrategyVersion(sessionId: string, versionNumber: numbe
     )
     .limit(1);
 
-  return result[0] ? decryptStrategyVersion(result[0]) : null;
+  return result[0] ? await decryptStrategyVersion(result[0]) : null;
 }
 
-function decryptStrategyVersion(record: any): SecureStrategyVersion {
+async function decryptStrategyVersion(record: any): Promise<SecureStrategyVersion> {
   return {
     ...record,
-    analysisData: record.analysisData ? decryptJSON(record.analysisData) || record.analysisData : null,
-    decisionsData: record.decisionsData ? decryptJSON(record.decisionsData) || record.decisionsData : null,
+    analysisData: record.analysisData ? await decryptJSONKMS(record.analysisData) || record.analysisData : null,
+    decisionsData: record.decisionsData ? await decryptJSONKMS(record.decisionsData) || record.decisionsData : null,
   };
 }

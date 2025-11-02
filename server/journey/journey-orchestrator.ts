@@ -19,7 +19,7 @@ import { WhysTreeGenerator } from '../strategic-consultant/whys-tree-generator';
 import { BMCResearcher } from '../strategic-consultant/bmc-researcher';
 import { dbConnectionManager } from '../db-connection-manager';
 import { getStrategicUnderstanding, saveJourneySession, getJourneySession, updateJourneySession } from '../services/secure-data-service';
-import { encryptJSON } from '../utils/encryption';
+import { encryptJSONKMS } from '../utils/kms-encryption';
 import { journeySummaryService } from '../services/journey-summary-service';
 import { isJourneyRegistryV2Enabled } from '../config';
 
@@ -87,7 +87,7 @@ export class JourneyOrchestrator {
       console.log(`[JourneyOrchestrator] Creating journey session version ${nextVersion} for understanding ${understandingId}`);
 
       // Encrypt accumulated context before inserting
-      const encryptedContext = encryptJSON(context);
+      const encryptedContext = await encryptJSONKMS(context);
 
       // Insert new session on the SAME connection
       const [newSession] = await tx

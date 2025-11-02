@@ -3,7 +3,7 @@ import { db } from '../db';
 import { strategicUnderstanding, frameworkInsights, strategicEntities, strategyVersions, journeySessions, epmPrograms, references, strategyDecisions } from '@shared/schema';
 import { eq, desc, sql, inArray } from 'drizzle-orm';
 import { getStrategicUnderstanding } from '../services/secure-data-service';
-import { decrypt } from '../utils/encryption';
+import { decryptKMS } from '../utils/kms-encryption';
 
 const router = Router();
 
@@ -21,10 +21,12 @@ router.get('/statements', async (req, res) => {
       .orderBy(desc(strategicUnderstanding.createdAt));
     
     // Decrypt userInput for each statement
-    const statements = rawStatements.map(stmt => ({
-      ...stmt,
-      statement: decrypt(stmt.statement) || stmt.statement,
-    }));
+    const statements = await Promise.all(
+      rawStatements.map(async stmt => ({
+        ...stmt,
+        statement: (await decryptKMS(stmt.statement)) || stmt.statement,
+      }))
+    );
 
     const enrichedStatements = await Promise.all(
       statements.map(async (stmt) => {
