@@ -89,15 +89,15 @@ export function Sidebar({ isOpen = false, onToggle = () => {} }: SidebarProps) {
               </div>
             )}
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">
+              <p className="text-sm font-medium text-white dark:text-white truncate">
                 {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.email || 'User'}
               </p>
-              <p className="text-xs text-muted-foreground truncate">
+              <p className="text-xs text-gray-300 dark:text-gray-300 truncate">
                 <span className={cn(
                   "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium",
                   user?.role === 'Admin' && "bg-primary/10 text-primary",
                   user?.role === 'Editor' && "bg-accent/10 text-accent",
-                  user?.role === 'Viewer' && "bg-muted text-muted-foreground"
+                  user?.role === 'Viewer' && "bg-muted text-gray-300"
                 )}>
                   {user?.role || 'Viewer'}
                 </span>
@@ -113,7 +113,7 @@ export function Sidebar({ isOpen = false, onToggle = () => {} }: SidebarProps) {
             <Button
               variant={location === '/' ? 'default' : 'ghost'}
               className={cn(
-                "w-full justify-start h-auto p-3",
+                "w-full justify-start h-auto p-3 text-white hover:text-white",
                 location === '/' && "bg-primary text-primary-foreground"
               )}
               onClick={() => navigate('/')}
@@ -130,7 +130,7 @@ export function Sidebar({ isOpen = false, onToggle = () => {} }: SidebarProps) {
             <Button
               variant={location.startsWith('/strategic-consultant') ? 'default' : 'ghost'}
               className={cn(
-                "w-full justify-start h-auto p-3",
+                "w-full justify-start h-auto p-3 text-white hover:text-white",
                 location.startsWith('/strategic-consultant') && "bg-primary text-primary-foreground"
               )}
               onClick={() => navigate('/strategic-consultant/input')}
@@ -147,7 +147,7 @@ export function Sidebar({ isOpen = false, onToggle = () => {} }: SidebarProps) {
             <Button
               variant={location.startsWith('/strategies') ? 'default' : 'ghost'}
               className={cn(
-                "w-full justify-start h-auto p-3",
+                "w-full justify-start h-auto p-3 text-white hover:text-white",
                 location.startsWith('/strategies') && "bg-primary text-primary-foreground"
               )}
               onClick={() => navigate('/strategies')}
@@ -164,7 +164,7 @@ export function Sidebar({ isOpen = false, onToggle = () => {} }: SidebarProps) {
             <Button
               variant={location === '/repository' ? 'default' : 'ghost'}
               className={cn(
-                "w-full justify-start h-auto p-3",
+                "w-full justify-start h-auto p-3 text-white hover:text-white",
                 location === '/repository' && "bg-primary text-primary-foreground"
               )}
               onClick={() => navigate('/repository')}
@@ -181,7 +181,7 @@ export function Sidebar({ isOpen = false, onToggle = () => {} }: SidebarProps) {
             <Button
               variant={location.startsWith('/strategy-workspace') ? 'default' : 'ghost'}
               className={cn(
-                "w-full justify-start h-auto p-3",
+                "w-full justify-start h-auto p-3 text-white hover:text-white",
                 location.startsWith('/strategy-workspace') && "bg-primary text-primary-foreground"
               )}
               onClick={() => navigate('/strategy-workspace/programs')}
@@ -198,7 +198,7 @@ export function Sidebar({ isOpen = false, onToggle = () => {} }: SidebarProps) {
             <Button
               variant={location === '/journeys' ? 'default' : 'ghost'}
               className={cn(
-                "w-full justify-start h-auto p-3",
+                "w-full justify-start h-auto p-3 text-white hover:text-white",
                 location === '/journeys' && "bg-primary text-primary-foreground"
               )}
               onClick={() => navigate('/journeys')}
@@ -217,7 +217,7 @@ export function Sidebar({ isOpen = false, onToggle = () => {} }: SidebarProps) {
         <div className="p-4 border-t border-border space-y-2">
           <Button
             variant="ghost"
-            className="w-full justify-start"
+            className="w-full justify-start text-white hover:text-white"
             data-testid="nav-settings"
           >
             <Settings className="h-5 w-5 mr-3" />
@@ -225,7 +225,7 @@ export function Sidebar({ isOpen = false, onToggle = () => {} }: SidebarProps) {
           </Button>
           <Button
             variant="ghost"
-            className="w-full justify-start text-destructive hover:text-destructive"
+            className="w-full justify-start text-red-400 hover:text-red-300"
             onClick={() => window.location.href = '/api/logout'}
             data-testid="button-logout"
           >
