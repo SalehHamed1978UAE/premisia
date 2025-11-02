@@ -432,19 +432,16 @@ function PublicLandingPage() {
         <div className="text-center mb-16 md:mb-20">
           <div className="mb-8">
             <img 
-              src={logoLight} 
-              alt="Premisia" 
-              className="h-16 md:h-20 w-auto mx-auto dark:hidden"
+              src={logoFullLight} 
+              alt="Premisia - Think it through" 
+              className="w-full max-w-4xl h-auto mx-auto dark:hidden px-4"
             />
             <img 
-              src={logoDark} 
-              alt="Premisia" 
-              className="h-16 md:h-20 w-auto mx-auto hidden dark:block"
+              src={logoFullDark} 
+              alt="Premisia - Think it through" 
+              className="w-full max-w-4xl h-auto mx-auto hidden dark:block px-4"
             />
           </div>
-          <h1 className="text-4xl md:text-6xl font-bold text-foreground mb-4">
-            Think it through
-          </h1>
           <p className="text-xl md:text-2xl text-foreground font-medium mb-6 max-w-4xl mx-auto">
             Premisia structures complex choices so leaders can align, commit, and move—fast
           </p>
