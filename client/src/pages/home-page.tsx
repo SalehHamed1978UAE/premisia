@@ -10,6 +10,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
 import { SiGoogle } from "react-icons/si";
+import logoLight from "@assets/PREMISIA Think it through (1)-modified_1762085311768.png";
+import logoDark from "@assets/PREMISIA Think it through (1)_1762085311768.png";
 
 interface DashboardSummary {
   counts: {
@@ -395,12 +397,12 @@ function PublicLandingPage() {
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <img 
-              src="/attached_assets/PREMISIA Think it through (1)-modified_1762085311768.png" 
+              src={logoLight} 
               alt="Premisia Logo" 
               className="h-8 w-auto dark:hidden"
             />
             <img 
-              src="/attached_assets/PREMISIA Think it through (1)_1762085311768.png" 
+              src={logoDark} 
               alt="Premisia Logo" 
               className="h-8 w-auto hidden dark:block"
             />
@@ -420,12 +422,12 @@ function PublicLandingPage() {
         <div className="text-center mb-16 md:mb-20">
           <div className="mb-8">
             <img 
-              src="/attached_assets/PREMISIA Think it through (1)-modified_1762085311768.png" 
+              src={logoLight} 
               alt="Premisia" 
               className="h-16 md:h-20 w-auto mx-auto dark:hidden"
             />
             <img 
-              src="/attached_assets/PREMISIA Think it through (1)_1762085311768.png" 
+              src={logoDark} 
               alt="Premisia" 
               className="h-16 md:h-20 w-auto mx-auto hidden dark:block"
             />

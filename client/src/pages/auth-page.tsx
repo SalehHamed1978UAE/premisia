@@ -4,6 +4,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle, ShieldCheck } from "lucide-react";
 import { SiGoogle } from "react-icons/si";
+import logoLight from "@assets/PREMISIA Think it through (1)-modified_1762085311768.png";
+import logoDark from "@assets/PREMISIA Think it through (1)_1762085311768.png";
 
 export default function AuthPage() {
   const { user, isLoading } = useAuth();
@@ -27,7 +29,7 @@ export default function AuthPage() {
         <div>
           <div className="flex items-center space-x-3 mb-8">
             <img 
-              src="/attached_assets/PREMISIA Think it through (1)_1762085311768.png" 
+              src={logoDark} 
               alt="Premisia Logo" 
               className="h-10 w-auto"
             />
@@ -95,12 +97,12 @@ export default function AuthPage() {
               <div className="text-center mb-8">
                 <div className="flex flex-col items-center gap-3 mb-2">
                   <img 
-                    src="/attached_assets/PREMISIA Think it through (1)-modified_1762085311768.png" 
+                    src={logoLight} 
                     alt="Premisia Logo" 
                     className="h-12 w-auto dark:hidden"
                   />
                   <img 
-                    src="/attached_assets/PREMISIA Think it through (1)_1762085311768.png" 
+                    src={logoDark} 
                     alt="Premisia Logo" 
                     className="h-12 w-auto hidden dark:block"
                   />
