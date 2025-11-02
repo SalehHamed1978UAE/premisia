@@ -128,13 +128,14 @@ function OnboardingFlow() {
         </div>
 
         {/* Step Indicators - Display only, not clickable */}
-        <div className="flex justify-center mb-8">
-          <div className="flex flex-col md:flex-row items-center gap-3 md:gap-0">
+        <div className="flex justify-center mb-8 px-4">
+          <div className="flex flex-col md:flex-row items-center gap-4 md:gap-0">
             {ONBOARDING_STEPS.map((step, index) => (
-              <div key={step.id} className="flex flex-col md:flex-row items-center">
+              <>
                 <div
+                  key={step.id}
                   className={cn(
-                    "w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all mx-auto",
+                    "w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all",
                     index === currentStep
                       ? "bg-primary text-primary-foreground shadow-lg scale-110"
                       : index < currentStep
@@ -150,12 +151,15 @@ function OnboardingFlow() {
                   )}
                 </div>
                 {index < ONBOARDING_STEPS.length - 1 && (
-                  <div className={cn(
-                    "w-1 h-8 md:w-16 md:h-1 md:mx-2 transition-all",
-                    index < currentStep ? "bg-primary" : "bg-muted"
-                  )} />
+                  <div 
+                    key={`connector-${index}`}
+                    className={cn(
+                      "w-1 h-8 md:w-16 md:h-1 md:mx-2 transition-all",
+                      index < currentStep ? "bg-primary" : "bg-muted"
+                    )} 
+                  />
                 )}
-              </div>
+              </>
             ))}
           </div>
         </div>
