@@ -538,13 +538,13 @@ function PublicLandingPage() {
 
         {/* How it works */}
         <div className="mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">How it works</h2>
+          <h2 className="text-3xl md:text-4xl font-bold text-center mb-12 text-foreground">How it works</h2>
           <div className="flex flex-col md:grid md:grid-cols-3 gap-8 md:gap-8">
             <div className="text-center">
               <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl font-bold text-primary">1</span>
               </div>
-              <h3 className="text-xl font-semibold mb-3">Ingest & orient</h3>
+              <h3 className="text-xl font-semibold mb-3 text-foreground">Ingest & orient</h3>
               <p className="text-muted-foreground">
                 Securely connect policies, financials, KPIs, and prior initiatives. Premisia builds a knowledge graph of your enterprise context.
               </p>
@@ -553,7 +553,7 @@ function PublicLandingPage() {
               <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl font-bold text-primary">2</span>
               </div>
-              <h3 className="text-xl font-semibold mb-3">Think it through</h3>
+              <h3 className="text-xl font-semibold mb-3 text-foreground">Think it through</h3>
               <p className="text-muted-foreground">
                 Advisory agents co-draft scenarios, explore trade-offs, and validate OKRs. Run risk and compliance checks in-line with traceable citations.
               </p>
@@ -562,7 +562,7 @@ function PublicLandingPage() {
               <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl font-bold text-primary">3</span>
               </div>
-              <h3 className="text-xl font-semibold mb-3">Commit & ship</h3>
+              <h3 className="text-xl font-semibold mb-3 text-foreground">Commit & ship</h3>
               <p className="text-muted-foreground">
                 Export to your PM suite with charter, plan, costs, KPIs, owners, and tracking—with full sources and assumptions. Keep iterating as conditions change.
               </p>
