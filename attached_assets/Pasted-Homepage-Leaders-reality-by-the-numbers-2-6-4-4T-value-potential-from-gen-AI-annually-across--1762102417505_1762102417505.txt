@@ -1,0 +1,69 @@
+Homepage: “Leaders’ reality—by the numbers”
+
+$2.6–$4.4T value potential from gen-AI annually across 63 use cases. 
+McKinsey & Company
++1
+
+66% of EMEA leaders already report significant AI productivity gains; 92% expect measurable ROI from AI agents within two years. 
+IBM Newsroom
+
+UK government Copilot trial (20k staff): ~26 minutes saved per day on average—≈ 2 weeks/year back. 
+Microsoft
++1
+
+Controlled experiments: gen-AI cut task time by ~40% and raised quality ~18% on complex writing tasks. 
+science.org
+
+Only 21% of executives say their strategies pass McKinsey’s “Ten Tests of Strategy” (down ~40% vs. ~15 years ago). 
+McKinsey & Company
+
+CEOs say only 25% of AI initiatives delivered expected ROI in recent years—pressure to focus on governed, outcome-tied use. 
+IBM Newsroom
++1
+
+Onboarding: “Why thinking time matters—now”
+
+“The pace of change has never been this fast, yet it will never be this slow again.” — Justin Trudeau, WEF. 
+GOV.UK
+
+Power users report AI saves 30+ minutes/day in Microsoft’s 2024 Work Trend Index. 
+Microsoft
+
+UK cross-government pilot: staff wanted to keep using AI after the trial (strong adoption intent) while saving ~26 minutes/day. 
+Microsoft
+
+McKinsey on volatility: outperformers win by increasing decision speed and pairing insight + commitment + execution. 
+McKinsey & Company
+
+Andrew Grove’s “strategic inflection points”: fundamentals change fast; leaders must re-evaluate premises quickly. 
+IBM Newsroom
+
+Microsoft/LinkedIn 2024: AI is “democratizing expertise” to drive better decision-making and outcomes. 
+Source
+
+How to place them (copy-ready blocks)
+Homepage band (compact)
+
+Facing nonstop change?
+
+66% already see AI productivity gains; 92% expect agent ROI in two years. 
+IBM Newsroom
+
+UK trial: ~26 minutes/day saved—time leaders can reinvest in thinking. 
+Microsoft
+
+Gen-AI value pool: $2.6–$4.4T annually. 
+McKinsey & Company
+
+Onboarding right-rail (first login)
+
+Why now
+
+“The pace of change… will never be this slow again.” 
+GOV.UK
+
+Power users save 30+ min/day with AI. 
+Microsoft
+
+Trials at scale show ~26 min/day saved—and high intent to keep using AI. 
+Microsoft

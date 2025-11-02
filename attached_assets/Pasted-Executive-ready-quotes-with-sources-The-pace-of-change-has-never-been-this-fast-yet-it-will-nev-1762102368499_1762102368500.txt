@@ -1,0 +1,68 @@
+Executive-ready quotes (with sources)
+
+“The pace of change has never been this fast, yet it will never be this slow again.”
+— Justin Trudeau, World Economic Forum address, 2018. 
+World Economic Forum
+
+“The greatest danger in times of turbulence is not the turbulence; it is to act with yesterday’s logic.”
+— Peter F. Drucker. (Drucker Forum cites it in context of leadership in disruption.) 
+druckerforum.org
+
+“Speed is often a strategy in and of itself… those who learn faster will also win.”
+— Alex Singla, Senior Partner, McKinsey, on sustaining advantage with gen AI. 
+McKinsey & Company
+
+“The rate of change is not going to slow down anytime soon.”
+— John P. Kotter, change-leadership scholar. 
+Strategies for Influence
+
+“Every company is a software company… every organization will have to build its own digital capability.”
+— Satya Nadella, Microsoft CEO, on “tech intensity.” 
+Microsoft UK Stories
+
+“A strategic inflection point is a time… when fundamentals are about to change.”
+— Andrew S. Grove, Only the Paranoid Survive. 
+Goodreads
+
+“Speed matters in today’s volatile environment; leaders who streamline decisions and empower the frontline have a clear edge.”
+— McKinsey, Strategic courage in an age of volatility. 
+McKinsey & Company
+
+“CEOs are balancing short-term ROI and long-term innovation when adopting AI… those who keep innovating in uncertainty will emerge stronger.”
+— IBM Institute for Business Value, 2024–2025 CEO research. 
+IBM Newsroom
+
+“Given constant change, leaders must continue to evolve… find traction in the tensions.”
+— Deloitte, Global Human Capital Trends. 
+Deloitte
+
+“Think about it: the pace of change… will never be this slow again.”
+— Repeat of Trudeau, used as a short pull-quote for banners. 
+World Economic Forum
+
+How to place them (ready-to-paste blocks)
+Homepage “Leaders’ reality” band
+
+The pace of change has never been this fast—yet it will never be this slow again. 
+World Economic Forum
+
+The greatest danger in times of turbulence is to act with yesterday’s logic. 
+druckerforum.org
+
+Speed—and the ability to learn fast—wins. 
+McKinsey & Company
+
+Onboarding welcome (side column)
+
+Every organization must build its own digital capability. 
+Microsoft UK Stories
+
+Leaders who streamline decisions have a clear edge in volatility. 
+McKinsey & Company
+
+“Why now” explainer (site footer or Resources page)
+
+CEOs are balancing short-term ROI with long-term innovation on AI—and those who keep innovating in uncertainty emerge stronger. 
+IBM Newsroom
+
+Given constant change, leaders must evolve and find traction in the tensions.
