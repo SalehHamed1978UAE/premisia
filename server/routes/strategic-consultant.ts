@@ -21,6 +21,7 @@ import { JourneyOrchestrator } from '../journey/journey-orchestrator';
 import { journeyRegistry } from '../journey/journey-registry';
 import type { JourneyType } from '@shared/journey-types';
 import { InitiativeClassifier } from '../strategic-consultant/initiative-classifier';
+import { isJourneyRegistryV2Enabled } from '../config';
 import { ambiguityDetector } from '../services/ambiguity-detector.js';
 import { getStrategicUnderstanding, getStrategicUnderstandingBySession, updateStrategicUnderstanding, getJourneySession, getJourneySessionByUnderstandingSessionId } from '../services/secure-data-service';
 import { fiveWhysCoach } from '../services/five-whys-coach.js';
@@ -587,6 +588,12 @@ router.post('/journeys/summary', async (req: Request, res: Response) => {
       return res.status(400).json({ 
         error: 'Both understandingId and journeyType are required' 
       });
+    }
+
+    // If Journey Registry V2 is disabled, return empty summary
+    if (!isJourneyRegistryV2Enabled()) {
+      console.log('[Strategic Consultant] Journey Registry V2 disabled, returning empty summary');
+      return res.json({ success: true, summary: null });
     }
 
     const summary = await journeySummaryService.getLatestSummary(understandingId, journeyType as JourneyType);
@@ -2441,13 +2448,29 @@ router.post('/journeys/check-readiness', async (req: Request, res: Response) => 
     const referenceCount = referencesData.length;
     const hasUserInput = !!understanding.userInput;
     
-    // Get readiness thresholds from journey registry
-    const journey = journeyRegistry.getJourney(journeyType as JourneyType);
-    if (!journey) {
-      return res.status(400).json({ error: 'Invalid journey type' });
-    }
+    // Get readiness thresholds based on feature flag
+    let minReferences: number;
+    let minEntities: number;
 
-    const { minReferences, minEntities } = journey.defaultReadiness;
+    if (isJourneyRegistryV2Enabled()) {
+      // Use dynamic thresholds from journey registry
+      const journey = journeyRegistry.getJourney(journeyType as JourneyType);
+      if (!journey) {
+        return res.status(400).json({ error: 'Invalid journey type' });
+      }
+      ({ minReferences, minEntities } = journey.defaultReadiness);
+      console.log('[Strategic Consultant] Using registry thresholds:', { minReferences, minEntities });
+    } else {
+      // Use legacy hardcoded thresholds
+      const readinessConfig: Record<string, { minReferences: number; minEntities: number }> = {
+        business_model_innovation: { minReferences: 0, minEntities: 0 },
+        business_model_canvas: { minReferences: 0, minEntities: 0 },
+      };
+      const config = readinessConfig[journeyType as string] ?? { minReferences: 3, minEntities: 5 };
+      minReferences = config.minReferences;
+      minEntities = config.minEntities;
+      console.log('[Strategic Consultant] Using legacy thresholds:', { minReferences, minEntities });
+    }
     
     const isReady = hasUserInput && 
                      referenceCount >= minReferences && 
@@ -2487,6 +2510,16 @@ router.post('/journeys/check-readiness', async (req: Request, res: Response) => 
       error: error.message || 'Readiness check failed' 
     });
   }
+});
+
+/**
+ * GET /api/strategic-consultant/config/features
+ * Return feature flag configuration for client-side feature gating
+ */
+router.get('/config/features', (req: Request, res: Response) => {
+  res.json({
+    journeyRegistryV2: isJourneyRegistryV2Enabled()
+  });
 });
 
 router.get('/health', (req: Request, res: Response) => {

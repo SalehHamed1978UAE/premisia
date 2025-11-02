@@ -13,6 +13,7 @@ import { Rocket, CheckCircle2, AlertCircle, Loader2, Play, ChevronDown, ChevronU
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useFeatureFlags } from "@/hooks/use-feature-flags";
 
 interface JourneyLauncherModalProps {
   open: boolean;
@@ -60,6 +61,7 @@ export default function JourneyLauncherModal({
   const [activeTab, setActiveTab] = useState("journey");
   const [summaryExpanded, setSummaryExpanded] = useState(false);
   const { toast } = useToast();
+  const { journeyRegistryV2 } = useFeatureFlags();
 
   // Reset scroll position when modal opens
   useEffect(() => {
@@ -123,7 +125,7 @@ export default function JourneyLauncherModal({
     available: f.isActive !== false,
   }));
 
-  // Fetch journey summary when a journey is selected
+  // Fetch journey summary when a journey is selected (only if Journey Registry V2 is enabled)
   const { data: summaryData, isLoading: loadingSummary } = useQuery({
     queryKey: ['/api/strategic-consultant/journeys/summary', understandingId, selectedJourney],
     queryFn: async () => {
@@ -133,7 +135,7 @@ export default function JourneyLauncherModal({
       });
       return response.json();
     },
-    enabled: open && !!selectedJourney && selectedJourneyType === 'prebuilt',
+    enabled: open && !!selectedJourney && selectedJourneyType === 'prebuilt' && journeyRegistryV2,
   });
 
   const summary = summaryData?.summary;
@@ -438,7 +440,8 @@ export default function JourneyLauncherModal({
         {/* Sticky Footer - Shows when journey selected */}
         {selectedJourney && !isLoadingData && (
           <div className="border-t bg-background px-4 sm:px-6 py-4">
-            {/* Summary Snippet - shown only for prebuilt journeys with previous runs */}
+            {/* Summary Snippet - shown only for prebuilt journeys with previous runs (Journey Registry V2 feature) */}
+            {/* Note: summary will be null when journeyRegistryV2 flag is false, effectively gating this display */}
             {activeTab === 'journey' && selectedJourneyType === 'prebuilt' && summary && (
               <div className="mb-4">
                 <Collapsible open={summaryExpanded} onOpenChange={setSummaryExpanded}>

@@ -21,6 +21,7 @@ import { dbConnectionManager } from '../db-connection-manager';
 import { getStrategicUnderstanding, saveJourneySession, getJourneySession, updateJourneySession } from '../services/secure-data-service';
 import { encryptJSON } from '../utils/encryption';
 import { journeySummaryService } from '../services/journey-summary-service';
+import { isJourneyRegistryV2Enabled } from '../config';
 
 export class JourneyOrchestrator {
   /**
@@ -43,18 +44,23 @@ export class JourneyOrchestrator {
       throw new Error(`Understanding ${understandingId} not found`);
     }
 
-    // Load baseline summary from previous journey of the SAME journey type (if exists)
-    const baselineSummary = await journeySummaryService.getLatestSummary(understandingId, journeyType);
-
     // Initialize context (cast to full type since we've confirmed it exists)
     const context = initializeContext(understanding as any, journeyType);
 
-    // Attach baseline summary to context if it exists
-    if (baselineSummary) {
-      context.baselineSummary = baselineSummary;
-      console.log(`[JourneyOrchestrator] Loaded baseline summary from previous ${journeyType} run (version ${baselineSummary.versionNumber})`);
+    // Load baseline summary from previous journey of the SAME journey type (if exists)
+    // Only if Journey Registry V2 is enabled
+    if (isJourneyRegistryV2Enabled()) {
+      const baselineSummary = await journeySummaryService.getLatestSummary(understandingId, journeyType);
+      
+      // Attach baseline summary to context if it exists
+      if (baselineSummary) {
+        context.baselineSummary = baselineSummary;
+        console.log(`[JourneyOrchestrator] Loaded baseline summary from previous ${journeyType} run (version ${baselineSummary.versionNumber})`);
+      } else {
+        console.log(`[JourneyOrchestrator] No previous ${journeyType} summary found, starting fresh`);
+      }
     } else {
-      console.log(`[JourneyOrchestrator] No previous ${journeyType} summary found, starting fresh`);
+      console.log('[JourneyOrchestrator] Journey Registry V2 disabled, skipping summary load');
     }
 
     // Use a database transaction with advisory lock to serialize version allocation
@@ -212,18 +218,22 @@ export class JourneyOrchestrator {
       await this.updateSessionStatus(journeySessionId, 'completed');
       context.status = 'completed';
 
-      // Build and save journey summary
-      const journeyDef = getJourney(session.journeyType! as JourneyType);
-      const summary = journeySummaryService.buildSummary(
-        journeyDef.summaryBuilder,
-        context,
-        {
-          versionNumber: session.versionNumber || 1,
-          completedAt: new Date().toISOString()
-        }
-      );
-      await journeySummaryService.saveSummary(journeySessionId, summary);
-      console.log(`[JourneyOrchestrator] ✓ Journey summary saved for version ${session.versionNumber}`);
+      // Build and save journey summary (only if Journey Registry V2 is enabled)
+      if (isJourneyRegistryV2Enabled()) {
+        const journeyDef = getJourney(session.journeyType! as JourneyType);
+        const summary = journeySummaryService.buildSummary(
+          journeyDef.summaryBuilder,
+          context,
+          {
+            versionNumber: session.versionNumber || 1,
+            completedAt: new Date().toISOString()
+          }
+        );
+        await journeySummaryService.saveSummary(journeySessionId, summary);
+        console.log(`[JourneyOrchestrator] ✓ Journey summary saved for version ${session.versionNumber}`);
+      } else {
+        console.log('[JourneyOrchestrator] Journey Registry V2 disabled, skipping summary save');
+      }
 
       // Final progress callback
       if (progressCallback) {
