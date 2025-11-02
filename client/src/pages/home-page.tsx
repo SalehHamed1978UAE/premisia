@@ -391,7 +391,7 @@ function PublicLandingPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
       {/* Sticky Header */}
-      <div className="sticky top-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
+      <div className="sticky top-0 z-50 bg-background border-b border-border">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/80 rounded-lg flex items-center justify-center shadow-md">
