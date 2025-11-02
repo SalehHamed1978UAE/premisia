@@ -8,7 +8,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Rocket, CheckCircle2, AlertCircle, Loader2, Play } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Rocket, CheckCircle2, AlertCircle, Loader2, Play, ChevronDown, ChevronUp, Clock, Lightbulb } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -57,6 +58,7 @@ export default function JourneyLauncherModal({
   const [selectedJourneyType, setSelectedJourneyType] = useState<'prebuilt' | 'custom' | null>(null);
   const [selectedFrameworks, setSelectedFrameworks] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState("journey");
+  const [summaryExpanded, setSummaryExpanded] = useState(false);
   const { toast } = useToast();
 
   // Reset scroll position when modal opens
@@ -120,6 +122,21 @@ export default function JourneyLauncherModal({
     description: f.description || '',
     available: f.isActive !== false,
   }));
+
+  // Fetch journey summary when a journey is selected
+  const { data: summaryData, isLoading: loadingSummary } = useQuery({
+    queryKey: ['/api/strategic-consultant/journeys/summary', understandingId, selectedJourney],
+    queryFn: async () => {
+      const response = await apiRequest('POST', '/api/strategic-consultant/journeys/summary', {
+        understandingId,
+        journeyType: selectedJourney,
+      });
+      return response.json();
+    },
+    enabled: open && !!selectedJourney && selectedJourneyType === 'prebuilt',
+  });
+
+  const summary = summaryData?.summary;
 
   const isLoadingData = loadingPrebuilt || loadingCustom || loadingFrameworks;
 
@@ -421,6 +438,81 @@ export default function JourneyLauncherModal({
         {/* Sticky Footer - Shows when journey selected */}
         {selectedJourney && !isLoadingData && (
           <div className="border-t bg-background px-4 sm:px-6 py-4">
+            {/* Summary Snippet - shown only for prebuilt journeys with previous runs */}
+            {activeTab === 'journey' && selectedJourneyType === 'prebuilt' && summary && (
+              <div className="mb-4">
+                <Collapsible open={summaryExpanded} onOpenChange={setSummaryExpanded}>
+                  <Card className="border-primary/20 bg-primary/5" data-testid="card-journey-summary">
+                    <CardHeader className="pb-2">
+                      <CollapsibleTrigger className="flex items-center justify-between w-full hover:opacity-80">
+                        <div className="flex items-center gap-2">
+                          <Lightbulb className="h-4 w-4 text-primary" />
+                          <CardTitle className="text-sm font-semibold">
+                            Previous Analysis (Version {summary.versionNumber})
+                          </CardTitle>
+                        </div>
+                        {summaryExpanded ? (
+                          <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </CollapsibleTrigger>
+                      {summary.completedAt && (
+                        <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                          <Clock className="h-3 w-3" />
+                          Completed: {new Date(summary.completedAt).toLocaleDateString()}
+                        </p>
+                      )}
+                    </CardHeader>
+                    <CollapsibleContent>
+                      <CardContent className="pt-2 space-y-3">
+                        {summary.keyInsights && summary.keyInsights.length > 0 && (
+                          <div>
+                            <p className="text-xs font-semibold text-muted-foreground mb-2">
+                              Key Insights:
+                            </p>
+                            <ul className="space-y-1 text-xs text-foreground">
+                              {summary.keyInsights.map((insight: string, idx: number) => (
+                                <li key={idx} className="flex items-start gap-1.5">
+                                  <span className="text-primary mt-0.5">•</span>
+                                  <span>{insight}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {summary.strategicImplications && summary.strategicImplications.length > 0 && (
+                          <div>
+                            <p className="text-xs font-semibold text-muted-foreground mb-2">
+                              Strategic Implications:
+                            </p>
+                            <ul className="space-y-1 text-xs text-foreground">
+                              {summary.strategicImplications.map((implication: string, idx: number) => (
+                                <li key={idx} className="flex items-start gap-1.5">
+                                  <span className="text-primary mt-0.5">→</span>
+                                  <span>{implication}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </CardContent>
+                    </CollapsibleContent>
+                  </Card>
+                </Collapsible>
+              </div>
+            )}
+
+            {/* Loading indicator for summary */}
+            {activeTab === 'journey' && selectedJourneyType === 'prebuilt' && loadingSummary && (
+              <div className="mb-4">
+                <Alert>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <AlertDescription>Loading previous analysis...</AlertDescription>
+                </Alert>
+              </div>
+            )}
+
             <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
               <Button 
                 variant="outline" 

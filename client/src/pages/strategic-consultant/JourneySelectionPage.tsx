@@ -9,58 +9,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, CheckCircle2, Clock, ArrowRight } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 
-// Journey definitions (MUST match server-side registry exactly)
-const JOURNEYS = [
-  {
-    type: 'business_model_innovation',
-    name: 'Business Model Innovation',
-    description: 'Identify root problems using Five Whys, then design solutions with Business Model Canvas',
-    frameworks: ['Five Whys', 'Business Model Canvas'],
-    bestFor: ['New product/service ideas', 'Subscription model challenges', 'Revenue model changes'],
-    available: true,
-  },
-  {
-    type: 'market_entry',
-    name: 'Market Entry Strategy',
-    description: 'Analyze market dynamics and competitive forces to plan market entry',
-    frameworks: ['Market Research', 'Porter\'s Five Forces', 'Business Model Canvas'],
-    bestFor: ['Geographic expansion', 'New market segments', 'Product launches'],
-    available: false,
-  },
-  {
-    type: 'competitive_strategy',
-    name: 'Competitive Strategy',
-    description: 'Deep-dive into competitive landscape and strategic positioning',
-    frameworks: ['Porter\'s Five Forces', 'PESTLE Analysis', 'Strategic Options'],
-    bestFor: ['Competitive threats', 'Market positioning', 'Differentiation strategy'],
-    available: false,
-  },
-  {
-    type: 'digital_transformation',
-    name: 'Digital Transformation',
-    description: 'Roadmap for technology adoption and organizational change',
-    frameworks: ['Current State Analysis', 'Technology Assessment', 'Change Management'],
-    bestFor: ['Technology upgrades', 'Process automation', 'Digital initiatives'],
-    available: false,
-  },
-  {
-    type: 'crisis_recovery',
-    name: 'Crisis Recovery',
-    description: 'Fast-track problem identification and recovery planning',
-    frameworks: ['Five Whys', 'Risk Assessment', 'Action Planning'],
-    bestFor: ['Revenue decline', 'Customer churn', 'Operational crises'],
-    available: false,
-  },
-  {
-    type: 'growth_strategy',
-    name: 'Growth Strategy',
-    description: 'Comprehensive growth planning with market and financial analysis',
-    frameworks: ['Market Opportunity', 'Financial Modeling', 'Growth Roadmap'],
-    bestFor: ['Scaling operations', 'Fundraising', 'Strategic partnerships'],
-    available: false,
-  },
-];
-
 export default function JourneySelectionPage() {
   const [, params] = useRoute("/strategic-consultant/journey-selection/:understandingId");
   const understandingId = params?.understandingId;
@@ -88,7 +36,7 @@ export default function JourneySelectionPage() {
   }
 
   // Fetch understanding data
-  const { data: understanding, isLoading } = useQuery({
+  const { data: understanding, isLoading: loadingUnderstanding } = useQuery({
     queryKey: ['/api/strategic-consultant/understanding', understandingId],
     queryFn: async () => {
       const res = await fetch(`/api/strategic-consultant/understanding/${understandingId}`);
@@ -97,6 +45,15 @@ export default function JourneySelectionPage() {
     },
     enabled: !!understandingId,
   });
+
+  // Fetch available journeys from registry
+  const { data: journeyData, isLoading: loadingJourneys } = useQuery<{ journeys: any[] }>({
+    queryKey: ['/api/strategic-consultant/journey-registry'],
+    enabled: !!understandingId,
+  });
+
+  const journeys = journeyData?.journeys || [];
+  const isLoading = loadingUnderstanding || loadingJourneys;
 
   const handleJourneySelect = async (journeyType: string) => {
     // Ensure understandingId is available
@@ -109,7 +66,8 @@ export default function JourneySelectionPage() {
       return;
     }
 
-    if (!JOURNEYS.find(j => j.type === journeyType)?.available) {
+    const journey = journeys.find((j: any) => j.type === journeyType);
+    if (!journey?.available) {
       toast({
         title: "Journey not available",
         description: "This journey is coming soon. Try Business Model Innovation for now.",
@@ -213,7 +171,7 @@ export default function JourneySelectionPage() {
 
         {/* Journey Grid */}
         <div className="grid gap-4 sm:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-          {JOURNEYS.map((journey) => (
+          {journeys.map((journey: any) => (
             <Card
               key={journey.type}
               className={`relative transition-all ${
@@ -249,7 +207,7 @@ export default function JourneySelectionPage() {
                     Frameworks:
                   </p>
                   <div className="flex flex-wrap gap-1">
-                    {journey.frameworks.map((fw, idx) => (
+                    {journey.frameworks?.map((fw: string, idx: number) => (
                       <Badge key={idx} variant="outline" className="text-xs">
                         {fw}
                       </Badge>
@@ -257,17 +215,14 @@ export default function JourneySelectionPage() {
                   </div>
                 </div>
 
-                {/* Best For */}
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-2">
-                    Best for:
-                  </p>
-                  <ul className="text-xs text-muted-foreground space-y-1">
-                    {journey.bestFor.map((item, idx) => (
-                      <li key={idx}>• {item}</li>
-                    ))}
-                  </ul>
-                </div>
+                {/* Estimated Duration */}
+                {journey.estimatedDuration && (
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground mb-1">
+                      Duration: <span className="font-normal">{journey.estimatedDuration}</span>
+                    </p>
+                  </div>
+                )}
 
                 {/* Action Button */}
                 <Button

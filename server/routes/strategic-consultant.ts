@@ -26,6 +26,7 @@ import { getStrategicUnderstanding, getStrategicUnderstandingBySession, updateSt
 import { fiveWhysCoach } from '../services/five-whys-coach.js';
 import { buildStrategicSummary } from '../services/strategic-summary-builder';
 import { referenceService } from '../services/reference-service';
+import { journeySummaryService } from '../services/journey-summary-service';
 
 const router = Router();
 const upload = multer({ 
@@ -575,6 +576,37 @@ router.get('/journeys/:sessionId/results', async (req: Request, res: Response) =
   } catch (error: any) {
     console.error('Error in /journeys/:sessionId/results:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch journey results' });
+  }
+});
+
+router.post('/journeys/summary', async (req: Request, res: Response) => {
+  try {
+    const { understandingId, journeyType } = req.body;
+
+    if (!understandingId || !journeyType) {
+      return res.status(400).json({ 
+        error: 'Both understandingId and journeyType are required' 
+      });
+    }
+
+    const summary = await journeySummaryService.getLatestSummary(understandingId, journeyType as JourneyType);
+
+    if (!summary) {
+      return res.json({ success: true, summary: null });
+    }
+
+    res.json({
+      success: true,
+      summary: {
+        completedAt: summary.completedAt,
+        versionNumber: summary.versionNumber,
+        keyInsights: summary.keyInsights.slice(0, 3),
+        strategicImplications: summary.strategicImplications.slice(0, 2),
+      },
+    });
+  } catch (error: any) {
+    console.error('Error in /journeys/summary:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch journey summary' });
   }
 });
 
