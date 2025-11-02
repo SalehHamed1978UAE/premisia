@@ -12,8 +12,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { SiGoogle } from "react-icons/si";
 import logoLight from "@assets/PREMISIA Think it through (1)-modified_1762085311768.png";
 import logoDark from "@assets/PREMISIA Think it through (1)_1762085311768.png";
-import logoFullLight from "@assets/1-modified_1762085525103.png";
-import logoFullDark from "@assets/PREMISIA Think it through_1762085535386.jpg";
+import logoFullLight from "@assets/PREMISIA Think it through (3)_1762085895918.png";
+import logoFullDark from "@assets/PREMISIA Think it through (2)_1762085807422.png";
 
 interface DashboardSummary {
   counts: {
