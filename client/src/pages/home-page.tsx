@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,44 @@ import logoDark from "@assets/Untitled (3600 x 1000 px)-modified_1762102046405.p
 import logoFullLight from "@assets/Untitled (3600 x 1000 px)_1762102046406.png";
 import logoFullDark from "@assets/Untitled (3600 x 1000 px)-modified_1762102046405.png";
 
+const EXECUTIVE_QUOTES = [
+  {
+    text: "The greatest danger in times of turbulence is to act with yesterday's logic.",
+    author: "Peter F. Drucker",
+    source: "druckerforum.org"
+  },
+  {
+    text: "Speed is often a strategy in and of itself… those who learn faster will also win.",
+    author: "Alex Singla, Senior Partner, McKinsey",
+    source: "McKinsey & Company"
+  },
+  {
+    text: "A strategic inflection point is a time… when fundamentals are about to change.",
+    author: "Andrew S. Grove",
+    source: "Only the Paranoid Survive"
+  },
+  {
+    text: "Speed matters in today's volatile environment; leaders who streamline decisions and empower the frontline have a clear edge.",
+    author: "McKinsey",
+    source: "McKinsey & Company"
+  },
+  {
+    text: "CEOs are balancing short-term ROI and long-term innovation when adopting AI… those who keep innovating in uncertainty will emerge stronger.",
+    author: "IBM Institute for Business Value",
+    source: "IBM Newsroom"
+  },
+  {
+    text: "Given constant change, leaders must continue to evolve… find traction in the tensions.",
+    author: "Deloitte",
+    source: "Global Human Capital Trends"
+  },
+  {
+    text: "The pace of change has never been this fast, yet it will never be this slow again.",
+    author: "Justin Trudeau",
+    source: "World Economic Forum"
+  }
+];
+
 interface DashboardSummary {
   counts: {
     analyses: number;
@@ -28,6 +66,37 @@ interface DashboardSummary {
     createdAt: string;
     link: string;
   }>;
+}
+
+function RotatingQuote() {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [fade, setFade] = useState(true);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setFade(false);
+      setTimeout(() => {
+        setCurrentIndex((prev) => (prev + 1) % EXECUTIVE_QUOTES.length);
+        setFade(true);
+      }, 500);
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const quote = EXECUTIVE_QUOTES[currentIndex];
+
+  return (
+    <p 
+      className={cn(
+        "text-xs text-muted-foreground text-center mt-8 italic max-w-2xl mx-auto transition-opacity duration-500",
+        fade ? "opacity-100" : "opacity-0"
+      )}
+    >
+      "{quote.text}"
+      <span className="block mt-1 not-italic opacity-70">— {quote.author}, {quote.source}</span>
+    </p>
+  );
 }
 
 const ONBOARDING_STEPS = [
@@ -467,10 +536,7 @@ function PublicLandingPage() {
               <div className="text-xs text-muted-foreground/70 mt-2">IBM Newsroom</div>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground text-center mt-8 italic max-w-2xl mx-auto">
-            "The greatest danger in times of turbulence is to act with yesterday's logic."
-            <span className="block mt-1 not-italic opacity-70">— Peter F. Drucker, druckerforum.org</span>
-          </p>
+          <RotatingQuote />
         </div>
 
         {/* Value Pillars */}
