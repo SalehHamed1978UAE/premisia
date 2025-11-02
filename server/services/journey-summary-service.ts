@@ -338,13 +338,16 @@ export async function saveSummary(
 }
 
 /**
- * Get the latest summary for an understanding
+ * Get the latest summary for an understanding and journey type
  * Returns the summary from the most recent completed journey session
+ * CRITICAL: Filters by BOTH understandingId AND journeyType to prevent wrong baseline data
  * @param understandingId - The understanding ID
- * @returns The most recent journey summary, or null if none exists
+ * @param journeyType - The journey type to filter by
+ * @returns The most recent journey summary for this journey type, or null if none exists
  */
 export async function getLatestSummary(
-  understandingId: string
+  understandingId: string,
+  journeyType: JourneyType
 ): Promise<JourneySummary | null> {
   const sessions = await db
     .select()
@@ -352,6 +355,7 @@ export async function getLatestSummary(
     .where(
       and(
         eq(journeySessions.understandingId, understandingId),
+        eq(journeySessions.journeyType, journeyType as any),
         eq(journeySessions.status, 'completed' as any)
       )
     )
@@ -389,3 +393,35 @@ export async function getSummaryForSession(
   const decrypted = decryptJSON<JourneySummary>(sessions[0].summary as string);
   return decrypted;
 }
+
+/**
+ * Build a journey summary using the appropriate summary builder
+ * @param summaryBuilderType - The summary builder type (e.g., 'fiveWhysBmc', 'pestlePorters')
+ * @param context - The completed journey context
+ * @param sessionMeta - Session metadata (version number and completion timestamp)
+ * @returns The built journey summary
+ * @throws Error if summaryBuilderType is not found in registry
+ */
+export function buildSummary(
+  summaryBuilderType: string,
+  context: StrategicContext,
+  sessionMeta: { versionNumber: number; completedAt: string }
+): JourneySummary {
+  const builder = summaryBuilders[summaryBuilderType];
+  
+  if (!builder) {
+    throw new Error(`Summary builder "${summaryBuilderType}" not found in registry. Available builders: ${Object.keys(summaryBuilders).join(', ')}`);
+  }
+  
+  return builder(context, sessionMeta);
+}
+
+/**
+ * Journey Summary Service - Exported service object for use by journey orchestrator
+ */
+export const journeySummaryService = {
+  buildSummary,
+  saveSummary,
+  getLatestSummary,
+  getSummaryForSession,
+};

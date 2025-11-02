@@ -66,6 +66,9 @@ export interface StrategicContext {
     rejected?: string[];
   };
   
+  // Baseline summary from previous journey (for follow-on runs)
+  baselineSummary?: JourneySummary;
+  
   // Journey execution metadata
   createdAt: Date;
   updatedAt: Date;
