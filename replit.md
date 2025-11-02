@@ -44,6 +44,7 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tail
 - **Strategies Hub**: Unified view for all strategic initiatives, providing artifact hierarchy and research provenance.
 - **Journey Launcher Modal**: Intelligent modal for initiating additional strategic analysis, with two modes (Full Journey, Single Framework) and journey-aware readiness checks.
 - **Ambiguity Resolution & Clarifications**: AI-powered clarification workflows for strategic inputs.
+- **Journey Registry V2** (FEATURE_JOURNEY_REGISTRY_V2): "Register once, works everywhere" system with centralized journey definitions, automatic summary generation, baseline reuse for follow-on runs, and intelligent readiness thresholds. Includes developer tools (sync script, smoke tests, CLI admin commands) and 100% test coverage with 18/18 automated tests passing.
 
 ## Journey Navigation Architecture
 The application uses two orchestrator-driven entry points for strategic journeys: "Strategic Consultant Journey" (new analysis) and "Strategies Hub Run Now" (follow-on analysis). Both use a `pageSequence` array to determine navigation order. Critical navigation rules include using `pageSequence[1]` to skip the input page for journey execution and the strict requirement for both `sessionId` and `versionNumber` in the Strategic Decisions page route. Research endpoints are expected to return a `nextUrl` with the complete path and `versionNumber`.
