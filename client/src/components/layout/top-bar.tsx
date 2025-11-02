@@ -22,7 +22,7 @@ export function TopBar({ title, subtitle, onToggleSidebar }: TopBarProps) {
             variant="ghost"
             size="icon"
             onClick={onToggleSidebar}
-            className="lg:hidden"
+            className="lg:hidden text-foreground hover:text-foreground hover:bg-accent"
             data-testid="button-toggle-sidebar"
           >
             <Menu className="h-5 w-5" />
