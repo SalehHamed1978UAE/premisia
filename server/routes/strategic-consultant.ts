@@ -1835,13 +1835,6 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
       result = await bmcResearcher.conductBMCResearch(input, sessionId);
       console.log('[BMC-RESEARCH-STREAM] BMC research completed successfully');
       
-      // DEBUG: Check if references were generated
-      console.log('[DEBUG-REFS] result.references exists:', !!result.references);
-      console.log('[DEBUG-REFS] result.references.length:', result.references?.length || 0);
-      if (result.references && result.references.length > 0) {
-        console.log('[DEBUG-REFS] Sample reference:', JSON.stringify(result.references[0], null, 2));
-      }
-      
       // Stop progress timer
       if (progressInterval) {
         clearInterval(progressInterval);
@@ -1876,26 +1869,16 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
 
     // Persist references from BMC research
     try {
-      console.log('[DEBUG-REFS] Checking persistence conditions...');
-      console.log('[DEBUG-REFS] result.references exists:', !!result.references);
-      console.log('[DEBUG-REFS] result.references.length:', result.references?.length || 0);
-      console.log('[DEBUG-REFS] understanding exists:', !!understanding);
-      
       if (result.references && result.references.length > 0 && understanding) {
-        console.log('[DEBUG-REFS] ✓ Entered persistence block');
         const { referenceService } = await import('../services/reference-service.js');
         
         // Get userId from journey session instead of falling back to "system"
         const journeySession = await getJourneySessionByUnderstandingSessionId(sessionId);
         const userId = journeySession?.userId || (req.user as any)?.claims?.sub;
         
-        console.log('[DEBUG-REFS] userId from journey session:', userId);
-        
         if (!userId) {
           throw new Error('Cannot persist BMC references without a user');
         }
-        
-        console.log(`[DEBUG-REFS] About to persist ${result.references.length} references with userId: ${userId}`);
         
         // Normalize all references with userId and context
         // Note: Only pass understandingId, not sessionId, to avoid foreign key constraint issues
@@ -1911,16 +1894,11 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
           )
         );
         
-        console.log('[DEBUG-REFS] Normalized', normalized.length, 'references, calling persistReferences...');
-        
         const persistResult = await referenceService.persistReferences(normalized, {
           understandingId: understanding.id,
         });
         
-        console.log('[DEBUG-REFS] Persistence result:', JSON.stringify(persistResult, null, 2));
-        console.log(`[BMC-RESEARCH-STREAM] ✓ Persisted references - created: ${persistResult.created}, updated: ${persistResult.updated}, skipped: ${persistResult.skipped}`);
-      } else {
-        console.log('[DEBUG-REFS] ⚠️ No references to persist!');
+        console.log(`[BMC-RESEARCH-STREAM] ✓ Persisted ${persistResult.created.length} new references, updated ${persistResult.updated.length} existing`);
       }
     } catch (error: any) {
       console.error('[BMC-RESEARCH-STREAM] Reference persistence failed (non-critical):', error);
