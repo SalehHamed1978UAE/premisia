@@ -542,7 +542,7 @@ function PublicLandingPage() {
         {/* How it works */}
         <div className="mb-16">
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">How it works</h2>
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="flex flex-col md:grid md:grid-cols-3 gap-8 md:gap-8">
             <div className="text-center">
               <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl font-bold text-primary">1</span>
