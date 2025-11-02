@@ -482,7 +482,7 @@ export const strategyVersions = pgTable("strategy_versions", {
   decisions: jsonb("decisions").notNull().default(sql`'[]'::jsonb`),
   programStructure: jsonb("program_structure"),
   status: strategyStatusEnum("status").notNull().default('draft'),
-  convertedProgramId: varchar("converted_program_id").references(() => epmPrograms.id),
+  convertedProgramId: varchar("converted_program_id").references(() => epmPrograms.id, { onDelete: 'set null' }),
   finalizedAt: timestamp("finalized_at"),
   archived: boolean("archived").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow(),

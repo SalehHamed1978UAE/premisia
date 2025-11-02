@@ -810,6 +810,13 @@ router.post('/epm/batch-delete', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid request: ids array is required' });
     }
 
+    // Clear foreign key references in strategy_versions before deleting
+    await db
+      .update(strategyVersions)
+      .set({ convertedProgramId: null })
+      .where(inArray(strategyVersions.convertedProgramId, ids));
+
+    // Now delete the EPM programs
     await db.delete(epmPrograms).where(inArray(epmPrograms.id, ids));
 
     res.json({ success: true, count: ids.length });

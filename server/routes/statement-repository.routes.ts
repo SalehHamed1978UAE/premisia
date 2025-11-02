@@ -485,6 +485,12 @@ router.post('/batch-delete', async (req, res) => {
       const versionIds = versions.map(v => v.id);
 
       if (versionIds.length > 0) {
+        // First, clear foreign key references
+        await db
+          .update(strategyVersions)
+          .set({ convertedProgramId: null })
+          .where(inArray(strategyVersions.id, versionIds));
+
         // Delete EPM programs (CASCADE from strategy_versions)
         await db.delete(epmPrograms).where(inArray(epmPrograms.strategyVersionId, versionIds));
         
