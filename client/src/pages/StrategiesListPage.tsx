@@ -1,13 +1,26 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Rocket, Calendar, TrendingUp, Archive, Plus } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Rocket, Calendar, TrendingUp, Archive, Plus, Trash2, CheckSquare, X } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface Strategy {
   id: string;
@@ -22,7 +35,15 @@ interface Strategy {
   latestJourneyUpdated: Date | null;
 }
 
-function StrategyCard({ strategy }: { strategy: Strategy }) {
+interface StrategyCardProps {
+  strategy: Strategy;
+  selectionMode: boolean;
+  isSelected: boolean;
+  onToggleSelect: (id: string) => void;
+  onNavigate: (id: string) => void;
+}
+
+function StrategyCard({ strategy, selectionMode, isSelected, onToggleSelect, onNavigate }: StrategyCardProps) {
   const displayTitle = strategy.title || strategy.initiativeDescription || "Untitled Strategy";
   
   // Get readiness info from metadata
@@ -38,12 +59,31 @@ function StrategyCard({ strategy }: { strategy: Strategy }) {
     'failed': 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
   }[strategy.latestJourneyStatus || ''] || 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (selectionMode) {
+      e.preventDefault();
+      onToggleSelect(strategy.id);
+    } else {
+      onNavigate(strategy.id);
+    }
+  };
+
   return (
-    <Link href={`/strategies/${strategy.id}`} data-testid={`card-strategy-${strategy.id}`}>
-      <Card className="hover:shadow-lg transition-shadow cursor-pointer max-w-full">
+    <div onClick={handleCardClick} className="relative">
+      <Card className={`hover:shadow-lg transition-shadow cursor-pointer max-w-full ${isSelected ? 'ring-2 ring-primary' : ''}`} data-testid={`card-strategy-${strategy.id}`}>
+        {selectionMode && (
+          <div className="absolute top-3 left-3 z-10">
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={() => onToggleSelect(strategy.id)}
+              data-testid={`checkbox-strategy-${strategy.id}`}
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        )}
         <CardHeader className="pb-4">
           <div className="flex items-start justify-between gap-3">
-            <div className="flex-1 min-w-0">
+            <div className={`flex-1 min-w-0 ${selectionMode ? 'pl-8' : ''}`}>
               <CardTitle className="text-lg sm:text-xl mb-2 break-words" data-testid={`text-strategy-title-${strategy.id}`}>
                 {displayTitle}
               </CardTitle>
@@ -98,7 +138,7 @@ function StrategyCard({ strategy }: { strategy: Strategy }) {
           </div>
         </CardContent>
       </Card>
-    </Link>
+    </div>
   );
 }
 
@@ -126,9 +166,65 @@ function StrategyListSkeleton() {
 
 export default function StrategiesListPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [, navigate] = useLocation();
+  const { toast } = useToast();
+
   const { data: strategies, isLoading, error } = useQuery<Strategy[]>({
     queryKey: ['/api/strategies'],
   });
+
+  const batchDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      return apiRequest('POST', '/api/repository/batch-delete', { ids });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/strategies'] });
+      toast({
+        title: "Strategies deleted",
+        description: `Successfully deleted ${selectedIds.length} ${selectedIds.length === 1 ? 'strategy' : 'strategies'} and all related artifacts.`,
+      });
+      setSelectedIds([]);
+      setSelectionMode(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Deletion failed",
+        description: error.message || "Failed to delete strategies. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (!strategies) return;
+    setSelectedIds(strategies.map(s => s.id));
+  };
+
+  const handleClearSelection = () => {
+    setSelectedIds([]);
+  };
+
+  const handleBatchDelete = () => {
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDelete = () => {
+    batchDeleteMutation.mutate(selectedIds);
+    setShowDeleteDialog(false);
+  };
+
+  const handleNavigate = (id: string) => {
+    navigate(`/strategies/${id}`);
+  };
 
   return (
     <AppLayout
@@ -142,12 +238,78 @@ export default function StrategiesListPage() {
       {/* Header */}
       <div className="mb-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
-          <Link href="/strategic-consultant/input" className="w-full sm:w-auto ml-auto">
-            <Button className="w-full sm:w-auto" data-testid="button-new-strategy">
-              <Plus className="h-4 w-4 mr-2" />
-              New Strategy
-            </Button>
-          </Link>
+          {selectionMode ? (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4 flex-1">
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-sm" data-testid="badge-selected-count">
+                  {selectedIds.length} selected
+                </Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSelectAll}
+                  disabled={!strategies || selectedIds.length === strategies.length}
+                  data-testid="button-select-all"
+                >
+                  <CheckSquare className="h-4 w-4 mr-2" />
+                  Select All
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleClearSelection}
+                  disabled={selectedIds.length === 0}
+                  data-testid="button-clear-selection"
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Clear
+                </Button>
+              </div>
+              <div className="flex items-center gap-2 sm:ml-auto">
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleBatchDelete}
+                  disabled={selectedIds.length === 0 || batchDeleteMutation.isPending}
+                  data-testid="button-batch-delete"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete ({selectedIds.length})
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSelectionMode(false);
+                    setSelectedIds([]);
+                  }}
+                  data-testid="button-cancel-selection"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {strategies && strategies.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectionMode(true)}
+                  data-testid="button-enable-selection"
+                >
+                  <CheckSquare className="h-4 w-4 mr-2" />
+                  Select
+                </Button>
+              )}
+              <Link href="/strategic-consultant/input" className="w-full sm:w-auto sm:ml-auto">
+                <Button className="w-full sm:w-auto" data-testid="button-new-strategy">
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Strategy
+                </Button>
+              </Link>
+            </>
+          )}
         </div>
         
         {/* Stats Summary */}
@@ -207,11 +369,47 @@ export default function StrategiesListPage() {
       ) : (
         <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
           {strategies.map((strategy) => (
-            <StrategyCard key={strategy.id} strategy={strategy} />
+            <StrategyCard
+              key={strategy.id}
+              strategy={strategy}
+              selectionMode={selectionMode}
+              isSelected={selectedIds.includes(strategy.id)}
+              onToggleSelect={handleToggleSelect}
+              onNavigate={handleNavigate}
+            />
           ))}
         </div>
       )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent data-testid="dialog-confirm-delete">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedIds.length} {selectedIds.length === 1 ? 'Strategy' : 'Strategies'}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the selected {selectedIds.length === 1 ? 'strategy' : 'strategies'} and all related artifacts including:
+              <ul className="list-disc list-inside mt-2 space-y-1">
+                <li>Strategy versions and analyses</li>
+                <li>EPM programs generated from {selectedIds.length === 1 ? 'this strategy' : 'these strategies'}</li>
+                <li>Journey sessions and research data</li>
+                <li>All associated references and insights</li>
+              </ul>
+              <p className="mt-2 font-semibold">This action cannot be undone.</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              data-testid="button-confirm-delete"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }
