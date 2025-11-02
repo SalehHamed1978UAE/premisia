@@ -672,7 +672,17 @@ async function processEPMGeneration(
               );
 
               await journeySummaryService.saveSummary(journeySession.id, summary);
-              console.log(`[EPM Completion Hook] ✓ Journey summary saved for version ${journeySession.versionNumber}`);
+              
+              // Mark journey session as completed so it can be found by getLatestSummary
+              await db
+                .update(journeySessions)
+                .set({ 
+                  status: 'completed' as any,
+                  completedAt: new Date()
+                })
+                .where(eq(journeySessions.id, journeySession.id));
+              
+              console.log(`[EPM Completion Hook] ✓ Journey summary saved and session marked as completed for version ${journeySession.versionNumber}`);
             }
           } else if (journeySession) {
             console.log(`[EPM Completion Hook] Journey type is ${journeySession.journeyType}, not BMI - skipping summary`);
