@@ -3,7 +3,7 @@ import { useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Sparkles, Archive, FileText, ArrowRight, CheckCircle, Menu, TrendingUp, Target, Calendar, ShieldCheck, Zap } from "lucide-react";
+import { Sparkles, Archive, FileText, ArrowRight, CheckCircle, Menu, TrendingUp, Target, Calendar, ShieldCheck, Zap, Rocket, Building2, Users, Brain, Lock, DollarSign, BarChart, PlayCircle, Star, Check } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -472,6 +472,7 @@ function Dashboard({ summary }: { summary: DashboardSummary }) {
 function PublicLandingPage() {
   const [scrolled, setScrolled] = useState(false);
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [isDemoLoading, setIsDemoLoading] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -487,115 +488,48 @@ function PublicLandingPage() {
     window.location.href = '/api/login';
   };
 
+  const handleSeeDemo = () => {
+    setIsDemoLoading(true);
+    const featuresSection = document.querySelector('[data-testid="section-features"]');
+    if (featuresSection) {
+      featuresSection.scrollIntoView({ behavior: 'smooth' });
+      setTimeout(() => setIsDemoLoading(false), 1000);
+    } else {
+      setIsDemoLoading(false);
+    }
+  };
+
   return (
     <>
       <style>{`
-        @keyframes float {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          33% { transform: translate(30px, -30px) scale(1.1); }
-          66% { transform: translate(-20px, 20px) scale(0.9); }
+        @keyframes orbit {
+          from { transform: rotate(0deg) translateX(var(--orbit-radius)) rotate(0deg); }
+          to { transform: rotate(360deg) translateX(var(--orbit-radius)) rotate(-360deg); }
         }
 
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(30px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.1); opacity: 0.8; }
         }
 
-        @keyframes breathe {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.05); }
-        }
-
-        @keyframes rotate {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-
-        @keyframes shimmer {
-          0% { left: -100%; }
-          100% { left: 100%; }
-        }
-
-        .gradient-orb {
+        .orbital-dot {
           position: absolute;
+          width: 12px;
+          height: 12px;
+          background: linear-gradient(135deg, #3b82f6, #10b981);
           border-radius: 50%;
-          filter: blur(80px);
-          opacity: 0.3;
-          animation: float 20s infinite ease-in-out;
-        }
-
-        .btn-shimmer:before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: -100%;
-          width: 100%;
-          height: 100%;
-          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-          transition: left 0.5s ease;
-        }
-
-        .btn-shimmer:hover:before {
-          left: 100%;
-        }
-
-        .fade-in-up {
-          animation: fadeInUp 0.8s ease;
-          animation-fill-mode: both;
+          animation: orbit var(--orbit-duration) linear infinite, pulse 2s ease-in-out infinite;
         }
       `}</style>
 
-      <div className="min-h-screen bg-[#0f1419] text-white overflow-x-hidden">
-        {/* Animated Background */}
-        <div className="fixed top-0 left-0 w-full h-full -z-10 bg-[#0f1419] overflow-hidden">
-          <div 
-            className="gradient-orb"
-            style={{
-              width: '600px',
-              height: '600px',
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              top: '-200px',
-              right: '-200px',
-              animationDelay: '0s'
-            }}
-          />
-          <div 
-            className="gradient-orb"
-            style={{
-              width: '500px',
-              height: '500px',
-              background: 'linear-gradient(135deg, #3b82f6 0%, #10b981 100%)',
-              bottom: '-150px',
-              left: '-150px',
-              animationDelay: '5s'
-            }}
-          />
-          <div 
-            className="gradient-orb"
-            style={{
-              width: '400px',
-              height: '400px',
-              background: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)',
-              top: '50%',
-              left: '50%',
-              animationDelay: '10s'
-            }}
-          />
-        </div>
-
+      <div className="min-h-screen bg-[#1a1f2e] text-white overflow-x-hidden">
         {/* Navigation */}
         <nav 
           className={cn(
             "fixed top-0 w-full px-6 md:px-12 z-[1000] transition-all duration-300",
             scrolled 
-              ? "py-4 bg-[#0f1419]/95 backdrop-blur-lg" 
-              : "py-5 bg-[#0f1419]/80 backdrop-blur-md"
+              ? "py-4 bg-[#1a1f2e]/95 backdrop-blur-lg shadow-lg" 
+              : "py-5 bg-[#1a1f2e]/80 backdrop-blur-md"
           )}
           data-testid="navbar"
         >
@@ -607,209 +541,494 @@ function PublicLandingPage() {
               PREMISIA
             </div>
             <div className="flex gap-6 md:gap-8 items-center">
-              <a href="#features" className="hidden md:block text-[#94a3b8] hover:text-white transition-colors">Features</a>
-              <a href="#process" className="hidden md:block text-[#94a3b8] hover:text-white transition-colors">How it Works</a>
+              <a href="#features" className="hidden md:block text-gray-400 hover:text-white transition-colors" data-testid="link-features">Features</a>
+              <a href="#pricing" className="hidden md:block text-gray-400 hover:text-white transition-colors" data-testid="link-pricing">Pricing</a>
               <button
                 onClick={handleSignIn}
                 disabled={isSigningIn}
                 className={cn(
-                  "px-5 py-2.5 bg-gradient-to-r from-[#3b82f6] to-[#10b981] text-white rounded-lg font-semibold transition-all duration-300 relative overflow-hidden btn-shimmer",
+                  "px-5 py-2.5 bg-gradient-to-r from-[#3b82f6] to-[#10b981] text-white rounded-lg font-semibold transition-all duration-300",
                   !isSigningIn && "hover:-translate-y-0.5 hover:shadow-[0_10px_30px_rgba(59,130,246,0.3)]",
                   isSigningIn && "opacity-90 cursor-not-allowed"
                 )}
-                data-testid="button-cta-signin"
+                data-testid="button-nav-signin"
               >
                 {isSigningIn ? (
                   <span className="flex items-center gap-2">
-                    <GeometricLoader type="dots" />
-                    <span>Redirecting...</span>
+                    <GeometricLoader type="dots" size="small" />
+                    <span>Signing in...</span>
                   </span>
                 ) : (
-                  "Start Free Trial"
+                  "Get Started"
                 )}
               </button>
             </div>
           </div>
         </nav>
 
-      <div className="container mx-auto px-4 py-6 md:py-8">
         {/* Hero Section */}
-        <div className="text-center mb-12 md:mb-16">
-          <div className="mb-6">
-            <img 
-              src={logoFullLight} 
-              alt="Premisia - Think it through" 
-              className="w-full h-auto mx-auto dark:hidden"
-            />
-            <img 
-              src={logoFullDark} 
-              alt="Premisia - Think it through" 
-              className="w-full h-auto mx-auto hidden dark:block"
-            />
-          </div>
-          <p className="text-xl md:text-2xl text-foreground font-medium mb-6 max-w-4xl mx-auto">
-            Premisia structures complex choices so leaders can align, commit, and move—fast
-          </p>
-          <p className="text-base md:text-lg text-muted-foreground max-w-3xl mx-auto leading-relaxed mb-8">
-            Multi-agent AI that turns leadership intent into EPM-grade roadmaps, budgets, and OKRs—with live evidence, governance, and change tracking.
-          </p>
-
-          {/* Leaders' Reality — By the Numbers */}
-          <div className="flex flex-wrap justify-center gap-6 md:gap-12 mt-12 text-sm">
-            <div className="text-center max-w-xs">
-              <div className="text-3xl md:text-4xl font-bold text-primary">Only 21%</div>
-              <div className="text-muted-foreground mt-1">of executive strategies pass<br />McKinsey's quality tests</div>
-              <div className="text-xs text-muted-foreground/70 mt-2">McKinsey & Company</div>
-            </div>
-            <div className="text-center max-w-xs">
-              <div className="text-3xl md:text-4xl font-bold text-primary">~40% / +18%</div>
-              <div className="text-muted-foreground mt-1">less time, higher quality<br />on complex strategic tasks</div>
-              <div className="text-xs text-muted-foreground/70 mt-2">science.org</div>
-            </div>
-            <div className="text-center max-w-xs">
-              <div className="text-3xl md:text-4xl font-bold text-primary">Only 25%</div>
-              <div className="text-muted-foreground mt-1">of AI initiatives deliver ROI—<br />need governed, outcome-tied use</div>
-              <div className="text-xs text-muted-foreground/70 mt-2">IBM Newsroom</div>
-            </div>
-          </div>
-          <RotatingQuote />
-        </div>
-
-        {/* Value Pillars */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
-          <Card className="border-2">
-            <CardHeader>
-              <div className="flex items-center space-x-3 mb-2">
-                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <Zap className="h-6 w-6 text-primary" />
+        <section className="pt-32 pb-20 px-6" data-testid="section-hero">
+          <div className="max-w-7xl mx-auto">
+            <div className="grid md:grid-cols-2 gap-12 items-center">
+              {/* Left Content */}
+              <div>
+                <div className="mb-6">
+                  <h1 className="text-5xl md:text-6xl font-bold mb-3 bg-gradient-to-r from-[#3b82f6] to-[#60a5fa] bg-clip-text text-transparent" data-testid="text-hero-title">
+                    PREMISIA
+                  </h1>
+                  <p className="text-2xl md:text-3xl text-[#10b981] font-semibold" data-testid="text-hero-tagline">
+                    Think it through
+                  </p>
                 </div>
-                <CardTitle className="text-xl">Speed with substance</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground leading-relaxed">
-                Compress weeks of slide-making and stakeholder wrangling into hours—with on-call agents for scenarios, risks, budgets, and benefits. Field studies show sizeable productivity lifts for knowledge work when AI assists complex tasks.
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-2">
-            <CardHeader>
-              <div className="flex items-center space-x-3 mb-2">
-                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <CheckCircle className="h-6 w-6 text-primary" />
+                <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white" data-testid="text-hero-headline">
+                  Transform Your Big Idea into Strategic Reality
+                </h2>
+                <p className="text-lg text-gray-300 mb-8" data-testid="text-hero-subtext">
+                  Whether you're a startup founder validating your vision or an enterprise leader driving transformation, Premisia gives you AI-powered strategic intelligence to make smarter decisions faster.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <Button 
+                    size="lg" 
+                    onClick={handleSignIn}
+                    disabled={isSigningIn}
+                    className="bg-gradient-to-r from-[#3b82f6] to-[#10b981] hover:from-[#2563eb] hover:to-[#059669] text-white font-semibold shadow-lg"
+                    data-testid="button-cta-primary"
+                  >
+                    {isSigningIn ? (
+                      <>
+                        <GeometricLoader type="orbit" size="small" className="mr-2" />
+                        <span>Starting...</span>
+                      </>
+                    ) : (
+                      "Start Free - No Card Required"
+                    )}
+                  </Button>
+                  <Button 
+                    size="lg" 
+                    variant="outline"
+                    onClick={handleSeeDemo}
+                    disabled={isDemoLoading}
+                    className="border-2 border-[#3b82f6] text-[#3b82f6] hover:bg-[#3b82f6] hover:text-white"
+                    data-testid="button-cta-secondary"
+                  >
+                    {isDemoLoading ? (
+                      <>
+                        <GeometricLoader type="dots" />
+                        <span className="ml-2">Loading...</span>
+                      </>
+                    ) : (
+                      <>
+                        <PlayCircle className="mr-2 h-5 w-5" />
+                        See It In Action
+                      </>
+                    )}
+                  </Button>
                 </div>
-                <CardTitle className="text-xl">Evidence you can audit</CardTitle>
               </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground leading-relaxed">
-                Every recommendation carries sources, bias-checks, and assumptions so boards and auditors can trace decisions end-to-end. Your strategic IP backed by research provenance and knowledge graphs.
-              </p>
-            </CardContent>
-          </Card>
 
-          <Card className="border-2">
-            <CardHeader>
-              <div className="flex items-center space-x-3 mb-2">
-                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <FileText className="h-6 w-6 text-primary" />
+              {/* Right Orbital Animation */}
+              <div className="hidden md:flex justify-center items-center relative h-96" data-testid="animation-orbital">
+                <div className="relative w-80 h-80">
+                  {/* Center dot */}
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 bg-gradient-to-r from-[#3b82f6] to-[#10b981] rounded-full shadow-lg"></div>
+                  
+                  {/* Orbits */}
+                  {[80, 120, 160].map((radius, idx) => (
+                    <div 
+                      key={idx}
+                      className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 border-2 border-[#3b82f6]/20 rounded-full"
+                      style={{ width: `${radius}px`, height: `${radius}px` }}
+                    >
+                      <div 
+                        className="orbital-dot"
+                        style={{
+                          '--orbit-radius': `${radius / 2}px`,
+                          '--orbit-duration': `${4 + idx * 2}s`,
+                          animationDelay: `${idx * 0.5}s`
+                        } as React.CSSProperties}
+                      ></div>
+                    </div>
+                  ))}
                 </div>
-                <CardTitle className="text-xl">Execution-ready, not just ideas</CardTitle>
               </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground leading-relaxed">
-                Output is EPM-structured (charter, milestones, costs, KPIs, RAID, RACI) with AI-powered scheduling, critical path analysis, and resource conflict detection. Board-ready programs that sync with your delivery stack.
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-2">
-            <CardHeader>
-              <div className="flex items-center space-x-3 mb-2">
-                <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                  <TrendingUp className="h-6 w-6 text-primary" />
-                </div>
-                <CardTitle className="text-xl">Continuous refinement</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground leading-relaxed">
-                Strategies evolve as data changes—living programs that learn from outcomes. Add new context, run additional frameworks, or refine existing analyses. Your strategic intelligence compounds over time.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* How it works */}
-        <div className="mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-12 text-foreground">How it works</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl font-bold text-primary">1</span>
-              </div>
-              <h3 className="text-xl font-semibold mb-3 text-foreground">Ingest & orient</h3>
-              <p className="text-muted-foreground">
-                Securely connect policies, financials, KPIs, and prior initiatives. Premisia builds a knowledge graph of your enterprise context.
-              </p>
-            </div>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl font-bold text-primary">2</span>
-              </div>
-              <h3 className="text-xl font-semibold mb-3 text-foreground">Think it through</h3>
-              <p className="text-muted-foreground">
-                Advisory agents co-draft scenarios, explore trade-offs, and validate OKRs. Run risk and compliance checks in-line with traceable citations.
-              </p>
-            </div>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl font-bold text-primary">3</span>
-              </div>
-              <h3 className="text-xl font-semibold mb-3 text-foreground">Commit & ship</h3>
-              <p className="text-muted-foreground">
-                Export to your PM suite with charter, plan, costs, KPIs, owners, and tracking—with full sources and assumptions. Keep iterating as conditions change.
-              </p>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* CTA Section */}
-        <div className="text-center">
-          <Card className="max-w-md mx-auto border-2">
-            <CardContent className="p-6 md:p-8">
-              <h3 className="text-xl md:text-2xl font-bold mb-4">Turn debate into direction</h3>
-              <p className="text-muted-foreground mb-6">
-                Sign in to start structuring your strategic choices with traceable evidence and execution-ready outputs
+        {/* Stats Section */}
+        <section className="py-16 px-6 bg-[#141824]" data-testid="section-stats">
+          <div className="max-w-7xl mx-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <Card className="bg-[#1a1f2e] border-[#3b82f6]/20" data-testid="card-stat-time">
+                <CardContent className="p-6 text-center">
+                  <div className="text-4xl font-bold text-[#3b82f6] mb-2">2-3h</div>
+                  <div className="text-gray-400">From Idea to Strategy</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-[#1a1f2e] border-[#10b981]/20" data-testid="card-stat-cost">
+                <CardContent className="p-6 text-center">
+                  <div className="text-4xl font-bold text-[#10b981] mb-2">$0</div>
+                  <div className="text-gray-400">To Start (Free Trial)</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-[#1a1f2e] border-[#3b82f6]/20" data-testid="card-stat-speed">
+                <CardContent className="p-6 text-center">
+                  <div className="text-4xl font-bold text-[#3b82f6] mb-2">10x</div>
+                  <div className="text-gray-400">Faster Than Consultants</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-[#1a1f2e] border-[#10b981]/20" data-testid="card-stat-availability">
+                <CardContent className="p-6 text-center">
+                  <div className="text-4xl font-bold text-[#10b981] mb-2">24/7</div>
+                  <div className="text-gray-400">AI Strategy Partner</div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </section>
+
+        {/* Built for Dreamers & Doers Section */}
+        <section id="features" className="py-20 px-6" data-testid="section-features">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white" data-testid="heading-features">
+                Built for Dreamers & Doers
+              </h2>
+              <p className="text-lg text-gray-300 max-w-3xl mx-auto" data-testid="subheading-features">
+                From startup validation to enterprise transformation - one platform, infinite possibilities
               </p>
-              <Button 
-                onClick={handleSignIn}
-                disabled={isSigningIn}
-                size="lg"
-                className="w-full"
-                data-testid="button-landing-login"
-              >
-                {isSigningIn ? (
-                  <>
-                    <GeometricLoader type="orbit" size="small" className="mr-2" />
-                    <span>Signing in...</span>
-                  </>
-                ) : (
-                  <>
-                    <SiGoogle className="mr-2 h-5 w-5" />
-                    Sign in with Replit
-                  </>
-                )}
-              </Button>
-              <p className="text-xs text-muted-foreground mt-4">
-                Secure OAuth 2.0 / OIDC authentication • AES-256 encryption
+            </div>
+
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <Card className="bg-[#1a1f2e] border-[#3b82f6]/20 relative" data-testid="card-feature-validate">
+                <div className="absolute top-4 right-4">
+                  <span className="px-3 py-1 text-xs font-semibold bg-purple-600/20 text-purple-400 rounded-full border border-purple-600/40">
+                    For Startups
+                  </span>
+                </div>
+                <CardHeader>
+                  <div className="w-12 h-12 bg-gradient-to-br from-[#3b82f6] to-[#60a5fa] rounded-lg flex items-center justify-center mb-4">
+                    <Rocket className="h-6 w-6 text-white" />
+                  </div>
+                  <CardTitle className="text-white">Validate Before You Build</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-400">
+                    Test assumptions, explore market fit, and refine your vision with AI-powered strategic analysis before investing time and money.
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-[#1a1f2e] border-[#10b981]/20" data-testid="card-feature-pmf">
+                <CardHeader>
+                  <div className="w-12 h-12 bg-gradient-to-br from-[#10b981] to-[#34d399] rounded-lg flex items-center justify-center mb-4">
+                    <Target className="h-6 w-6 text-white" />
+                  </div>
+                  <CardTitle className="text-white">Find Product-Market Fit</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-400">
+                    Identify your ideal customer, refine positioning, and develop go-to-market strategies backed by research and data.
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-[#1a1f2e] border-[#3b82f6]/20" data-testid="card-feature-investor">
+                <CardHeader>
+                  <div className="w-12 h-12 bg-gradient-to-br from-[#3b82f6] to-[#60a5fa] rounded-lg flex items-center justify-center mb-4">
+                    <DollarSign className="h-6 w-6 text-white" />
+                  </div>
+                  <CardTitle className="text-white">Investor-Ready Plans</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-400">
+                    Generate comprehensive business models, financial projections, and execution roadmaps that investors expect.
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-[#1a1f2e] border-[#10b981]/20" data-testid="card-feature-scale">
+                <CardHeader>
+                  <div className="w-12 h-12 bg-gradient-to-br from-[#10b981] to-[#34d399] rounded-lg flex items-center justify-center mb-4">
+                    <BarChart className="h-6 w-6 text-white" />
+                  </div>
+                  <CardTitle className="text-white">Scale Smart</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-400">
+                    Plan expansion, optimize operations, and manage growth with enterprise-grade program management tools.
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-[#1a1f2e] border-[#3b82f6]/20 relative" data-testid="card-feature-ai">
+                <div className="absolute top-4 right-4">
+                  <span className="px-3 py-1 text-xs font-semibold bg-purple-600/20 text-purple-400 rounded-full border border-purple-600/40">
+                    Enterprise
+                  </span>
+                </div>
+                <CardHeader>
+                  <div className="w-12 h-12 bg-gradient-to-br from-[#3b82f6] to-[#60a5fa] rounded-lg flex items-center justify-center mb-4">
+                    <Brain className="h-6 w-6 text-white" />
+                  </div>
+                  <CardTitle className="text-white">AI Strategy Partner</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-400">
+                    Multi-agent AI system that challenges assumptions, explores scenarios, and delivers evidence-based recommendations.
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-[#1a1f2e] border-[#10b981]/20" data-testid="card-feature-secure">
+                <CardHeader>
+                  <div className="w-12 h-12 bg-gradient-to-br from-[#10b981] to-[#34d399] rounded-lg flex items-center justify-center mb-4">
+                    <Lock className="h-6 w-6 text-white" />
+                  </div>
+                  <CardTitle className="text-white">Secure & Scalable</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-400">
+                    Enterprise-grade security with AES-256 encryption, SSO, and compliance features to protect your strategic IP.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </section>
+
+        {/* Use Cases Section */}
+        <section className="py-20 px-6 bg-[#141824]" data-testid="section-usecases">
+          <div className="max-w-7xl mx-auto">
+            <div className="grid md:grid-cols-2 gap-8">
+              {/* Startups */}
+              <Card className="bg-[#1a1f2e] border-[#10b981]/40" data-testid="card-usecase-startups">
+                <CardHeader>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-[#10b981] to-[#34d399] rounded-lg flex items-center justify-center">
+                      <Rocket className="h-6 w-6 text-white" />
+                    </div>
+                    <CardTitle className="text-2xl text-white">Entrepreneurs & Startups</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-3">
+                    {[
+                      'Pre-launch Validation',
+                      'MVP Planning',
+                      'Pitch Deck Creation',
+                      'Growth Strategy',
+                      'Pivot Analysis'
+                    ].map((item, idx) => (
+                      <li key={idx} className="flex items-center gap-3" data-testid={`usecase-startup-${idx}`}>
+                        <Check className="h-5 w-5 text-[#10b981] flex-shrink-0" />
+                        <span className="text-gray-300">{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+
+              {/* Enterprise */}
+              <Card className="bg-[#1a1f2e] border-[#3b82f6]/40" data-testid="card-usecase-enterprise">
+                <CardHeader>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-[#3b82f6] to-[#60a5fa] rounded-lg flex items-center justify-center">
+                      <Building2 className="h-6 w-6 text-white" />
+                    </div>
+                    <CardTitle className="text-2xl text-white">Enterprises & Executives</CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-3">
+                    {[
+                      'Digital Transformation',
+                      'Market Expansion',
+                      'M&A Strategy',
+                      'Innovation Programs',
+                      'Board Presentations'
+                    ].map((item, idx) => (
+                      <li key={idx} className="flex items-center gap-3" data-testid={`usecase-enterprise-${idx}`}>
+                        <Check className="h-5 w-5 text-[#3b82f6] flex-shrink-0" />
+                        <span className="text-gray-300">{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </section>
+
+        {/* Pricing Section */}
+        <section id="pricing" className="py-20 px-6" data-testid="section-pricing">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white" data-testid="heading-pricing">
+                Simple, Transparent Pricing
+              </h2>
+              <p className="text-lg text-gray-300" data-testid="subheading-pricing">
+                Start free. Scale as you grow. No surprises.
               </p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-8">
+              {/* Starter */}
+              <Card className="bg-[#1a1f2e] border-[#3b82f6]/20" data-testid="card-pricing-starter">
+                <CardHeader>
+                  <CardTitle className="text-2xl text-white">Starter</CardTitle>
+                  <div className="mt-4">
+                    <span className="text-4xl font-bold text-white">$0</span>
+                    <span className="text-gray-400">/month</span>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-3 mb-6">
+                    {[
+                      '3 analyses/month',
+                      'Business Model Canvas',
+                      'AI coaching',
+                      'Export to PDF'
+                    ].map((item, idx) => (
+                      <li key={idx} className="flex items-center gap-3" data-testid={`pricing-starter-feature-${idx}`}>
+                        <Check className="h-5 w-5 text-[#10b981] flex-shrink-0" />
+                        <span className="text-gray-300">{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Button 
+                    className="w-full bg-[#3b82f6] hover:bg-[#2563eb]"
+                    onClick={handleSignIn}
+                    disabled={isSigningIn}
+                    data-testid="button-pricing-starter"
+                  >
+                    {isSigningIn ? (
+                      <>
+                        <GeometricLoader type="dots" size="small" className="mr-2" />
+                        <span>Starting...</span>
+                      </>
+                    ) : (
+                      "Start Free"
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Growth - MOST POPULAR */}
+              <Card className="bg-gradient-to-b from-[#1a1f2e] to-[#141824] border-[#10b981] border-2 relative" data-testid="card-pricing-growth">
+                <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                  <span className="px-4 py-1 text-sm font-bold bg-gradient-to-r from-[#10b981] to-[#34d399] text-white rounded-full">
+                    MOST POPULAR
+                  </span>
+                </div>
+                <CardHeader>
+                  <CardTitle className="text-2xl text-white">Growth</CardTitle>
+                  <div className="mt-4">
+                    <span className="text-4xl font-bold text-white">$49</span>
+                    <span className="text-gray-400">/month</span>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-3 mb-6">
+                    {[
+                      'Unlimited analyses',
+                      'Advanced AI agents',
+                      'Competitive research',
+                      'Program management',
+                      'Team collaboration'
+                    ].map((item, idx) => (
+                      <li key={idx} className="flex items-center gap-3" data-testid={`pricing-growth-feature-${idx}`}>
+                        <Check className="h-5 w-5 text-[#10b981] flex-shrink-0" />
+                        <span className="text-gray-300">{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Button 
+                    className="w-full bg-gradient-to-r from-[#10b981] to-[#34d399] hover:from-[#059669] hover:to-[#10b981]"
+                    onClick={handleSignIn}
+                    disabled={isSigningIn}
+                    data-testid="button-pricing-growth"
+                  >
+                    {isSigningIn ? (
+                      <>
+                        <GeometricLoader type="orbit" size="small" className="mr-2" />
+                        <span>Starting Trial...</span>
+                      </>
+                    ) : (
+                      "Start 14-Day Trial"
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Enterprise */}
+              <Card className="bg-[#1a1f2e] border-[#3b82f6]/20" data-testid="card-pricing-enterprise">
+                <CardHeader>
+                  <CardTitle className="text-2xl text-white">Enterprise</CardTitle>
+                  <div className="mt-4">
+                    <span className="text-4xl font-bold text-white">Custom</span>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-3 mb-6">
+                    {[
+                      'Everything in Growth',
+                      'Custom AI training',
+                      'SSO & security',
+                      'Dedicated support',
+                      'SLA guarantee'
+                    ].map((item, idx) => (
+                      <li key={idx} className="flex items-center gap-3" data-testid={`pricing-enterprise-feature-${idx}`}>
+                        <Check className="h-5 w-5 text-[#3b82f6] flex-shrink-0" />
+                        <span className="text-gray-300">{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Button 
+                    className="w-full bg-[#1a1f2e] border-2 border-[#3b82f6] text-[#3b82f6] hover:bg-[#3b82f6] hover:text-white"
+                    variant="outline"
+                    data-testid="button-pricing-enterprise"
+                  >
+                    Contact Sales
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </section>
+
+        {/* Social Proof Footer */}
+        <section className="py-16 px-6 bg-[#141824]" data-testid="section-social-proof">
+          <div className="max-w-7xl mx-auto text-center">
+            <h3 className="text-2xl font-bold mb-8 text-white" data-testid="heading-social-proof">
+              Trusted by innovators at every stage
+            </h3>
+            <div className="grid md:grid-cols-3 gap-8">
+              <div data-testid="social-proof-startups">
+                <Users className="h-12 w-12 text-[#10b981] mx-auto mb-3" />
+                <div className="text-lg font-semibold text-white mb-1">Startup Founders</div>
+                <p className="text-gray-400 text-sm">Building the next big thing</p>
+              </div>
+              <div data-testid="social-proof-yc">
+                <Star className="h-12 w-12 text-[#3b82f6] mx-auto mb-3" />
+                <div className="text-lg font-semibold text-white mb-1">Y Combinator Alumni</div>
+                <p className="text-gray-400 text-sm">Scaling with confidence</p>
+              </div>
+              <div data-testid="social-proof-fortune">
+                <Building2 className="h-12 w-12 text-[#10b981] mx-auto mb-3" />
+                <div className="text-lg font-semibold text-white mb-1">Fortune 500 Execs</div>
+                <p className="text-gray-400 text-sm">Driving transformation</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer className="py-8 px-6 border-t border-gray-800" data-testid="footer">
+          <div className="max-w-7xl mx-auto text-center text-gray-400 text-sm">
+            <p>&copy; 2025 Premisia. All rights reserved.</p>
+          </div>
+        </footer>
       </div>
     </>
   );
