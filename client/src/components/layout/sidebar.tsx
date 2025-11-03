@@ -14,8 +14,6 @@ import {
   Map,
   Target
 } from "lucide-react";
-import logoLight from "@assets/Untitled (3600 x 1000 px)_1762102046406.png";
-import logoDark from "@assets/Untitled (3600 x 1000 px)-modified_1762102046405.png";
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -54,16 +52,17 @@ export function Sidebar({ isOpen = false, onToggle = () => {} }: SidebarProps) {
         <div className="p-6 border-b border-border">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <img 
-                src={logoLight} 
-                alt="Premisia Logo" 
-                className="h-8 w-auto dark:hidden"
-              />
-              <img 
-                src={logoDark} 
-                alt="Premisia Logo" 
-                className="h-8 w-auto hidden dark:block"
-              />
+              <div 
+                className="text-2xl font-bold"
+                style={{
+                  background: 'linear-gradient(135deg, #3b82f6 0%, #10b981 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text'
+                }}
+              >
+                PREMISIA
+              </div>
               <span className="px-2 py-1 text-xs font-semibold bg-primary/10 text-primary rounded">BETA</span>
             </div>
             <Button
