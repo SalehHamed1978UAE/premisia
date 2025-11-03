@@ -498,7 +498,7 @@ function PublicLandingPage() {
           }
         });
       },
-      { threshold: 0.5 }
+      { threshold: 0.3 }
     );
 
     if (statsRef.current) {
@@ -538,7 +538,6 @@ function PublicLandingPage() {
 
   const animateStats = () => {
     const duration = 2000;
-    const targets = { frameworks: 5, analysis: 100, availability: 24, clicks: 1 };
     const startTime = Date.now();
 
     const animate = () => {
@@ -546,10 +545,10 @@ function PublicLandingPage() {
       const progress = Math.min(elapsed / duration, 1);
 
       setStats({
-        frameworks: Math.floor(targets.frameworks * progress),
-        analysis: Math.floor(targets.analysis * progress),
-        availability: Math.floor(targets.availability * progress),
-        clicks: Math.floor(targets.clicks * progress)
+        frameworks: Math.floor(5 * progress),
+        analysis: Math.floor(100 * progress),
+        availability: Math.floor(24 * progress),
+        clicks: Math.floor(1 * progress)
       });
 
       if (progress < 1) {
