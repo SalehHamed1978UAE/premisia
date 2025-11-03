@@ -174,7 +174,7 @@ export default function PrioritizationPage() {
         const option = decision.options.find(opt => opt.id === selectedOptionId);
         if (option) {
           items.push({
-            id: option.id,
+            id: `${decision.id}-${option.id}`,
             title: option.label,
             description: option.description,
             isRecommended: option.recommended || false,
