@@ -171,6 +171,10 @@ export const locations = pgTable("locations", {
   countryCode: varchar("country_code", { length: 2 }).notNull(), // ISO 3166-1 alpha-2
   adminLevels: jsonb("admin_levels"), // { country, state, county, city }
   createdAt: timestamp("created_at").defaultNow(),
+  // Manual entry fields
+  isManualEntry: boolean("is_manual_entry").default(false),
+  validationStatus: varchar("validation_status"), // "validated", "unvalidated", "failed"
+  originalUserInput: text("original_user_input"),
 });
 
 // Programs table
