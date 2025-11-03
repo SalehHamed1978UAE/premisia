@@ -1724,6 +1724,44 @@ export const researchBatches = pgTable("research_batches", {
   requestedIdx: index("idx_research_batches_requested").on(table.requestedAt),
 }));
 
+// Golden Records table - Versioned journey baselines for regression testing
+export const goldenRecords = pgTable("golden_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  journeyType: journeyTypeEnum("journey_type").notNull(),
+  version: integer("version").notNull(),
+  parentVersion: integer("parent_version"),
+  isCurrent: boolean("is_current").notNull().default(false),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  notes: text("notes"),
+  steps: jsonb("steps").notNull(),
+}, (table) => ({
+  journeyTypeIdx: index("idx_golden_records_journey_type").on(table.journeyType),
+  versionIdx: index("idx_golden_records_version").on(table.journeyType, table.version),
+  currentIdx: index("idx_golden_records_current").on(table.journeyType, table.isCurrent),
+  uniqueVersionPerType: unique("unique_golden_record_version").on(table.journeyType, table.version),
+  // Note: "Only one current record per journey type" constraint enforced in application layer
+}));
+
+// Golden Record Checks table - Audit log for regression test results
+export const goldenRecordChecks = pgTable("golden_record_checks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  goldenRecordId: varchar("golden_record_id").notNull().references(() => goldenRecords.id),
+  sessionId: varchar("session_id").notNull(),
+  status: text("status").notNull(),
+  diffSummary: jsonb("diff_summary"),
+  stepResults: jsonb("step_results").notNull(),
+  exitCode: integer("exit_code").notNull(),
+  executedAt: timestamp("executed_at").notNull().defaultNow(),
+  executedBy: varchar("executed_by").references(() => users.id),
+}, (table) => ({
+  goldenRecordIdx: index("idx_golden_record_checks_record").on(table.goldenRecordId),
+  sessionIdx: index("idx_golden_record_checks_session").on(table.sessionId),
+  statusIdx: index("idx_golden_record_checks_status").on(table.status),
+  executedAtIdx: index("idx_golden_record_checks_executed").on(table.executedAt),
+}));
+
 // Insert Schemas for Strategy Workspace
 export const insertSwProblemSchema = createInsertSchema(swProblems).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertSwProblem = z.infer<typeof insertSwProblemSchema>;
@@ -1782,3 +1820,12 @@ export type SelectBackgroundJob = typeof backgroundJobs.$inferSelect;
 export const insertResearchBatchSchema = createInsertSchema(researchBatches).omit({ id: true, createdAt: true, enrichedAt: true });
 export type InsertResearchBatch = z.infer<typeof insertResearchBatchSchema>;
 export type SelectResearchBatch = typeof researchBatches.$inferSelect;
+
+// Insert Schemas for Golden Records
+export const insertGoldenRecordSchema = createInsertSchema(goldenRecords).omit({ id: true, createdAt: true });
+export type InsertGoldenRecord = z.infer<typeof insertGoldenRecordSchema>;
+export type SelectGoldenRecord = typeof goldenRecords.$inferSelect;
+
+export const insertGoldenRecordCheckSchema = createInsertSchema(goldenRecordChecks).omit({ id: true, executedAt: true });
+export type InsertGoldenRecordCheck = z.infer<typeof insertGoldenRecordCheckSchema>;
+export type SelectGoldenRecordCheck = typeof goldenRecordChecks.$inferSelect;
