@@ -1664,15 +1664,25 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
     if (result.references && result.references.length > 0 && sessionId) {
       try {
         const { referenceService } = await import('../services/reference-service.js');
-        const { getStrategicUnderstandingBySession, getJourneySessionByUnderstandingSessionId } = await import('../services/secure-data-service.js');
         
-        // Get understandingId from sessionId
-        const understanding = await getStrategicUnderstandingBySession(sessionId);
+        // Handle both journey session IDs and legacy understanding session IDs
+        let understanding;
+        let journeySession = await getJourneySession(sessionId);
+        
+        if (journeySession && journeySession.understandingId) {
+          // This is a journey session ID, get understanding via understandingId
+          understanding = await getStrategicUnderstanding(journeySession.understandingId);
+        } else {
+          // Fall back to old behavior for base session IDs
+          understanding = await getStrategicUnderstandingBySession(sessionId);
+          // Get journey session for legacy flows
+          journeySession = await getJourneySessionByUnderstandingSessionId(sessionId);
+        }
+        
         if (understanding) {
           console.log(`[BMC-RESEARCH] Persisting ${result.references.length} references to knowledge graph...`);
           
           // Get userId from journey session instead of falling back to "system"
-          const journeySession = await getJourneySessionByUnderstandingSessionId(sessionId);
           const userId = journeySession?.userId || (req.user as any)?.claims?.sub;
           
           if (!userId) {
@@ -1704,8 +1714,14 @@ router.post('/bmc-research', async (req: Request, res: Response) => {
 
     // Save to version - ALWAYS persist results
     if (sessionId) {
-      // Get userId from journey session instead of falling back to "system"
-      const journeySession = await getJourneySessionByUnderstandingSessionId(sessionId);
+      // Handle both journey session IDs and legacy understanding session IDs
+      let journeySession = await getJourneySession(sessionId);
+      
+      if (!journeySession) {
+        // Fall back to old behavior for base session IDs
+        journeySession = await getJourneySessionByUnderstandingSessionId(sessionId);
+      }
+      
       const userId = journeySession?.userId || (req.user as any)?.claims?.sub;
       
       if (!userId) {
