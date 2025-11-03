@@ -389,11 +389,11 @@ async function migrateStrategicEntities() {
         }
         
         if (hasUpdates && !isDryRun) {
-          const setClause = Object.keys(updates).map((key, idx) => `"${key}" = $${idx + 1}`).join(', ');
+          const setClause = Object.keys(updates).map((key, idx) => `${key} = $${idx + 1}`).join(', ');
           const values = Object.values(updates);
           
           await pool.query(
-            `UPDATE ${tableName} SET ${setClause}, "updatedAt" = NOW() WHERE id = $${values.length + 1}`,
+            `UPDATE ${tableName} SET ${setClause}, updated_at = NOW() WHERE id = $${values.length + 1}`,
             [...values, record.id]
           );
           
@@ -458,11 +458,11 @@ async function migrateStrategicRelationships() {
         }
         
         if (hasUpdates && !isDryRun) {
-          const setClause = Object.keys(updates).map((key, idx) => `"${key}" = $${idx + 1}`).join(', ');
+          const setClause = Object.keys(updates).map((key, idx) => `${key} = $${idx + 1}`).join(', ');
           const values = Object.values(updates);
           
           await pool.query(
-            `UPDATE ${tableName} SET ${setClause}, "updatedAt" = NOW() WHERE id = $${values.length + 1}`,
+            `UPDATE ${tableName} SET ${setClause}, updated_at = NOW() WHERE id = $${values.length + 1}`,
             [...values, record.id]
           );
           
@@ -503,9 +503,9 @@ async function migrateEPMPrograms() {
   
   while (offset < totalRecords) {
     const result = await pool.query(
-      `SELECT id, "programName", "executiveSummary", workstreams, timeline, "resourcePlan", 
-              "financialPlan", "benefitsRealization", "riskRegister", "stakeholderMap", 
-              governance, "qaPlan", procurement, "exitStrategy", kpis 
+      `SELECT id, program_name, executive_summary, workstreams, timeline, resource_plan, 
+              financial_plan, benefits_realization, risk_register, stakeholder_map, 
+              governance, qa_plan, procurement, exit_strategy, kpis 
        FROM ${tableName} LIMIT $1 OFFSET $2`,
       [BATCH_SIZE, offset]
     );
@@ -515,17 +515,17 @@ async function migrateEPMPrograms() {
         const updates: any = {};
         let hasUpdates = false;
         
-        // Migrate programName (text)
-        const newProgramName = await migrateTextField(record.programName, 'programName', record.id, tableName);
+        // Migrate program_name (text)
+        const newProgramName = await migrateTextField(record.program_name, 'program_name', record.id, tableName);
         if (newProgramName) {
-          updates.programName = newProgramName;
+          updates.program_name = newProgramName;
           hasUpdates = true;
         }
         
-        // Migrate executiveSummary (text)
-        const newExecutiveSummary = await migrateTextField(record.executiveSummary, 'executiveSummary', record.id, tableName);
+        // Migrate executive_summary (text)
+        const newExecutiveSummary = await migrateTextField(record.executive_summary, 'executive_summary', record.id, tableName);
         if (newExecutiveSummary) {
-          updates.executiveSummary = newExecutiveSummary;
+          updates.executive_summary = newExecutiveSummary;
           hasUpdates = true;
         }
         
@@ -543,38 +543,38 @@ async function migrateEPMPrograms() {
           hasUpdates = true;
         }
         
-        // Migrate resourcePlan (JSON)
-        const newResourcePlan = await migrateJSONField(record.resourcePlan, 'resourcePlan', record.id, tableName);
+        // Migrate resource_plan (JSON)
+        const newResourcePlan = await migrateJSONField(record.resource_plan, 'resource_plan', record.id, tableName);
         if (newResourcePlan) {
-          updates.resourcePlan = newResourcePlan;
+          updates.resource_plan = newResourcePlan;
           hasUpdates = true;
         }
         
-        // Migrate financialPlan (JSON)
-        const newFinancialPlan = await migrateJSONField(record.financialPlan, 'financialPlan', record.id, tableName);
+        // Migrate financial_plan (JSON)
+        const newFinancialPlan = await migrateJSONField(record.financial_plan, 'financial_plan', record.id, tableName);
         if (newFinancialPlan) {
-          updates.financialPlan = newFinancialPlan;
+          updates.financial_plan = newFinancialPlan;
           hasUpdates = true;
         }
         
-        // Migrate benefitsRealization (JSON)
-        const newBenefitsRealization = await migrateJSONField(record.benefitsRealization, 'benefitsRealization', record.id, tableName);
+        // Migrate benefits_realization (JSON)
+        const newBenefitsRealization = await migrateJSONField(record.benefits_realization, 'benefits_realization', record.id, tableName);
         if (newBenefitsRealization) {
-          updates.benefitsRealization = newBenefitsRealization;
+          updates.benefits_realization = newBenefitsRealization;
           hasUpdates = true;
         }
         
-        // Migrate riskRegister (JSON)
-        const newRiskRegister = await migrateJSONField(record.riskRegister, 'riskRegister', record.id, tableName);
+        // Migrate risk_register (JSON)
+        const newRiskRegister = await migrateJSONField(record.risk_register, 'risk_register', record.id, tableName);
         if (newRiskRegister) {
-          updates.riskRegister = newRiskRegister;
+          updates.risk_register = newRiskRegister;
           hasUpdates = true;
         }
         
-        // Migrate stakeholderMap (JSON)
-        const newStakeholderMap = await migrateJSONField(record.stakeholderMap, 'stakeholderMap', record.id, tableName);
+        // Migrate stakeholder_map (JSON)
+        const newStakeholderMap = await migrateJSONField(record.stakeholder_map, 'stakeholder_map', record.id, tableName);
         if (newStakeholderMap) {
-          updates.stakeholderMap = newStakeholderMap;
+          updates.stakeholder_map = newStakeholderMap;
           hasUpdates = true;
         }
         
@@ -585,10 +585,10 @@ async function migrateEPMPrograms() {
           hasUpdates = true;
         }
         
-        // Migrate qaPlan (JSON)
-        const newQaPlan = await migrateJSONField(record.qaPlan, 'qaPlan', record.id, tableName);
+        // Migrate qa_plan (JSON)
+        const newQaPlan = await migrateJSONField(record.qa_plan, 'qa_plan', record.id, tableName);
         if (newQaPlan) {
-          updates.qaPlan = newQaPlan;
+          updates.qa_plan = newQaPlan;
           hasUpdates = true;
         }
         
@@ -599,10 +599,10 @@ async function migrateEPMPrograms() {
           hasUpdates = true;
         }
         
-        // Migrate exitStrategy (JSON)
-        const newExitStrategy = await migrateJSONField(record.exitStrategy, 'exitStrategy', record.id, tableName);
+        // Migrate exit_strategy (JSON)
+        const newExitStrategy = await migrateJSONField(record.exit_strategy, 'exit_strategy', record.id, tableName);
         if (newExitStrategy) {
-          updates.exitStrategy = newExitStrategy;
+          updates.exit_strategy = newExitStrategy;
           hasUpdates = true;
         }
         
@@ -614,7 +614,7 @@ async function migrateEPMPrograms() {
         }
         
         if (hasUpdates && !isDryRun) {
-          const setClause = Object.keys(updates).map((key, idx) => `"${key}" = $${idx + 1}`).join(', ');
+          const setClause = Object.keys(updates).map((key, idx) => `${key} = $${idx + 1}`).join(', ');
           const values = Object.values(updates);
           
           await pool.query(
@@ -777,13 +777,13 @@ async function verifyMigration() {
   console.log(`\n🔍 Verifying migration...`);
   
   const tables = [
-    { name: 'strategic_understanding', fields: ['userInput', 'companyContext', 'initiativeDescription'] },
-    { name: 'journey_sessions', fields: ['accumulatedContext'] },
+    { name: 'strategic_understanding', fields: ['user_input', 'company_context', 'initiative_description'] },
+    { name: 'journey_sessions', fields: ['accumulated_context'] },
     { name: 'strategic_entities', fields: ['claim', 'source', 'evidence', 'category', 'subcategory', 'metadata'] },
     { name: 'strategic_relationships', fields: ['evidence', 'metadata'] },
-    { name: 'epm_programs', fields: ['programName', 'executiveSummary', 'workstreams'] },
-    { name: 'strategy_versions', fields: ['analysisData', 'decisionsData'] },
-    { name: 'strategic_decisions', fields: ['decisionsData'] }
+    { name: 'epm_programs', fields: ['program_name', 'executive_summary', 'workstreams'] },
+    { name: 'strategy_versions', fields: ['input_summary', 'analysis_data', 'decisions_data'] },
+    { name: 'strategic_decisions', fields: ['decisions_data'] }
   ];
   
   let verificationErrors = 0;
@@ -799,8 +799,8 @@ async function verifyMigration() {
         
         try {
           // Try to decrypt with KMS
-          if (field === 'companyContext' || field === 'accumulatedContext' || field === 'metadata' || 
-              field === 'analysisData' || field === 'decisionsData' || field === 'workstreams') {
+          if (field === 'company_context' || field === 'accumulated_context' || field === 'metadata' || 
+              field === 'analysis_data' || field === 'decisions_data' || field === 'workstreams') {
             await decryptJSONKMS(value);
           } else {
             await decryptKMS(value);
