@@ -3,7 +3,7 @@ import {
   users, programs, workstreams, resources, stageGates, stageGateReviews, 
   tasks, taskDependencies, kpis, kpiMeasurements, risks, riskMitigations,
   benefits, fundingSources, expenses, sessionContext, strategyVersions,
-  strategyDecisions, epmPrograms, strategicUnderstanding
+  strategyDecisions, epmPrograms, strategicUnderstanding, goldenRecords, goldenRecordChecks
 } from "@shared/schema";
 import type { 
   User, InsertUser, UpsertUser, Program, Workstream, Resource, StageGate, StageGateReview,
@@ -110,6 +110,15 @@ export interface IStorage {
       link: string;
     }>;
   }>;
+
+  // Golden Records
+  createGoldenRecord(record: any): Promise<any>;
+  listGoldenRecords(journeyType?: string, includeHistory?: boolean): Promise<any[]>;
+  getGoldenRecord(journeyType: string, version: number): Promise<any | undefined>;
+  getCurrentGoldenRecord(journeyType: string): Promise<any | undefined>;
+  promoteGoldenRecord(journeyType: string, version: number): Promise<any>;
+  compareGoldenRecords(journeyType: string, version1: number, version2: number): Promise<any>;
+  createGoldenRecordCheck(check: any): Promise<any>;
 
   sessionStore: Store;
 }
@@ -733,6 +742,178 @@ export class DatabaseStorage implements IStorage {
       )
       .returning();
     return updated || null;
+  }
+
+  // Golden Records
+  async createGoldenRecord(record: any): Promise<any> {
+    // Auto-increment version number for the journey type
+    const existing = await db
+      .select()
+      .from(goldenRecords)
+      .where(eq(goldenRecords.journeyType, record.journeyType))
+      .orderBy(desc(goldenRecords.version));
+    
+    const nextVersion = existing.length > 0 ? existing[0].version + 1 : 1;
+    
+    const newRecord = {
+      ...record,
+      version: nextVersion,
+    };
+
+    // If promoteAsCurrent is true, unset current flag on existing records
+    if (record.promoteAsCurrent) {
+      await db
+        .update(goldenRecords)
+        .set({ isCurrent: false })
+        .where(
+          and(
+            eq(goldenRecords.journeyType, record.journeyType),
+            eq(goldenRecords.isCurrent, true)
+          )
+        );
+      newRecord.isCurrent = true;
+      delete newRecord.promoteAsCurrent;
+    }
+
+    const [created] = await db.insert(goldenRecords).values(newRecord).returning();
+    return created;
+  }
+
+  async listGoldenRecords(journeyType?: string, includeHistory?: boolean): Promise<any[]> {
+    let query = db.select().from(goldenRecords);
+
+    if (journeyType) {
+      query = query.where(eq(goldenRecords.journeyType, journeyType)) as any;
+    }
+
+    if (!includeHistory) {
+      query = query.where(eq(goldenRecords.isCurrent, true)) as any;
+    }
+
+    const records = await query.orderBy(desc(goldenRecords.createdAt));
+    return records;
+  }
+
+  async getGoldenRecord(journeyType: string, version: number): Promise<any | undefined> {
+    const [record] = await db
+      .select()
+      .from(goldenRecords)
+      .where(
+        and(
+          eq(goldenRecords.journeyType, journeyType),
+          eq(goldenRecords.version, version)
+        )
+      );
+    return record || undefined;
+  }
+
+  async getCurrentGoldenRecord(journeyType: string): Promise<any | undefined> {
+    const [record] = await db
+      .select()
+      .from(goldenRecords)
+      .where(
+        and(
+          eq(goldenRecords.journeyType, journeyType),
+          eq(goldenRecords.isCurrent, true)
+        )
+      );
+    return record || undefined;
+  }
+
+  async promoteGoldenRecord(journeyType: string, version: number): Promise<any> {
+    // Unset current flag on all records for this journey type
+    await db
+      .update(goldenRecords)
+      .set({ isCurrent: false })
+      .where(eq(goldenRecords.journeyType, journeyType));
+
+    // Set the specified version as current
+    const [promoted] = await db
+      .update(goldenRecords)
+      .set({ isCurrent: true })
+      .where(
+        and(
+          eq(goldenRecords.journeyType, journeyType),
+          eq(goldenRecords.version, version)
+        )
+      )
+      .returning();
+
+    return promoted;
+  }
+
+  async compareGoldenRecords(journeyType: string, version1: number, version2: number): Promise<any> {
+    const [record1, record2] = await Promise.all([
+      this.getGoldenRecord(journeyType, version1),
+      this.getGoldenRecord(journeyType, version2),
+    ]);
+
+    if (!record1 || !record2) {
+      throw new Error('One or both golden records not found');
+    }
+
+    // Simple diff summary - this can be enhanced with more sophisticated diff logic
+    const stepDiffs = [];
+    const steps1 = record1.steps as any[] || [];
+    const steps2 = record2.steps as any[] || [];
+
+    const maxSteps = Math.max(steps1.length, steps2.length);
+    for (let i = 0; i < maxSteps; i++) {
+      const step1 = steps1[i];
+      const step2 = steps2[i];
+
+      if (!step1) {
+        stepDiffs.push({
+          stepIndex: i,
+          status: 'added',
+          stepName: step2.stepName,
+        });
+      } else if (!step2) {
+        stepDiffs.push({
+          stepIndex: i,
+          status: 'removed',
+          stepName: step1.stepName,
+        });
+      } else if (JSON.stringify(step1) !== JSON.stringify(step2)) {
+        stepDiffs.push({
+          stepIndex: i,
+          status: 'modified',
+          stepName: step1.stepName,
+          changes: {
+            urlChanged: step1.expectedUrl !== step2.expectedUrl,
+            payloadChanged: JSON.stringify(step1.requestPayload) !== JSON.stringify(step2.requestPayload),
+            responseChanged: JSON.stringify(step1.responsePayload) !== JSON.stringify(step2.responsePayload),
+            dbChanged: JSON.stringify(step1.dbSnapshot) !== JSON.stringify(step2.dbSnapshot),
+          }
+        });
+      } else {
+        stepDiffs.push({
+          stepIndex: i,
+          status: 'unchanged',
+          stepName: step1.stepName,
+        });
+      }
+    }
+
+    return {
+      journeyType,
+      version1,
+      version2,
+      totalSteps1: steps1.length,
+      totalSteps2: steps2.length,
+      stepDiffs,
+      summary: {
+        added: stepDiffs.filter(d => d.status === 'added').length,
+        removed: stepDiffs.filter(d => d.status === 'removed').length,
+        modified: stepDiffs.filter(d => d.status === 'modified').length,
+        unchanged: stepDiffs.filter(d => d.status === 'unchanged').length,
+      }
+    };
+  }
+
+  async createGoldenRecordCheck(check: any): Promise<any> {
+    const [created] = await db.insert(goldenRecordChecks).values(check).returning();
+    return created;
   }
 }
 
