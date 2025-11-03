@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -471,35 +471,102 @@ function Dashboard({ summary }: { summary: DashboardSummary }) {
 
 function PublicLandingPage() {
   const [isSigningIn, setIsSigningIn] = useState(false);
-  const [isTryItFreeLoading, setIsTryItFreeLoading] = useState(false);
-  const [isLearnMoreLoading, setIsLearnMoreLoading] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+  const [statsAnimated, setStatsAnimated] = useState(false);
+  const statsRef = useRef<HTMLDivElement>(null);
+  const [stats, setStats] = useState({
+    frameworks: 0,
+    analysis: 0,
+    availability: 0,
+    clicks: 0
+  });
+
+  useEffect(() => {
+    // Navbar scroll effect
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 50);
+    };
+    window.addEventListener('scroll', handleScroll);
+
+    // Stats animation observer
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting && !statsAnimated) {
+            setStatsAnimated(true);
+            animateStats();
+          }
+        });
+      },
+      { threshold: 0.5 }
+    );
+
+    if (statsRef.current) {
+      observer.observe(statsRef.current);
+    }
+
+    // Parallax effect for orbs
+    const handleMouseMove = (e: MouseEvent) => {
+      const orbs = document.querySelectorAll('.gradient-orb');
+      const x = e.clientX / window.innerWidth;
+      const y = e.clientY / window.innerHeight;
+
+      orbs.forEach((orb, index) => {
+        const speed = (index + 1) * 10;
+        (orb as HTMLElement).style.transform = `translate(${x * speed}px, ${y * speed}px)`;
+      });
+    };
+    document.addEventListener('mousemove', handleMouseMove);
+
+    // Color changing dots
+    const colorInterval = setInterval(() => {
+      const dots = document.querySelectorAll('.orbit-dot');
+      dots.forEach(dot => {
+        (dot as HTMLElement).style.background = `hsl(${Math.random() * 60 + 180}, 70%, 50%)`;
+      });
+    }, 3000);
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      document.removeEventListener('mousemove', handleMouseMove);
+      clearInterval(colorInterval);
+      if (statsRef.current) {
+        observer.unobserve(statsRef.current);
+      }
+    };
+  }, [statsAnimated]);
+
+  const animateStats = () => {
+    const duration = 2000;
+    const targets = { frameworks: 5, analysis: 100, availability: 24, clicks: 1 };
+    const startTime = Date.now();
+
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      setStats({
+        frameworks: Math.floor(targets.frameworks * progress),
+        analysis: Math.floor(targets.analysis * progress),
+        availability: Math.floor(targets.availability * progress),
+        clicks: Math.floor(targets.clicks * progress)
+      });
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      }
+    };
+
+    requestAnimationFrame(animate);
+  };
 
   const handleSignIn = () => {
     setIsSigningIn(true);
     window.location.href = '/api/login';
   };
 
-  const handleTryItFree = () => {
-    setIsTryItFreeLoading(true);
-    window.location.href = '/api/login';
-  };
-
-  const handleLearnMore = () => {
-    setIsLearnMoreLoading(true);
-    const featuresSection = document.querySelector('#features');
-    if (featuresSection) {
-      featuresSection.scrollIntoView({ behavior: 'smooth' });
-      setTimeout(() => setIsLearnMoreLoading(false), 1000);
-    } else {
-      setIsLearnMoreLoading(false);
-    }
-  };
-
-  const scrollToSection = (id: string) => {
-    const element = document.querySelector(id);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-    }
+  const scrollToSection = (sectionId: string) => {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
@@ -516,6 +583,11 @@ function PublicLandingPage() {
           to { opacity: 1; transform: translateY(0); }
         }
 
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+
         @keyframes breathe {
           0%, 100% { transform: scale(1); }
           50% { transform: scale(1.05); }
@@ -524,6 +596,16 @@ function PublicLandingPage() {
         @keyframes rotate {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+
+        @keyframes slideInLeft {
+          from { opacity: 0; transform: translateX(-50px); }
+          to { opacity: 1; transform: translateX(0); }
+        }
+
+        @keyframes slideInRight {
+          from { opacity: 0; transform: translateX(50px); }
+          to { opacity: 1; transform: translateX(0); }
         }
 
         .animated-bg {
@@ -535,6 +617,7 @@ function PublicLandingPage() {
           z-index: -1;
           background: #0f1419;
           overflow: hidden;
+          pointer-events: none;
         }
 
         .gradient-orb {
@@ -543,6 +626,7 @@ function PublicLandingPage() {
           filter: blur(80px);
           opacity: 0.3;
           animation: float 20s infinite ease-in-out;
+          will-change: transform;
         }
 
         .orb1 {
@@ -551,6 +635,7 @@ function PublicLandingPage() {
           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
           top: -200px;
           right: -200px;
+          animation-delay: 0s;
         }
 
         .orb2 {
@@ -589,6 +674,10 @@ function PublicLandingPage() {
 
         .hero-buttons {
           animation: fadeInUp 0.8s ease 0.8s both;
+        }
+
+        .hero-visual {
+          animation: fadeIn 1s ease;
         }
 
         .brain-core {
@@ -631,14 +720,136 @@ function PublicLandingPage() {
           left: 50%;
           transform: translateX(-50%);
           box-shadow: 0 0 20px #10b981;
+          transition: background 0.3s ease;
+        }
+
+        .stat-card {
+          position: relative;
+          overflow: hidden;
+        }
+
+        .stat-card:before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 3px;
+          background: linear-gradient(135deg, #3b82f6 0%, #10b981 100%);
         }
 
         .stat-card:hover {
           transform: translateY(-10px);
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
         }
+
+        .feature-card {
+          position: relative;
+          overflow: hidden;
+          opacity: 0;
+          transform: translateY(20px);
+          animation: fadeInUp 0.6s ease forwards;
+        }
+
+        .feature-card:nth-child(1) { animation-delay: 0.1s; }
+        .feature-card:nth-child(2) { animation-delay: 0.2s; }
+        .feature-card:nth-child(3) { animation-delay: 0.3s; }
+        .feature-card:nth-child(4) { animation-delay: 0.4s; }
+        .feature-card:nth-child(5) { animation-delay: 0.5s; }
+        .feature-card:nth-child(6) { animation-delay: 0.6s; }
 
         .feature-card:hover {
           transform: translateY(-5px);
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .feature-badge {
+          position: absolute;
+          top: 20px;
+          right: 20px;
+          padding: 5px 10px;
+          background: #8b5cf6;
+          color: white;
+          font-size: 12px;
+          border-radius: 20px;
+          font-weight: 600;
+        }
+
+        .timeline {
+          position: relative;
+          padding: 40px 0;
+        }
+
+        .timeline:before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 50%;
+          width: 3px;
+          height: 100%;
+          background: linear-gradient(135deg, #3b82f6 0%, #10b981 100%);
+          transform: translateX(-50%);
+        }
+
+        .timeline-item {
+          display: flex;
+          margin-bottom: 60px;
+          position: relative;
+          opacity: 0;
+          transform: translateX(-50px);
+          animation: slideInLeft 0.6s ease forwards;
+        }
+
+        .timeline-item:nth-child(1) { animation-delay: 0.1s; }
+        .timeline-item:nth-child(2) { animation-delay: 0.2s; }
+        .timeline-item:nth-child(3) { animation-delay: 0.3s; }
+        .timeline-item:nth-child(4) { animation-delay: 0.4s; }
+        .timeline-item:nth-child(5) { animation-delay: 0.5s; }
+
+        .timeline-item:nth-child(even) {
+          flex-direction: row-reverse;
+          transform: translateX(50px);
+          animation: slideInRight 0.6s ease forwards;
+        }
+
+        .timeline-item:nth-child(even) .timeline-content {
+          margin-left: 40px;
+          margin-right: 0;
+        }
+
+        .timeline-content {
+          flex: 1;
+          padding: 30px;
+          background: #202938;
+          border-radius: 15px;
+          margin-right: 40px;
+          position: relative;
+        }
+
+        @media (max-width: 768px) {
+          .timeline:before {
+            left: 20px;
+          }
+
+          .timeline-item {
+            flex-direction: column !important;
+            transform: none !important;
+            animation: fadeInUp 0.6s ease forwards !important;
+          }
+
+          .timeline-content {
+            margin-left: 40px !important;
+            margin-right: 0 !important;
+          }
+
+          .navbar.scrolled {
+            padding: 15px 20px;
+          }
+        }
+
+        .navbar.scrolled {
+          padding: 15px 50px;
+          background: rgba(15, 20, 25, 0.95);
         }
       `}</style>
 
@@ -652,40 +863,51 @@ function PublicLandingPage() {
       <div className="min-h-screen text-white overflow-x-hidden">
         {/* Navigation */}
         <nav 
-          className="fixed top-0 w-full px-6 md:px-12 py-5 z-[1000] transition-all duration-300"
+          className={cn(
+            "fixed top-0 w-full px-6 md:px-12 py-5 z-[1000] transition-all duration-300",
+            scrolled && "py-4"
+          )}
           style={{ 
-            background: 'rgba(15, 20, 25, 0.9)', 
-            backdropFilter: 'blur(10px)' 
+            background: scrolled ? 'rgba(15, 20, 25, 0.95)' : 'rgba(15, 20, 25, 0.8)', 
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)'
           }}
           data-testid="navbar"
         >
-          <div className="max-w-6xl mx-auto flex justify-between items-center">
+          <div className="max-w-7xl mx-auto flex justify-between items-center">
             <div 
               className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-[#3b82f6] to-[#10b981] bg-clip-text text-transparent"
-              data-testid="logo"
+              data-testid="logo-text"
             >
               PREMISIA
             </div>
-            <div className="flex gap-6 md:gap-8 items-center">
+            <div className="flex gap-4 md:gap-8 items-center">
               <button 
-                onClick={() => scrollToSection('#features')} 
-                className="hidden md:block text-gray-400 hover:text-white transition-colors border-none bg-transparent cursor-pointer"
+                onClick={() => scrollToSection('features')} 
+                className="hidden md:block text-gray-400 hover:text-white transition-colors text-sm md:text-base"
                 data-testid="link-features"
               >
                 Features
               </button>
               <button 
-                onClick={() => scrollToSection('#stats')} 
-                className="hidden md:block text-gray-400 hover:text-white transition-colors border-none bg-transparent cursor-pointer"
-                data-testid="link-stats"
+                onClick={() => scrollToSection('process')} 
+                className="hidden md:block text-gray-400 hover:text-white transition-colors text-sm md:text-base"
+                data-testid="link-how-it-works"
               >
-                Stats
+                How it Works
+              </button>
+              <button 
+                onClick={() => scrollToSection('use-cases')} 
+                className="hidden md:block text-gray-400 hover:text-white transition-colors text-sm md:text-base"
+                data-testid="link-use-cases"
+              >
+                Use Cases
               </button>
               <button
                 onClick={handleSignIn}
                 disabled={isSigningIn}
                 className={cn(
-                  "px-5 py-2.5 bg-gradient-to-r from-[#3b82f6] to-[#10b981] text-white rounded-lg font-semibold transition-all duration-300",
+                  "px-4 md:px-6 py-2 md:py-3 bg-gradient-to-r from-[#3b82f6] to-[#10b981] text-white rounded-lg font-semibold transition-all duration-300",
                   !isSigningIn && "hover:-translate-y-0.5 hover:shadow-[0_10px_30px_rgba(59,130,246,0.3)]",
                   isSigningIn && "opacity-90 cursor-not-allowed"
                 )}
@@ -706,70 +928,59 @@ function PublicLandingPage() {
 
         {/* Hero Section */}
         <section 
-          className="min-h-screen flex items-center px-6 md:px-12 pt-32 pb-20"
+          className="min-h-screen flex items-center px-6 md:px-12 pt-32 pb-20 relative"
           data-testid="section-hero"
         >
-          <div className="max-w-6xl mx-auto w-full">
-            <div className="grid md:grid-cols-2 gap-12 items-center">
+          <div className="max-w-7xl mx-auto w-full">
+            <div className="grid md:grid-cols-2 gap-12 md:gap-16 items-center">
               {/* Left Content */}
               <div>
-                <h1 className="hero-title text-5xl md:text-7xl font-bold mb-5 bg-gradient-to-r from-[#3b82f6] to-[#10b981] bg-clip-text text-transparent" data-testid="text-hero-title">
+                <h1 className="hero-title text-5xl md:text-7xl lg:text-[72px] font-bold mb-5 bg-gradient-to-r from-[#3b82f6] to-[#10b981] bg-clip-text text-transparent" data-testid="text-hero-title">
                   PREMISIA
                 </h1>
-                <p className="hero-subtitle text-3xl md:text-4xl text-[#10b981] font-semibold mb-8" data-testid="text-hero-tagline">
+                <p className="hero-subtitle text-2xl md:text-3xl lg:text-[32px] text-[#10b981] mb-8" data-testid="text-hero-subtitle">
                   Think it through
                 </p>
-                <h2 className="hero-headline text-3xl md:text-4xl font-bold mb-5 text-white" data-testid="text-hero-headline">
-                  Turn Ideas into Strategic Plans
+                <h2 className="hero-headline text-3xl md:text-4xl lg:text-[36px] font-bold mb-5 text-white" data-testid="text-hero-headline">
+                  Turn Your Wild Ideas into Real Strategies
                 </h2>
-                <p className="hero-description text-lg text-gray-300 mb-10 leading-relaxed" data-testid="text-hero-description">
+                <p className="hero-description text-base md:text-lg text-gray-300 mb-10 leading-relaxed" data-testid="text-hero-description">
                   Stop staring at blank whiteboards. Premisia uses AI to help you structure messy ideas 
-                  into clear strategic plans. From crazy idea to execution plan in hours.
+                  into clear strategic plans. From "I have this crazy idea" to "here's exactly how we do it" 
+                  in hours, not weeks.
                 </p>
                 <div className="hero-buttons flex flex-col sm:flex-row gap-5">
                   <button 
-                    onClick={handleTryItFree}
-                    disabled={isTryItFreeLoading}
+                    onClick={handleSignIn}
+                    disabled={isSigningIn}
                     className={cn(
-                      "px-8 py-4 bg-gradient-to-r from-[#3b82f6] to-[#10b981] text-white rounded-xl text-lg font-semibold transition-all duration-300",
-                      !isTryItFreeLoading && "hover:shadow-[0_10px_40px_rgba(59,130,246,0.4)]",
-                      isTryItFreeLoading && "opacity-90 cursor-not-allowed"
+                      "px-6 md:px-8 py-3 md:py-4 bg-gradient-to-r from-[#3b82f6] to-[#10b981] text-white rounded-xl text-base md:text-lg font-semibold transition-all duration-300",
+                      !isSigningIn && "hover:-translate-y-0.5 hover:shadow-[0_10px_40px_rgba(59,130,246,0.4)]",
+                      isSigningIn && "opacity-90 cursor-not-allowed"
                     )}
-                    data-testid="button-cta-primary"
+                    data-testid="button-cta-try-free"
                   >
-                    {isTryItFreeLoading ? (
+                    {isSigningIn ? (
                       <span className="flex items-center justify-center gap-2">
                         <GeometricLoader type="orbit" size="small" />
                         <span>Starting...</span>
                       </span>
                     ) : (
-                      "🚀 Try It Free"
+                      "🚀 Try It Now - It's Free"
                     )}
                   </button>
                   <button 
-                    onClick={handleLearnMore}
-                    disabled={isLearnMoreLoading}
-                    className={cn(
-                      "px-8 py-4 bg-transparent border-2 border-[#3b82f6] text-white rounded-xl text-lg font-semibold transition-all duration-300",
-                      !isLearnMoreLoading && "hover:bg-[#3b82f6] hover:text-white",
-                      isLearnMoreLoading && "opacity-90 cursor-not-allowed"
-                    )}
-                    data-testid="button-cta-secondary"
+                    onClick={() => scrollToSection('features')}
+                    className="px-6 md:px-8 py-3 md:py-4 bg-transparent border-2 border-[#3b82f6] text-white rounded-xl text-base md:text-lg font-semibold transition-all duration-300 hover:bg-[#3b82f6] hover:text-white"
+                    data-testid="button-cta-see-how"
                   >
-                    {isLearnMoreLoading ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <GeometricLoader type="dots" size="small" />
-                        <span>Loading...</span>
-                      </span>
-                    ) : (
-                      "👀 Learn More"
-                    )}
+                    👀 See How It Works
                   </button>
                 </div>
               </div>
 
               {/* Right Brain Animation */}
-              <div className="hidden md:flex justify-center items-center" data-testid="animation-brain">
+              <div className="hero-visual hidden md:flex justify-center items-center" data-testid="animation-brain">
                 <div className="relative w-full h-[500px] flex items-center justify-center">
                   {/* Orbits */}
                   <div className="orbit orbit1">
@@ -784,7 +995,7 @@ function PublicLandingPage() {
                   
                   {/* Brain Core */}
                   <div 
-                    className="brain-core w-[200px] h-[200px] bg-gradient-to-r from-[#3b82f6] to-[#10b981] rounded-full"
+                    className="brain-core w-[200px] h-[200px] bg-gradient-to-br from-[#3b82f6] to-[#10b981] rounded-full relative"
                     style={{ boxShadow: '0 0 100px rgba(59, 130, 246, 0.5)' }}
                   ></div>
                 </div>
@@ -796,46 +1007,47 @@ function PublicLandingPage() {
         {/* Stats Section */}
         <section 
           id="stats"
-          className="py-20 px-6 md:px-12 bg-[#1a1f2e]"
+          ref={statsRef}
+          className="py-16 md:py-20 px-6 md:px-12 bg-[#1a1f2e] relative overflow-hidden"
           data-testid="section-stats"
         >
-          <div className="max-w-6xl mx-auto">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
+          <div className="max-w-7xl mx-auto">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 md:gap-10">
               <div 
-                className="stat-card text-center p-10 bg-[#202938] rounded-3xl transition-transform duration-300"
+                className="stat-card text-center p-6 md:p-10 bg-[#202938] rounded-2xl md:rounded-3xl transition-all duration-300"
                 data-testid="card-stat-frameworks"
               >
-                <div className="text-5xl font-bold bg-gradient-to-r from-[#3b82f6] to-[#10b981] bg-clip-text text-transparent mb-3">
-                  5
+                <div className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-[#3b82f6] to-[#10b981] bg-clip-text text-transparent mb-2 md:mb-3">
+                  {stats.frameworks}
                 </div>
-                <div className="text-lg text-gray-400">Frameworks</div>
+                <div className="text-sm md:text-lg text-gray-400">Strategic Frameworks</div>
               </div>
               <div 
-                className="stat-card text-center p-10 bg-[#202938] rounded-3xl transition-transform duration-300"
+                className="stat-card text-center p-6 md:p-10 bg-[#202938] rounded-2xl md:rounded-3xl transition-all duration-300"
                 data-testid="card-stat-analysis"
               >
-                <div className="text-5xl font-bold bg-gradient-to-r from-[#3b82f6] to-[#10b981] bg-clip-text text-transparent mb-3">
-                  100+
+                <div className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-[#3b82f6] to-[#10b981] bg-clip-text text-transparent mb-2 md:mb-3">
+                  {stats.analysis}+
                 </div>
-                <div className="text-lg text-gray-400">Analysis Points</div>
+                <div className="text-sm md:text-lg text-gray-400">Analysis Points</div>
               </div>
               <div 
-                className="stat-card text-center p-10 bg-[#202938] rounded-3xl transition-transform duration-300"
+                className="stat-card text-center p-6 md:p-10 bg-[#202938] rounded-2xl md:rounded-3xl transition-all duration-300"
                 data-testid="card-stat-availability"
               >
-                <div className="text-5xl font-bold bg-gradient-to-r from-[#3b82f6] to-[#10b981] bg-clip-text text-transparent mb-3">
-                  24/7
+                <div className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-[#3b82f6] to-[#10b981] bg-clip-text text-transparent mb-2 md:mb-3">
+                  {stats.availability}/7
                 </div>
-                <div className="text-lg text-gray-400">AI Available</div>
+                <div className="text-sm md:text-lg text-gray-400">AI Available</div>
               </div>
               <div 
-                className="stat-card text-center p-10 bg-[#202938] rounded-3xl transition-transform duration-300"
-                data-testid="card-stat-start"
+                className="stat-card text-center p-6 md:p-10 bg-[#202938] rounded-2xl md:rounded-3xl transition-all duration-300"
+                data-testid="card-stat-clicks"
               >
-                <div className="text-5xl font-bold bg-gradient-to-r from-[#3b82f6] to-[#10b981] bg-clip-text text-transparent mb-3">
-                  1
+                <div className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-[#3b82f6] to-[#10b981] bg-clip-text text-transparent mb-2 md:mb-3">
+                  {stats.clicks} Click
                 </div>
-                <div className="text-lg text-gray-400">Click to Start</div>
+                <div className="text-sm md:text-lg text-gray-400">To Get Started</div>
               </div>
             </div>
           </div>
@@ -844,60 +1056,285 @@ function PublicLandingPage() {
         {/* Features Section */}
         <section 
           id="features"
-          className="py-24 px-6 md:px-12"
+          className="py-16 md:py-24 px-6 md:px-12"
           data-testid="section-features"
         >
-          <div className="max-w-6xl mx-auto">
-            <div className="text-center mb-16">
-              <h2 className="text-4xl md:text-5xl font-bold mb-5 text-white" data-testid="heading-features">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-12 md:mb-16">
+              <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 md:mb-5 bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent" data-testid="heading-features">
                 Not Your Average Strategy Tool
               </h2>
-              <p className="text-lg text-gray-400" data-testid="subheading-features">
-                Built because consultants are expensive and napkin sketches deserve better
+              <p className="text-base md:text-lg lg:text-xl text-gray-400" data-testid="subheading-features">
+                We built this because consultants are expensive and your napkin sketches deserve better
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+              {/* Feature 1: Multi-Agent AI Brain */}
               <div 
-                className="feature-card p-10 bg-[#202938] rounded-3xl transition-transform duration-300"
-                data-testid="card-feature-ai"
+                className="feature-card p-6 md:p-10 bg-[#202938] rounded-2xl md:rounded-3xl transition-all duration-300 cursor-pointer"
+                data-testid="card-feature-multi-agent"
               >
-                <div className="text-5xl mb-5">🧠</div>
-                <h3 className="text-2xl font-bold mb-4 text-white">Multi-Agent AI</h3>
-                <p className="text-gray-400 leading-relaxed">
-                  Three AI agents that challenge, build, and validate your strategy.
+                <div className="feature-badge">AI Magic</div>
+                <div 
+                  className="w-12 h-12 md:w-[60px] md:h-[60px] bg-gradient-to-br from-[#3b82f6] to-[#10b981] rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-5 text-2xl md:text-3xl transition-all duration-300"
+                  style={{ willChange: 'transform' }}
+                >
+                  🧠
+                </div>
+                <h3 className="text-xl md:text-2xl font-bold mb-3 md:mb-4 text-white">Multi-Agent AI Brain</h3>
+                <p className="text-sm md:text-base text-gray-400 leading-relaxed">
+                  Three specialized AI agents work together: one challenges your assumptions, one builds your strategy, and one makes sure it actually makes sense.
                 </p>
               </div>
+
+              {/* Feature 2: Five Whys on Steroids */}
               <div 
-                className="feature-card p-10 bg-[#202938] rounded-3xl transition-transform duration-300"
-                data-testid="card-feature-whys"
+                className="feature-card p-6 md:p-10 bg-[#202938] rounded-2xl md:rounded-3xl transition-all duration-300 cursor-pointer"
+                data-testid="card-feature-five-whys"
               >
-                <div className="text-5xl mb-5">🎯</div>
-                <h3 className="text-2xl font-bold mb-4 text-white">Five Whys++</h3>
-                <p className="text-gray-400 leading-relaxed">
-                  Deep analysis that finds patterns and calls out what you're missing.
+                <div 
+                  className="w-12 h-12 md:w-[60px] md:h-[60px] bg-gradient-to-br from-[#3b82f6] to-[#10b981] rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-5 text-2xl md:text-3xl transition-all duration-300"
+                >
+                  🎯
+                </div>
+                <h3 className="text-xl md:text-2xl font-bold mb-3 md:mb-4 text-white">Five Whys on Steroids</h3>
+                <p className="text-sm md:text-base text-gray-400 leading-relaxed">
+                  Our AI doesn't just ask "why" five times. It digs deep, finds patterns you missed, and calls out the elephant in the room you've been ignoring.
                 </p>
               </div>
+
+              {/* Feature 3: Business Model Canvas++ */}
               <div 
-                className="feature-card p-10 bg-[#202938] rounded-3xl transition-transform duration-300"
-                data-testid="card-feature-canvas"
+                className="feature-card p-6 md:p-10 bg-[#202938] rounded-2xl md:rounded-3xl transition-all duration-300 cursor-pointer"
+                data-testid="card-feature-bmc"
               >
-                <div className="text-5xl mb-5">📊</div>
-                <h3 className="text-2xl font-bold mb-4 text-white">Smart Canvas</h3>
-                <p className="text-gray-400 leading-relaxed">
-                  Business Model Canvas that thinks and spots gaps in your logic.
+                <div 
+                  className="w-12 h-12 md:w-[60px] md:h-[60px] bg-gradient-to-br from-[#3b82f6] to-[#10b981] rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-5 text-2xl md:text-3xl transition-all duration-300"
+                >
+                  📊
+                </div>
+                <h3 className="text-xl md:text-2xl font-bold mb-3 md:mb-4 text-white">Business Model Canvas++</h3>
+                <p className="text-sm md:text-base text-gray-400 leading-relaxed">
+                  Fill out a BMC that actually thinks. It spots gaps, suggests connections, and tells you when your revenue model doesn't match your value prop.
+                </p>
+              </div>
+
+              {/* Feature 4: Bias Detector */}
+              <div 
+                className="feature-card p-6 md:p-10 bg-[#202938] rounded-2xl md:rounded-3xl transition-all duration-300 cursor-pointer"
+                data-testid="card-feature-bias-detector"
+              >
+                <div 
+                  className="w-12 h-12 md:w-[60px] md:h-[60px] bg-gradient-to-br from-[#3b82f6] to-[#10b981] rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-5 text-2xl md:text-3xl transition-all duration-300"
+                >
+                  🔍
+                </div>
+                <h3 className="text-xl md:text-2xl font-bold mb-3 md:mb-4 text-white">Bias Detector</h3>
+                <p className="text-sm md:text-base text-gray-400 leading-relaxed">
+                  We all drink our own Kool-Aid. Our AI is that friend who tells you your idea might not be as brilliant as you think (but helps you fix it).
+                </p>
+              </div>
+
+              {/* Feature 5: Instant Program Plans */}
+              <div 
+                className="feature-card p-6 md:p-10 bg-[#202938] rounded-2xl md:rounded-3xl transition-all duration-300 cursor-pointer"
+                data-testid="card-feature-program-plans"
+              >
+                <div 
+                  className="w-12 h-12 md:w-[60px] md:h-[60px] bg-gradient-to-br from-[#3b82f6] to-[#10b981] rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-5 text-2xl md:text-3xl transition-all duration-300"
+                >
+                  📈
+                </div>
+                <h3 className="text-xl md:text-2xl font-bold mb-3 md:mb-4 text-white">Instant Program Plans</h3>
+                <p className="text-sm md:text-base text-gray-400 leading-relaxed">
+                  Go from strategy to execution roadmap in minutes. Complete with milestones, dependencies, and reality checks.
+                </p>
+              </div>
+
+              {/* Feature 6: What-If Simulator */}
+              <div 
+                className="feature-card p-6 md:p-10 bg-[#202938] rounded-2xl md:rounded-3xl transition-all duration-300 cursor-pointer"
+                data-testid="card-feature-simulator"
+              >
+                <div className="feature-badge">Beta</div>
+                <div 
+                  className="w-12 h-12 md:w-[60px] md:h-[60px] bg-gradient-to-br from-[#3b82f6] to-[#10b981] rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-5 text-2xl md:text-3xl transition-all duration-300"
+                >
+                  🔮
+                </div>
+                <h3 className="text-xl md:text-2xl font-bold mb-3 md:mb-4 text-white">What-If Simulator</h3>
+                <p className="text-sm md:text-base text-gray-400 leading-relaxed">
+                  Test different scenarios. What if you pivot? What if funding takes longer? What if your competitor moves first? See it all play out.
                 </p>
               </div>
             </div>
           </div>
         </section>
 
+        {/* Process Section */}
+        <section 
+          id="process"
+          className="py-16 md:py-24 px-6 md:px-12 bg-[#1a1f2e]"
+          data-testid="section-process"
+        >
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-12 md:mb-16">
+              <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 md:mb-5 bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent" data-testid="heading-process">
+                From Chaos to Clarity in 5 Steps
+              </h2>
+              <p className="text-base md:text-lg lg:text-xl text-gray-400" data-testid="subheading-process">
+                How we turn your 3am shower thoughts into boardroom-ready strategies
+              </p>
+            </div>
+
+            <div className="timeline max-w-4xl mx-auto">
+              {/* Step 1 */}
+              <div className="timeline-item" data-testid="timeline-step-1">
+                <div className="timeline-content">
+                  <h3 className="text-xl md:text-2xl font-bold text-[#3b82f6] mb-3 md:mb-4">1. Brain Dump</h3>
+                  <p className="text-sm md:text-base text-gray-400 leading-relaxed">
+                    Type, talk, or upload your messy ideas. Half-baked is fine. Contradictory is expected.
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 2 */}
+              <div className="timeline-item" data-testid="timeline-step-2">
+                <div className="timeline-content">
+                  <h3 className="text-xl md:text-2xl font-bold text-[#3b82f6] mb-3 md:mb-4">2. AI Interrogation</h3>
+                  <p className="text-sm md:text-base text-gray-400 leading-relaxed">
+                    Our AI asks the hard questions you've been avoiding. It's like therapy for your business idea.
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 3 */}
+              <div className="timeline-item" data-testid="timeline-step-3">
+                <div className="timeline-content">
+                  <h3 className="text-xl md:text-2xl font-bold text-[#3b82f6] mb-3 md:mb-4">3. Structure Emerges</h3>
+                  <p className="text-sm md:text-base text-gray-400 leading-relaxed">
+                    Watch as your random thoughts transform into organized frameworks. It's oddly satisfying.
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 4 */}
+              <div className="timeline-item" data-testid="timeline-step-4">
+                <div className="timeline-content">
+                  <h3 className="text-xl md:text-2xl font-bold text-[#3b82f6] mb-3 md:mb-4">4. Reality Check</h3>
+                  <p className="text-sm md:text-base text-gray-400 leading-relaxed">
+                    Our bias detector and feasibility analyzer make sure you're not building castles in the sky.
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 5 */}
+              <div className="timeline-item" data-testid="timeline-step-5">
+                <div className="timeline-content">
+                  <h3 className="text-xl md:text-2xl font-bold text-[#3b82f6] mb-3 md:mb-4">5. Action Plan</h3>
+                  <p className="text-sm md:text-base text-gray-400 leading-relaxed">
+                    Get a complete execution roadmap with timelines, resources, and KPIs. Ready to present or implement.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Use Cases Section */}
+        <section 
+          id="use-cases"
+          className="py-16 md:py-24 px-6 md:px-12"
+          data-testid="section-use-cases"
+        >
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-12 md:mb-16">
+              <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 md:mb-5 bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent" data-testid="heading-use-cases">
+                Real People, Real Results
+              </h2>
+              <p className="text-base md:text-lg lg:text-xl text-gray-400" data-testid="subheading-use-cases">
+                See how others turned ideas into action
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10 max-w-5xl mx-auto">
+              {/* Testimonial 1: Sarah */}
+              <div 
+                className="p-6 md:p-10 bg-[#202938] rounded-2xl md:rounded-3xl transition-transform duration-300 hover:-translate-y-2"
+                data-testid="card-testimonial-sarah"
+              >
+                <h3 className="text-2xl md:text-3xl text-[#10b981] mb-4 md:mb-5 font-bold">Startup Founder</h3>
+                <p className="text-sm md:text-base text-gray-400 leading-relaxed mb-4 md:mb-5">
+                  "I had a vague idea about disrupting the pet insurance space. Premisia helped me realize my actual innovation wasn't the product—it was the distribution model. Three weeks later, I had investor meetings booked."
+                </p>
+                <cite className="text-sm md:text-base italic text-[#3b82f6] not-italic">— Sarah K., Pet Tech Startup</cite>
+              </div>
+
+              {/* Testimonial 2: Marcus */}
+              <div 
+                className="p-6 md:p-10 bg-[#202938] rounded-2xl md:rounded-3xl transition-transform duration-300 hover:-translate-y-2"
+                data-testid="card-testimonial-marcus"
+              >
+                <h3 className="text-2xl md:text-3xl text-[#10b981] mb-4 md:mb-5 font-bold">Enterprise Leader</h3>
+                <p className="text-sm md:text-base text-gray-400 leading-relaxed mb-4 md:mb-5">
+                  "We were stuck in analysis paralysis on a digital transformation initiative. Premisia's Five Whys revealed we were solving the wrong problem. Saved us six months and about $2M in misallocated budget."
+                </p>
+                <cite className="text-sm md:text-base italic text-[#3b82f6] not-italic">— Marcus T., Fortune 500 VP</cite>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* CTA Section */}
+        <section 
+          className="py-16 md:py-24 px-6 md:px-12 bg-[#1a1f2e]"
+          data-testid="section-cta"
+        >
+          <div className="max-w-4xl mx-auto text-center">
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 md:mb-6 bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent" data-testid="heading-cta">
+              Ready to Stop Overthinking and Start Building?
+            </h2>
+            <p className="text-base md:text-lg lg:text-xl text-gray-400 mb-8 md:mb-10 leading-relaxed">
+              Join hundreds of founders and leaders who turned their wild ideas into executable strategies.
+            </p>
+            <button 
+              onClick={handleSignIn}
+              disabled={isSigningIn}
+              className={cn(
+                "px-8 md:px-12 py-4 md:py-5 bg-gradient-to-r from-[#3b82f6] to-[#10b981] text-white rounded-xl text-lg md:text-xl font-bold transition-all duration-300",
+                !isSigningIn && "hover:-translate-y-1 hover:shadow-[0_20px_50px_rgba(59,130,246,0.5)]",
+                isSigningIn && "opacity-90 cursor-not-allowed"
+              )}
+              data-testid="button-cta-final"
+            >
+              {isSigningIn ? (
+                <span className="flex items-center justify-center gap-2">
+                  <GeometricLoader type="orbit" size="small" />
+                  <span>Starting...</span>
+                </span>
+              ) : (
+                "Start Building Your Strategy →"
+              )}
+            </button>
+            <p className="text-xs md:text-sm text-gray-500 mt-4 md:mt-6">
+              No credit card required • Free to start • Takes 2 minutes
+            </p>
+          </div>
+        </section>
+
         {/* Footer */}
         <footer 
-          className="py-16 px-6 text-center border-t border-[#202938]"
+          className="py-12 md:py-16 px-6 text-center border-t border-[#202938]"
           data-testid="footer"
         >
-          <p className="text-gray-400">&copy; 2025 Premisia - Where Ideas Become Action</p>
+          <div className="mb-4">
+            <div className="text-xl md:text-2xl font-bold bg-gradient-to-r from-[#3b82f6] to-[#10b981] bg-clip-text text-transparent mb-2">
+              PREMISIA
+            </div>
+            <p className="text-sm md:text-base text-[#10b981]">Think it through</p>
+          </div>
+          <p className="text-sm md:text-base text-gray-400">&copy; 2025 Premisia - Where Ideas Become Action</p>
         </footer>
       </div>
     </>
