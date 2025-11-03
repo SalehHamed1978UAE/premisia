@@ -1725,6 +1725,120 @@ Marketing and events: $3k/month`,
     }
   });
 
+  // ===== Golden Records API (Admin Only) =====
+  
+  // Create a new golden record
+  app.post('/api/admin/golden-records', requireAuth, requireRole(['Admin']), async (req: any, res) => {
+    try {
+      const { journeyType, notes, steps, metadata, promoteAsCurrent, parentVersion } = req.body;
+      
+      // Validate auth claims exist
+      if (!req.user?.claims?.sub) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      
+      if (!journeyType || !steps) {
+        return res.status(400).json({ error: 'Missing required fields: journeyType, steps' });
+      }
+      
+      const record = await storage.createGoldenRecord({
+        journeyType,
+        notes,
+        steps,
+        metadata,
+        createdBy: req.user.claims.sub,
+        parentVersion,
+        promoteAsCurrent: promoteAsCurrent || false,
+      });
+      
+      res.status(201).json(record);
+    } catch (error) {
+      console.error('[Golden Records] Error creating golden record:', error);
+      res.status(500).json({ error: 'Failed to create golden record' });
+    }
+  });
+  
+  // List golden records (with optional filters)
+  app.get('/api/admin/golden-records', requireAuth, requireRole(['Admin']), async (req, res) => {
+    try {
+      const journeyType = req.query.journeyType as string | undefined;
+      const includeHistory = req.query.includeHistory === 'true';
+      
+      const records = await storage.listGoldenRecords(journeyType, includeHistory);
+      res.json(records);
+    } catch (error) {
+      console.error('[Golden Records] Error listing golden records:', error);
+      res.status(500).json({ error: 'Failed to list golden records' });
+    }
+  });
+  
+  // Get a specific golden record by journey type and version
+  app.get('/api/admin/golden-records/:journeyType/:version', requireAuth, requireRole(['Admin']), async (req, res) => {
+    try {
+      const { journeyType, version } = req.params;
+      const versionNumber = parseInt(version, 10);
+      
+      if (isNaN(versionNumber)) {
+        return res.status(400).json({ error: 'Invalid version number' });
+      }
+      
+      const record = await storage.getGoldenRecord(journeyType, versionNumber);
+      
+      if (!record) {
+        return res.status(404).json({ error: 'Golden record not found' });
+      }
+      
+      res.json(record);
+    } catch (error) {
+      console.error('[Golden Records] Error getting golden record:', error);
+      res.status(500).json({ error: 'Failed to get golden record' });
+    }
+  });
+  
+  // Promote a golden record version to current
+  app.post('/api/admin/golden-records/:journeyType/:version/promote', requireAuth, requireRole(['Admin']), async (req, res) => {
+    try {
+      const { journeyType, version } = req.params;
+      const versionNumber = parseInt(version, 10);
+      
+      if (isNaN(versionNumber)) {
+        return res.status(400).json({ error: 'Invalid version number' });
+      }
+      
+      const promoted = await storage.promoteGoldenRecord(journeyType, versionNumber);
+      
+      if (!promoted) {
+        return res.status(404).json({ error: 'Golden record not found' });
+      }
+      
+      res.json(promoted);
+    } catch (error) {
+      console.error('[Golden Records] Error promoting golden record:', error);
+      res.status(500).json({ error: 'Failed to promote golden record' });
+    }
+  });
+  
+  // Compare two golden record versions
+  app.post('/api/admin/golden-records/:journeyType/:version/compare', requireAuth, requireRole(['Admin']), async (req, res) => {
+    try {
+      const { journeyType, version } = req.params;
+      const { compareToVersion } = req.body;
+      
+      const version1 = parseInt(version, 10);
+      const version2 = parseInt(compareToVersion, 10);
+      
+      if (isNaN(version1) || isNaN(version2)) {
+        return res.status(400).json({ error: 'Invalid version numbers' });
+      }
+      
+      const comparison = await storage.compareGoldenRecords(journeyType, version1, version2);
+      res.json(comparison);
+    } catch (error) {
+      console.error('[Golden Records] Error comparing golden records:', error);
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to compare golden records' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
