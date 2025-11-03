@@ -53,6 +53,7 @@ export default function WhysTreePage() {
   const understandingId = params?.understandingId;
 
   const [understanding, setUnderstanding] = useState<{ id: string; sessionId: string; userInput: string; journeyType?: string } | null>(null);
+  const [journeySessionId, setJourneySessionId] = useState<string | null>(null);
   const [isLoadingUnderstanding, setIsLoadingUnderstanding] = useState(true);
   const [tree, setTree] = useState<WhyTree | null>(null);
   const [selectedPath, setSelectedPath] = useState<{ nodeId: string; question: string; answer: string; depth: number }[]>([]);
@@ -194,17 +195,20 @@ export default function WhysTreePage() {
       if (!understanding) return;
       
       // Always use understanding.sessionId for localStorage keys and navigation
-      // The journey session ID is only used for backend lookups, not routing
-      localStorage.setItem(`strategic-rootCause-${understanding.sessionId}`, variables.rootCause);
-      localStorage.setItem(`strategic-whysPath-${understanding.sessionId}`, JSON.stringify(variables.completePath));
-      localStorage.setItem(`strategic-input-${understanding.sessionId}`, understanding.userInput);
-      localStorage.setItem(`journey-type-${understanding.sessionId}`, understanding.journeyType || '');
+      // Use journey session ID for navigation (critical for follow-on journeys)
+      // Fall back to understanding.sessionId for legacy flows
+      const sessionIdForNavigation = journeySessionId || understanding.sessionId;
+      
+      localStorage.setItem(`strategic-rootCause-${sessionIdForNavigation}`, variables.rootCause);
+      localStorage.setItem(`strategic-whysPath-${sessionIdForNavigation}`, JSON.stringify(variables.completePath));
+      localStorage.setItem(`strategic-input-${sessionIdForNavigation}`, understanding.userInput);
+      localStorage.setItem(`journey-type-${sessionIdForNavigation}`, understanding.journeyType || '');
       
       toast({
         title: "Root cause identified",
         description: "Proceeding to research phase",
       });
-      setLocation(`/strategic-consultant/research/${understanding.sessionId}`);
+      setLocation(`/strategic-consultant/research/${sessionIdForNavigation}`);
     },
     onError: (error: any) => {
       setIsProcessingAction(false);
@@ -360,12 +364,12 @@ export default function WhysTreePage() {
         const data = await response.json();
         
         // Check if there's a current journey session ID in localStorage
-        const journeySessionId = localStorage.getItem(`current-journey-session-${data.id}`);
+        const storedJourneySessionId = localStorage.getItem(`current-journey-session-${data.id}`);
         
-        // Fetch journey session to get journey type
-        if (journeySessionId) {
+        // Fetch journey session to get journey type and session ID
+        if (storedJourneySessionId) {
           try {
-            const journeyResponse = await fetch(`/api/strategic-consultant/journey-sessions/${journeySessionId}`);
+            const journeyResponse = await fetch(`/api/strategic-consultant/journey-sessions/${storedJourneySessionId}`);
             if (journeyResponse.ok) {
               const journeyData = await journeyResponse.json();
               if (journeyData.journeyType) {
@@ -373,6 +377,8 @@ export default function WhysTreePage() {
                 localStorage.setItem(`journey-type-${data.sessionId}`, journeyData.journeyType);
                 data.journeyType = journeyData.journeyType;
               }
+              // Store journey session ID for navigation
+              setJourneySessionId(storedJourneySessionId);
             }
           } catch (journeyError) {
             console.warn('Could not fetch journey session:', journeyError);
