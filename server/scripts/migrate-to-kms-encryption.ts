@@ -133,12 +133,65 @@ async function migrateTextField(oldValue: string | null, fieldName: string, reco
 }
 
 // Helper function to migrate a JSON field
-async function migrateJSONField(oldValue: string | null, fieldName: string, recordId: string, tableName: string): Promise<string | null> {
+async function migrateJSONField(oldValue: any, fieldName: string, recordId: string, tableName: string): Promise<string | null> {
   if (!oldValue) return null;
   
-  // Check if already in new format
+  // Handle JSONB columns returned as JavaScript objects
+  if (typeof oldValue === 'object' && !Buffer.isBuffer(oldValue)) {
+    // Check if it's the old encryption format stored as JSONB object
+    if ('iv' in oldValue && 'authTag' in oldValue && 'ciphertext' in oldValue) {
+      try {
+        // Convert object back to string format for decryptJSON
+        const oldFormatString = `${oldValue.iv}:${oldValue.authTag}:${oldValue.ciphertext}`;
+        const decrypted = decryptJSON(oldFormatString);
+        if (!decrypted) {
+          console.warn(`  ⚠️  Could not decrypt ${fieldName} for record ${recordId}`);
+          return null;
+        }
+        // Re-encrypt with KMS
+        const reencrypted = await encryptJSONKMS(decrypted);
+        return reencrypted;
+      } catch (error) {
+        const errorMsg = `Failed to migrate legacy JSONB ${fieldName}: ${error instanceof Error ? error.message : String(error)}`;
+        logError(tableName, recordId, errorMsg);
+        return null;
+      }
+    }
+    
+    // Not old format, so it's plaintext JSONB that needs to be encrypted
+    try {
+      const encrypted = await encryptJSONKMS(oldValue);
+      return encrypted;
+    } catch (error) {
+      const errorMsg = `Failed to encrypt plaintext JSONB ${fieldName}: ${error instanceof Error ? error.message : String(error)}`;
+      logError(tableName, recordId, errorMsg);
+      return null;
+    }
+  }
+  
+  // Handle string values (legacy encrypted, KMS format, or plaintext JSON)
+  if (typeof oldValue !== 'string') {
+    return null; // Skip non-string, non-object values
+  }
+  
+  // Check if already in KMS format
+  try {
+    const parsed = JSON.parse(oldValue);
+    if (parsed && typeof parsed === 'object' && 'dataKeyCiphertext' in parsed) {
+      // Already in KMS format, skip
+      return null;
+    }
+    // If we got here, it's a valid JSON string that's NOT encrypted
+    // This is plaintext JSON that needs to be encrypted
+    const encrypted = await encryptJSONKMS(parsed);
+    return encrypted;
+  } catch {
+    // Not a valid JSON string, might be legacy encrypted format
+  }
+  
+  // Check if it's legacy encrypted format
   if (!isOldFormat(oldValue)) {
-    return null; // Skip, already migrated or unencrypted
+    return null; // Skip, not recognized format
   }
   
   try {
@@ -503,7 +556,7 @@ async function migrateEPMPrograms() {
   
   while (offset < totalRecords) {
     const result = await pool.query(
-      `SELECT id, program_name, executive_summary, workstreams, timeline, resource_plan, 
+      `SELECT id, executive_summary, workstreams, timeline, resource_plan, 
               financial_plan, benefits_realization, risk_register, stakeholder_map, 
               governance, qa_plan, procurement, exit_strategy, kpis 
        FROM ${tableName} LIMIT $1 OFFSET $2`,
@@ -515,15 +568,8 @@ async function migrateEPMPrograms() {
         const updates: any = {};
         let hasUpdates = false;
         
-        // Migrate program_name (text)
-        const newProgramName = await migrateTextField(record.program_name, 'program_name', record.id, tableName);
-        if (newProgramName) {
-          updates.program_name = newProgramName;
-          hasUpdates = true;
-        }
-        
-        // Migrate executive_summary (text)
-        const newExecutiveSummary = await migrateTextField(record.executive_summary, 'executive_summary', record.id, tableName);
+        // Migrate executive_summary (JSONB)
+        const newExecutiveSummary = await migrateJSONField(record.executive_summary, 'executive_summary', record.id, tableName);
         if (newExecutiveSummary) {
           updates.executive_summary = newExecutiveSummary;
           hasUpdates = true;
@@ -774,38 +820,80 @@ async function migrateStrategicDecisions() {
 // ==================== VERIFICATION ====================
 
 async function verifyMigration() {
-  console.log(`\n🔍 Verifying migration...`);
+  console.log(`\n🔍 Verifying migration (sensitive fields only)...`);
   
+  // Only verify fields that contain sensitive business data and should be encrypted
   const tables = [
-    { name: 'strategic_understanding', fields: ['user_input', 'company_context', 'initiative_description'] },
-    { name: 'journey_sessions', fields: ['accumulated_context'] },
-    { name: 'strategic_entities', fields: ['claim', 'source', 'evidence', 'category', 'subcategory', 'metadata'] },
-    { name: 'strategic_relationships', fields: ['evidence', 'metadata'] },
-    { name: 'epm_programs', fields: ['program_name', 'executive_summary', 'workstreams'] },
-    { name: 'strategy_versions', fields: ['input_summary', 'analysis_data', 'decisions_data'] },
-    { name: 'strategic_decisions', fields: ['decisions_data'] }
+    { 
+      name: 'strategic_understanding', 
+      textFields: ['user_input', 'initiative_description'],
+      jsonFields: ['company_context']
+    },
+    { 
+      name: 'journey_sessions', 
+      textFields: [],
+      jsonFields: ['accumulated_context']
+    },
+    { 
+      name: 'strategic_entities', 
+      textFields: ['claim', 'source'],
+      jsonFields: ['evidence', 'category', 'subcategory', 'metadata']
+    },
+    { 
+      name: 'strategic_relationships', 
+      textFields: [],
+      jsonFields: ['evidence', 'metadata']
+    },
+    { 
+      name: 'epm_programs', 
+      textFields: [],
+      jsonFields: ['executive_summary', 'workstreams', 'timeline', 'resource_plan', 'financial_plan', 
+                   'benefits_realization', 'risk_register', 'stakeholder_map', 'governance', 
+                   'qa_plan', 'procurement', 'exit_strategy', 'kpis']
+    },
+    { 
+      name: 'strategy_versions', 
+      textFields: ['input_summary'],
+      jsonFields: ['analysis_data', 'decisions_data']
+    },
+    { 
+      name: 'strategic_decisions', 
+      textFields: [],
+      jsonFields: ['decisions_data']
+    }
   ];
   
   let verificationErrors = 0;
+  let verifiedCount = 0;
   
   for (const table of tables) {
     const result = await pool.query(`SELECT * FROM ${table.name} ORDER BY RANDOM() LIMIT 3`);
     
     for (const record of result.rows) {
-      for (const field of table.fields) {
+      // Verify text fields
+      for (const field of table.textFields) {
         const value = record[field];
-        
         if (!value) continue;
         
         try {
-          // Try to decrypt with KMS
-          if (field === 'company_context' || field === 'accumulated_context' || field === 'metadata' || 
-              field === 'analysis_data' || field === 'decisions_data' || field === 'workstreams') {
-            await decryptJSONKMS(value);
-          } else {
-            await decryptKMS(value);
-          }
+          await decryptKMS(value);
           console.log(`  ✅ ${table.name}.${field} (${record.id}) - Successfully decrypted with KMS`);
+          verifiedCount++;
+        } catch (error) {
+          console.error(`  ❌ ${table.name}.${field} (${record.id}) - Failed to decrypt: ${error instanceof Error ? error.message : String(error)}`);
+          verificationErrors++;
+        }
+      }
+      
+      // Verify JSON fields
+      for (const field of table.jsonFields) {
+        const value = record[field];
+        if (!value) continue;
+        
+        try {
+          await decryptJSONKMS(value);
+          console.log(`  ✅ ${table.name}.${field} (${record.id}) - Successfully decrypted with KMS`);
+          verifiedCount++;
         } catch (error) {
           console.error(`  ❌ ${table.name}.${field} (${record.id}) - Failed to decrypt: ${error instanceof Error ? error.message : String(error)}`);
           verificationErrors++;
@@ -814,10 +902,13 @@ async function verifyMigration() {
     }
   }
   
+  console.log(`\n📊 Verified ${verifiedCount} sensitive fields`);
+  
   if (verificationErrors > 0) {
-    console.log(`\n⚠️  Verification found ${verificationErrors} errors`);
+    console.log(`⚠️  Verification found ${verificationErrors} errors`);
+    throw new Error(`Verification failed with ${verificationErrors} errors`);
   } else {
-    console.log(`\n✅ Verification passed - all sampled records decrypt successfully`);
+    console.log(`✅ Verification passed - all sampled sensitive fields decrypt successfully with KMS`);
   }
 }
 
@@ -851,8 +942,8 @@ async function runMigration() {
     await migrateStrategyVersions();
     await migrateStrategicDecisions();
     
-    // Run verification
-    if (!isDryRun && stats.migratedRecords > 0) {
+    // Run verification (always run unless dry-run to prove encryption coverage)
+    if (!isDryRun) {
       await verifyMigration();
     }
     
