@@ -161,6 +161,18 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Locations table - Geographic disambiguation for journey inputs
+export const locations = pgTable("locations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  rawQuery: text("raw_query").notNull(), // Original query (e.g., "Portland")
+  displayName: text("display_name").notNull(), // Full name (e.g., "Portland, Oregon, USA")
+  lat: decimal("lat", { precision: 10, scale: 7 }).notNull(),
+  lon: decimal("lon", { precision: 10, scale: 7 }).notNull(),
+  countryCode: varchar("country_code", { length: 2 }).notNull(), // ISO 3166-1 alpha-2
+  adminLevels: jsonb("admin_levels"), // { country, state, county, city }
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Programs table
 export const programs = pgTable("programs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -1037,6 +1049,7 @@ export const benefitsRelations = relations(benefits, ({ one }) => ({
 
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertLocationSchema = createInsertSchema(locations).omit({ id: true, createdAt: true });
 export const insertProgramSchema = createInsertSchema(programs).omit({ id: true, createdAt: true });
 export const insertWorkstreamSchema = createInsertSchema(workstreams).omit({ id: true, createdAt: true });
 export const insertResourceSchema = createInsertSchema(resources).omit({ id: true, createdAt: true });
@@ -1090,6 +1103,9 @@ export const insertFrameworkInsightSchema = createInsertSchema(frameworkInsights
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UpsertUser = typeof users.$inferInsert;  // For Replit Auth
 export type User = typeof users.$inferSelect;
+
+export type InsertLocation = z.infer<typeof insertLocationSchema>;
+export type Location = typeof locations.$inferSelect;
 export type Program = typeof programs.$inferSelect;
 export type Workstream = typeof workstreams.$inferSelect;
 export type Resource = typeof resources.$inferSelect;

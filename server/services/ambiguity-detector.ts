@@ -48,9 +48,21 @@ export class AmbiguityDetectorService {
 
   /**
    * Detect ambiguities in user input
+   * @param userInput - The text to analyze
+   * @param precomputedQuestions - Optional pre-computed questions (e.g., from geographic disambiguation)
    */
-  async detectAmbiguities(userInput: string): Promise<AmbiguityDetectionResult> {
+  async detectAmbiguities(
+    userInput: string,
+    precomputedQuestions: AmbiguityQuestion[] = []
+  ): Promise<AmbiguityDetectionResult> {
     console.log('[Ambiguity Detector] Analyzing input for ambiguities...');
+
+    // If we have pre-computed questions, start with those
+    const mergedQuestions: AmbiguityQuestion[] = [...precomputedQuestions];
+    
+    if (precomputedQuestions.length > 0) {
+      console.log(`[Ambiguity Detector] Including ${precomputedQuestions.length} pre-computed question(s)`);
+    }
 
     const prompt = `Analyze this business idea for ambiguities that would affect strategic planning:
 
@@ -137,15 +149,36 @@ If NO critical ambiguities found, return:
 
       const result = JSON.parse(jsonMatch[0]);
 
+      // Merge AI-detected questions with pre-computed questions
+      if (result.questions && result.questions.length > 0) {
+        mergedQuestions.push(...result.questions);
+      }
+
+      const hasAmbiguities = mergedQuestions.length > 0;
+
       console.log('[Ambiguity Detector] ✓ Analysis complete:', {
-        hasAmbiguities: result.hasAmbiguities,
-        questionCount: result.questions?.length || 0,
+        hasAmbiguities,
+        totalQuestions: mergedQuestions.length,
+        precomputedQuestions: precomputedQuestions.length,
+        aiDetectedQuestions: result.questions?.length || 0,
       });
 
-      return result;
+      return {
+        hasAmbiguities,
+        questions: mergedQuestions,
+        reasoning: result.reasoning || 'Questions require clarification',
+      };
     } catch (error) {
       console.error('[Ambiguity Detector] Error:', error);
-      // On error, assume no ambiguities (fail gracefully)
+      // On error, still return pre-computed questions if any
+      if (mergedQuestions.length > 0) {
+        return {
+          hasAmbiguities: true,
+          questions: mergedQuestions,
+          reasoning: 'Geographic disambiguation needed',
+        };
+      }
+      // Otherwise, assume no ambiguities (fail gracefully)
       return {
         hasAmbiguities: false,
         questions: [],

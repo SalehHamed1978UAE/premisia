@@ -23,6 +23,7 @@ import type { JourneyType } from '@shared/journey-types';
 import { InitiativeClassifier } from '../strategic-consultant/initiative-classifier';
 import { isJourneyRegistryV2Enabled } from '../config';
 import { ambiguityDetector } from '../services/ambiguity-detector.js';
+import { locationResolver } from '../services/location-resolver.js';
 import { getStrategicUnderstanding, getStrategicUnderstandingBySession, updateStrategicUnderstanding, getJourneySession, getJourneySessionByUnderstandingSessionId } from '../services/secure-data-service';
 import { fiveWhysCoach } from '../services/five-whys-coach.js';
 import { buildStrategicSummary } from '../services/strategic-summary-builder';
@@ -208,6 +209,7 @@ router.post('/check-sanity', async (req: Request, res: Response) => {
 /**
  * POST /api/strategic-consultant/check-ambiguities
  * Check user input for ambiguities BEFORE creating strategic understanding
+ * Integrates geographic disambiguation using OpenStreetMap Nominatim API
  */
 router.post('/check-ambiguities', async (req: Request, res: Response) => {
   try {
@@ -217,7 +219,32 @@ router.post('/check-ambiguities', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'userInput is required' });
     }
 
-    const result = await ambiguityDetector.detectAmbiguities(userInput);
+    console.log('[Ambiguity Check] Step 1: Checking for geographic ambiguities...');
+    
+    // Step 1: Resolve geographic locations using Nominatim
+    const locationResult = await locationResolver.resolveAll(userInput);
+    
+    // Store auto-resolved locations (high-confidence matches)
+    for (const location of locationResult.autoResolved) {
+      await storage.createLocation({
+        rawQuery: location.rawQuery,
+        displayName: location.displayName,
+        lat: location.lat.toString(),
+        lon: location.lon.toString(),
+        countryCode: location.countryCode,
+        adminLevels: location.adminLevels,
+      });
+      console.log(`[Ambiguity Check] Auto-resolved location: ${location.rawQuery} → ${location.displayName}`);
+    }
+
+    console.log('[Ambiguity Check] Step 2: Checking for other ambiguities...');
+    
+    // Step 2: Check for other ambiguities, passing in geographic questions
+    const result = await ambiguityDetector.detectAmbiguities(
+      userInput,
+      locationResult.questions
+    );
+    
     res.json(result);
   } catch (error: any) {
     console.error('[Strategic Consultant] Error checking ambiguities:', error);

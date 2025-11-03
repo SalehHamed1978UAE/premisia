@@ -3,12 +3,14 @@ import {
   users, programs, workstreams, resources, stageGates, stageGateReviews, 
   tasks, taskDependencies, kpis, kpiMeasurements, risks, riskMitigations,
   benefits, fundingSources, expenses, sessionContext, strategyVersions,
-  strategyDecisions, epmPrograms, strategicUnderstanding, goldenRecords, goldenRecordChecks
+  strategyDecisions, epmPrograms, strategicUnderstanding, goldenRecords, goldenRecordChecks,
+  locations
 } from "@shared/schema";
 import type { 
   User, InsertUser, UpsertUser, Program, Workstream, Resource, StageGate, StageGateReview,
   Task, TaskDependency, Kpi, KpiMeasurement, Risk, RiskMitigation,
-  Benefit, FundingSource, Expense, SessionContext, InsertSessionContext, StrategyVersion
+  Benefit, FundingSource, Expense, SessionContext, InsertSessionContext, StrategyVersion,
+  Location, InsertLocation
 } from "@shared/schema";
 import { eq, desc, and, isNull, not, count, sql } from "drizzle-orm";
 import session from "express-session";
@@ -28,6 +30,11 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   upsertUser(user: UpsertUser): Promise<User>; // For Replit Auth
+  
+  // Location management
+  createLocation(location: InsertLocation): Promise<Location>;
+  getLocationsByQuery(rawQuery: string): Promise<Location[]>;
+  getLocation(id: string): Promise<Location | undefined>;
   
   // Program management
   getPrograms(): Promise<Program[]>;
@@ -231,6 +238,21 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return user;
+  }
+
+  // Location management
+  async createLocation(location: InsertLocation): Promise<Location> {
+    const [newLocation] = await db.insert(locations).values(location).returning();
+    return newLocation;
+  }
+
+  async getLocationsByQuery(rawQuery: string): Promise<Location[]> {
+    return await db.select().from(locations).where(eq(locations.rawQuery, rawQuery));
+  }
+
+  async getLocation(id: string): Promise<Location | undefined> {
+    const [location] = await db.select().from(locations).where(eq(locations.id, id));
+    return location || undefined;
   }
 
   // Program management
