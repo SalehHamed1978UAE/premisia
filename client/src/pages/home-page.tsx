@@ -469,32 +469,149 @@ function Dashboard({ summary }: { summary: DashboardSummary }) {
 }
 
 function PublicLandingPage() {
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 50);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5">
-      {/* Sticky Header */}
-      <div className="sticky top-0 z-50 bg-card border-b border-border">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <img 
-              src={logoLight} 
-              alt="Premisia" 
-              className="h-8 w-auto dark:hidden"
-            />
-            <img 
-              src={logoDark} 
-              alt="Premisia" 
-              className="h-8 w-auto hidden dark:block"
-            />
-            <span className="px-2 py-1 text-xs font-semibold bg-primary/10 text-primary rounded">BETA</span>
-          </div>
-          <Button 
-            onClick={() => window.location.href = '/api/login'}
-            data-testid="button-header-signin"
-          >
-            Sign In
-          </Button>
+    <>
+      <style>{`
+        @keyframes float {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          33% { transform: translate(30px, -30px) scale(1.1); }
+          66% { transform: translate(-20px, 20px) scale(0.9); }
+        }
+
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(30px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes breathe {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+        }
+
+        @keyframes rotate {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+        @keyframes shimmer {
+          0% { left: -100%; }
+          100% { left: 100%; }
+        }
+
+        .gradient-orb {
+          position: absolute;
+          border-radius: 50%;
+          filter: blur(80px);
+          opacity: 0.3;
+          animation: float 20s infinite ease-in-out;
+        }
+
+        .btn-shimmer:before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -100%;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+          transition: left 0.5s ease;
+        }
+
+        .btn-shimmer:hover:before {
+          left: 100%;
+        }
+
+        .fade-in-up {
+          animation: fadeInUp 0.8s ease;
+          animation-fill-mode: both;
+        }
+      `}</style>
+
+      <div className="min-h-screen bg-[#0f1419] text-white overflow-x-hidden">
+        {/* Animated Background */}
+        <div className="fixed top-0 left-0 w-full h-full -z-10 bg-[#0f1419] overflow-hidden">
+          <div 
+            className="gradient-orb"
+            style={{
+              width: '600px',
+              height: '600px',
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              top: '-200px',
+              right: '-200px',
+              animationDelay: '0s'
+            }}
+          />
+          <div 
+            className="gradient-orb"
+            style={{
+              width: '500px',
+              height: '500px',
+              background: 'linear-gradient(135deg, #3b82f6 0%, #10b981 100%)',
+              bottom: '-150px',
+              left: '-150px',
+              animationDelay: '5s'
+            }}
+          />
+          <div 
+            className="gradient-orb"
+            style={{
+              width: '400px',
+              height: '400px',
+              background: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)',
+              top: '50%',
+              left: '50%',
+              animationDelay: '10s'
+            }}
+          />
         </div>
-      </div>
+
+        {/* Navigation */}
+        <nav 
+          className={cn(
+            "fixed top-0 w-full px-6 md:px-12 z-[1000] transition-all duration-300",
+            scrolled 
+              ? "py-4 bg-[#0f1419]/95 backdrop-blur-lg" 
+              : "py-5 bg-[#0f1419]/80 backdrop-blur-md"
+          )}
+          data-testid="navbar"
+        >
+          <div className="max-w-7xl mx-auto flex justify-between items-center">
+            <div 
+              className="text-2xl font-bold bg-gradient-to-r from-[#3b82f6] to-[#10b981] bg-clip-text text-transparent"
+              data-testid="logo"
+            >
+              PREMISIA
+            </div>
+            <div className="flex gap-6 md:gap-8 items-center">
+              <a href="#features" className="hidden md:block text-[#94a3b8] hover:text-white transition-colors">Features</a>
+              <a href="#process" className="hidden md:block text-[#94a3b8] hover:text-white transition-colors">How it Works</a>
+              <button
+                onClick={() => window.location.href = '/api/login'}
+                className="px-5 py-2.5 bg-gradient-to-r from-[#3b82f6] to-[#10b981] text-white rounded-lg font-semibold hover:-translate-y-0.5 hover:shadow-[0_10px_30px_rgba(59,130,246,0.3)] transition-all duration-300 relative overflow-hidden btn-shimmer"
+                data-testid="button-cta-signin"
+              >
+                Start Free Trial
+              </button>
+            </div>
+          </div>
+        </nav>
 
       <div className="container mx-auto px-4 py-6 md:py-8">
         {/* Hero Section */}
@@ -664,7 +781,8 @@ function PublicLandingPage() {
           </Card>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 
