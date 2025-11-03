@@ -1,5 +1,3 @@
-import { RequestThrottler } from '../utils/request-throttler';
-
 export interface LocationCandidate {
   displayName: string;
   lat: number;
@@ -38,7 +36,8 @@ export interface GeographicQuestion {
 export class LocationResolverService {
   private readonly NOMINATIM_BASE_URL = 'https://nominatim.openstreetmap.org';
   private readonly USER_AGENT = 'StrategicPlanningApp/1.0 (strategic-planning-contact@example.com)';
-  private readonly throttler: RequestThrottler;
+  private readonly MIN_REQUEST_INTERVAL = 1000; // 1 second for Nominatim
+  private lastRequestTime: number = 0;
   private cache: Map<string, LocationCandidate[]>;
 
   // Geographic keywords that indicate a place name
@@ -59,9 +58,23 @@ export class LocationResolverService {
   ];
 
   constructor() {
-    // Nominatim requires max 1 request per second
-    this.throttler = new RequestThrottler(1000);
     this.cache = new Map();
+  }
+
+  /**
+   * Simple rate limiter - waits to ensure 1 second between requests
+   */
+  private async waitForRateLimit(): Promise<void> {
+    const now = Date.now();
+    const timeSinceLastRequest = now - this.lastRequestTime;
+    
+    if (timeSinceLastRequest < this.MIN_REQUEST_INTERVAL) {
+      const waitTime = this.MIN_REQUEST_INTERVAL - timeSinceLastRequest;
+      console.log(`[LocationResolver] Rate limiting: waiting ${waitTime}ms`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+    
+    this.lastRequestTime = Date.now();
   }
 
   /**
@@ -70,8 +83,10 @@ export class LocationResolverService {
   private extractPlaceNames(text: string): string[] {
     const candidates = new Set<string>();
 
+    console.log(`[LocationResolver] Input text:`, text);
+
     for (const pattern of this.PLACE_PATTERNS) {
-      const matches = text.matchAll(pattern);
+      const matches = Array.from(text.matchAll(pattern));
       for (const match of matches) {
         const placeName = match[1]?.trim();
         if (placeName && this.isLikelyPlaceName(placeName)) {
@@ -80,7 +95,10 @@ export class LocationResolverService {
       }
     }
 
-    return Array.from(candidates);
+    const placeNames = Array.from(candidates);
+    console.log(`[LocationResolver] Extracted ${placeNames.length} potential place names:`, placeNames);
+
+    return placeNames;
   }
 
   /**
@@ -126,7 +144,7 @@ export class LocationResolverService {
     console.log(`[LocationResolver] Querying Nominatim for: ${query}`);
 
     // Rate limit to 1 req/sec
-    await this.throttler.throttle();
+    await this.waitForRateLimit();
 
     try {
       const searchParams = new URLSearchParams({
@@ -240,10 +258,9 @@ export class LocationResolverService {
     const placeNames = this.extractPlaceNames(text);
     
     if (placeNames.length === 0) {
+      console.log(`[LocationResolver] No place names found in text`);
       return { autoResolved: [], questions: [] };
     }
-
-    console.log(`[LocationResolver] Extracted ${placeNames.length} potential place names:`, placeNames);
 
     const autoResolved: LocationCandidate[] = [];
     const questions: GeographicQuestion[] = [];
