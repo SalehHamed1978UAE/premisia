@@ -1,8 +1,7 @@
-import { neon } from '@neondatabase/serverless';
+import { neon, neonConfig } from '@neondatabase/serverless';
 import ws from 'ws';
 
-const neonConfig = await import('@neondatabase/serverless');
-neonConfig.neonConfig.webSocketConstructor = ws.default;
+neonConfig.webSocketConstructor = ws;
 
 const pool = neon(process.env.DATABASE_URL!);
 
