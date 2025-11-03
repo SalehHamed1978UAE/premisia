@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db';
-import { strategyDecisions, epmPrograms, journeySessions, strategyVersions, strategicUnderstanding, taskAssignments } from '@shared/schema';
+import { strategyDecisions, epmPrograms, journeySessions, strategyVersions, strategicUnderstanding, taskAssignments, goldenRecords } from '@shared/schema';
 import { eq, desc, inArray, and } from 'drizzle-orm';
 import { BMCAnalyzer, PortersAnalyzer, PESTLEAnalyzer, EPMSynthesizer } from '../intelligence';
 import type { BMCResults, PortersResults, PESTLEResults } from '../intelligence/types';
@@ -683,6 +683,92 @@ async function processEPMGeneration(
                 .where(eq(journeySessions.id, journeySession.id));
               
               console.log(`[EPM Completion Hook] ✓ Journey summary saved and session marked as completed for version ${journeySession.versionNumber}`);
+              
+              // 🔥 GOLDEN RECORDS AUTO-CAPTURE HOOK
+              // Trigger auto-capture for BMI journeys completing through the legacy flow
+              const autoCaptureEnabled = process.env.AUTO_CAPTURE_GOLDEN === 'true';
+              if (autoCaptureEnabled) {
+                console.log(`[EPM Completion Hook] 🔄 Triggering golden records auto-capture for BMI journey ${journeySession.id}`);
+                
+                // Import and call the auto-capture function (async, non-blocking)
+                setImmediate(async () => {
+                  try {
+                    const {
+                      fetchJourneySessionData,
+                      sanitizeGoldenRecordData,
+                      saveGoldenRecordToFile,
+                    } = await import('../utils/golden-records-service');
+                    
+                    const { screenshotCaptureService } = await import('../services/screenshot-capture-service');
+                    
+                    // Fetch journey data
+                    const rawData = await fetchJourneySessionData(journeySession.id);
+                    
+                    if (!rawData) {
+                      console.error('[EPM Completion Hook] Failed to fetch journey session data for auto-capture');
+                      return;
+                    }
+
+                    // Sanitize data
+                    let sanitizedData = await sanitizeGoldenRecordData(rawData);
+
+                    // Determine next version
+                    const existingRecords = await db
+                      .select()
+                      .from(goldenRecords)
+                      .where(eq(goldenRecords.journeyType, 'business_model_innovation' as any))
+                      .orderBy(desc(goldenRecords.version));
+
+                    const maxVersion = existingRecords.length > 0 ? existingRecords[0].version : 0;
+                    const nextVersion = maxVersion + 1;
+
+                    // Update sanitized data with the correct golden record version
+                    sanitizedData.versionNumber = nextVersion;
+
+                    // Capture screenshots (AFTER determining version, without admin cookie)
+                    try {
+                      const stepsWithScreenshots = await screenshotCaptureService.captureStepScreenshots({
+                        journeyType: 'business_model_innovation',
+                        versionNumber: nextVersion,
+                        steps: sanitizedData.steps,
+                        adminSessionCookie: undefined,
+                      });
+                      
+                      sanitizedData.steps = stepsWithScreenshots;
+                      const screenshotCount = stepsWithScreenshots.filter((s: any) => s.screenshot).length;
+                      console.log(`[EPM Completion Hook] ✓ Captured ${screenshotCount} screenshots for version ${nextVersion}`);
+                    } catch (screenshotError) {
+                      console.warn('[EPM Completion Hook] Screenshot capture failed (non-critical):', screenshotError);
+                      // Continue without screenshots
+                    }
+
+                    // Save to file system
+                    const filePath = await saveGoldenRecordToFile(sanitizedData);
+                    
+                    // Save to database
+                    await db.insert(goldenRecords).values({
+                      journeyType: 'business_model_innovation',
+                      version: nextVersion,
+                      filePath,
+                      capturedAt: new Date(),
+                      capturedBy: 'system',
+                      status: 'captured',
+                      metadata: {
+                        autoCapture: true,
+                        source: 'epm_completion_hook',
+                        sessionId: journeySession.id,
+                        versionNumber: journeySession.versionNumber,
+                      },
+                    });
+                    
+                    console.log(`[EPM Completion Hook] ✅ Auto-captured golden record v${nextVersion} for BMI journey`);
+                  } catch (captureError) {
+                    console.error('[EPM Completion Hook] Golden records auto-capture failed (non-critical):', captureError);
+                  }
+                });
+              } else {
+                console.log('[EPM Completion Hook] Golden records auto-capture disabled (AUTO_CAPTURE_GOLDEN=false)');
+              }
             }
           } else if (journeySession) {
             console.log(`[EPM Completion Hook] Journey type is ${journeySession.journeyType}, not BMI - skipping summary`);
