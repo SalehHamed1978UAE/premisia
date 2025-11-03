@@ -384,11 +384,13 @@ async function processEPMGeneration(
       console.log('[EPM Generation] Background job created:', jobId, 'for session:', version.sessionId);
       
       // Update job to running status
-      await backgroundJobService.updateJob(jobId, {
-        status: 'running',
-        progress: 5,
-        progressMessage: 'Preparing strategic analysis...'
-      }).catch(err => console.error('[EPM Generation] Job update failed:', err));
+      if (jobId) {
+        await backgroundJobService.updateJob(jobId, {
+          status: 'running',
+          progress: 5,
+          progressMessage: 'Preparing strategic analysis...'
+        }).catch(err => console.error('[EPM Generation] Job update failed:', err));
+      }
     } catch (jobError) {
       console.error('[EPM Generation] Failed to create background job:', jobError);
       // Continue without job tracking if it fails

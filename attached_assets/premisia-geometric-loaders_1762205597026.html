@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geometric Loading Animations - Premisia</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #0f1419;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 40px;
+            overflow-x: hidden;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #3b82f6 0%, #10b981 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 40px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .loader-box {
+            background: #1a1f2e;
+            border-radius: 20px;
+            padding: 40px;
+            min-height: 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .loader-title {
+            position: absolute;
+            bottom: 20px;
+            font-size: 14px;
+            color: #94a3b8;
+            text-align: center;
+        }
+
+        /* 1. Rotating Cube */
+        .cube-loader {
+            width: 60px;
+            height: 60px;
+            position: relative;
+            transform-style: preserve-3d;
+            animation: rotateCube 2s infinite linear;
+        }
+
+        @keyframes rotateCube {
+            0% { transform: rotateX(0deg) rotateY(0deg); }
+            100% { transform: rotateX(360deg) rotateY(360deg); }
+        }
+
+        .cube-face {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            border: 2px solid #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .cube-face:nth-child(1) { transform: translateZ(30px); }
+        .cube-face:nth-child(2) { transform: rotateY(90deg) translateZ(30px); }
+        .cube-face:nth-child(3) { transform: rotateY(180deg) translateZ(30px); }
+        .cube-face:nth-child(4) { transform: rotateY(-90deg) translateZ(30px); }
+        .cube-face:nth-child(5) { transform: rotateX(90deg) translateZ(30px); }
+        .cube-face:nth-child(6) { transform: rotateX(-90deg) translateZ(30px); }
+
+        /* 2. Morphing Triangle */
+        .triangle-morph {
+            width: 80px;
+            height: 80px;
+            position: relative;
+        }
+
+        .triangle-shape {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #3b82f6, #10b981);
+            animation: morphTriangle 3s infinite ease-in-out;
+            clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+        }
+
+        @keyframes morphTriangle {
+            0% { clip-path: polygon(50% 0%, 0% 100%, 100% 100%); transform: rotate(0deg); }
+            33% { clip-path: polygon(50% 0%, 20% 100%, 80% 100%); transform: rotate(120deg); }
+            66% { clip-path: polygon(30% 0%, 0% 100%, 100% 70%); transform: rotate(240deg); }
+            100% { clip-path: polygon(50% 0%, 0% 100%, 100% 100%); transform: rotate(360deg); }
+        }
+
+        /* 3. DNA Helix */
+        .dna-loader {
+            width: 60px;
+            height: 60px;
+            position: relative;
+        }
+
+        .dna-strand {
+            position: absolute;
+            width: 4px;
+            height: 100%;
+            background: #3b82f6;
+            left: 50%;
+            transform: translateX(-50%);
+            animation: dnaRotate 2s infinite linear;
+        }
+
+        .dna-strand:nth-child(2) {
+            background: #10b981;
+            animation-delay: -0.5s;
+        }
+
+        @keyframes dnaRotate {
+            0% { transform: translateX(-50%) rotateY(0deg); }
+            100% { transform: translateX(-50%) rotateY(360deg); }
+        }
+
+        .dna-node {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #fff;
+            border-radius: 50%;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .dna-strand:nth-child(1) .dna-node:nth-child(1) { top: 0; }
+        .dna-strand:nth-child(1) .dna-node:nth-child(2) { top: 33%; }
+        .dna-strand:nth-child(1) .dna-node:nth-child(3) { top: 66%; }
+        .dna-strand:nth-child(1) .dna-node:nth-child(4) { bottom: 0; }
+
+        /* 4. Hexagon Pulse */
+        .hexagon-loader {
+            width: 80px;
+            height: 80px;
+            position: relative;
+        }
+
+        .hexagon {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #8b5cf6, #3b82f6);
+            clip-path: polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%);
+            animation: hexPulse 2s infinite ease-in-out;
+        }
+
+        @keyframes hexPulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(0.8); opacity: 0.5; }
+        }
+
+        /* 5. Orbiting Dots */
+        .orbit-loader {
+            width: 80px;
+            height: 80px;
+            position: relative;
+        }
+
+        .orbit-center {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: #3b82f6;
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .orbit-ring {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            animation: orbitRotate 2s infinite linear;
+        }
+
+        .orbit-ring:nth-child(2) { animation-delay: -0.5s; }
+        .orbit-ring:nth-child(3) { animation-delay: -1s; }
+
+        @keyframes orbitRotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .orbit-dot {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: #10b981;
+            border-radius: 50%;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        /* 6. Sacred Geometry Flower */
+        .flower-loader {
+            width: 100px;
+            height: 100px;
+            position: relative;
+        }
+
+        .petal {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border: 2px solid #3b82f6;
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform-origin: center;
+            animation: flowerRotate 3s infinite linear;
+        }
+
+        .petal:nth-child(1) { transform: translate(-50%, -100%); }
+        .petal:nth-child(2) { transform: translate(0%, -70%) rotate(60deg); }
+        .petal:nth-child(3) { transform: translate(0%, -70%) rotate(120deg); }
+        .petal:nth-child(4) { transform: translate(0%, -70%) rotate(180deg); }
+        .petal:nth-child(5) { transform: translate(0%, -70%) rotate(240deg); }
+        .petal:nth-child(6) { transform: translate(0%, -70%) rotate(300deg); }
+
+        @keyframes flowerRotate {
+            0% { transform: translate(-50%, -100%) rotate(0deg); }
+            100% { transform: translate(-50%, -100%) rotate(360deg); }
+        }
+
+        /* 7. Fractal Squares */
+        .fractal-loader {
+            width: 80px;
+            height: 80px;
+            position: relative;
+        }
+
+        .fractal-square {
+            position: absolute;
+            border: 2px solid #3b82f6;
+            animation: fractalRotate 3s infinite ease-in-out;
+        }
+
+        .fractal-square:nth-child(1) {
+            width: 80px;
+            height: 80px;
+            animation-delay: 0s;
+        }
+
+        .fractal-square:nth-child(2) {
+            width: 60px;
+            height: 60px;
+            top: 10px;
+            left: 10px;
+            border-color: #10b981;
+            animation-delay: 0.2s;
+        }
+
+        .fractal-square:nth-child(3) {
+            width: 40px;
+            height: 40px;
+            top: 20px;
+            left: 20px;
+            border-color: #8b5cf6;
+            animation-delay: 0.4s;
+        }
+
+        .fractal-square:nth-child(4) {
+            width: 20px;
+            height: 20px;
+            top: 30px;
+            left: 30px;
+            border-color: #f59e0b;
+            animation-delay: 0.6s;
+        }
+
+        @keyframes fractalRotate {
+            0%, 100% { transform: rotate(0deg); }
+            50% { transform: rotate(180deg); }
+        }
+
+        /* 8. Network Nodes */
+        .network-loader {
+            width: 100px;
+            height: 100px;
+            position: relative;
+        }
+
+        .network-line {
+            position: absolute;
+            background: rgba(59, 130, 246, 0.3);
+            height: 2px;
+            transform-origin: left center;
+        }
+
+        .network-line:nth-child(1) {
+            width: 40px;
+            top: 30px;
+            left: 30px;
+            transform: rotate(0deg);
+        }
+
+        .network-line:nth-child(2) {
+            width: 40px;
+            top: 30px;
+            left: 30px;
+            transform: rotate(60deg);
+        }
+
+        .network-line:nth-child(3) {
+            width: 40px;
+            top: 30px;
+            left: 30px;
+            transform: rotate(120deg);
+        }
+
+        .network-node {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #3b82f6;
+            border-radius: 50%;
+            animation: nodePulse 2s infinite ease-in-out;
+        }
+
+        .network-node:nth-child(4) { top: 25px; left: 25px; }
+        .network-node:nth-child(5) { top: 10px; left: 60px; animation-delay: 0.2s; }
+        .network-node:nth-child(6) { top: 50px; left: 70px; animation-delay: 0.4s; }
+        .network-node:nth-child(7) { top: 70px; left: 40px; animation-delay: 0.6s; }
+
+        @keyframes nodePulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.5); opacity: 0.5; }
+        }
+
+        /* 9. Pyramid */
+        .pyramid-loader {
+            width: 80px;
+            height: 80px;
+            position: relative;
+            transform-style: preserve-3d;
+            animation: pyramidRotate 3s infinite linear;
+        }
+
+        @keyframes pyramidRotate {
+            0% { transform: rotateY(0deg) rotateX(30deg); }
+            100% { transform: rotateY(360deg) rotateX(30deg); }
+        }
+
+        .pyramid-face {
+            position: absolute;
+            width: 0;
+            height: 0;
+            border-style: solid;
+        }
+
+        .pyramid-face:nth-child(1) {
+            border-left: 40px solid transparent;
+            border-right: 40px solid transparent;
+            border-bottom: 60px solid rgba(59, 130, 246, 0.8);
+            transform: rotateY(0deg) translateZ(20px);
+        }
+
+        .pyramid-face:nth-child(2) {
+            border-left: 40px solid transparent;
+            border-right: 40px solid transparent;
+            border-bottom: 60px solid rgba(16, 185, 129, 0.8);
+            transform: rotateY(120deg) translateZ(20px);
+        }
+
+        .pyramid-face:nth-child(3) {
+            border-left: 40px solid transparent;
+            border-right: 40px solid transparent;
+            border-bottom: 60px solid rgba(139, 92, 246, 0.8);
+            transform: rotateY(240deg) translateZ(20px);
+        }
+
+        /* 10. Infinity Loop */
+        .infinity-loader {
+            width: 100px;
+            height: 50px;
+            position: relative;
+        }
+
+        .infinity-shape {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        .infinity-shape:before,
+        .infinity-shape:after {
+            content: '';
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border: 3px solid #3b82f6;
+            border-radius: 50%;
+            animation: infinityRotate 2s infinite linear;
+        }
+
+        .infinity-shape:before {
+            left: 0;
+            border-color: #3b82f6;
+        }
+
+        .infinity-shape:after {
+            right: 0;
+            border-color: #10b981;
+            animation-delay: -1s;
+        }
+
+        @keyframes infinityRotate {
+            0% { transform: rotate(0deg) scale(1); }
+            50% { transform: rotate(180deg) scale(0.8); }
+            100% { transform: rotate(360deg) scale(1); }
+        }
+
+        /* 11. Tessellation */
+        .tessellation-loader {
+            width: 90px;
+            height: 90px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 5px;
+        }
+
+        .tess-tile {
+            width: 25px;
+            height: 25px;
+            background: linear-gradient(135deg, #3b82f6, #10b981);
+            animation: tessFlip 2s infinite ease-in-out;
+        }
+
+        .tess-tile:nth-child(1) { animation-delay: 0s; }
+        .tess-tile:nth-child(2) { animation-delay: 0.1s; }
+        .tess-tile:nth-child(3) { animation-delay: 0.2s; }
+        .tess-tile:nth-child(4) { animation-delay: 0.3s; }
+        .tess-tile:nth-child(5) { animation-delay: 0.4s; }
+        .tess-tile:nth-child(6) { animation-delay: 0.5s; }
+        .tess-tile:nth-child(7) { animation-delay: 0.6s; }
+        .tess-tile:nth-child(8) { animation-delay: 0.7s; }
+        .tess-tile:nth-child(9) { animation-delay: 0.8s; }
+
+        @keyframes tessFlip {
+            0%, 100% { transform: rotateY(0deg); }
+            50% { transform: rotateY(180deg); }
+        }
+
+        /* 12. Ripple Effect */
+        .ripple-loader {
+            width: 80px;
+            height: 80px;
+            position: relative;
+        }
+
+        .ripple-ring {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border: 3px solid #3b82f6;
+            border-radius: 50%;
+            animation: rippleExpand 2s infinite ease-out;
+        }
+
+        .ripple-ring:nth-child(1) { animation-delay: 0s; }
+        .ripple-ring:nth-child(2) { animation-delay: 0.5s; }
+        .ripple-ring:nth-child(3) { animation-delay: 1s; }
+
+        @keyframes rippleExpand {
+            0% {
+                transform: scale(0);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 0;
+            }
+        }
+
+        /* Code Display */
+        .code-snippet {
+            margin-top: 40px;
+            padding: 20px;
+            background: #0f1419;
+            border-radius: 10px;
+            border: 1px solid #202938;
+        }
+
+        .code-snippet h2 {
+            color: #3b82f6;
+            margin-bottom: 20px;
+            font-size: 20px;
+        }
+
+        .code-example {
+            background: #1a1f2e;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+        }
+
+        .code-title {
+            color: #10b981;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        /* Standalone loader for integration */
+        .premisia-loader-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 20, 25, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .premisia-loader {
+            text-align: center;
+        }
+
+        .premisia-logo-loader {
+            font-size: 48px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #3b82f6 0%, #10b981 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 30px;
+            animation: logoGlow 2s infinite ease-in-out;
+        }
+
+        @keyframes logoGlow {
+            0%, 100% { opacity: 1; filter: brightness(1); }
+            50% { opacity: 0.8; filter: brightness(1.2); }
+        }
+
+        .loading-text {
+            color: #94a3b8;
+            font-size: 14px;
+            margin-top: 20px;
+            animation: fadeInOut 2s infinite ease-in-out;
+        }
+
+        @keyframes fadeInOut {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <h1>Geometric Loading Animations for Premisia</h1>
+    
+    <div class="container">
+        <!-- 1. Rotating Cube -->
+        <div class="loader-box">
+            <div class="cube-loader">
+                <div class="cube-face"></div>
+                <div class="cube-face"></div>
+                <div class="cube-face"></div>
+                <div class="cube-face"></div>
+                <div class="cube-face"></div>
+                <div class="cube-face"></div>
+            </div>
+            <div class="loader-title">3D Rotating Cube</div>
+        </div>
+
+        <!-- 2. Morphing Triangle -->
+        <div class="loader-box">
+            <div class="triangle-morph">
+                <div class="triangle-shape"></div>
+            </div>
+            <div class="loader-title">Morphing Triangle</div>
+        </div>
+
+        <!-- 3. DNA Helix -->
+        <div class="loader-box">
+            <div class="dna-loader">
+                <div class="dna-strand">
+                    <div class="dna-node"></div>
+                    <div class="dna-node"></div>
+                    <div class="dna-node"></div>
+                    <div class="dna-node"></div>
+                </div>
+                <div class="dna-strand">
+                    <div class="dna-node"></div>
+                    <div class="dna-node"></div>
+                    <div class="dna-node"></div>
+                    <div class="dna-node"></div>
+                </div>
+            </div>
+            <div class="loader-title">DNA Helix</div>
+        </div>
+
+        <!-- 4. Hexagon Pulse -->
+        <div class="loader-box">
+            <div class="hexagon-loader">
+                <div class="hexagon"></div>
+            </div>
+            <div class="loader-title">Pulsing Hexagon</div>
+        </div>
+
+        <!-- 5. Orbiting Dots -->
+        <div class="loader-box">
+            <div class="orbit-loader">
+                <div class="orbit-center"></div>
+                <div class="orbit-ring">
+                    <div class="orbit-dot"></div>
+                </div>
+                <div class="orbit-ring">
+                    <div class="orbit-dot"></div>
+                </div>
+                <div class="orbit-ring">
+                    <div class="orbit-dot"></div>
+                </div>
+            </div>
+            <div class="loader-title">Orbital System</div>
+        </div>
+
+        <!-- 6. Sacred Geometry -->
+        <div class="loader-box">
+            <div class="flower-loader">
+                <div class="petal"></div>
+                <div class="petal"></div>
+                <div class="petal"></div>
+                <div class="petal"></div>
+                <div class="petal"></div>
+                <div class="petal"></div>
+            </div>
+            <div class="loader-title">Sacred Geometry Flower</div>
+        </div>
+
+        <!-- 7. Fractal Squares -->
+        <div class="loader-box">
+            <div class="fractal-loader">
+                <div class="fractal-square"></div>
+                <div class="fractal-square"></div>
+                <div class="fractal-square"></div>
+                <div class="fractal-square"></div>
+            </div>
+            <div class="loader-title">Fractal Squares</div>
+        </div>
+
+        <!-- 8. Network Nodes -->
+        <div class="loader-box">
+            <div class="network-loader">
+                <div class="network-line"></div>
+                <div class="network-line"></div>
+                <div class="network-line"></div>
+                <div class="network-node"></div>
+                <div class="network-node"></div>
+                <div class="network-node"></div>
+                <div class="network-node"></div>
+            </div>
+            <div class="loader-title">Network Nodes</div>
+        </div>
+
+        <!-- 9. Pyramid -->
+        <div class="loader-box">
+            <div class="pyramid-loader">
+                <div class="pyramid-face"></div>
+                <div class="pyramid-face"></div>
+                <div class="pyramid-face"></div>
+            </div>
+            <div class="loader-title">3D Pyramid</div>
+        </div>
+
+        <!-- 10. Infinity Loop -->
+        <div class="loader-box">
+            <div class="infinity-loader">
+                <div class="infinity-shape"></div>
+            </div>
+            <div class="loader-title">Infinity Loop</div>
+        </div>
+
+        <!-- 11. Tessellation -->
+        <div class="loader-box">
+            <div class="tessellation-loader">
+                <div class="tess-tile"></div>
+                <div class="tess-tile"></div>
+                <div class="tess-tile"></div>
+                <div class="tess-tile"></div>
+                <div class="tess-tile"></div>
+                <div class="tess-tile"></div>
+                <div class="tess-tile"></div>
+                <div class="tess-tile"></div>
+                <div class="tess-tile"></div>
+            </div>
+            <div class="loader-title">Tessellation Grid</div>
+        </div>
+
+        <!-- 12. Ripple Effect -->
+        <div class="loader-box">
+            <div class="ripple-loader">
+                <div class="ripple-ring"></div>
+                <div class="ripple-ring"></div>
+                <div class="ripple-ring"></div>
+            </div>
+            <div class="loader-title">Ripple Effect</div>
+        </div>
+    </div>
+
+    <!-- Integration Example -->
+    <div class="code-snippet">
+        <h2>Integration Example for Premisia</h2>
+        
+        <div class="code-example">
+            <div class="code-title">Full Page Loader with Fractal Squares:</div>
+            <pre>&lt;!-- Add this to your page --&gt;
+&lt;div id="premisiaLoader" class="premisia-loader-overlay"&gt;
+    &lt;div class="premisia-loader"&gt;
+        &lt;div class="premisia-logo-loader"&gt;PREMISIA&lt;/div&gt;
+        &lt;div class="fractal-loader"&gt;
+            &lt;div class="fractal-square"&gt;&lt;/div&gt;
+            &lt;div class="fractal-square"&gt;&lt;/div&gt;
+            &lt;div class="fractal-square"&gt;&lt;/div&gt;
+            &lt;div class="fractal-square"&gt;&lt;/div&gt;
+        &lt;/div&gt;
+        &lt;div class="loading-text"&gt;Analyzing strategic vision...&lt;/div&gt;
+    &lt;/div&gt;
+&lt;/div&gt;
+
+&lt;script&gt;
+// Hide loader when page is ready
+window.addEventListener('load', function() {
+    setTimeout(() => {
+        document.getElementById('premisiaLoader').style.opacity = '0';
+        setTimeout(() => {
+            document.getElementById('premisiaLoader').style.display = 'none';
+        }, 500);
+    }, 1500);
+});
+&lt;/script&gt;</pre>
+        </div>
+
+        <div class="code-example">
+            <div class="code-title">Button Loading State:</div>
+            <pre>&lt;button class="btn-with-loader"&gt;
+    &lt;span class="btn-text"&gt;Generate Program&lt;/span&gt;
+    &lt;div class="orbit-loader" style="display: none; width: 30px; height: 30px;"&gt;
+        &lt;div class="orbit-center"&gt;&lt;/div&gt;
+        &lt;div class="orbit-ring"&gt;&lt;div class="orbit-dot"&gt;&lt;/div&gt;&lt;/div&gt;
+    &lt;/div&gt;
+&lt;/button&gt;</pre>
+        </div>
+
+        <div class="code-example">
+            <div class="code-title">Section Loading Placeholder:</div>
+            <pre>&lt;div class="content-loading"&gt;
+    &lt;div class="hexagon-loader"&gt;
+        &lt;div class="hexagon"&gt;&lt;/div&gt;
+    &lt;/div&gt;
+    &lt;p&gt;Loading analysis results...&lt;/p&gt;
+&lt;/div&gt;</pre>
+        </div>
+    </div>
+
+    <!-- Demo Full Page Loader -->
+    <script>
+        // Add click handlers to show loaders in action
+        document.querySelectorAll('.loader-box').forEach(box => {
+            box.style.cursor = 'pointer';
+            box.addEventListener('click', function() {
+                const loader = this.querySelector('[class$="-loader"]').cloneNode(true);
+                const overlay = document.createElement('div');
+                overlay.className = 'premisia-loader-overlay';
+                overlay.style.position = 'fixed';
+                overlay.innerHTML = `
+                    <div class="premisia-loader">
+                        <div class="premisia-logo-loader">PREMISIA</div>
+                        ${loader.outerHTML}
+                        <div class="loading-text">Loading...</div>
+                    </div>
+                `;
+                document.body.appendChild(overlay);
+                
+                setTimeout(() => {
+                    overlay.style.opacity = '0';
+                    setTimeout(() => {
+                        overlay.remove();
+                    }, 500);
+                }, 2000);
+            });
+        });
+
+        // Add hover effect
+        document.querySelectorAll('.loader-box').forEach(box => {
+            box.addEventListener('mouseenter', function() {
+                this.style.background = '#202938';
+                this.style.transform = 'translateY(-5px)';
+                this.style.boxShadow = '0 10px 30px rgba(59, 130, 246, 0.2)';
+            });
+            
+            box.addEventListener('mouseleave', function() {
+                this.style.background = '#1a1f2e';
+                this.style.transform = 'translateY(0)';
+                this.style.boxShadow = 'none';
+            });
+        });
+    </script>
+</body>
+</html>
