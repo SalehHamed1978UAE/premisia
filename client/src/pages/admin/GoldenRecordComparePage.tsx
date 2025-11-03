@@ -217,7 +217,7 @@ export default function GoldenRecordComparePage() {
                       <div>
                         <h4 className="font-semibold mb-2">v{version}</h4>
                         {diff.v1Step ? (
-                          <pre className="bg-white p-3 rounded text-xs overflow-x-auto max-h-48">
+                          <pre className="bg-white dark:bg-gray-100 text-gray-900 p-3 rounded text-xs overflow-x-auto max-h-48">
                             {JSON.stringify(diff.v1Step, null, 2)}
                           </pre>
                         ) : (
@@ -227,7 +227,7 @@ export default function GoldenRecordComparePage() {
                       <div>
                         <h4 className="font-semibold mb-2">v{compareToVersion}</h4>
                         {diff.v2Step ? (
-                          <pre className="bg-white p-3 rounded text-xs overflow-x-auto max-h-48">
+                          <pre className="bg-white dark:bg-gray-100 text-gray-900 p-3 rounded text-xs overflow-x-auto max-h-48">
                             {JSON.stringify(diff.v2Step, null, 2)}
                           </pre>
                         ) : (
@@ -243,13 +243,13 @@ export default function GoldenRecordComparePage() {
                             <div key={idx} className="text-sm border-l-2 border-yellow-500 pl-3" data-testid={`field-diff-${diff.stepNumber}-${idx}`}>
                               <span className="font-medium">{fieldDiff.field}:</span>
                               <div className="grid grid-cols-2 gap-2 mt-1">
-                                <div className="bg-red-50 p-2 rounded">
-                                  <span className="text-xs text-muted-foreground">Old: </span>
-                                  <code className="text-xs">{JSON.stringify(fieldDiff.v1Value)}</code>
+                                <div className="bg-red-50 dark:bg-red-900/20 p-2 rounded">
+                                  <span className="text-xs text-gray-600 dark:text-gray-400">Old: </span>
+                                  <code className="text-xs text-gray-900 dark:text-gray-100">{JSON.stringify(fieldDiff.v1Value)}</code>
                                 </div>
-                                <div className="bg-green-50 p-2 rounded">
-                                  <span className="text-xs text-muted-foreground">New: </span>
-                                  <code className="text-xs">{JSON.stringify(fieldDiff.v2Value)}</code>
+                                <div className="bg-green-50 dark:bg-green-900/20 p-2 rounded">
+                                  <span className="text-xs text-gray-600 dark:text-gray-400">New: </span>
+                                  <code className="text-xs text-gray-900 dark:text-gray-100">{JSON.stringify(fieldDiff.v2Value)}</code>
                                 </div>
                               </div>
                             </div>
