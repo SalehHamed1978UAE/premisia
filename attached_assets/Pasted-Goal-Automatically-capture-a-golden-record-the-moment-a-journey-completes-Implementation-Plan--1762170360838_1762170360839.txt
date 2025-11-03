@@ -1,0 +1,52 @@
+Goal: Automatically capture a golden record the moment a journey completes.
+
+  Implementation Plan
+
+  1. Finish the CLI capture utility (as discussed earlier). Once we can run
+     npm run capture:golden -- --journeyType=bmi --sessionId=<id> --promote,
+     everything else is wiring.
+  2. Add a server-side hook at journey completion.
+     In JourneyOrchestrator (or wherever we mark a session completed), call the
+     capture helper when:
+      - The journey type is one of our “golden record candidates” (start with
+        BMI).
+      - The result is successful (no errors, program generated).
+      - The caller sets a new flag (e.g., AUTO_CAPTURE_GOLDEN=true) so we can
+        toggle behavior.
+
+     The hook should:
+      - Pull the sessionId and latest strategyVersionId.
+      - Build the steps (using the same sanitizer utilities).
+      - Call the Golden Records service directly (don’t use fetch; we’re already
+        server-side).
+      - Decide whether to auto-promote (probably default to false—leave the
+        manual promote flow, or only auto-promote if no existing record).
+  3. Feature flag it.
+     Add AUTO_CAPTURE_GOLDEN=false to .env and wrap the hook in a config check.
+     This keeps the production flow safe until we’ve tested the automation.
+  4. Trigger the CLI when needed.
+     For automation outside the orchestrator (e.g., nightly regression runs),
+     expose an npm script:
+
+     npm run capture:golden -- --journeyType=business_model_innovation
+  --sessionId=...
+     npm run compare:golden -- --journeyType=business_model_innovation
+  --sessionId=...
+
+     so CI or replit tasks can call it.
+  5. Logging & alerts.
+     Have the hook log each capture (journey type, version, promote status).
+     Consider writing to the golden_record_checks table so admins can review
+     runs.
+
+  ———
+
+  What to tell Replit
+
+  - Finish the CLI capture script first.
+  - Add a server-side hook inside the journey completion flow that calls the
+    same capture logic when AUTO_CAPTURE_GOLDEN is true.
+  - Default to not auto-promoting; just archive the record. Admins can promote a
+    good run in the UI.
+  - Document the env flag and new npm run capture:golden/compare:golden commands
+    in docs/GOLDEN_RECORDS.md.
