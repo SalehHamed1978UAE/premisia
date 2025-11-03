@@ -40,6 +40,10 @@ import { ProgramsListPage } from "@/pages/strategy-workspace/ProgramsListPage";
 import { JourneyHub } from "@/pages/journeys/JourneyHub";
 import StrategiesListPage from "@/pages/StrategiesListPage";
 import StrategyDetailPage from "@/pages/StrategyDetailPage";
+import GoldenRecordsListPage from "@/pages/admin/GoldenRecordsListPage";
+import GoldenRecordTimelinePage from "@/pages/admin/GoldenRecordTimelinePage";
+import GoldenRecordDetailPage from "@/pages/admin/GoldenRecordDetailPage";
+import GoldenRecordComparePage from "@/pages/admin/GoldenRecordComparePage";
 import { ProtectedRoute } from "./lib/protected-route";
 import { Loader2 } from "lucide-react";
 
@@ -77,6 +81,10 @@ function Router() {
         <ProtectedRoute path="/strategies" component={StrategiesListPage} />
         <ProtectedRoute path="/repository" component={RepositoryBrowser} />
         <ProtectedRoute path="/repository/:understandingId" component={StatementDetailView} />
+        <ProtectedRoute path="/admin/golden-records/:journeyType/:version/compare" component={GoldenRecordComparePage} />
+        <ProtectedRoute path="/admin/golden-records/:journeyType/:version" component={GoldenRecordDetailPage} />
+        <ProtectedRoute path="/admin/golden-records/:journeyType" component={GoldenRecordTimelinePage} />
+        <ProtectedRoute path="/admin/golden-records" component={GoldenRecordsListPage} />
         <Route path="/auth" component={AuthPage} />
         <Route component={NotFound} />
       </Switch>
