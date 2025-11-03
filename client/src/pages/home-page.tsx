@@ -198,7 +198,7 @@ function OnboardingFlow() {
 
         {/* Step Indicators - Display only, not clickable */}
         <div className="flex justify-center mb-8 px-4">
-          <div className="flex flex-row items-center gap-0">
+          <div className="flex flex-col sm:flex-row items-center gap-0">
             {ONBOARDING_STEPS.map((step, index) => (
               <>
                 <div
@@ -540,7 +540,7 @@ function PublicLandingPage() {
         </div>
 
         {/* Value Pillars */}
-        <div className="grid md:grid-cols-2 gap-8 mb-16">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
           <Card className="border-2">
             <CardHeader>
               <div className="flex items-center space-x-3 mb-2">
@@ -609,7 +609,7 @@ function PublicLandingPage() {
         {/* How it works */}
         <div className="mb-16">
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-12 text-foreground">How it works</h2>
-          <div className="flex flex-col md:grid md:grid-cols-3 gap-8 md:gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="text-center">
               <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl font-bold text-primary">1</span>
@@ -714,7 +714,7 @@ export default function HomePage() {
       {(isLoading || summaryLoading) ? (
         <div className="p-6 space-y-6">
           <Skeleton className="h-12 w-64" />
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             <Skeleton className="h-32" />
             <Skeleton className="h-32" />
             <Skeleton className="h-32" />

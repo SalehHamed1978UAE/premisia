@@ -44,7 +44,7 @@ export default function AuthPage() {
                 Premisia structures complex choices so leaders can align, commit, and move. Multi-agent AI that turns leadership intent into EPM-grade roadmaps, budgets, and OKRs—with live evidence, governance, and change tracking.
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-6 mt-12">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-12">
               <div className="space-y-2">
                 <div className="flex items-center space-x-2">
                   <CheckCircle className="h-5 w-5" />
@@ -90,7 +90,7 @@ export default function AuthPage() {
       </div>
 
       {/* Auth Section */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-12">
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 lg:p-12">
         <div className="w-full max-w-md">
           <Card className="shadow-2xl border-0 bg-card/50 backdrop-blur">
             <CardContent className="p-8">
