@@ -38,7 +38,7 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tail
 - **Journey Builder System**: Allows users to choose from 6 pre-defined journeys or create custom ones with AI validation.
 - **Universal Background Jobs System**: Hybrid system for tracking long-running operations with database persistence and real-time SSE streaming.
 - **Non-Blocking Progress UX**: Uses a fixed-position progress card (`MinimizedJobTracker`) and polling.
-- **Enterprise Data Encryption**: AES-256-GCM encryption for sensitive business data at rest.
+- **Enterprise Data Encryption**: AWS KMS envelope encryption with AES-256-GCM for sensitive business data at rest. All sensitive fields (including `input_summary` in strategy_versions) are encrypted before storage via `encryptKMS` in the storage layer. Migration completed November 2025 to encrypt legacy plaintext records.
 - **Full-Pass Export System**: Generates ZIP bundles with strategic analysis and EPM program data in multiple formats.
 - **Document Intelligence Enrichment**: Background job pipeline for asynchronously extracting knowledge from uploaded documents (PDF, DOCX, Excel, images), populating the encrypted knowledge graph.
 - **Strategies Hub**: Unified view for all strategic initiatives, providing artifact hierarchy and research provenance.
