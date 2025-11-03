@@ -50,6 +50,13 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tail
 ## Journey Navigation Architecture
 The application uses two orchestrator-driven entry points for strategic journeys: "Strategic Consultant Journey" (new analysis) and "Strategies Hub Run Now" (follow-on analysis). Both use a `pageSequence` array to determine navigation order. Critical navigation rules include using `pageSequence[1]` to skip the input page for journey execution and the strict requirement for both `sessionId` and `versionNumber` in the Strategic Decisions page route. Research endpoints are expected to return a `nextUrl` with the complete path and `versionNumber`.
 
+### Follow-on Journey Session ID Architecture (November 2025)
+Follow-on journeys create NEW journey sessions with unique IDs to maintain version isolation. Critical implementation details:
+- **WhysTreePage Navigation Fix**: WhysTreePage fetches the journey session ID from localStorage and uses it (not understanding.sessionId) when navigating to ResearchPage, ensuring downstream operations use the correct session context.
+- **BMC Research Endpoint Dual-Mode**: The BMC research endpoint handles both journey session IDs (new flow) and understanding session IDs (legacy flow) by first attempting `getJourneySession(sessionId)`, then falling back to `getJourneySessionByUnderstandingSessionId(sessionId)`.
+- **StrategyVersions Isolation**: Each follow-on journey creates its own strategyVersion with the journey session ID as session_id, ensuring separate EPM programs are generated for each run.
+- **Database Evidence**: Journey sessions table stores unique IDs for each run; strategyVersions.session_id maps to journey session IDs (post-fix) or understanding session IDs (legacy).
+
 # External Dependencies
 - **Database Service**: Neon serverless PostgreSQL
 - **Session Store**: `connect-pg-simple`
