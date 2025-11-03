@@ -115,8 +115,20 @@ async function captureGoldenRecord() {
     // Step 5: Save to database via direct insert (CLI has DB access)
     console.log('💾 Saving to database...');
     
-    // Get user ID (in CLI context, we use a system user or the first admin)
-    const adminUser = process.env.ADMIN_USER_ID || 'system';
+    // Get user ID (in CLI context, query for first admin user)
+    const { users } = await import('../shared/schema.js');
+    const [adminUserRecord] = await db
+      .select()
+      .from(users)
+      .where(eq(users.role, 'Admin'))
+      .limit(1);
+    
+    if (!adminUserRecord) {
+      console.error('❌ Error: No admin user found in database');
+      process.exit(1);
+    }
+    
+    const adminUser = adminUserRecord.id;
     
     const recordData = {
       journeyType: rawData.journeyType as any,
