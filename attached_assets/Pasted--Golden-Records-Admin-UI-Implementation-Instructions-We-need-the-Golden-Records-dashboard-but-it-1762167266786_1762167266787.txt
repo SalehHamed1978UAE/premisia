@@ -1,0 +1,44 @@
+ Golden Records Admin UI Implementation Instructions
+
+  We need the Golden Records dashboard, but it must be invisible to regular
+  users. Please build the UI inside the existing app with the following
+  constraints:
+
+  1. Routing
+      - Mount the admin experience under /admin/golden-records (and sub-routes
+        like /admin/golden-records/:journeyType/:version and /admin/golden-
+        records/:journeyType/:version/compare).
+      - Do not expose these routes in the public sidebar/top-nav; only admins
+        with the direct URL should reach them.
+  2. Client-Side Guard
+      - Before rendering any admin component, check the signed-in user’s role/
+        feature flag. We already have admin roles available—reuse the same
+        logic we use elsewhere (e.g., requireRole(['Admin']) equivalent on the
+        client).
+      - If the user is not an admin, immediately redirect to a safe page or show
+        an “Access denied” message.
+  3. Server-Side Protection
+      - All new API calls already go through requireRole(['Admin']). Keep using
+        those endpoints; no additional server wiring needed.
+  4. UI Features to Implement
+      - Journey list view showing each journey type, current version badge, last
+        updated timestamp, and a link to its timeline.
+      - Version timeline per journey with promote/clone/download actions.
+      - Version detail page displaying each step: screenshots, expected URLs,
+        sanitized payloads, DB snapshots, notes.
+      - Compare view with side-by-side diffs (highlight changed URLs and payload
+        differences; for screenshots, let admins flip between versions).
+      - Capture form (for later) will live here, so add a placeholder “Capture
+        Golden Record” button that calls the existing API.
+  5. Screenshot handling
+      - For now, allow manual upload via the admin form and store files at
+        golden-records/<journeyType>/v<version>/<step>.png using the existing
+        asset pipeline. Save the path in steps[].screenshotPath.
+  6. Testing
+      - Verify a non-admin account cannot access /admin/golden-records (client
+        guard + server 403).
+      - As an admin, walk through the list → timeline → detail → compare and hit
+        the API endpoints to ensure everything renders properly.
+
+  Once the admin UI is in place, we’ll integrate the capture workflow and
+  regression CLI.
