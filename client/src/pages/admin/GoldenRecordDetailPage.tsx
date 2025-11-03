@@ -1,12 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
 import { useRequireAdmin } from "@/hooks/use-require-admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Eye, Code, Database, FileImage } from "lucide-react";
+import { ArrowLeft, Eye, Code, Database, FileImage, Star } from "lucide-react";
 import { format } from "date-fns";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 type GoldenRecordStep = {
   stepNumber: number;
@@ -35,10 +37,31 @@ export default function GoldenRecordDetailPage() {
   const { journeyType, version } = useParams<{ journeyType: string; version: string }>();
   const { isAdmin, isLoading: authLoading } = useRequireAdmin();
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
 
   const { data: record, isLoading } = useQuery<GoldenRecord>({
     queryKey: ['/api/admin/golden-records', journeyType, version],
     enabled: isAdmin && !!journeyType && !!version,
+  });
+
+  const promoteMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest('POST', `/api/admin/golden-records/${journeyType}/${version}/promote`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/golden-records'] });
+      toast({
+        title: "Version promoted",
+        description: "This version is now the current golden record",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Promotion failed",
+        description: "Unable to promote this version",
+        variant: "destructive",
+      });
+    },
   });
 
   if (authLoading || !isAdmin) {
@@ -93,13 +116,26 @@ export default function GoldenRecordDetailPage() {
                 <p className="mt-2 text-sm">{record.notes}</p>
               )}
             </div>
-            <Button
-              variant="outline"
-              onClick={() => setLocation(`/admin/golden-records/${journeyType}/${version}/compare`)}
-              data-testid="button-compare"
-            >
-              Compare Versions
-            </Button>
+            <div className="flex gap-2">
+              {!record.isCurrent && (
+                <Button
+                  variant="default"
+                  onClick={() => promoteMutation.mutate()}
+                  disabled={promoteMutation.isPending}
+                  data-testid="button-promote"
+                >
+                  <Star className="h-4 w-4 mr-2" />
+                  {promoteMutation.isPending ? "Promoting..." : "Promote to Current"}
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                onClick={() => setLocation(`/admin/golden-records/${journeyType}/${version}/compare`)}
+                data-testid="button-compare"
+              >
+                Compare Versions
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-4">

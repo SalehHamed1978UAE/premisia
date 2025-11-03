@@ -152,6 +152,10 @@ export default function GoldenRecordTimelinePage() {
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={() => toast({
+                        title: "Clone Feature",
+                        description: "Clone functionality will be available via CLI automation in a future update.",
+                      })}
                       data-testid={`button-clone-${record.version}`}
                     >
                       <Copy className="h-4 w-4 mr-1" />
@@ -160,6 +164,10 @@ export default function GoldenRecordTimelinePage() {
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={() => toast({
+                        title: "Export Feature",
+                        description: "Export functionality will be available via CLI automation in a future update.",
+                      })}
                       data-testid={`button-download-${record.version}`}
                     >
                       <Download className="h-4 w-4 mr-1" />
