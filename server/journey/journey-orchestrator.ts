@@ -411,8 +411,15 @@ export class JourneyOrchestrator {
       return;
     }
 
-    // Journey allowlist (start with BMI only)
-    const allowedJourneys: JourneyType[] = ['business_model_innovation'];
+    // Journey allowlist (all journey types enabled for auto-capture)
+    const allowedJourneys: JourneyType[] = [
+      'market_entry',
+      'business_model_innovation',
+      'competitive_strategy',
+      'digital_transformation',
+      'crisis_recovery',
+      'growth_strategy'
+    ];
     
     if (!allowedJourneys.includes(journeyType)) {
       console.log(`[Golden Records] Journey type "${journeyType}" not in auto-capture allowlist`);
