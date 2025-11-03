@@ -174,7 +174,7 @@ export default function PrioritizationPage() {
         const option = decision.options.find(opt => opt.id === selectedOptionId);
         if (option) {
           items.push({
-            id: `${decision.id}-${option.id}`,
+            id: option.id,
             title: option.label,
             description: option.description,
             isRecommended: option.recommended || false,
@@ -512,7 +512,7 @@ export default function PrioritizationPage() {
           <CardContent className="space-y-3">
             {prioritizedItems.map((item, index) => (
               <div
-                key={item.id}
+                key={`${item.decisionId}-${item.id}`}
                 className="flex items-start gap-4 p-4 border rounded-lg bg-card hover:bg-accent/5 transition-colors"
                 data-testid={`priority-item-${index}`}
               >
