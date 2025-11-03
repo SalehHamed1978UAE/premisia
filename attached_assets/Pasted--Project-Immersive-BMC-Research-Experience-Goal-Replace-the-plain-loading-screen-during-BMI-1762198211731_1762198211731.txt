@@ -1,0 +1,60 @@
+ ### Project: Immersive BMC Research Experience
+
+  Goal: Replace the plain loading screen during BMI/BMC research with a rich,
+  animated interface that keeps users engaged and informed while the research
+  runs.
+
+  Key features to build:
+
+  1. Animated background & theme
+      - Softly moving geometric patterns (SVG/WebGL) with BMI colors.
+      - Lightweight animation (Framer Motion or similar) with reduced-motion
+        fallback.
+  2. Progress timeline
+      - Horizontal (or circular) timeline showing phases such as:
+          - Generating queries
+          - Collecting sources
+          - Extracting evidence
+          - Validating contradictions
+          - Synthesizing insights
+          - Preparing summary
+      - Each phase lights up with an animation when active and shows status
+        text.
+  3. Live insight cards
+      - As SSE updates arrive, display animated cards (slide in/out) with:
+          - Category (market dynamics, competitive landscape…)
+          - Headline, summary, confidence
+          - “Sources consulted” or similar details
+      - Use AnimatePresence or similar for smooth entrance/exit.
+  4. Context stats
+      - Sidebar or widgets showing counters (sources scanned, articles analyzed,
+        contradictions flagged).
+      - Counters increment smoothly as progress updates come in.
+  5. Narrative beats
+      - Small text callouts when something interesting happens (e.g., “Top
+        keyword: artisan cafe”).
+      - Driven by existing SSE messages.
+  6. Controls
+      - “Skip animation” / reduce motion toggle (respect user prefers-reduced-
+        motion).
+      - Ensure accessible (aria-live updates, keyboard navigation).
+  7. Fallback mode
+      - If animations fail or user opts out, fall back to current simple loader
+        with progress bar.
+
+  Technical requirements:
+
+  - Create a ResearchExperience component that subscribes to the existing SSE
+    endpoints.
+  - Map SSE events to phases and insight queues.
+  - Keep CPU/GPU usage light; throttle animation when tab is inactive.
+  - Write snapshot/tests to ensure the progress state renders correctly.
+
+  Deliverables:
+
+  1. High-level mockup or visual reference for approval.
+  2. Implementation of the animated experience in the BMI research flow.
+  3. Tests (unit or integration) verifying the new UI handles progress updates.
+  4. Documentation/walkthrough so future journeys can reuse the component.
+
+  ———

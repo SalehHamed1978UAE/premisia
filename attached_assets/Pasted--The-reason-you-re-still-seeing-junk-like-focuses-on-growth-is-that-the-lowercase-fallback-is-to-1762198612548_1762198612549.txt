@@ -1,0 +1,51 @@
+ The reason you’re still seeing junk like “focuses on growth” is that the
+  lowercase fallback is too permissive. A safer approach is:
+
+  1. Keep the capitalized path exactly as-is. If the user types “Portland” or
+     “New York”, those should get picked up by the standard capitalized regex.
+  2. When the initial pass finds nothing, run a secondary pass that normalizes
+     candidate phrases to Title Case before matching. For example, “madinat
+     al riyadh” becomes “Madinat Al Riyadh”. The moment you convert it, the
+     existing capitalized pattern can pick it up. You don’t need a broad
+     lowercase fallback anymore—just normalize and reuse the strict pattern.
+  3. For the tokens you capitalize, only allow connectors/articles from a small
+     whitelist (al, el, la, los, de, del, san, santa, etc.). Any sequence that
+     after title-casing still contains words not in the whitelist or that are
+     shorter than 3 characters should be dropped.
+  4. If you want extra safety, run a quick lookup against the geocoder (GeoNames
+     or whatever you already have) for each candidate. If the lookup fails,
+     don’t return it as a location.
+
+  That way:
+
+  - “focuses on growth” drops out immediately because the words aren’t in the
+    whitelist, even after title-casing.
+  - “madinat al riyadh” -> “Madinat Al Riyadh” passes the whitelist and becomes
+    a valid lookup.
+  - “new york” -> “New York” passes without the wildcard fallback.
+
+  TL;DR: remove the broad lowercase acceptance, and instead feed the title-
+  cased candidate into your existing capitalized matcher (with a small connector
+  whitelist). This keeps the false positives out while still handling freeform
+  lowercase input.
+
+
+› what about when they mispel?
+
+
+• For typos or near-misses you can layer a fuzzy lookup after the title-case
+  pass:
+
+  1. Keep the strict extraction (capitalized pattern).
+  2. When a candidate fails geocode, run a fuzzy search:
+      - Use a geocoding API that supports fuzzy matching (GeoNames, Mapbox,
+        Google Places, etc.) with low tolerance, or use a server-side
+        Levenshtein/Damerau distance.
+      - Only accept matches above a confidence threshold (e.g., 0.8).
+      - Return the best few suggestions back to the caller.
+  3. Let the disambiguation UI show the suggestion(s) so users can pick “Madinat
+     Ar Riyadh” if they typed “madinat al riyadh”.
+  4. Document the flow (strict match → fuzzy match → prompt user).
+
+  This way you handle correct spellings cleanly, catch common misspellings via
+  fuzzy lookup, and still keep control via the disambiguation step.

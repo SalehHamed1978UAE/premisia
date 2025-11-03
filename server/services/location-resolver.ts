@@ -40,22 +40,6 @@ export class LocationResolverService {
   private lastRequestTime: number = 0;
   private cache: Map<string, LocationCandidate[]>;
 
-  // Geographic keywords that indicate a place name
-  private readonly GEO_KEYWORDS = [
-    'in', 'at', 'from', 'located', 'based', 'opening', 'launching',
-    'city', 'town', 'state', 'province', 'country', 'region', 'area',
-    'market', 'location', 'territory', 'district'
-  ];
-
-  // Common place name patterns
-  private readonly PLACE_PATTERNS = [
-    // "in [place]" - case insensitive for place name
-    /\b(?:in|at|from|based in|located in|opening in|launching in|expanding to)\s+([a-zA-Z][a-zA-Z\s,'-]+?)(?:\s+(?:market|area|region|city|town|state|country|district)|\b)/gi,
-    
-    // "[place] market/area/region" 
-    /\b([a-zA-Z][a-zA-Z\s,'-]{2,}?)\s+(?:market|area|region|territory|district)\b/gi,
-  ];
-
   constructor() {
     this.cache = new Map();
   }
@@ -77,25 +61,58 @@ export class LocationResolverService {
   }
 
   /**
-   * Extract potential place names from text
+   * Extract potential place names from text using hybrid approach:
+   * 1. Keyword-driven patterns (case-insensitive) - reliable for contextual extraction
+   * 2. Title-case normalization for capitalized detection
    */
   private extractPlaceNames(text: string): string[] {
     const candidates = new Set<string>();
 
     console.log(`[LocationResolver] Input text:`, text);
 
-    for (let i = 0; i < this.PLACE_PATTERNS.length; i++) {
-      const pattern = this.PLACE_PATTERNS[i];
-      console.log(`[LocationResolver] Testing pattern ${i + 1}/${this.PLACE_PATTERNS.length}`);
+    // Step 1: Keyword-driven patterns (case-insensitive, reliable)
+    const keywordPattern = /\b(?:in|at|from|based in|located in|opening in|launching in|expanding to)\s+([a-zA-Z][a-zA-Z\s,'-]+?)(?=\s+(?:market|area|region|city|town|targeting|to|for|with)|\b)/gi;
+    const marketPattern = /\b([a-zA-Z][a-zA-Z\s,'-]{2,30}?)\s+(?:market|area|region|territory|district)\b/gi;
+    
+    [keywordPattern, marketPattern].forEach((pattern, idx) => {
       const matches = Array.from(text.matchAll(pattern));
-      console.log(`[LocationResolver] Matches found:`, matches.length);
-      for (const match of matches) {
-        const placeName = match[1]?.trim();
+      console.log(`[LocationResolver] Keyword pattern ${idx + 1} found ${matches.length} matches`);
+      matches.forEach(match => {
+        const placeName = match[1]?.trim().replace(/[^\w\s,'-]/g, '').trim();
         if (placeName && this.isLikelyPlaceName(placeName)) {
-          console.log(`[LocationResolver] Added candidate: "${placeName}"`);
+          console.log(`[LocationResolver] Added from keyword pattern: "${placeName}"`);
           candidates.add(placeName);
-        } else if (placeName) {
-          console.log(`[LocationResolver] Rejected candidate: "${placeName}" (failed isLikelyPlaceName)`);
+        }
+      });
+    });
+
+    // Step 2: Title-case normalization for capitalized detection
+    // Split text into words and try normalizing to Title Case
+    const words = text.split(/\s+/);
+    
+    for (let i = 0; i < words.length; i++) {
+      // Try sequences of 1, 2, 3, and 4 words
+      for (let len = 1; len <= 4 && i + len <= words.length; len++) {
+        const sequence = words.slice(i, i + len).join(' ');
+        const cleaned = sequence.replace(/[^\w\s,'-]/g, '').trim();
+        
+        if (!cleaned) continue;
+
+        // Check if already capitalized
+        if (/^[A-Z]/.test(cleaned)) {
+          if (this.isLikelyPlaceName(cleaned)) {
+            console.log(`[LocationResolver] Added capitalized: "${cleaned}"`);
+            candidates.add(cleaned);
+          }
+          continue;
+        }
+
+        // For lowercase sequences, normalize to Title Case
+        const titleCased = this.toTitleCaseWithWhitelist(cleaned);
+        
+        if (titleCased && this.isLikelyPlaceName(titleCased)) {
+          console.log(`[LocationResolver] Added title-cased: "${cleaned}" -> "${titleCased}"`);
+          candidates.add(titleCased);
         }
       }
     }
@@ -112,20 +129,7 @@ export class LocationResolverService {
   private isLikelyPlaceName(candidate: string): boolean {
     const trimmed = candidate.trim();
     
-    // Filter out common words that aren't places
-    const excludedWords = [
-      'the', 'this', 'that', 'there', 'these', 'those',
-      'we', 'our', 'my', 'your', 'their', 'his', 'her',
-      'business', 'model', 'canvas', 'innovation',
-      'strategy', 'plan', 'analysis', 'report', 'company',
-      'industry', 'sector', 'customer', 'product'
-    ];
-
-    if (excludedWords.includes(trimmed.toLowerCase())) {
-      return false;
-    }
-
-    // Should be 2-50 characters
+    // Must be 2-50 characters
     if (trimmed.length < 2 || trimmed.length > 50) {
       return false;
     }
@@ -135,7 +139,93 @@ export class LocationResolverService {
       return false;
     }
 
+    const words = trimmed.toLowerCase().split(/\s+/);
+    
+    // Limit to 1-5 words
+    if (words.length > 5) {
+      console.log(`[LocationResolver] Rejected (too many words): "${trimmed}"`);
+      return false;
+    }
+
+    // Reject standalone connectors/articles
+    const connectors = ['of', 'the', 'a', 'an', 'al', 'el', 'la', 'los', 'las', 'de', 'del', 'y', 'e', 'i'];
+    if (words.length === 1 && connectors.includes(words[0])) {
+      console.log(`[LocationResolver] Rejected (standalone connector): "${trimmed}"`);
+      return false;
+    }
+
+    // Exclude common non-place words
+    const excludedWords = [
+      'this', 'that', 'there', 'these', 'those',
+      'we', 'our', 'my', 'your', 'their', 'his', 'her', 'its',
+      'business', 'model', 'canvas', 'innovation', 'company',
+      'strategy', 'plan', 'analysis', 'report', 'product',
+      'industry', 'sector', 'customer', 'service',
+      'is', 'are', 'was', 'were', 'will', 'would', 'can', 'could',
+      'should', 'be', 'been', 'being', 'have', 'has', 'had',
+      'to', 'for', 'and', 'or', 'but', 'with', 'from', 'by',
+      'target', 'great', 'good', 'best', 'old', 'first', 'last',
+      'focuses', 'growth', 'operating', 'design'
+    ];
+
+    // Check each word - if ANY word is excluded, reject
+    for (const word of words) {
+      if (excludedWords.includes(word)) {
+        console.log(`[LocationResolver] Rejected (excluded word "${word}"): "${trimmed}"`);
+        return false;
+      }
+    }
+
     return true;
+  }
+
+  /**
+   * Convert to Title Case, keeping connectors/articles lowercase
+   * Only accepts sequences with valid location tokens
+   */
+  private toTitleCaseWithWhitelist(text: string): string | null {
+    const words = text.toLowerCase().split(/\s+/);
+    
+    // Single words: just capitalize
+    if (words.length === 1) {
+      return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
+    }
+
+    // Whitelist of allowed lowercase connectors/articles
+    const connectorWhitelist = [
+      'al', 'el', 'la', 'los', 'las', 'de', 'del', 'dos', 'von', 'van', 'le',
+      'san', 'santa', 'santo', 'saint', 'st', 'da', 'di', 'du',
+      'of', 'the', 'a', 'an', 'y', 'e', 'i', 'und', 'et'
+    ];
+
+    // Check each word
+    for (const word of words) {
+      // Skip very short words that are connectors
+      if (word.length < 2) {
+        console.log(`[LocationResolver] Rejected title-case (single letter): "${text}"`);
+        return null;
+      }
+
+      // Word must be connector (allowed lowercase) or 3+ chars
+      const isConnector = connectorWhitelist.includes(word);
+      const isValidLength = word.length >= 3;
+      
+      if (!isConnector && !isValidLength) {
+        console.log(`[LocationResolver] Rejected title-case (invalid word "${word}"): "${text}"`);
+        return null;
+      }
+    }
+
+    // Convert to Title Case, keeping connectors lowercase
+    const titleCased = words.map(word => {
+      if (connectorWhitelist.includes(word)) {
+        return word; // Keep connectors lowercase
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    }).join(' ');
+
+    console.log(`[LocationResolver] Title-cased: "${text}" -> "${titleCased}"`);
+    return titleCased;
   }
 
   /**
