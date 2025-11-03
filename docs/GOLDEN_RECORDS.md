@@ -12,14 +12,278 @@ The Golden Records system provides baseline snapshots of journey executions for 
 
 ## Table of Contents
 
-1. [Concepts](#concepts)
-2. [Admin UI Workflow](#admin-ui-workflow)
-3. [CLI Capture Utility](#cli-capture-utility)
-4. [CLI Compare Utility](#cli-compare-utility)
-5. [Auto-Capture Feature](#auto-capture-feature)
-6. [Promotion & Rollback](#promotion--rollback)
-7. [Screenshot Storage](#screenshot-storage)
-8. [Security & Sanitization](#security--sanitization)
+1. [System Overview & Toggle Guide](#system-overview--toggle-guide)
+2. [Concepts](#concepts)
+3. [Admin UI Workflow](#admin-ui-workflow)
+4. [CLI Capture Utility](#cli-capture-utility)
+5. [CLI Compare Utility](#cli-compare-utility)
+6. [Auto-Capture Feature](#auto-capture-feature)
+7. [Promotion & Rollback](#promotion--rollback)
+8. [Screenshot Storage](#screenshot-storage)
+9. [Security & Sanitization](#security--sanitization)
+
+---
+
+## System Overview & Toggle Guide
+
+This section provides a complete operational guide for understanding, configuring, and managing the Golden Records automation system.
+
+### How It Works
+
+The Golden Records system automatically captures baseline snapshots of journey executions for regression testing:
+
+1. **Journey Completion Triggers Capture**
+   - Every journey completion produces a sanitized snapshot containing:
+     - Session metadata (journey type, version, timestamps)
+     - Completed framework steps
+     - EPM program generation status
+   - Snapshots are captured in the background and never block the user flow
+
+2. **Dual Storage Strategy**
+   - **Database**: Records stored in `golden_records` table, checks in `golden_record_checks` table
+   - **Filesystem**: JSON files saved to `scripts/output/golden-records/<journey_type>/v<version>_<timestamp>.json`
+   - Both storage locations are kept synchronized with matching version numbers
+
+3. **Current Baseline System**
+   - One record per journey type is marked `is_current=true`
+   - The compare CLI (`golden-record-compare.ts`) diffs latest runs against the current record
+   - Only the promoted baseline is used for regression testing
+
+4. **Non-Blocking Background Execution**
+   - Auto-capture runs asynchronously using `setImmediate()`
+   - Never blocks user workflows or journey completion
+   - Errors are logged but don't affect the main application flow
+
+### Control Flags
+
+The Golden Records system uses feature flags and allowlists for fine-grained control:
+
+#### AUTO_CAPTURE_GOLDEN Environment Variable
+
+```bash
+# Enable auto-capture (default: false)
+export AUTO_CAPTURE_GOLDEN=true
+
+# Disable auto-capture
+export AUTO_CAPTURE_GOLDEN=false
+# or simply unset it
+```
+
+**Behavior:**
+- `false` (default): Auto-capture is disabled; only manual CLI captures work
+- `true`: Every completed journey in the allowlist triggers automatic capture
+
+#### Journey Allowlist
+
+**Location:** `server/journey/journey-orchestrator.ts`
+
+```typescript
+// Current allowlist (BMI only)
+const allowedJourneys: JourneyType[] = ['business_model_innovation'];
+
+// To enable all journeys
+const allowedJourneys: JourneyType[] = [
+  'market_entry',
+  'business_model_innovation',
+  'competitive_strategy',
+  'digital_transformation',
+  'crisis_recovery',
+  'growth_strategy'
+];
+```
+
+**Control Options:**
+- **Disable globally**: Set `AUTO_CAPTURE_GOLDEN=false` and restart server
+- **Disable for specific journey**: Remove from allowlist array and restart
+- **Enable specific journeys**: Add journey types to allowlist array
+
+**Changes require server restart** to take effect.
+
+### Running Manually
+
+Manual CLI tools are available for on-demand capture and comparison operations.
+
+#### Capture Command
+
+```bash
+# Capture by journey session ID
+npx tsx scripts/golden-record-capture.ts --sessionId=<session_id> [--notes="Description"] [--promote]
+
+# Capture by strategy version ID (alternative)
+npx tsx scripts/golden-record-capture.ts --strategyVersionId=<version_id> [--notes="Description"] [--promote]
+```
+
+**Flags:**
+- `--sessionId`: Journey session ID to capture (required if no strategyVersionId)
+- `--strategyVersionId`: Strategy version ID alternative to sessionId
+- `--notes`: Optional description for this baseline (e.g., "BMI v2.1 after fixes")
+- `--promote`: Mark this capture as the current golden record (default: false)
+
+**Exit Codes:**
+- `0`: Success
+- `1`: Error during capture
+
+**Example:**
+```bash
+# Find the latest BMI session
+# SELECT id FROM journey_sessions WHERE journey_type = 'business_model_innovation' ORDER BY completed_at DESC LIMIT 1;
+
+npx tsx scripts/golden-record-capture.ts \
+  --sessionId=abc-123-def \
+  --notes="Baseline BMI after entity extraction fixes" \
+  --promote
+```
+
+#### Compare Command
+
+```bash
+# Compare new run against current baseline
+npx tsx scripts/golden-record-compare.ts --sessionId=<session_id> --journeyType=<journey_type>
+
+# Using strategy version ID instead
+npx tsx scripts/golden-record-compare.ts --strategyVersionId=<version_id> --journeyType=<journey_type>
+```
+
+**Flags:**
+- `--sessionId`: Journey session ID to compare (required if no strategyVersionId)
+- `--strategyVersionId`: Strategy version ID alternative to sessionId
+- `--journeyType`: Journey type to compare against (required)
+
+**Exit Codes:**
+- `0`: Match - journey is consistent with golden record ✅
+- `1`: Mismatch - journey differs from golden record ❌
+- `2`: Error occurred during comparison ⚠️
+
+**Example:**
+```bash
+npx tsx scripts/golden-record-compare.ts \
+  --sessionId=xyz-789-ghi \
+  --journeyType=business_model_innovation
+```
+
+The compare tool will output:
+- Detailed diff summary (added/removed/modified steps)
+- Step-by-step comparison results
+- Check ID for audit trail in database
+
+### Operational Checklist
+
+Follow these steps to enable and maintain Golden Records in production:
+
+#### 1. Promote a Verified Baseline (One-Time Setup)
+
+Before enabling auto-capture, establish a known-good baseline:
+
+```bash
+# Step 1: Find the most recent successful BMI journey
+SELECT id FROM journey_sessions
+WHERE journey_type = 'business_model_innovation'
+ORDER BY completed_at DESC NULLS LAST, created_at DESC
+LIMIT 1;
+
+# Step 2: Capture it as the canonical baseline
+npx tsx scripts/golden-record-capture.ts \
+  --sessionId=<session_id_from_query> \
+  --notes="Baseline BMI after fixes" \
+  --promote
+
+# Step 3: Verify in admin UI
+# Navigate to /admin/golden-records
+# Confirm the entry appears as "current" for BMI
+```
+
+**Critical:** This baseline becomes your regression testing anchor. Choose a stable, fully-functional journey execution.
+
+#### 2. Enable Auto-Capture for Continuous Tracking
+
+```bash
+# Step 1: Set environment variable
+export AUTO_CAPTURE_GOLDEN=true
+
+# Step 2: Expand allowlist (if needed)
+# Edit server/journey/journey-orchestrator.ts
+# Change: const allowedJourneys: JourneyType[] = ['business_model_innovation'];
+# To: const allowedJourneys: JourneyType[] = [all journey types...];
+
+# Step 3: Restart the server
+# The workflow will auto-restart after code changes
+
+# Step 4: Verify auto-capture is working
+# Complete a test journey and check scripts/output/golden-records/
+# New unpromoted records should appear automatically
+```
+
+**Note:** Auto-captured records are **never automatically promoted**. They must be manually reviewed and promoted via admin UI or CLI.
+
+#### 3. Integrate Regression Testing into QA Workflow
+
+Add golden record comparison to your quality assurance process:
+
+```bash
+# After any code change affecting journeys:
+
+# Step 1: Complete a test journey execution
+# Step 2: Run comparison against current baseline
+npx tsx scripts/golden-record-compare.ts \
+  --sessionId=<latest_session_id> \
+  --journeyType=<journey_type>
+
+# Step 3: Check exit code
+echo $?  # Should be 0 for pass, 1 for differences
+
+# Step 4: Investigate any failures
+# - Review diff summary in console output
+# - Check admin UI for detailed step comparison
+# - Determine if differences are expected or bugs
+
+# Step 5: Update baseline if changes are intentional
+npx tsx scripts/golden-record-capture.ts \
+  --sessionId=<new_session_id> \
+  --notes="Updated baseline for feature X" \
+  --promote
+```
+
+**QA Rule:** No release should ship without a passing golden record comparison (exit code 0) for affected journey types.
+
+#### 4. Maintenance and Troubleshooting
+
+**Pause Auto-Capture During Maintenance:**
+```bash
+# Disable temporarily
+export AUTO_CAPTURE_GOLDEN=false
+# Restart server
+
+# Re-enable after maintenance
+export AUTO_CAPTURE_GOLDEN=true
+# Restart server
+```
+
+**Check Auto-Capture Status:**
+```bash
+# Verify environment variable
+echo $AUTO_CAPTURE_GOLDEN
+
+# Check server logs for auto-capture messages
+# Look for: "[Golden Records] Auto-captured golden record v<X>"
+# Or: "[Golden Records] Auto-capture disabled"
+```
+
+**Review Captured Records:**
+```bash
+# Database records
+# SELECT * FROM golden_records ORDER BY created_at DESC LIMIT 10;
+
+# Filesystem records
+ls -lah scripts/output/golden-records/business_model_innovation/
+
+# Compare database vs filesystem versions to ensure sync
+```
+
+**Common Issues:**
+- **Auto-capture not working**: Check `AUTO_CAPTURE_GOLDEN=true` and journey is in allowlist
+- **Version mismatch**: Filesystem and database versions should always align
+- **Comparison failures**: Review diff output to determine if expected or regression
+- **Missing current baseline**: Promote a baseline before running comparisons
 
 ---
 
