@@ -25,11 +25,11 @@ import {
   fetchStrategyVersionData,
   sanitizeGoldenRecordData,
   generateDiffSummary,
-} from '../server/utils/golden-records-service';
-import { db } from '../server/db';
-import { goldenRecords, goldenRecordChecks } from '@shared/schema';
+} from '../server/utils/golden-records-service.js';
+import { db } from '../server/db.js';
+import { goldenRecords, goldenRecordChecks } from '../shared/schema.js';
 import { eq, and, desc } from 'drizzle-orm';
-import type { JourneyType } from '@shared/journey-types';
+import type { JourneyType } from '../shared/journey-types.js';
 
 // Parse command line arguments
 const args = process.argv.slice(2);

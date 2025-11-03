@@ -25,9 +25,9 @@ import {
   sanitizeGoldenRecordData,
   saveGoldenRecordToFile,
   prepareGoldenRecordForAPI,
-} from '../server/utils/golden-records-service';
-import { db } from '../server/db';
-import { goldenRecords } from '@shared/schema';
+} from '../server/utils/golden-records-service.js';
+import { db } from '../server/db.js';
+import { goldenRecords } from '../shared/schema.js';
 import { eq, and, desc } from 'drizzle-orm';
 
 // Parse command line arguments

@@ -44,8 +44,8 @@ export interface GoldenRecordData {
 export async function fetchJourneySessionData(sessionId: string): Promise<GoldenRecordData | null> {
   const session = await getJourneySession(sessionId);
   
-  if (!session) {
-    console.error(`[Golden Records] Journey session not found: ${sessionId}`);
+  if (!session || !session.id || !session.understandingId) {
+    console.error(`[Golden Records] Journey session not found or missing understandingId: ${sessionId}`);
     return null;
   }
 
@@ -119,7 +119,7 @@ export async function fetchJourneySessionData(sessionId: string): Promise<Golden
 
   return {
     journeyType: session.journeyType as JourneyType,
-    sessionId: session.id!,
+    sessionId: session.id,
     understandingId: session.understandingId,
     versionNumber: session.versionNumber || 1,
     steps,
