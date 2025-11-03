@@ -280,19 +280,19 @@ export default function ClassificationPage() {
             <Button
               onClick={handleConfirm}
               disabled={isUpdating}
-              className="w-full"
+              className="w-full font-semibold text-base shadow-md hover:shadow-lg"
               size="lg"
               data-testid="button-confirm"
             >
               {isUpdating ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                   Saving...
                 </>
               ) : (
                 <>
                   Confirm and Continue
-                  <ArrowRight className="ml-2 h-4 w-4" />
+                  <ArrowRight className="ml-2 h-5 w-5" />
                 </>
               )}
             </Button>

@@ -176,7 +176,7 @@ export default function JourneySelectionPage() {
               key={journey.type}
               className={`relative transition-all ${
                 journey.available 
-                  ? 'hover:shadow-lg cursor-pointer border-primary/20' 
+                  ? 'hover:shadow-xl hover:border-primary hover:scale-[1.02] border-2' 
                   : 'opacity-60'
               }`}
               data-testid={`journey-card-${journey.type.toLowerCase()}`}
@@ -228,18 +228,19 @@ export default function JourneySelectionPage() {
                 <Button
                   onClick={() => handleJourneySelect(journey.type)}
                   disabled={!journey.available || executingJourney !== null}
-                  className="w-full mt-4"
+                  size="lg"
+                  className="w-full mt-4 font-semibold text-base shadow-md hover:shadow-lg"
                   data-testid={`button-select-journey-${journey.type.toLowerCase()}`}
                 >
                   {executingJourney === journey.type ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Executing...
+                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                      Starting Journey...
                     </>
                   ) : (
                     <>
                       Start Journey
-                      <ArrowRight className="h-4 w-4 ml-2" />
+                      <ArrowRight className="h-5 w-5 ml-2" />
                     </>
                   )}
                 </Button>

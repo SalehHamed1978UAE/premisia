@@ -253,10 +253,10 @@ export default function JourneyLauncherModal({
 
   return (
     <Dialog open={open} onOpenChange={isLoading ? undefined : onOpenChange}>
-      <DialogContent className="max-w-[95vw] sm:max-w-[90vw] lg:max-w-4xl max-h-[90vh] sm:max-h-[85vh] flex flex-col p-0 bg-background/95 backdrop-blur-sm">
+      <DialogContent className="max-w-[95vw] sm:max-w-[90vw] lg:max-w-4xl max-h-[90vh] sm:max-h-[85vh] flex flex-col p-0 bg-background">
         {/* Loading Overlay - prevents black screen during journey start */}
         {isLoading && (
-          <div className="absolute inset-0 bg-background/95 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-background z-50 flex items-center justify-center">
             <div className="text-center space-y-4">
               <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
               <div>
