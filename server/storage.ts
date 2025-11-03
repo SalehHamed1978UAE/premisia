@@ -864,33 +864,82 @@ export class DatabaseStorage implements IStorage {
 
       if (!step1) {
         stepDiffs.push({
-          stepIndex: i,
-          status: 'added',
-          stepName: step2.stepName,
+          stepNumber: i + 1,
+          changeType: 'added',
+          v1Step: null,
+          v2Step: step2,
         });
       } else if (!step2) {
         stepDiffs.push({
-          stepIndex: i,
-          status: 'removed',
-          stepName: step1.stepName,
+          stepNumber: i + 1,
+          changeType: 'removed',
+          v1Step: step1,
+          v2Step: null,
         });
       } else if (JSON.stringify(step1) !== JSON.stringify(step2)) {
+        const differences = [];
+        
+        if (step1.stepName !== step2.stepName) {
+          differences.push({
+            field: 'stepName',
+            v1Value: step1.stepName,
+            v2Value: step2.stepName,
+          });
+        }
+        
+        if (step1.expectedUrl !== step2.expectedUrl) {
+          differences.push({
+            field: 'expectedUrl',
+            v1Value: step1.expectedUrl,
+            v2Value: step2.expectedUrl,
+          });
+        }
+        
+        if (JSON.stringify(step1.requestPayload) !== JSON.stringify(step2.requestPayload)) {
+          differences.push({
+            field: 'requestPayload',
+            v1Value: step1.requestPayload,
+            v2Value: step2.requestPayload,
+          });
+        }
+        
+        if (JSON.stringify(step1.responsePayload) !== JSON.stringify(step2.responsePayload)) {
+          differences.push({
+            field: 'responsePayload',
+            v1Value: step1.responsePayload,
+            v2Value: step2.responsePayload,
+          });
+        }
+        
+        if (JSON.stringify(step1.dbSnapshot) !== JSON.stringify(step2.dbSnapshot)) {
+          differences.push({
+            field: 'dbSnapshot',
+            v1Value: step1.dbSnapshot,
+            v2Value: step2.dbSnapshot,
+          });
+        }
+        
+        if (step1.observations !== step2.observations) {
+          differences.push({
+            field: 'observations',
+            v1Value: step1.observations,
+            v2Value: step2.observations,
+          });
+        }
+        
         stepDiffs.push({
-          stepIndex: i,
-          status: 'modified',
-          stepName: step1.stepName,
-          changes: {
-            urlChanged: step1.expectedUrl !== step2.expectedUrl,
-            payloadChanged: JSON.stringify(step1.requestPayload) !== JSON.stringify(step2.requestPayload),
-            responseChanged: JSON.stringify(step1.responsePayload) !== JSON.stringify(step2.responsePayload),
-            dbChanged: JSON.stringify(step1.dbSnapshot) !== JSON.stringify(step2.dbSnapshot),
-          }
+          stepNumber: i + 1,
+          changeType: 'modified',
+          v1Step: step1,
+          v2Step: step2,
+          differences,
         });
       } else {
         stepDiffs.push({
-          stepIndex: i,
-          status: 'unchanged',
-          stepName: step1.stepName,
+          stepNumber: i + 1,
+          changeType: 'unchanged',
+          v1Step: step1,
+          v2Step: step2,
         });
       }
     }
@@ -903,10 +952,11 @@ export class DatabaseStorage implements IStorage {
       totalSteps2: steps2.length,
       stepDiffs,
       summary: {
-        added: stepDiffs.filter(d => d.status === 'added').length,
-        removed: stepDiffs.filter(d => d.status === 'removed').length,
-        modified: stepDiffs.filter(d => d.status === 'modified').length,
-        unchanged: stepDiffs.filter(d => d.status === 'unchanged').length,
+        totalSteps: maxSteps,
+        added: stepDiffs.filter(d => d.changeType === 'added').length,
+        removed: stepDiffs.filter(d => d.changeType === 'removed').length,
+        modified: stepDiffs.filter(d => d.changeType === 'modified').length,
+        unchanged: stepDiffs.filter(d => d.changeType === 'unchanged').length,
       }
     };
   }

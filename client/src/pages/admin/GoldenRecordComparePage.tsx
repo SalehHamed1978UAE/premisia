@@ -55,11 +55,12 @@ export default function GoldenRecordComparePage() {
 
   const compareMutation = useMutation({
     mutationFn: async (targetVersion: string) => {
-      return apiRequest(
+      const response = await apiRequest(
         'POST',
         `/api/admin/golden-records/${journeyType}/${version}/compare`,
         { compareToVersion: parseInt(targetVersion, 10) }
       );
+      return response.json();
     },
   });
 
