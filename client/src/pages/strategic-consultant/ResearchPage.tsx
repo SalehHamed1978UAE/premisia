@@ -12,6 +12,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { ResearchExperience } from "@/components/research-experience/ResearchExperience";
 
 interface Finding {
   fact: string;
@@ -314,34 +315,11 @@ export default function ResearchPage() {
 
   if (isResearching) {
     return (
-      <AppLayout
-        title="Market Research"
-        subtitle="Conducting comprehensive market analysis"
-        onViewChange={(view) => setLocation('/')}
-      >
-        <div className="max-w-4xl mx-auto space-y-8 py-12">
-          <Card>
-            <CardHeader className="text-center">
-              <div className="flex justify-center mb-4">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              </div>
-              <CardTitle className="text-2xl" data-testid="text-research-status">
-                Researching market conditions...
-              </CardTitle>
-              <CardDescription data-testid="text-current-query">{currentQuery}</CardDescription>
-              <CardDescription className="mt-2 text-sm text-muted-foreground">
-                Time elapsed: {elapsedSeconds}s
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Progress value={progress} className="h-2" data-testid="progress-research" />
-              <p className="text-center mt-4 text-sm text-muted-foreground" data-testid="text-progress-percentage">
-                {progress.toFixed(0)}% complete
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      </AppLayout>
+      <ResearchExperience
+        progress={progress}
+        currentMessage={currentQuery}
+        elapsedSeconds={elapsedSeconds}
+      />
     );
   }
 
