@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRequireAdmin } from "@/hooks/use-require-admin";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { Shield, Clock, History } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { CaptureGoldenRecordModal } from "@/components/admin/CaptureGoldenRecordModal";
 
 type GoldenRecord = {
   id: string;
@@ -19,6 +21,7 @@ type GoldenRecord = {
 
 export default function GoldenRecordsListPage() {
   const { isAdmin, isLoading: authLoading } = useRequireAdmin();
+  const [captureModalOpen, setCaptureModalOpen] = useState(false);
 
   const { data: records, isLoading } = useQuery<GoldenRecord[]>({
     queryKey: ['/api/admin/golden-records'],
@@ -67,7 +70,7 @@ export default function GoldenRecordsListPage() {
             Versioned snapshots of the "golden path" for each strategic journey type
           </p>
         </div>
-        <Button data-testid="button-capture-new">
+        <Button onClick={() => setCaptureModalOpen(true)} data-testid="button-capture-new">
           Capture Golden Record
         </Button>
       </div>
@@ -132,6 +135,11 @@ export default function GoldenRecordsListPage() {
           ))}
         </div>
       )}
+
+      <CaptureGoldenRecordModal
+        open={captureModalOpen}
+        onOpenChange={setCaptureModalOpen}
+      />
     </div>
   );
 }
