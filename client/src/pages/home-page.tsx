@@ -896,11 +896,11 @@ function PublicLandingPage() {
                 How it Works
               </button>
               <button 
-                onClick={() => scrollToSection('use-cases')} 
+                onClick={() => scrollToSection('security')} 
                 className="hidden md:block text-gray-400 hover:text-white transition-colors text-sm md:text-base"
-                data-testid="link-use-cases"
+                data-testid="link-security"
               >
-                Use Cases
+                Security
               </button>
               <button
                 onClick={handleSignIn}
@@ -1151,20 +1151,20 @@ function PublicLandingPage() {
                 </p>
               </div>
 
-              {/* Feature 6: What-If Simulator */}
+              {/* Feature 6: Enterprise-Grade Security */}
               <div 
                 className="feature-card p-6 md:p-10 bg-[#202938] rounded-2xl md:rounded-3xl transition-all duration-300 cursor-pointer"
-                data-testid="card-feature-simulator"
+                data-testid="card-feature-security"
               >
-                <div className="feature-badge">Beta</div>
+                <div className="feature-badge">Live</div>
                 <div 
                   className="w-12 h-12 md:w-[60px] md:h-[60px] bg-gradient-to-br from-[#3b82f6] to-[#10b981] rounded-xl md:rounded-2xl flex items-center justify-center mb-4 md:mb-5 text-2xl md:text-3xl transition-all duration-300"
                 >
-                  🔮
+                  🔒
                 </div>
-                <h3 className="text-xl md:text-2xl font-bold mb-3 md:mb-4 text-white">What-If Simulator</h3>
+                <h3 className="text-xl md:text-2xl font-bold mb-3 md:mb-4 text-white">Enterprise-Grade Security</h3>
                 <p className="text-sm md:text-base text-gray-400 leading-relaxed">
-                  Test different scenarios. What if you pivot? What if funding takes longer? What if your competitor moves first? See it all play out.
+                  AWS KMS envelope encryption with AES-256-GCM. Every record gets unique encryption keys. The same security trusted by Fortune 500 companies.
                 </p>
               </div>
             </div>
@@ -1241,46 +1241,223 @@ function PublicLandingPage() {
           </div>
         </section>
 
-        {/* Use Cases Section */}
+        {/* Security Section */}
         <section 
-          id="use-cases"
+          id="security"
           className="py-16 md:py-24 px-6 md:px-12"
-          data-testid="section-use-cases"
+          data-testid="section-security"
         >
           <div className="max-w-7xl mx-auto">
+            {/* Section Header */}
             <div className="text-center mb-12 md:mb-16">
-              <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 md:mb-5 bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent" data-testid="heading-use-cases">
-                Real People, Real Results
+              <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 md:mb-5 bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent" data-testid="heading-security">
+                🔒 Enterprise-Grade Security
               </h2>
-              <p className="text-base md:text-lg lg:text-xl text-gray-400" data-testid="subheading-use-cases">
-                See how others turned ideas into action
+              <p className="text-base md:text-lg lg:text-xl text-gray-400" data-testid="subheading-security">
+                Your strategic ideas deserve serious protection
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10 max-w-5xl mx-auto">
-              {/* Testimonial 1: Sarah */}
+            {/* Bank-Grade Encryption Card */}
+            <div 
+              className="p-6 md:p-10 bg-[#202938] rounded-2xl md:rounded-3xl mb-8 md:mb-12 transition-all duration-300 hover:-translate-y-1"
+              style={{ border: '2px solid', borderImage: 'linear-gradient(135deg, #10b981 0%, #059669 100%) 1' }}
+              data-testid="card-bank-encryption"
+            >
+              <h3 className="text-2xl md:text-3xl font-bold mb-6 text-[#10b981]">Bank-Grade Encryption</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="w-6 h-6 rounded-full bg-[#10b981]/20 flex items-center justify-center flex-shrink-0 mt-1">
+                      <Check className="h-4 w-4 text-[#10b981]" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white mb-1">AWS KMS Envelope Encryption</h4>
+                      <p className="text-sm text-gray-400">The same encryption system trusted by Fortune 500 companies</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="w-6 h-6 rounded-full bg-[#10b981]/20 flex items-center justify-center flex-shrink-0 mt-1">
+                      <Check className="h-4 w-4 text-[#10b981]" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white mb-1">AES-256-GCM</h4>
+                      <p className="text-sm text-gray-400">Military-grade encryption with authenticated integrity protection</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-[#10b981]/20 flex items-center justify-center flex-shrink-0 mt-1">
+                      <Check className="h-4 w-4 text-[#10b981]" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white mb-1">Unique Encryption Keys</h4>
+                      <p className="text-sm text-gray-400">Every record gets its own data encryption key</p>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="w-6 h-6 rounded-full bg-[#10b981]/20 flex items-center justify-center flex-shrink-0 mt-1">
+                      <Check className="h-4 w-4 text-[#10b981]" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white mb-1">Secure Data Transit</h4>
+                      <p className="text-sm text-gray-400">HTTPS encryption for all data transmission</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-[#10b981]/20 flex items-center justify-center flex-shrink-0 mt-1">
+                      <Check className="h-4 w-4 text-[#10b981]" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white mb-1">Server-Side Protection</h4>
+                      <p className="text-sm text-gray-400">Your data is encrypted at rest in our secure infrastructure</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Two-Column How It Works Section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 mb-8 md:mb-12">
+              {/* Data Flow */}
               <div 
-                className="p-6 md:p-10 bg-[#202938] rounded-2xl md:rounded-3xl transition-transform duration-300 hover:-translate-y-2"
-                data-testid="card-testimonial-sarah"
+                className="p-6 md:p-10 bg-[#202938] rounded-2xl md:rounded-3xl transition-all duration-300 hover:-translate-y-1"
+                data-testid="card-data-flow"
               >
-                <h3 className="text-2xl md:text-3xl text-[#10b981] mb-4 md:mb-5 font-bold">Startup Founder</h3>
-                <p className="text-sm md:text-base text-gray-400 leading-relaxed mb-4 md:mb-5">
-                  "I had a vague idea about disrupting the pet insurance space. Premisia helped me realize my actual innovation wasn't the product—it was the distribution model. Three weeks later, I had investor meetings booked."
-                </p>
-                <cite className="text-sm md:text-base italic text-[#3b82f6] not-italic">— Sarah K., Pet Tech Startup</cite>
+                <h3 className="text-2xl font-bold mb-6 text-[#3b82f6]">How Your Data Flows</h3>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-[#3b82f6]/20 flex items-center justify-center flex-shrink-0">
+                      <span className="text-sm font-bold text-[#3b82f6]">1</span>
+                    </div>
+                    <p className="text-sm text-gray-300">You input your strategic idea</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-[#3b82f6]/20 flex items-center justify-center flex-shrink-0">
+                      <span className="text-sm font-bold text-[#3b82f6]">2</span>
+                    </div>
+                    <p className="text-sm text-gray-300">HTTPS encrypts data in transit</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-[#3b82f6]/20 flex items-center justify-center flex-shrink-0">
+                      <span className="text-sm font-bold text-[#3b82f6]">3</span>
+                    </div>
+                    <p className="text-sm text-gray-300">AES-256-GCM encrypts with unique key</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-[#3b82f6]/20 flex items-center justify-center flex-shrink-0">
+                      <span className="text-sm font-bold text-[#3b82f6]">4</span>
+                    </div>
+                    <p className="text-sm text-gray-300">AWS KMS secures encryption keys</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-[#3b82f6]/20 flex items-center justify-center flex-shrink-0">
+                      <span className="text-sm font-bold text-[#3b82f6]">5</span>
+                    </div>
+                    <p className="text-sm text-gray-300">Encrypted data stored securely</p>
+                  </div>
+                </div>
               </div>
 
-              {/* Testimonial 2: Marcus */}
+              {/* Access Control */}
               <div 
-                className="p-6 md:p-10 bg-[#202938] rounded-2xl md:rounded-3xl transition-transform duration-300 hover:-translate-y-2"
-                data-testid="card-testimonial-marcus"
+                className="p-6 md:p-10 bg-[#202938] rounded-2xl md:rounded-3xl transition-all duration-300 hover:-translate-y-1"
+                data-testid="card-access-control"
               >
-                <h3 className="text-2xl md:text-3xl text-[#10b981] mb-4 md:mb-5 font-bold">Enterprise Leader</h3>
-                <p className="text-sm md:text-base text-gray-400 leading-relaxed mb-4 md:mb-5">
-                  "We were stuck in analysis paralysis on a digital transformation initiative. Premisia's Five Whys revealed we were solving the wrong problem. Saved us six months and about $2M in misallocated budget."
-                </p>
-                <cite className="text-sm md:text-base italic text-[#3b82f6] not-italic">— Marcus T., Fortune 500 VP</cite>
+                <h3 className="text-2xl font-bold mb-6 text-[#3b82f6]">Access Control</h3>
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-300 leading-relaxed">
+                    Your data is processed server-side to enable AI analysis and strategic recommendations.
+                  </p>
+                  <p className="text-sm text-gray-300 leading-relaxed">
+                    This means our servers decrypt your data during processing.
+                  </p>
+                  <div className="p-4 bg-[#3b82f6]/10 rounded-lg border border-[#3b82f6]/30">
+                    <h4 className="font-semibold text-white mb-2">Why this matters:</h4>
+                    <p className="text-sm text-gray-300 leading-relaxed">
+                      We can provide powerful AI insights while maintaining strong security. Your data is protected from external threats and unauthorized access.
+                    </p>
+                  </div>
+                </div>
               </div>
+            </div>
+
+            {/* Security Roadmap */}
+            <div 
+              className="p-6 md:p-10 bg-[#202938] rounded-2xl md:rounded-3xl mb-8 md:mb-12 transition-all duration-300 hover:-translate-y-1"
+              style={{ border: '2px solid #a855f7' }}
+              data-testid="card-security-roadmap"
+            >
+              <h3 className="text-2xl md:text-3xl font-bold mb-6 text-purple-400">Security Roadmap</h3>
+              <p className="text-gray-400 mb-6">Future enhancements we're building:</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-center gap-3">
+                  <ArrowRight className="h-5 w-5 text-purple-400 flex-shrink-0" />
+                  <p className="text-sm text-gray-300">Client-side encryption options</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <ArrowRight className="h-5 w-5 text-purple-400 flex-shrink-0" />
+                  <p className="text-sm text-gray-300">Zero-knowledge architecture for sensitive data</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <ArrowRight className="h-5 w-5 text-purple-400 flex-shrink-0" />
+                  <p className="text-sm text-gray-300">SOC 2 Type II certification</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <ArrowRight className="h-5 w-5 text-purple-400 flex-shrink-0" />
+                  <p className="text-sm text-gray-300">Bring your own encryption keys</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Your Data, Your Control */}
+            <div>
+              <h3 className="text-2xl md:text-3xl font-bold mb-8 text-center text-white">Your Data, Your Control</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div 
+                  className="p-6 bg-[#202938] rounded-xl transition-all duration-300 hover:-translate-y-1"
+                  data-testid="data-control-delete"
+                >
+                  <div className="text-4xl mb-4">🗑️</div>
+                  <h4 className="font-semibold text-white mb-2">Delete Anytime</h4>
+                  <p className="text-sm text-gray-400">Remove your data whenever you want</p>
+                </div>
+                <div 
+                  className="p-6 bg-[#202938] rounded-xl transition-all duration-300 hover:-translate-y-1"
+                  data-testid="data-control-export"
+                >
+                  <div className="text-4xl mb-4">📤</div>
+                  <h4 className="font-semibold text-white mb-2">Export Everything</h4>
+                  <p className="text-sm text-gray-400">Download your work in standard formats</p>
+                </div>
+                <div 
+                  className="p-6 bg-[#202938] rounded-xl transition-all duration-300 hover:-translate-y-1"
+                  data-testid="data-control-sales"
+                >
+                  <div className="text-4xl mb-4">🚫</div>
+                  <h4 className="font-semibold text-white mb-2">No Data Sales</h4>
+                  <p className="text-sm text-gray-400">Your strategies are never sold or shared</p>
+                </div>
+                <div 
+                  className="p-6 bg-[#202938] rounded-xl transition-all duration-300 hover:-translate-y-1"
+                  data-testid="data-control-transparency"
+                >
+                  <div className="text-4xl mb-4">📊</div>
+                  <h4 className="font-semibold text-white mb-2">Usage Transparency</h4>
+                  <p className="text-sm text-gray-400">Clear policies on how we process your data</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Security Contact Footer */}
+            <div className="text-center mt-12">
+              <p className="text-gray-400">
+                Questions about security? Contact us at{' '}
+                <a href="mailto:security@premisia.ai" className="text-[#3b82f6] hover:text-[#10b981] transition-colors">
+                  security@premisia.ai
+                </a>
+              </p>
             </div>
           </div>
         </section>
