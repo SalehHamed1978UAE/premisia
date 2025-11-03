@@ -90,15 +90,16 @@ export function GlobalJobTracker() {
           return (
             <Card 
               key={job.id} 
-              className="shadow-lg border-2 cursor-pointer hover:shadow-xl transition-shadow"
+              className="shadow-lg border-2 cursor-pointer hover:shadow-xl transition-shadow bg-card dark:bg-gray-900 opacity-100"
               onClick={() => setMinimizedJobs(prev => {
                 const next = new Set(prev);
                 next.delete(job.id);
                 return next;
               })}
               data-testid={`minimized-job-${job.id}`}
+              style={{ backgroundColor: 'var(--card)' }}
             >
-              <CardContent className="p-3">
+              <CardContent className="p-3 bg-card dark:bg-gray-900">
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin text-blue-500 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
@@ -129,8 +130,13 @@ export function GlobalJobTracker() {
 
         // Full expanded view
         return (
-          <Card key={job.id} className="shadow-lg border-2" data-testid={`expanded-job-${job.id}`}>
-            <CardHeader className="pb-3">
+          <Card 
+            key={job.id} 
+            className="shadow-lg border-2 bg-card dark:bg-gray-900 opacity-100" 
+            data-testid={`expanded-job-${job.id}`}
+            style={{ backgroundColor: 'var(--card)' }}
+          >
+            <CardHeader className="pb-3 bg-card dark:bg-gray-900">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   <Loader2 className="h-4 w-4 animate-spin text-blue-500 flex-shrink-0" />

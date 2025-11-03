@@ -121,8 +121,12 @@ export function PlanningProgressTracker({
   }, [onComplete, onError]);
 
   return (
-    <Card className="w-full max-w-md sm:max-w-lg md:max-w-xl lg:max-w-2xl max-h-[90vh] flex flex-col" data-testid="planning-progress-tracker">
-      <CardHeader className="flex-shrink-0">
+    <Card 
+      className="w-full max-w-md sm:max-w-lg md:max-w-xl lg:max-w-2xl max-h-[90vh] flex flex-col bg-card dark:bg-gray-900 opacity-100" 
+      data-testid="planning-progress-tracker"
+      style={{ backgroundColor: 'var(--card)' }}
+    >
+      <CardHeader className="flex-shrink-0 bg-card dark:bg-gray-900">
         <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
           {!isComplete && !error && <Loader2 className="h-5 w-5 animate-spin" />}
           {isComplete && <CheckCircle2 className="h-5 w-5 text-green-600" />}
@@ -130,7 +134,7 @@ export function PlanningProgressTracker({
           Creating Your Program Plan
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6 overflow-y-auto flex-1">
+      <CardContent className="space-y-6 overflow-y-auto flex-1 bg-card dark:bg-gray-900">
 
         {/* Error Alert */}
         {error && (

@@ -19,8 +19,9 @@ export function MinimizedJobTracker({
 }: MinimizedJobTrackerProps) {
   return (
     <div 
-      className="fixed top-4 right-4 w-80 bg-background border rounded-lg shadow-lg z-50 p-3"
+      className="fixed top-4 right-4 w-80 bg-card dark:bg-gray-900 border rounded-lg shadow-lg z-50 p-3 opacity-100"
       data-testid="minimized-job-tracker"
+      style={{ backgroundColor: 'var(--card)' }}
     >
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2 flex-1 min-w-0">
