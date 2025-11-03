@@ -5,6 +5,7 @@ import { DigitalRain } from './DigitalRain';
 import { ProgressBeam } from './ProgressBeam';
 import { MatrixMessage } from './MatrixMessage';
 import { Controls } from './Controls';
+import { GeometricLoader } from '@/components/loaders/GeometricLoader';
 
 interface FiveWhysAnimationProps {
   onComplete?: () => void;
@@ -200,24 +201,32 @@ export function FiveWhysAnimation({ onComplete, progress, currentMessage: sseMes
   // Calculate intensity based on stage (more intense as we progress)
   const intensity = Math.min(30 + currentStageIndex * 12, 100);
 
-  // Simple mode fallback
+  // Simple mode fallback with geometric loader
   if (useSimpleMode) {
     return (
-      <div className="flex items-center justify-center p-8" data-testid="simple-mode-container">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6">
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground mb-2">
-                  Generating Five Whys Analysis
-                </p>
-                <Progress value={currentProgress} className="h-2" data-testid="simple-progress-bar" />
+      <div className="flex items-center justify-center min-h-[60vh] p-8" data-testid="simple-mode-container">
+        <Card className="w-full max-w-lg bg-card/95 backdrop-blur">
+          <CardContent className="p-8">
+            <div className="space-y-6">
+              <div className="flex flex-col items-center gap-6">
+                <GeometricLoader type="fractal" size="medium" />
+                <div className="text-center space-y-2">
+                  <p className="text-lg font-semibold text-foreground">
+                    Generating Five Whys Analysis
+                  </p>
+                  <p className="text-sm text-muted-foreground" data-testid="simple-stage-label">
+                    {currentStageIndex >= 0 && currentStageIndex < STAGES.length
+                      ? STAGES[currentStageIndex].label
+                      : 'Processing...'}
+                  </p>
+                </div>
               </div>
-              <p className="text-sm text-muted-foreground text-center" data-testid="simple-stage-label">
-                {currentStageIndex >= 0 && currentStageIndex < STAGES.length
-                  ? STAGES[currentStageIndex].label
-                  : 'Processing...'}
-              </p>
+              <div className="space-y-2">
+                <Progress value={currentProgress} className="h-2" data-testid="simple-progress-bar" />
+                <p className="text-xs text-center text-muted-foreground">
+                  {Math.round(currentProgress)}% Complete
+                </p>
+              </div>
             </div>
           </CardContent>
         </Card>
