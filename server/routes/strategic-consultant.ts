@@ -252,6 +252,43 @@ router.post('/check-ambiguities', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * POST /api/strategic-consultant/validate-manual-location
+ * Validate user-provided manual location entry
+ */
+router.post('/validate-manual-location', async (req: Request, res: Response) => {
+  try {
+    const { userInput } = req.body;
+
+    if (!userInput || typeof userInput !== 'string' || !userInput.trim()) {
+      return res.status(400).json({ error: 'userInput is required and must be a non-empty string' });
+    }
+
+    console.log(`[Manual Location Validation] Validating user input: "${userInput}"`);
+    
+    // Use LocationResolver to geocode the manual entry
+    const locations = await locationResolver.extractAndResolveLocations(userInput);
+    
+    if (locations.length > 0) {
+      console.log(`[Manual Location Validation] Found ${locations.length} validated location(s)`);
+      res.json({
+        validated: true,
+        suggestions: locations,
+        originalInput: userInput
+      });
+    } else {
+      console.log(`[Manual Location Validation] No locations found, allowing unvalidated entry`);
+      res.json({
+        validated: false,
+        originalInput: userInput
+      });
+    }
+  } catch (error: any) {
+    console.error('[Manual Location Validation] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 router.post('/understanding', async (req: Request, res: Response) => {
   try {
     const { input, clarifications, fileMetadata } = req.body;
