@@ -155,6 +155,37 @@ async function migrateJSONField(oldValue: string | null, fieldName: string, reco
   }
 }
 
+// Helper function to encrypt plaintext fields (fields that were never encrypted)
+async function encryptPlaintextField(value: string | null, fieldName: string, recordId: string, tableName: string): Promise<string | null> {
+  if (!value) return null;
+  
+  // Check if already encrypted (either old or new format)
+  try {
+    const parsed = JSON.parse(value);
+    if (parsed && typeof parsed === 'object' && 'dataKeyCiphertext' in parsed) {
+      // Already in KMS format, skip
+      return null;
+    }
+  } catch {
+    // Not JSON, might be plaintext or old format
+  }
+  
+  if (isOldFormat(value)) {
+    // Already in old encrypted format, skip (will be handled by migrateTextField)
+    return null;
+  }
+  
+  try {
+    // Encrypt plaintext with KMS
+    const encrypted = await encryptKMS(value);
+    return encrypted;
+  } catch (error) {
+    const errorMsg = `Failed to encrypt ${fieldName}: ${error instanceof Error ? error.message : String(error)}`;
+    logError(tableName, recordId, errorMsg);
+    return null;
+  }
+}
+
 // ==================== TABLE MIGRATION FUNCTIONS ====================
 
 async function migrateStrategicUnderstanding() {
@@ -624,7 +655,7 @@ async function migrateStrategyVersions() {
   
   while (offset < totalRecords) {
     const result = await pool.query(
-      `SELECT id, "analysisData", "decisionsData" FROM ${tableName} LIMIT $1 OFFSET $2`,
+      `SELECT id, "inputSummary", "analysisData", "decisionsData" FROM ${tableName} LIMIT $1 OFFSET $2`,
       [BATCH_SIZE, offset]
     );
     
@@ -632,6 +663,13 @@ async function migrateStrategyVersions() {
       try {
         const updates: any = {};
         let hasUpdates = false;
+        
+        // Encrypt inputSummary (plaintext field that was never encrypted)
+        const newInputSummary = await encryptPlaintextField(record.inputSummary, 'inputSummary', record.id, tableName);
+        if (newInputSummary) {
+          updates.inputSummary = newInputSummary;
+          hasUpdates = true;
+        }
         
         // Migrate analysisData (JSON)
         const newAnalysisData = await migrateJSONField(record.analysisData, 'analysisData', record.id, tableName);
