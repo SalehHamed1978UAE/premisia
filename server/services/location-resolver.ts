@@ -1,3 +1,5 @@
+import { RequestThrottler } from '../utils/request-throttler.js';
+
 export interface LocationCandidate {
   displayName: string;
   lat: number;
@@ -18,7 +20,7 @@ export interface GeographicQuestion {
   id: string;
   question: string;
   rawQuery: string;
-  multiSelect: false;
+  multiSelect: boolean;
   options: Array<{
     value: string;
     label: string;
@@ -27,222 +29,106 @@ export interface GeographicQuestion {
   }>;
 }
 
+interface NGram {
+  text: string;
+  startIndex: number;
+  endIndex: number;
+}
+
 /**
- * Location Resolver Service
+ * Location Resolver Service - Geocoder-First Approach
  * 
- * Extracts place names from text and resolves them using OpenStreetMap Nominatim API
- * Implements rate limiting (max 1 req/sec) and caching
+ * Uses n-gram generation and geocoder confidence as the primary filter
+ * instead of pattern matching. Queries OpenStreetMap Nominatim API
+ * for all n-grams and filters by importance threshold (≥0.6).
  */
 export class LocationResolverService {
   private readonly NOMINATIM_BASE_URL = 'https://nominatim.openstreetmap.org';
   private readonly USER_AGENT = 'StrategicPlanningApp/1.0 (strategic-planning-contact@example.com)';
-  private readonly MIN_REQUEST_INTERVAL = 1000; // 1 second for Nominatim
-  private lastRequestTime: number = 0;
+  private readonly IMPORTANCE_THRESHOLD = 0.6;
+  
   private cache: Map<string, LocationCandidate[]>;
+  private throttler: RequestThrottler;
 
   constructor() {
     this.cache = new Map();
+    this.throttler = new RequestThrottler({
+      maxConcurrent: 1,
+      delayBetweenBatches: 1000, // 1 second for Nominatim
+      maxRetries: 3,
+      initialRetryDelay: 1000
+    });
   }
 
   /**
-   * Simple rate limiter - waits to ensure 1 second between requests
+   * Generate n-grams (1-4 words) with span tracking
+   * Extracts alphabetic tokens treating punctuation as boundaries
+   * Requires at least 3 alphabetic characters (not counting spaces)
    */
-  private async waitForRateLimit(): Promise<void> {
-    const now = Date.now();
-    const timeSinceLastRequest = now - this.lastRequestTime;
+  private generateNGrams(text: string): NGram[] {
+    const ngrams: NGram[] = [];
     
-    if (timeSinceLastRequest < this.MIN_REQUEST_INTERVAL) {
-      const waitTime = this.MIN_REQUEST_INTERVAL - timeSinceLastRequest;
-      console.log(`[LocationResolver] Rate limiting: waiting ${waitTime}ms`);
-      await new Promise(resolve => setTimeout(resolve, waitTime));
+    // Extract alphabetic tokens with their positions
+    const tokenPattern = /[A-Za-z]+/g;
+    const tokens: Array<{ word: string; index: number }> = [];
+    
+    let match;
+    while ((match = tokenPattern.exec(text)) !== null) {
+      tokens.push({
+        word: match[0],
+        index: match.index
+      });
     }
     
-    this.lastRequestTime = Date.now();
-  }
-
-  /**
-   * Extract potential place names from text using hybrid approach:
-   * 1. Keyword-driven patterns (case-insensitive) - reliable for contextual extraction
-   * 2. Title-case normalization for capitalized detection
-   */
-  private extractPlaceNames(text: string): string[] {
-    const candidates = new Set<string>();
-
-    console.log(`[LocationResolver] Input text:`, text);
-
-    // Step 1: Keyword-driven patterns (case-insensitive, reliable)
-    const keywordPattern = /\b(?:in|at|from|based in|located in|opening in|launching in|expanding to)\s+([a-zA-Z][a-zA-Z\s,'-]+?)(?=\s+(?:market|area|region|city|town|targeting|to|for|with)|\b)/gi;
-    const marketPattern = /\b([a-zA-Z][a-zA-Z\s,'-]{2,30}?)\s+(?:market|area|region|territory|district)\b/gi;
-    
-    [keywordPattern, marketPattern].forEach((pattern, idx) => {
-      const matches = Array.from(text.matchAll(pattern));
-      console.log(`[LocationResolver] Keyword pattern ${idx + 1} found ${matches.length} matches`);
-      matches.forEach(match => {
-        const placeName = match[1]?.trim().replace(/[^\w\s,'-]/g, '').trim();
-        if (placeName && this.isLikelyPlaceName(placeName)) {
-          console.log(`[LocationResolver] Added from keyword pattern: "${placeName}"`);
-          candidates.add(placeName);
-        }
-      });
-    });
-
-    // Step 2: Title-case normalization for capitalized detection
-    // Split text into words and try normalizing to Title Case
-    const words = text.split(/\s+/);
-    
-    for (let i = 0; i < words.length; i++) {
-      // Try sequences of 1, 2, 3, and 4 words
-      for (let len = 1; len <= 4 && i + len <= words.length; len++) {
-        const sequence = words.slice(i, i + len).join(' ');
-        const cleaned = sequence.replace(/[^\w\s,'-]/g, '').trim();
+    // Generate n-grams of length 1-4
+    for (let i = 0; i < tokens.length; i++) {
+      for (let len = 1; len <= 4 && i + len <= tokens.length; len++) {
+        const slice = tokens.slice(i, i + len);
+        const ngramText = slice.map(t => t.word).join(' ');
         
-        if (!cleaned) continue;
-
-        // Check if already capitalized
-        if (/^[A-Z]/.test(cleaned)) {
-          if (this.isLikelyPlaceName(cleaned)) {
-            console.log(`[LocationResolver] Added capitalized: "${cleaned}"`);
-            candidates.add(cleaned);
-          }
+        // Count alphabetic characters (excluding spaces)
+        const alphaCount = ngramText.replace(/[^a-zA-Z]/g, '').length;
+        if (alphaCount < 3) {
           continue;
         }
-
-        // For lowercase sequences, normalize to Title Case
-        const titleCased = this.toTitleCaseWithWhitelist(cleaned);
         
-        if (titleCased && this.isLikelyPlaceName(titleCased)) {
-          console.log(`[LocationResolver] Added title-cased: "${cleaned}" -> "${titleCased}"`);
-          candidates.add(titleCased);
-        }
+        const startIndex = slice[0].index;
+        const lastToken = slice[slice.length - 1];
+        const endIndex = lastToken.index + lastToken.word.length;
+        
+        ngrams.push({
+          text: ngramText,
+          startIndex,
+          endIndex
+        });
       }
     }
-
-    const placeNames = Array.from(candidates);
-    console.log(`[LocationResolver] Extracted ${placeNames.length} potential place names:`, placeNames);
-
-    return placeNames;
+    
+    console.log(`[LocationResolver] Generated ${ngrams.length} n-grams (≥3 alpha chars, alphabetic tokens only)`);
+    
+    return ngrams;
   }
 
   /**
-   * Check if a candidate string is likely a place name
+   * Simple title case conversion
    */
-  private isLikelyPlaceName(candidate: string): boolean {
-    const trimmed = candidate.trim();
-    
-    // Must be 2-50 characters
-    if (trimmed.length < 2 || trimmed.length > 50) {
-      return false;
-    }
-
-    // Must contain at least some letters
-    if (!/[a-zA-Z]/.test(trimmed)) {
-      return false;
-    }
-
-    const words = trimmed.toLowerCase().split(/\s+/);
-    
-    // Limit to 1-5 words
-    if (words.length > 5) {
-      console.log(`[LocationResolver] Rejected (too many words): "${trimmed}"`);
-      return false;
-    }
-
-    // Reject standalone connectors/articles
-    const connectors = ['of', 'the', 'a', 'an', 'al', 'el', 'la', 'los', 'las', 'de', 'del', 'y', 'e', 'i'];
-    if (words.length === 1 && connectors.includes(words[0])) {
-      console.log(`[LocationResolver] Rejected (standalone connector): "${trimmed}"`);
-      return false;
-    }
-
-    // Exclude common non-place words
-    const excludedWords = [
-      'this', 'that', 'there', 'these', 'those',
-      'we', 'our', 'my', 'your', 'their', 'his', 'her', 'its',
-      'business', 'model', 'canvas', 'innovation', 'company',
-      'strategy', 'plan', 'analysis', 'report', 'product',
-      'industry', 'sector', 'customer', 'service',
-      'is', 'are', 'was', 'were', 'will', 'would', 'can', 'could',
-      'should', 'be', 'been', 'being', 'have', 'has', 'had',
-      'to', 'for', 'and', 'or', 'but', 'with', 'from', 'by',
-      'target', 'great', 'good', 'best', 'old', 'first', 'last',
-      'focuses', 'growth', 'operating', 'design'
-    ];
-
-    // Check each word - if ANY word is excluded, reject
-    for (const word of words) {
-      if (excludedWords.includes(word)) {
-        console.log(`[LocationResolver] Rejected (excluded word "${word}"): "${trimmed}"`);
-        return false;
-      }
-    }
-
-    return true;
+  private toTitleCase(text: string): string {
+    return text
+      .toLowerCase()
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
   }
 
   /**
-   * Convert to Title Case, keeping connectors/articles lowercase
-   * Only accepts sequences with valid location tokens
+   * Geocode a single query (no rate limiting - handled by throttler)
    */
-  private toTitleCaseWithWhitelist(text: string): string | null {
-    const words = text.toLowerCase().split(/\s+/);
-    
-    // Single words: just capitalize
-    if (words.length === 1) {
-      return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
-    }
-
-    // Whitelist of allowed lowercase connectors/articles
-    const connectorWhitelist = [
-      'al', 'el', 'la', 'los', 'las', 'de', 'del', 'dos', 'von', 'van', 'le',
-      'san', 'santa', 'santo', 'saint', 'st', 'da', 'di', 'du',
-      'of', 'the', 'a', 'an', 'y', 'e', 'i', 'und', 'et'
-    ];
-
-    // Check each word
-    for (const word of words) {
-      // Skip very short words that are connectors
-      if (word.length < 2) {
-        console.log(`[LocationResolver] Rejected title-case (single letter): "${text}"`);
-        return null;
-      }
-
-      // Word must be connector (allowed lowercase) or 3+ chars
-      const isConnector = connectorWhitelist.includes(word);
-      const isValidLength = word.length >= 3;
-      
-      if (!isConnector && !isValidLength) {
-        console.log(`[LocationResolver] Rejected title-case (invalid word "${word}"): "${text}"`);
-        return null;
-      }
-    }
-
-    // Convert to Title Case, keeping connectors lowercase
-    const titleCased = words.map(word => {
-      if (connectorWhitelist.includes(word)) {
-        return word; // Keep connectors lowercase
-      }
-      return word.charAt(0).toUpperCase() + word.slice(1);
-    }).join(' ');
-
-    console.log(`[LocationResolver] Title-cased: "${text}" -> "${titleCased}"`);
-    return titleCased;
-  }
-
-  /**
-   * Query Nominatim API for a place name
-   */
-  private async queryNominatim(query: string): Promise<LocationCandidate[]> {
+  private async geocode(query: string): Promise<LocationCandidate[]> {
     // Check cache first
     const cacheKey = query.toLowerCase();
     if (this.cache.has(cacheKey)) {
-      console.log(`[LocationResolver] Cache hit for: ${query}`);
       return this.cache.get(cacheKey)!;
     }
-
-    console.log(`[LocationResolver] Querying Nominatim for: ${query}`);
-
-    // Rate limit to 1 req/sec
-    await this.waitForRateLimit();
 
     try {
       const searchParams = new URLSearchParams({
@@ -281,52 +167,136 @@ export class LocationResolverService {
             county: result.address?.county,
             city: result.address?.city || result.address?.town || result.address?.village,
           },
-          confidence: this.calculateConfidence(importance, result.type),
+          confidence: this.calculateConfidence(importance),
           importance,
           rawQuery: query,
         };
       });
 
-      // Cache results
+      // Cache the result
       this.cache.set(cacheKey, candidates);
 
-      console.log(`[LocationResolver] Found ${candidates.length} candidates for: ${query}`);
       return candidates;
     } catch (error) {
-      console.error(`[LocationResolver] Error querying Nominatim:`, error);
+      console.error(`[LocationResolver] Error geocoding "${query}":`, error);
       return [];
     }
   }
 
   /**
-   * Calculate confidence score based on Nominatim importance and type
+   * Calculate confidence score based on Nominatim importance
    */
-  private calculateConfidence(
-    importance: number,
-    type: string
-  ): 'high' | 'medium' | 'low' {
-    // High importance (major cities, countries)
+  private calculateConfidence(importance: number): 'high' | 'medium' | 'low' {
     if (importance > 0.6) return 'high';
-    
-    // Medium importance (smaller cities, regions)
     if (importance > 0.3) return 'medium';
-    
-    // Low importance (neighborhoods, small places)
     return 'low';
   }
 
   /**
-   * Resolve a single place name
+   * Merge overlapping n-gram hits, keeping the best candidate per span
+   */
+  private mergeOverlapping(hits: Array<{ ngram: NGram; candidate: LocationCandidate }>): LocationCandidate[] {
+    if (hits.length === 0) return [];
+
+    // Sort by start index
+    const sorted = hits.sort((a, b) => a.ngram.startIndex - b.ngram.startIndex);
+    
+    const merged: LocationCandidate[] = [];
+    let i = 0;
+    
+    while (i < sorted.length) {
+      let best = sorted[i];
+      let j = i + 1;
+      
+      // Find all overlapping candidates
+      while (j < sorted.length && sorted[j].ngram.startIndex < best.ngram.endIndex) {
+        // Keep the one with higher importance
+        if (sorted[j].candidate.importance > best.candidate.importance) {
+          best = sorted[j];
+        } else if (sorted[j].candidate.importance === best.candidate.importance) {
+          // Tie-breaker: prefer longer phrase
+          if (sorted[j].ngram.text.length > best.ngram.text.length) {
+            best = sorted[j];
+          }
+        }
+        j++;
+      }
+      
+      merged.push(best.candidate);
+      i = j;
+    }
+
+    // Deduplicate by display name
+    const unique = new Map<string, LocationCandidate>();
+    for (const candidate of merged) {
+      const key = candidate.displayName.toLowerCase();
+      if (!unique.has(key) || candidate.importance > unique.get(key)!.importance) {
+        unique.set(key, candidate);
+      }
+    }
+    
+    return Array.from(unique.values());
+  }
+
+  /**
+   * Main API: Extract and resolve locations using geocoder-first approach
+   */
+  async extractAndResolveLocations(text: string): Promise<LocationCandidate[]> {
+    console.log(`[LocationResolver] Starting geocoder-first extraction for text:`, text);
+
+    // Step 1: Generate n-grams
+    const ngrams = this.generateNGrams(text);
+    
+    if (ngrams.length === 0) {
+      console.log(`[LocationResolver] No valid n-grams generated`);
+      return [];
+    }
+
+    // Step 2: Geocode all n-grams (with throttling and caching)
+    const tasks = ngrams.map(ngram => async () => {
+      // Try raw query
+      let candidates = await this.geocode(ngram.text);
+      
+      // If failed, try title-cased
+      if (candidates.length === 0) {
+        const titleCased = this.toTitleCase(ngram.text);
+        if (titleCased !== ngram.text) {
+          candidates = await this.geocode(titleCased);
+        }
+      }
+      
+      return { ngram, candidates };
+    });
+
+    const results = await this.throttler.throttleAll(tasks);
+    
+    // Step 3: Filter by importance threshold (≥0.6)
+    const strongHits = results.flatMap(({ ngram, candidates }) =>
+      candidates
+        .filter(c => c.importance >= this.IMPORTANCE_THRESHOLD)
+        .map(c => ({ ngram, candidate: c }))
+    );
+
+    console.log(`[LocationResolver] Found ${strongHits.length} strong hits (importance ≥ ${this.IMPORTANCE_THRESHOLD})`);
+
+    // Step 4: Merge overlapping candidates
+    const locations = this.mergeOverlapping(strongHits);
+    
+    console.log(`[LocationResolver] Final result: ${locations.length} locations`);
+    return locations;
+  }
+
+  /**
+   * Resolve a single place name (legacy compatibility)
    */
   async resolveSingle(placeName: string): Promise<{
     needsClarification: boolean;
     autoResolved?: LocationCandidate;
     question?: GeographicQuestion;
   }> {
-    const candidates = await this.queryNominatim(placeName);
+    const candidates = await this.geocode(placeName);
 
     if (candidates.length === 0) {
-      // No results found
       return { needsClarification: false };
     }
 
@@ -358,33 +328,43 @@ export class LocationResolverService {
   }
 
   /**
-   * Resolve all place names in text
+   * Resolve all place names in text (legacy compatibility - now uses extractAndResolveLocations)
    */
   async resolveAll(text: string): Promise<{
     autoResolved: LocationCandidate[];
     questions: GeographicQuestion[];
   }> {
-    const placeNames = this.extractPlaceNames(text);
+    const locations = await this.extractAndResolveLocations(text);
     
-    if (placeNames.length === 0) {
-      console.log(`[LocationResolver] No place names found in text`);
-      return { autoResolved: [], questions: [] };
-    }
-
-    const autoResolved: LocationCandidate[] = [];
-    const questions: GeographicQuestion[] = [];
-
-    for (const placeName of placeNames) {
-      const result = await this.resolveSingle(placeName);
+    console.log(`[LocationResolver] resolveAll found ${locations.length} high-confidence locations`);
+    
+    // Only show disambiguation UI if 2+ distinct high-confidence candidates
+    if (locations.length >= 2) {
+      // Create a single question asking which location(s) they mean
+      const question: GeographicQuestion = {
+        id: 'geo_multiple_locations',
+        question: `We found multiple locations in your input. Which one(s) are relevant?`,
+        rawQuery: text,
+        multiSelect: true,  // Allow selecting multiple
+        options: locations.map((candidate, idx) => ({
+          value: `location_${idx}`,
+          label: this.formatLocationLabel(candidate),
+          description: this.formatLocationDescription(candidate),
+          metadata: candidate,
+        })),
+      };
       
-      if (result.autoResolved) {
-        autoResolved.push(result.autoResolved);
-      } else if (result.question) {
-        questions.push(result.question);
-      }
+      return {
+        autoResolved: [],
+        questions: [question]
+      };
     }
-
-    return { autoResolved, questions };
+    
+    // 0 or 1 location - auto-resolve
+    return {
+      autoResolved: locations,
+      questions: []
+    };
   }
 
   /**
