@@ -75,46 +75,122 @@ export async function fetchJourneySessionData(sessionId: string): Promise<Golden
 
   // Build steps from journey data
   const steps: GoldenRecordStep[] = [];
-  
-  // Add framework steps based on completed frameworks
-  if (session.completedFrameworks && session.completedFrameworks.length > 0) {
-    for (const framework of session.completedFrameworks) {
+  const latestVersion = versions.length > 0 ? versions[0] : null;
+  const epmProgramRow = epmProgram.length > 0 ? epmProgram[0] : null;
+
+  // For BMI journeys, extract detailed framework steps
+  if (session.journeyType === 'business_model_innovation') {
+    // Step 1: Five Whys
+    if (session.completedFrameworks?.includes('five_whys')) {
+      const fiveWhys = (session.accumulatedContext as any)?.insights?.fiveWhys
+        ?? latestVersion?.analysisData?.five_whys;
+
       steps.push({
-        stepName: `${framework}_analysis`,
-        frameworkType: framework,
-        completedAt: session.completedAt || undefined,
-        observations: `Completed ${framework} framework analysis`,
+        stepName: 'five_whys',
+        frameworkType: 'five_whys',
+        expectedUrl: `/strategic-consultant/whys-tree/${session.id}`,
+        responsePayload: fiveWhys ? { rootCause: fiveWhys?.root_cause } : undefined,
+        observations: fiveWhys ? 'Five Whys completed' : 'Five Whys framework executed',
+        completedAt: session.completedAt ?? latestVersion?.createdAt ?? undefined,
       });
     }
-  }
 
-  // Add strategy version step if exists
-  if (versions.length > 0) {
-    steps.push({
-      stepName: 'strategy_version_created',
-      responsePayload: {
-        versionNumber: versions[0].versionNumber,
-        status: versions[0].status,
-      },
-      completedAt: versions[0].createdAt || undefined,
-      observations: `Strategy version ${versions[0].versionNumber} created`,
-    });
-  }
+    // Step 2: BMC Research
+    if (latestVersion?.analysisData?.bmc_research) {
+      steps.push({
+        stepName: 'bmc_research',
+        frameworkType: 'bmc',
+        expectedUrl: `/strategic-consultant/research/${session.id}`,
+        responsePayload: {
+          keyInsights: latestVersion.analysisData.bmc_research.keyInsights,
+          criticalGaps: latestVersion.analysisData.bmc_research.criticalGaps,
+        },
+        observations: 'BMC research stream completed',
+        completedAt: latestVersion.updatedAt ?? latestVersion.createdAt ?? undefined,
+      });
+    }
 
-  // Add EPM generation step if exists
-  if (epmProgram.length > 0) {
-    steps.push({
-      stepName: 'epm_generated',
-      responsePayload: {
-        programId: epmProgram[0].id,
-        status: epmProgram[0].status,
-        workstreamCount: Array.isArray(epmProgram[0].workstreams) 
-          ? epmProgram[0].workstreams.length 
-          : 0,
-      },
-      completedAt: epmProgram[0].createdAt || undefined,
-      observations: 'EPM program generated successfully',
-    });
+    // Step 3: Strategic Decisions
+    if (latestVersion?.decisionsData?.decisions?.length) {
+      steps.push({
+        stepName: 'strategic_decisions',
+        expectedUrl: `/strategy-workspace/decisions/${session.id}/${latestVersion.versionNumber}`,
+        responsePayload: latestVersion.decisionsData.decisions.map((d: any) => ({
+          id: d.id,
+          title: d.title,
+          options: d.options?.length ?? 0,
+        })),
+        observations: 'Decisions generated and ready for prioritization',
+      });
+
+      // Step 4: Prioritization
+      if (latestVersion?.selectedDecisions) {
+        steps.push({
+          stepName: 'prioritization',
+          expectedUrl: `/strategy-workspace/prioritization/${session.id}/${latestVersion.versionNumber}`,
+          responsePayload: latestVersion.selectedDecisions,
+          observations: 'Prioritized initiatives saved',
+        });
+      }
+    }
+
+    // Step 5: EPM Program
+    if (epmProgramRow) {
+      steps.push({
+        stepName: 'epm_generation',
+        expectedUrl: `/strategy-workspace/epm/${epmProgramRow.id}`,
+        responsePayload: {
+          programId: epmProgramRow.id,
+          status: epmProgramRow.status,
+          workstreams: Array.isArray(epmProgramRow.workstreams)
+            ? epmProgramRow.workstreams.length
+            : 0,
+        },
+        observations: 'EPM program generated successfully',
+        completedAt: epmProgramRow.createdAt ?? undefined,
+      });
+    }
+  } else {
+    // Fallback for other journey types - use generic framework-based steps
+    if (session.completedFrameworks && session.completedFrameworks.length > 0) {
+      for (const framework of session.completedFrameworks) {
+        steps.push({
+          stepName: `${framework}_analysis`,
+          frameworkType: framework,
+          completedAt: session.completedAt || undefined,
+          observations: `Completed ${framework} framework analysis`,
+        });
+      }
+    }
+
+    // Add strategy version step if exists
+    if (latestVersion) {
+      steps.push({
+        stepName: 'strategy_version_created',
+        responsePayload: {
+          versionNumber: latestVersion.versionNumber,
+          status: latestVersion.status,
+        },
+        completedAt: latestVersion.createdAt || undefined,
+        observations: `Strategy version ${latestVersion.versionNumber} created`,
+      });
+    }
+
+    // Add EPM generation step if exists
+    if (epmProgramRow) {
+      steps.push({
+        stepName: 'epm_generated',
+        responsePayload: {
+          programId: epmProgramRow.id,
+          status: epmProgramRow.status,
+          workstreamCount: Array.isArray(epmProgramRow.workstreams) 
+            ? epmProgramRow.workstreams.length 
+            : 0,
+        },
+        completedAt: epmProgramRow.createdAt || undefined,
+        observations: 'EPM program generated successfully',
+      });
+    }
   }
 
   return {
