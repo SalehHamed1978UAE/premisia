@@ -177,6 +177,9 @@ function isKMSEncryptedFormat(data: string): boolean {
 }
 
 function isLegacyEncryptedFormat(data: string): boolean {
+  // Guard against non-string data
+  if (typeof data !== 'string') return false;
+  
   const parts = data.split(':');
   if (parts.length !== 3) return false;
   

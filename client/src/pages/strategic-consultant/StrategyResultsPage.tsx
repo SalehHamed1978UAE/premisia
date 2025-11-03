@@ -310,15 +310,15 @@ export default function StrategyResultsPage() {
             <div className="p-6 border-2 border-primary rounded-lg bg-primary/5">
               <h3 className="text-lg font-semibold mb-2">Next Step: Strategic Decision Making</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                Review AI-generated strategic options and make key decisions to generate your complete EPM program
+                Review the analysis above and make key strategic decisions to generate your complete EPM program
               </p>
               <Button 
                 size="lg"
-                onClick={() => setLocation(`/strategic-consultant/decisions/${sessionId}/${versionNumber}`)}
+                onClick={() => setLocation(`/strategy-workspace/decisions/${sessionId}/${versionNumber}`)}
                 data-testid="button-review-decide"
                 className="w-full text-sm md:text-base px-3 py-2 sm:px-4 sm:py-2"
               >
-                <span className="truncate">Review AI Decisions & Generate EPM</span>
+                <span className="truncate">Review Results & Make Strategic Decisions</span>
               </Button>
             </div>
           )}
