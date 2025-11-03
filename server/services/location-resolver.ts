@@ -27,6 +27,8 @@ export interface GeographicQuestion {
     description: string;
     metadata: LocationCandidate;
   }>;
+  allowManualEntry: boolean;
+  manualEntryPlaceholder?: string;
 }
 
 interface NGram {
@@ -352,6 +354,8 @@ export class LocationResolverService {
           description: this.formatLocationDescription(candidate),
           metadata: candidate,
         })),
+        allowManualEntry: true,
+        manualEntryPlaceholder: 'Type the full city + country (e.g., "Madinat al Riyadh, Saudi Arabia")',
       };
       
       return {
@@ -390,6 +394,8 @@ export class LocationResolverService {
         description: this.formatLocationDescription(candidate),
         metadata: candidate,
       })),
+      allowManualEntry: true,
+      manualEntryPlaceholder: 'Type the full city + country (e.g., "Madinat al Riyadh, Saudi Arabia")',
     };
   }
 
