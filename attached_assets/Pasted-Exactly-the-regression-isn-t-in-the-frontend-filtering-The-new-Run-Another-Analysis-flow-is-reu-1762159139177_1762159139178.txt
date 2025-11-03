@@ -1,0 +1,51 @@
+Exactly—the regression isn’t in the frontend filtering. The new “Run Another
+  Analysis” flow is reusing the original session id when it saves the follow-
+  on results, so every downstream check (background jobs, EPM lookup, version
+  numbers) thinks it’s still the first run. Here’s the precise failure chain and
+  what Replit has to fix:
+
+  - Follow-on launch: /journeys/run-now creates a fresh journey session (call it
+    session-B). That part is correct.
+  - BMC research completion: inside /bmc-research/stream/:sessionId we try to
+    persist strategy_versions. Because the code still falls back to the legacy
+    session id (understanding.sessionId) when it can’t match the new ID, both
+    the original BMI and the follow-on write to the same session id (e.g.,
+    session-1762153222092-4s6db).
+  - Version numbering: the version helper increments per sessionId. Since both
+    runs now share the same id, the follow-on becomes version 1 as well—no new
+    version row is created.
+  - Background jobs & UI: PrioritizationPage queries /api/background-jobs/
+    by-session/:sessionId. It fetches the older completed job for that shared
+    session id and, because job.inputData.versionNumber === current version
+    (both 1), the button flips to “View EPM Program”. There is no new program
+    to generate.
+
+  What Replit must do:
+
+  1. Honor the new journey session id everywhere.
+     In /bmc-research/stream/:sessionId (and any other persistence paths) stop
+     falling back to the legacy understanding.sessionId. When the endpoint
+     receives the journey session id (the one returned from run-now), use it for
+     journeySessions, strategyVersions, and reference persistence.
+
+     Concretely: if getJourneySession(sessionId) returns a row, use that ID
+     without ever swapping to understanding.sessionId. Only use the legacy path
+     when the caller is truly the legacy flow.
+  2. Ensure version numbering doesn’t reset.
+     Once we store the correct session id, each follow-on will get its own
+     strategyVersions sequence (version 1 for session B, version 1 for session
+     C, etc.). That’s OK as long as the job input stores strategyVersionId
+     (already done) and PrioritizationPage filters by it—which it does.
+  3. Verify after patch:
+      - Run BMI from Strategies Hub, finish Prioritization, click “Generate
+        EPM”—a new background job should be created, and the button should stay
+        in “Generate” state until the job completes.
+      - Check strategy_versions table: a new row should exist with session_id =
+        <new journey session id>.
+      - epm_programs should have a fresh program linked to the new
+        strategyVersionId.
+      - Prioritization and Strategy detail pages should show both the old and
+        new programs.
+
+  Once they adjust the persistence logic to use the correct journey-session id,
+  follow-on runs will no longer reuse the prior EPM.

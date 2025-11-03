@@ -1,0 +1,49 @@
+Here’s what Replit needs to change so a follow-on BMI run produces its own EPM
+  instead of reusing the first program.
+
+  - Stop matching background jobs by session only.
+    Endpoint GET /api/background-jobs/by-session/:sessionId (server/routes/
+    strategy-workspace.ts, around 600–660) currently returns the most recent
+    job for that session. When you run BMI again from Strategies Hub, the new
+    version shares the same baseline session id and the endpoint hands back the
+    earlier job, so the Prioritization page sees “completed” and flips to “View
+    EPM”.
+  - Add strategy version filtering.
+    Extend the query to accept versionId (or versionNumber) and require the
+    job’s payload to match. The /strategy-workspace/epm/generate route already
+    writes strategyVersionId into background jobs—use it in the where clause.
+    For example:
+
+    // server/routes/strategy-workspace.ts
+    router.get('/api/background-jobs/by-session/:sessionId', …) {
+      const versionId = req.query.versionId;
+      …
+      if (versionId) {
+        where(and(
+          eq(backgroundJobs.sessionId, sessionId),
+          eq(backgroundJobs.inputData->>'strategyVersionId', versionId),
+          eq(backgroundJobs.jobType, 'epm_generation')
+        ));
+      } else {
+        …
+      }
+    }
+  - Update the client request.
+    In client/src/pages/strategy-workspace/PrioritizationPage.tsx we call that
+    endpoint (search for /api/background-jobs/by-session). Append the versionId
+    of the current strategy version and only treat the job as “completed” if
+    job.inputData.strategyVersionId === strategyVersionId.
+  - Guard the Generate vs View button.
+    The existing code already stores strategyVersionId; keep the “View
+    EPM Program” branch conditional on a job for the current version and a
+    program lookup (/api/strategy-workspace/epm) returning a program whose
+    strategyVersionId equals the current one.
+
+  Once these changes are in place:
+
+  1. Launch a BMI follow-on from Strategies Hub.
+  2. Complete Prioritization—button should stay “Generate” until the new job
+     finishes, then flip.
+  3. Check /api/strategy-workspace/epm—there should be a new program with the
+     fresh strategyVersionId.
+  4. Verify previous programs remain intact.
