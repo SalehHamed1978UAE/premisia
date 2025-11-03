@@ -21,7 +21,7 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
       '/strategic-consultant/whys-tree/:understandingId',
       '/strategic-consultant/research/:sessionId',
       '/strategic-consultant/analysis/:sessionId',
-      '/strategy-workspace/decisions/:sessionId',
+      '/strategy-workspace/decisions/:sessionId/:versionNumber',
     ],
     estimatedDuration: '30-35 minutes',
     available: true, // FULLY IMPLEMENTED - includes input & decisions workflow
