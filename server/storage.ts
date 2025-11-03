@@ -18,6 +18,7 @@ import type { Store } from "express-session";
 import { ontologyService } from "./ontology-service";
 import type { EPMEntity } from "@shared/ontology";
 import { getStrategicUnderstandingBySession } from "./services/secure-data-service";
+import { decryptKMS, decryptJSONKMS } from "./utils/kms-encryption";
 
 const PostgresSessionStore = connectPg(session);
 
@@ -688,19 +689,24 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(epmPrograms.createdAt))
       .limit(5);
 
-    // Combine and sort by date
-    const artifacts = [
-      ...recentVersions.map(v => ({
-        id: v.understandingId,
-        type: 'analysis' as const,
-        title: v.inputSummary || 'Strategic Analysis',
-        createdAt: v.createdAt!,
-        link: `/repository/${v.understandingId}`
-      })),
-      ...recentPrograms.map(p => {
-        // Extract program name from executiveSummary
-        const execSummary = p.executiveSummary as any;
-        const programName = execSummary?.programName || execSummary?.title || `${p.frameworkType} Program`;
+    // Decrypt and combine artifacts
+    const artifacts = await Promise.all([
+      // Decrypt analysis titles
+      ...recentVersions.map(async v => {
+        const decryptedSummary = await decryptKMS(v.inputSummary);
+        return {
+          id: v.understandingId,
+          type: 'analysis' as const,
+          title: decryptedSummary || 'Strategic Analysis',
+          createdAt: v.createdAt!,
+          link: `/repository/${v.understandingId}`
+        };
+      }),
+      // Decrypt program titles
+      ...recentPrograms.map(async p => {
+        // Decrypt executiveSummary to extract program name
+        const decryptedExecSummary = await decryptJSONKMS<any>(p.executiveSummary);
+        const programName = (decryptedExecSummary as any)?.programName || (decryptedExecSummary as any)?.title || `${p.frameworkType} Program`;
         
         return {
           id: p.id,
@@ -710,7 +716,7 @@ export class DatabaseStorage implements IStorage {
           link: `/strategy-workspace/epm/${p.id}`
         };
       })
-    ];
+    ]);
 
     // Sort by date and take top 5
     artifacts.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());

@@ -7,7 +7,6 @@ import { AuthProvider, useAuth } from "./hooks/use-auth";
 import { ProgramProvider } from "./contexts/ProgramContext";
 import { JobProvider } from "./contexts/JobContext";
 import { DocumentInsightsProvider } from "./contexts/DocumentInsightsContext";
-import { SessionContextPanel } from "@/components/SessionContext";
 import { GlobalJobTracker } from "@/components/GlobalJobTracker";
 import { DocumentInsightsFAB } from "@/components/DocumentInsightsFAB";
 import { DocumentInsightsPanel } from "@/components/DocumentInsightsPanel";
@@ -88,7 +87,6 @@ function Router() {
         <Route path="/auth" component={AuthPage} />
         <Route component={NotFound} />
       </Switch>
-      {user && <SessionContextPanel />}
     </>
   );
 }
