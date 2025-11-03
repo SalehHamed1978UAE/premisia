@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
 import { SiGoogle } from "react-icons/si";
+import { GeometricLoader } from "@/components/loaders/GeometricLoader";
 import logoLight from "@assets/Untitled (3600 x 1000 px)_1762102046406.png";
 import logoDark from "@assets/Untitled (3600 x 1000 px)-modified_1762102046405.png";
 import logoFullLight from "@assets/Untitled (3600 x 1000 px)_1762102046406.png";
@@ -470,6 +471,7 @@ function Dashboard({ summary }: { summary: DashboardSummary }) {
 
 function PublicLandingPage() {
   const [scrolled, setScrolled] = useState(false);
+  const [isSigningIn, setIsSigningIn] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -479,6 +481,11 @@ function PublicLandingPage() {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  const handleSignIn = () => {
+    setIsSigningIn(true);
+    window.location.href = '/api/login';
+  };
 
   return (
     <>
@@ -603,11 +610,23 @@ function PublicLandingPage() {
               <a href="#features" className="hidden md:block text-[#94a3b8] hover:text-white transition-colors">Features</a>
               <a href="#process" className="hidden md:block text-[#94a3b8] hover:text-white transition-colors">How it Works</a>
               <button
-                onClick={() => window.location.href = '/api/login'}
-                className="px-5 py-2.5 bg-gradient-to-r from-[#3b82f6] to-[#10b981] text-white rounded-lg font-semibold hover:-translate-y-0.5 hover:shadow-[0_10px_30px_rgba(59,130,246,0.3)] transition-all duration-300 relative overflow-hidden btn-shimmer"
+                onClick={handleSignIn}
+                disabled={isSigningIn}
+                className={cn(
+                  "px-5 py-2.5 bg-gradient-to-r from-[#3b82f6] to-[#10b981] text-white rounded-lg font-semibold transition-all duration-300 relative overflow-hidden btn-shimmer",
+                  !isSigningIn && "hover:-translate-y-0.5 hover:shadow-[0_10px_30px_rgba(59,130,246,0.3)]",
+                  isSigningIn && "opacity-90 cursor-not-allowed"
+                )}
                 data-testid="button-cta-signin"
               >
-                Start Free Trial
+                {isSigningIn ? (
+                  <span className="flex items-center gap-2">
+                    <GeometricLoader type="dots" />
+                    <span>Redirecting...</span>
+                  </span>
+                ) : (
+                  "Start Free Trial"
+                )}
               </button>
             </div>
           </div>
@@ -766,13 +785,23 @@ function PublicLandingPage() {
                 Sign in to start structuring your strategic choices with traceable evidence and execution-ready outputs
               </p>
               <Button 
-                onClick={() => window.location.href = '/api/login'}
+                onClick={handleSignIn}
+                disabled={isSigningIn}
                 size="lg"
                 className="w-full"
                 data-testid="button-landing-login"
               >
-                <SiGoogle className="mr-2 h-5 w-5" />
-                Sign in with Replit
+                {isSigningIn ? (
+                  <>
+                    <GeometricLoader type="orbit" size="small" className="mr-2" />
+                    <span>Signing in...</span>
+                  </>
+                ) : (
+                  <>
+                    <SiGoogle className="mr-2 h-5 w-5" />
+                    Sign in with Replit
+                  </>
+                )}
               </Button>
               <p className="text-xs text-muted-foreground mt-4">
                 Secure OAuth 2.0 / OIDC authentication • AES-256 encryption
