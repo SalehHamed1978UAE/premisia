@@ -5,9 +5,9 @@
  */
 
 import { db } from '../db';
-import { journeySessions, strategicUnderstanding, frameworkInsights } from '@shared/schema';
+import { journeySessions, strategicUnderstanding, frameworkInsights, goldenRecords } from '@shared/schema';
 import { StrategicContext, JourneyType, FrameworkResult, JourneyProgress } from '@shared/journey-types';
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, desc } from 'drizzle-orm';
 import {
   initializeContext,
   addFrameworkResult,
@@ -235,6 +235,9 @@ export class JourneyOrchestrator {
         console.log('[JourneyOrchestrator] Journey Registry V2 disabled, skipping summary save');
       }
 
+      // Auto-capture golden record if enabled
+      await this.autoCaptureGoldenRecord(journeySessionId, session.journeyType! as JourneyType);
+
       // Final progress callback
       if (progressCallback) {
         progressCallback({
@@ -389,6 +392,97 @@ export class JourneyOrchestrator {
           ...(status === 'completed' ? { completedAt: new Date() } : {}),
         })
         .where(eq(journeySessions.id, journeySessionId));
+    });
+  }
+
+  /**
+   * Auto-capture golden record if enabled
+   * Called after journey completion (async, non-blocking)
+   */
+  private async autoCaptureGoldenRecord(
+    journeySessionId: string,
+    journeyType: JourneyType
+  ): Promise<void> {
+    // Check if auto-capture is enabled via environment variable
+    const autoCaptureEnabled = process.env.AUTO_CAPTURE_GOLDEN === 'true';
+    
+    if (!autoCaptureEnabled) {
+      console.log('[Golden Records] Auto-capture disabled (AUTO_CAPTURE_GOLDEN=false)');
+      return;
+    }
+
+    // Journey allowlist (start with BMI only)
+    const allowedJourneys: JourneyType[] = ['business_model_innovation'];
+    
+    if (!allowedJourneys.includes(journeyType)) {
+      console.log(`[Golden Records] Journey type "${journeyType}" not in auto-capture allowlist`);
+      return;
+    }
+
+    // Capture asynchronously without blocking the main flow
+    setImmediate(async () => {
+      try {
+        console.log(`[Golden Records] 🔄 Auto-capturing golden record for journey: ${journeyType}`);
+        const timestamp = new Date().toISOString();
+        
+        // Import the golden records service
+        const {
+          fetchJourneySessionData,
+          sanitizeGoldenRecordData,
+          saveGoldenRecordToFile,
+        } = await import('../utils/golden-records-service');
+        
+        // Fetch journey data
+        const rawData = await fetchJourneySessionData(journeySessionId);
+        
+        if (!rawData) {
+          console.error('[Golden Records] Failed to fetch journey session data for auto-capture');
+          return;
+        }
+
+        // Sanitize data
+        const sanitizedData = await sanitizeGoldenRecordData(rawData);
+
+        // Determine next version
+        const existingRecords = await db
+          .select()
+          .from(goldenRecords)
+          .where(eq(goldenRecords.journeyType, journeyType as any))
+          .orderBy(desc(goldenRecords.version));
+
+        const maxVersion = existingRecords.length > 0 ? existingRecords[0].version : 0;
+        const nextVersion = maxVersion + 1;
+
+        // Update sanitized data with the correct golden record version
+        sanitizedData.versionNumber = nextVersion;
+
+        // Save to local file
+        await saveGoldenRecordToFile(sanitizedData, `Auto-captured on ${timestamp}`);
+
+        // Save to database (don't auto-promote)
+        const recordData = {
+          journeyType: journeyType as any,
+          version: nextVersion,
+          parentVersion: maxVersion > 0 ? maxVersion : null,
+          isCurrent: false, // Don't auto-promote
+          metadata: sanitizedData.metadata,
+          notes: `Auto-captured on ${timestamp}`,
+          steps: sanitizedData.steps as any,
+          createdBy: 'system', // Auto-capture is system-initiated
+        };
+
+        const [newRecord] = await db
+          .insert(goldenRecords)
+          .values(recordData)
+          .returning();
+
+        console.log(`[Golden Records] ✅ Auto-captured golden record v${nextVersion}: ${newRecord.id}`);
+        console.log(`[Golden Records] Journey: ${journeyType}, Session: ${journeySessionId}`);
+        
+      } catch (error) {
+        console.error('[Golden Records] Error during auto-capture:', error);
+        // Don't throw - this is a non-critical background operation
+      }
     });
   }
 
