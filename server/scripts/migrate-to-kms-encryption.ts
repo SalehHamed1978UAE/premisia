@@ -1,6 +1,10 @@
-import { Pool } from '@neondatabase/serverless';
+import { Pool, neonConfig } from '@neondatabase/serverless';
+import ws from 'ws';
 import fs from 'fs';
 import path from 'path';
+
+// Configure WebSocket for Neon
+neonConfig.webSocketConstructor = ws;
 
 // OLD encryption methods
 import { decrypt, decryptJSON, isEncrypted } from '../utils/encryption.js';
@@ -204,7 +208,7 @@ async function migrateStrategicUnderstanding() {
   
   while (offset < totalRecords) {
     const result = await pool.query(
-      `SELECT id, "userInput", "companyContext", "initiativeDescription" FROM ${tableName} LIMIT $1 OFFSET $2`,
+      `SELECT id, user_input, company_context, initiative_description FROM ${tableName} LIMIT $1 OFFSET $2`,
       [BATCH_SIZE, offset]
     );
     
@@ -213,34 +217,34 @@ async function migrateStrategicUnderstanding() {
         const updates: any = {};
         let hasUpdates = false;
         
-        // Migrate userInput
-        const newUserInput = await migrateTextField(record.userInput, 'userInput', record.id, tableName);
+        // Migrate user_input
+        const newUserInput = await migrateTextField(record.user_input, 'user_input', record.id, tableName);
         if (newUserInput) {
-          updates.userInput = newUserInput;
+          updates.user_input = newUserInput;
           hasUpdates = true;
         }
         
-        // Migrate companyContext (JSON)
-        const newCompanyContext = await migrateJSONField(record.companyContext, 'companyContext', record.id, tableName);
+        // Migrate company_context (JSON)
+        const newCompanyContext = await migrateJSONField(record.company_context, 'company_context', record.id, tableName);
         if (newCompanyContext) {
-          updates.companyContext = newCompanyContext;
+          updates.company_context = newCompanyContext;
           hasUpdates = true;
         }
         
-        // Migrate initiativeDescription
-        const newInitiativeDescription = await migrateTextField(record.initiativeDescription, 'initiativeDescription', record.id, tableName);
+        // Migrate initiative_description
+        const newInitiativeDescription = await migrateTextField(record.initiative_description, 'initiative_description', record.id, tableName);
         if (newInitiativeDescription) {
-          updates.initiativeDescription = newInitiativeDescription;
+          updates.initiative_description = newInitiativeDescription;
           hasUpdates = true;
         }
         
         if (hasUpdates && !isDryRun) {
           // Build dynamic UPDATE query
-          const setClause = Object.keys(updates).map((key, idx) => `"${key}" = $${idx + 1}`).join(', ');
+          const setClause = Object.keys(updates).map((key, idx) => `${key} = $${idx + 1}`).join(', ');
           const values = Object.values(updates);
           
           await pool.query(
-            `UPDATE ${tableName} SET ${setClause}, "updatedAt" = NOW() WHERE id = $${values.length + 1}`,
+            `UPDATE ${tableName} SET ${setClause}, updated_at = NOW() WHERE id = $${values.length + 1}`,
             [...values, record.id]
           );
           
@@ -281,18 +285,18 @@ async function migrateJourneySessions() {
   
   while (offset < totalRecords) {
     const result = await pool.query(
-      `SELECT id, "accumulatedContext" FROM ${tableName} LIMIT $1 OFFSET $2`,
+      `SELECT id, accumulated_context FROM ${tableName} LIMIT $1 OFFSET $2`,
       [BATCH_SIZE, offset]
     );
     
     for (const record of result.rows) {
       try {
-        // Migrate accumulatedContext (JSON)
-        const newAccumulatedContext = await migrateJSONField(record.accumulatedContext, 'accumulatedContext', record.id, tableName);
+        // Migrate accumulated_context (JSON)
+        const newAccumulatedContext = await migrateJSONField(record.accumulated_context, 'accumulated_context', record.id, tableName);
         
         if (newAccumulatedContext && !isDryRun) {
           await pool.query(
-            `UPDATE ${tableName} SET "accumulatedContext" = $1, "updatedAt" = NOW() WHERE id = $2`,
+            `UPDATE ${tableName} SET accumulated_context = $1, updated_at = NOW() WHERE id = $2`,
             [newAccumulatedContext, record.id]
           );
           
@@ -655,7 +659,7 @@ async function migrateStrategyVersions() {
   
   while (offset < totalRecords) {
     const result = await pool.query(
-      `SELECT id, "inputSummary", "analysisData", "decisionsData" FROM ${tableName} LIMIT $1 OFFSET $2`,
+      `SELECT id, input_summary, analysis_data, decisions_data FROM ${tableName} LIMIT $1 OFFSET $2`,
       [BATCH_SIZE, offset]
     );
     
@@ -664,29 +668,29 @@ async function migrateStrategyVersions() {
         const updates: any = {};
         let hasUpdates = false;
         
-        // Encrypt inputSummary (plaintext field that was never encrypted)
-        const newInputSummary = await encryptPlaintextField(record.inputSummary, 'inputSummary', record.id, tableName);
+        // Encrypt input_summary (plaintext field that was never encrypted)
+        const newInputSummary = await encryptPlaintextField(record.input_summary, 'input_summary', record.id, tableName);
         if (newInputSummary) {
-          updates.inputSummary = newInputSummary;
+          updates.input_summary = newInputSummary;
           hasUpdates = true;
         }
         
-        // Migrate analysisData (JSON)
-        const newAnalysisData = await migrateJSONField(record.analysisData, 'analysisData', record.id, tableName);
+        // Migrate analysis_data (JSON)
+        const newAnalysisData = await migrateJSONField(record.analysis_data, 'analysis_data', record.id, tableName);
         if (newAnalysisData) {
-          updates.analysisData = newAnalysisData;
+          updates.analysis_data = newAnalysisData;
           hasUpdates = true;
         }
         
-        // Migrate decisionsData (JSON)
-        const newDecisionsData = await migrateJSONField(record.decisionsData, 'decisionsData', record.id, tableName);
+        // Migrate decisions_data (JSON)
+        const newDecisionsData = await migrateJSONField(record.decisions_data, 'decisions_data', record.id, tableName);
         if (newDecisionsData) {
-          updates.decisionsData = newDecisionsData;
+          updates.decisions_data = newDecisionsData;
           hasUpdates = true;
         }
         
         if (hasUpdates && !isDryRun) {
-          const setClause = Object.keys(updates).map((key, idx) => `"${key}" = $${idx + 1}`).join(', ');
+          const setClause = Object.keys(updates).map((key, idx) => `${key} = $${idx + 1}`).join(', ');
           const values = Object.values(updates);
           
           await pool.query(
@@ -731,18 +735,18 @@ async function migrateStrategicDecisions() {
   
   while (offset < totalRecords) {
     const result = await pool.query(
-      `SELECT id, "decisionsData" FROM ${tableName} LIMIT $1 OFFSET $2`,
+      `SELECT id, decisions_data FROM ${tableName} LIMIT $1 OFFSET $2`,
       [BATCH_SIZE, offset]
     );
     
     for (const record of result.rows) {
       try {
-        // Migrate decisionsData (JSON)
-        const newDecisionsData = await migrateJSONField(record.decisionsData, 'decisionsData', record.id, tableName);
+        // Migrate decisions_data (JSON)
+        const newDecisionsData = await migrateJSONField(record.decisions_data, 'decisions_data', record.id, tableName);
         
         if (newDecisionsData && !isDryRun) {
           await pool.query(
-            `UPDATE ${tableName} SET "decisionsData" = $1 WHERE id = $2`,
+            `UPDATE ${tableName} SET decisions_data = $1 WHERE id = $2`,
             [newDecisionsData, record.id]
           );
           
