@@ -777,68 +777,39 @@ function PublicLandingPage() {
         .timeline {
           position: relative;
           padding: 40px 0;
-        }
-
-        .timeline:before {
-          content: '';
-          position: absolute;
-          top: 0;
-          left: 50%;
-          width: 3px;
-          height: 100%;
-          background: linear-gradient(135deg, #3b82f6 0%, #10b981 100%);
-          transform: translateX(-50%);
+          display: flex;
+          flex-direction: column;
+          gap: 40px;
         }
 
         .timeline-item {
           display: flex;
-          margin-bottom: 60px;
-          position: relative;
           opacity: 0;
-          transform: translateX(-50px);
-          animation: slideInLeft 0.6s ease forwards;
+          animation: fadeInUp 0.6s ease forwards;
         }
 
-        .timeline-item:nth-child(1) { animation-delay: 0.1s; }
-        .timeline-item:nth-child(2) { animation-delay: 0.2s; }
-        .timeline-item:nth-child(3) { animation-delay: 0.3s; }
-        .timeline-item:nth-child(4) { animation-delay: 0.4s; }
-        .timeline-item:nth-child(5) { animation-delay: 0.5s; }
-
-        .timeline-item:nth-child(even) {
-          flex-direction: row-reverse;
-          transform: translateX(50px);
-          animation: slideInRight 0.6s ease forwards;
-        }
-
-        .timeline-item:nth-child(even) .timeline-content {
-          margin-left: 40px;
-          margin-right: 0;
-        }
+        .timeline-item:nth-child(1) { animation-delay: 0.1s; justify-content: flex-start; }
+        .timeline-item:nth-child(2) { animation-delay: 0.2s; justify-content: flex-end; }
+        .timeline-item:nth-child(3) { animation-delay: 0.3s; justify-content: flex-start; }
+        .timeline-item:nth-child(4) { animation-delay: 0.4s; justify-content: flex-end; }
+        .timeline-item:nth-child(5) { animation-delay: 0.5s; justify-content: flex-start; }
 
         .timeline-content {
-          flex: 1;
+          width: 100%;
+          max-width: 500px;
           padding: 30px;
           background: #202938;
           border-radius: 15px;
-          margin-right: 40px;
           position: relative;
         }
 
         @media (max-width: 768px) {
-          .timeline:before {
-            left: 20px;
-          }
-
           .timeline-item {
-            flex-direction: column !important;
-            transform: none !important;
-            animation: fadeInUp 0.6s ease forwards !important;
+            justify-content: flex-start !important;
           }
 
           .timeline-content {
-            margin-left: 40px !important;
-            margin-right: 0 !important;
+            max-width: 100%;
           }
 
           .navbar.scrolled {
