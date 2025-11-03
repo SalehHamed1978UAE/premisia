@@ -281,15 +281,28 @@ export default function InputPage() {
     }
   };
 
-  const handleClarificationsSubmit = (answers: Record<string, string>) => {
+  const handleClarificationsSubmit = (answers: Record<string, string | string[]>) => {
     setShowClarificationModal(false);
 
     // Convert answers to human-readable clarifications
     const clarifications: Record<string, string> = {};
     clarificationQuestions.forEach(q => {
-      const selectedOption = q.options.find((opt: any) => opt.value === answers[q.id]);
-      if (selectedOption) {
-        clarifications[q.question] = selectedOption.label;
+      const answer = answers[q.id];
+      if (Array.isArray(answer)) {
+        // Multi-select: join all selected labels
+        const selectedLabels = answer
+          .map(val => q.options.find((opt: any) => opt.value === val)?.label)
+          .filter(Boolean)
+          .join(', ');
+        if (selectedLabels) {
+          clarifications[q.question] = selectedLabels;
+        }
+      } else {
+        // Single select
+        const selectedOption = q.options.find((opt: any) => opt.value === answer);
+        if (selectedOption) {
+          clarifications[q.question] = selectedOption.label;
+        }
       }
     });
 
@@ -312,15 +325,28 @@ export default function InputPage() {
   };
 
   // Handle journey clarifications submission
-  const handleJourneyClarificationsSubmit = (answers: Record<string, string>) => {
+  const handleJourneyClarificationsSubmit = (answers: Record<string, string | string[]>) => {
     setShowClarificationModal(false);
 
     // Convert answers to human-readable clarifications
     const clarifications: Record<string, string> = {};
     clarificationQuestions.forEach(q => {
-      const selectedOption = q.options.find((opt: any) => opt.value === answers[q.id]);
-      if (selectedOption) {
-        clarifications[q.question] = selectedOption.label;
+      const answer = answers[q.id];
+      if (Array.isArray(answer)) {
+        // Multi-select: join all selected labels
+        const selectedLabels = answer
+          .map(val => q.options.find((opt: any) => opt.value === val)?.label)
+          .filter(Boolean)
+          .join(', ');
+        if (selectedLabels) {
+          clarifications[q.question] = selectedLabels;
+        }
+      } else {
+        // Single select
+        const selectedOption = q.options.find((opt: any) => opt.value === answer);
+        if (selectedOption) {
+          clarifications[q.question] = selectedOption.label;
+        }
       }
     });
 

@@ -354,9 +354,6 @@ export default function JourneyLauncherModal({
                     </CardHeader>
                     <CardContent className="pt-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <Badge variant="secondary" className="text-xs">
-                          {journey.estimatedDuration}
-                        </Badge>
                         {journey.frameworks.map(fw => (
                           <Badge key={fw} variant="outline" className="text-xs capitalize">
                             {fw.replace(/_/g, ' ')}

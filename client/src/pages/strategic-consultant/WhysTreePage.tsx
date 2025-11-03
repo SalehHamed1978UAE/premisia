@@ -558,10 +558,8 @@ export default function WhysTreePage() {
   const handleFinalize = async () => {
     if (!selectedOption) return;
     
-    // Set immediate processing state for instant UI feedback - use flushSync for instant UI update
-    flushSync(() => {
-      setIsProcessingAction(true);
-    });
+    // Don't set isProcessingAction here - the mutation states will handle loading
+    // This prevents BOTH buttons from showing loading
     
     // Validate root cause first
     try {
@@ -571,7 +569,6 @@ export default function WhysTreePage() {
         // Show warning modal if validation fails
         setValidationMessage(validation.message || 'This root cause contains cultural observations instead of business problems.');
         setShowValidationWarning(true);
-        setIsProcessingAction(false);
         return;
       }
       
@@ -1291,9 +1288,63 @@ export default function WhysTreePage() {
               ))}
             </div>
 
-            {/* Desktop Evidence Box - Shows below selected option */}
+            {/* Continue Button (hidden on mobile) - Positioned directly under cards */}
+            <div className="hidden sm:flex justify-center mt-6">
+              <div className="w-full md:w-auto flex flex-col gap-3">
+                {!showOnlyFinalize && canShowContinueButton && (
+                  <Button
+                    className={`w-full md:w-auto md:min-w-[280px] transition-all ${
+                      !selectedOptionId 
+                        ? 'bg-muted text-muted-foreground hover:bg-muted cursor-not-allowed' 
+                        : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                    }`}
+                    size="lg"
+                    onClick={handleSelectAndContinue}
+                    disabled={!selectedOptionId || isProcessingAction || expandBranchMutation.isPending || finalizeMutation.isPending}
+                    data-testid="button-continue"
+                  >
+                    {(isProcessingAction || expandBranchMutation.isPending) ? (
+                      <>
+                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                        Loading next level...
+                      </>
+                    ) : (
+                      <>
+                        <ArrowRight className="h-5 w-5 mr-2" />
+                        Continue to Next Why
+                      </>
+                    )}
+                  </Button>
+                )}
+
+                {canShowRootCauseButton && (
+                  <Button
+                    variant={showOnlyFinalize ? "default" : "secondary"}
+                    className="w-full md:w-auto md:min-w-[280px]"
+                    size="lg"
+                    onClick={handleFinalize}
+                    disabled={!selectedOptionId || validateRootCauseMutation.isPending || finalizeMutation.isPending}
+                    data-testid="button-finalize"
+                  >
+                    {(validateRootCauseMutation.isPending || finalizeMutation.isPending) ? (
+                      <>
+                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                        {validateRootCauseMutation.isPending ? "Validating..." : "Processing..."}
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="h-5 w-5 mr-2" />
+                        This is my root cause
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Desktop Evidence Box - Shows below continue button */}
             {selectedOption && (selectedOption.supporting_evidence?.length > 0 || selectedOption.counter_arguments?.length > 0) && (
-              <Card className="hidden sm:block border-primary/50 bg-muted/50" data-testid="evidence-box">
+              <Card className="hidden sm:block border-primary/50 bg-muted/50 mt-6" data-testid="evidence-box">
                 <CardHeader>
                   <CardTitle className="text-base">Evidence for: {selectedOption.option}</CardTitle>
                 </CardHeader>
@@ -1339,7 +1390,7 @@ export default function WhysTreePage() {
 
             {/* Edit Section - Only for selected option (hidden on mobile) */}
             {selectedOption && (
-              <Card className="hidden sm:block border-dashed">
+              <Card className="hidden sm:block border-dashed mt-6">
                 <CardContent className="p-4">
                   {isEditingWhy ? (
                     <div className="space-y-3">
@@ -1387,56 +1438,6 @@ export default function WhysTreePage() {
                 </CardContent>
               </Card>
             )}
-
-            {/* Continue Button (hidden on mobile) */}
-            <div className="hidden sm:flex justify-center mt-6">
-              <div className="w-full md:w-auto flex flex-col gap-3">
-                {!showOnlyFinalize && canShowContinueButton && (
-                  <Button
-                    className="w-full md:w-auto md:min-w-[280px]"
-                    size="lg"
-                    onClick={handleSelectAndContinue}
-                    disabled={!selectedOptionId || isProcessingAction || expandBranchMutation.isPending || finalizeMutation.isPending}
-                    data-testid="button-continue"
-                  >
-                    {(isProcessingAction || expandBranchMutation.isPending) ? (
-                      <>
-                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                        Loading next level...
-                      </>
-                    ) : (
-                      <>
-                        <ArrowRight className="h-5 w-5 mr-2" />
-                        Continue to Next Why
-                      </>
-                    )}
-                  </Button>
-                )}
-
-                {canShowRootCauseButton && (
-                  <Button
-                    variant={showOnlyFinalize ? "default" : "secondary"}
-                    className="w-full md:w-auto md:min-w-[280px]"
-                    size="lg"
-                    onClick={handleFinalize}
-                    disabled={!selectedOptionId || isProcessingAction || validateRootCauseMutation.isPending || finalizeMutation.isPending}
-                    data-testid="button-finalize"
-                  >
-                    {(isProcessingAction || validateRootCauseMutation.isPending || finalizeMutation.isPending) ? (
-                      <>
-                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                        {validateRootCauseMutation.isPending ? "Validating..." : "Processing..."}
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="h-5 w-5 mr-2" />
-                        This is my root cause
-                      </>
-                    )}
-                  </Button>
-                )}
-              </div>
-            </div>
 
             {/* Custom Why Input Section */}
             {!expandBranchMutation.isPending && (

@@ -22,7 +22,7 @@ import { encryptKMS, decryptKMS, encryptJSONKMS, decryptJSONKMS } from '../utils
  * - Journey Sessions: accumulatedContext
  * - Strategic Entities (Knowledge Graph): content, properties
  * - Strategic Decisions: decisionsData
- * - Strategy Versions: analysisData, decisionsData
+ * - Strategy Versions: inputSummary, analysisData, decisionsData
  * - EPM Programs: ALL program data fields (programName, executiveSummary, workstreams, 
  *   timeline, resourcePlan, financialPlan, benefitsRealization, riskRegister, 
  *   stakeholderMap, governance, qaPlan, procurement, exitStrategy, kpis)
@@ -443,6 +443,7 @@ export interface SecureStrategyVersion {
 export async function saveStrategyVersion(data: SecureStrategyVersion) {
   const encrypted = {
     ...data,
+    inputSummary: data.inputSummary ? await encryptKMS(data.inputSummary) : null,
     analysisData: data.analysisData ? await encryptJSONKMS(data.analysisData) : null,
     decisionsData: data.decisionsData ? await encryptJSONKMS(data.decisionsData) : null,
   };
@@ -457,6 +458,9 @@ export async function saveStrategyVersion(data: SecureStrategyVersion) {
 export async function updateStrategyVersion(id: string, data: Partial<SecureStrategyVersion>) {
   const encrypted: any = { ...data };
 
+  if (data.inputSummary !== undefined) {
+    encrypted.inputSummary = data.inputSummary ? await encryptKMS(data.inputSummary) : null;
+  }
   if (data.analysisData !== undefined) {
     encrypted.analysisData = await encryptJSONKMS(data.analysisData);
   }
@@ -491,6 +495,7 @@ export async function getStrategyVersion(sessionId: string, versionNumber: numbe
 async function decryptStrategyVersion(record: any): Promise<SecureStrategyVersion> {
   return {
     ...record,
+    inputSummary: record.inputSummary ? await decryptKMS(record.inputSummary) || record.inputSummary : null,
     analysisData: record.analysisData ? await decryptJSONKMS(record.analysisData) || record.analysisData : null,
     decisionsData: record.decisionsData ? await decryptJSONKMS(record.decisionsData) || record.decisionsData : null,
   };

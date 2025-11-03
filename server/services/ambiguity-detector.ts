@@ -3,6 +3,7 @@ import { aiClients } from '../ai-clients.js';
 export interface AmbiguityQuestion {
   id: string;
   question: string;
+  multiSelect?: boolean;
   options: Array<{
     value: string;
     label: string;
@@ -90,6 +91,7 @@ Return as JSON:
     {
       "id": "unique_id",
       "question": "Clear question?",
+      "multiSelect": true/false,
       "options": [
         {
           "value": "option_a",
@@ -101,6 +103,8 @@ Return as JSON:
   ],
   "reasoning": "Why these ambiguities matter"
 }
+
+NOTE: Set "multiSelect": true if options are NOT mutually exclusive (user can select multiple). Set "multiSelect": false or omit if options are mutually exclusive (user must choose one).
 
 If NO critical ambiguities found, return:
 {
