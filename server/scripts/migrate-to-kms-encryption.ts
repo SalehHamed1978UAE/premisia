@@ -109,9 +109,35 @@ async function validateKMSAccess(): Promise<void> {
 async function migrateTextField(oldValue: string | null, fieldName: string, recordId: string, tableName: string): Promise<string | null> {
   if (!oldValue) return null;
   
-  // Check if already in new format
+  // CRITICAL FIX: Detect TEXT fields wrongly storing JSONB format encryption
+  // These should be in 'kms:' format, not JSON with dataKeyCiphertext
+  if (oldValue.startsWith('{') && oldValue.includes('dataKeyCiphertext')) {
+    try {
+      // This is JSONB-format encryption in a TEXT field - decrypt and convert to proper format
+      const decrypted = await decryptKMS(oldValue);
+      if (!decrypted) {
+        console.warn(`  ⚠️  Could not decrypt JSONB-format ${fieldName} for record ${recordId}`);
+        return null;
+      }
+      // Re-encrypt with TEXT format (kms: prefix)
+      const reencrypted = await encryptKMS(decrypted);
+      console.log(`  🔄 Converted ${tableName}.${fieldName} from JSONB-format to TEXT-format encryption`);
+      return reencrypted;
+    } catch (error) {
+      const errorMsg = `Failed to convert JSONB-format ${fieldName}: ${error instanceof Error ? error.message : String(error)}`;
+      logError(tableName, recordId, errorMsg);
+      return null;
+    }
+  }
+  
+  // Check if already in correct TEXT format (kms: prefix)
+  if (oldValue.startsWith('kms:')) {
+    return null; // Skip, already in correct format
+  }
+  
+  // Check if it's legacy encrypted format
   if (!isOldFormat(oldValue)) {
-    return null; // Skip, already migrated or unencrypted
+    return null; // Skip, unencrypted or unknown format
   }
   
   try {
