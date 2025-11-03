@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { db } from '../db';
+import { storage } from '../storage';
 import { strategicUnderstanding, frameworkInsights, strategicEntities, strategyVersions, journeySessions, epmPrograms, references, strategyDecisions } from '@shared/schema';
 import { eq, desc, sql, inArray } from 'drizzle-orm';
 import { getStrategicUnderstanding } from '../services/secure-data-service';
@@ -41,16 +42,8 @@ router.get('/statements', async (req, res) => {
           .where(eq(frameworkInsights.understandingId, stmt.understandingId))
           .orderBy(desc(frameworkInsights.createdAt));
 
-        // Get new analyses from strategyVersions
-        const newAnalyses = await db
-          .select({
-            versionNumber: strategyVersions.versionNumber,
-            analysisData: strategyVersions.analysisData,
-            createdAt: strategyVersions.createdAt,
-          })
-          .from(strategyVersions)
-          .where(eq(strategyVersions.sessionId, stmt.sessionId))
-          .orderBy(desc(strategyVersions.createdAt));
+        // Get new analyses from strategyVersions (decrypted via storage layer)
+        const newAnalyses = await storage.getStrategyVersionsBySession(stmt.sessionId);
 
         const analysisSummary: Record<string, { count: number; latestVersion: string }> = {};
         let latestActivity: Date = stmt.createdAt || new Date();
@@ -221,18 +214,9 @@ router.get('/statements/:understandingId', async (req, res) => {
       .where(eq(frameworkInsights.understandingId, understandingId))
       .orderBy(desc(frameworkInsights.createdAt));
 
-    // Query new Strategy Workspace analyses from strategyVersions table
+    // Query new Strategy Workspace analyses from strategyVersions table (decrypted)
     // Find all versions associated with this understanding's session
-    const newAnalyses = await db
-      .select({
-        id: strategyVersions.id,
-        versionNumber: strategyVersions.versionNumber,
-        analysisData: strategyVersions.analysisData,
-        createdAt: strategyVersions.createdAt,
-      })
-      .from(strategyVersions)
-      .where(eq(strategyVersions.sessionId, understanding.sessionId))
-      .orderBy(desc(strategyVersions.createdAt));
+    const newAnalyses = await storage.getStrategyVersionsBySession(understanding.sessionId);
 
     const groupedAnalyses: Record<string, any[]> = {};
     
@@ -573,10 +557,7 @@ router.post('/batch-export', async (req, res) => {
           .from(frameworkInsights)
           .where(eq(frameworkInsights.understandingId, stmt.id));
 
-        const versions = await db
-          .select()
-          .from(strategyVersions)
-          .where(eq(strategyVersions.sessionId, stmt.sessionId));
+        const versions = await storage.getStrategyVersionsBySession(stmt.sessionId);
 
         return {
           statement: stmt,

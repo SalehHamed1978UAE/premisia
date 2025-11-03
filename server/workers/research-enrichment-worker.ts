@@ -1,4 +1,5 @@
 import { db } from "../db.js";
+import { storage } from "../storage.js";
 import { researchBatchService } from "../services/research-batch-service.js";
 import { strategyVersions, references, type InsertReference } from "@shared/schema.js";
 import { eq } from "drizzle-orm";
@@ -221,12 +222,13 @@ export class ResearchEnrichmentWorker {
 
   /**
    * Update strategy version with enriched research
+   * Uses storage layer to ensure proper encryption/decryption
    */
   private async updateStrategyVersion(understandingId: string, enriched: EnrichedResearch): Promise<void> {
     try {
-      // Find the latest version for this understanding
+      // Find the latest version for this understanding via direct query (just to get ID)
       const versions = await db
-        .select()
+        .select({ id: strategyVersions.id, sessionId: strategyVersions.sessionId, versionNumber: strategyVersions.versionNumber })
         .from(strategyVersions)
         .where(eq(strategyVersions.understandingId, understandingId))
         .orderBy(strategyVersions.versionNumber)
@@ -237,7 +239,15 @@ export class ResearchEnrichmentWorker {
         return;
       }
 
-      const version = versions[0];
+      const versionRef = versions[0];
+      
+      // Get decrypted version via storage layer
+      const version = await storage.getStrategyVersion(versionRef.sessionId, versionRef.versionNumber);
+      if (!version) {
+        console.warn(`[Enrichment] Could not load strategy version ${versionRef.id}`);
+        return;
+      }
+
       const analysisData = (version.analysisData as any) || {};
 
       // Merge enriched research into existing analysis data
@@ -250,12 +260,10 @@ export class ResearchEnrichmentWorker {
         sources: [...(analysisData.research?.sources || []), ...enriched.sources],
       };
 
-      await db
-        .update(strategyVersions)
-        .set({ analysisData })
-        .where(eq(strategyVersions.id, version.id));
+      // Update via storage layer (will re-encrypt)
+      await storage.updateStrategyVersion(versionRef.id, { analysisData });
 
-      console.log(`[Enrichment] Updated strategy version ${version.id} with enriched research`);
+      console.log(`[Enrichment] Updated strategy version ${versionRef.id} with enriched research`);
     } catch (error) {
       console.error(`[Enrichment] Failed to update strategy version:`, error);
       // Don't throw - enrichment can still succeed without version update

@@ -11,6 +11,7 @@ import { fileURLToPath } from 'url';
 import HTMLtoDOCX from 'html-docx-js';
 import { getStrategicUnderstandingBySession } from './secure-data-service';
 import { db } from '../db';
+import { storage } from '../storage';
 import {
   journeySessions,
   strategyVersions,
@@ -279,26 +280,16 @@ async function loadExportData(
     .limit(1);
   console.log('[Export Service] loadExportData - Journey session loaded:', journeySession ? 'Yes' : 'No');
 
-  // Load strategy version
+  // Load strategy version (using storage layer to ensure decryption)
   console.log('[Export Service] loadExportData - Loading strategy version. Requested version:', versionNumber);
   let strategyVersion;
   if (versionNumber !== undefined) {
-    [strategyVersion] = await db.select()
-      .from(strategyVersions)
-      .where(and(
-        eq(strategyVersions.sessionId, sessionId),
-        eq(strategyVersions.versionNumber, versionNumber)
-      ))
-      .limit(1);
+    strategyVersion = await storage.getStrategyVersion(sessionId, versionNumber);
     console.log('[Export Service] loadExportData - Loaded specific version:', versionNumber);
   } else {
-    // Get latest version (descending order)
-    const versions = await db.select()
-      .from(strategyVersions)
-      .where(eq(strategyVersions.sessionId, sessionId))
-      .orderBy(desc(strategyVersions.versionNumber))
-      .limit(1);
-    strategyVersion = versions[0];
+    // Get latest version
+    const versions = await storage.getStrategyVersionsBySession(sessionId);
+    strategyVersion = versions[0]; // Already sorted by descending version number
     console.log('[Export Service] loadExportData - Loaded latest version:', strategyVersion?.versionNumber);
   }
 
