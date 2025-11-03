@@ -20,7 +20,7 @@ import type { Store } from "express-session";
 import { ontologyService } from "./ontology-service";
 import type { EPMEntity } from "@shared/ontology";
 import { getStrategicUnderstandingBySession } from "./services/secure-data-service";
-import { decryptKMS, decryptJSONKMS } from "./utils/kms-encryption";
+import { encryptKMS, decryptKMS, decryptJSONKMS } from "./utils/kms-encryption";
 
 const PostgresSessionStore = connectPg(session);
 
@@ -638,7 +638,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createStrategyVersion(version: any): Promise<StrategyVersion> {
-    const [newVersion] = await db.insert(strategyVersions).values(version).returning();
+    // Encrypt inputSummary if it exists
+    const dataToInsert = { ...version };
+    if (version.inputSummary) {
+      dataToInsert.inputSummary = await encryptKMS(version.inputSummary);
+    }
+    
+    const [newVersion] = await db.insert(strategyVersions).values(dataToInsert).returning();
     return newVersion;
   }
 
@@ -649,8 +655,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateStrategyVersion(id: string, data: any): Promise<StrategyVersion> {
+    // Encrypt inputSummary if it exists in the data parameter
+    const dataToUpdate = { ...data };
+    if (data.inputSummary !== undefined) {
+      dataToUpdate.inputSummary = data.inputSummary ? await encryptKMS(data.inputSummary) : null;
+    }
+    
     const [updated] = await db.update(strategyVersions)
-      .set({ ...data, updatedAt: new Date() })
+      .set({ ...dataToUpdate, updatedAt: new Date() })
       .where(eq(strategyVersions.id, id))
       .returning();
     return updated;
