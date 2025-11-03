@@ -326,11 +326,8 @@ async function processEPMGeneration(
       description: 'Preparing strategic analysis...'
     });
 
-    // Fetch strategy version first to get sessionId
-    const [version] = await db.select()
-      .from(strategyVersions)
-      .where(eq(strategyVersions.id, strategyVersionId))
-      .limit(1);
+    // Fetch strategy version (decrypted) from storage layer
+    const version = await storage.getStrategyVersionById(strategyVersionId);
 
     if (!version) {
       throw new Error('Strategy version not found');

@@ -100,6 +100,7 @@ export interface IStorage {
   // Strategy Versions
   getStrategyVersionsBySession(sessionId: string): Promise<any[]>;
   getStrategyVersion(sessionId: string, versionNumber: number): Promise<any | undefined>;
+  getStrategyVersionById(id: string): Promise<any | undefined>;
   createStrategyVersion(version: any): Promise<any>;
   updateStrategyVersion(id: string, data: any): Promise<any>;
 
@@ -179,6 +180,16 @@ export class DatabaseStorage implements IStorage {
     if (results.completeness.missingFields.length > 0) {
       console.info(`[Completeness] Missing fields for ${entityName} ${entityId}:`, results.completeness.missingFields.map((f: any) => `${f.field} (${f.importance})`).join(', '));
     }
+  }
+
+  // Helper to decrypt strategy version fields
+  private async decryptStrategyVersion(version: StrategyVersion): Promise<StrategyVersion> {
+    return {
+      ...version,
+      inputSummary: version.inputSummary ? await decryptKMS(version.inputSummary as string) : null,
+      analysisData: version.analysisData ? await decryptJSONKMS(version.analysisData as string) : null,
+      decisionsData: version.decisionsData ? await decryptJSONKMS(version.decisionsData as string) : null,
+    };
   }
 
   // User management
@@ -614,17 +625,21 @@ export class DatabaseStorage implements IStorage {
 
   // Strategy Versions
   async getStrategyVersionsBySession(sessionId: string): Promise<StrategyVersion[]> {
-    return await db.select()
+    const versions = await db.select()
       .from(strategyVersions)
       .where(eq(strategyVersions.sessionId, sessionId))
       .orderBy(desc(strategyVersions.versionNumber));
+    
+    return await Promise.all(versions.map(v => this.decryptStrategyVersion(v)));
   }
 
   async getAllStrategyVersionsByUser(userId: string): Promise<StrategyVersion[]> {
-    return await db.select()
+    const versions = await db.select()
       .from(strategyVersions)
       .where(eq(strategyVersions.userId, userId))
       .orderBy(desc(strategyVersions.createdAt));
+    
+    return await Promise.all(versions.map(v => this.decryptStrategyVersion(v)));
   }
 
   async getStrategyVersion(sessionId: string, versionNumber: number): Promise<StrategyVersion | undefined> {
@@ -634,7 +649,19 @@ export class DatabaseStorage implements IStorage {
         eq(strategyVersions.sessionId, sessionId),
         eq(strategyVersions.versionNumber, versionNumber)
       ));
-    return version || undefined;
+    
+    if (!version) return undefined;
+    return await this.decryptStrategyVersion(version);
+  }
+
+  async getStrategyVersionById(id: string): Promise<StrategyVersion | undefined> {
+    const [version] = await db.select()
+      .from(strategyVersions)
+      .where(eq(strategyVersions.id, id))
+      .limit(1);
+    
+    if (!version) return undefined;
+    return await this.decryptStrategyVersion(version);
   }
 
   async createStrategyVersion(version: any): Promise<StrategyVersion> {
