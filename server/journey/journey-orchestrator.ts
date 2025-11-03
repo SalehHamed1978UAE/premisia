@@ -439,6 +439,8 @@ export class JourneyOrchestrator {
           saveGoldenRecordToFile,
         } = await import('../utils/golden-records-service');
         
+        const { screenshotCaptureService } = await import('../services/screenshot-capture-service');
+        
         // Fetch journey data
         const rawData = await fetchJourneySessionData(journeySessionId);
         
@@ -448,7 +450,7 @@ export class JourneyOrchestrator {
         }
 
         // Sanitize data
-        const sanitizedData = await sanitizeGoldenRecordData(rawData);
+        let sanitizedData = await sanitizeGoldenRecordData(rawData);
 
         // Determine next version
         const existingRecords = await db
@@ -462,6 +464,23 @@ export class JourneyOrchestrator {
 
         // Update sanitized data with the correct golden record version
         sanitizedData.versionNumber = nextVersion;
+
+        // Capture screenshots (AFTER determining version, without admin cookie)
+        try {
+          const stepsWithScreenshots = await screenshotCaptureService.captureStepScreenshots({
+            journeyType,
+            versionNumber: nextVersion,
+            steps: sanitizedData.steps,
+            adminSessionCookie: undefined,
+          });
+          
+          sanitizedData = {
+            ...sanitizedData,
+            steps: stepsWithScreenshots,
+          };
+        } catch (screenshotError) {
+          console.warn('[Golden Records] Screenshot capture failed during auto-capture, continuing without screenshots:', screenshotError);
+        }
 
         // Save to local file
         await saveGoldenRecordToFile(sanitizedData, `Auto-captured on ${timestamp}`);

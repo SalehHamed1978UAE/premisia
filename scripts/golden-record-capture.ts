@@ -6,17 +6,19 @@
  * Captures a journey session as a golden record for regression testing.
  * 
  * Usage:
- *   npm run capture:golden -- --sessionId=<id> [--notes="Description"] [--promote]
- *   npm run capture:golden -- --strategyVersionId=<id> [--notes="Description"] [--promote]
+ *   npm run capture:golden -- --sessionId=<id> [--notes="Description"] [--promote] [--skipScreenshots]
+ *   npm run capture:golden -- --strategyVersionId=<id> [--notes="Description"] [--promote] [--skipScreenshots]
  * 
  * Flags:
  *   --sessionId: Journey session ID to capture
  *   --strategyVersionId: Strategy version ID (alternative to sessionId)
  *   --notes: Optional notes about this golden record
  *   --promote: Promote this version as the current golden record (default: false)
+ *   --skipScreenshots: Skip screenshot capture (default: false)
+ *   --sessionCookie: Admin session cookie for screenshot authentication (optional)
  * 
  * Environment:
- *   ADMIN_TOKEN: Admin authentication token (required)
+ *   GOLDEN_RECORD_SCREENSHOT_DIR: Override screenshot output directory
  */
 
 import {
@@ -26,6 +28,7 @@ import {
   saveGoldenRecordToFile,
   prepareGoldenRecordForAPI,
 } from '../server/utils/golden-records-service.js';
+import { screenshotCaptureService } from '../server/services/screenshot-capture-service.js';
 import { db } from '../server/db.js';
 import { goldenRecords } from '../shared/schema.js';
 import { eq, and, desc } from 'drizzle-orm';
@@ -45,6 +48,8 @@ const sessionId = flags.sessionId as string | undefined;
 const strategyVersionId = flags.strategyVersionId as string | undefined;
 const notes = flags.notes as string | undefined;
 const promote = flags.promote === true || flags.promote === 'true';
+const skipScreenshots = flags.skipScreenshots === true || flags.skipScreenshots === 'true';
+const sessionCookie = flags.sessionCookie as string | undefined;
 
 /**
  * Main capture function
@@ -87,7 +92,7 @@ async function captureGoldenRecord() {
 
     // Step 2: Sanitize data
     console.log('🧹 Sanitizing sensitive data...');
-    const sanitizedData = await sanitizeGoldenRecordData(rawData);
+    let sanitizedData = await sanitizeGoldenRecordData(rawData);
     console.log('✓ Data sanitized\n');
 
     // Step 3: Determine next version number
@@ -107,12 +112,33 @@ async function captureGoldenRecord() {
     // Update sanitized data with the correct golden record version
     sanitizedData.versionNumber = nextVersion;
 
-    // Step 4: Save to local file
+    // Step 4: Capture screenshots (AFTER determining version)
+    if (!skipScreenshots) {
+      try {
+        const stepsWithScreenshots = await screenshotCaptureService.captureStepScreenshots({
+          journeyType: rawData.journeyType,
+          versionNumber: nextVersion,
+          steps: sanitizedData.steps,
+          adminSessionCookie: sessionCookie,
+        });
+        
+        sanitizedData = {
+          ...sanitizedData,
+          steps: stepsWithScreenshots,
+        };
+      } catch (screenshotError) {
+        console.warn('⚠️  Screenshot capture failed, continuing without screenshots:', screenshotError);
+      }
+    } else {
+      console.log('⏭️  Skipping screenshot capture (--skipScreenshots flag set)\n');
+    }
+
+    // Step 5: Save to local file
     console.log('💾 Saving to local file system...');
     const filepath = await saveGoldenRecordToFile(sanitizedData, notes);
     console.log(`✓ Saved to: ${filepath}\n`);
 
-    // Step 5: Save to database via direct insert (CLI has DB access)
+    // Step 6: Save to database via direct insert (CLI has DB access)
     console.log('💾 Saving to database...');
     
     // Get user ID (in CLI context, query for first admin user)
@@ -162,7 +188,7 @@ async function captureGoldenRecord() {
 
     console.log(`✓ Saved to database: ${newRecord.id}\n`);
 
-    // Step 6: Print summary
+    // Step 7: Print summary
     console.log('='.repeat(80));
     console.log('✅ Golden Record Captured Successfully\n');
     console.log(`  Journey Type: ${rawData.journeyType}`);

@@ -232,12 +232,9 @@ export default function GoldenRecordDetailPage() {
                       ) : (
                         <div className="border-2 border-dashed rounded-lg p-8 text-center">
                           <FileImage className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                          <p className="text-sm text-muted-foreground mb-4">No screenshot uploaded</p>
-                          <Button variant="outline" size="sm" data-testid={`button-upload-${step.stepNumber}`}>
-                            Upload Screenshot
-                          </Button>
-                          <p className="text-xs text-muted-foreground mt-2">
-                            Expected path: golden-records/{record.journeyType}/v{record.version}/{step.stepNumber}.png
+                          <p className="text-sm text-muted-foreground mb-4">Screenshot not captured</p>
+                          <p className="text-xs text-muted-foreground">
+                            Screenshots are automatically captured during golden record creation using headless browser automation.
                           </p>
                         </div>
                       )}

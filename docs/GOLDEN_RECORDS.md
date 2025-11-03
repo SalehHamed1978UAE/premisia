@@ -766,27 +766,56 @@ Examples:
 
 ### Capturing Screenshots
 
-Screenshots can be captured via:
+Screenshots are now **automatically captured** using headless browser automation (Playwright) whenever a golden record is created.
 
-**Manual:**
-1. Navigate to journey session
-2. Take screenshots of each step
-3. Save to `scripts/output/golden-records/<journeyType>/v<version>/`
+**Automated Capture (Default Behavior):**
 
-**Automated (Future Enhancement):**
+The system uses Playwright to visit each journey step and capture full-page screenshots during:
+- CLI manual capture (`npm run capture:golden`)
+- Auto-capture hooks (when `AUTO_CAPTURE_GOLDEN=true`)
+
+**How It Works:**
+1. After sanitizing journey data, the screenshot service launches a headless browser
+2. For each step with an `expectedUrl`, it navigates to that page
+3. Waits for the page to load (`networkidle` + 1 second buffer)
+4. Captures full-page screenshot
+5. Saves to `scripts/output/golden-records-screenshots/<journeyType>/v<version>/<stepName>.png`
+6. Updates step data with `screenshotPath` for database storage
+
+**Configuration:**
+
 ```bash
-# Planned feature
-npm run capture:golden -- --sessionId=abc123 --screenshots
+# Override screenshot output directory (default: scripts/output/golden-records-screenshots)
+export GOLDEN_RECORD_SCREENSHOT_DIR=/custom/path
+
+# Skip screenshots during CLI capture
+npx tsx scripts/golden-record-capture.ts --sessionId=abc --skipScreenshots
+
+# Provide admin session cookie for authenticated routes (optional)
+npx tsx scripts/golden-record-capture.ts --sessionId=abc --sessionCookie="your-cookie-value"
 ```
 
-This would use Puppeteer to automatically capture screenshots during journey replay.
+**Limitations:**
+- Pages requiring authentication may not capture unless `--sessionCookie` is provided
+- Auto-capture runs without session cookies (captures public pages only)
+- Screenshot capture failures are logged as warnings but don't block golden record creation
+
+**Viewing Screenshots:**
+
+Screenshots are viewable in the admin UI:
+1. Navigate to `/admin/golden-records`
+2. Select a journey type and version
+3. Click on any step card
+4. Open the "Screenshot" tab
+
+If a screenshot wasn't captured (e.g., auth required or capture failed), the tab will show a placeholder message explaining that screenshots are auto-captured.
 
 ### Comparison with Screenshots
 
 When comparing journeys, developers can:
 1. Run `npm run compare:golden`
-2. If diff detected, review screenshots manually
-3. Compare side-by-side to identify visual regressions
+2. If diff detected, review screenshots in the admin UI
+3. Compare side-by-side to identify visual regressions or UI changes
 
 ---
 
