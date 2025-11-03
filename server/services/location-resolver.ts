@@ -49,12 +49,11 @@ export class LocationResolverService {
 
   // Common place name patterns
   private readonly PLACE_PATTERNS = [
-    // "in Portland" or "in Portland, Oregon"
-    /\b(?:in|at|from|based in|located in|opening in)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*(?:,\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)*)/g,
-    // "Portland market" or "Portland, Oregon market"
-    /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*(?:,\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)?)\s+(?:market|area|region|territory)/g,
-    // Standalone capitalized place names (more aggressive)
-    /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\b/g,
+    // "in [place]" - case insensitive for place name
+    /\b(?:in|at|from|based in|located in|opening in|launching in|expanding to)\s+([a-zA-Z][a-zA-Z\s,'-]+?)(?:\s+(?:market|area|region|city|town|state|country|district)|\b)/gi,
+    
+    // "[place] market/area/region" 
+    /\b([a-zA-Z][a-zA-Z\s,'-]{2,}?)\s+(?:market|area|region|territory|district)\b/gi,
   ];
 
   constructor() {
@@ -85,12 +84,18 @@ export class LocationResolverService {
 
     console.log(`[LocationResolver] Input text:`, text);
 
-    for (const pattern of this.PLACE_PATTERNS) {
+    for (let i = 0; i < this.PLACE_PATTERNS.length; i++) {
+      const pattern = this.PLACE_PATTERNS[i];
+      console.log(`[LocationResolver] Testing pattern ${i + 1}/${this.PLACE_PATTERNS.length}`);
       const matches = Array.from(text.matchAll(pattern));
+      console.log(`[LocationResolver] Matches found:`, matches.length);
       for (const match of matches) {
         const placeName = match[1]?.trim();
         if (placeName && this.isLikelyPlaceName(placeName)) {
+          console.log(`[LocationResolver] Added candidate: "${placeName}"`);
           candidates.add(placeName);
+        } else if (placeName) {
+          console.log(`[LocationResolver] Rejected candidate: "${placeName}" (failed isLikelyPlaceName)`);
         }
       }
     }
@@ -105,25 +110,28 @@ export class LocationResolverService {
    * Check if a candidate string is likely a place name
    */
   private isLikelyPlaceName(candidate: string): boolean {
+    const trimmed = candidate.trim();
+    
     // Filter out common words that aren't places
     const excludedWords = [
-      'The', 'This', 'That', 'There', 'These', 'Those',
-      'We', 'Our', 'My', 'Your', 'Their',
-      'Business', 'Model', 'Canvas', 'Innovation',
-      'Strategy', 'Plan', 'Analysis', 'Report'
+      'the', 'this', 'that', 'there', 'these', 'those',
+      'we', 'our', 'my', 'your', 'their', 'his', 'her',
+      'business', 'model', 'canvas', 'innovation',
+      'strategy', 'plan', 'analysis', 'report', 'company',
+      'industry', 'sector', 'customer', 'product'
     ];
 
-    if (excludedWords.includes(candidate)) {
-      return false;
-    }
-
-    // Must be capitalized
-    if (!/^[A-Z]/.test(candidate)) {
+    if (excludedWords.includes(trimmed.toLowerCase())) {
       return false;
     }
 
     // Should be 2-50 characters
-    if (candidate.length < 2 || candidate.length > 50) {
+    if (trimmed.length < 2 || trimmed.length > 50) {
+      return false;
+    }
+
+    // Must contain at least some letters
+    if (!/[a-zA-Z]/.test(trimmed)) {
       return false;
     }
 
@@ -232,19 +240,30 @@ export class LocationResolverService {
       return { needsClarification: false };
     }
 
-    if (candidates.length === 1 && candidates[0].confidence === 'high') {
-      // Single high-confidence match - auto-resolve
-      console.log(`[LocationResolver] Auto-resolved: ${placeName} → ${candidates[0].displayName}`);
+    // ALWAYS ask for clarification if there are multiple candidates
+    if (candidates.length > 1) {
+      console.log(`[LocationResolver] Multiple candidates (${candidates.length}) for: ${placeName} - asking for clarification`);
       return {
-        needsClarification: false,
-        autoResolved: candidates[0],
+        needsClarification: true,
+        question: this.createGeographicQuestion(placeName, candidates),
       };
     }
 
-    // Multiple candidates or low confidence - need clarification
+    // Single candidate - auto-resolve only if high confidence (importance >= 0.85)
+    const candidate = candidates[0];
+    if (candidate.importance >= 0.85) {
+      console.log(`[LocationResolver] Auto-resolved: ${placeName} → ${candidate.displayName} (importance: ${candidate.importance})`);
+      return {
+        needsClarification: false,
+        autoResolved: candidate,
+      };
+    }
+
+    // Single candidate but low confidence - still ask
+    console.log(`[LocationResolver] Low confidence (${candidate.importance}) for: ${placeName} - asking for clarification`);
     return {
       needsClarification: true,
-      question: this.createGeographicQuestion(placeName, candidates),
+      question: this.createGeographicQuestion(placeName, [candidate]),
     };
   }
 
