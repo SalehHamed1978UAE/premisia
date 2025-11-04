@@ -237,11 +237,6 @@ function OnboardingFlow() {
           {/* Hero Section */}
           <div className="text-center mb-12">
             <div className="flex flex-col items-center mb-8">
-              <img 
-                src={logoFullDark} 
-                alt="Premisia - Think it through" 
-                className="w-full max-w-3xl h-auto mb-6"
-              />
               <span className="px-3 py-1 text-sm font-semibold bg-white/10 text-white rounded-lg backdrop-blur-sm">BETA</span>
             </div>
             <p className="text-lg md:text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
