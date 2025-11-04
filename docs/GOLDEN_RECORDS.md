@@ -329,6 +329,107 @@ All golden records are automatically sanitized to remove:
 
 See [Security & Sanitization](#security--sanitization) for details.
 
+### Flow Variants (Multi-Baseline Strategy)
+
+Starting in November 2025, the Golden Records system supports **multiple flow variants** for each journey type to accommodate different entry points and execution paths.
+
+#### What are Flow Variants?
+
+Flow variants distinguish between different ways users can enter and execute the same journey type. For BMI (Business Model Innovation), there are two flow variants:
+
+1. **`strategic_consultant`** - Full 5-step journey from Strategic Consultant entry point
+   - Entry: `/strategic-consultant/input` (user provides input, then proceeds to analysis)
+   - Steps: Five Whys → BMC Research → Strategic Decisions → Prioritization → EPM Generation
+   - Use case: First-time analysis, baseline creation, requires full context discovery
+
+2. **`strategies_hub`** - Shortened 4-step journey from Strategies Hub "Run Now" button
+   - Entry: Strategies Hub → "Run Now" (reuses existing strategic understanding baseline)
+   - Steps: BMC Research → Strategic Decisions → Prioritization → EPM Generation (skips Five Whys)
+   - Use case: Follow-on analysis with different assumptions, reuses root cause analysis from previous run
+
+#### Why Multiple Baselines?
+
+- **Different Step Counts**: strategic_consultant has 5 steps, strategies_hub has 4 steps
+- **Independent Regression Testing**: Each flow needs its own baseline for accurate comparisons
+- **User Intent Matters**: The entry point determines which steps are executed
+
+#### How Flow Variant Detection Works
+
+The system **auto-detects** flow variants by inspecting the journey's actual steps:
+
+```typescript
+// Auto-detection logic
+const hasFiveWhys = steps.some(step => step.stepName === 'five_whys');
+const flowVariant = hasFiveWhys ? 'strategic_consultant' : 'strategies_hub';
+```
+
+- **Has Five Whys step** → `strategic_consultant` (5-step flow)
+- **No Five Whys step** → `strategies_hub` (4-step follow-on flow)
+
+This ensures that even if you run multiple strategic_consultant journeys (v2, v3...), they're all correctly classified based on their actual steps, not arbitrary version numbers.
+
+#### Using Flow Variants
+
+**Manual Capture with Explicit Variant:**
+```bash
+# Capture strategic_consultant baseline (5 steps)
+npx tsx scripts/golden-record-capture.ts \
+  --sessionId=abc-123 \
+  --flowVariant=strategic_consultant \
+  --notes="BMI strategic consultant baseline" \
+  --promote
+
+# Capture strategies_hub baseline (4 steps)
+npx tsx scripts/golden-record-capture.ts \
+  --sessionId=def-456 \
+  --flowVariant=strategies_hub \
+  --notes="BMI strategies hub baseline" \
+  --promote
+```
+
+**Auto-Detection (Recommended):**
+```bash
+# Omit --flowVariant to auto-detect based on steps
+npx tsx scripts/golden-record-capture.ts --sessionId=abc-123 --promote
+```
+
+**Comparison with Flow Variants:**
+```bash
+# Compare will auto-detect the flow variant and select correct baseline
+npx tsx scripts/golden-record-compare.ts \
+  --sessionId=xyz-789 \
+  --journeyType=business_model_innovation
+# Output: "Flow variant: strategic_consultant (auto-detected from steps: has Five Whys)"
+```
+
+#### Database Schema
+
+Flow variants are stored in the `golden_records` table:
+
+```sql
+CREATE TABLE golden_records (
+  id VARCHAR PRIMARY KEY,
+  journey_type VARCHAR NOT NULL,
+  flow_variant VARCHAR(50) NOT NULL DEFAULT 'strategic_consultant',
+  version INTEGER NOT NULL,
+  is_current BOOLEAN NOT NULL DEFAULT false,
+  ...
+  UNIQUE (journey_type, flow_variant, version)
+);
+```
+
+Each journey type + flow variant combination has its own independent version sequence:
+- `business_model_innovation` + `strategic_consultant`: v1, v2, v3...
+- `business_model_innovation` + `strategies_hub`: v1, v2, v3...
+
+#### Legacy Session Support
+
+The system supports both modern journey sessions (UUID format) and legacy sessions (`session-TIMESTAMP-ID` format):
+
+- **Modern sessions**: Use `journey_sessions` table
+- **Legacy sessions**: Use `strategic_understanding` table with fallback logic
+- Both formats work seamlessly with the capture and compare utilities
+
 ---
 
 ## Admin UI Workflow
