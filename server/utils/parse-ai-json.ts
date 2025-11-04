@@ -24,14 +24,44 @@ export function parseAIJson(aiResponse: string, context: string = 'AI response')
         return extracted;
       } catch (fallbackError) {
         console.error(`[parseAIJson] Fallback parsing also failed for ${context}:`, fallbackError);
-        console.log(`[parseAIJson] Raw response (first 500 chars):`, aiResponse.substring(0, 500));
+        console.log(`[parseAIJson] Raw response (first 1500 chars):`, aiResponse.substring(0, 1500));
+        console.log(`[parseAIJson] Raw response (last 500 chars):`, aiResponse.substring(Math.max(0, aiResponse.length - 500)));
+        
+        // Step 4: Advanced repair - try to fix common JSON issues
+        try {
+          let repaired = jsonMatch[0];
+          
+          // Fix truncated strings (common AI issue)
+          repaired = repaired.replace(/,\s*$/g, '');  // Remove trailing comma
+          repaired = repaired.replace(/("[^"]*?)$/g, '$1"');  // Close unclosed strings
+          
+          // Ensure all arrays and objects are closed
+          const openBraces = (repaired.match(/\{/g) || []).length;
+          const closeBraces = (repaired.match(/\}/g) || []).length;
+          const openBrackets = (repaired.match(/\[/g) || []).length;
+          const closeBrackets = (repaired.match(/\]/g) || []).length;
+          
+          // Add missing closing braces/brackets
+          for (let i = 0; i < openBrackets - closeBrackets; i++) {
+            repaired += ']';
+          }
+          for (let i = 0; i < openBraces - closeBraces; i++) {
+            repaired += '}';
+          }
+          
+          const repairedObj = JSON.parse(repaired);
+          console.log(`[parseAIJson] ✓ Advanced repair succeeded for ${context}`);
+          return repairedObj;
+        } catch (repairError) {
+          console.error(`[parseAIJson] Advanced repair also failed:`, repairError);
+        }
       }
     } else {
       console.error(`[parseAIJson] No JSON object found in response for ${context}`);
       console.log(`[parseAIJson] Raw response (first 500 chars):`, aiResponse.substring(0, 500));
     }
     
-    // Step 4: Throw error with detailed context
+    // Step 5: Throw error with detailed context
     throw new Error(`Failed to parse AI response for ${context}: ${primaryError instanceof Error ? primaryError.message : 'Unknown error'}`);
   }
 }
