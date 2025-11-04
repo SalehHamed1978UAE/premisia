@@ -720,9 +720,73 @@ export class DatabaseStorage implements IStorage {
       const [strategiesCount] = counts[1];
       const [programsCount] = counts[2];
 
-      // Temporarily return empty artifacts to unblock the dashboard
-      // TODO: Fix the complex query for recent artifacts
-      const recentArtifacts: any[] = [];
+      // Fetch recent artifacts (analyses and programs)
+      const [recentAnalyses, recentPrograms] = await Promise.all([
+        // Recent strategy versions (analyses)
+        db.select({
+          id: strategyVersions.id,
+          inputSummary: strategyVersions.inputSummary,
+          createdAt: strategyVersions.createdAt,
+        })
+          .from(strategyVersions)
+          .where(and(
+            eq(strategyVersions.userId, userId),
+            eq(strategyVersions.archived, false)
+          ))
+          .orderBy(desc(strategyVersions.createdAt))
+          .limit(5),
+        
+        // Recent EPM programs
+        db.select({
+          id: epmPrograms.id,
+          executiveSummary: epmPrograms.executiveSummary,
+          createdAt: epmPrograms.createdAt,
+        })
+          .from(epmPrograms)
+          .where(and(
+            eq(epmPrograms.userId, userId),
+            eq(epmPrograms.archived, false)
+          ))
+          .orderBy(desc(epmPrograms.createdAt))
+          .limit(5)
+      ]);
+
+      // Decrypt and format analyses
+      const { decryptKMS } = await import('./services/encryption-service');
+      const formattedAnalyses = await Promise.all(
+        recentAnalyses.map(async (analysis) => {
+          const decryptedSummary = analysis.inputSummary
+            ? await decryptKMS(analysis.inputSummary)
+            : 'Strategic Analysis';
+          
+          return {
+            id: analysis.id,
+            type: 'analysis' as const,
+            title: decryptedSummary || 'Strategic Analysis',
+            createdAt: analysis.createdAt?.toISOString() || new Date().toISOString(),
+            link: `/repository?highlight=${analysis.id}`
+          };
+        })
+      );
+
+      // Format programs
+      const formattedPrograms = recentPrograms.map((program) => {
+        const executiveSummary = program.executiveSummary as any;
+        const title = executiveSummary?.title || 'EPM Program';
+        
+        return {
+          id: program.id,
+          type: 'program' as const,
+          title,
+          createdAt: program.createdAt?.toISOString() || new Date().toISOString(),
+          link: `/strategy-workspace/programs/${program.id}`
+        };
+      });
+
+      // Combine and sort by date (most recent first)
+      const allArtifacts = [...formattedAnalyses, ...formattedPrograms]
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 5); // Take only top 5
 
       return {
         counts: {
@@ -730,7 +794,7 @@ export class DatabaseStorage implements IStorage {
           strategies: strategiesCount?.count || 0,
           programs: programsCount?.count || 0,
         },
-        recentArtifacts
+        recentArtifacts: allArtifacts
       };
     } catch (error) {
       console.error('Error fetching dashboard summary:', error);
