@@ -927,7 +927,7 @@ Include 3-6 findings. Set confidence to:
     const response = await aiClients.callWithFallback({
       systemPrompt,
       userMessage,
-      maxTokens: 3000,
+      maxTokens: 4096,
     }, "anthropic");
 
     const textContent = response.content;
@@ -1040,7 +1040,7 @@ Viability criteria:
     const response = await aiClients.callWithFallback({
       systemPrompt,
       userMessage,
-      maxTokens: 3000,
+      maxTokens: 4096,
     }, "anthropic");
 
     const textContent = response.content;
