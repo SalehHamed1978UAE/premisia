@@ -125,17 +125,22 @@ export default function InputPage() {
         metadata: metadata || {},
       };
 
-      // Only check user's text for ambiguities, not the entire document content
+      // Prepare full input with document content
       const userText = text.trim();
       const finalInput = userText 
         ? `${userText}\n\n--- Content from ${file.name} ---\n${content}`
         : content;
 
-      // Check for ambiguities (only check user's text if provided, otherwise skip for file-only uploads)
+      // Check for ambiguities - send as object so backend can separate location checking from general ambiguity checking
       const ambiguityResponse = await fetch('/api/strategic-consultant/check-ambiguities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userInput: userText || "uploaded document" })
+        body: JSON.stringify({ 
+          userInput: {
+            text: userText || '',  // User's text only (for location disambiguation)
+            fullInput: finalInput   // Full input including document (for general ambiguity detection)
+          }
+        })
       });
 
       if (!ambiguityResponse.ok) {

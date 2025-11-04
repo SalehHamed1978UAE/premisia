@@ -219,14 +219,15 @@ router.post('/check-ambiguities', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'userInput is required' });
     }
 
-    // Extract text for ambiguity checking - ignore uploaded document content
-    // userInput can be either a string OR an object with { text, content, metadata }
-    const textToCheck = typeof userInput === 'string' ? userInput : userInput.text || '';
+    // Extract text for location checking vs full input for general ambiguity checking
+    // userInput can be either a string OR an object with { text, fullInput }
+    const textForLocationCheck = typeof userInput === 'string' ? userInput : (userInput.text || '');
+    const fullInputForAmbiguity = typeof userInput === 'string' ? userInput : (userInput.fullInput || userInput.text || userInput);
 
     console.log('[Ambiguity Check] Step 1: Checking for geographic ambiguities...');
     
     // Step 1: Resolve geographic locations using Nominatim (only check user's text input, not document content)
-    const locationResult = await locationResolver.resolveAll(textToCheck);
+    const locationResult = await locationResolver.resolveAll(textForLocationCheck);
     
     // Store auto-resolved locations (high-confidence matches)
     for (const location of locationResult.autoResolved) {
@@ -243,9 +244,9 @@ router.post('/check-ambiguities', async (req: Request, res: Response) => {
 
     console.log('[Ambiguity Check] Step 2: Checking for other ambiguities...');
     
-    // Step 2: Check for other ambiguities, passing in geographic questions
+    // Step 2: Check for other ambiguities using full input including document content
     const result = await ambiguityDetector.detectAmbiguities(
-      userInput,
+      fullInputForAmbiguity,
       locationResult.questions
     );
     
