@@ -719,25 +719,21 @@ export class DatabaseStorage implements IStorage {
       ));
 
     // Get recent artifacts (filter out archived items)
-    // Strategy versions can have sessionId pointing to either:
-    // 1. Journey session ID (new flow) - need to lookup understanding via journey_sessions
-    // 2. Understanding session ID (legacy flow) - direct lookup
-    // Use LEFT JOINs to handle both cases
+    // Query strategy versions - we'll resolve understanding IDs separately
     const recentVersions = await db
       .select({
-        understandingId: sql`COALESCE(${journeySessions.understandingId}, ${strategicUnderstanding.id})`.as('understanding_id'),
+        versionId: strategyVersions.id,
+        sessionId: strategyVersions.sessionId,
         inputSummary: strategyVersions.inputSummary,
         createdAt: strategyVersions.createdAt,
       })
       .from(strategyVersions)
-      .leftJoin(journeySessions, eq(strategyVersions.sessionId, journeySessions.id))
-      .leftJoin(strategicUnderstanding, eq(strategyVersions.sessionId, strategicUnderstanding.sessionId))
       .where(and(
         eq(strategyVersions.userId, userId),
         eq(strategyVersions.archived, false)
       ))
       .orderBy(desc(strategyVersions.createdAt))
-      .limit(5);
+      .limit(10); // Get more initially since we'll filter after resolving IDs
 
     const recentPrograms = await db
       .select({
@@ -754,10 +750,46 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(epmPrograms.createdAt))
       .limit(5);
 
+    // Resolve understanding IDs for recent versions
+    const versionsWithUnderstanding = await Promise.all(
+      recentVersions.map(async (v) => {
+        if (!v.sessionId) return null;
+        
+        // Try to find as journey session ID first
+        const journeySession = await db
+          .select({ understandingId: journeySessions.understandingId })
+          .from(journeySessions)
+          .where(eq(journeySessions.id, v.sessionId))
+          .limit(1);
+        
+        if (journeySession.length > 0) {
+          return { ...v, understandingId: journeySession[0].understandingId };
+        }
+        
+        // Fallback: try as understanding session ID (legacy)
+        const understanding = await db
+          .select({ id: strategicUnderstanding.id })
+          .from(strategicUnderstanding)
+          .where(eq(strategicUnderstanding.sessionId, v.sessionId))
+          .limit(1);
+        
+        if (understanding.length > 0) {
+          return { ...v, understandingId: understanding[0].id };
+        }
+        
+        return null;
+      })
+    );
+    
+    // Filter out nulls and take top 5
+    const validVersions = versionsWithUnderstanding
+      .filter((v): v is NonNullable<typeof v> => v !== null && v.understandingId !== null)
+      .slice(0, 5);
+
     // Decrypt and combine artifacts
     const artifacts = await Promise.all([
       // Decrypt analysis titles
-      ...recentVersions.map(async v => {
+      ...validVersions.map(async v => {
         const decryptedSummary = await decryptKMS(v.inputSummary);
         return {
           id: v.understandingId,
