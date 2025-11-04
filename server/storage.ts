@@ -787,7 +787,7 @@ export class DatabaseStorage implements IStorage {
           type: 'program' as const,
           title,
           createdAt: program.createdAt?.toISOString() || new Date().toISOString(),
-          link: `/strategy-workspace/programs/${program.id}`
+          link: `/strategy-workspace/epm/${program.id}`
         };
       });
 
