@@ -175,142 +175,196 @@ function OnboardingFlow() {
   const Icon = currentStepData.icon;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5 p-6">
-      <div className="max-w-6xl mx-auto">
-        {/* Hero Section */}
-        <div className="text-center mb-12">
-          <div className="flex flex-col items-center mb-8">
-            <img 
-              src={logoFullLight} 
-              alt="Premisia - Think it through" 
-              className="w-full h-auto dark:hidden mb-6"
-            />
-            <img 
-              src={logoFullDark} 
-              alt="Premisia - Think it through" 
-              className="w-full h-auto hidden dark:block mb-6"
-            />
-            <span className="px-3 py-1 text-sm font-semibold bg-primary/10 text-primary rounded-lg">BETA</span>
-          </div>
-          <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
-            Premisia structures complex choices so leaders can align, commit, and move. <span className="font-semibold text-foreground">66% of EMEA leaders already see significant AI productivity gains</span>—it's time to turn that into strategic advantage.
-          </p>
-        </div>
-
-        {/* Step Indicators - Display only, not clickable */}
-        <div className="flex justify-center mb-8 px-4">
-          <div className="flex flex-col sm:flex-row items-center gap-0">
-            {ONBOARDING_STEPS.map((step, index) => (
-              <div key={step.id} className="flex items-center">
-                <div
-                  className={cn(
-                    "w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all",
-                    index === currentStep
-                      ? "bg-primary text-primary-foreground shadow-lg scale-110"
-                      : index < currentStep
-                      ? "bg-primary/20 text-primary"
-                      : "bg-muted text-muted-foreground"
-                  )}
-                  data-testid={`step-indicator-${index}`}
-                >
-                  {index < currentStep ? (
-                    <CheckCircle className="h-5 w-5" />
-                  ) : (
-                    step.id
-                  )}
-                </div>
-                {index < ONBOARDING_STEPS.length - 1 && (
-                  <div 
-                    className={cn(
-                      "w-12 sm:w-16 h-1 mx-2 transition-all",
-                      index < currentStep ? "bg-primary" : "bg-muted"
-                    )} 
-                  />
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Current Step Content */}
-        <Card className="max-w-4xl mx-auto shadow-xl">
-          <CardContent className="p-8">
-            <div className="flex flex-col md:flex-row gap-8">
-              {/* Icon & Title */}
-              <div className="flex-shrink-0">
-                <div className={cn(
-                  "w-24 h-24 rounded-2xl bg-gradient-to-br flex items-center justify-center shadow-lg",
-                  currentStepData.color
-                )}>
-                  <Icon className="h-12 w-12 text-white" />
-                </div>
-              </div>
-
-              {/* Content */}
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Step {currentStep + 1} of {ONBOARDING_STEPS.length}
-                  </span>
-                </div>
-                <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-3">
-                  {currentStepData.title}
-                </h2>
-                <p className="text-lg text-muted-foreground mb-6">
-                  {currentStepData.description}
-                </p>
-
-                {/* Features List */}
-                <div className="space-y-3 mb-8">
-                  {currentStepData.features.map((feature, index) => (
-                    <div key={index} className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center mt-0.5">
-                        <CheckCircle className="h-4 w-4 text-primary" />
-                      </div>
-                      <p className="text-foreground">{feature}</p>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Navigation Buttons */}
-                <div className="flex items-center gap-4">
-                  {currentStep > 0 && (
-                    <Button
-                      variant="outline"
-                      onClick={() => setCurrentStep(currentStep - 1)}
-                      data-testid="button-previous"
-                    >
-                      Previous
-                    </Button>
-                  )}
-                  
-                  {currentStep < ONBOARDING_STEPS.length - 1 ? (
-                    <Button
-                      onClick={() => setCurrentStep(currentStep + 1)}
-                      className="ml-auto"
-                      data-testid="button-next"
-                    >
-                      Next
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  ) : (
-                    <Button
-                      onClick={handleGetStarted}
-                      className="ml-auto bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg"
-                      size="lg"
-                      data-testid="button-get-started"
-                    >
-                      <Sparkles className="mr-2 h-5 w-5" />
-                      Start Your First Analysis
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+    <>
+      {/* Animated background matching landing page */}
+      <style>{`
+        @keyframes float {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          33% { transform: translate(30px, -30px) scale(1.1); }
+          66% { transform: translate(-20px, 20px) scale(0.9); }
+        }
+        .onboarding-bg {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          z-index: -1;
+          background: #0f1419;
+          overflow: hidden;
+        }
+        .gradient-orb {
+          position: absolute;
+          border-radius: 50%;
+          filter: blur(80px);
+          opacity: 0.3;
+          animation: float 20s infinite ease-in-out;
+        }
+        .orb1 {
+          width: 600px;
+          height: 600px;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          top: -200px;
+          right: -200px;
+          animation-delay: 0s;
+        }
+        .orb2 {
+          width: 500px;
+          height: 500px;
+          background: linear-gradient(135deg, #3b82f6 0%, #10b981 100%);
+          bottom: -150px;
+          left: -150px;
+          animation-delay: 5s;
+        }
+        .orb3 {
+          width: 400px;
+          height: 400px;
+          background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%);
+          top: 50%;
+          left: 50%;
+          animation-delay: 10s;
+        }
+      `}</style>
+      
+      <div className="onboarding-bg">
+        <div className="gradient-orb orb1"></div>
+        <div className="gradient-orb orb2"></div>
+        <div className="gradient-orb orb3"></div>
       </div>
-    </div>
+
+      <div className="min-h-screen text-white p-6">
+        <div className="max-w-6xl mx-auto">
+          {/* Hero Section */}
+          <div className="text-center mb-12">
+            <div className="flex flex-col items-center mb-8">
+              <img 
+                src={logoFullDark} 
+                alt="Premisia - Think it through" 
+                className="w-full max-w-3xl h-auto mb-6"
+              />
+              <span className="px-3 py-1 text-sm font-semibold bg-white/10 text-white rounded-lg backdrop-blur-sm">BETA</span>
+            </div>
+            <p className="text-lg md:text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
+              Premisia structures complex choices so leaders can align, commit, and move. <span className="font-semibold text-white">66% of EMEA leaders already see significant AI productivity gains</span>—it's time to turn that into strategic advantage.
+            </p>
+          </div>
+
+          {/* Step Indicators - Display only, not clickable */}
+          <div className="flex justify-center mb-8 px-4">
+            <div className="flex flex-col sm:flex-row items-center gap-0">
+              {ONBOARDING_STEPS.map((step, index) => (
+                <div key={step.id} className="flex items-center">
+                  <div
+                    className={cn(
+                      "w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all",
+                      index === currentStep
+                        ? "bg-gradient-to-r from-[#3b82f6] to-[#10b981] text-white shadow-lg shadow-blue-500/50 scale-110"
+                        : index < currentStep
+                        ? "bg-white/20 text-white backdrop-blur-sm"
+                        : "bg-white/10 text-gray-400 backdrop-blur-sm"
+                    )}
+                    data-testid={`step-indicator-${index}`}
+                  >
+                    {index < currentStep ? (
+                      <CheckCircle className="h-5 w-5" />
+                    ) : (
+                      step.id
+                    )}
+                  </div>
+                  {index < ONBOARDING_STEPS.length - 1 && (
+                    <div 
+                      className={cn(
+                        "w-12 sm:w-16 h-1 mx-2 transition-all",
+                        index < currentStep ? "bg-gradient-to-r from-[#3b82f6] to-[#10b981]" : "bg-white/20"
+                      )} 
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Current Step Content */}
+          <Card className="max-w-4xl mx-auto bg-white/5 backdrop-blur-md border-white/10 shadow-2xl">
+            <CardContent className="p-8">
+              <div className="flex flex-col md:flex-row gap-8">
+                {/* Icon & Title */}
+                <div className="flex-shrink-0">
+                  <div className={cn(
+                    "w-24 h-24 rounded-2xl bg-gradient-to-br flex items-center justify-center shadow-lg",
+                    currentStepData.color
+                  )}>
+                    <Icon className="h-12 w-12 text-white" />
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-sm font-medium text-gray-400">
+                      Step {currentStep + 1} of {ONBOARDING_STEPS.length}
+                    </span>
+                  </div>
+                  <h2 className="text-2xl md:text-3xl font-bold text-white mb-3">
+                    {currentStepData.title}
+                  </h2>
+                  <p className="text-lg text-gray-300 mb-6">
+                    {currentStepData.description}
+                  </p>
+
+                  {/* Features List */}
+                  <div className="space-y-3 mb-8">
+                    {currentStepData.features.map((feature, index) => (
+                      <div key={index} className="flex items-start gap-3">
+                        <div className="flex-shrink-0 w-6 h-6 rounded-full bg-white/10 flex items-center justify-center mt-0.5">
+                          <CheckCircle className="h-4 w-4 text-[#10b981]" />
+                        </div>
+                        <p className="text-gray-200">{feature}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Navigation Buttons */}
+                  <div className="flex items-center gap-4">
+                    {currentStep > 0 && (
+                      <Button
+                        variant="outline"
+                        onClick={() => setCurrentStep(currentStep - 1)}
+                        className="border-white/20 bg-white/5 text-white hover:bg-white/10 hover:text-white backdrop-blur-sm"
+                        data-testid="button-previous"
+                      >
+                        Previous
+                      </Button>
+                    )}
+                    
+                    {currentStep < ONBOARDING_STEPS.length - 1 ? (
+                      <Button
+                        onClick={() => setCurrentStep(currentStep + 1)}
+                        className="ml-auto bg-gradient-to-r from-[#3b82f6] to-[#10b981] text-white hover:shadow-lg hover:shadow-blue-500/50 transition-all"
+                        data-testid="button-next"
+                      >
+                        Next
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={handleGetStarted}
+                        className="ml-auto bg-gradient-to-r from-[#3b82f6] to-[#10b981] text-white hover:shadow-lg hover:shadow-blue-500/50 transition-all"
+                        size="lg"
+                        data-testid="button-get-started"
+                      >
+                        <Sparkles className="mr-2 h-5 w-5" />
+                        Start Your First Analysis
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </>
   );
 }
 
