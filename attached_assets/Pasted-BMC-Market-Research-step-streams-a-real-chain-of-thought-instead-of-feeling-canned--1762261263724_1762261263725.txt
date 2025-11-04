@@ -1,0 +1,110 @@
+BMC “Market
+  Research” step streams a real chain-of-thought instead of feeling canned:
+
+  ———
+
+  ## A. Enhance the SSE stream on the server
+
+  File: server/routes/strategic-consultant.ts (GET /bmc-research/
+  stream/:sessionId)
+
+  1. Send an input preview
+     Right after you fetch understanding.userInput, stream a one-time event so
+     the UI can display the context:
+
+     res.write(`data: ${JSON.stringify({
+       type: 'context',
+       inputPreview: understanding.userInput.slice(0, 200)
+     })}\n\n`);
+  2. Emit actual chain-of-thought events
+      - When running the web searches (each query), stream:
+
+        res.write(`data: ${JSON.stringify({
+          type: 'query',
+          message: `Searching: ${query.query}`,
+          purpose: query.purpose,
+          queryType: query.type
+        })}\n\n`);
+      - When synthesizing findings for each BMC block, emit:
+
+        res.write(`data: ${JSON.stringify({
+          type: 'synthesis',
+          block: blockType,
+          message: `Synthesizing ${blockType.replace('_', ' ')} insights`
+        })}\n\n`);
+  3. Stop sending the static “progress” timer
+     Remove the 6-second interval that plays canned messages. Instead, stream
+     the timeline from actual events (context, query, synthesis, etc.).
+
+  ———
+
+  ## B. Update the front end to render the stream
+
+  File: client/src/pages/strategic-consultant/ResearchPage.tsx
+
+  1. Log state
+     Add:
+
+     const [logEntries, setLogEntries] = useState<Array<{
+       id: string;
+       timestamp: string;
+       type: 'context' | 'query' | 'synthesis' | 'progress' | 'complete';
+       message: string;
+       meta?: Record<string, string>;
+     }>>([]);
+  2. Append entries as SSE messages arrive
+
+     const appendLog = useCallback((entry) => {
+       setLogEntries((prev) => [...prev, { ...entry, id: crypto.randomUUID(),
+  timestamp: new Date().toISOString() }]);
+     }, []);
+
+     In the SSE handler:
+
+     if (data.type === 'context' || data.type === 'query' || data.type ===
+  'synthesis') {
+       appendLog({ type: data.type, message: data.message, meta: { block:
+  data.block, purpose: data.purpose } });
+     } else if (data.type === 'progress') {
+       setProgress(data.progress ?? 0);
+       appendLog({ type: 'progress', message: data.message });
+     } else if (data.type === 'complete') {
+       setProgress(100);
+       appendLog({ type: 'complete', message: 'Research complete' });
+     }
+  3. Replace the hardcoded spinner
+      - While isResearching is true, render a two-column layout: progress bar
+        on the left, streaming log on the right (timeline list showing each
+        logEntries item in the order received).
+      - Show the context entry at the top (“Using summary: …”).
+  4. Remove the 3-second auto-navigate timer
+     Drop autoNavigateCountdown and related useEffect. On the complete event,
+     after setResearchData, navigate directly to:
+
+     setLocation(`/strategy-workspace/decisions/${sessionId}/
+  ${data.data.versionNumber}`);
+  5. Render a friendly fallback when no findings
+     Before rendering the categories, check:
+
+     const hasFindings = findings && categoryConfig.some(({ key }) =>
+  Array.isArray(findings[key]) && findings[key].length > 0);
+
+     If !hasFindings, render a card: “We didn’t find relevant research this run.
+     Retry or continue,” with buttons for handleRetry and setLocation(...).
+  6. Progress display
+     Show “100% complete” only after type === 'complete'. Until then, show
+     progress.toFixed(0)%, based on real events.
+  7. Clear stale storage
+     When a new session starts (sessionId changes), remove prior localStorage
+     entries (strategic-*) before writing the new data.
+
+  ———
+
+  ## C. Result
+
+  With these changes, users will see a real-time timeline: first the input
+  preview, then each search query, then block synthesis steps, and finally
+  completion. No more canned spinner—just the actual work the system is doing,
+  plus a clear fallback when the AI returns nothing. Once Replit delivers this,
+  run the BMI flow from Strategies Hub and confirm the log reflects unique
+  queries and the page jumps straight into decisions when done.
