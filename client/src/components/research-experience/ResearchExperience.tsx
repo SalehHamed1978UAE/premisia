@@ -1,12 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
-import { AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Eye, EyeOff } from "lucide-react";
 import { AnimatedBackground } from "./AnimatedBackground";
 import { ProgressTimeline } from "./ProgressTimeline";
-import { InsightCard, type InsightCardData } from "./InsightCard";
+import { type InsightCardData } from "./InsightCard";
 import { StatsPanel } from "./StatsPanel";
 import { NarrativeBeat } from "./NarrativeBeat";
 
@@ -194,36 +193,9 @@ export function ResearchExperience({
         {/* Main Content Area */}
         <div className="flex-1 px-4 md:px-6 pb-20">
           <div className="max-w-7xl mx-auto">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Insights Column (2/3 on desktop) */}
-              <div className="lg:col-span-2 space-y-4">
-                <h2 className="text-lg font-semibold mb-4">Live Insights</h2>
-                <AnimatePresence mode="popLayout">
-                  {insights.length === 0 ? (
-                    <Card className="border-dashed">
-                      <CardContent className="p-8 text-center text-muted-foreground">
-                        <p className="text-sm">
-                          Insights will appear here as we analyze market data...
-                        </p>
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    <div className="space-y-3">
-                      {insights.map((insight, index) => (
-                        <InsightCard
-                          key={insight.id}
-                          insight={insight}
-                          index={index}
-                          prefersReducedMotion={shouldReduceMotion}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              {/* Stats Sidebar (1/3 on desktop) */}
-              <div className="space-y-4">
+            <div className="flex justify-center">
+              {/* Stats Panel (centered) */}
+              <div className="w-full max-w-md space-y-4">
                 <h2 className="text-lg font-semibold mb-4">Research Stats</h2>
                 <StatsPanel
                   sourcesScanned={stats.sourcesScanned}
