@@ -79,7 +79,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .groupBy(strategicUnderstanding.id)
         .orderBy(desc(strategicUnderstanding.updatedAt));
 
-      res.json(strategies);
+      // Ensure proper timestamp serialization
+      const serializedStrategies = strategies.map(s => ({
+        ...s,
+        createdAt: s.createdAt instanceof Date ? s.createdAt.toISOString() : s.createdAt,
+        updatedAt: s.updatedAt instanceof Date ? s.updatedAt.toISOString() : s.updatedAt,
+        latestJourneyUpdated: s.latestJourneyUpdated instanceof Date ? s.latestJourneyUpdated.toISOString() : s.latestJourneyUpdated,
+      }));
+
+      res.json(serializedStrategies);
     } catch (error) {
       console.error("Error fetching strategies:", error);
       res.status(500).json({ message: "Failed to fetch strategies" });
