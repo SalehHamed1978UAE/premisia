@@ -3,7 +3,7 @@ import {
   users, programs, workstreams, resources, stageGates, stageGateReviews, 
   tasks, taskDependencies, kpis, kpiMeasurements, risks, riskMitigations,
   benefits, fundingSources, expenses, sessionContext, strategyVersions,
-  strategyDecisions, epmPrograms, strategicUnderstanding, goldenRecords, goldenRecordChecks,
+  strategyDecisions, epmPrograms, strategicUnderstanding, journeySessions, goldenRecords, goldenRecordChecks,
   locations
 } from "@shared/schema";
 import type { 
@@ -719,15 +719,19 @@ export class DatabaseStorage implements IStorage {
       ));
 
     // Get recent artifacts (filter out archived items)
-    // Join with strategic_understanding to get the understanding ID for repository links
+    // Strategy versions can have sessionId pointing to either:
+    // 1. Journey session ID (new flow) - need to lookup understanding via journey_sessions
+    // 2. Understanding session ID (legacy flow) - direct lookup
+    // Use LEFT JOINs to handle both cases
     const recentVersions = await db
       .select({
-        understandingId: strategicUnderstanding.id,
+        understandingId: sql`COALESCE(${journeySessions.understandingId}, ${strategicUnderstanding.id})`.as('understanding_id'),
         inputSummary: strategyVersions.inputSummary,
         createdAt: strategyVersions.createdAt,
       })
       .from(strategyVersions)
-      .innerJoin(strategicUnderstanding, eq(strategyVersions.sessionId, strategicUnderstanding.sessionId))
+      .leftJoin(journeySessions, eq(strategyVersions.sessionId, journeySessions.id))
+      .leftJoin(strategicUnderstanding, eq(strategyVersions.sessionId, strategicUnderstanding.sessionId))
       .where(and(
         eq(strategyVersions.userId, userId),
         eq(strategyVersions.archived, false)

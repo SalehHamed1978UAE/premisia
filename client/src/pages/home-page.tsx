@@ -201,9 +201,8 @@ function OnboardingFlow() {
         <div className="flex justify-center mb-8 px-4">
           <div className="flex flex-col sm:flex-row items-center gap-0">
             {ONBOARDING_STEPS.map((step, index) => (
-              <>
+              <div key={step.id} className="flex items-center">
                 <div
-                  key={step.id}
                   className={cn(
                     "w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all",
                     index === currentStep
@@ -222,14 +221,13 @@ function OnboardingFlow() {
                 </div>
                 {index < ONBOARDING_STEPS.length - 1 && (
                   <div 
-                    key={`connector-${index}`}
                     className={cn(
                       "w-12 sm:w-16 h-1 mx-2 transition-all",
                       index < currentStep ? "bg-primary" : "bg-muted"
                     )} 
                   />
                 )}
-              </>
+              </div>
             ))}
           </div>
         </div>
@@ -320,151 +318,182 @@ function Dashboard({ summary }: { summary: DashboardSummary }) {
   const [, setLocation] = useLocation();
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5 p-6 space-y-8">
       {/* Welcome Header */}
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">Dashboard</h1>
-        <p className="text-muted-foreground">Overview of your strategic work</p>
+      <div className="text-center max-w-4xl mx-auto">
+        <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-3 bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+          Welcome to Premisia
+        </h1>
+        <p className="text-lg text-muted-foreground">Your strategic command center—where insights become execution</p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Analyses Complete</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{summary.counts.analyses}</div>
-            <p className="text-xs text-muted-foreground">
-              Strategic analyses completed
-            </p>
+      {/* Stats Cards with Gradient Accents */}
+      <div className="max-w-6xl mx-auto grid gap-6 grid-cols-1 md:grid-cols-3">
+        <Card className="shadow-lg border-primary/20 hover:shadow-xl transition-shadow">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0 shadow-md">
+                <TrendingUp className="h-7 w-7 text-white" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Analyses Complete</p>
+                <p className="text-3xl font-bold text-foreground">{summary.counts.analyses}</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Strategies Complete</CardTitle>
-            <Target className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{summary.counts.strategies}</div>
-            <p className="text-xs text-muted-foreground">
-              Finalized strategy decisions
-            </p>
+        <Card className="shadow-lg border-primary/20 hover:shadow-xl transition-shadow">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center flex-shrink-0 shadow-md">
+                <Target className="h-7 w-7 text-white" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Strategies Complete</p>
+                <p className="text-3xl font-bold text-foreground">{summary.counts.strategies}</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Programs Complete</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{summary.counts.programs}</div>
-            <p className="text-xs text-muted-foreground">
-              EPM programs generated
-            </p>
+        <Card className="shadow-lg border-primary/20 hover:shadow-xl transition-shadow">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center flex-shrink-0 shadow-md">
+                <FileText className="h-7 w-7 text-white" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Programs Complete</p>
+                <p className="text-3xl font-bold text-foreground">{summary.counts.programs}</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Recent Artifacts */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-          <p className="text-sm text-muted-foreground">Your last 5 artifacts</p>
-        </CardHeader>
-        <CardContent>
-          {summary.recentArtifacts.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">
-              No artifacts yet. Start by creating your first strategic analysis!
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {summary.recentArtifacts.map((artifact) => (
-                <Link key={artifact.id} href={artifact.link}>
-                  <div
-                    className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-4 rounded-lg border border-border hover:bg-accent transition-colors cursor-pointer"
-                    data-testid={`artifact-${artifact.id}`}
-                  >
-                    <div className="flex items-center gap-4 flex-1 min-w-0">
-                      <div className={cn(
-                        "w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0",
-                        artifact.type === 'analysis' && "bg-blue-100 dark:bg-blue-900/30",
-                        artifact.type === 'program' && "bg-green-100 dark:bg-green-900/30"
-                      )}>
-                        {artifact.type === 'analysis' ? (
-                          <Archive className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                        ) : (
-                          <FileText className="h-5 w-5 text-green-600 dark:text-green-400" />
-                        )}
+      <div className="max-w-6xl mx-auto">
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle className="text-xl">Recent Activity</CardTitle>
+            <p className="text-sm text-muted-foreground">Your last 5 artifacts</p>
+          </CardHeader>
+          <CardContent>
+            {summary.recentArtifacts.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center mx-auto mb-4 shadow-md">
+                  <Sparkles className="h-8 w-8 text-white" />
+                </div>
+                <p className="text-muted-foreground text-lg mb-6">
+                  No artifacts yet. Start by creating your first strategic analysis!
+                </p>
+                <Button
+                  onClick={() => setLocation('/strategic-consultant/input')}
+                  className="bg-gradient-to-r from-primary to-primary/80 shadow-lg"
+                  size="lg"
+                  data-testid="button-empty-state-start"
+                >
+                  <Sparkles className="mr-2 h-5 w-5" />
+                  Get Started
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {summary.recentArtifacts.map((artifact) => (
+                  <Link key={artifact.id} href={artifact.link}>
+                    <div
+                      className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-4 rounded-xl border border-border hover:shadow-md hover:border-primary/30 transition-all cursor-pointer bg-card"
+                      data-testid={`artifact-${artifact.id}`}
+                    >
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div className={cn(
+                          "w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm",
+                          artifact.type === 'analysis' && "bg-gradient-to-br from-purple-500 to-purple-600",
+                          artifact.type === 'program' && "bg-gradient-to-br from-green-500 to-green-600"
+                        )}>
+                          {artifact.type === 'analysis' ? (
+                            <Archive className="h-6 w-6 text-white" />
+                          ) : (
+                            <FileText className="h-6 w-6 text-white" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-foreground truncate text-lg">{artifact.title}</h4>
+                          <p className="text-sm text-muted-foreground">
+                            {artifact.type === 'analysis' ? 'Strategic Analysis' : 'EPM Program'}
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-foreground truncate">{artifact.title}</h4>
-                        <p className="text-sm text-muted-foreground">
-                          {artifact.type === 'analysis' ? 'Strategic Analysis' : 'EPM Program'}
-                        </p>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground flex-shrink-0 pl-16 sm:pl-0">
+                        <Calendar className="h-4 w-4" />
+                        <span className="whitespace-nowrap">{format(new Date(artifact.createdAt), 'MMM d, yyyy')}</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground flex-shrink-0 pl-14 sm:pl-0">
-                      <Calendar className="h-4 w-4" />
-                      <span className="whitespace-nowrap">{format(new Date(artifact.createdAt), 'MMM d, yyyy')}</span>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 grid-cols-1 md:grid-cols-3">
-          <Button
-            className="justify-start h-auto p-4"
-            variant="outline"
-            onClick={() => setLocation('/strategic-consultant/input')}
-            data-testid="quick-action-analysis"
-          >
-            <Sparkles className="mr-3 h-5 w-5" />
-            <div className="text-left">
-              <div className="font-semibold">New Analysis</div>
-              <div className="text-xs opacity-70">Start strategic analysis</div>
-            </div>
-          </Button>
+      <div className="max-w-6xl mx-auto">
+        <Card className="shadow-lg">
+          <CardHeader>
+            <CardTitle className="text-xl">Quick Actions</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 grid-cols-1 md:grid-cols-3">
+            <Button
+              className="justify-start h-auto p-6 hover:shadow-md transition-shadow"
+              variant="outline"
+              onClick={() => setLocation('/strategic-consultant/input')}
+              data-testid="quick-action-analysis"
+            >
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mr-4 flex-shrink-0 shadow-sm">
+                <Sparkles className="h-6 w-6 text-white" />
+              </div>
+              <div className="text-left">
+                <div className="font-semibold text-base">New Analysis</div>
+                <div className="text-xs text-muted-foreground">Start strategic analysis</div>
+              </div>
+            </Button>
 
           <Button
-            className="justify-start h-auto p-4"
-            variant="outline"
-            onClick={() => setLocation('/repository')}
-            data-testid="quick-action-repository"
-          >
-            <Archive className="mr-3 h-5 w-5" />
-            <div className="text-left">
-              <div className="font-semibold">View Repository</div>
-              <div className="text-xs opacity-70">Browse analyses</div>
-            </div>
-          </Button>
+              className="justify-start h-auto p-6 hover:shadow-md transition-shadow"
+              variant="outline"
+              onClick={() => setLocation('/repository')}
+              data-testid="quick-action-repository"
+            >
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center mr-4 flex-shrink-0 shadow-sm">
+                <Archive className="h-6 w-6 text-white" />
+              </div>
+              <div className="text-left">
+                <div className="font-semibold text-base">View Repository</div>
+                <div className="text-xs text-muted-foreground">Browse analyses</div>
+              </div>
+            </Button>
 
-          <Button
-            className="justify-start h-auto p-4"
-            variant="outline"
-            onClick={() => setLocation('/strategy-workspace/programs')}
-            data-testid="quick-action-programs"
-          >
-            <FileText className="mr-3 h-5 w-5" />
-            <div className="text-left">
-              <div className="font-semibold">EPM Programs</div>
-              <div className="text-xs opacity-70">View programs</div>
-            </div>
-          </Button>
-        </CardContent>
-      </Card>
+            <Button
+              className="justify-start h-auto p-6 hover:shadow-md transition-shadow"
+              variant="outline"
+              onClick={() => setLocation('/strategy-workspace/programs')}
+              data-testid="quick-action-programs"
+            >
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center mr-4 flex-shrink-0 shadow-sm">
+                <FileText className="h-6 w-6 text-white" />
+              </div>
+              <div className="text-left">
+                <div className="font-semibold text-base">EPM Programs</div>
+                <div className="text-xs text-muted-foreground">View programs</div>
+              </div>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+      
+      <RotatingQuote />
     </div>
   );
 }
