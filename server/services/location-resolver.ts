@@ -138,6 +138,7 @@ export class LocationResolverService {
         format: 'json',
         addressdetails: '1',
         limit: '5',
+        'accept-language': 'en',
       });
 
       const response = await fetch(
