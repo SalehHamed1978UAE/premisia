@@ -215,6 +215,124 @@ export async function fetchJourneySessionData(sessionId: string): Promise<Golden
 }
 
 /**
+ * Check if a session ID is in legacy format (session-TIMESTAMP-ID)
+ */
+function isLegacySessionId(sessionId: string): boolean {
+  return sessionId.startsWith('session-') && /session-\d+-/.test(sessionId);
+}
+
+/**
+ * Fetch legacy session data from strategic_understanding table
+ */
+async function fetchLegacySessionData(version: any): Promise<GoldenRecordData | null> {
+  const [understanding] = await db
+    .select()
+    .from(strategicUnderstanding)
+    .where(eq(strategicUnderstanding.sessionId, version.sessionId))
+    .limit(1);
+  
+  if (!understanding) {
+    console.error(`[Golden Records] Strategic understanding not found for legacy session: ${version.sessionId}`);
+    return null;
+  }
+
+  const epmProgram = await db
+    .select()
+    .from(epmPrograms)
+    .where(eq(epmPrograms.strategyVersionId, version.id))
+    .limit(1);
+
+  const epmProgramRow = epmProgram.length > 0 ? epmProgram[0] : null;
+
+  const steps: GoldenRecordStep[] = [];
+  const detectedFrameworks: string[] = [];
+
+  const fiveWhysData = version.analysisData?.five_whys;
+  if (fiveWhysData) {
+    steps.push({
+      stepName: 'five_whys',
+      frameworkType: 'five_whys',
+      expectedUrl: `/strategic-consultant/whys-tree/${version.sessionId}`,
+      responsePayload: {
+        rootCause: fiveWhysData.root_cause,
+        whyLevels: fiveWhysData.why_levels,
+      },
+      observations: 'Five Whys completed',
+      completedAt: version.createdAt ?? undefined,
+    });
+    detectedFrameworks.push('five_whys');
+  }
+
+  const bmcResearch = version.analysisData?.bmc_research;
+  if (bmcResearch) {
+    steps.push({
+      stepName: 'bmc_research',
+      frameworkType: 'bmc',
+      expectedUrl: `/strategic-consultant/research/${version.sessionId}`,
+      responsePayload: {
+        keyInsights: bmcResearch.keyInsights,
+        criticalGaps: bmcResearch.criticalGaps,
+      },
+      observations: 'BMC research stream completed',
+      completedAt: version.updatedAt ?? version.createdAt ?? undefined,
+    });
+    detectedFrameworks.push('bmc');
+  }
+
+  if (version.decisionsData?.decisions?.length) {
+    steps.push({
+      stepName: 'strategic_decisions',
+      expectedUrl: `/strategy-workspace/decisions/${version.sessionId}/${version.versionNumber}`,
+      responsePayload: version.decisionsData.decisions.map((d: any) => ({
+        id: d.id,
+        title: d.title,
+        options: d.options?.length ?? 0,
+      })),
+      observations: 'Decisions generated and ready for prioritization',
+    });
+  }
+
+  if (version.selectedDecisions) {
+    steps.push({
+      stepName: 'prioritization',
+      expectedUrl: `/strategy-workspace/prioritization/${version.sessionId}/${version.versionNumber}`,
+      responsePayload: version.selectedDecisions,
+      observations: 'Prioritized initiatives saved',
+    });
+  }
+
+  if (epmProgramRow) {
+    steps.push({
+      stepName: 'epm_generation',
+      expectedUrl: `/strategy-workspace/epm/${epmProgramRow.id}`,
+      responsePayload: {
+        programId: epmProgramRow.id,
+        status: epmProgramRow.status,
+        workstreams: Array.isArray(epmProgramRow.workstreams)
+          ? epmProgramRow.workstreams.length
+          : 0,
+      },
+      observations: 'EPM program generated successfully',
+      completedAt: epmProgramRow.createdAt ?? undefined,
+    });
+  }
+
+  return {
+    journeyType: 'business_model_innovation',
+    sessionId: version.sessionId,
+    understandingId: understanding.id,
+    versionNumber: version.versionNumber || 1,
+    steps,
+    metadata: {
+      userInput: understanding.userInput,
+      initiativeType: understanding.initiativeType || undefined,
+      completedAt: version.finalizedAt || version.updatedAt || undefined,
+      frameworks: detectedFrameworks,
+    },
+  };
+}
+
+/**
  * Fetch strategy version data for golden record capture
  */
 export async function fetchStrategyVersionData(strategyVersionId: string): Promise<GoldenRecordData | null> {
@@ -229,7 +347,11 @@ export async function fetchStrategyVersionData(strategyVersionId: string): Promi
     return null;
   }
 
-  // Fetch the journey session
+  if (isLegacySessionId(version.sessionId)) {
+    console.log(`[Golden Records] Detected legacy session ID: ${version.sessionId}`);
+    return fetchLegacySessionData(version);
+  }
+
   return fetchJourneySessionData(version.sessionId);
 }
 
