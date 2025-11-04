@@ -92,22 +92,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const strategyId = req.params.id;
 
-      // Get strategic understanding and verify ownership via journey sessions
-      const [understandingData] = await db
+      // Verify ownership first via journey sessions
+      const [ownershipCheck] = await db
         .select()
-        .from(strategicUnderstanding)
-        .leftJoin(
-          journeySessions,
-          eq(strategicUnderstanding.id, journeySessions.understandingId)
-        )
+        .from(journeySessions)
         .where(
           and(
-            eq(strategicUnderstanding.id, strategyId),
+            eq(journeySessions.understandingId, strategyId),
             eq(journeySessions.userId, userId)
           )
-        );
+        )
+        .limit(1);
 
-      if (!understandingData) {
+      if (!ownershipCheck) {
+        return res.status(404).json({ message: "Strategy not found" });
+      }
+
+      // Get strategic understanding using secure data service (handles decryption)
+      const { getStrategicUnderstanding } = await import('./services/secure-data-service');
+      const understanding = await getStrategicUnderstanding(strategyId);
+      
+      if (!understanding) {
         return res.status(404).json({ message: "Strategy not found" });
       }
 
@@ -125,8 +130,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Build list of allowed session IDs (intake session + all journey sessions)
       const sessionIds = new Set<string>();
-      if (understandingData?.strategic_understanding?.sessionId) {
-        sessionIds.add(understandingData.strategic_understanding.sessionId);
+      if (understanding.sessionId) {
+        sessionIds.add(understanding.sessionId);
       }
       sessions.forEach(session => sessionIds.add(session.id));
       const sessionIdList = Array.from(sessionIds);
@@ -166,16 +171,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           )
         );
 
-      // Decrypt sensitive fields
-      const understanding = understandingData.strategic_understanding;
-      const decryptedUnderstanding = {
-        ...understanding,
-        userInput: understanding.userInput ? decrypt(understanding.userInput) || understanding.userInput : understanding.userInput,
-        initiativeDescription: understanding.initiativeDescription ? decrypt(understanding.initiativeDescription) || understanding.initiativeDescription : understanding.initiativeDescription,
-      };
-
       res.json({
-        understanding: decryptedUnderstanding,
+        understanding,  // Already decrypted by storage layer
         sessions,
         programs,
         referenceCount: refCount?.count || 0,
