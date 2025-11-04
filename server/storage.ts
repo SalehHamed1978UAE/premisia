@@ -739,7 +739,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         id: epmPrograms.id,
         frameworkType: epmPrograms.frameworkType,
-        executiveSummary: epmPrograms.executiveSummary,
+        programName: epmPrograms.programName,
         createdAt: epmPrograms.createdAt,
       })
       .from(epmPrograms)
@@ -763,16 +763,16 @@ export class DatabaseStorage implements IStorage {
           link: `/repository/${v.understandingId}`
         };
       }),
-      // Decrypt program titles
+      // Decrypt program titles  
       ...recentPrograms.map(async p => {
-        // Decrypt executiveSummary to extract program name
-        const decryptedExecSummary = await decryptJSONKMS<any>(p.executiveSummary);
-        const programName = (decryptedExecSummary as any)?.programName || (decryptedExecSummary as any)?.title || `${p.frameworkType} Program`;
+        // Decrypt programName field (it's stored as encrypted text, not JSON)
+        const decryptedProgramName = p.programName ? await decryptKMS(p.programName) : null;
+        const title = decryptedProgramName || `${p.frameworkType} Program`;
         
         return {
           id: p.id,
           type: 'program' as const,
-          title: programName,
+          title,
           createdAt: p.createdAt!,
           link: `/strategy-workspace/epm/${p.id}`
         };
