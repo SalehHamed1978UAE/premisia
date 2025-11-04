@@ -1904,41 +1904,27 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
     const input = understanding.userInput;
     console.log('[BMC-RESEARCH-STREAM] Input fetched from understanding, length:', input.length);
 
-    // Progress messages (same as POST version)
-    const progressMessages = [
-      { message: '🔍 Analyzing your business concept and strategic context...', progress: 5 },
-      { message: '🔍 Extracting key assumptions from your input...', progress: 10 },
-      { message: '🔍 Identifying explicit and implicit strategic claims...', progress: 15 },
-      { message: '🧩 Breaking down Business Model Canvas components...', progress: 20 },
-      { message: '🧩 Generating queries for Customer Segments...', progress: 25 },
-      { message: '🧩 Creating Value Proposition research queries...', progress: 30 },
-      { message: '🌐 Searching global markets for industry insights...', progress: 35 },
-      { message: '🌐 Gathering real-world customer segment data...', progress: 40 },
-      { message: '🌐 Researching competitive landscape and alternatives...', progress: 45 },
-      { message: '💰 Researching pricing models and revenue strategies...', progress: 50 },
-      { message: '💰 Analyzing competitor pricing structures...', progress: 55 },
-      { message: '💰 Investigating subscription vs. one-time models...', progress: 60 },
-      { message: '🤝 Investigating partnership and channel strategies...', progress: 65 },
-      { message: '🤝 Researching distribution channel effectiveness...', progress: 70 },
-      { message: '📊 Analyzing cost structures and resource needs...', progress: 75 },
-      { message: '📊 Researching key resource requirements...', progress: 80 },
-      { message: '🎯 Detecting strategic gaps and contradictions...', progress: 85 },
-      { message: '🎯 Cross-validating assumptions against evidence...', progress: 90 },
-      { message: '✨ Finalizing Business Model Canvas analysis...', progress: 95 },
-    ];
-
-    let messageIndex = 0;
-    let progressInterval: NodeJS.Timeout | null = null;
-
-    // Send progress messages every 6 seconds (19 messages * 6s = ~120s)
-    progressInterval = setInterval(() => {
-      if (messageIndex < progressMessages.length) {
-        const msg = progressMessages[messageIndex];
-        console.log(`[BMC-RESEARCH-STREAM] Sending progress ${messageIndex}/${progressMessages.length}:`, msg.message);
-        res.write(`data: ${JSON.stringify({ type: 'progress', ...msg })}\n\n`);
-        messageIndex++;
-      }
-    }, 6000);
+    // Create streaming sink that writes to SSE response
+    const sink = {
+      emitContext: (inputPreview: string) => {
+        res.write(`data: ${JSON.stringify({ type: 'context', message: `Analyzing: "${inputPreview}..."`, progress: 5 })}\n\n`);
+      },
+      emitQuery: (query: string, purpose: string, queryType: string) => {
+        res.write(`data: ${JSON.stringify({ type: 'query', query, purpose, queryType, progress: 30 })}\n\n`);
+      },
+      emitSynthesis: (block: string, message: string) => {
+        res.write(`data: ${JSON.stringify({ type: 'synthesis', block, message, progress: 70 })}\n\n`);
+      },
+      emitProgress: (message: string, progress: number) => {
+        res.write(`data: ${JSON.stringify({ type: 'progress', message, progress })}\n\n`);
+      },
+      emitComplete: (data: any) => {
+        res.write(`data: ${JSON.stringify({ type: 'complete', data })}\n\n`);
+      },
+      emitError: (error: string) => {
+        res.write(`data: ${JSON.stringify({ type: 'error', error })}\n\n`);
+      },
+    };
 
     // Send initial message immediately
     console.log('[BMC-RESEARCH-STREAM] Sending initial message');
@@ -1949,15 +1935,10 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
     let researchError = false;
 
     try {
-      // Conduct research - this is the main operation
-      console.log('[BMC-RESEARCH-STREAM] Starting BMC research...');
-      result = await bmcResearcher.conductBMCResearch(input, sessionId);
+      // Conduct research with streaming sink - this is the main operation
+      console.log('[BMC-RESEARCH-STREAM] Starting BMC research with real-time streaming...');
+      result = await bmcResearcher.conductBMCResearch(input, sessionId, sink);
       console.log('[BMC-RESEARCH-STREAM] BMC research completed successfully');
-      
-      // Stop progress timer
-      if (progressInterval) {
-        clearInterval(progressInterval);
-      }
 
       // Send 100% progress before trying other operations
       res.write(`data: ${JSON.stringify({ type: 'progress', message: '✅ Research complete, processing results...', progress: 100 })}\n\n`);
@@ -1965,11 +1946,6 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
     } catch (error: any) {
       console.error('[BMC-RESEARCH-STREAM] Research failed:', error);
       researchError = true;
-      
-      // Stop timer on error
-      if (progressInterval) {
-        clearInterval(progressInterval);
-      }
       
       // Re-throw to be caught by outer catch
       throw error;

@@ -12,6 +12,7 @@ import { ReferenceService } from '../services/reference-service';
 import { db } from '../db';
 import { journeySessions } from '@shared/schema';
 import { eq } from 'drizzle-orm';
+import type { ResearchStreamSink } from './types';
 
 const API_BASE = process.env.API_BASE_URL || 'http://localhost:5000';
 
@@ -147,12 +148,16 @@ export class BMCResearcher {
 
   async conductBMCResearch(
     input: string, 
-    sessionId?: string
+    sessionId?: string,
+    sink?: ResearchStreamSink
   ): Promise<BMCResearchResult> {
     // Step 1: Extract understanding from user input using knowledge graph
     
     const effectiveSessionId = sessionId || `bmc-${Date.now()}`;
     console.log(`[BMCResearcher] Using StrategicUnderstandingService for session: ${effectiveSessionId}`);
+    
+    // Emit context preview at the start
+    sink?.emitContext(input.slice(0, 200));
     
     const { understandingId, entities } = await strategicUnderstandingService.extractUnderstanding({
       sessionId: effectiveSessionId,
@@ -194,7 +199,7 @@ export class BMCResearcher {
 
     const allQueries = [...bmcQueries, ...assumptionOnlyQueries];
 
-    const searchResults = await this.performParallelWebSearch(allQueries);
+    const searchResults = await this.performParallelWebSearch(allQueries, sink);
     
     // Separate assumption search results - these apply to ALL blocks
     const assumptionResults = searchResults.filter(r => 
@@ -224,6 +229,7 @@ export class BMCResearcher {
     console.log(`Detected ${contradictionResult.contradictions.length} contradictions BEFORE block synthesis`);
 
     // Step 6: Synthesize blocks WITH contradiction awareness
+    sink?.emitSynthesis('customer_segments', 'Synthesizing Customer Segments insights');
     const [
       customerBlock, 
       valueBlock, 
@@ -738,7 +744,7 @@ Step 1: Same concept? Step 2: Different values?`;
     }
   }
 
-  private async performParallelWebSearch(queries: BMCQuery[]): Promise<any[]> {
+  private async performParallelWebSearch(queries: BMCQuery[], sink?: ResearchStreamSink): Promise<any[]> {
     const throttler = new RequestThrottler({
       maxConcurrent: 5,
       delayBetweenBatches: 200,
@@ -748,6 +754,9 @@ Step 1: Same concept? Step 2: Different values?`;
 
     const searchTasks = queries.map((queryObj) => async () => {
       try {
+        // Emit query event when starting each search
+        sink?.emitQuery(queryObj.query, queryObj.purpose || 'research', queryObj.type || 'baseline');
+        
         const response = await fetch(`${API_BASE}/api/web-search`, {
           method: 'POST',
           headers: {

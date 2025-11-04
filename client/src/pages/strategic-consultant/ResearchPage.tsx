@@ -110,8 +110,14 @@ export default function ResearchPage() {
   const [researchData, setResearchData] = useState<ResearchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
-  const [autoNavigateCountdown, setAutoNavigateCountdown] = useState<number | null>(null);
-  const [decisionsUpdated, setDecisionsUpdated] = useState(false);
+  const [logEntries, setLogEntries] = useState<Array<{
+    id: string;
+    timestamp: string;
+    type: 'context' | 'query' | 'synthesis' | 'progress' | 'complete';
+    message: string;
+    meta?: Record<string, string>;
+  }>>([]);
+  const [nextUrl, setNextUrl] = useState<string | null>(null);
   
   // Use ref to prevent double execution in React Strict Mode
   const hasInitiatedResearch = useRef(false);
@@ -130,6 +136,25 @@ export default function ResearchPage() {
     },
     enabled: !!sessionId,
   });
+
+  // Clear stale data when sessionId changes
+  useEffect(() => {
+    setLogEntries([]);
+    setNextUrl(null);
+    setResearchData(null);
+    setError(null);
+    setProgress(0);
+    hasInitiatedResearch.current = false;
+    
+    // Clear stale localStorage entries for this session
+    if (sessionId) {
+      localStorage.removeItem(`strategic-rootCause-${sessionId}`);
+      localStorage.removeItem(`strategic-whysPath-${sessionId}`);
+      localStorage.removeItem(`strategic-input-${sessionId}`);
+      localStorage.removeItem(`strategic-versionNumber-${sessionId}`);
+      localStorage.removeItem(`journey-type-${sessionId}`);
+    }
+  }, [sessionId]);
 
   useEffect(() => {
     if (!sessionId || loadingJourney || hasInitiatedResearch.current) return;
@@ -186,13 +211,31 @@ export default function ResearchPage() {
         const data = JSON.parse(event.data);
         console.log('[ResearchPage] Received message:', data.type || 'unknown', data);
 
+        // Append log entry for streaming events
+        if (data.type === 'context' || data.type === 'query' || data.type === 'synthesis' || data.type === 'progress' || data.type === 'complete') {
+          const logEntry = {
+            id: `${data.type}-${Date.now()}-${Math.random()}`,
+            timestamp: new Date().toISOString(),
+            type: data.type as 'context' | 'query' | 'synthesis' | 'progress' | 'complete',
+            message: data.message || data.query || `${data.block || 'Unknown'}`,
+            meta: data.purpose ? { purpose: data.purpose, queryType: data.queryType } : (data.progress !== undefined ? { progress: data.progress.toString() } : undefined),
+          };
+          setLogEntries(prev => [...prev, logEntry]);
+        }
+
         if (data.type === 'progress' || data.type === 'query') {
           setProgress(data.progress || 0);
-          setCurrentQuery(data.message || '');
+          setCurrentQuery(data.message || data.query || '');
         } else if (data.type === 'complete') {
           setProgress(100);
           setResearchData(data.data);
           setIsResearching(false);
+          
+          // Capture nextUrl from complete event
+          if (data.data.nextUrl) {
+            setNextUrl(data.data.nextUrl);
+          }
+          
           localStorage.setItem(`strategic-versionNumber-${sessionId}`, data.data.versionNumber.toString());
           toast({
             title: "Research complete ✓",
@@ -254,43 +297,23 @@ export default function ResearchPage() {
     };
   }, [sessionId, loadingJourney, journeySession, toast]);
 
-  // After research completes, navigate to next page (no framework-specific logic)
+  // Navigate immediately when both researchData and nextUrl are ready
   useEffect(() => {
-    if (!researchData || !sessionId) return;
-    if (decisionsUpdated) return;
+    if (!researchData || !nextUrl) return;
 
+    console.log('[ResearchPage] Both researchData and nextUrl ready, navigating to:', nextUrl);
     toast({
       title: "✓ Research complete",
       description: "Proceeding to next step in your journey",
     });
-    setDecisionsUpdated(true);
-    setAutoNavigateCountdown(3);
-  }, [researchData, sessionId, decisionsUpdated, toast]);
-
-  useEffect(() => {
-    if (autoNavigateCountdown === null) return;
-
-    if (autoNavigateCountdown === 0) {
-      // Use nextUrl from backend if available, otherwise fallback to analysis page
-      const nextUrl = (researchData as any)?.nextUrl || `/strategic-consultant/analysis/${sessionId}`;
-      console.log('[ResearchPage] Navigating to:', nextUrl);
-      setLocation(nextUrl);
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setAutoNavigateCountdown(autoNavigateCountdown - 1);
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [autoNavigateCountdown, sessionId, researchData, setLocation]);
+    setLocation(nextUrl);
+  }, [researchData, nextUrl, setLocation, toast]);
 
   const handleContinue = () => {
-    setAutoNavigateCountdown(null);
-    // Use nextUrl from backend if available, otherwise fallback to analysis page
-    const nextUrl = (researchData as any)?.nextUrl || `/strategic-consultant/analysis/${sessionId}`;
     console.log('[ResearchPage] Manual continue to:', nextUrl);
-    setLocation(nextUrl);
+    if (nextUrl) {
+      setLocation(nextUrl);
+    }
   };
 
   const handleRetry = () => {
@@ -406,11 +429,6 @@ export default function ResearchPage() {
               </p>
             </div>
           </div>
-          {autoNavigateCountdown !== null && (
-            <div className="text-sm text-muted-foreground text-center sm:text-left">
-              Auto-navigating in {autoNavigateCountdown}s...
-            </div>
-          )}
         </div>
 
         {findings && findings.sources && findings.sources.length > 0 && (
@@ -448,6 +466,17 @@ export default function ResearchPage() {
             </CardContent>
           </Card>
         )}
+
+        {!findings || Object.keys(findings).filter(k => k !== 'sources' && k !== 'validation').every(k => !findings[k as keyof typeof findings] || (findings[k as keyof typeof findings] as any[]).length === 0) ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>No findings available</CardTitle>
+              <CardDescription>
+                The research didn't produce detailed findings. You can still continue to the next step.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        ) : null}
 
         <div className="space-y-4">
           {findings && categoryConfig.map(({ key, label, icon }) => {
@@ -548,9 +577,16 @@ export default function ResearchPage() {
             onClick={handleContinue}
             data-testid="button-continue-analysis"
             className="w-full sm:w-auto"
+            disabled={!nextUrl}
           >
-            Continue to Strategic Analysis
-            {autoNavigateCountdown !== null && ` (${autoNavigateCountdown})`}
+            {nextUrl ? (
+              "Continue to Strategic Analysis"
+            ) : (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Preparing next step...
+              </>
+            )}
           </Button>
         </div>
       </div>
