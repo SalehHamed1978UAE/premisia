@@ -367,12 +367,9 @@ function Dashboard({ summary }: { summary: DashboardSummary }) {
   const [, setLocation] = useLocation();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5 p-6 space-y-8">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5 px-6 pt-2 pb-6 space-y-4">
       {/* Welcome Header */}
-      <div className="text-center max-w-4xl mx-auto">
-        <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-3 bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-          Welcome to Premisia
-        </h1>
+      <div className="text-center max-w-4xl mx-auto mb-2">
         <p className="text-lg text-muted-foreground">Your strategic command center—where insights become execution</p>
       </div>
 
