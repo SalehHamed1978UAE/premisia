@@ -1748,6 +1748,8 @@ export const researchBatches = pgTable("research_batches", {
 export const goldenRecords = pgTable("golden_records", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   journeyType: journeyTypeEnum("journey_type").notNull(),
+  flowVariant: varchar("flow_variant", { length: 50 }).notNull().default('strategic_consultant'),
+  // Flow variants: 'strategic_consultant' (v1 baseline with Five Whys) or 'strategies_hub' (follow-on without Five Whys)
   version: integer("version").notNull(),
   parentVersion: integer("parent_version"),
   isCurrent: boolean("is_current").notNull().default(false),
@@ -1758,10 +1760,11 @@ export const goldenRecords = pgTable("golden_records", {
   steps: jsonb("steps").notNull(),
 }, (table) => ({
   journeyTypeIdx: index("idx_golden_records_journey_type").on(table.journeyType),
-  versionIdx: index("idx_golden_records_version").on(table.journeyType, table.version),
-  currentIdx: index("idx_golden_records_current").on(table.journeyType, table.isCurrent),
-  uniqueVersionPerType: unique("unique_golden_record_version").on(table.journeyType, table.version),
-  // Note: "Only one current record per journey type" constraint enforced in application layer
+  flowVariantIdx: index("idx_golden_records_flow_variant").on(table.flowVariant),
+  versionIdx: index("idx_golden_records_version").on(table.journeyType, table.flowVariant, table.version),
+  currentIdx: index("idx_golden_records_current").on(table.journeyType, table.flowVariant, table.isCurrent),
+  uniqueVersionPerFlow: unique("unique_golden_record_version_flow").on(table.journeyType, table.flowVariant, table.version),
+  // Note: "Only one current record per journey type + flow variant" constraint enforced in application layer
 }));
 
 // Golden Record Checks table - Audit log for regression test results

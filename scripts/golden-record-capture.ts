@@ -6,12 +6,13 @@
  * Captures a journey session as a golden record for regression testing.
  * 
  * Usage:
- *   npm run capture:golden -- --sessionId=<id> [--notes="Description"] [--promote] [--skipScreenshots]
- *   npm run capture:golden -- --strategyVersionId=<id> [--notes="Description"] [--promote] [--skipScreenshots]
+ *   npm run capture:golden -- --sessionId=<id> [--flowVariant=strategic_consultant|strategies_hub] [--notes="Description"] [--promote] [--skipScreenshots]
+ *   npm run capture:golden -- --strategyVersionId=<id> [--flowVariant=strategic_consultant|strategies_hub] [--notes="Description"] [--promote] [--skipScreenshots]
  * 
  * Flags:
  *   --sessionId: Journey session ID to capture
  *   --strategyVersionId: Strategy version ID (alternative to sessionId)
+ *   --flowVariant: Flow type (strategic_consultant for v1 baseline, strategies_hub for follow-on). Auto-detected if not provided.
  *   --notes: Optional notes about this golden record
  *   --promote: Promote this version as the current golden record (default: false)
  *   --skipScreenshots: Skip screenshot capture (default: false)
@@ -46,6 +47,7 @@ for (const arg of args) {
 
 const sessionId = flags.sessionId as string | undefined;
 const strategyVersionId = flags.strategyVersionId as string | undefined;
+const flowVariant = flags.flowVariant as string | undefined;
 const notes = flags.notes as string | undefined;
 const promote = flags.promote === true || flags.promote === 'true';
 const skipScreenshots = flags.skipScreenshots === true || flags.skipScreenshots === 'true';
@@ -84,9 +86,13 @@ async function captureGoldenRecord() {
       process.exit(1);
     }
 
+    // Auto-detect flow variant if not provided
+    const detectedFlowVariant = flowVariant || (rawData.versionNumber === 1 ? 'strategic_consultant' : 'strategies_hub');
+    
     console.log(`✓ Found journey: ${rawData.journeyType} (v${rawData.versionNumber})`);
     console.log(`  Session ID: ${rawData.sessionId}`);
     console.log(`  Understanding ID: ${rawData.understandingId}`);
+    console.log(`  Flow Variant: ${detectedFlowVariant}`);
     console.log(`  Steps: ${rawData.steps.length}`);
     console.log('');
 
@@ -95,18 +101,23 @@ async function captureGoldenRecord() {
     let sanitizedData = await sanitizeGoldenRecordData(rawData);
     console.log('✓ Data sanitized\n');
 
-    // Step 3: Determine next version number
+    // Step 3: Determine next version number for this flow variant
     console.log('🔍 Checking existing golden records...');
     const existingRecords = await db
       .select()
       .from(goldenRecords)
-      .where(eq(goldenRecords.journeyType, rawData.journeyType as any))
+      .where(
+        and(
+          eq(goldenRecords.journeyType, rawData.journeyType as any),
+          eq(goldenRecords.flowVariant, detectedFlowVariant)
+        )
+      )
       .orderBy(desc(goldenRecords.version));
 
     const maxVersion = existingRecords.length > 0 ? existingRecords[0].version : 0;
     const nextVersion = maxVersion + 1;
     
-    console.log(`✓ Latest version: v${maxVersion}`);
+    console.log(`✓ Latest version for ${detectedFlowVariant}: v${maxVersion}`);
     console.log(`  New version: v${nextVersion}\n`);
 
     // Update sanitized data with the correct golden record version
@@ -158,6 +169,7 @@ async function captureGoldenRecord() {
     
     const recordData = {
       journeyType: rawData.journeyType as any,
+      flowVariant: detectedFlowVariant,
       version: nextVersion,
       parentVersion: maxVersion > 0 ? maxVersion : null,
       isCurrent: promote,
@@ -167,7 +179,7 @@ async function captureGoldenRecord() {
       createdBy: adminUser,
     };
 
-    // If promoting, demote all other current records for this journey type
+    // If promoting, demote all other current records for this journey type + flow variant
     if (promote) {
       await db
         .update(goldenRecords)
@@ -175,6 +187,7 @@ async function captureGoldenRecord() {
         .where(
           and(
             eq(goldenRecords.journeyType, rawData.journeyType as any),
+            eq(goldenRecords.flowVariant, detectedFlowVariant),
             eq(goldenRecords.isCurrent, true)
           )
         );
@@ -192,6 +205,7 @@ async function captureGoldenRecord() {
     console.log('='.repeat(80));
     console.log('✅ Golden Record Captured Successfully\n');
     console.log(`  Journey Type: ${rawData.journeyType}`);
+    console.log(`  Flow Variant: ${detectedFlowVariant}`);
     console.log(`  Version: v${nextVersion}`);
     console.log(`  Steps: ${rawData.steps.length}`);
     console.log(`  Promoted: ${promote ? 'Yes' : 'No'}`);
@@ -204,9 +218,9 @@ async function captureGoldenRecord() {
 
     console.log('💡 Next steps:');
     console.log('  - View in admin UI: /admin/golden-records');
-    console.log('  - Compare against new runs: npm run compare:golden -- --sessionId=<id> --journeyType=' + rawData.journeyType);
+    console.log('  - Compare against new runs: npm run compare:golden -- --sessionId=<id> --journeyType=' + rawData.journeyType + ' --flowVariant=' + detectedFlowVariant);
     if (!promote) {
-      console.log('  - Promote to current: POST /api/admin/golden-records/' + rawData.journeyType + '/' + nextVersion + '/promote');
+      console.log('  - Promote to current: POST /api/admin/golden-records/' + rawData.journeyType + '/' + detectedFlowVariant + '/' + nextVersion + '/promote');
     }
     console.log('');
 
