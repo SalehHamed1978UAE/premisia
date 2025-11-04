@@ -15,6 +15,18 @@ import logoLight from "@assets/Untitled (3600 x 1000 px)_1762102046406.png";
 import logoDark from "@assets/Untitled (3600 x 1000 px)-modified_1762102046405.png";
 import logoFullLight from "@assets/Untitled (3600 x 1000 px)_1762102046406.png";
 import logoFullDark from "@assets/Untitled (3600 x 1000 px)-modified_1762102046405.png";
+import screenshot1 from "@assets/Screenshot 2025-11-04 at 2.54.41 AM_1762211185847.png";
+import screenshot2 from "@assets/Screenshot 2025-11-04 at 2.54.27 AM_1762211185847.png";
+import screenshot3 from "@assets/Screenshot 2025-11-04 at 2.51.02 AM_1762211185848.png";
+import screenshot4 from "@assets/Screenshot 2025-11-04 at 2.51.31 AM_1762211185848.png";
+import screenshot5 from "@assets/Screenshot 2025-11-04 at 2.52.58 AM_1762211185847.png";
+import screenshot6 from "@assets/Screenshot 2025-11-04 at 2.57.26 AM_1762211185846.png";
+import screenshot7 from "@assets/Screenshot 2025-11-04 at 2.59.49 AM_1762211185846.png";
+import screenshot8 from "@assets/Screenshot 2025-11-04 at 3.00.24 AM_1762211185845.png";
+import screenshot9 from "@assets/Screenshot 2025-11-04 at 3.07.55 AM_1762211343927.png";
+import screenshot10 from "@assets/Screenshot 2025-11-04 at 3.08.14 AM_1762211343927.png";
+import screenshot11 from "@assets/Screenshot 2025-11-04 at 3.08.25 AM_1762211343926.png";
+import screenshot12 from "@assets/Screenshot 2025-11-04 at 3.08.41 AM_1762211343926.png";
 
 const EXECUTIVE_QUOTES = [
   {
@@ -1205,6 +1217,300 @@ function PublicLandingPage() {
                   <h3 className="text-xl md:text-2xl font-bold text-[#3b82f6] mb-3 md:mb-4">5. Action Plan</h3>
                   <p className="text-sm md:text-base text-gray-400 leading-relaxed">
                     Get a complete execution roadmap with timelines, resources, and KPIs. Ready to present or implement.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* How It Works - Screenshots Section */}
+        <section 
+          id="how-it-works"
+          className="py-16 md:py-24 px-6 md:px-12"
+          data-testid="section-how-it-works"
+        >
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-12 md:mb-20">
+              <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4 md:mb-5 bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent" data-testid="heading-how-it-works">
+                See the Platform in Action
+              </h2>
+              <p className="text-base md:text-lg lg:text-xl text-gray-400" data-testid="subheading-how-it-works">
+                A real example: transforming "open cafe dubai" into a complete business strategy
+              </p>
+            </div>
+
+            {/* Screenshot 1: Strategic Input */}
+            <div className="mb-16 md:mb-24">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12 items-center">
+                <div className="order-2 lg:order-1">
+                  <div className="inline-block px-3 py-1 bg-[#3b82f6]/20 text-[#3b82f6] rounded-full text-sm font-semibold mb-4">
+                    Step 1
+                  </div>
+                  <h3 className="text-2xl md:text-3xl font-bold text-white mb-4">Start with Your Idea</h3>
+                  <p className="text-base md:text-lg text-gray-400 leading-relaxed mb-4">
+                    Simply type your strategic challenge or business idea. No need for formal planning language—just describe what you're thinking about.
+                  </p>
+                  <p className="text-sm md:text-base text-gray-500 leading-relaxed">
+                    Upload supporting documents (PDF, Word, Excel, images) to give the AI more context. The system starts processing your input immediately.
+                  </p>
+                </div>
+                <div className="order-1 lg:order-2">
+                  <div className="rounded-2xl overflow-hidden shadow-2xl border border-[#3b82f6]/30">
+                    <img src={screenshot1} alt="Strategic input page showing text entry" className="w-full h-auto" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Screenshot 2: Clarification Questions */}
+            <div className="mb-16 md:mb-24">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12 items-center">
+                <div className="order-1">
+                  <div className="rounded-2xl overflow-hidden shadow-2xl border border-[#10b981]/30">
+                    <img src={screenshot2} alt="AI clarification modal with multiple choice questions" className="w-full h-auto" />
+                  </div>
+                </div>
+                <div className="order-2">
+                  <div className="inline-block px-3 py-1 bg-[#10b981]/20 text-[#10b981] rounded-full text-sm font-semibold mb-4">
+                    Step 2
+                  </div>
+                  <h3 className="text-2xl md:text-3xl font-bold text-white mb-4">AI Asks Smart Questions</h3>
+                  <p className="text-base md:text-lg text-gray-400 leading-relaxed mb-4">
+                    Instead of making assumptions, the AI asks clarifying questions to understand your exact situation. Choose from intelligent options or provide your own answers.
+                  </p>
+                  <p className="text-sm md:text-base text-gray-500 leading-relaxed">
+                    This ensures the analysis is tailored to your specific context—whether you're targeting tourists or locals, premium or budget markets.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Screenshot 3: AI Classification */}
+            <div className="mb-16 md:mb-24">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12 items-center">
+                <div className="order-2 lg:order-1">
+                  <div className="inline-block px-3 py-1 bg-[#3b82f6]/20 text-[#3b82f6] rounded-full text-sm font-semibold mb-4">
+                    Step 3
+                  </div>
+                  <h3 className="text-2xl md:text-3xl font-bold text-white mb-4">AI Understands Your Initiative</h3>
+                  <p className="text-base md:text-lg text-gray-400 leading-relaxed mb-4">
+                    The system classifies your initiative type with 98% confidence, determining whether it's a physical business launch, digital transformation, market entry, or another category.
+                  </p>
+                  <p className="text-sm md:text-base text-gray-500 leading-relaxed">
+                    This classification drives smarter resource planning, realistic timelines, and appropriate strategic frameworks.
+                  </p>
+                </div>
+                <div className="order-1 lg:order-2">
+                  <div className="rounded-2xl overflow-hidden shadow-2xl border border-[#3b82f6]/30">
+                    <img src={screenshot3} alt="AI classification page showing Physical Business Launch" className="w-full h-auto" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Screenshot 4: Journey Selection */}
+            <div className="mb-16 md:mb-24">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12 items-center">
+                <div className="order-1">
+                  <div className="rounded-2xl overflow-hidden shadow-2xl border border-[#10b981]/30">
+                    <img src={screenshot4} alt="Journey selection page showing six strategic analysis options" className="w-full h-auto" />
+                  </div>
+                </div>
+                <div className="order-2">
+                  <div className="inline-block px-3 py-1 bg-[#10b981]/20 text-[#10b981] rounded-full text-sm font-semibold mb-4">
+                    Step 4
+                  </div>
+                  <h3 className="text-2xl md:text-3xl font-bold text-white mb-4">Choose Your Analysis Path</h3>
+                  <p className="text-base md:text-lg text-gray-400 leading-relaxed mb-4">
+                    Select from 6 strategic journeys combining proven frameworks: Business Model Innovation (Five Whys + BMC), Market Entry Strategy, Competitive Strategy, and more.
+                  </p>
+                  <p className="text-sm md:text-base text-gray-500 leading-relaxed">
+                    Each journey shows the frameworks it uses and estimated duration. Not sure? The AI recommends the best starting point.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Screenshot 5: Five Whys Analysis */}
+            <div className="mb-16 md:mb-24">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12 items-center">
+                <div className="order-2 lg:order-1">
+                  <div className="inline-block px-3 py-1 bg-[#3b82f6]/20 text-[#3b82f6] rounded-full text-sm font-semibold mb-4">
+                    Step 5
+                  </div>
+                  <h3 className="text-2xl md:text-3xl font-bold text-white mb-4">Deep Strategic Questioning</h3>
+                  <p className="text-base md:text-lg text-gray-400 leading-relaxed mb-4">
+                    The Five Whys analysis uncovers root motivations and challenges your assumptions. Each "Why" comes with supporting evidence, counter-arguments, and research insights.
+                  </p>
+                  <p className="text-sm md:text-base text-gray-500 leading-relaxed">
+                    Edit, add your own insights, or let the AI guide you through uncovering what really matters for your strategy.
+                  </p>
+                </div>
+                <div className="order-1 lg:order-2">
+                  <div className="rounded-2xl overflow-hidden shadow-2xl border border-[#3b82f6]/30">
+                    <img src={screenshot5} alt="Five Whys analysis page with evidence and counter-arguments" className="w-full h-auto" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Screenshot 6: Market Research */}
+            <div className="mb-16 md:mb-24">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12 items-center">
+                <div className="order-1">
+                  <div className="rounded-2xl overflow-hidden shadow-2xl border border-[#10b981]/30">
+                    <img src={screenshot6} alt="Real-time market research progress showing 75 sources scanned" className="w-full h-auto" />
+                  </div>
+                </div>
+                <div className="order-2">
+                  <div className="inline-block px-3 py-1 bg-[#10b981]/20 text-[#10b981] rounded-full text-sm font-semibold mb-4">
+                    Step 6
+                  </div>
+                  <h3 className="text-2xl md:text-3xl font-bold text-white mb-4">Real-Time Market Research</h3>
+                  <p className="text-base md:text-lg text-gray-400 leading-relaxed mb-4">
+                    Watch as the AI analyzes 75+ sources, validates contradictions, and synthesizes insights. Live insights appear as research progresses—you see exactly what the AI is discovering.
+                  </p>
+                  <p className="text-sm md:text-base text-gray-500 leading-relaxed">
+                    Every insight includes confidence scores, source citations, and flags potential biases or data gaps.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Screenshot 7: Strategic Decisions */}
+            <div className="mb-16 md:mb-24">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12 items-center">
+                <div className="order-2 lg:order-1">
+                  <div className="inline-block px-3 py-1 bg-[#3b82f6]/20 text-[#3b82f6] rounded-full text-sm font-semibold mb-4">
+                    Step 7
+                  </div>
+                  <h3 className="text-2xl md:text-3xl font-bold text-white mb-4">AI-Generated Decision Options</h3>
+                  <p className="text-base md:text-lg text-gray-400 leading-relaxed mb-4">
+                    Get three strategic decision options, each with detailed pros, cons, cost estimates, timelines, and research insights. The AI identifies contradictions between your assumptions and market reality.
+                  </p>
+                  <p className="text-sm md:text-base text-gray-500 leading-relaxed">
+                    Choose one option or select multiple to compare in the next step. Each decision is research-backed and explained in plain language.
+                  </p>
+                </div>
+                <div className="order-1 lg:order-2">
+                  <div className="rounded-2xl overflow-hidden shadow-2xl border border-[#3b82f6]/30">
+                    <img src={screenshot7} alt="Strategic decision summary showing three options with details" className="w-full h-auto" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Screenshot 8: Prioritization */}
+            <div className="mb-16 md:mb-24">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12 items-center">
+                <div className="order-1">
+                  <div className="rounded-2xl overflow-hidden shadow-2xl border border-[#10b981]/30">
+                    <img src={screenshot8} alt="Prioritize strategic initiatives page with drag-and-drop interface" className="w-full h-auto" />
+                  </div>
+                </div>
+                <div className="order-2">
+                  <div className="inline-block px-3 py-1 bg-[#10b981]/20 text-[#10b981] rounded-full text-sm font-semibold mb-4">
+                    Step 8
+                  </div>
+                  <h3 className="text-2xl md:text-3xl font-bold text-white mb-4">Prioritize Your Strategy</h3>
+                  <p className="text-base md:text-lg text-gray-400 leading-relaxed mb-4">
+                    Drag and reorder your strategic initiatives by priority. The AI provides recommendations, key insights, and flags critical gaps for each option.
+                  </p>
+                  <p className="text-sm md:text-base text-gray-500 leading-relaxed">
+                    The top initiative becomes your primary focus in the EPM program. Everything is designed to convert strategy into action.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Screenshot 9: EPM Executive Summary */}
+            <div className="mb-16 md:mb-24">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12 items-center">
+                <div className="order-2 lg:order-1">
+                  <div className="inline-block px-3 py-1 bg-[#3b82f6]/20 text-[#3b82f6] rounded-full text-sm font-semibold mb-4">
+                    Step 9
+                  </div>
+                  <h3 className="text-2xl md:text-3xl font-bold text-white mb-4">Complete EPM Program</h3>
+                  <p className="text-base md:text-lg text-gray-400 leading-relaxed mb-4">
+                    Get a board-ready enterprise program with executive summary, market opportunity analysis, strategic imperatives, key success factors, risk summary, and expected outcomes.
+                  </p>
+                  <p className="text-sm md:text-base text-gray-500 leading-relaxed">
+                    The program shows investment requirements ($200k), timelines (14.4 months), and confidence levels. Everything is generated in minutes, not weeks.
+                  </p>
+                </div>
+                <div className="order-1 lg:order-2">
+                  <div className="rounded-2xl overflow-hidden shadow-2xl border border-[#3b82f6]/30">
+                    <img src={screenshot9} alt="EPM program executive summary with market analysis" className="w-full h-auto" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Screenshot 10: Timeline Gantt */}
+            <div className="mb-16 md:mb-24">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12 items-center">
+                <div className="order-1">
+                  <div className="rounded-2xl overflow-hidden shadow-2xl border border-[#10b981]/30">
+                    <img src={screenshot10} alt="Interactive Gantt chart showing program timeline" className="w-full h-auto" />
+                  </div>
+                </div>
+                <div className="order-2">
+                  <div className="inline-block px-3 py-1 bg-[#10b981]/20 text-[#10b981] rounded-full text-sm font-semibold mb-4">
+                    Step 10
+                  </div>
+                  <h3 className="text-2xl md:text-3xl font-bold text-white mb-4">Visual Project Timeline</h3>
+                  <p className="text-base md:text-lg text-gray-400 leading-relaxed mb-4">
+                    Interactive Gantt chart shows all workstreams with dependencies, critical path, and phase gates. Hover over tasks for details, see resource allocation, and identify bottlenecks.
+                  </p>
+                  <p className="text-sm md:text-base text-gray-500 leading-relaxed">
+                    The AI-powered scheduler handles dependencies and resource conflicts, highlighting critical tasks that directly impact your completion date.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Screenshot 11: Workstreams */}
+            <div className="mb-16 md:mb-24">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12 items-center">
+                <div className="order-2 lg:order-1">
+                  <div className="inline-block px-3 py-1 bg-[#3b82f6]/20 text-[#3b82f6] rounded-full text-sm font-semibold mb-4">
+                    Step 11
+                  </div>
+                  <h3 className="text-2xl md:text-3xl font-bold text-white mb-4">Detailed Workstreams</h3>
+                  <p className="text-base md:text-lg text-gray-400 leading-relaxed mb-4">
+                    Every workstream includes timeline, owner, deliverables, and dependencies. See how site selection connects to lease negotiations, which feeds into restaurant design.
+                  </p>
+                  <p className="text-sm md:text-base text-gray-500 leading-relaxed">
+                    Deliverables provide specific, actionable outcomes for each phase. No vague milestones—just clear objectives tied to your strategic goals.
+                  </p>
+                </div>
+                <div className="order-1 lg:order-2">
+                  <div className="rounded-2xl overflow-hidden shadow-2xl border border-[#3b82f6]/30">
+                    <img src={screenshot11} alt="Workstreams page showing detailed tasks and dependencies" className="w-full h-auto" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Screenshot 12: Resource Plan */}
+            <div className="mb-8">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12 items-center">
+                <div className="order-1">
+                  <div className="rounded-2xl overflow-hidden shadow-2xl border border-[#10b981]/30">
+                    <img src={screenshot12} alt="Resource planning page showing team roles and skills" className="w-full h-auto" />
+                  </div>
+                </div>
+                <div className="order-2">
+                  <div className="inline-block px-3 py-1 bg-[#10b981]/20 text-[#10b981] rounded-full text-sm font-semibold mb-4">
+                    Step 12
+                  </div>
+                  <h3 className="text-2xl md:text-3xl font-bold text-white mb-4">Complete Resource Planning</h3>
+                  <p className="text-base md:text-lg text-gray-400 leading-relaxed mb-4">
+                    Get a detailed resource plan with 8 FTEs across internal team and external consultants. Each role includes allocation percentage, duration, required skills, and justification.
+                  </p>
+                  <p className="text-sm md:text-base text-gray-500 leading-relaxed">
+                    From Restaurant Operations Manager to Technology Integration Specialist, every role is matched to your strategic requirements and market context.
                   </p>
                 </div>
               </div>
