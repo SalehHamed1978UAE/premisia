@@ -117,12 +117,7 @@ export default function InputPage() {
 
       setProgress(40);
 
-      // Step 2: Use extracted content as text input and follow normal flow
-      // Combine with any additional text context
-      const finalInput = text.trim() 
-        ? `${text.trim()}\n\n--- Content from ${file.name} ---\n${content}`
-        : content;
-
+      // Step 2: Prepare input with separate text and content fields
       // Store file metadata for enrichment job creation
       const fileMetadata = {
         fileName: fileName || file.name,
@@ -130,11 +125,17 @@ export default function InputPage() {
         metadata: metadata || {},
       };
 
-      // Check for ambiguities first
+      // Only check user's text for ambiguities, not the entire document content
+      const userText = text.trim();
+      const finalInput = userText 
+        ? `${userText}\n\n--- Content from ${file.name} ---\n${content}`
+        : content;
+
+      // Check for ambiguities (only check user's text if provided, otherwise skip for file-only uploads)
       const ambiguityResponse = await fetch('/api/strategic-consultant/check-ambiguities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userInput: finalInput })
+        body: JSON.stringify({ userInput: userText || "uploaded document" })
       });
 
       if (!ambiguityResponse.ok) {
