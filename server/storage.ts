@@ -705,9 +705,17 @@ export class DatabaseStorage implements IStorage {
             eq(strategyVersions.userId, userId),
             eq(strategyVersions.archived, false)
           )),
-        db.select({ count: count() })
-          .from(strategyDecisions)
-          .where(eq(strategyDecisions.userId, userId)),
+        // Count strategic_understanding records (strategies) via journey sessions for ownership
+        db.select({ count: sql<number>`COUNT(DISTINCT ${strategicUnderstanding.id})` })
+          .from(strategicUnderstanding)
+          .innerJoin(
+            journeySessions,
+            and(
+              eq(strategicUnderstanding.id, journeySessions.understandingId),
+              eq(journeySessions.userId, userId)
+            )
+          )
+          .where(eq(strategicUnderstanding.archived, false)),
         db.select({ count: count() })
           .from(epmPrograms)
           .where(and(
