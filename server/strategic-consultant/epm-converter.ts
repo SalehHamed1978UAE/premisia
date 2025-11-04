@@ -451,22 +451,30 @@ Return ONLY valid JSON (no markdown):
   }
 
   private extractSuccessCriteria(analysis: StrategyAnalysis): string[] {
-    return analysis.porters_five_forces.key_strategic_priorities.map(
-      (priority) => `Achieve measurable progress in: ${priority}`
-    );
+    if (analysis.porters_five_forces?.key_strategic_priorities) {
+      return analysis.porters_five_forces.key_strategic_priorities.map(
+        (priority) => `Achieve measurable progress in: ${priority}`
+      );
+    }
+    
+    return [
+      'Achieve product-market fit within first 6 months',
+      'Establish sustainable revenue streams',
+      'Build operational infrastructure for scale'
+    ];
   }
 
   private extractKeyRisks(analysis: StrategyAnalysis): string[] {
     const risks: string[] = [];
     const forces = analysis.porters_five_forces;
 
-    if (forces.competitive_rivalry.level === 'high') {
+    if (forces?.competitive_rivalry?.level === 'high') {
       risks.push(`High competitive rivalry: ${forces.competitive_rivalry.factors[0]}`);
     }
-    if (forces.threat_of_substitution.level === 'high') {
+    if (forces?.threat_of_substitution?.level === 'high') {
       risks.push(`Substitution risk: ${forces.threat_of_substitution.factors[0]}`);
     }
-    if (forces.buyer_power.level === 'high') {
+    if (forces?.buyer_power?.level === 'high') {
       risks.push(`Buyer power pressure: ${forces.buyer_power.factors[0]}`);
     }
 
