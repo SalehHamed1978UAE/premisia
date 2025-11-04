@@ -2147,11 +2147,11 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
         versionNumber: finalVersionNumber,
         sourcesAnalyzed: findings.sources.length || 9,
         timeElapsed: '~2 minutes',
-        nextUrl: `/strategy-workspace/decisions/${sessionId}/${finalVersionNumber}`,
+        nextUrl: `/strategic-consultant/decisions/${sessionId}/${finalVersionNumber}`,
       }
     })}\n\n`);
     res.end();
-    console.log('[BMC-RESEARCH-STREAM] Stream ended successfully, nextUrl: /strategy-workspace/decisions/' + sessionId + '/' + finalVersionNumber);
+    console.log('[BMC-RESEARCH-STREAM] Stream ended successfully, nextUrl: /strategic-consultant/decisions/' + sessionId + '/' + finalVersionNumber);
   } catch (error: any) {
     console.error('Error in /bmc-research/stream:', error);
     // Ensure error has type field for frontend handling
