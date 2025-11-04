@@ -95,7 +95,7 @@ export default function DecisionPage() {
         title: "Decisions saved",
         description: "Your strategic decisions have been recorded"
       });
-      setLocation(`/strategic-consultant/epm/${sessionId}/${versionNumber}`);
+      setLocation(`/strategy-workspace/prioritization/${sessionId}/${versionNumber}`);
     },
     onError: (error: any) => {
       if (error.message?.includes('rate limit')) {

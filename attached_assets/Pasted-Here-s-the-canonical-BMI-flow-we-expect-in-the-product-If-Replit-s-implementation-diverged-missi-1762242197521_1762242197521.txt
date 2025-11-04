@@ -1,0 +1,68 @@
+Here’s the canonical BMI flow we expect in the product. If Replit’s
+  implementation diverged (missing pages, wrong redirects, etc.), hand them this
+  list so they can realign the wizard.
+
+  ———
+
+  ## Business Model Innovation (BMI) Journey – Correct Sequence
+
+  | Step # | Page / Workflow                                   |
+  What Should Happen
+  | Data we capture
+  |
+  |--------|---------------------------------------------------|----------------
+  ------------------------------------------------------------------------------
+  --------------------------|---------------------------------------------------
+  -------------------------------|
+  | 0      | Strategic Input (/strategic-consultant/input) | User
+  submits initiative description, location, sector, company size.
+  | JourneySession created; consent flags set; raw text stored for
+  clarifications.  |
+  | 1      | Clarifications (MBDT)                          | LLM asks
+  follow-ups (market size, success metrics, geography disambiguation,
+  constraints).                             | Clarification nodes logged;
+  sanitized answers saved.                             |
+  | 2      | Five Whys (/strategic-consultant/whys-tree/:sessionId)
+  | User answers each “Why?” until root cause accepted.
+  | FrameworkOutput five_whys with question/answer chain + root cause.
+  |
+  | 3      | BMC Research (/strategic-consultant/research/:sessionId) | SSE
+  stream: 0–100% progress, queries logged, BMC findings pushed to UI. Upon
+  completion auto-save bmc_research.       | FrameworkOutput bmc storing blocks,
+  insights, critical gaps, recommendations.  |
+  | 4      | Strategic Decisions (/strategy-workspace/
+  decisions/:sessionId/:version) | Review extracted data,
+  tweak AI-generated options, select preferred options.
+  | Decision + DecisionOption nodes; selected vs rejected flagged; rationale
+  stored. |
+  | 5      | Prioritization (/strategy-workspace/
+  prioritization/:sessionId/:version) | Rank initiatives, confirm ordering.
+  | Prioritization weights saved (selectedDecisions); ready-to-generate signal.
+  |
+  | 6      | EPM Generation (same page)                     | “Generate EPM
+  Program” button triggers background job. Progress shows; once complete switch
+  to “View EPM Program”.    | Background job record (version & session scoped);
+  program stored in Program.   |
+  | 7      | EPM Program View (/strategy-workspace/epm/:programId)
+  | Full EPM workspace with workstreams, timeline, KPIs, risks, etc.
+  | Program node enriched with workstreams/kpis; link to strategy version.
+  |
+  | 8      | Strategy Results (/strategic-consultant/
+  results/:sessionId/:version) | Summary of frameworks + actions; links to EPM
+  and repository items.                                                     |
+  Optionally log user access (for analytics).
+  |
+
+  Key invariants:
+
+  - Version numbers come from journeySessions.versionNumber. Each new BMI run
+    (even follow-on) must create a new session (and new strategy version id).
+  - BMC step must auto-save research before redirecting (so EPM has
+    analysisData.bmc_research).
+  - Prioritization fetches background job filtered by strategyVersionId to avoid
+    showing old EPMs (“Generate” should only become “View” when a job for that
+    version completes).
+  - Golden record capture should see exactly five steps (Five Whys, BMC
+    Research, Decisions, Prioritization, EPM Generation) and now includes
+    screenshots via Playwright.
+
