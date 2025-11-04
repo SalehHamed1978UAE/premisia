@@ -136,11 +136,11 @@ export function GlobalJobTracker() {
             data-testid={`expanded-job-${job.id}`}
             style={{ backgroundColor: 'var(--card)' }}
           >
-            <CardHeader className="pb-3 bg-card dark:bg-gray-900">
-              <div className="flex items-center justify-between">
+            <CardHeader className="pb-3 bg-background dark:bg-gray-900">
+              <div className="flex items-center justify-between bg-background dark:bg-gray-900 relative z-10">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   <Loader2 className="h-4 w-4 animate-spin text-blue-500 flex-shrink-0" />
-                  <CardTitle className="text-base truncate">
+                  <CardTitle className="text-base truncate bg-background dark:bg-gray-900">
                     {getJobTitle(job)}
                   </CardTitle>
                 </div>
