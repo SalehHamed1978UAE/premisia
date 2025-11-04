@@ -252,6 +252,10 @@ export async function decryptJSONKMS<T>(encryptedData: string | null): Promise<T
   const decrypted = await decryptKMS(encryptedData);
   if (!decrypted) return null;
   
+  if (typeof decrypted === 'object' && decrypted !== null) {
+    return decrypted as T;
+  }
+  
   try {
     return JSON.parse(decrypted) as T;
   } catch (error) {
