@@ -82,15 +82,18 @@ export async function fetchJourneySessionData(sessionId: string): Promise<Golden
   // For BMI journeys, extract detailed framework steps by detecting actual data
   if (session.journeyType === 'business_model_innovation') {
     // Step 1: Five Whys - detect by checking if data exists
-    const fiveWhys = (session.accumulatedContext as any)?.insights?.fiveWhys
-      ?? latestVersion?.analysisData?.five_whys;
+    const fiveWhysRootCauses = (session.accumulatedContext as any)?.insights?.rootCauses;
+    const fiveWhysFromAnalysis = latestVersion?.analysisData?.five_whys;
 
-    if (fiveWhys) {
+    if (fiveWhysRootCauses || fiveWhysFromAnalysis) {
       steps.push({
         stepName: 'five_whys',
         frameworkType: 'five_whys',
         expectedUrl: `/strategic-consultant/whys-tree/${session.id}`,
-        responsePayload: { rootCause: fiveWhys?.root_cause },
+        responsePayload: {
+          rootCauses: fiveWhysRootCauses,
+          rootCause: fiveWhysFromAnalysis?.root_cause,
+        },
         observations: 'Five Whys completed',
         completedAt: session.completedAt ?? latestVersion?.createdAt ?? undefined,
       });
