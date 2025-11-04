@@ -52,6 +52,16 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tail
 ## Journey Navigation Architecture
 The application uses two orchestrator-driven entry points for strategic journeys: "Strategic Consultant Journey" (new analysis) and "Strategies Hub Run Now" (follow-on analysis). Both use a `pageSequence` array to determine navigation order. Critical navigation rules include using `pageSequence[1]` to skip the input page for journey execution and the strict requirement for both `sessionId` and `versionNumber` in the Strategic Decisions page route. Research endpoints are expected to return a `nextUrl` with the complete path and `versionNumber`.
 
+### BMI Journey Canonical Flow (November 2025)
+The Business Model Innovation (BMI) journey follows a strict five-step canonical pageSequence defined in `server/journey/journey-registry.ts`:
+1. `/strategic-consultant/input` - Strategic input collection (skipped for "Run Now" flows)
+2. `/strategic-consultant/whys-tree/:understandingId` - Five Whys analysis with AI coaching
+3. `/strategic-consultant/research/:sessionId` - BMC research with parallel block analysis
+4. `/strategy-workspace/decisions/:sessionId/:versionNumber` - Strategic decisions wizard (DecisionSummaryPage)
+5. `/strategy-workspace/prioritization/:sessionId/:versionNumber` - Decision prioritization before EPM generation
+
+Both Strategic Consultant and Strategies Hub "Run Now" flows use the same pageSequence, ensuring consistent navigation. The BMC research endpoint (`bmc-researcher.ts`) returns `nextUrl: "/strategy-workspace/decisions/..."` to enforce this flow.
+
 ### Follow-on Journey Session ID Architecture (November 2025)
 Follow-on journeys create NEW journey sessions with unique IDs to maintain version isolation. Critical implementation details:
 - **WhysTreePage Navigation Fix**: WhysTreePage fetches the journey session ID from localStorage and uses it (not understanding.sessionId) when navigating to ResearchPage, ensuring downstream operations use the correct session context.
