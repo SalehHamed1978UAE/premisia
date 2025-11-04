@@ -6,13 +6,16 @@
  * Compares a journey session against the current golden record for regression testing.
  * 
  * Usage:
- *   npm run compare:golden -- --sessionId=<id> --journeyType=<type>
- *   npm run compare:golden -- --strategyVersionId=<id> --journeyType=<type>
+ *   npm run compare:golden -- --sessionId=<id> --journeyType=<type> [--flowVariant=<variant>]
+ *   npm run compare:golden -- --strategyVersionId=<id> --journeyType=<type> [--flowVariant=<variant>]
  * 
  * Flags:
  *   --sessionId: Journey session ID to compare
  *   --strategyVersionId: Strategy version ID (alternative to sessionId)
  *   --journeyType: Journey type to compare against (required)
+ *   --flowVariant: Flow variant (strategic_consultant or strategies_hub). Auto-detected if not provided.
+ *                  v1 journeys → strategic_consultant baseline (5 steps)
+ *                  v2+ journeys → strategies_hub baseline (4 steps)
  * 
  * Exit Codes:
  *   0 - Journey matches golden record
@@ -45,6 +48,7 @@ for (const arg of args) {
 const sessionId = flags.sessionId as string | undefined;
 const strategyVersionId = flags.strategyVersionId as string | undefined;
 const journeyType = flags.journeyType as string | undefined;
+const flowVariant = flags.flowVariant as string | undefined;
 
 /**
  * Main compare function
@@ -57,8 +61,8 @@ async function compareGoldenRecord() {
   if (!sessionId && !strategyVersionId) {
     console.error('❌ Error: Either --sessionId or --strategyVersionId is required');
     console.log('\nUsage:');
-    console.log('  npm run compare:golden -- --sessionId=<id> --journeyType=<type>');
-    console.log('  npm run compare:golden -- --strategyVersionId=<id> --journeyType=<type>');
+    console.log('  npm run compare:golden -- --sessionId=<id> --journeyType=<type> [--flowVariant=<variant>]');
+    console.log('  npm run compare:golden -- --strategyVersionId=<id> --journeyType=<type> [--flowVariant=<variant>]');
     process.exit(2);
   }
 
@@ -99,12 +103,20 @@ async function compareGoldenRecord() {
       process.exit(2);
     }
 
-    // Step 2: Sanitize current data
+    // Step 2: Auto-detect flow variant if not provided based on presence of Five Whys step
+    // strategic_consultant: Has Five Whys (5-step flow)
+    // strategies_hub: No Five Whys (4-step flow, reuses baseline)
+    const hasFiveWhys = currentRawData.steps.some(step => step.stepName === 'five_whys');
+    const detectedFlowVariant = flowVariant || (hasFiveWhys ? 'strategic_consultant' : 'strategies_hub');
+    console.log(`🔍 Flow variant: ${detectedFlowVariant} ${flowVariant ? '(provided)' : '(auto-detected from steps: ' + (hasFiveWhys ? 'has Five Whys' : 'no Five Whys') + ')'}`);
+    console.log('');
+
+    // Step 3: Sanitize current data
     console.log('🧹 Sanitizing current journey data...');
     const currentData = await sanitizeGoldenRecordData(currentRawData);
     console.log('✓ Data sanitized\n');
 
-    // Step 3: Fetch current golden record
+    // Step 4: Fetch current golden record
     console.log('📚 Fetching current golden record...');
     const [goldenRecord] = await db
       .select()
@@ -112,19 +124,21 @@ async function compareGoldenRecord() {
       .where(
         and(
           eq(goldenRecords.journeyType, journeyType as any),
+          eq(goldenRecords.flowVariant, detectedFlowVariant),
           eq(goldenRecords.isCurrent, true)
         )
       )
       .limit(1);
 
     if (!goldenRecord) {
-      console.error(`❌ Error: No current golden record found for journey type: ${journeyType}`);
+      console.error(`❌ Error: No current golden record found for journey type: ${journeyType}, flow variant: ${detectedFlowVariant}`);
       console.log('\n💡 Tip: Create a golden record first using:');
-      console.log(`  npm run capture:golden -- --sessionId=${currentRawData.sessionId} --promote`);
+      console.log(`  npm run capture:golden -- --sessionId=${currentRawData.sessionId} --flowVariant=${detectedFlowVariant} --promote`);
       process.exit(2);
     }
 
     console.log(`✓ Found golden record: v${goldenRecord.version}`);
+    console.log(`  Flow variant: ${goldenRecord.flowVariant}`);
     console.log(`  Created: ${goldenRecord.createdAt.toISOString()}`);
     console.log(`  Created by: ${goldenRecord.createdBy}`);
     if (goldenRecord.notes) {
@@ -132,7 +146,7 @@ async function compareGoldenRecord() {
     }
     console.log('');
 
-    // Step 4: Compare journey data
+    // Step 5: Compare journey data
     console.log('⚖️  Comparing journeys...\n');
     
     const baselineData = {
@@ -146,7 +160,7 @@ async function compareGoldenRecord() {
 
     const diff = generateDiffSummary(baselineData, currentData);
 
-    // Step 5: Print results
+    // Step 6: Print results
     console.log('='.repeat(80));
     console.log(diff.summary);
     console.log('='.repeat(80) + '\n');
@@ -174,7 +188,7 @@ async function compareGoldenRecord() {
       }
     }
 
-    // Step 6: Log check result to database
+    // Step 7: Log check result to database
     console.log('💾 Logging check result...');
     
     const checkData = {
@@ -201,10 +215,12 @@ async function compareGoldenRecord() {
 
     console.log(`✓ Check logged: ${checkRecord.id}\n`);
 
-    // Step 7: Print summary
+    // Step 8: Print summary
     console.log('📊 Comparison Summary:');
-    console.log(`  Golden Record: v${goldenRecord.version}`);
-    console.log(`  Current Journey: v${currentData.versionNumber}`);
+    console.log(`  Journey Type: ${journeyType}`);
+    console.log(`  Flow Variant: ${detectedFlowVariant}`);
+    console.log(`  Golden Record: v${goldenRecord.version} (${goldenRecord.steps.length} steps)`);
+    console.log(`  Current Journey: v${currentData.versionNumber} (${currentData.steps.length} steps)`);
     console.log(`  Result: ${diff.match ? '✅ PASS' : '❌ FAIL'}`);
     console.log(`  Check ID: ${checkRecord.id}`);
     console.log('');
@@ -213,7 +229,7 @@ async function compareGoldenRecord() {
     if (!diff.match) {
       console.log('  - Review the differences above');
       console.log('  - If expected, capture as new golden record:');
-      console.log(`    npm run capture:golden -- --sessionId=${currentData.sessionId} --promote`);
+      console.log(`    npm run capture:golden -- --sessionId=${currentData.sessionId} --flowVariant=${detectedFlowVariant} --promote`);
       console.log('  - View check history: /admin/golden-records/' + journeyType);
     } else {
       console.log('  ✓ Journey is consistent with golden record');

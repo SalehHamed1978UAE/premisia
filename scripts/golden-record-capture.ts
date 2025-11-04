@@ -86,8 +86,11 @@ async function captureGoldenRecord() {
       process.exit(1);
     }
 
-    // Auto-detect flow variant if not provided
-    const detectedFlowVariant = flowVariant || (rawData.versionNumber === 1 ? 'strategic_consultant' : 'strategies_hub');
+    // Auto-detect flow variant if not provided based on presence of Five Whys step
+    // strategic_consultant: Has Five Whys (5-step flow)
+    // strategies_hub: No Five Whys (4-step flow, reuses baseline)
+    const hasFiveWhys = rawData.steps.some(step => step.stepName === 'five_whys');
+    const detectedFlowVariant = flowVariant || (hasFiveWhys ? 'strategic_consultant' : 'strategies_hub');
     
     console.log(`✓ Found journey: ${rawData.journeyType} (v${rawData.versionNumber})`);
     console.log(`  Session ID: ${rawData.sessionId}`);
