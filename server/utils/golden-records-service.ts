@@ -77,25 +77,27 @@ export async function fetchJourneySessionData(sessionId: string): Promise<Golden
   const steps: GoldenRecordStep[] = [];
   const latestVersion = versions.length > 0 ? versions[0] : null;
   const epmProgramRow = epmProgram.length > 0 ? epmProgram[0] : null;
+  const detectedFrameworks: string[] = [];
 
-  // For BMI journeys, extract detailed framework steps
+  // For BMI journeys, extract detailed framework steps by detecting actual data
   if (session.journeyType === 'business_model_innovation') {
-    // Step 1: Five Whys
-    if (session.completedFrameworks?.includes('five_whys')) {
-      const fiveWhys = (session.accumulatedContext as any)?.insights?.fiveWhys
-        ?? latestVersion?.analysisData?.five_whys;
+    // Step 1: Five Whys - detect by checking if data exists
+    const fiveWhys = (session.accumulatedContext as any)?.insights?.fiveWhys
+      ?? latestVersion?.analysisData?.five_whys;
 
+    if (fiveWhys) {
       steps.push({
         stepName: 'five_whys',
         frameworkType: 'five_whys',
         expectedUrl: `/strategic-consultant/whys-tree/${session.id}`,
-        responsePayload: fiveWhys ? { rootCause: fiveWhys?.root_cause } : undefined,
-        observations: fiveWhys ? 'Five Whys completed' : 'Five Whys framework executed',
+        responsePayload: { rootCause: fiveWhys?.root_cause },
+        observations: 'Five Whys completed',
         completedAt: session.completedAt ?? latestVersion?.createdAt ?? undefined,
       });
+      detectedFrameworks.push('five_whys');
     }
 
-    // Step 2: BMC Research
+    // Step 2: BMC Research - detect by checking if data exists
     if (latestVersion?.analysisData?.bmc_research) {
       steps.push({
         stepName: 'bmc_research',
@@ -108,9 +110,10 @@ export async function fetchJourneySessionData(sessionId: string): Promise<Golden
         observations: 'BMC research stream completed',
         completedAt: latestVersion.updatedAt ?? latestVersion.createdAt ?? undefined,
       });
+      detectedFrameworks.push('bmc');
     }
 
-    // Step 3: Strategic Decisions
+    // Step 3: Strategic Decisions - detect by checking if data exists
     if (latestVersion?.decisionsData?.decisions?.length) {
       steps.push({
         stepName: 'strategic_decisions',
@@ -122,19 +125,19 @@ export async function fetchJourneySessionData(sessionId: string): Promise<Golden
         })),
         observations: 'Decisions generated and ready for prioritization',
       });
-
-      // Step 4: Prioritization
-      if (latestVersion?.selectedDecisions) {
-        steps.push({
-          stepName: 'prioritization',
-          expectedUrl: `/strategy-workspace/prioritization/${session.id}/${latestVersion.versionNumber}`,
-          responsePayload: latestVersion.selectedDecisions,
-          observations: 'Prioritized initiatives saved',
-        });
-      }
     }
 
-    // Step 5: EPM Program
+    // Step 4: Prioritization - detect by checking if data exists
+    if (latestVersion?.selectedDecisions) {
+      steps.push({
+        stepName: 'prioritization',
+        expectedUrl: `/strategy-workspace/prioritization/${session.id}/${latestVersion.versionNumber}`,
+        responsePayload: latestVersion.selectedDecisions,
+        observations: 'Prioritized initiatives saved',
+      });
+    }
+
+    // Step 5: EPM Program - detect by checking if data exists
     if (epmProgramRow) {
       steps.push({
         stepName: 'epm_generation',
@@ -203,7 +206,7 @@ export async function fetchJourneySessionData(sessionId: string): Promise<Golden
       userInput: understanding.userInput,
       initiativeType: understanding.initiativeType || undefined,
       completedAt: session.completedAt || undefined,
-      frameworks: session.completedFrameworks || [],
+      frameworks: detectedFrameworks.length > 0 ? detectedFrameworks : (session.completedFrameworks || []),
     },
   };
 }
