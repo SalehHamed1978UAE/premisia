@@ -752,7 +752,7 @@ export class DatabaseStorage implements IStorage {
       ]);
 
       // Decrypt and format analyses
-      const { decryptKMS } = await import('./services/encryption-service');
+      const { decryptKMS } = await import('./utils/kms-encryption');
       const formattedAnalyses = await Promise.all(
         recentAnalyses.map(async (analysis) => {
           const decryptedSummary = analysis.inputSummary
