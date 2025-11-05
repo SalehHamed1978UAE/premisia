@@ -17,6 +17,8 @@ import {
   strategyVersions,
   epmPrograms,
   taskAssignments,
+  frameworkInsights,
+  strategicUnderstanding,
 } from '@shared/schema';
 import { eq, and, desc } from 'drizzle-orm';
 
@@ -40,6 +42,12 @@ export interface FullExportPackage {
     journeySession?: any;
     strategyVersion?: any;
     decisions?: any[];
+    fiveWhysTree?: any;  // Complete Five Whys tree with all branches
+    whysPath?: any[];    // The actual chosen path through the tree
+    clarifications?: {   // Strategic input clarifications
+      questions?: any[];
+      answers?: Record<string, string>;
+    };
   };
   epm?: {
     program?: any;
@@ -310,6 +318,89 @@ async function loadExportData(
     }
   }
 
+  // Load Five Whys complete tree from framework_insights
+  console.log('[Export Service] loadExportData - Fetching Five Whys tree from framework_insights...');
+  let fiveWhysTree;
+  let whysPath;
+  if (journeySession) {
+    const [fiveWhysInsight] = await db.select()
+      .from(frameworkInsights)
+      .where(
+        and(
+          eq(frameworkInsights.sessionId, journeySession.id),
+          eq(frameworkInsights.frameworkName, 'five_whys')
+        )
+      )
+      .orderBy(desc(frameworkInsights.createdAt))
+      .limit(1);
+    
+    if (fiveWhysInsight?.insights) {
+      const insights = typeof fiveWhysInsight.insights === 'string' 
+        ? JSON.parse(fiveWhysInsight.insights) 
+        : fiveWhysInsight.insights;
+      fiveWhysTree = insights.tree;
+      whysPath = insights.whysPath || [];
+      console.log('[Export Service] Five Whys tree loaded:', fiveWhysTree ? 'Yes' : 'No');
+      console.log('[Export Service] Five Whys path loaded:', whysPath?.length || 0, 'steps');
+    }
+  }
+
+  // Load clarifications from strategic_understanding.strategyMetadata
+  console.log('[Export Service] loadExportData - Fetching clarifications from strategic understanding...');
+  let clarifications;
+  if (understanding) {
+    const metadata = typeof understanding.strategyMetadata === 'string'
+      ? JSON.parse(understanding.strategyMetadata)
+      : understanding.strategyMetadata;
+    
+    console.log('[Export Service] strategyMetadata keys:', metadata ? Object.keys(metadata) : 'null');
+    
+    // Try multiple field paths to find clarification questions
+    let questions = null;
+    let answers = null;
+    
+    // Try path 1: metadata.clarificationQuestions
+    if (metadata?.clarificationQuestions) {
+      questions = metadata.clarificationQuestions;
+      console.log('[Export Service] Found clarificationQuestions in metadata');
+    }
+    
+    // Try path 2: metadata.clarificationContext.questions
+    if (!questions && metadata?.clarificationContext?.questions) {
+      questions = metadata.clarificationContext.questions;
+      console.log('[Export Service] Found clarificationContext.questions in metadata');
+    }
+    
+    // Try path 3: metadata.questions
+    if (!questions && metadata?.questions) {
+      questions = metadata.questions;
+      console.log('[Export Service] Found questions in metadata');
+    }
+    
+    // Try to find answers
+    if (metadata?.clarificationsProvided) {
+      answers = metadata.clarificationsProvided;
+      console.log('[Export Service] Found clarificationsProvided');
+    } else if (metadata?.clarificationContext?.answers) {
+      answers = metadata.clarificationContext.answers;
+      console.log('[Export Service] Found clarificationContext.answers');
+    } else if (metadata?.answers) {
+      answers = metadata.answers;
+      console.log('[Export Service] Found answers');
+    }
+    
+    // Only create clarifications object if we found both questions and answers
+    if (questions && answers) {
+      clarifications = {
+        questions: Array.isArray(questions) ? questions : [],
+        answers: typeof answers === 'object' ? answers : {},
+      };
+      console.log('[Export Service] Clarifications loaded:', clarifications.questions?.length || 0, 'questions');
+    } else {
+      console.log('[Export Service] No clarifications found. Questions:', !!questions, 'Answers:', !!answers);
+    }
+  }
+
   return {
     metadata: {
       exportedAt: new Date().toISOString(),
@@ -323,12 +414,155 @@ async function loadExportData(
       journeySession,
       strategyVersion,
       decisions: strategyVersion?.decisions as any[] ?? [],
+      fiveWhysTree,
+      whysPath,
+      clarifications,
     },
     epm: epmProgram ? {
       program: epmProgram,
       assignments,
     } : undefined,
   };
+}
+
+/**
+ * Generate markdown for complete Five Whys tree with all branches
+ */
+function generateFiveWhysTreeMarkdown(tree: any, whysPath?: any[]): string {
+  if (!tree) return '';
+  
+  const lines: string[] = [];
+  lines.push('## Five Whys - Complete Analysis Tree\n');
+  lines.push(`**Root Question:** ${tree.rootQuestion}\n`);
+  lines.push(`**Maximum Depth:** ${tree.maxDepth} levels\n`);
+  
+  // Helper function to check if a node is in the chosen path
+  const isNodeInPath = (nodeOption: string, nodeQuestion?: string): boolean => {
+    if (!whysPath || whysPath.length === 0) return false;
+    
+    // Check if the node's option or question matches any entry in whysPath
+    return whysPath.some((pathStep: any) => {
+      if (typeof pathStep === 'string') {
+        // Direct string comparison
+        return pathStep === nodeOption || pathStep === nodeQuestion;
+      } else if (pathStep && typeof pathStep === 'object') {
+        // Check against various possible fields
+        const stepText = pathStep.option || pathStep.question || pathStep.why || pathStep.answer || '';
+        return stepText === nodeOption || stepText === nodeQuestion;
+      }
+      return false;
+    });
+  };
+  
+  // Helper function to render a node and its branches recursively
+  const renderNode = (node: any, level: number): void => {
+    const indent = '  '.repeat(level);
+    const isChosen = isNodeInPath(node.option, node.question);
+    const chosenMarker = isChosen ? ' ✓ (Chosen path)' : '';
+    
+    lines.push(`${indent}${level + 1}. **${node.option}**${chosenMarker}`);
+    
+    if (node.supporting_evidence && node.supporting_evidence.length > 0) {
+      lines.push(`${indent}   - **Supporting Evidence:**`);
+      node.supporting_evidence.forEach((evidence: string) => {
+        lines.push(`${indent}     - ${evidence}`);
+      });
+    }
+    
+    if (node.counter_arguments && node.counter_arguments.length > 0) {
+      lines.push(`${indent}   - **Counter Arguments:**`);
+      node.counter_arguments.forEach((counter: string) => {
+        lines.push(`${indent}     - ${counter}`);
+      });
+    }
+    
+    if (node.consideration) {
+      lines.push(`${indent}   - **Consideration:** ${node.consideration}`);
+    }
+    
+    if (node.question && node.branches && node.branches.length > 0) {
+      lines.push(`${indent}   - **Next Question:** ${node.question}\n`);
+    }
+    
+    lines.push('');
+  };
+  
+  // Render each depth level showing all alternatives
+  if (tree.branches && tree.branches.length > 0) {
+    lines.push('### Level 1 Options:\n');
+    
+    tree.branches.forEach((branch: any) => {
+      renderNode(branch, 0);
+      
+      // Recursively render sub-branches
+      if (branch.branches && branch.branches.length > 0) {
+        lines.push(`### Level 2 Options (from "${branch.option}"):\n`);
+        branch.branches.forEach((subBranch: any) => {
+          renderNode(subBranch, 1);
+          
+          // Level 3
+          if (subBranch.branches && subBranch.branches.length > 0) {
+            lines.push(`### Level 3 Options (from "${subBranch.option}"):\n`);
+            subBranch.branches.forEach((subSubBranch: any) => {
+              renderNode(subSubBranch, 2);
+              
+              // Level 4
+              if (subSubBranch.branches && subSubBranch.branches.length > 0) {
+                lines.push(`### Level 4 Options (from "${subSubBranch.option}"):\n`);
+                subSubBranch.branches.forEach((level4: any) => {
+                  renderNode(level4, 3);
+                  
+                  // Level 5
+                  if (level4.branches && level4.branches.length > 0) {
+                    lines.push(`### Level 5 Options (from "${level4.option}"):\n`);
+                    level4.branches.forEach((level5: any) => {
+                      renderNode(level5, 4);
+                    });
+                  }
+                });
+              }
+            });
+          }
+        });
+      }
+    });
+  }
+  
+  lines.push('\n---\n');
+  return lines.join('\n');
+}
+
+/**
+ * Generate markdown for strategic input clarifications
+ */
+function generateClarificationsMarkdown(clarifications: any): string {
+  if (!clarifications || !clarifications.questions || clarifications.questions.length === 0) {
+    return '';
+  }
+  
+  const lines: string[] = [];
+  lines.push('## Strategic Input Clarifications\n');
+  lines.push('During initial analysis, you provided the following clarifications:\n');
+  
+  clarifications.questions.forEach((q: any) => {
+    lines.push(`**${q.question}**\n`);
+    
+    if (q.options && Array.isArray(q.options)) {
+      q.options.forEach((option: any) => {
+        const isChosen = clarifications.answers && clarifications.answers[q.id] === option.value;
+        const chosenMarker = isChosen ? ' ✓ (You chose this)' : '';
+        lines.push(`- **${option.label}**${chosenMarker}`);
+        if (option.description) {
+          lines.push(`  - ${option.description}`);
+        }
+      });
+    }
+    
+    lines.push('');
+  });
+  
+  lines.push('\n---\n');
+  return lines.join('\n');
 }
 
 /**
@@ -384,6 +618,16 @@ function generateMarkdownReport(pkg: FullExportPackage): string {
   }
 
   // ======================
+  // STRATEGIC INPUT CLARIFICATIONS
+  // ======================
+  if (pkg.strategy.clarifications) {
+    const clarificationsMarkdown = generateClarificationsMarkdown(pkg.strategy.clarifications);
+    if (clarificationsMarkdown) {
+      lines.push(clarificationsMarkdown);
+    }
+  }
+
+  // ======================
   // STRATEGIC JOURNEY
   // ======================
   if (pkg.strategy.journeySession) {
@@ -405,17 +649,36 @@ function generateMarkdownReport(pkg: FullExportPackage): string {
     const insights = context?.insights || {};
     
     // ======================
-    // FIVE WHYS ANALYSIS
+    // FIVE WHYS ANALYSIS - COMPLETE TREE
     // ======================
+    // First, try to include the complete Five Whys tree with all branches
+    if (pkg.strategy.fiveWhysTree) {
+      const treeMarkdown = generateFiveWhysTreeMarkdown(pkg.strategy.fiveWhysTree, pkg.strategy.whysPath);
+      if (treeMarkdown) {
+        lines.push(treeMarkdown);
+      }
+    }
+    
+    // ======================
+    // FIVE WHYS ANALYSIS - CHOSEN PATH SUMMARY
+    // ======================
+    // Then include the chosen path summary for quick reference
     if (insights.rootCauses || insights.whysPath || insights.strategicImplications) {
-      lines.push('## Five Whys Analysis\n');
+      lines.push('## Five Whys - Chosen Path Summary\n');
       
       if (insights.whysPath && insights.whysPath.length > 0) {
-        lines.push('\n**Analysis Path:**\n');
+        lines.push('\n**Analysis Path (Chosen):**\n');
         insights.whysPath.forEach((step: any, idx: number) => {
-          lines.push(`${idx + 1}. **Why?** ${step.question || step.why || 'Not specified'}`);
-          lines.push(`   **Answer:** ${step.answer || 'Not specified'}\n`);
+          if (typeof step === 'string') {
+            lines.push(`${idx + 1}. ${step}`);
+          } else {
+            lines.push(`${idx + 1}. **Why?** ${step.question || step.why || step}`);
+            if (step.answer) {
+              lines.push(`   **Answer:** ${step.answer}\n`);
+            }
+          }
         });
+        lines.push('');
       }
       
       if (insights.rootCauses && insights.rootCauses.length > 0) {
