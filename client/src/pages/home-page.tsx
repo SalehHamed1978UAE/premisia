@@ -349,7 +349,7 @@ function OnboardingFlow() {
                         data-testid="button-get-started"
                       >
                         <Sparkles className="mr-2 h-5 w-5" />
-                        Start Your First Analysis
+                        Start your first journey
                       </Button>
                     )}
                   </div>
@@ -378,23 +378,26 @@ function Dashboard({ summary }: { summary: DashboardSummary }) {
           data-testid="button-start-new-analysis"
         >
           <Sparkles className="mr-2 h-5 w-5" />
-          Start New Analysis
+          Start a new strategic journey
         </Button>
       </div>
 
       {/* Stats Cards - Now Interactive Quick Actions */}
-      <div className="max-w-6xl mx-auto grid gap-4 grid-cols-1 md:grid-cols-3">
+      <div className="max-w-6xl mx-auto grid gap-2 grid-cols-3 md:gap-4">
         {/* Analyses Complete - Click to navigate to repository */}
         <Link href="/repository">
           <Card className="shadow-lg border-primary/20 hover:shadow-xl hover:border-primary/40 transition-all cursor-pointer group" data-testid="button-go-to-analyses">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-110 transition-transform">
-                  <TrendingUp className="h-6 w-6 text-white" />
+            <CardContent className="p-3 md:p-5">
+              <div className="flex flex-col md:flex-row items-center md:gap-3 text-center md:text-left">
+                <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-110 transition-transform mb-2 md:mb-0">
+                  <TrendingUp className="h-5 w-5 md:h-6 md:w-6 text-white" />
                 </div>
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground">Analyses Complete</p>
-                  <p className="text-2xl font-bold text-foreground">{summary.counts.analyses}</p>
+                <div className="flex-1">
+                  <p className="text-[10px] md:text-xs font-medium text-muted-foreground leading-tight">
+                    <span className="md:hidden">Analyses<br />Complete</span>
+                    <span className="hidden md:inline">Analyses Complete</span>
+                  </p>
+                  <p className="text-xl md:text-2xl font-bold text-foreground">{summary.counts.analyses}</p>
                 </div>
               </div>
             </CardContent>
@@ -404,14 +407,17 @@ function Dashboard({ summary }: { summary: DashboardSummary }) {
         {/* Strategies Complete - Click to navigate to strategies hub */}
         <Link href="/strategies">
           <Card className="shadow-lg border-primary/20 hover:shadow-xl hover:border-primary/40 transition-all cursor-pointer group" data-testid="button-go-to-strategies">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-110 transition-transform">
-                  <Target className="h-6 w-6 text-white" />
+            <CardContent className="p-3 md:p-5">
+              <div className="flex flex-col md:flex-row items-center md:gap-3 text-center md:text-left">
+                <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-110 transition-transform mb-2 md:mb-0">
+                  <Target className="h-5 w-5 md:h-6 md:w-6 text-white" />
                 </div>
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground">Strategies Complete</p>
-                  <p className="text-2xl font-bold text-foreground">{summary.counts.strategies}</p>
+                <div className="flex-1">
+                  <p className="text-[10px] md:text-xs font-medium text-muted-foreground leading-tight">
+                    <span className="md:hidden">Strategies<br />Complete</span>
+                    <span className="hidden md:inline">Strategies Complete</span>
+                  </p>
+                  <p className="text-xl md:text-2xl font-bold text-foreground">{summary.counts.strategies}</p>
                 </div>
               </div>
             </CardContent>
@@ -421,14 +427,17 @@ function Dashboard({ summary }: { summary: DashboardSummary }) {
         {/* Programs Complete - Click to navigate to EPM programs */}
         <Link href="/strategy-workspace/programs">
           <Card className="shadow-lg border-primary/20 hover:shadow-xl hover:border-primary/40 transition-all cursor-pointer group" data-testid="button-go-to-programs">
-            <CardContent className="p-5">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-110 transition-transform">
-                  <FileText className="h-6 w-6 text-white" />
+            <CardContent className="p-3 md:p-5">
+              <div className="flex flex-col md:flex-row items-center md:gap-3 text-center md:text-left">
+                <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-110 transition-transform mb-2 md:mb-0">
+                  <FileText className="h-5 w-5 md:h-6 md:w-6 text-white" />
                 </div>
-                <div>
-                  <p className="text-xs font-medium text-muted-foreground">Programs Complete</p>
-                  <p className="text-2xl font-bold text-foreground">{summary.counts.programs}</p>
+                <div className="flex-1">
+                  <p className="text-[10px] md:text-xs font-medium text-muted-foreground leading-tight">
+                    <span className="md:hidden">Programs<br />Complete</span>
+                    <span className="hidden md:inline">Programs Complete</span>
+                  </p>
+                  <p className="text-xl md:text-2xl font-bold text-foreground">{summary.counts.programs}</p>
                 </div>
               </div>
             </CardContent>
