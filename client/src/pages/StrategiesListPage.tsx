@@ -118,7 +118,7 @@ function StrategyCard({ strategy, selectionMode, isSelected, onToggleSelect, onN
             />
           </div>
         )}
-        <CardHeader className="pb-4">
+        <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-3">
             <div className={`flex-1 min-w-0 ${selectionMode ? 'pl-8' : ''}`}>
               <CardTitle className="text-lg sm:text-xl mb-2 break-words" data-testid={`text-strategy-title-${strategy.id}`}>
@@ -141,7 +141,7 @@ function StrategyCard({ strategy, selectionMode, isSelected, onToggleSelect, onN
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
             <div>
               <p className="text-muted-foreground">Journeys</p>
               <p className="font-semibold" data-testid={`text-journey-count-${strategy.id}`}>
@@ -167,7 +167,7 @@ function StrategyCard({ strategy, selectionMode, isSelected, onToggleSelect, onN
               </p>
             </div>
           </div>
-          <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
             <Calendar className="h-3 w-3" />
             <span data-testid={`text-last-updated-${strategy.id}`}>
               Updated {formatDistanceToNow(new Date(strategy.latestJourneyUpdated || strategy.updatedAt), { addSuffix: true })}
@@ -175,7 +175,7 @@ function StrategyCard({ strategy, selectionMode, isSelected, onToggleSelect, onN
           </div>
           
           {/* Knowledge Graph Insights */}
-          <div className="mt-3">
+          <div className="mt-2">
             <StrategyInsightsBadges sessionId={strategy.latestSessionId || null} />
           </div>
         </CardContent>
@@ -280,7 +280,7 @@ export default function StrategiesListPage() {
     >
       <div data-testid="page-strategies-list">
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-4">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
           {selectionMode ? (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4 flex-1">
@@ -358,27 +358,27 @@ export default function StrategiesListPage() {
         
         {/* Stats Summary */}
         {strategies && strategies.length > 0 && (
-          <div className="grid gap-4 grid-cols-1 sm:grid-cols-3 mb-6">
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-3 mb-4">
             <Card>
-              <CardHeader className="pb-3">
-                <CardDescription>Total Strategies</CardDescription>
-                <CardTitle className="text-3xl" data-testid="stat-total-strategies">
+              <CardHeader className="pb-2 pt-3 px-4">
+                <CardDescription className="text-xs">Total Strategies</CardDescription>
+                <CardTitle className="text-2xl" data-testid="stat-total-strategies">
                   {strategies.length}
                 </CardTitle>
               </CardHeader>
             </Card>
             <Card>
-              <CardHeader className="pb-3">
-                <CardDescription>Active Journeys</CardDescription>
-                <CardTitle className="text-3xl" data-testid="stat-active-journeys">
+              <CardHeader className="pb-2 pt-3 px-4">
+                <CardDescription className="text-xs">Active Journeys</CardDescription>
+                <CardTitle className="text-2xl" data-testid="stat-active-journeys">
                   {strategies.filter(s => s.latestJourneyStatus === 'in_progress').length}
                 </CardTitle>
               </CardHeader>
             </Card>
             <Card>
-              <CardHeader className="pb-3">
-                <CardDescription>Total Journeys</CardDescription>
-                <CardTitle className="text-3xl" data-testid="stat-total-journeys">
+              <CardHeader className="pb-2 pt-3 px-4">
+                <CardDescription className="text-xs">Total Journeys</CardDescription>
+                <CardTitle className="text-2xl" data-testid="stat-total-journeys">
                   {strategies.reduce((sum, s) => sum + Number(s.journeyCount), 0)}
                 </CardTitle>
               </CardHeader>
@@ -411,7 +411,7 @@ export default function StrategiesListPage() {
           </Link>
         </Card>
       ) : (
-        <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
           {strategies.map((strategy) => (
             <StrategyCard
               key={strategy.id}
