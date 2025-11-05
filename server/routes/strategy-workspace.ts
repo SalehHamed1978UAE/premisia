@@ -904,7 +904,35 @@ router.get('/epm/:id/session', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Strategy version not found' });
     }
 
-    res.json({ sessionId: version.sessionId });
+    // The version.sessionId is an old-style session ID (e.g., session-*)
+    // We need to find the journey session ID by looking up the strategic understanding
+    const [understanding] = await db
+      .select({
+        id: strategicUnderstanding.id,
+      })
+      .from(strategicUnderstanding)
+      .where(eq(strategicUnderstanding.sessionId, version.sessionId))
+      .limit(1);
+
+    if (!understanding) {
+      return res.status(404).json({ error: 'Strategic understanding not found for this session' });
+    }
+
+    // Now find the journey session linked to this understanding
+    const [journeySession] = await db
+      .select({
+        id: journeySessions.id,
+      })
+      .from(journeySessions)
+      .where(eq(journeySessions.understandingId, understanding.id))
+      .limit(1);
+
+    if (!journeySession) {
+      return res.status(404).json({ error: 'Journey session not found for this understanding' });
+    }
+
+    // Return the journey session's UUID
+    res.json({ sessionId: journeySession.id });
   } catch (error: any) {
     console.error('Error in GET /epm/:id/session:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch session ID' });
