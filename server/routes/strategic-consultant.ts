@@ -228,7 +228,7 @@ router.post('/check-ambiguities', async (req: Request, res: Response) => {
     
     // Step 1: Resolve geographic locations using Nominatim (only check user's text input, not document content)
     // Gracefully handle external API failures (e.g., 503 errors) by treating them as "no locations found"
-    let locationResult = { autoResolved: [], questions: [] };
+    let locationResult: any = { autoResolved: [], questions: [] };
     try {
       locationResult = await locationResolver.resolveAll(textForLocationCheck);
       

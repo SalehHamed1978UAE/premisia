@@ -147,7 +147,7 @@ export default function ClassificationPage() {
 
   if (isLoading) {
     return (
-      <AppLayout title="Classification" subtitle="Loading..." onViewChange={() => {}}>
+      <AppLayout title="Classification" subtitle="Loading...">
         <div className="max-w-4xl mx-auto">
           <Card>
             <CardContent className="p-12 flex flex-col items-center justify-center">
@@ -162,7 +162,7 @@ export default function ClassificationPage() {
 
   if (!classification) {
     return (
-      <AppLayout title="Classification" subtitle="Error loading" onViewChange={() => {}}>
+      <AppLayout title="Classification" subtitle="Error loading">
         <div className="max-w-4xl mx-auto space-y-4">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -196,7 +196,7 @@ export default function ClassificationPage() {
                           'text-orange-600';
 
   return (
-    <AppLayout title="Confirm Initiative Type" subtitle="Review and confirm the AI classification" onViewChange={() => {}}>
+    <AppLayout title="Confirm Initiative Type" subtitle="Review and confirm the AI classification">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* AI Classification Card */}
         <Card>
@@ -243,7 +243,7 @@ export default function ClassificationPage() {
                 Confirm or Correct Initiative Type
               </Label>
               <Select value={selectedType} onValueChange={handleTypeChange}>
-                <SelectTrigger id="initiative-type" data-testid="select-initiative-type">
+                <SelectTrigger id="initiative-type" data-testid="select-initiative-type" className="h-auto min-h-[40px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -253,16 +253,16 @@ export default function ClassificationPage() {
                       value={value}
                       data-testid={`select-option-${value}`}
                     >
-                      <div className="flex flex-col items-start">
-                        <span className="font-medium">{label}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {INITIATIVE_TYPE_DESCRIPTIONS[value]}
-                        </span>
-                      </div>
+                      {label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {selectedType && (
+                <p className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-md">
+                  {INITIATIVE_TYPE_DESCRIPTIONS[selectedType]}
+                </p>
+              )}
             </div>
 
             {/* Change indicator */}

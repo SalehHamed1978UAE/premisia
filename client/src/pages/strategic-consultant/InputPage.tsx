@@ -510,7 +510,6 @@ export default function InputPage() {
         <AppLayout
           title="Loading Journey..."
           subtitle="Please wait"
-          onViewChange={(view) => setLocation('/')}
         >
           <div className="max-w-4xl mx-auto flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -524,7 +523,6 @@ export default function InputPage() {
         <AppLayout
           title="Journey Not Found"
           subtitle="Unable to load journey"
-          onViewChange={(view) => setLocation('/')}
         >
           <div className="max-w-4xl mx-auto">
             <Alert variant="destructive">
@@ -548,7 +546,6 @@ export default function InputPage() {
       <AppLayout
         title={`${journey.name} - Step ${currentStepIndex + 1} of ${totalSteps}`}
         subtitle={currentStep?.name || 'Strategic Journey'}
-        onViewChange={(view) => setLocation('/')}
       >
         <div className="max-w-4xl mx-auto space-y-6">
           {/* Journey Progress */}
@@ -683,7 +680,6 @@ export default function InputPage() {
     <AppLayout
       title="Strategic Consultant Agent"
       subtitle="Transform executive input into AI-analyzed strategic decisions"
-      onViewChange={(view) => setLocation('/')}
     >
       <div className="max-w-4xl mx-auto">
         <Card>

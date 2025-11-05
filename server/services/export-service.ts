@@ -349,9 +349,9 @@ async function loadExportData(
   console.log('[Export Service] loadExportData - Fetching clarifications from strategic understanding...');
   let clarifications;
   if (understanding) {
-    const metadata = typeof understanding.strategyMetadata === 'string'
-      ? JSON.parse(understanding.strategyMetadata)
-      : understanding.strategyMetadata;
+    const metadata = typeof (understanding as any).strategyMetadata === 'string'
+      ? JSON.parse((understanding as any).strategyMetadata)
+      : (understanding as any).strategyMetadata;
     
     console.log('[Export Service] strategyMetadata keys:', metadata ? Object.keys(metadata) : 'null');
     
