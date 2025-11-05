@@ -367,55 +367,73 @@ function Dashboard({ summary }: { summary: DashboardSummary }) {
   const [, setLocation] = useLocation();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5 px-6 pt-2 pb-6 space-y-4">
-      {/* Welcome Header */}
-      <div className="text-center max-w-4xl mx-auto mb-2">
-        <p className="text-lg text-muted-foreground">Your strategic command center—where insights become execution</p>
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5 px-6 pt-2 pb-6 space-y-3">
+      {/* Welcome Header with Primary CTA */}
+      <div className="text-center max-w-4xl mx-auto mb-4">
+        <p className="text-lg text-muted-foreground mb-4">Your strategic command center—where insights become execution</p>
+        <Button
+          onClick={() => setLocation('/strategic-consultant/input')}
+          className="bg-gradient-to-r from-primary to-primary/80 shadow-lg hover:shadow-xl transition-all"
+          size="lg"
+          data-testid="button-start-new-analysis"
+        >
+          <Sparkles className="mr-2 h-5 w-5" />
+          Start New Analysis
+        </Button>
       </div>
 
-      {/* Stats Cards with Gradient Accents */}
-      <div className="max-w-6xl mx-auto grid gap-6 grid-cols-1 md:grid-cols-3">
-        <Card className="shadow-lg border-primary/20 hover:shadow-xl transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0 shadow-md">
-                <TrendingUp className="h-7 w-7 text-white" />
+      {/* Stats Cards - Now Interactive Quick Actions */}
+      <div className="max-w-6xl mx-auto grid gap-4 grid-cols-1 md:grid-cols-3">
+        {/* Analyses Complete - Click to navigate to repository */}
+        <Link href="/repository">
+          <Card className="shadow-lg border-primary/20 hover:shadow-xl hover:border-primary/40 transition-all cursor-pointer group" data-testid="button-go-to-analyses">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-110 transition-transform">
+                  <TrendingUp className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Analyses Complete</p>
+                  <p className="text-2xl font-bold text-foreground">{summary.counts.analyses}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Analyses Complete</p>
-                <p className="text-3xl font-bold text-foreground">{summary.counts.analyses}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card className="shadow-lg border-primary/20 hover:shadow-xl transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center flex-shrink-0 shadow-md">
-                <Target className="h-7 w-7 text-white" />
+        {/* Strategies Complete - Click to navigate to strategies hub */}
+        <Link href="/strategies">
+          <Card className="shadow-lg border-primary/20 hover:shadow-xl hover:border-primary/40 transition-all cursor-pointer group" data-testid="button-go-to-strategies">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-110 transition-transform">
+                  <Target className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Strategies Complete</p>
+                  <p className="text-2xl font-bold text-foreground">{summary.counts.strategies}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Strategies Complete</p>
-                <p className="text-3xl font-bold text-foreground">{summary.counts.strategies}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
-        <Card className="shadow-lg border-primary/20 hover:shadow-xl transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center flex-shrink-0 shadow-md">
-                <FileText className="h-7 w-7 text-white" />
+        {/* Programs Complete - Click to navigate to EPM programs */}
+        <Link href="/strategy-workspace/programs">
+          <Card className="shadow-lg border-primary/20 hover:shadow-xl hover:border-primary/40 transition-all cursor-pointer group" data-testid="button-go-to-programs">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-110 transition-transform">
+                  <FileText className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">Programs Complete</p>
+                  <p className="text-2xl font-bold text-foreground">{summary.counts.programs}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Programs Complete</p>
-                <p className="text-3xl font-bold text-foreground">{summary.counts.programs}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       {/* Recent Artifacts */}
@@ -484,61 +502,6 @@ function Dashboard({ summary }: { summary: DashboardSummary }) {
         </Card>
       </div>
 
-      {/* Quick Actions */}
-      <div className="max-w-6xl mx-auto">
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-xl">Quick Actions</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 grid-cols-1 md:grid-cols-3">
-            <Button
-              className="justify-start h-auto p-6 hover:shadow-md transition-shadow"
-              variant="outline"
-              onClick={() => setLocation('/strategic-consultant/input')}
-              data-testid="quick-action-analysis"
-            >
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mr-4 flex-shrink-0 shadow-sm">
-                <Sparkles className="h-6 w-6 text-white" />
-              </div>
-              <div className="text-left">
-                <div className="font-semibold text-base">New Analysis</div>
-                <div className="text-xs text-muted-foreground">Start strategic analysis</div>
-              </div>
-            </Button>
-
-          <Button
-              className="justify-start h-auto p-6 hover:shadow-md transition-shadow"
-              variant="outline"
-              onClick={() => setLocation('/repository')}
-              data-testid="quick-action-repository"
-            >
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center mr-4 flex-shrink-0 shadow-sm">
-                <Archive className="h-6 w-6 text-white" />
-              </div>
-              <div className="text-left">
-                <div className="font-semibold text-base">View Repository</div>
-                <div className="text-xs text-muted-foreground">Browse analyses</div>
-              </div>
-            </Button>
-
-            <Button
-              className="justify-start h-auto p-6 hover:shadow-md transition-shadow"
-              variant="outline"
-              onClick={() => setLocation('/strategy-workspace/programs')}
-              data-testid="quick-action-programs"
-            >
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center mr-4 flex-shrink-0 shadow-sm">
-                <FileText className="h-6 w-6 text-white" />
-              </div>
-              <div className="text-left">
-                <div className="font-semibold text-base">EPM Programs</div>
-                <div className="text-xs text-muted-foreground">View programs</div>
-              </div>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-      
       <RotatingQuote />
     </div>
   );
