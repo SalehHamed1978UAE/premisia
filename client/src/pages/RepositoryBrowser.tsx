@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Archive, Calendar, TrendingUp, FileText, AlertTriangle, Trash2, ArchiveIcon, Download } from 'lucide-react';
+import { Archive, Calendar, TrendingUp, FileText, AlertTriangle, Trash2, ArchiveIcon, Download, Eye } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { StatementSummary } from '@/types/repository';
 import { useToast } from '@/hooks/use-toast';
@@ -409,51 +409,50 @@ export default function RepositoryBrowser() {
                   )}
 
                   {/* Stats and Actions */}
-                  <div className="flex flex-col gap-2 pt-2 border-t">
+                  <div className="flex items-center justify-between pt-2 border-t">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <TrendingUp className="h-4 w-4" />
                       <span data-testid={`total-analyses-${statement.understandingId}`}>
                         {statement.totalAnalyses} {statement.totalAnalyses === 1 ? 'analysis' : 'analyses'}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between gap-1">
+                    <div className="flex items-center gap-1">
                       <Button
-                        size="sm"
+                        size="icon"
                         variant="ghost"
-                        className="text-primary hover:text-primary flex-1"
+                        className="text-primary hover:text-primary"
                         onClick={(e) => {
                           e.stopPropagation();
                           setLocation(`/repository/${statement.understandingId}`);
                         }}
                         data-testid={`button-view-${statement.understandingId}`}
+                        title="View Details"
                       >
-                        View Details
+                        <Eye className="h-4 w-4" />
                       </Button>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <ExportFullReportButton
-                          sessionId={statement.sessionId}
-                          variant="ghost"
-                          size="icon"
-                        />
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={(e) => handleArchive(e, statement.understandingId)}
-                          data-testid={`button-archive-${statement.understandingId}`}
-                          title="Archive statement"
-                        >
-                          <ArchiveIcon className="h-4 w-4 text-muted-foreground hover:text-foreground" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={(e) => handleDeleteClick(e, statement.understandingId)}
-                          data-testid={`button-delete-${statement.understandingId}`}
-                          title="Delete statement"
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive hover:text-destructive/80" />
-                        </Button>
-                      </div>
+                      <ExportFullReportButton
+                        sessionId={statement.sessionId}
+                        variant="ghost"
+                        size="icon"
+                      />
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={(e) => handleArchive(e, statement.understandingId)}
+                        data-testid={`button-archive-${statement.understandingId}`}
+                        title="Archive statement"
+                      >
+                        <ArchiveIcon className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={(e) => handleDeleteClick(e, statement.understandingId)}
+                        data-testid={`button-delete-${statement.understandingId}`}
+                        title="Delete statement"
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive hover:text-destructive/80" />
+                      </Button>
                     </div>
                   </div>
                 </CardContent>
