@@ -217,10 +217,12 @@ export function Dashboard() {
           insights={insightsData ? {
             similarStrategies: insightsData.similarStrategies || [],
             incentives: insightsData.incentives || [],
+            evidence: insightsData.evidence || [],
           } : undefined}
           loading={insightsLoading}
           error={insightsError}
           hasConsent={insightsData?.hasConsent}
+          dataClassification={insightsData?.dataClassification}
         />
       )}
 

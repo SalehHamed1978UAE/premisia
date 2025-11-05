@@ -113,11 +113,12 @@ export default function ResearchPage() {
   const [logEntries, setLogEntries] = useState<Array<{
     id: string;
     timestamp: string;
-    type: 'context' | 'query' | 'synthesis' | 'progress' | 'complete';
+    type: 'context' | 'query' | 'synthesis' | 'progress' | 'complete' | 'debug';
     message: string;
     meta?: Record<string, string>;
   }>>([]);
   const [nextUrl, setNextUrl] = useState<string | null>(null);
+  const [autoAdvance, setAutoAdvance] = useState<boolean>(true);
   
   // Use ref to prevent double execution in React Strict Mode
   const hasInitiatedResearch = useRef(false);
@@ -211,13 +212,18 @@ export default function ResearchPage() {
         const data = JSON.parse(event.data);
         console.log('[ResearchPage] Received message:', data.type || 'unknown', data);
 
+        // Handle debug event - log debugInput to console for QA verification
+        if (data.type === 'debug' && data.debugInput) {
+          console.log('[ResearchPage] 🔍 Debug Input:', data.debugInput);
+        }
+
         // Append log entry for streaming events
-        if (data.type === 'context' || data.type === 'query' || data.type === 'synthesis' || data.type === 'progress' || data.type === 'complete') {
+        if (data.type === 'context' || data.type === 'query' || data.type === 'synthesis' || data.type === 'progress' || data.type === 'complete' || data.type === 'debug') {
           const logEntry = {
             id: `${data.type}-${Date.now()}-${Math.random()}`,
             timestamp: new Date().toISOString(),
-            type: data.type as 'context' | 'query' | 'synthesis' | 'progress' | 'complete',
-            message: data.message || data.query || `${data.block || 'Unknown'}`,
+            type: data.type as 'context' | 'query' | 'synthesis' | 'progress' | 'complete' | 'debug',
+            message: data.message || data.query || data.debugInput || `${data.block || 'Unknown'}`,
             meta: data.purpose ? { purpose: data.purpose, queryType: data.queryType } : (data.progress !== undefined ? { progress: data.progress.toString() } : undefined),
           };
           setLogEntries(prev => [...prev, logEntry]);
@@ -297,17 +303,17 @@ export default function ResearchPage() {
     };
   }, [sessionId, loadingJourney, journeySession, toast]);
 
-  // Navigate immediately when both researchData and nextUrl are ready
+  // Navigate immediately when both researchData and nextUrl are ready (if autoAdvance is enabled)
   useEffect(() => {
-    if (!researchData || !nextUrl) return;
+    if (!researchData || !nextUrl || !autoAdvance) return;
 
-    console.log('[ResearchPage] Both researchData and nextUrl ready, navigating to:', nextUrl);
+    console.log('[ResearchPage] Both researchData and nextUrl ready, auto-navigating to:', nextUrl);
     toast({
       title: "✓ Research complete",
       description: "Proceeding to next step in your journey",
     });
     setLocation(nextUrl);
-  }, [researchData, nextUrl, setLocation, toast]);
+  }, [researchData, nextUrl, autoAdvance, setLocation, toast]);
 
   const handleContinue = () => {
     console.log('[ResearchPage] Manual continue to:', nextUrl);

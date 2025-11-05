@@ -7,41 +7,45 @@
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
 
 // ============================================================================
-// Types
+// Types (PostgreSQL-based API response format)
 // ============================================================================
 
 export interface SimilarStrategy {
+  strategyId: string;
   sessionId: string;
-  journeyType: string;
-  similarity: number;
-  matchedFactors: string[];
-  location?: string;
-  industry?: string;
-  rootCause?: string;
-  completedAt?: string;
-  outcome?: string;
+  versionNumber: number;
+  title: string;
+  score: number;
+  summary: string;
+  completedAt: string;
+  consent: 'private' | 'aggregate_only' | 'share_with_peers';
 }
 
 export interface Incentive {
-  incentiveId: string;
+  id: string;
   name: string;
-  type: 'grant' | 'tax_credit' | 'subsidy' | 'loan' | 'other';
-  provider: string;
   jurisdiction: string;
-  industry?: string;
-  eligibilitySummary: string;
-  amount?: string;
-  expiryDate?: string;
-  link?: string;
-  matchScore: number;
+  deadline: string;
+  rationale: string;
+  score: number;
+}
+
+export interface Evidence {
+  referenceId: string;
+  title: string;
+  url: string;
+  topic: string;
+  confidence: number;
 }
 
 export interface KnowledgeInsightsResponse {
   success: boolean;
+  hasConsent: boolean;
   similarStrategies: SimilarStrategy[];
   incentives: Incentive[];
+  evidence: Evidence[];
+  dataClassification: 'user-scoped' | 'aggregate' | 'shared';
   message?: string;
-  hasConsent?: boolean;
   metadata?: {
     sessionId: string;
     queryTime: number;
@@ -83,8 +87,11 @@ export function useKnowledgeInsights(
       if (!sessionId) {
         return {
           success: false,
+          hasConsent: false,
           similarStrategies: [],
           incentives: [],
+          evidence: [],
+          dataClassification: 'user-scoped' as const,
           message: 'No session ID provided',
         };
       }

@@ -151,6 +151,16 @@ export class BMCResearcher {
     sessionId?: string,
     sink?: ResearchStreamSink
   ): Promise<BMCResearchResult> {
+    // Define total steps for progress tracking
+    const TOTAL_STEPS = 8;
+    let currentStep = 0;
+    
+    const emitProgress = (message: string) => {
+      currentStep++;
+      const progress = Math.round((currentStep / TOTAL_STEPS) * 100);
+      sink?.emitProgress(message, progress);
+    };
+    
     // Step 1: Extract understanding from user input using knowledge graph
     
     const effectiveSessionId = sessionId || `bmc-${Date.now()}`;
@@ -158,6 +168,7 @@ export class BMCResearcher {
     
     // Emit context preview at the start
     sink?.emitContext(input.slice(0, 200));
+    emitProgress('Extracting strategic understanding from input');
     
     const { understandingId, entities } = await strategicUnderstandingService.extractUnderstanding({
       sessionId: effectiveSessionId,
@@ -171,9 +182,11 @@ export class BMCResearcher {
     console.log(`[BMCResearcher] Converted to ${assumptions.length} assumptions for BMC flow`);
 
     // Step 2: Generate BMC block queries
+    emitProgress(`Generating search queries for all 9 BMC blocks`);
     const querySet = await this.queryGenerator.generateQueriesForAllBlocks(input);
 
     // Step 3: Generate assumption-specific queries
+    emitProgress(`Generating assumption validation queries (${assumptions.length} assumptions)`);
     const assumptionQueries = await this.assumptionValidator.generateAssumptionQueries(assumptions);
     console.log(`Generated ${assumptionQueries.length} assumption validation queries`);
 
@@ -199,6 +212,7 @@ export class BMCResearcher {
 
     const allQueries = [...bmcQueries, ...assumptionOnlyQueries];
 
+    emitProgress(`Conducting web research (${allQueries.length} queries across ${Math.ceil(allQueries.length / 5)} batches)`);
     const searchResults = await this.performParallelWebSearch(allQueries, sink);
     
     // Separate assumption search results - these apply to ALL blocks
@@ -215,6 +229,7 @@ export class BMCResearcher {
     );
 
     // Step 5: CRITICAL FIX - Detect contradictions BEFORE block synthesis
+    emitProgress(`Validating assumptions against research findings`);
     
     // Extract raw findings from ASSUMPTION-SPECIFIC queries only (preserves context)
     // Use assumptionResults instead of all searchResults to ensure evidence matches assumption context
@@ -229,7 +244,17 @@ export class BMCResearcher {
     console.log(`Detected ${contradictionResult.contradictions.length} contradictions BEFORE block synthesis`);
 
     // Step 6: Synthesize blocks WITH contradiction awareness
-    sink?.emitSynthesis('customer_segments', 'Synthesizing Customer Segments insights');
+    emitProgress(`Synthesizing insights for all 9 BMC blocks`);
+    const blockNames = [
+      'Customer Segments', 'Value Propositions', 'Revenue Streams',
+      'Channels', 'Customer Relationships', 'Key Resources',
+      'Key Activities', 'Key Partnerships', 'Cost Structure'
+    ];
+    
+    // Emit synthesis event for each block
+    for (let i = 0; i < blockNames.length; i++) {
+      sink?.emitSynthesis(blockNames[i].toLowerCase().replace(/ /g, '_'), `Synthesizing ${blockNames[i]} (${i + 1}/${blockNames.length})`);
+    }
     const [
       customerBlock, 
       valueBlock, 
@@ -383,13 +408,17 @@ export class BMCResearcher {
     const overallConfidence = this.calculateOverallConfidence(blocks);
 
     // Step 6: Synthesize overall BMC with contradiction awareness
+    emitProgress(`Generating overall Business Model Canvas synthesis`);
     const synthesis = await this.synthesizeOverallBMC(blocks, input, contradictionResult.contradictions);
 
     // Step 7 (Task 17): Store BMC findings back into knowledge graph
+    emitProgress(`Saving findings to knowledge graph`);
     await this.storeBMCFindingsInGraph(understandingId, entities, blocks, contradictionResult.contradictions, synthesis.criticalGaps);
     
     // Convert BMC findings to references for provenance tracking
     const references = this.bmcToReferences(blocks, topSources);
+    
+    emitProgress(`Finalizing research results`);
     
     // Note: Reference persistence now handled by stream endpoint (has better context)
     // Removed duplicate persistence logic to maintain single source of truth

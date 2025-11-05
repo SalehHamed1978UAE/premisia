@@ -1941,6 +1941,9 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
     // Send initial message immediately
     console.log('[BMC-RESEARCH-STREAM] Sending initial message');
     res.write(`data: ${JSON.stringify({ type: 'progress', message: '🚀 Starting BMC research...', progress: 0 })}\n\n`);
+    
+    // Send debugInput for QA verification
+    res.write(`data: ${JSON.stringify({ type: 'debug', debugInput: input.slice(0, 200) })}\n\n`);
 
     let result;
     let decisions;

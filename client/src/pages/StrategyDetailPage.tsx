@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { ArrowLeft, Rocket, Calendar, BookOpen, TrendingUp, FileText, Plus, ExternalLink } from "lucide-react";
+import { ArrowLeft, Rocket, Calendar, BookOpen, TrendingUp, FileText, Plus, ExternalLink, Network } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import JourneyLauncherModal from "@/components/JourneyLauncherModal";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -232,10 +232,12 @@ function SessionInsightsAccordion({ sessionId }: { sessionId: string }) {
               insights={insightsData ? {
                 similarStrategies: insightsData.similarStrategies || [],
                 incentives: insightsData.incentives || [],
+                evidence: insightsData.evidence || [],
               } : undefined}
               loading={isLoading}
               error={error}
               hasConsent={insightsData?.hasConsent}
+              dataClassification={insightsData?.dataClassification}
             />
           </div>
         </AccordionContent>

@@ -303,7 +303,6 @@ export default function EPMProgramView() {
     <AppLayout
       title="EPM Program"
       subtitle={`Generated from ${program.frameworkType.toUpperCase()} analysis`}
-      onViewChange={() => setLocation('/')}
     >
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Overall Status */}
@@ -346,10 +345,12 @@ export default function EPMProgramView() {
             insights={insightsData ? {
               similarStrategies: insightsData.similarStrategies || [],
               incentives: insightsData.incentives || [],
+              evidence: insightsData.evidence || [],
             } : undefined}
             loading={insightsLoading}
             error={insightsError}
             hasConsent={insightsData?.hasConsent}
+            dataClassification={insightsData?.dataClassification}
           />
         )}
 

@@ -1,21 +1,24 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Link } from "wouter";
-import { AlertCircle, Lightbulb, TrendingUp, DollarSign, Calendar, ExternalLink, AlertTriangle } from "lucide-react";
-import { format, differenceInDays, parseISO } from "date-fns";
-import type { SimilarStrategy, Incentive } from "@/hooks/useKnowledgeInsights";
+import { AlertCircle, Lightbulb, TrendingUp, DollarSign, FileText, ExternalLink, Lock, Calendar, MapPin } from "lucide-react";
+import { format, parseISO } from "date-fns";
+import type { SimilarStrategy, Incentive, Evidence } from "@/hooks/useKnowledgeInsights";
 
 interface KnowledgeInsightsCardProps {
   title?: string;
   insights?: {
     similarStrategies: SimilarStrategy[];
     incentives: Incentive[];
+    evidence: Evidence[];
   };
   loading?: boolean;
   error?: Error | null;
   hasConsent?: boolean;
+  dataClassification?: 'user-scoped' | 'aggregate' | 'shared';
 }
 
 export function KnowledgeInsightsCard({
@@ -24,6 +27,7 @@ export function KnowledgeInsightsCard({
   loading = false,
   error = null,
   hasConsent = true,
+  dataClassification = 'user-scoped',
 }: KnowledgeInsightsCardProps) {
   // Loading state
   if (loading) {
@@ -34,10 +38,15 @@ export function KnowledgeInsightsCard({
             <Lightbulb className="h-5 w-5" />
             {title}
           </CardTitle>
-          <CardDescription>Loading insights from peer strategies...</CardDescription>
+          <CardDescription>Loading insights from knowledge graph...</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="space-y-3">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-20 w-full" />
+              <Skeleton className="h-20 w-full" />
+            </div>
             <div className="space-y-3">
               <Skeleton className="h-4 w-32" />
               <Skeleton className="h-20 w-full" />
@@ -85,7 +94,7 @@ export function KnowledgeInsightsCard({
             <Lightbulb className="h-5 w-5" />
             {title}
           </CardTitle>
-          <CardDescription>Peer insights not available</CardDescription>
+          <CardDescription>Insights not available</CardDescription>
         </CardHeader>
         <CardContent>
           <Alert>
@@ -101,9 +110,10 @@ export function KnowledgeInsightsCard({
 
   const similarStrategies = insights?.similarStrategies || [];
   const incentives = insights?.incentives || [];
+  const evidence = insights?.evidence || [];
 
   // Empty state - no insights available
-  if (similarStrategies.length === 0 && incentives.length === 0) {
+  if (similarStrategies.length === 0 && incentives.length === 0 && evidence.length === 0) {
     return (
       <Card data-testid="card-knowledge-insights-empty">
         <CardHeader>
@@ -117,7 +127,7 @@ export function KnowledgeInsightsCard({
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              No similar strategies or incentives found at this time. Check back later as more data becomes available.
+              No similar strategies, incentives, or evidence found at this time. Check back later as more data becomes available.
             </AlertDescription>
           </Alert>
         </CardContent>
@@ -125,41 +135,43 @@ export function KnowledgeInsightsCard({
     );
   }
 
-  // Helper function to check if incentive is expiring soon (within 30 days)
-  const isExpiringSoon = (expiryDate?: string): boolean => {
-    if (!expiryDate) return false;
+  // Helper function to format date
+  const formatDate = (dateStr: string): string => {
     try {
-      const expiry = parseISO(expiryDate);
-      const daysUntilExpiry = differenceInDays(expiry, new Date());
-      return daysUntilExpiry >= 0 && daysUntilExpiry <= 30;
+      return format(parseISO(dateStr), 'MMM d, yyyy');
     } catch {
-      return false;
+      return dateStr;
     }
   };
 
-  // Helper function to format expiry date
-  const formatExpiryDate = (expiryDate?: string): string => {
-    if (!expiryDate) return 'No expiry';
-    try {
-      return format(parseISO(expiryDate), 'MMM d, yyyy');
-    } catch {
-      return expiryDate;
-    }
+  // Helper function to format confidence percentage
+  const formatConfidence = (confidence: number): string => {
+    return `${Math.round(confidence * 100)}%`;
   };
 
   return (
     <Card data-testid="card-knowledge-insights">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Lightbulb className="h-5 w-5" />
-          {title}
-        </CardTitle>
-        <CardDescription>
-          Showing insights from peers who opted into sharing
-        </CardDescription>
+        <div className="flex items-start justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Lightbulb className="h-5 w-5" />
+              {title}
+            </CardTitle>
+            <CardDescription>
+              AI-powered insights from strategic analysis
+            </CardDescription>
+          </div>
+          {dataClassification === 'user-scoped' && (
+            <Badge variant="secondary" className="flex items-center gap-1" data-testid="badge-privacy">
+              <Lock className="h-3 w-3" />
+              Private to your account
+            </Badge>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Similar Strategies Column */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
@@ -180,52 +192,35 @@ export function KnowledgeInsightsCard({
               <div className="space-y-3">
                 {similarStrategies.map((strategy, index) => (
                   <Link 
-                    key={strategy.sessionId} 
-                    href={`/strategies/${strategy.sessionId}`}
+                    key={strategy.strategyId} 
+                    href={`/strategies/${strategy.strategyId}?session=${strategy.sessionId}`}
                   >
                     <div 
                       className="p-3 rounded-lg border bg-card hover:bg-accent transition-colors cursor-pointer"
                       data-testid={`card-similar-strategy-${index}`}
                     >
                       <div className="flex items-start justify-between gap-2 mb-2">
-                        <p className="font-medium text-sm line-clamp-1">
-                          {strategy.journeyType.replace(/_/g, ' ')}
+                        <p className="font-medium text-sm line-clamp-2">
+                          {strategy.title}
                         </p>
-                        <Badge variant="outline" className="text-xs shrink-0">
-                          {Math.round(strategy.similarity * 100)}% match
+                        <Badge variant="outline" className="text-xs shrink-0" data-testid={`badge-score-${index}`}>
+                          {formatConfidence(strategy.score)} match
                         </Badge>
                       </div>
                       
-                      {strategy.matchedFactors && strategy.matchedFactors.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-2">
-                          {strategy.matchedFactors.slice(0, 3).map((factor, i) => (
-                            <Badge 
-                              key={i} 
-                              variant="secondary" 
-                              className="text-xs"
-                              data-testid={`badge-factor-${index}-${i}`}
-                            >
-                              {factor}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
+                      <p className="text-xs text-muted-foreground mb-2 line-clamp-2" data-testid={`text-summary-${index}`}>
+                        {strategy.summary}
+                      </p>
                       
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                        {strategy.location && (
-                          <span data-testid={`text-location-${index}`}>
-                            📍 {strategy.location}
-                          </span>
-                        )}
-                        {strategy.industry && (
-                          <span data-testid={`text-industry-${index}`}>
-                            🏢 {strategy.industry}
-                          </span>
-                        )}
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                        <Calendar className="h-3 w-3" />
+                        <span data-testid={`text-completed-${index}`}>
+                          Completed {formatDate(strategy.completedAt)}
+                        </span>
                       </div>
                       
-                      <div className="flex items-center gap-1 mt-2 text-xs text-primary">
-                        <span>View details</span>
+                      <div className="flex items-center gap-1 text-xs text-primary">
+                        <span>View strategy</span>
                         <ExternalLink className="h-3 w-3" />
                       </div>
                     </div>
@@ -253,71 +248,104 @@ export function KnowledgeInsightsCard({
               </p>
             ) : (
               <div className="space-y-3">
-                {incentives.map((incentive, index) => {
-                  const expiringSoon = isExpiringSoon(incentive.expiryDate);
-                  
-                  return (
-                    <div 
-                      key={incentive.incentiveId}
-                      className="p-3 rounded-lg border bg-card"
-                      data-testid={`card-incentive-${index}`}
-                    >
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <p className="font-medium text-sm line-clamp-2">
-                          {incentive.name}
-                        </p>
-                        <Badge 
-                          variant={incentive.type === 'grant' ? 'default' : 'outline'}
-                          className="text-xs shrink-0"
-                        >
-                          {incentive.type.replace(/_/g, ' ')}
-                        </Badge>
-                      </div>
-                      
-                      <p className="text-xs text-muted-foreground mb-2">
-                        <span className="font-medium">Provider:</span> {incentive.provider}
+                {incentives.map((incentive, index) => (
+                  <div 
+                    key={incentive.id}
+                    className="p-3 rounded-lg border bg-card"
+                    data-testid={`card-incentive-${index}`}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <p className="font-medium text-sm line-clamp-2">
+                        {incentive.name}
                       </p>
-                      
-                      {incentive.amount && (
-                        <p className="text-xs text-muted-foreground mb-2">
-                          <span className="font-medium">Amount:</span> {incentive.amount}
-                        </p>
-                      )}
-                      
-                      <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
-                        {incentive.eligibilitySummary}
-                      </p>
-                      
-                      {incentive.expiryDate && (
-                        <div className={`flex items-center gap-1 text-xs ${expiringSoon ? 'text-orange-600 dark:text-orange-400' : 'text-muted-foreground'}`}>
-                          {expiringSoon && <AlertTriangle className="h-3 w-3" />}
-                          <Calendar className="h-3 w-3" />
-                          <span data-testid={`text-expiry-${index}`}>
-                            Expires: {formatExpiryDate(incentive.expiryDate)}
-                          </span>
-                          {expiringSoon && (
-                            <Badge variant="destructive" className="text-xs ml-1">
-                              Expiring soon
-                            </Badge>
-                          )}
-                        </div>
-                      )}
-                      
-                      {incentive.link && (
-                        <a 
-                          href={incentive.link} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 mt-2 text-xs text-primary hover:underline"
-                          data-testid={`link-incentive-${index}`}
-                        >
-                          <span>Learn more</span>
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      )}
+                      <Badge variant="outline" className="text-xs shrink-0" data-testid={`badge-incentive-score-${index}`}>
+                        {formatConfidence(incentive.score)}
+                      </Badge>
                     </div>
-                  );
-                })}
+                    
+                    <div className="flex items-center gap-1 mb-2">
+                      <MapPin className="h-3 w-3 text-muted-foreground" />
+                      <p className="text-xs text-muted-foreground" data-testid={`text-jurisdiction-${index}`}>
+                        {incentive.jurisdiction}
+                      </p>
+                    </div>
+                    
+                    <div className="flex items-center gap-1 mb-2">
+                      <Calendar className="h-3 w-3 text-muted-foreground" />
+                      <p className="text-xs text-muted-foreground" data-testid={`text-deadline-${index}`}>
+                        Deadline: {formatDate(incentive.deadline)}
+                      </p>
+                    </div>
+                    
+                    <p className="text-xs text-muted-foreground mb-3 line-clamp-3" data-testid={`text-rationale-${index}`}>
+                      {incentive.rationale}
+                    </p>
+                    
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      className="w-full text-xs"
+                      data-testid={`button-learn-more-${index}`}
+                    >
+                      Learn More
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Evidence & Citations Column */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-muted-foreground" />
+              <h3 className="font-semibold text-sm">Evidence</h3>
+              {evidence.length > 0 && (
+                <Badge variant="secondary" data-testid="badge-evidence-count">
+                  {evidence.length}
+                </Badge>
+              )}
+            </div>
+            
+            {evidence.length === 0 ? (
+              <p className="text-sm text-muted-foreground" data-testid="text-no-evidence">
+                No evidence citations found
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {evidence.map((item, index) => (
+                  <div 
+                    key={item.referenceId}
+                    className="p-3 rounded-lg border bg-card"
+                    data-testid={`card-evidence-${index}`}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <p className="font-medium text-sm line-clamp-2">
+                        {item.title}
+                      </p>
+                      <Badge variant="outline" className="text-xs shrink-0" data-testid={`badge-confidence-${index}`}>
+                        {formatConfidence(item.confidence)}
+                      </Badge>
+                    </div>
+                    
+                    <div className="mb-2">
+                      <Badge variant="secondary" className="text-xs" data-testid={`badge-topic-${index}`}>
+                        {item.topic}
+                      </Badge>
+                    </div>
+                    
+                    <a 
+                      href={item.url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-xs text-primary hover:underline"
+                      data-testid={`link-evidence-${index}`}
+                    >
+                      <span className="line-clamp-1">View source</span>
+                      <ExternalLink className="h-3 w-3 shrink-0" />
+                    </a>
+                  </div>
+                ))}
               </div>
             )}
           </div>
