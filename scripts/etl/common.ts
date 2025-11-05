@@ -7,12 +7,12 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createSession } from '../../server/config/neo4j.js';
-import { NodeUpsert, RelUpsert, ETLRun } from '../../shared/knowledge-graph-types.js';
+import type { NodeUpsert, RelUpsert, ETLRun } from '../../shared/knowledge-graph-types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export { NodeUpsert, RelUpsert };
+export type { NodeUpsert, RelUpsert };
 
 const ETL_RUNS_FILE = path.join(__dirname, '../output/etl_runs.csv');
 
