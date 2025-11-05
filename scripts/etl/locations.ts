@@ -77,13 +77,11 @@ async function loadLocations() {
 }
 
 // Run if called directly
-if (require.main === module) {
-  loadLocations()
-    .then(() => process.exit(0))
-    .catch((error) => {
-      console.error('[ETL:Locations] Fatal error:', error);
-      process.exit(1);
-    });
-}
+loadLocations()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error('[ETL:Locations] Fatal error:', error);
+    process.exit(1);
+  });
 
 export { loadLocations };

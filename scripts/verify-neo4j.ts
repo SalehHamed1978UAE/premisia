@@ -84,13 +84,11 @@ async function verifyNeo4j() {
 }
 
 // Run if called directly
-if (require.main === module) {
-  verifyNeo4j()
-    .then(() => process.exit(0))
-    .catch((error) => {
-      console.error('[verify-neo4j] Fatal error:', error);
-      process.exit(1);
-    });
-}
+verifyNeo4j()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error('[verify-neo4j] Fatal error:', error);
+    process.exit(1);
+  });
 
 export { verifyNeo4j };

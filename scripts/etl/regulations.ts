@@ -91,13 +91,11 @@ async function loadRegulations() {
 }
 
 // Run if called directly
-if (require.main === module) {
-  loadRegulations()
-    .then(() => process.exit(0))
-    .catch((error) => {
-      console.error('[ETL:Regulations] Fatal error:', error);
-      process.exit(1);
-    });
-}
+loadRegulations()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error('[ETL:Regulations] Fatal error:', error);
+    process.exit(1);
+  });
 
 export { loadRegulations };

@@ -58,13 +58,11 @@ async function loadIndustries() {
 }
 
 // Run if called directly
-if (require.main === module) {
-  loadIndustries()
-    .then(() => process.exit(0))
-    .catch((error) => {
-      console.error('[ETL:Industries] Fatal error:', error);
-      process.exit(1);
-    });
-}
+loadIndustries()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error('[ETL:Industries] Fatal error:', error);
+    process.exit(1);
+  });
 
 export { loadIndustries };

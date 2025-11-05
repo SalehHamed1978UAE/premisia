@@ -56,13 +56,11 @@ async function loadAll() {
 }
 
 // Run if called directly
-if (require.main === module) {
-  loadAll()
-    .then(() => process.exit(0))
-    .catch((error) => {
-      console.error('Fatal error:', error);
-      process.exit(1);
-    });
-}
+loadAll()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error('Fatal error:', error);
+    process.exit(1);
+  });
 
 export { loadAll };

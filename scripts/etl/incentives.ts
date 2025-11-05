@@ -95,13 +95,11 @@ async function loadIncentives() {
 }
 
 // Run if called directly
-if (require.main === module) {
-  loadIncentives()
-    .then(() => process.exit(0))
-    .catch((error) => {
-      console.error('[ETL:Incentives] Fatal error:', error);
-      process.exit(1);
-    });
-}
+loadIncentives()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error('[ETL:Incentives] Fatal error:', error);
+    process.exit(1);
+  });
 
 export { loadIncentives };

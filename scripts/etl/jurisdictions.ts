@@ -73,13 +73,11 @@ async function loadJurisdictions() {
 }
 
 // Run if called directly
-if (require.main === module) {
-  loadJurisdictions()
-    .then(() => process.exit(0))
-    .catch((error) => {
-      console.error('[ETL:Jurisdictions] Fatal error:', error);
-      process.exit(1);
-    });
-}
+loadJurisdictions()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error('[ETL:Jurisdictions] Fatal error:', error);
+    process.exit(1);
+  });
 
 export { loadJurisdictions };

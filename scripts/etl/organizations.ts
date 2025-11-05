@@ -58,13 +58,11 @@ async function loadOrganizations() {
 }
 
 // Run if called directly
-if (require.main === module) {
-  loadOrganizations()
-    .then(() => process.exit(0))
-    .catch((error) => {
-      console.error('[ETL:Organizations] Fatal error:', error);
-      process.exit(1);
-    });
-}
+loadOrganizations()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error('[ETL:Organizations] Fatal error:', error);
+    process.exit(1);
+  });
 
 export { loadOrganizations };

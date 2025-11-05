@@ -94,16 +94,14 @@ async function applySchema() {
 }
 
 // Run if called directly
-if (require.main === module) {
-  applySchema()
-    .then(() => {
-      console.log('[apply-schema] Done!');
-      process.exit(0);
-    })
-    .catch((error) => {
-      console.error('[apply-schema] Unhandled error:', error);
-      process.exit(1);
-    });
-}
+applySchema()
+  .then(() => {
+    console.log('[apply-schema] Done!');
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error('[apply-schema] Unhandled error:', error);
+    process.exit(1);
+  });
 
 export { applySchema };
