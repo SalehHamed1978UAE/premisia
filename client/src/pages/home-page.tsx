@@ -368,9 +368,8 @@ function Dashboard({ summary }: { summary: DashboardSummary }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5 px-6 pt-2 pb-6 space-y-3">
-      {/* Welcome Header with Primary CTA */}
+      {/* Primary CTA */}
       <div className="text-center max-w-4xl mx-auto mb-4">
-        <p className="text-lg text-muted-foreground mb-4">Your strategic command center—where insights become execution</p>
         <Button
           onClick={() => setLocation('/strategic-consultant/input')}
           className="bg-gradient-to-r from-primary to-primary/80 shadow-lg hover:shadow-xl transition-all"
@@ -1613,7 +1612,7 @@ export default function HomePage() {
     <AppLayout 
       showTopBar={hasWork ? true : false}
       title="Home"
-      subtitle={hasWork ? "Dashboard" : undefined}
+      subtitle="Your strategic command center"
       sidebarOpen={sidebarOpen} 
       onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}
     >
