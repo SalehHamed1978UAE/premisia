@@ -166,7 +166,6 @@ router.get('/incentives', async (req: Request, res: Response) => {
     
     // Call getAvailableIncentives with context data
     const incentives = await kgService.getAvailableIncentives({
-      locationId,
       industryId,
       jurisdictionId,
       limit: 10, // Top 10 applicable incentives
@@ -205,8 +204,12 @@ router.get('/incentives', async (req: Request, res: Response) => {
  * GET /api/knowledge/insights/:sessionId
  * 
  * Aggregator endpoint that returns all knowledge graph insights for a session
- * Includes similar strategies, incentives, and regulations
+ * Includes similar strategies, incentives, and evidence
  * Respects consent flags - returns empty arrays if consentPeerShare is false
+ * 
+ * IMPLEMENTATION: PostgreSQL-first with Neo4j fallback
+ * - Primary: PostgreSQL queries on strategy_versions, strategic_entities, references
+ * - Fallback: Neo4j if PostgreSQL fails and Neo4j is configured
  */
 router.get('/insights/:sessionId', async (req: Request, res: Response) => {
   const startTime = Date.now();
@@ -222,15 +225,15 @@ router.get('/insights/:sessionId', async (req: Request, res: Response) => {
       });
     }
     
-    // Check feature flag and Neo4j configuration
-    if (!isKnowledgeGraphEnabled() || !isNeo4jConfigured()) {
-      console.log('[KG API] Knowledge Graph disabled or not configured, returning empty insights');
+    // Check feature flag
+    if (!isKnowledgeGraphEnabled()) {
+      console.log('[KG API] Knowledge Graph feature disabled, returning empty insights');
       return res.json({
         success: true,
         similarStrategies: [],
         incentives: [],
-        regulations: [],
-        message: 'Knowledge Graph not available',
+        evidence: [],
+        message: 'Knowledge Graph feature disabled',
       });
     }
     
@@ -248,6 +251,23 @@ router.get('/insights/:sessionId', async (req: Request, res: Response) => {
       });
     }
     
+    // CRITICAL: Verify userId - session must belong to authenticated user
+    const userId = (req as any).user?.claims?.sub || (req as any).user?.id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+      });
+    }
+    
+    if (journeySession.userId !== userId) {
+      console.log(`[KG API] Access denied: user ${userId} attempted to access session ${sessionId} owned by ${journeySession.userId}`);
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied: session does not belong to authenticated user',
+      });
+    }
+    
     // Check consent - if user hasn't consented to peer sharing, return empty insights
     const context = journeySession.accumulatedContext as any;
     const consentPeerShare = context?.consentPeerShare ?? false;
@@ -259,34 +279,78 @@ router.get('/insights/:sessionId', async (req: Request, res: Response) => {
         hasConsent: false,
         similarStrategies: [],
         incentives: [],
-        regulations: [],
+        evidence: [],
         dataClassification: 'private',
         message: 'User has not consented to peer sharing',
       });
     }
     
-    // Import knowledge graph service
-    const kgService = await import('../services/knowledge-graph-service');
+    // TRY POSTGRESQL FIRST
+    let insights: any;
+    let dataSource = 'postgresql';
     
-    // Get all insights using the aggregator function
-    const insights = await kgService.getInsightsForSession(sessionId, {
-      locationId: context?.locationId,
-      industryId: context?.industryId,
-      jurisdictionId: context?.jurisdictionId,
-      rootCause: context?.insights?.primaryRootCause || context?.insights?.rootCauses?.[0],
-    });
+    try {
+      console.log(`[KG API] Attempting PostgreSQL-based insights for session ${sessionId}`);
+      const pgService = await import('../services/knowledge-insights-service');
+      
+      insights = await pgService.getInsightsForSession(sessionId, userId);
+      
+      const duration = Date.now() - startTime;
+      console.log(`[KG API] ✓ PostgreSQL insights query completed in ${duration}ms`);
+      console.log(`[KG API]   - Similar strategies: ${insights.similarStrategies?.length || 0}`);
+      console.log(`[KG API]   - Incentives: ${insights.incentives?.length || 0}`);
+      console.log(`[KG API]   - Evidence: ${insights.evidence?.length || 0}`);
+      
+    } catch (pgError: any) {
+      console.error(`[KG API] PostgreSQL insights failed:`, pgError.message);
+      
+      // FALLBACK TO NEO4J if available
+      if (isNeo4jConfigured()) {
+        try {
+          console.log(`[KG API] Falling back to Neo4j for session ${sessionId}`);
+          const kgService = await import('../services/knowledge-graph-service');
+          
+          const neo4jInsights = await kgService.getInsightsForSession(sessionId, {
+            locationId: context?.locationId,
+            industryId: context?.industryId,
+            jurisdictionId: context?.jurisdictionId,
+            rootCause: context?.insights?.primaryRootCause || context?.insights?.rootCauses?.[0],
+          });
+          
+          // Transform Neo4j results to match PostgreSQL format
+          insights = {
+            similarStrategies: neo4jInsights.similarStrategies || [],
+            incentives: neo4jInsights.incentives || [],
+            evidence: [], // Neo4j doesn't return evidence in same format
+          };
+          
+          dataSource = 'neo4j';
+          console.log(`[KG API] ✓ Neo4j fallback successful`);
+          
+        } catch (neo4jError: any) {
+          console.error(`[KG API] Neo4j fallback also failed:`, neo4jError.message);
+          throw pgError; // Re-throw original PostgreSQL error
+        }
+      } else {
+        console.log(`[KG API] Neo4j not configured, cannot fallback`);
+        throw pgError; // Re-throw if no fallback available
+      }
+    }
     
     const duration = Date.now() - startTime;
-    console.log(`[KG API] Insights query completed in ${duration}ms`);
     
     res.json({
       success: true,
       hasConsent: true,
-      ...insights,
-      dataClassification: 'aggregate',
+      similarStrategies: insights.similarStrategies || [],
+      incentives: insights.incentives || [],
+      evidence: insights.evidence || [],
+      dataClassification: 'user-scoped',
       metadata: {
         sessionId,
+        userId,
         queryTime: duration,
+        dataSource,
         consentPeerShare: true,
       },
     });
