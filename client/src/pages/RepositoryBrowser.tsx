@@ -409,7 +409,7 @@ export default function RepositoryBrowser() {
                   )}
 
                   {/* Stats and Actions */}
-                  <div className="flex items-center justify-between text-sm">
+                  <div className="flex items-center justify-between text-sm pt-2 border-t">
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <TrendingUp className="h-4 w-4" />
                       <span data-testid={`total-analyses-${statement.understandingId}`}>
@@ -429,6 +429,11 @@ export default function RepositoryBrowser() {
                       >
                         View Details
                       </Button>
+                      <ExportFullReportButton
+                        sessionId={statement.sessionId}
+                        variant="ghost"
+                        size="icon"
+                      />
                       <Button
                         size="icon"
                         variant="ghost"
@@ -448,16 +453,6 @@ export default function RepositoryBrowser() {
                         <Trash2 className="h-4 w-4 text-destructive hover:text-destructive/80" />
                       </Button>
                     </div>
-                  </div>
-
-                  {/* Export button */}
-                  <div className="pt-2 border-t">
-                    <ExportFullReportButton
-                      sessionId={statement.sessionId}
-                      variant="ghost"
-                      size="sm"
-                      className="w-full"
-                    />
                   </div>
                 </CardContent>
               </Card>

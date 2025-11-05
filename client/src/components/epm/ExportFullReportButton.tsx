@@ -131,9 +131,10 @@ export function ExportFullReportButton({
       disabled={isExporting}
       className={className}
       data-testid={`button-export-${sessionId}`}
+      title={size === 'icon' ? (isExporting ? 'Exporting...' : 'Export Report') : undefined}
     >
-      <Download className="h-4 w-4 mr-2" />
-      {isExporting ? 'Exporting...' : 'Export Report'}
+      <Download className={size === 'icon' ? 'h-4 w-4' : 'h-4 w-4 mr-2'} />
+      {size !== 'icon' && (isExporting ? 'Exporting...' : 'Export Report')}
     </Button>
   );
 }
