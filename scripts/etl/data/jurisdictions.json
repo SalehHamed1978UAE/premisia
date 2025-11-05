@@ -1,0 +1,56 @@
+[
+  {
+    "id": "jur-abu-dhabi-mainland",
+    "name": "Abu Dhabi Mainland",
+    "type": "mainland",
+    "authorityOrgId": "org-added"
+  },
+  {
+    "id": "jur-dubai-mainland",
+    "name": "Dubai Mainland",
+    "type": "mainland",
+    "authorityOrgId": "org-ded"
+  },
+  {
+    "id": "jur-adgm",
+    "name": "Abu Dhabi Global Market",
+    "type": "free_zone",
+    "authorityOrgId": "org-adgm",
+    "locationId": "loc-abu-dhabi-city"
+  },
+  {
+    "id": "jur-masdar",
+    "name": "Masdar City Free Zone",
+    "type": "free_zone",
+    "authorityOrgId": "org-masdar",
+    "locationId": "loc-abu-dhabi-city"
+  },
+  {
+    "id": "jur-difc",
+    "name": "Dubai International Financial Centre",
+    "type": "free_zone",
+    "authorityOrgId": "org-difc",
+    "locationId": "loc-downtown-dubai"
+  },
+  {
+    "id": "jur-dmcc",
+    "name": "Dubai Multi Commodities Centre",
+    "type": "free_zone",
+    "authorityOrgId": "org-dmcc",
+    "locationId": "loc-jlt"
+  },
+  {
+    "id": "jur-dafza",
+    "name": "Dubai Airport Free Zone Authority",
+    "type": "free_zone",
+    "authorityOrgId": "org-dafza",
+    "locationId": "loc-deira"
+  },
+  {
+    "id": "jur-jafza",
+    "name": "Jebel Ali Free Zone",
+    "type": "free_zone",
+    "authorityOrgId": "org-jafza",
+    "locationId": "loc-dubai-city"
+  }
+]

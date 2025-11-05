@@ -4,10 +4,30 @@ import { setupVite, serveStatic, log } from "./vite";
 import { validateEncryptionKey } from "./utils/encryption";
 import { backgroundJobService } from "./services/background-job-service";
 import { registerFrameworkExecutors } from "./journey/register-frameworks";
+import { verifyConnection } from "./config/neo4j";
 
 const app = express();
 
 validateEncryptionKey();
+
+// Verify Neo4j connection if configured
+const hasNeo4jConfig = process.env.NEO4J_URI && process.env.NEO4J_PASSWORD;
+if (hasNeo4jConfig) {
+  verifyConnection()
+    .then((connected) => {
+      if (connected) {
+        log('[Neo4j] Connection verified successfully');
+      } else {
+        console.warn('[Neo4j] WARNING: Connection failed. Knowledge Graph features may not work.');
+      }
+    })
+    .catch((error) => {
+      console.warn('[Neo4j] WARNING: Connection check failed:', error.message);
+      console.warn('[Neo4j] Knowledge Graph features will not be available.');
+    });
+} else {
+  console.warn('[Neo4j] Not configured. Set NEO4J_URI and NEO4J_PASSWORD to enable Knowledge Graph features.');
+}
 
 // Register framework executors for modular journey execution
 registerFrameworkExecutors();

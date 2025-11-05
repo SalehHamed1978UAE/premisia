@@ -1,0 +1,56 @@
+[
+  {
+    "id": "org-added",
+    "name": "Abu Dhabi Department of Economic Development",
+    "type": "government",
+    "url": "https://added.gov.ae/"
+  },
+  {
+    "id": "org-ded",
+    "name": "Dubai Department of Economic Development",
+    "type": "government",
+    "url": "https://www.dubaided.gov.ae/"
+  },
+  {
+    "id": "org-adgm",
+    "name": "Abu Dhabi Global Market",
+    "type": "authority",
+    "url": "https://www.adgm.com/"
+  },
+  {
+    "id": "org-masdar",
+    "name": "Masdar City",
+    "type": "authority",
+    "url": "https://www.masdar.ae/"
+  },
+  {
+    "id": "org-difc",
+    "name": "Dubai International Financial Centre Authority",
+    "type": "authority",
+    "url": "https://www.difc.ae/"
+  },
+  {
+    "id": "org-dmcc",
+    "name": "Dubai Multi Commodities Centre",
+    "type": "authority",
+    "url": "https://www.dmcc.ae/"
+  },
+  {
+    "id": "org-dafza",
+    "name": "Dubai Airport Free Zone Authority",
+    "type": "authority",
+    "url": "https://www.dafz.ae/"
+  },
+  {
+    "id": "org-jafza",
+    "name": "Jebel Ali Free Zone Authority",
+    "type": "authority",
+    "url": "https://www.jafza.ae/"
+  },
+  {
+    "id": "org-adio",
+    "name": "Abu Dhabi Investment Office",
+    "type": "agency",
+    "url": "https://www.investinabudhabi.ae/"
+  }
+]

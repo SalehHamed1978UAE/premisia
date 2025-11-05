@@ -1,0 +1,54 @@
+[
+  {
+    "sourceKey": "pdpl-2021",
+    "title": "UAE Personal Data Protection Law (PDPL)",
+    "authority": "UAE Government",
+    "summary": "Comprehensive data protection law governing collection, processing, and storage of personal data",
+    "effectiveDate": "2023-01-02",
+    "url": "https://www.mohap.gov.ae/en/Laws/Federal-Decree-Law-No.-45-of-2021.aspx"
+  },
+  {
+    "sourceKey": "emiratisation-2022",
+    "title": "Emiratisation Requirements",
+    "authority": "Ministry of Human Resources and Emiratisation",
+    "summary": "Requirements for UAE nationals employment in private sector",
+    "effectiveDate": "2022-09-01",
+    "url": "https://www.mohre.gov.ae/"
+  },
+  {
+    "sourceKey": "corporate-tax-2023",
+    "title": "UAE Corporate Tax Law",
+    "authority": "Federal Tax Authority",
+    "summary": "9% corporate tax on profits exceeding AED 375,000",
+    "effectiveDate": "2023-06-01",
+    "url": "https://tax.gov.ae/en/corporate-tax.aspx"
+  },
+  {
+    "sourceKey": "food-safety-ad",
+    "title": "Abu Dhabi Food Safety Regulations",
+    "authority": "Abu Dhabi Agriculture and Food Safety Authority",
+    "summary": "Food safety and licensing requirements for F&B businesses in Abu Dhabi",
+    "effectiveDate": "2020-01-01",
+    "url": "https://www.adafsa.gov.ae/",
+    "jurisdictionId": "jur-abu-dhabi-mainland",
+    "industryId": "ind-fb"
+  },
+  {
+    "sourceKey": "dubai-economic-substance",
+    "title": "Dubai Economic Substance Regulations",
+    "authority": "Dubai Department of Economic Development",
+    "summary": "Requirements for companies to demonstrate economic substance in Dubai",
+    "effectiveDate": "2019-01-01",
+    "url": "https://www.dubaided.gov.ae/",
+    "jurisdictionId": "jur-dubai-mainland"
+  },
+  {
+    "sourceKey": "difc-data-protection",
+    "title": "DIFC Data Protection Law",
+    "authority": "Dubai International Financial Centre",
+    "summary": "Data protection requirements specific to DIFC entities",
+    "effectiveDate": "2020-07-01",
+    "url": "https://www.difc.ae/business/laws-regulations/",
+    "jurisdictionId": "jur-difc"
+  }
+]
