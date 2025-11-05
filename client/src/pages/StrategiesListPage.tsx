@@ -278,13 +278,30 @@ export default function StrategiesListPage() {
       sidebarOpen={sidebarOpen}
       onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}
     >
-      <div data-testid="page-strategies-list">
-      {/* Header */}
-      <div className="mb-4">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
-          {selectionMode ? (
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4 flex-1">
-              <div className="flex items-center gap-2">
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5 px-6 pt-2 pb-6 space-y-3" data-testid="page-strategies-list">
+        {/* Welcome Header with Primary CTA */}
+        {!selectionMode && (
+          <div className="text-center max-w-4xl mx-auto mb-4">
+            <p className="text-lg text-muted-foreground mb-4">
+              Your strategic intelligence center—track progress, launch initiatives
+            </p>
+            <Button
+              onClick={() => navigate('/strategic-consultant/input')}
+              className="bg-gradient-to-r from-primary to-primary/80 shadow-lg hover:shadow-xl transition-all"
+              size="lg"
+              data-testid="button-new-strategy-hero"
+            >
+              <Plus className="mr-2 h-5 w-5" />
+              Create New Strategy
+            </Button>
+          </div>
+        )}
+
+        {/* Selection Mode Controls */}
+        {selectionMode && (
+          <div className="max-w-6xl mx-auto mb-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="secondary" className="text-sm" data-testid="badge-selected-count">
                   {selectedIds.length} selected
                 </Badge>
@@ -333,97 +350,128 @@ export default function StrategiesListPage() {
                 </Button>
               </div>
             </div>
-          ) : (
-            <>
-              {strategies && strategies.length > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectionMode(true)}
-                  data-testid="button-enable-selection"
-                >
-                  <CheckSquare className="h-4 w-4 mr-2" />
-                  Select
-                </Button>
-              )}
-              <Link href="/strategic-consultant/input" className="w-full sm:w-auto sm:ml-auto">
-                <Button className="w-full sm:w-auto" data-testid="button-new-strategy">
-                  <Plus className="h-4 w-4 mr-2" />
-                  New Strategy
-                </Button>
-              </Link>
-            </>
-          )}
-        </div>
+          </div>
+        )}
         
-        {/* Stats Summary */}
+        {/* Stats Cards - Mobile Optimized */}
         {strategies && strategies.length > 0 && (
-          <div className="grid gap-3 grid-cols-1 sm:grid-cols-3 mb-4">
-            <Card>
-              <CardHeader className="pb-2 pt-3 px-4">
-                <CardDescription className="text-xs">Total Strategies</CardDescription>
-                <CardTitle className="text-2xl" data-testid="stat-total-strategies">
-                  {strategies.length}
-                </CardTitle>
-              </CardHeader>
+          <div className="max-w-6xl mx-auto grid gap-2 grid-cols-3 md:gap-4 mb-4">
+            <Link href="/strategies">
+              <Card className="shadow-lg border-primary/20 hover:shadow-xl hover:border-primary/40 transition-all cursor-pointer group">
+                <CardContent className="p-3 md:p-5">
+                  <div className="flex flex-col md:flex-row items-center md:gap-3 text-center md:text-left">
+                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-110 transition-transform mb-2 md:mb-0">
+                      <Rocket className="h-5 w-5 md:h-6 md:w-6 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-[10px] md:text-xs font-medium text-muted-foreground leading-tight">
+                        <span className="md:hidden">Total<br />Strategies</span>
+                        <span className="hidden md:inline">Total Strategies</span>
+                      </p>
+                      <p className="text-xl md:text-2xl font-bold text-foreground" data-testid="stat-total-strategies">
+                        {strategies.length}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+
+            <Card className="shadow-lg border-primary/20 hover:shadow-xl hover:border-primary/40 transition-all cursor-pointer group">
+              <CardContent className="p-3 md:p-5">
+                <div className="flex flex-col md:flex-row items-center md:gap-3 text-center md:text-left">
+                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-gradient-to-br from-yellow-500 to-yellow-600 flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-110 transition-transform mb-2 md:mb-0">
+                    <TrendingUp className="h-5 w-5 md:h-6 md:w-6 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-[10px] md:text-xs font-medium text-muted-foreground leading-tight">
+                      <span className="md:hidden">Active<br />Journeys</span>
+                      <span className="hidden md:inline">Active Journeys</span>
+                    </p>
+                    <p className="text-xl md:text-2xl font-bold text-foreground" data-testid="stat-active-journeys">
+                      {strategies.filter(s => s.latestJourneyStatus === 'in_progress').length}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
             </Card>
-            <Card>
-              <CardHeader className="pb-2 pt-3 px-4">
-                <CardDescription className="text-xs">Active Journeys</CardDescription>
-                <CardTitle className="text-2xl" data-testid="stat-active-journeys">
-                  {strategies.filter(s => s.latestJourneyStatus === 'in_progress').length}
-                </CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2 pt-3 px-4">
-                <CardDescription className="text-xs">Total Journeys</CardDescription>
-                <CardTitle className="text-2xl" data-testid="stat-total-journeys">
-                  {strategies.reduce((sum, s) => sum + Number(s.journeyCount), 0)}
-                </CardTitle>
-              </CardHeader>
+
+            <Card className="shadow-lg border-primary/20 hover:shadow-xl hover:border-primary/40 transition-all cursor-pointer group">
+              <CardContent className="p-3 md:p-5">
+                <div className="flex flex-col md:flex-row items-center md:gap-3 text-center md:text-left">
+                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-110 transition-transform mb-2 md:mb-0">
+                    <Archive className="h-5 w-5 md:h-6 md:w-6 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-[10px] md:text-xs font-medium text-muted-foreground leading-tight">
+                      <span className="md:hidden">Total<br />Journeys</span>
+                      <span className="hidden md:inline">Total Journeys</span>
+                    </p>
+                    <p className="text-xl md:text-2xl font-bold text-foreground" data-testid="stat-total-journeys">
+                      {strategies.reduce((sum, s) => sum + Number(s.journeyCount), 0)}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
             </Card>
           </div>
         )}
-      </div>
 
-      {/* Content */}
-      {isLoading ? (
-        <StrategyListSkeleton />
-      ) : error ? (
-        <Card className="p-8 text-center">
-          <TrendingUp className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-          <h3 className="text-lg font-semibold mb-2">Failed to load strategies</h3>
-          <p className="text-muted-foreground">Please try again later.</p>
-        </Card>
-      ) : !strategies || strategies.length === 0 ? (
-        <Card className="p-8 text-center">
-          <Archive className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-          <h3 className="text-lg font-semibold mb-2">No strategies yet</h3>
-          <p className="text-muted-foreground mb-4">
-            Start your first strategic analysis to see it here
-          </p>
-          <Link href="/strategic-consultant/input">
-            <Button data-testid="button-get-started">
-              <Plus className="h-4 w-4 mr-2" />
-              Get Started
+        {/* Quick Actions Bar */}
+        {strategies && strategies.length > 0 && !selectionMode && (
+          <div className="max-w-6xl mx-auto flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Your Strategies</h2>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectionMode(true)}
+              data-testid="button-enable-selection"
+            >
+              <CheckSquare className="h-4 w-4 mr-2" />
+              Manage
             </Button>
-          </Link>
-        </Card>
-      ) : (
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-          {strategies.map((strategy) => (
-            <StrategyCard
-              key={strategy.id}
-              strategy={strategy}
-              selectionMode={selectionMode}
-              isSelected={selectedIds.includes(strategy.id)}
-              onToggleSelect={handleToggleSelect}
-              onNavigate={handleNavigate}
-            />
-          ))}
+          </div>
+        )}
+
+        {/* Content */}
+        <div className="max-w-6xl mx-auto">
+          {isLoading ? (
+            <StrategyListSkeleton />
+          ) : error ? (
+            <Card className="p-8 text-center">
+              <TrendingUp className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-semibold mb-2">Failed to load strategies</h3>
+              <p className="text-muted-foreground">Please try again later.</p>
+            </Card>
+          ) : !strategies || strategies.length === 0 ? (
+            <Card className="p-8 text-center">
+              <Archive className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-semibold mb-2">No strategies yet</h3>
+              <p className="text-muted-foreground mb-4">
+                Start your first strategic analysis to see it here
+              </p>
+              <Link href="/strategic-consultant/input">
+                <Button data-testid="button-get-started">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Get Started
+                </Button>
+              </Link>
+            </Card>
+          ) : (
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+              {strategies.map((strategy) => (
+                <StrategyCard
+                  key={strategy.id}
+                  strategy={strategy}
+                  selectionMode={selectionMode}
+                  isSelected={selectedIds.includes(strategy.id)}
+                  onToggleSelect={handleToggleSelect}
+                  onNavigate={handleNavigate}
+                />
+              ))}
+            </div>
+          )}
         </div>
-      )}
       </div>
 
       {/* Delete Confirmation Dialog */}
