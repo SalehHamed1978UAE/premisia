@@ -79,10 +79,20 @@ async function syncJourneySession(sessionId: string): Promise<{ success: boolean
     }
     
     // 3. Get strategy versions for this session
-    const versions = await db
+    // Try journey session ID first (new flow), then understanding session ID (legacy flow)
+    let versions = await db
       .select()
       .from(strategyVersions)
       .where(eq(strategyVersions.sessionId, sessionId));
+    
+    // Fallback to understanding session ID for legacy flows
+    if (versions.length === 0 && understanding?.sessionId) {
+      console.log(`    Trying legacy flow with understanding session ID: ${understanding.sessionId}`);
+      versions = await db
+        .select()
+        .from(strategyVersions)
+        .where(eq(strategyVersions.sessionId, understanding.sessionId));
+    }
     
     if (versions.length === 0) {
       console.log(`    ⚠️  No strategy versions found, skipping`);
