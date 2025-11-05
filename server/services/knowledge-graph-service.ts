@@ -408,3 +408,29 @@ export async function getAvailableIncentives(params: {
     await session.close();
   }
 }
+
+/**
+ * Check if a journey session already exists in the Knowledge Graph
+ */
+export async function checkJourneySessionExists(sessionId: string): Promise<boolean> {
+  const session = createSession();
+  try {
+    const query = `
+      MATCH (j:JourneySession {id: $sessionId})
+      RETURN count(j) > 0 as exists
+    `;
+
+    const result = await session.run(query, { sessionId });
+    return result.records[0]?.get('exists') || false;
+  } finally {
+    await session.close();
+  }
+}
+
+/**
+ * Close the Neo4j driver connection
+ */
+export async function closeDriver(): Promise<void> {
+  const { closeNeo4j } = await import('../config/neo4j.js');
+  await closeNeo4j();
+}

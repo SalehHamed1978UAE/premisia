@@ -12,6 +12,8 @@ import { apiRequest } from "@/lib/queryClient";
 import { PlanningProgressTracker } from "@/components/intelligent-planning/PlanningProgressTracker";
 import { MinimizedJobTracker } from "@/components/MinimizedJobTracker";
 import { useJobs } from "@/contexts/JobContext";
+import { useKnowledgeSimilarStrategies } from "@/hooks/useKnowledgeSimilarStrategies";
+import { useKnowledgeIncentives } from "@/hooks/useKnowledgeIncentives";
 import {
   ArrowUp,
   ArrowDown,
@@ -24,6 +26,9 @@ import {
   Info,
   ChevronLeft,
   ChevronRight,
+  TrendingUp,
+  Gift,
+  ExternalLink,
 } from "lucide-react";
 
 interface VersionData {
@@ -113,6 +118,22 @@ export default function PrioritizationPage() {
 
   const versionData = response?.version;
   const strategyVersionId = versionData?.id;
+
+  // Fetch similar strategies from Knowledge Graph
+  const { 
+    data: similarStrategiesData, 
+    isLoading: isLoadingSimilarStrategies 
+  } = useKnowledgeSimilarStrategies(sessionId, {
+    enabled: !!sessionId,
+  });
+
+  // Fetch applicable incentives from Knowledge Graph
+  const { 
+    data: incentivesData, 
+    isLoading: isLoadingIncentives 
+  } = useKnowledgeIncentives(sessionId, {
+    enabled: !!sessionId,
+  });
 
   // Build prioritized items from selected decisions
   const [prioritizedItems, setPrioritizedItems] = useState<PrioritizedItem[]>([]);
@@ -740,6 +761,140 @@ export default function PrioritizationPage() {
                   </CardContent>
                 </Card>
               )}
+
+              {/* Similar Strategies Section */}
+              <Card data-testid="card-similar-strategies">
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-blue-500" />
+                    Similar Strategies
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {isLoadingSimilarStrategies ? (
+                    <div className="space-y-3" data-testid="skeleton-similar-strategies">
+                      <Skeleton className="h-16 w-full" />
+                      <Skeleton className="h-16 w-full" />
+                      <Skeleton className="h-16 w-full" />
+                    </div>
+                  ) : similarStrategiesData?.similarJourneys && similarStrategiesData.similarJourneys.length > 0 ? (
+                    <div className="space-y-2">
+                      {similarStrategiesData.similarJourneys.map((journey, idx) => (
+                        <div 
+                          key={journey.sessionId} 
+                          className="p-2 bg-muted/30 rounded-md hover:bg-muted/50 transition-colors"
+                          data-testid={`similar-journey-${idx}`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium truncate">
+                                {journey.journeyType.toUpperCase()} Journey
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {Math.round(journey.similarity * 100)}% match
+                              </p>
+                              {journey.matchedFactors && journey.matchedFactors.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {journey.matchedFactors.map((factor, i) => (
+                                    <Badge key={i} variant="outline" className="text-[10px] px-1 py-0">
+                                      {factor}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <a 
+                              href={`/strategy-workspace/${journey.sessionId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary hover:text-primary/80"
+                              data-testid={`link-journey-${idx}`}
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4" data-testid="empty-similar-strategies">
+                      <p className="text-xs text-muted-foreground">
+                        {similarStrategiesData?.message || 'No similar strategies found'}
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Applicable Incentives Section */}
+              <Card data-testid="card-incentives">
+                <CardHeader>
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Gift className="h-4 w-4 text-green-500" />
+                    Applicable Incentives
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {isLoadingIncentives ? (
+                    <div className="space-y-3" data-testid="skeleton-incentives">
+                      <Skeleton className="h-12 w-full" />
+                      <Skeleton className="h-12 w-full" />
+                      <Skeleton className="h-12 w-full" />
+                    </div>
+                  ) : incentivesData?.incentives && incentivesData.incentives.length > 0 ? (
+                    <div className="space-y-2">
+                      {incentivesData.incentives.slice(0, 5).map((incentive, idx) => (
+                        <div 
+                          key={incentive.incentiveId} 
+                          className="p-2 bg-muted/30 rounded-md hover:bg-muted/50 transition-colors"
+                          data-testid={`incentive-${idx}`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <Badge 
+                                  variant={incentive.type === 'grant' ? 'default' : 'secondary'} 
+                                  className="text-[10px] px-1 py-0"
+                                >
+                                  {incentive.type.replace('_', ' ')}
+                                </Badge>
+                                <p className="text-xs font-medium truncate">
+                                  {incentive.name}
+                                </p>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                                {incentive.eligibilitySummary}
+                              </p>
+                              {incentive.amount && (
+                                <p className="text-xs font-semibold text-green-600 dark:text-green-400 mt-1">
+                                  {incentive.amount}
+                                </p>
+                              )}
+                            </div>
+                            {incentive.link && (
+                              <a 
+                                href={incentive.link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary hover:text-primary/80"
+                                data-testid={`link-incentive-${idx}`}
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4" data-testid="empty-incentives">
+                      <p className="text-xs text-muted-foreground">
+                        {incentivesData?.message || 'No applicable incentives found'}
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           )}
         </div>

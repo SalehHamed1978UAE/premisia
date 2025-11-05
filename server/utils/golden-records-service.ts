@@ -542,3 +542,136 @@ export function prepareGoldenRecordForAPI(
     parentVersion,
   };
 }
+
+/**
+ * Push golden record data to Knowledge Graph (Neo4j)
+ * This function is called AFTER successful JSON persistence
+ * 
+ * Feature-flagged: Only runs if FEATURE_KNOWLEDGE_GRAPH=true and Neo4j is configured
+ * Non-blocking: Never throws errors that would break journey capture
+ */
+export async function pushGoldenRecordToKnowledgeGraph(
+  data: GoldenRecordData
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Import config functions and knowledge graph service
+    const { isKnowledgeGraphEnabled, isNeo4jConfigured } = await import('../config');
+    
+    // Check feature flag and Neo4j configuration
+    if (!isKnowledgeGraphEnabled()) {
+      console.log('[KG] Knowledge Graph feature disabled (FEATURE_KNOWLEDGE_GRAPH not set)');
+      return { success: false, error: 'Feature disabled' };
+    }
+    
+    if (!isNeo4jConfigured()) {
+      console.log('[KG] Neo4j not configured (missing NEO4J_URI or NEO4J_PASSWORD)');
+      return { success: false, error: 'Neo4j not configured' };
+    }
+    
+    console.log(`[KG] Pushing golden record to Knowledge Graph: ${data.journeyType} v${data.versionNumber}`);
+    
+    // Import knowledge graph service functions
+    const kgService = await import('../services/knowledge-graph-service');
+    
+    // STEP 1: Upsert Journey Session
+    await kgService.upsertJourneySession({
+      id: data.sessionId,
+      journeyType: data.journeyType,
+      versionNumber: data.versionNumber,
+      locationId: undefined, // TODO: Extract from metadata if available
+      jurisdictionId: undefined, // TODO: Extract from metadata if available
+      industryId: undefined, // TODO: Extract from metadata if available
+      consentAggregate: false,
+      consentPeerShare: false,
+      consentModelTrain: false,
+      createdAt: data.metadata.completedAt?.toISOString() || new Date().toISOString(),
+    });
+    console.log(`[KG] ✓ Journey session upserted: ${data.sessionId}`);
+    
+    // STEP 2: Upsert Framework Outputs (Five Whys, BMC, etc.)
+    for (const step of data.steps) {
+      if (step.frameworkType && step.responsePayload) {
+        const frameworkId = `${data.sessionId}-${step.frameworkType}`;
+        
+        await kgService.upsertFrameworkOutput({
+          id: frameworkId,
+          journeyId: data.sessionId,
+          stepId: step.stepName,
+          framework: step.frameworkType,
+          data: step.responsePayload,
+          confidence: 0.85, // Default confidence
+          createdAt: step.completedAt?.toISOString() || new Date().toISOString(),
+        });
+        console.log(`[KG] ✓ Framework output upserted: ${step.frameworkType}`);
+      }
+    }
+    
+    // STEP 3: Upsert Decisions and Decision Options
+    const decisionsStep = data.steps.find(s => s.stepName === 'strategic_decisions');
+    if (decisionsStep?.responsePayload && Array.isArray(decisionsStep.responsePayload)) {
+      for (const decision of decisionsStep.responsePayload) {
+        const decisionId = decision.id || `${data.sessionId}-decision-${decision.title}`;
+        
+        // Upsert decision node
+        await kgService.upsertDecision({
+          id: decisionId,
+          journeyId: data.sessionId,
+          question: decision.title || 'Strategic Decision',
+          selectedOptionId: undefined,
+          createdAt: new Date().toISOString(),
+        });
+        console.log(`[KG] ✓ Decision upserted: ${decisionId}`);
+        
+        // Upsert decision options if available
+        if (decision.options && Array.isArray(decision.options)) {
+          const options = decision.options.map((opt: any, idx: number) => ({
+            id: opt.id || `${decisionId}-option-${idx}`,
+            decisionId,
+            label: opt.label || opt.title || `Option ${idx + 1}`,
+            isSelected: false,
+            estimatedCost: opt.estimated_cost?.min,
+            estimatedTimeline: opt.estimated_timeline_months?.toString(),
+          }));
+          
+          await kgService.upsertDecisionOptions(options);
+          console.log(`[KG] ✓ Decision options upserted: ${options.length} options`);
+        }
+      }
+    }
+    
+    // STEP 4: Upsert EPM Program
+    const epmStep = data.steps.find(s => s.stepName === 'epm_generation' || s.stepName === 'epm_generated');
+    if (epmStep?.responsePayload?.programId) {
+      await kgService.upsertProgram({
+        id: epmStep.responsePayload.programId,
+        journeyId: data.sessionId,
+        status: epmStep.responsePayload.status || 'draft',
+        workstreamCount: epmStep.responsePayload.workstreams || 0,
+        timelineMonths: undefined,
+        budget: undefined,
+        locationId: undefined,
+        createdAt: epmStep.completedAt?.toISOString() || new Date().toISOString(),
+      });
+      console.log(`[KG] ✓ EPM program upserted: ${epmStep.responsePayload.programId}`);
+    }
+    
+    // STEP 5: Create Evidence Links (research citations)
+    // Note: This would require extracting research references from the BMC research step
+    // For now, we'll skip this as it requires more detailed research data extraction
+    console.log('[KG] ⚠ Evidence links not yet implemented (requires research reference extraction)');
+    
+    // STEP 6 & 7: Link to Incentives and Regulations
+    // These would require jurisdiction/industry context from the journey
+    // For now, we'll skip these as they require ETL data to be loaded
+    console.log('[KG] ⚠ Incentive/regulation linking not yet implemented (requires jurisdiction/industry context)');
+    
+    console.log(`[KG] ✅ Golden record pushed successfully to Knowledge Graph`);
+    return { success: true };
+    
+  } catch (error: any) {
+    // Log error but don't throw - golden record capture should succeed even if KG fails
+    console.error('[KG] ❌ Error pushing to Knowledge Graph:', error.message);
+    console.error('[KG] Stack:', error.stack);
+    return { success: false, error: error.message };
+  }
+}

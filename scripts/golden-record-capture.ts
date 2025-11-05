@@ -204,7 +204,20 @@ async function captureGoldenRecord() {
 
     console.log(`✓ Saved to database: ${newRecord.id}\n`);
 
-    // Step 7: Print summary
+    // Step 7: Push to Knowledge Graph (optional, feature-flagged)
+    console.log('📊 Pushing to Knowledge Graph...');
+    const { pushGoldenRecordToKnowledgeGraph } = await import('../server/utils/golden-records-service.js');
+    const kgResult = await pushGoldenRecordToKnowledgeGraph(sanitizedData);
+    
+    if (kgResult.success) {
+      console.log('✓ Pushed to Knowledge Graph successfully\n');
+    } else if (kgResult.error === 'Feature disabled' || kgResult.error === 'Neo4j not configured') {
+      console.log(`⚠️  Knowledge Graph skipped: ${kgResult.error}\n`);
+    } else {
+      console.log(`⚠️  Knowledge Graph push failed: ${kgResult.error}\n`);
+    }
+
+    // Step 8: Print summary
     console.log('='.repeat(80));
     console.log('✅ Golden Record Captured Successfully\n');
     console.log(`  Journey Type: ${rawData.journeyType}`);
