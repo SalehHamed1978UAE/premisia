@@ -367,22 +367,23 @@ function Dashboard({ summary }: { summary: DashboardSummary }) {
   const [, setLocation] = useLocation();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5 px-6 pt-2 pb-6 space-y-3">
-      {/* Primary CTA */}
-      <div className="text-center max-w-6xl mx-auto mb-4">
-        <Button
-          onClick={() => setLocation('/strategic-consultant/input')}
-          className="bg-gradient-to-r from-primary to-primary/80 shadow-lg hover:shadow-xl transition-all"
-          size="lg"
-          data-testid="button-start-new-analysis"
-        >
-          <Sparkles className="mr-2 h-5 w-5" />
-          Start a new strategic journey
-        </Button>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5 pt-2 pb-6 space-y-3">
+      <div className="max-w-6xl mx-auto px-6 space-y-3">
+        {/* Primary CTA */}
+        <div className="flex justify-center mb-4">
+          <Button
+            onClick={() => setLocation('/strategic-consultant/input')}
+            className="bg-gradient-to-r from-primary to-primary/80 shadow-lg hover:shadow-xl transition-all"
+            size="lg"
+            data-testid="button-start-new-analysis"
+          >
+            <Sparkles className="mr-2 h-5 w-5" />
+            Start a new strategic journey
+          </Button>
+        </div>
 
-      {/* Stats Cards - Now Interactive Quick Actions */}
-      <div className="max-w-6xl mx-auto grid gap-2 grid-cols-3 md:gap-4">
+        {/* Stats Cards - Now Interactive Quick Actions */}
+        <div className="grid gap-2 grid-cols-3 md:gap-4">
         {/* Analyses Complete - Click to navigate to repository */}
         <Link href="/repository">
           <Card className="shadow-lg border-primary/20 hover:shadow-xl hover:border-primary/40 transition-all cursor-pointer group" data-testid="button-go-to-analyses">
@@ -442,10 +443,10 @@ function Dashboard({ summary }: { summary: DashboardSummary }) {
             </CardContent>
           </Card>
         </Link>
-      </div>
+        </div>
 
-      {/* Recent Artifacts */}
-      <div className="max-w-6xl mx-auto">
+        {/* Recent Artifacts */}
+        <div>
         <Card className="shadow-lg">
           <CardHeader>
             <CardTitle className="text-xl">Recent Activity</CardTitle>
@@ -508,9 +509,10 @@ function Dashboard({ summary }: { summary: DashboardSummary }) {
             )}
           </CardContent>
         </Card>
-      </div>
+        </div>
 
-      <RotatingQuote />
+        <RotatingQuote />
+      </div>
     </div>
   );
 }
