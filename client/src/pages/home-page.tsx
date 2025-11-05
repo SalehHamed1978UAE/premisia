@@ -369,7 +369,7 @@ function Dashboard({ summary }: { summary: DashboardSummary }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5 px-6 pt-2 pb-6 space-y-3">
       {/* Primary CTA */}
-      <div className="text-center max-w-4xl mx-auto mb-4">
+      <div className="text-center max-w-6xl mx-auto mb-4">
         <Button
           onClick={() => setLocation('/strategic-consultant/input')}
           className="bg-gradient-to-r from-primary to-primary/80 shadow-lg hover:shadow-xl transition-all"
