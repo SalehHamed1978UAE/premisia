@@ -217,14 +217,6 @@ router.get('/insights/:sessionId', async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params;
     
-    // Validate session ID format
-    if (!sessionId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid session ID format',
-      });
-    }
-    
     // Check feature flag
     if (!isKnowledgeGraphEnabled()) {
       console.log('[KG API] Knowledge Graph feature disabled, returning empty insights');
@@ -237,21 +229,7 @@ router.get('/insights/:sessionId', async (req: Request, res: Response) => {
       });
     }
     
-    // Look up journey session from database
-    const [journeySession] = await db
-      .select()
-      .from(journeySessions)
-      .where(eq(journeySessions.id, sessionId))
-      .limit(1);
-    
-    if (!journeySession) {
-      return res.status(404).json({
-        success: false,
-        error: 'Journey session not found',
-      });
-    }
-    
-    // CRITICAL: Verify userId - session must belong to authenticated user
+    // Get authenticated user
     const userId = (req as any).user?.claims?.sub || (req as any).user?.id;
     if (!userId) {
       return res.status(401).json({
@@ -260,11 +238,81 @@ router.get('/insights/:sessionId', async (req: Request, res: Response) => {
       });
     }
     
-    if (journeySession.userId !== userId) {
-      console.log(`[KG API] Access denied: user ${userId} attempted to access session ${sessionId} owned by ${journeySession.userId}`);
-      return res.status(403).json({
+    // Determine if this is a journey session ID or understanding ID
+    let understandingId: string;
+    let journeySession: any;
+    
+    if (sessionId.startsWith('session-')) {
+      // Journey session ID format - look up journey session to get understanding ID
+      console.log(`[KG API] Received journey session ID: ${sessionId}`);
+      
+      const [session] = await db
+        .select()
+        .from(journeySessions)
+        .where(eq(journeySessions.id, sessionId))
+        .limit(1);
+      
+      if (!session) {
+        return res.status(404).json({
+          success: false,
+          error: 'Journey session not found',
+        });
+      }
+      
+      if (!session.understandingId) {
+        return res.status(404).json({
+          success: false,
+          error: 'Journey session has no understanding',
+        });
+      }
+      
+      // Verify userId
+      if (session.userId !== userId) {
+        console.log(`[KG API] Access denied: user ${userId} attempted to access session ${sessionId} owned by ${session.userId}`);
+        return res.status(403).json({
+          success: false,
+          error: 'Access denied: session does not belong to authenticated user',
+        });
+      }
+      
+      journeySession = session;
+      understandingId = session.understandingId;
+      console.log(`[KG API] Resolved journey session ${sessionId} to understanding ${understandingId}`);
+      
+    } else if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sessionId)) {
+      // UUID format - treat as understanding ID (backward compatible)
+      // Need to verify userId by looking up any journey session with this understanding
+      console.log(`[KG API] Received UUID, treating as understanding ID: ${sessionId}`);
+      
+      const [session] = await db
+        .select()
+        .from(journeySessions)
+        .where(eq(journeySessions.understandingId, sessionId))
+        .limit(1);
+      
+      if (!session) {
+        return res.status(404).json({
+          success: false,
+          error: 'Understanding session not found',
+        });
+      }
+      
+      // Verify userId
+      if (session.userId !== userId) {
+        console.log(`[KG API] Access denied: user ${userId} attempted to access understanding ${sessionId} owned by ${session.userId}`);
+        return res.status(403).json({
+          success: false,
+          error: 'Access denied: understanding does not belong to authenticated user',
+        });
+      }
+      
+      journeySession = session;
+      understandingId = sessionId;
+      
+    } else {
+      return res.status(400).json({
         success: false,
-        error: 'Access denied: session does not belong to authenticated user',
+        error: 'Invalid session ID format',
       });
     }
     
@@ -273,7 +321,7 @@ router.get('/insights/:sessionId', async (req: Request, res: Response) => {
     const consentPeerShare = context?.consentPeerShare ?? false;
     
     if (!consentPeerShare) {
-      console.log(`[KG API] Session ${sessionId} has not consented to peer sharing, returning empty insights`);
+      console.log(`[KG API] Session has not consented to peer sharing, returning empty insights`);
       return res.json({
         success: true,
         hasConsent: false,
@@ -290,10 +338,10 @@ router.get('/insights/:sessionId', async (req: Request, res: Response) => {
     let dataSource = 'postgresql';
     
     try {
-      console.log(`[KG API] Attempting PostgreSQL-based insights for session ${sessionId}`);
+      console.log(`[KG API] Attempting PostgreSQL-based insights for understanding ${understandingId}`);
       const pgService = await import('../services/knowledge-insights-service');
       
-      insights = await pgService.getInsightsForSession(sessionId, userId);
+      insights = await pgService.getInsightsForSession(understandingId, userId);
       
       const duration = Date.now() - startTime;
       console.log(`[KG API] ✓ PostgreSQL insights query completed in ${duration}ms`);
@@ -307,10 +355,10 @@ router.get('/insights/:sessionId', async (req: Request, res: Response) => {
       // FALLBACK TO NEO4J if available
       if (isNeo4jConfigured()) {
         try {
-          console.log(`[KG API] Falling back to Neo4j for session ${sessionId}`);
+          console.log(`[KG API] Falling back to Neo4j for understanding ${understandingId}`);
           const kgService = await import('../services/knowledge-graph-service');
           
-          const neo4jInsights = await kgService.getInsightsForSession(sessionId, {
+          const neo4jInsights = await kgService.getInsightsForSession(understandingId, {
             locationId: context?.locationId,
             industryId: context?.industryId,
             jurisdictionId: context?.jurisdictionId,
@@ -348,6 +396,7 @@ router.get('/insights/:sessionId', async (req: Request, res: Response) => {
       dataClassification: 'user-scoped',
       metadata: {
         sessionId,
+        understandingId,
         userId,
         queryTime: duration,
         dataSource,

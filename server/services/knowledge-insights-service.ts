@@ -53,27 +53,27 @@ interface Evidence {
 
 /**
  * Get similar strategies for a user using PostgreSQL
- * - Queries strategy_versions with same userId (excluding current session)
+ * - Queries strategy_versions with same userId (excluding current understanding)
  * - Computes similarity using embeddings if available (pgvector cosine similarity)
  * - Fallback to text overlap using trigram similarity on analysis_data
  * - Respects consent flags (consentPeerShare)
  */
 export async function getSimilarStrategiesFromPostgres(
-  sessionId: string,
+  understandingId: string,
   userId: string
 ): Promise<SimilarStrategy[]> {
   try {
-    console.log(`[PG Insights] Finding similar strategies for user ${userId}, session ${sessionId}`);
+    console.log(`[PG Insights] Finding similar strategies for user ${userId}, understanding ${understandingId}`);
 
-    // First, get the current session's context to extract comparison criteria
+    // Get any journey session with this understanding to extract context
     const [currentSession] = await db
       .select()
       .from(journeySessions)
-      .where(eq(journeySessions.id, sessionId))
+      .where(eq(journeySessions.understandingId, understandingId))
       .limit(1);
 
     if (!currentSession) {
-      console.log('[PG Insights] Current session not found');
+      console.log('[PG Insights] No journey session found for understanding');
       return [];
     }
 
@@ -81,7 +81,15 @@ export async function getSimilarStrategiesFromPostgres(
     const currentContext = currentSession.accumulatedContext as any;
     const currentInput = currentContext?.userInput || '';
 
-    // Query similar strategies from the same user (excluding current session)
+    // Get all journey session IDs for this understanding
+    const currentUnderstandingSessions = await db
+      .select({ id: journeySessions.id })
+      .from(journeySessions)
+      .where(eq(journeySessions.understandingId, understandingId));
+    
+    const currentSessionIds = currentUnderstandingSessions.map(s => s.id);
+
+    // Query similar strategies from the same user (excluding current understanding's sessions)
     // Strategy: Use trigram similarity on inputSummary and text content in analysisData
     const similarStrategies = await db
       .select({
@@ -104,7 +112,9 @@ export async function getSimilarStrategiesFromPostgres(
       .where(
         and(
           eq(strategyVersions.userId, userId),
-          ne(strategyVersions.sessionId, sessionId),
+          currentSessionIds.length > 0 
+            ? sql`${strategyVersions.sessionId} NOT IN (${sql.join(currentSessionIds.map(id => sql`${id}`), sql`, `)})`
+            : sql`1=1`, // If no sessions, include all
           isNotNull(strategyVersions.finalizedAt) // Only completed strategies
         )
       )
@@ -182,35 +192,32 @@ export async function getSimilarStrategiesFromPostgres(
 /**
  * Get incentives and opportunities for a user using PostgreSQL
  * - Queries strategic_entities with type containing "incentive" or "opportunity"
- * - Filters by jurisdiction/industry from session context
+ * - Filters by jurisdiction/industry from understanding context
  * - Joins with references for source URLs
  * - Respects consent flags
  */
 export async function getIncentivesFromPostgres(
-  sessionId: string,
+  understandingId: string,
   userId: string
 ): Promise<Incentive[]> {
   try {
-    console.log(`[PG Insights] Finding incentives for user ${userId}, session ${sessionId}`);
+    console.log(`[PG Insights] Finding incentives for user ${userId}, understanding ${understandingId}`);
 
-    // Get the current session's context
+    // Get context from any journey session with this understanding
     const [currentSession] = await db
       .select()
       .from(journeySessions)
-      .where(eq(journeySessions.id, sessionId))
+      .where(eq(journeySessions.understandingId, understandingId))
       .limit(1);
 
     if (!currentSession) {
-      console.log('[PG Insights] Current session not found');
+      console.log('[PG Insights] No journey session found for understanding');
       return [];
     }
 
     const currentContext = currentSession.accumulatedContext as any;
 
-    // Get the understanding ID for this session
-    const understandingId = currentSession.understandingId;
-
-    // Query strategic entities for incentives and opportunities
+    // Query strategic entities for incentives and opportunities using understanding ID directly
     const incentiveEntities = await db
       .select({
         id: strategicEntities.id,
@@ -261,18 +268,31 @@ export async function getIncentivesFromPostgres(
 
 /**
  * Get evidence and references for a user using PostgreSQL
- * - Queries references linked to the current session
+ * - Queries references linked to all sessions with this understanding
  * - Aggregates citation snippets and confidence scores
  * - Dedupes by URL
  */
 export async function getEvidenceFromPostgres(
-  sessionId: string,
+  understandingId: string,
   userId: string
 ): Promise<Evidence[]> {
   try {
-    console.log(`[PG Insights] Finding evidence for user ${userId}, session ${sessionId}`);
+    console.log(`[PG Insights] Finding evidence for user ${userId}, understanding ${understandingId}`);
 
-    // Query references for this session
+    // Get all journey session IDs for this understanding
+    const sessions = await db
+      .select({ id: journeySessions.id })
+      .from(journeySessions)
+      .where(eq(journeySessions.understandingId, understandingId));
+    
+    const sessionIds = sessions.map(s => s.id);
+    
+    if (sessionIds.length === 0) {
+      console.log('[PG Insights] No journey sessions found for understanding');
+      return [];
+    }
+
+    // Query references for all sessions with this understanding
     const sessionReferences = await db
       .select({
         id: references.id,
@@ -285,7 +305,7 @@ export async function getEvidenceFromPostgres(
       .from(references)
       .where(
         and(
-          eq(references.sessionId, sessionId),
+          sql`${references.sessionId} IN (${sql.join(sessionIds.map(id => sql`${id}`), sql`, `)})`,
           eq(references.userId, userId)
         )
       )
@@ -322,22 +342,22 @@ export async function getEvidenceFromPostgres(
 }
 
 /**
- * Aggregator function that combines all insights for a session
+ * Aggregator function that combines all insights for an understanding
  */
 export async function getInsightsForSession(
-  sessionId: string,
+  understandingId: string,
   userId: string
 ): Promise<{
   similarStrategies: SimilarStrategy[];
   incentives: Incentive[];
   evidence: Evidence[];
 }> {
-  console.log(`[PG Insights] Getting all insights for session ${sessionId}, user ${userId}`);
+  console.log(`[PG Insights] Getting all insights for understanding ${understandingId}, user ${userId}`);
 
   const [similarStrategies, incentives, evidence] = await Promise.all([
-    getSimilarStrategiesFromPostgres(sessionId, userId),
-    getIncentivesFromPostgres(sessionId, userId),
-    getEvidenceFromPostgres(sessionId, userId),
+    getSimilarStrategiesFromPostgres(understandingId, userId),
+    getIncentivesFromPostgres(understandingId, userId),
+    getEvidenceFromPostgres(understandingId, userId),
   ]);
 
   return {

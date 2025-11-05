@@ -63,6 +63,18 @@ export default function JourneyLauncherModal({
   const { toast } = useToast();
   const { journeyRegistryV2 } = useFeatureFlags();
 
+  const safeRenderText = (item: any): string => {
+    if (typeof item === 'string') return item;
+    if (typeof item === 'object' && item !== null) {
+      if ('question' in item && 'answer' in item) {
+        return `${item.question}: ${item.answer}`;
+      }
+      if ('answer' in item) return String(item.answer);
+      if ('question' in item) return String(item.question);
+    }
+    return String(item || '');
+  };
+
   // Reset scroll position when modal opens
   useEffect(() => {
     if (open) {
@@ -475,7 +487,7 @@ export default function JourneyLauncherModal({
                               {summary.keyInsights.map((insight: string, idx: number) => (
                                 <li key={idx} className="flex items-start gap-1.5">
                                   <span className="text-primary mt-0.5">•</span>
-                                  <span>{insight}</span>
+                                  <span>{safeRenderText(insight)}</span>
                                 </li>
                               ))}
                             </ul>
@@ -490,7 +502,7 @@ export default function JourneyLauncherModal({
                               {summary.strategicImplications.map((implication: string, idx: number) => (
                                 <li key={idx} className="flex items-start gap-1.5">
                                   <span className="text-primary mt-0.5">→</span>
-                                  <span>{implication}</span>
+                                  <span>{safeRenderText(implication)}</span>
                                 </li>
                               ))}
                             </ul>
