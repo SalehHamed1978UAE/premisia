@@ -77,167 +77,148 @@ export function Sidebar({ isOpen = false, onToggle = () => {} }: SidebarProps) {
           </div>
         </div>
 
-        {/* User Info */}
-        <div className="p-4 border-b border-border">
-          <div className="flex items-center space-x-3">
+        {/* Compact User Identity - Single line */}
+        <header className="px-4 py-2 border-b border-border">
+          <div className="flex items-center gap-2">
             {user?.profileImageUrl ? (
               <img 
                 src={user.profileImageUrl} 
                 alt="Profile" 
-                className="w-10 h-10 rounded-full object-cover"
+                className="w-8 h-8 rounded-full object-cover"
               />
             ) : (
-              <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-                <span className="text-primary font-semibold text-sm">
+              <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
+                <span className="text-primary font-semibold text-xs">
                   {user?.firstName?.substring(0, 1)?.toUpperCase() || user?.email?.substring(0, 1)?.toUpperCase() || 'U'}
                 </span>
               </div>
             )}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white dark:text-white truncate">
-                {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.email || 'User'}
-              </p>
-              <p className="text-xs text-gray-300 dark:text-gray-300 truncate">
-                <span className={cn(
-                  "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium",
-                  user?.role === 'Admin' && "bg-primary/10 text-primary",
-                  user?.role === 'Editor' && "bg-accent/10 text-accent",
-                  user?.role === 'Viewer' && "bg-muted text-gray-300"
-                )}>
-                  {user?.role || 'Viewer'}
-                </span>
-              </p>
+            <div className="flex-1 min-w-0 flex items-center gap-2">
+              <span className="text-sm font-medium text-white truncate">
+                {user?.firstName || user?.email?.split('@')[0] || 'User'}
+              </span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                {user?.role || 'Viewer'}
+              </span>
             </div>
           </div>
-        </div>
+        </header>
 
         {/* Main Navigation */}
         <nav className="flex-1 p-4 overflow-y-auto">
-          <div className="space-y-2">
+          <div className="space-y-1">
             {/* Home */}
             <Button
               variant={location === '/' ? 'default' : 'ghost'}
               className={cn(
-                "w-full justify-start h-auto p-3 text-white hover:text-white",
+                "w-full justify-start h-10 px-3 py-2 text-white hover:text-white",
                 location === '/' && "bg-primary text-primary-foreground"
               )}
               onClick={() => navigate('/')}
               data-testid="nav-home"
             >
               <Home className="h-5 w-5 mr-3 flex-shrink-0" />
-              <div className="text-left">
-                <div className="font-medium">Home</div>
-                <div className="text-xs opacity-70">Get started</div>
-              </div>
+              <span className="font-medium">Home</span>
             </Button>
 
             {/* Strategic Consultant */}
             <Button
               variant={location.startsWith('/strategic-consultant') ? 'default' : 'ghost'}
               className={cn(
-                "w-full justify-start h-auto p-3 text-white hover:text-white",
+                "w-full justify-start h-10 px-3 py-2 text-white hover:text-white",
                 location.startsWith('/strategic-consultant') && "bg-primary text-primary-foreground"
               )}
               onClick={() => navigate('/strategic-consultant/input')}
               data-testid="nav-strategic-consultant"
             >
               <Sparkles className="h-5 w-5 mr-3 flex-shrink-0" />
-              <div className="text-left">
-                <div className="font-medium">Strategic Consultant</div>
-                <div className="text-xs opacity-70">AI-powered strategy</div>
-              </div>
+              <span className="font-medium">Strategic Consultant</span>
             </Button>
 
             {/* Strategies Hub */}
             <Button
               variant={location.startsWith('/strategies') ? 'default' : 'ghost'}
               className={cn(
-                "w-full justify-start h-auto p-3 text-white hover:text-white",
+                "w-full justify-start h-10 px-3 py-2 text-white hover:text-white",
                 location.startsWith('/strategies') && "bg-primary text-primary-foreground"
               )}
               onClick={() => navigate('/strategies')}
               data-testid="nav-strategies"
             >
               <Target className="h-5 w-5 mr-3 flex-shrink-0" />
-              <div className="text-left">
-                <div className="font-medium">Strategies Hub</div>
-                <div className="text-xs opacity-70">Unified initiatives</div>
-              </div>
+              <span className="font-medium">Strategies Hub</span>
             </Button>
 
             {/* Analysis Repository */}
             <Button
               variant={location === '/repository' ? 'default' : 'ghost'}
               className={cn(
-                "w-full justify-start h-auto p-3 text-white hover:text-white",
+                "w-full justify-start h-10 px-3 py-2 text-white hover:text-white",
                 location === '/repository' && "bg-primary text-primary-foreground"
               )}
               onClick={() => navigate('/repository')}
               data-testid="nav-repository"
             >
               <Archive className="h-5 w-5 mr-3 flex-shrink-0" />
-              <div className="text-left">
-                <div className="font-medium">Analysis Repository</div>
-                <div className="text-xs opacity-70">Browse all analyses</div>
-              </div>
+              <span className="font-medium">Analysis Repository</span>
             </Button>
 
             {/* EPM Programs */}
             <Button
               variant={location.startsWith('/strategy-workspace') ? 'default' : 'ghost'}
               className={cn(
-                "w-full justify-start h-auto p-3 text-white hover:text-white",
+                "w-full justify-start h-10 px-3 py-2 text-white hover:text-white",
                 location.startsWith('/strategy-workspace') && "bg-primary text-primary-foreground"
               )}
               onClick={() => navigate('/strategy-workspace/programs')}
               data-testid="nav-epm-programs"
             >
               <FileText className="h-5 w-5 mr-3 flex-shrink-0" />
-              <div className="text-left">
-                <div className="font-medium">EPM Programs</div>
-                <div className="text-xs opacity-70">Generated programs</div>
-              </div>
+              <span className="font-medium">EPM Programs</span>
             </Button>
 
             {/* Journeys */}
             <Button
               variant={location === '/journeys' ? 'default' : 'ghost'}
               className={cn(
-                "w-full justify-start h-auto p-3 text-white hover:text-white",
+                "w-full justify-start h-10 px-3 py-2 text-white hover:text-white",
                 location === '/journeys' && "bg-primary text-primary-foreground"
               )}
               onClick={() => navigate('/journeys')}
               data-testid="nav-journeys"
             >
               <Map className="h-5 w-5 mr-3 flex-shrink-0" />
-              <div className="text-left">
-                <div className="font-medium">Journeys</div>
-                <div className="text-xs opacity-70">Strategic paths</div>
-              </div>
+              <span className="font-medium">Journeys</span>
             </Button>
           </div>
         </nav>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-border space-y-2">
-          <Button
-            variant="ghost"
-            className="w-full justify-start text-white hover:text-white"
-            data-testid="nav-settings"
-          >
-            <Settings className="h-5 w-5 mr-3" />
-            Settings
-          </Button>
-          <Button
-            variant="ghost"
-            className="w-full justify-start text-red-400 hover:text-red-300"
-            onClick={() => window.location.href = '/api/logout'}
-            data-testid="button-logout"
-          >
-            <LogOut className="h-5 w-5 mr-3" />
-            Logout
-          </Button>
-        </div>
+        {/* Fixed Utility Footer - Icon only with tooltips */}
+        <footer className="p-3 border-t border-border">
+          <div className="flex items-center justify-around gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 text-white hover:text-white"
+              title="Settings"
+              aria-label="Settings"
+              data-testid="nav-settings"
+            >
+              <Settings className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 text-red-400 hover:text-red-300"
+              title="Logout"
+              aria-label="Logout"
+              onClick={() => window.location.href = '/api/logout'}
+              data-testid="button-logout"
+            >
+              <LogOut className="h-5 w-5" />
+            </Button>
+          </div>
+        </footer>
       </aside>
     </>
   );
