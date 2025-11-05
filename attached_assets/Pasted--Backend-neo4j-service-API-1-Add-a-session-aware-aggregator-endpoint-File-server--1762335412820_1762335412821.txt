@@ -1,0 +1,160 @@
+## Backend (neo4j service + API)
+
+  1. Add a session-aware aggregator endpoint
+      - File: server/routes/knowledge.ts (create if needed)
+      - New route: GET /api/knowledge/insights/:sessionId
+          - Look up the journey session by sessionId.
+          - If consentPeerShare is false, return { similarStrategies: [],
+            incentives: [] }.
+          - For allowed sessions, call the existing graph service methods and
+            return:
+
+            {
+              "similarStrategies": [ { id, title, journeyType, similarityScore,
+  outcomeSummary, link } ],
+              "incentives": [ { id, name, provider, eligibilitySummary,
+  expiryDate, link } ],
+              "regulations": [ optional future data ],
+              "dataClassification": session.dataClassification
+            }
+      - Respond with 404 if session doesn’t exist, 401 if user lacks consent.
+  2. Implement graph fetch helper
+      - File: server/services/knowledge-graph-service.ts
+      - Add getInsightsForSession(sessionId: string, options) returning
+        the arrays above (call the existing similarity/incentive functions
+        internally).
+  3. Optional: Extend incentives API
+      - Update GET /api/knowledge/incentives to accept either sessionId or
+        understandingId. For the new UI we’ll use the new endpoint, but this
+        gives flexibility.
+
+  ———
+
+  ## Frontend (React)
+
+  Create a shared hook:
+
+  // client/src/hooks/useKnowledgeInsights.ts
+  import { useQuery } from "@tanstack/react-query";
+  import { apiRequest } from "@/lib/queryClient";
+
+  export function useKnowledgeInsights(sessionId: string | null) {
+    return useQuery({
+      queryKey: ["knowledge-insights", sessionId],
+      enabled: !!sessionId,
+      queryFn: async () => {
+        const res = await apiRequest(
+          "GET",
+          `/api/knowledge/insights/${sessionId}`
+        );
+        return res.json();
+      },
+      staleTime: 60_000,
+    });
+  }
+
+  Re-use this hook (or import it from wherever useKnowledgeSimilarStrategies was
+  created) in the following pages.
+
+  ———
+
+  ### 1. Dashboard (client/src/components/dashboard/dashboard.tsx)
+
+  - Fetch the latest BMI session (existing code already loads summary).
+  - When FEATURE_KNOWLEDGE_GRAPH is true and there’s a session, call
+    useKnowledgeInsights(latestSessionId).
+  - Add a new card near the top:
+      - Left column: “Similar Strategies” (list up to 3 items, each showing
+        journey title/outcome with link).
+      - Right column: “Available Incentives” (list with provider, expiry, link).
+      - Show skeleton while loading; empty state if arrays are empty.
+      - Include consent disclaimer: “Showing insights from peers who opted into
+        sharing.”
+
+  ### 2. Strategy Detail Page (client/src/pages/StrategyDetailPage.tsx)
+
+  - For each journey session in the “Journey Timeline” section:
+      - Add an accordion row “Knowledge Graph Insights” that loads
+        useKnowledgeInsights(session.id).
+      - Display the same two lists (similar strategies & incentives).
+      - Reuse the same React component for consistency (e.g.,
+        <KnowledgeInsightsCard insights={...} />).
+      - Respect loading/error states; if user has no consent data, show “Not
+        available.”
+
+  ### 3. EPM Program View (client/src/pages/strategy-workspace/ProgramView.tsx
+  or ProgramDetailPage.tsx depending on file structure)
+
+  - When the program is fetched, we already have the sessionId. Pass it to
+    useKnowledgeInsights.
+  - Show a sidebar card “Before you launch” with:
+      - Similar strategies (especially ones with outcomes).
+      - Incentives that are still active.
+  - Add a banner if any returned incentive.expiryDate is within 30 days (format
+    dd MMM yyyy).
+
+  ### 4. Strategies Hub (client/src/pages/StrategiesListPage.tsx and/or
+  JourneyHub.tsx)
+
+  - In the strategy list table:
+      - Add a “Insights” column.
+      - For each row (latest session):
+          - Fetch insights via hook (debounce calls; maybe use react-query
+            prefetchQuery).
+          - Display badges (e.g., “3 similar”, “2 incentives” with tooltips).
+          - Clicking the row opens the detail page where the full card appears.
+  - On the Strategy detail header, show a summary pill “Knowledge graph enabled
+    (consent: aggregate only / peer share).”
+
+  ———
+
+  ## Shared UI Component
+
+  Create a reusable component:
+
+  // client/src/components/knowledge/KnowledgeInsightsCard.tsx
+  interface KnowledgeInsightCardProps {
+    title?: string; // default “Knowledge Graph Insights”
+    insights: {
+      similarStrategies: SimilarStrategy[];
+      incentives: Incentive[];
+    };
+    loading: boolean;
+    error?: string;
+    onRetry?: () => void;
+  }
+
+  export function KnowledgeInsightsCard({ ... }) {
+    // render skeletons, empty states, lists, CTA links
+  }
+
+  Use this component in all four pages to keep visual consistency.
+
+  ———
+
+  ## Additional polish
+
+  - Consent guard: If the backend returns status: 403, show a message “Insights
+    unavailable (owner opted out).”
+  - Error state: Provide a “Retry” button using refetch() from the hook.
+  - Analytics logging: In each page, when insights load successfully, log to the
+    console (for now) so we can confirm the hook is firing.
+
+  ———
+
+  ## Testing
+
+  After implementation:
+
+  1. Run tsx scripts/etl/load-all.ts and tsx scripts/backfill/graph-bmi.ts to
+     ensure the graph has seed data.
+  2. Start the app with FEATURE_KNOWLEDGE_GRAPH=true.
+  3. Complete a BMI journey; verify that the Prioritization page still shows the
+     insight cards (existing feature).
+  4. Navigate to:
+      - Dashboard → confirm new card.
+      - Strategy detail → open a journey and confirm the accordion shows data.
+      - EPM program → confirm sidebar card is present.
+      - Strategies Hub list → confirm badges are populated.
+  5. Toggle a session’s consent flags (e.g., set consentPeerShare=false in the
+     DB) to ensure the frontend handles empty results with a disclaimer.

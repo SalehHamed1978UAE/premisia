@@ -872,6 +872,45 @@ router.get('/epm/:id', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/strategy-workspace/epm/:id/session
+// Get journey session ID for an EPM program (for Knowledge Graph insights)
+router.get('/epm/:id/session', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // Get the program
+    const [program] = await db
+      .select({
+        strategyVersionId: epmPrograms.strategyVersionId,
+      })
+      .from(epmPrograms)
+      .where(eq(epmPrograms.id, id))
+      .limit(1);
+
+    if (!program || !program.strategyVersionId) {
+      return res.status(404).json({ error: 'EPM program not found or has no linked strategy version' });
+    }
+
+    // Get the session ID from the strategy version
+    const [version] = await db
+      .select({
+        sessionId: strategyVersions.sessionId,
+      })
+      .from(strategyVersions)
+      .where(eq(strategyVersions.id, program.strategyVersionId))
+      .limit(1);
+
+    if (!version) {
+      return res.status(404).json({ error: 'Strategy version not found' });
+    }
+
+    res.json({ sessionId: version.sessionId });
+  } catch (error: any) {
+    console.error('Error in GET /epm/:id/session:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch session ID' });
+  }
+});
+
 // PATCH /api/strategy-workspace/epm/:id
 // Update EPM program components (for editing)
 router.patch('/epm/:id', async (req: Request, res: Response) => {

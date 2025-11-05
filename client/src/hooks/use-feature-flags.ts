@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 
 interface FeatureFlags {
   journeyRegistryV2: boolean;
+  knowledgeGraph: boolean;
 }
 
 /**
@@ -15,12 +16,16 @@ interface FeatureFlags {
  * @returns Object containing all feature flags
  * @example
  * ```tsx
- * const { journeyRegistryV2 } = useFeatureFlags();
+ * const { journeyRegistryV2, knowledgeGraph } = useFeatureFlags();
  * 
  * if (journeyRegistryV2) {
  *   // Show new feature
  * } else {
  *   // Show legacy behavior
+ * }
+ * 
+ * if (knowledgeGraph) {
+ *   // Show Knowledge Graph insights
  * }
  * ```
  */
@@ -33,6 +38,7 @@ export function useFeatureFlags() {
 
   return {
     journeyRegistryV2: data?.journeyRegistryV2 ?? false,
+    knowledgeGraph: data?.knowledgeGraph ?? false,
     isLoading,
   };
 }

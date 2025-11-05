@@ -2578,8 +2578,10 @@ router.post('/journeys/check-readiness', async (req: Request, res: Response) => 
  * Return feature flag configuration for client-side feature gating
  */
 router.get('/config/features', (req: Request, res: Response) => {
+  const { isKnowledgeGraphEnabled } = require('../config');
   res.json({
-    journeyRegistryV2: isJourneyRegistryV2Enabled()
+    journeyRegistryV2: isJourneyRegistryV2Enabled(),
+    knowledgeGraph: isKnowledgeGraphEnabled()
   });
 });
 

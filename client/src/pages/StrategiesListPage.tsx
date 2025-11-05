@@ -16,11 +16,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Rocket, Calendar, TrendingUp, Archive, Plus, Trash2, CheckSquare, X } from "lucide-react";
+import { Rocket, Calendar, TrendingUp, Archive, Plus, Trash2, CheckSquare, X, Network } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useFeatureFlags } from "@/hooks/use-feature-flags";
+import { useKnowledgeInsights } from "@/hooks/useKnowledgeInsights";
 
 interface Strategy {
   id: string;
@@ -33,6 +35,7 @@ interface Strategy {
   journeyCount: number;
   latestJourneyStatus: string | null;
   latestJourneyUpdated: Date | null;
+  latestSessionId?: string | null;
 }
 
 interface StrategyCardProps {
@@ -41,6 +44,40 @@ interface StrategyCardProps {
   isSelected: boolean;
   onToggleSelect: (id: string) => void;
   onNavigate: (id: string) => void;
+}
+
+function StrategyInsightsBadges({ sessionId }: { sessionId: string | null }) {
+  const { knowledgeGraph: knowledgeGraphEnabled } = useFeatureFlags();
+  const { data: insightsData } = useKnowledgeInsights(sessionId, {
+    enabled: knowledgeGraphEnabled && !!sessionId,
+  });
+
+  if (!knowledgeGraphEnabled || !sessionId || !insightsData) {
+    return null;
+  }
+
+  const similarCount = insightsData.similarStrategies?.length || 0;
+  const incentivesCount = insightsData.incentives?.length || 0;
+
+  if (similarCount === 0 && incentivesCount === 0) {
+    return null;
+  }
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      <Network className="h-4 w-4 text-muted-foreground" />
+      {similarCount > 0 && (
+        <Badge variant="secondary" className="text-xs" data-testid="badge-insights-similar">
+          {similarCount} similar
+        </Badge>
+      )}
+      {incentivesCount > 0 && (
+        <Badge variant="secondary" className="text-xs" data-testid="badge-insights-incentives">
+          {incentivesCount} incentive{incentivesCount > 1 ? 's' : ''}
+        </Badge>
+      )}
+    </div>
+  );
 }
 
 function StrategyCard({ strategy, selectionMode, isSelected, onToggleSelect, onNavigate }: StrategyCardProps) {
@@ -135,6 +172,11 @@ function StrategyCard({ strategy, selectionMode, isSelected, onToggleSelect, onN
             <span data-testid={`text-last-updated-${strategy.id}`}>
               Updated {formatDistanceToNow(new Date(strategy.latestJourneyUpdated || strategy.updatedAt), { addSuffix: true })}
             </span>
+          </div>
+          
+          {/* Knowledge Graph Insights */}
+          <div className="mt-3">
+            <StrategyInsightsBadges sessionId={strategy.latestSessionId || null} />
           </div>
         </CardContent>
       </Card>

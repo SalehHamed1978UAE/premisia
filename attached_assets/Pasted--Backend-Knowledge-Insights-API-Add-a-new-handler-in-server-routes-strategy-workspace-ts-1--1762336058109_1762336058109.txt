@@ -1,0 +1,141 @@
+  Backend – Knowledge Insights API
+
+  - Add a new handler in server/routes/strategy-workspace.ts:1 (or mount a
+    small knowledge.ts router and import it there) for GET /api/knowledge/
+    insights/:sessionId.
+      - Resolve sessionId → journeySessions row → verify userId matches
+        req.user.claims.sub; return 403 if not.
+      - Load the related strategyVersions rows (select only analysisData,
+        decisionsData, selectedDecisions, convertedProgramId).
+      - Gather comparable sessions: same understandingId, same userId, status
+        completed, exclude the current sessionId, sort by completedAt desc.
+      - Build response shape:
+
+        type KnowledgeInsights = {
+          similarStrategies: Array<{ strategyId: string; sessionId: string;
+  versionNumber: number; title: string; score: number; summary: string;
+  completedAt: string; consent: 'private'|'aggregate_only'|'share_with_peers' }
+  >;
+          incentives: Array<{ id: string; name: string; jurisdiction: string;
+  deadline?: string; rationale: string; score: number }>;
+          evidence: Array<{ referenceId: string; title: string; url?: string;
+  topic: string; confidence: number }>;
+        };
+      - Similarity heuristic: reuse existing data—compare
+        strategyVersions.analysisData.bmc_research.keyInsights and
+        strategyDecisions.primaryCustomerSegment / revenueModel. Use cosine on
+        embeddings if analysisData.embedding exists; otherwise score by overlap
+        count.
+      - Incentives: join strategicEntities (filter topic incentive) and
+        references linked to those entities. Respect consent—only include rows
+        where journeySessions.background is false OR consent allows sharing.
+      - Return { success: true, insights }. Gate the entire handler behind
+        FEATURE_KNOWLEDGE_GRAPH === 'true'; otherwise return { success: true,
+        insights: { similarStrategies: [], incentives: [], evidence: [] } } to
+        keep UI simple.
+
+  Frontend – Knowledge Insights Surface
+
+  - Create client/src/hooks/useKnowledgeInsights.ts with a React Query hook:
+    useKnowledgeInsights(sessionId: string | undefined) → skips when feature
+    flag falsy or !sessionId.
+    Handle { success: false } by throwing toasts in pages.
+  - Build a reusable card client/src/components/intelligent-planning/
+    KnowledgeInsightsCard.tsx.
+      - Props: { sessionId: string; variant: 'wide'|'compact' }.
+      - Show loading skeleton (3 shimmer rows), empty state text (“We’ll surface
+        insights after we collect enough data”), and a privacy badge (“Private
+        to your account” when results filtered to your user).
+      - Render similar strategies as stacked list with score, summary, and a
+        Link to /strategies/:id?session=:sessionId.
+      - Render incentives with jurisdiction chip, deadlines, CTA to open program
+        details.
+      - Render evidence as citation list.
+  - Wire the card in four surfaces (guard each by feature flag + sessionId
+    availability):
+      1. client/src/components/dashboard/dashboard.tsx: below KPI grid, show
+         variant="wide" using the selected program’s latest sessionId (fetch
+         from useProgram() or derive from /api/dashboard/summary).
+      2. client/src/pages/StrategyDetailPage.tsx: inside the Overview tab,
+         insert the card right after the stats grid, pass the most recent
+         completed session for that strategy.
+      3. client/src/pages/strategy-workspace/ProgramView.tsx: in the right
+         sidebar, top of “Context” column, use variant="compact" and hide when
+         the program lacks strategyVersionId.
+      4. client/src/pages/StrategiesListPage.tsx: augment each StrategyCard
+         with a mini strip showing top insight (e.g., first similar strategy’s
+         summary) and the count of incentives; use the hook with strategy’s
+         sessionId captured from the API (update /api/strategies response if
+         needed).
+  - Update client/src/pages/strategy-workspace/PrioritizationPage.tsx to swap
+    any ad‑hoc insights panel with the new component to keep UI consistent.
+
+  Research Streaming UX
+
+  - Backend (server/strategic-consultant/bmc-researcher.ts)
+      - Add an optional callback parameter: async conductBMCResearch(input,
+        sessionId, onEvent?).
+      - At each major block (understanding extraction, query generation,
+        web search batches, synthesis per BMC block, assumption validation,
+        reference persistence) call onEvent?.({ type: 'chain', label, detail }).
+      - Compute percent complete from a fixed step count (e.g., 8) and send
+        onEvent?.({ type: 'progress', progress: Math.round((step/total)*100) }).
+      - Update /bmc-research/stream/:sessionId: remove the 6s setInterval and
+        instead pass a writer:
+
+        const send = (payload) => res.write(`data:
+  ${JSON.stringify(payload)}\n\n`);
+        await bmcResearcher.conductBMCResearch(input, sessionId, (evt) =>
+  send({ type: evt.type, ...evt }));
+      - When complete, include nextUrl: \/strategy-workspace/decisions/
+        ${sessionId}/${versionNumber}`in thetype: 'complete'payload.
+        AdddebugInput: input.slice(0,200)` once at stream start.
+      - If no findings → send({ type: 'empty', message: 'No relevant research
+        surfaced' }).
+  - Frontend (client/src/pages/strategic-consultant/ResearchPage.tsx)
+      - Drop autoNavigateCountdown, the 3‑second timers, and the separate hidden
+        loading card.
+      - Introduce const [timeline, setTimeline] = useState<TimelineEvent[]>([])
+        where events append on every SSE chain message; render as a vertical
+        timeline overlay on the existing animation.
+      - Replace the old progress state with the streamed progress events. Show
+        “100% complete” only when type === 'complete'.
+      - Store nextUrl and enable the Continue button only after it arrives.
+        Immediately call setLocation(nextUrl) if autoAdvance toggle (add a local
+        boolean defaulting to true).
+      - On type === 'empty', show “We couldn’t find relevant research—Retry?”
+        with a button that replays the journey.
+      - Before writing new data to localStorage, clear any keys with prefix
+        strategic-*-${sessionId} to prevent stale cache.
+      - Log the received debugInput to console for QA.
+
+  Privacy Guardrails
+
+  - Similar strategies must come only from the signed-in user: enforce
+    journeySessions.userId === req.user.claims.sub. Do not expose other users’
+    data until explicit tenant-wide sharing is implemented.
+  - Respect future consent flags by stubbing the response structure now (consent
+    field in the JSON) so we can tighten behavior later without a breaking
+    change.
+  - Frontend copies should state “Visible only to your account” so the user
+    knows we’re not leaking data.
+
+  Verification
+
+  - Feature flag off → cards vanish gracefully, API returns empty lists.
+  - Flag on, run BMI journey via Strategies Hub; confirm Research page streams
+    real-time messages and auto-navigates immediately when complete.
+  - After completion:
+      1. Prioritization page, Dashboard, Strategy Detail, Program View,
+         Strategies Hub list all show the insights card with matching counts.
+      2. “View EPM” only appears when the current version has an epm_programs
+         row.
+      3. Research tab shows fresh references (verify /api/strategies/:id/
+         references).
+  - Console log should include [BMC-RESEARCH-STREAM] debugInput: with the first
+    200 chars of the actual summary (e.g., café input).
+
+  Following these steps keeps the BMI flow intact for both Strategic Consultant
+  and Strategies Hub, provides the real-time research experience you described,
+  and guarantees we never surface another user’s material in “Similar
+  Strategies.”

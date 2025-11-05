@@ -428,6 +428,51 @@ export async function checkJourneySessionExists(sessionId: string): Promise<bool
 }
 
 /**
+ * Get all insights for a session (aggregator function)
+ * Combines similar journeys, incentives, and regulations in a single call
+ */
+export async function getInsightsForSession(
+  sessionId: string,
+  params: {
+    locationId?: string;
+    industryId?: string;
+    jurisdictionId?: string;
+    rootCause?: string;
+  }
+): Promise<{
+  similarStrategies: SimilarJourneyResult[];
+  incentives: AvailableIncentiveResult[];
+  regulations: any[]; // Future: add regulation type
+}> {
+  const { locationId, industryId, jurisdictionId, rootCause } = params;
+
+  // Fetch similar journeys and incentives in parallel
+  const [similarStrategies, incentives] = await Promise.all([
+    getSimilarJourneys({
+      locationId,
+      industryId,
+      rootCause,
+      limit: 3, // Top 3 similar strategies
+    }),
+    getAvailableIncentives({
+      jurisdictionId,
+      industryId,
+      locationId,
+      limit: 10, // Top 10 incentives
+    }),
+  ]);
+
+  // TODO: Add regulations query when regulation data is available
+  const regulations: any[] = [];
+
+  return {
+    similarStrategies,
+    incentives,
+    regulations,
+  };
+}
+
+/**
  * Close the Neo4j driver connection
  */
 export async function closeDriver(): Promise<void> {

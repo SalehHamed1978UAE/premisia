@@ -12,6 +12,9 @@ import { ArrowLeft, Rocket, Calendar, BookOpen, TrendingUp, FileText, Plus, Exte
 import { formatDistanceToNow, format } from "date-fns";
 import JourneyLauncherModal from "@/components/JourneyLauncherModal";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { useFeatureFlags } from "@/hooks/use-feature-flags";
+import { useKnowledgeInsights } from "@/hooks/useKnowledgeInsights";
+import { KnowledgeInsightsCard } from "@/components/knowledge/KnowledgeInsightsCard";
 
 interface StrategicUnderstanding {
   id: string;
@@ -195,6 +198,45 @@ function OverviewTab({ strategy, onNavigateToTab }: { strategy: StrategyDetail; 
   );
 }
 
+function SessionInsightsAccordion({ sessionId }: { sessionId: string }) {
+  const { knowledgeGraph: knowledgeGraphEnabled } = useFeatureFlags();
+  const {
+    data: insightsData,
+    isLoading,
+    error
+  } = useKnowledgeInsights(sessionId, {
+    enabled: knowledgeGraphEnabled,
+  });
+
+  if (!knowledgeGraphEnabled) {
+    return null;
+  }
+
+  return (
+    <Accordion type="single" collapsible className="w-full" data-testid={`accordion-insights-${sessionId}`}>
+      <AccordionItem value="knowledge-insights" className="border-0">
+        <AccordionTrigger className="text-sm hover:no-underline py-2 px-0">
+          Knowledge Graph Insights
+        </AccordionTrigger>
+        <AccordionContent>
+          <div className="pt-2">
+            <KnowledgeInsightsCard
+              title=""
+              insights={insightsData ? {
+                similarStrategies: insightsData.similarStrategies || [],
+                incentives: insightsData.incentives || [],
+              } : undefined}
+              loading={isLoading}
+              error={error}
+              hasConsent={insightsData?.hasConsent}
+            />
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
+  );
+}
+
 function JourneyTimelineTab({ sessions }: { sessions: JourneySession[] }) {
   const statusColor = {
     'initializing': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
@@ -270,6 +312,9 @@ function JourneyTimelineTab({ sessions }: { sessions: JourneySession[] }) {
                     </span>
                   )}
                 </div>
+                
+                {/* Knowledge Graph Insights Accordion */}
+                <SessionInsightsAccordion sessionId={session.id} />
               </div>
             </CardContent>
           </Card>
@@ -449,10 +494,17 @@ export default function StrategyDetailPage() {
   const [activeTab, setActiveTab] = useState("overview");
   const [showLauncherModal, setShowLauncherModal] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { knowledgeGraph: knowledgeGraphEnabled } = useFeatureFlags();
 
   const { data: strategy, isLoading, error } = useQuery<StrategyDetail>({
     queryKey: ['/api/strategies', strategyId],
     enabled: !!strategyId,
+  });
+
+  // Get latest session for consent status check
+  const latestSessionId = strategy?.sessions?.[0]?.id || null;
+  const { data: insightsData } = useKnowledgeInsights(latestSessionId, {
+    enabled: knowledgeGraphEnabled && !!latestSessionId,
   });
 
   const displayTitle = strategy?.understanding.title || strategy?.understanding.initiativeDescription || "Strategy Details";
@@ -522,11 +574,23 @@ export default function StrategyDetailPage() {
                 <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight mb-2 break-words" data-testid="heading-strategy-title">
                   {displayTitle}
                 </h1>
-                {strategy.understanding.initiativeType && (
-                  <Badge variant="outline" className="capitalize">
-                    {strategy.understanding.initiativeType.replace(/_/g, ' ')}
-                  </Badge>
-                )}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {strategy.understanding.initiativeType && (
+                    <Badge variant="outline" className="capitalize">
+                      {strategy.understanding.initiativeType.replace(/_/g, ' ')}
+                    </Badge>
+                  )}
+                  {knowledgeGraphEnabled && insightsData && (
+                    <Badge 
+                      variant={insightsData.hasConsent ? "default" : "secondary"}
+                      className="text-xs"
+                      data-testid="badge-insights-consent"
+                    >
+                      <Network className="h-3 w-3 mr-1" />
+                      {insightsData.hasConsent ? "Insights Enabled" : "No Insights"}
+                    </Badge>
+                  )}
+                </div>
               </div>
             </div>
             <Button onClick={() => setShowLauncherModal(true)} className="w-full lg:w-auto flex-shrink-0" data-testid="button-run-analysis">

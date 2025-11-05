@@ -8,6 +8,9 @@ import { Button } from "@/components/ui/button";
 import { useProgram } from "@/contexts/ProgramContext";
 import { WelcomeModal } from "@/components/onboarding/WelcomeModal";
 import { useLocation } from "wouter";
+import { useFeatureFlags } from "@/hooks/use-feature-flags";
+import { useKnowledgeInsights } from "@/hooks/useKnowledgeInsights";
+import { KnowledgeInsightsCard } from "@/components/knowledge/KnowledgeInsightsCard";
 import { 
   Calendar, 
   DollarSign, 
@@ -48,6 +51,8 @@ interface DashboardSummary {
 export function Dashboard() {
   const { selectedProgramId, isLoading: programsLoading } = useProgram();
   const [, setLocation] = useLocation();
+  const { knowledgeGraph: knowledgeGraphEnabled } = useFeatureFlags();
+  
   const { data: summary, isLoading, error } = useQuery<DashboardSummary>({
     queryKey: ['/api/dashboard/summary', selectedProgramId],
     queryFn: async () => {
@@ -59,6 +64,28 @@ export function Dashboard() {
       return res.json();
     },
     enabled: !!selectedProgramId,
+  });
+
+  // Fetch latest BMI session for Knowledge Graph insights
+  const { data: latestSession } = useQuery<{ sessionId: string | null }>({
+    queryKey: ['/api/strategies/latest-bmi-session'],
+    queryFn: async () => {
+      const res = await fetch('/api/strategies/latest-bmi-session', {
+        credentials: 'include',
+      });
+      if (!res.ok) return { sessionId: null };
+      return res.json();
+    },
+    enabled: knowledgeGraphEnabled,
+  });
+
+  // Fetch Knowledge Graph insights for the latest BMI session
+  const {
+    data: insightsData,
+    isLoading: insightsLoading,
+    error: insightsError
+  } = useKnowledgeInsights(latestSession?.sessionId || null, {
+    enabled: knowledgeGraphEnabled && !!latestSession?.sessionId,
   });
 
   if (programsLoading || isLoading) {
@@ -184,6 +211,19 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Knowledge Graph Insights - Show at top when available */}
+      {knowledgeGraphEnabled && latestSession?.sessionId && (
+        <KnowledgeInsightsCard
+          insights={insightsData ? {
+            similarStrategies: insightsData.similarStrategies || [],
+            incentives: insightsData.incentives || [],
+          } : undefined}
+          loading={insightsLoading}
+          error={insightsError}
+          hasConsent={insightsData?.hasConsent}
+        />
+      )}
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card data-testid="card-schedule-adherence">

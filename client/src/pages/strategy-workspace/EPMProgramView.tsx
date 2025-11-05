@@ -12,6 +12,9 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Textarea } from "@/components/ui/textarea";
+import { useFeatureFlags } from "@/hooks/use-feature-flags";
+import { useKnowledgeInsights } from "@/hooks/useKnowledgeInsights";
+import { KnowledgeInsightsCard } from "@/components/knowledge/KnowledgeInsightsCard";
 import {
   ExecutiveSummaryFormatter,
   WorkstreamsFormatter,
@@ -91,6 +94,7 @@ export default function EPMProgramView() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const programId = params?.id;
+  const { knowledgeGraph: knowledgeGraphEnabled } = useFeatureFlags();
 
   const [editingComponent, setEditingComponent] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>('');
@@ -99,6 +103,28 @@ export default function EPMProgramView() {
   const { data, isLoading, error } = useQuery<{program: EPMProgram}>({
     queryKey: ['/api/strategy-workspace/epm', programId],
     enabled: !!programId,
+  });
+
+  // Fetch session ID for Knowledge Graph insights
+  const { data: sessionData } = useQuery<{ sessionId: string | null }>({
+    queryKey: ['/api/strategy-workspace/epm', programId, 'session'],
+    queryFn: async () => {
+      const res = await fetch(`/api/strategy-workspace/epm/${programId}/session`, {
+        credentials: 'include',
+      });
+      if (!res.ok) return { sessionId: null };
+      return res.json();
+    },
+    enabled: knowledgeGraphEnabled && !!programId,
+  });
+
+  // Fetch Knowledge Graph insights
+  const {
+    data: insightsData,
+    isLoading: insightsLoading,
+    error: insightsError
+  } = useKnowledgeInsights(sessionData?.sessionId || null, {
+    enabled: knowledgeGraphEnabled && !!sessionData?.sessionId,
   });
 
   // Finalize mutation
@@ -311,6 +337,20 @@ export default function EPMProgramView() {
               Review and edit components marked with yellow or red badges before finalizing.
             </AlertDescription>
           </Alert>
+        )}
+
+        {/* Knowledge Graph Insights - Before you launch */}
+        {knowledgeGraphEnabled && sessionData?.sessionId && (
+          <KnowledgeInsightsCard
+            title="Before You Launch"
+            insights={insightsData ? {
+              similarStrategies: insightsData.similarStrategies || [],
+              incentives: insightsData.incentives || [],
+            } : undefined}
+            loading={insightsLoading}
+            error={insightsError}
+            hasConsent={insightsData?.hasConsent}
+          />
         )}
 
         {/* Component Tabs - NOW WITH 8 TABS INCLUDING GANTT */}
