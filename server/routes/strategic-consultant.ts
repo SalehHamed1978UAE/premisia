@@ -227,19 +227,26 @@ router.post('/check-ambiguities', async (req: Request, res: Response) => {
     console.log('[Ambiguity Check] Step 1: Checking for geographic ambiguities...');
     
     // Step 1: Resolve geographic locations using Nominatim (only check user's text input, not document content)
-    const locationResult = await locationResolver.resolveAll(textForLocationCheck);
-    
-    // Store auto-resolved locations (high-confidence matches)
-    for (const location of locationResult.autoResolved) {
-      await storage.createLocation({
-        rawQuery: location.rawQuery,
-        displayName: location.displayName,
-        lat: location.lat.toString(),
-        lon: location.lon.toString(),
-        countryCode: location.countryCode,
-        adminLevels: location.adminLevels,
-      });
-      console.log(`[Ambiguity Check] Auto-resolved location: ${location.rawQuery} → ${location.displayName}`);
+    // Gracefully handle external API failures (e.g., 503 errors) by treating them as "no locations found"
+    let locationResult = { autoResolved: [], questions: [] };
+    try {
+      locationResult = await locationResolver.resolveAll(textForLocationCheck);
+      
+      // Store auto-resolved locations (high-confidence matches)
+      for (const location of locationResult.autoResolved) {
+        await storage.createLocation({
+          rawQuery: location.rawQuery,
+          displayName: location.displayName,
+          lat: location.lat.toString(),
+          lon: location.lon.toString(),
+          countryCode: location.countryCode,
+          adminLevels: location.adminLevels,
+        });
+        console.log(`[Ambiguity Check] Auto-resolved location: ${location.rawQuery} → ${location.displayName}`);
+      }
+    } catch (locationError: any) {
+      console.warn('[Ambiguity Check] Geographic resolution failed (external API unavailable), continuing without location data:', locationError.message);
+      // Continue with empty location result - don't block the entire flow
     }
 
     console.log('[Ambiguity Check] Step 2: Checking for other ambiguities...');

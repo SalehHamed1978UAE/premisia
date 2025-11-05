@@ -83,6 +83,9 @@ function OverviewTab({ strategy, onNavigateToTab }: { strategy: StrategyDetail; 
   
   const metadata = strategy.understanding.strategyMetadata || {};
   const confidence = metadata.confidence || 0;
+  
+  // Get latest session for Knowledge Graph insights
+  const latestSessionId = strategy.sessions?.[0]?.id;
 
   return (
     <div className="space-y-6">
@@ -193,6 +196,10 @@ function OverviewTab({ strategy, onNavigateToTab }: { strategy: StrategyDetail; 
             </div>
           </CardContent>
         </Card>
+      )}
+      
+      {latestSessionId && (
+        <SessionInsightsAccordion sessionId={latestSessionId} />
       )}
     </div>
   );
