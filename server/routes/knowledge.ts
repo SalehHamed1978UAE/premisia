@@ -316,23 +316,16 @@ router.get('/insights/:sessionId', async (req: Request, res: Response) => {
       });
     }
     
-    // Check consent - if user hasn't consented to peer sharing, return empty insights
-    // Default to false for privacy-safe behavior (require explicit opt-in)
+    // Extract context for potential future filtering
     const context = journeySession.accumulatedContext as any;
     const consentPeerShare = context?.consentPeerShare ?? false;
     
-    if (!consentPeerShare) {
-      console.log(`[KG API] Session has not consented to peer sharing, returning empty insights`);
-      return res.json({
-        success: true,
-        hasConsent: false,
-        similarStrategies: [],
-        incentives: [],
-        evidence: [],
-        dataClassification: 'private',
-        message: 'User has not consented to peer sharing',
-      });
-    }
+    // NOTE: Consent controls whether this user's data can be shared with OTHER users
+    // It does NOT block viewing insights from the user's OWN data
+    // User should always see:
+    // - Similar strategies from their own previous analyses (same userId)
+    // - Incentives/opportunities (public data)
+    // - Evidence from their own references
     
     // TRY POSTGRESQL FIRST
     let insights: any;
@@ -390,18 +383,18 @@ router.get('/insights/:sessionId', async (req: Request, res: Response) => {
     
     res.json({
       success: true,
-      hasConsent: true,
+      hasConsent: true, // User always has access to their own data
       similarStrategies: insights.similarStrategies || [],
       incentives: insights.incentives || [],
       evidence: insights.evidence || [],
-      dataClassification: 'user-scoped',
+      dataClassification: 'user-scoped', // Only shows user's own data
       metadata: {
         sessionId,
         understandingId,
         userId,
         queryTime: duration,
         dataSource,
-        consentPeerShare: true,
+        consentPeerShare, // Store actual consent value for future use
       },
     });
     

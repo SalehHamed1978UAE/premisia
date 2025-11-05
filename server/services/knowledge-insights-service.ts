@@ -178,11 +178,12 @@ export async function getSimilarStrategiesFromPostgres(
       })
     );
 
-    // Filter out strategies with 'private' consent
-    const withConsent = results.filter(r => r.consent !== 'private');
-    console.log(`[PG Insights] Returning ${withConsent.length} strategies with consent (non-private)`);
+    // NOTE: No consent filter needed here - these are all same-user strategies
+    // Consent only controls whether OTHER users can see this user's data
+    // Users always see their own strategies regardless of consent setting
+    console.log(`[PG Insights] Returning ${results.length} similar strategies from user's own history`);
 
-    return withConsent.slice(0, 3); // Top 3
+    return results.slice(0, 3); // Top 3
   } catch (error) {
     console.error('[PG Insights] Error finding similar strategies:', error);
     throw error;
