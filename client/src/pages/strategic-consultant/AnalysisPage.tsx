@@ -220,7 +220,6 @@ export default function AnalysisPage() {
     <AppLayout
       title="Strategic Analysis"
       subtitle={hasEnhancedAnalysis ? "Research-backed AI strategic insights" : "AI-powered strategic insights and recommendations"}
-      onViewChange={(view) => setLocation('/')}
     >
       <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6 p-4 sm:p-0">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

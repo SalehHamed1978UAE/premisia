@@ -15,6 +15,19 @@ export function FiveWhysResults({ data }: FiveWhysResultsProps) {
   const rootCauses = data.rootCauses || [];
   const strategicImplications = data.strategicImplications || [];
 
+  const safeRenderText = (item: any): string => {
+    if (typeof item === 'string') return item;
+    if (typeof item === 'object' && item !== null) {
+      if ('answer' in item && 'question' in item) {
+        return `${item.question}: ${item.answer}`;
+      }
+      if ('answer' in item) return String(item.answer);
+      if ('question' in item) return String(item.question);
+      return JSON.stringify(item);
+    }
+    return String(item || '');
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -36,7 +49,7 @@ export function FiveWhysResults({ data }: FiveWhysResultsProps) {
                 <Badge variant="outline" className="shrink-0 h-6">
                   {idx + 1}
                 </Badge>
-                <p className="text-sm text-foreground">{cause}</p>
+                <p className="text-sm text-foreground">{safeRenderText(cause)}</p>
               </div>
             ))}
           </div>
@@ -53,7 +66,7 @@ export function FiveWhysResults({ data }: FiveWhysResultsProps) {
               {strategicImplications.map((implication, idx) => (
                 <div key={idx} className="flex gap-2">
                   <span className="text-muted-foreground shrink-0">•</span>
-                  <p className="text-sm text-foreground">{implication}</p>
+                  <p className="text-sm text-foreground">{safeRenderText(implication)}</p>
                 </div>
               ))}
             </div>

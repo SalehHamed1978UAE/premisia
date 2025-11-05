@@ -21,7 +21,7 @@ import { JourneyOrchestrator } from '../journey/journey-orchestrator';
 import { journeyRegistry } from '../journey/journey-registry';
 import type { JourneyType } from '@shared/journey-types';
 import { InitiativeClassifier } from '../strategic-consultant/initiative-classifier';
-import { isJourneyRegistryV2Enabled } from '../config';
+import { isJourneyRegistryV2Enabled, isKnowledgeGraphEnabled } from '../config';
 import { ambiguityDetector } from '../services/ambiguity-detector.js';
 import { locationResolver } from '../services/location-resolver.js';
 import { getStrategicUnderstanding, getStrategicUnderstandingBySession, updateStrategicUnderstanding, getJourneySession, getJourneySessionByUnderstandingSessionId } from '../services/secure-data-service';
@@ -2588,7 +2588,6 @@ router.post('/journeys/check-readiness', async (req: Request, res: Response) => 
  * Return feature flag configuration for client-side feature gating
  */
 router.get('/config/features', (req: Request, res: Response) => {
-  const { isKnowledgeGraphEnabled } = require('../config');
   res.json({
     journeyRegistryV2: isJourneyRegistryV2Enabled(),
     knowledgeGraph: isKnowledgeGraphEnabled()

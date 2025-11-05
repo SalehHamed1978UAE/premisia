@@ -651,10 +651,16 @@ export default function PrioritizationPage() {
             ← Back to Decisions
           </Button>
         </div>
-        
+        </div>
+
         {/* Non-Blocking Progress Tracker */}
         {showProgress && !isMinimized && (
-          <Card className="fixed top-4 bottom-4 right-4 w-96 shadow-lg z-50 flex flex-col max-h-[calc(100vh-2rem)] overflow-hidden" data-testid="progress-tracker-card">
+          <>
+            <div 
+              className="fixed inset-0 bg-black/80 z-40" 
+              data-testid="progress-tracker-backdrop"
+            />
+            <Card className="fixed top-4 bottom-4 right-4 w-96 shadow-lg z-50 flex flex-col max-h-[calc(100vh-2rem)] overflow-hidden" data-testid="progress-tracker-card">
             <CardHeader className="flex-shrink-0">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg flex items-center gap-2 flex-1 min-w-0">
@@ -699,6 +705,7 @@ export default function PrioritizationPage() {
               </div>
             </CardContent>
           </Card>
+          </>
         )}
         
         {/* Minimized Progress Tracker */}
@@ -714,7 +721,6 @@ export default function PrioritizationPage() {
             }}
           />
         )}
-        </div>
 
         {/* Context Sidebar - Collapsible on Right */}
         <div className={`hidden lg:block transition-all duration-300 ${sidebarOpen ? 'w-80' : 'w-0'}`}>
