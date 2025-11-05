@@ -376,33 +376,13 @@ export default function RepositoryBrowser() {
                       className="flex-1 min-w-0 cursor-pointer"
                       onClick={() => setLocation(`/repository/${statement.understandingId}`)}
                     >
-                      <CardTitle className="text-lg line-clamp-2" data-testid={`statement-title-${statement.understandingId}`}>
+                      <CardTitle className="text-lg" data-testid={`statement-title-${statement.understandingId}`}>
                         {statement.title || statement.statement}
                       </CardTitle>
                       <CardDescription className="flex items-center gap-2 mt-2">
                         <Calendar className="h-3 w-3" />
                         {formatDistanceToNow(new Date(statement.createdAt), { addSuffix: true })}
                       </CardDescription>
-                    </div>
-                    <div className="flex gap-1 shrink-0">
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={(e) => handleArchive(e, statement.understandingId)}
-                        data-testid={`button-archive-${statement.understandingId}`}
-                        title="Archive statement"
-                      >
-                        <ArchiveIcon className="h-4 w-4 text-muted-foreground hover:text-foreground" />
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        onClick={(e) => handleDeleteClick(e, statement.understandingId)}
-                        data-testid={`button-delete-${statement.understandingId}`}
-                        title="Delete statement"
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive hover:text-destructive/80" />
-                      </Button>
                     </div>
                   </div>
                 </CardHeader>
@@ -428,7 +408,7 @@ export default function RepositoryBrowser() {
                     </div>
                   )}
 
-                  {/* Stats */}
+                  {/* Stats and Actions */}
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <TrendingUp className="h-4 w-4" />
@@ -436,18 +416,38 @@ export default function RepositoryBrowser() {
                         {statement.totalAnalyses} {statement.totalAnalyses === 1 ? 'analysis' : 'analyses'}
                       </span>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-primary hover:text-primary"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setLocation(`/repository/${statement.understandingId}`);
-                      }}
-                      data-testid={`button-view-${statement.understandingId}`}
-                    >
-                      View Details
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-primary hover:text-primary"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLocation(`/repository/${statement.understandingId}`);
+                        }}
+                        data-testid={`button-view-${statement.understandingId}`}
+                      >
+                        View Details
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={(e) => handleArchive(e, statement.understandingId)}
+                        data-testid={`button-archive-${statement.understandingId}`}
+                        title="Archive statement"
+                      >
+                        <ArchiveIcon className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={(e) => handleDeleteClick(e, statement.understandingId)}
+                        data-testid={`button-delete-${statement.understandingId}`}
+                        title="Delete statement"
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive hover:text-destructive/80" />
+                      </Button>
+                    </div>
                   </div>
 
                   {/* Export button */}
