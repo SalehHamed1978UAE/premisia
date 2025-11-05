@@ -282,24 +282,6 @@ export default function StrategiesListPage() {
       onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}
     >
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5 px-6 pt-2 pb-6 space-y-3" data-testid="page-strategies-list">
-        {/* Welcome Header with Primary CTA */}
-        {!selectionMode && (
-          <div className="text-center max-w-4xl mx-auto mb-4">
-            <p className="text-lg text-muted-foreground mb-4">
-              Your strategic intelligence center—track progress, launch initiatives
-            </p>
-            <Button
-              onClick={() => navigate('/strategic-consultant/input')}
-              className="bg-gradient-to-r from-primary to-primary/80 shadow-lg hover:shadow-xl transition-all"
-              size="lg"
-              data-testid="button-new-strategy-hero"
-            >
-              <Plus className="mr-2 h-5 w-5" />
-              Create New Strategy
-            </Button>
-          </div>
-        )}
-
         {/* Selection Mode Controls */}
         {selectionMode && (
           <div className="max-w-6xl mx-auto mb-4">
@@ -424,15 +406,26 @@ export default function StrategiesListPage() {
         {strategies && strategies.length > 0 && !selectionMode && (
           <div className="max-w-6xl mx-auto flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold">Your Strategies</h2>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectionMode(true)}
-              data-testid="button-enable-selection"
-            >
-              <CheckSquare className="h-4 w-4 mr-2" />
-              Manage
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={() => navigate('/strategic-consultant/input')}
+                className="bg-gradient-to-r from-primary to-primary/80"
+                size="sm"
+                data-testid="button-new-strategy"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Create New
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectionMode(true)}
+                data-testid="button-enable-selection"
+              >
+                <CheckSquare className="h-4 w-4 mr-2" />
+                Manage
+              </Button>
+            </div>
           </div>
         )}
 
