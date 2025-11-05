@@ -1,0 +1,251 @@
+### Decision Support Knowledge Graph — Implementation Instructions (Phase 1)
+
+  #### 1. Spin up the graph store
+
+  - Provision Neo4j Aura (free tier is fine to start). Note the Bolt URL and
+    credentials.
+  - Add the connection string to our app config (config/graph.ts or a new
+    module).
+
+  #### 2. Define the v1 schema and constraints
+
+  Run this schema.cypher (adjust if needed):
+
+  // Core nodes
+  CREATE CONSTRAINT location_id IF NOT EXISTS FOR (n:Location) REQUIRE n.id
+  IS UNIQUE;
+  CREATE CONSTRAINT jurisdiction_id IF NOT EXISTS FOR (n:Jurisdiction) REQUIRE
+  n.id IS UNIQUE;
+  CREATE CONSTRAINT industry_id IF NOT EXISTS FOR (n:Industry) REQUIRE n.id
+  IS UNIQUE;
+  CREATE CONSTRAINT incentive_id IF NOT EXISTS FOR (n:Incentive) REQUIRE n.id
+  IS UNIQUE;
+  CREATE CONSTRAINT regulation_id IF NOT EXISTS FOR (n:Regulation) REQUIRE n.id
+  IS UNIQUE;
+  CREATE CONSTRAINT reference_id IF NOT EXISTS FOR (n:Reference) REQUIRE n.id
+  IS UNIQUE;
+  CREATE CONSTRAINT organization_id IF NOT EXISTS FOR (n:Organization) REQUIRE
+  n.id IS UNIQUE;
+
+  // Journey nodes
+  CREATE CONSTRAINT journey_id IF NOT EXISTS FOR (n:JourneySession) REQUIRE n.id
+  IS UNIQUE;
+  CREATE CONSTRAINT decision_id IF NOT EXISTS FOR (n:Decision) REQUIRE n.id
+  IS UNIQUE;
+  CREATE CONSTRAINT evidence_id IF NOT EXISTS FOR (n:Evidence) REQUIRE n.id
+  IS UNIQUE;
+  CREATE CONSTRAINT program_id IF NOT EXISTS FOR (n:Program) REQUIRE n.id IS
+  UNIQUE;
+
+  // Indexes for upserts
+  CREATE INDEX location_extId IF NOT EXISTS FOR (n:Location) ON (n.extId);
+  CREATE INDEX organization_extId IF NOT EXISTS FOR (n:Organization) ON
+  (n.extId);
+  CREATE INDEX incentive_sourceKey IF NOT EXISTS FOR (n:Incentive) ON
+  (n.sourceKey);
+  CREATE INDEX regulation_sourceKey IF NOT EXISTS FOR (n:Regulation) ON
+  (n.sourceKey);
+
+  // Meta singleton
+  MERGE (m:Meta {id: 'meta'}) SET m.graphSchemaVersion = '1.0', m.createdAt
+  = datetime();
+
+  Node properties we’ll use per type:
+
+  - Location: { id, extId?, name, type, lat, lng, parentId?, aliases,
+    dataSource, retrievedAt }
+  - Jurisdiction: { id, name, type: 'mainland'|'free_zone', authorityOrgId }
+  - Industry: { id, name, code, aliases }
+  - Incentive: { id, sourceKey, name, provider, description, eligibilitySummary,
+    benefits, url, expiryDate?, dataSource, retrievedAt }
+  - Regulation: { id, sourceKey, title, authority, summary, effectiveDate, url,
+    dataSource, retrievedAt }
+  - Reference: { id, url, title, publisher?, publishedAt?, license?, dataSource,
+    retrievedAt }
+  - JourneySession: { id, journeyType, versionNumber, locationId?,
+    jurisdictionId?, industryId?, consentAggregate, consentPeerShare,
+    consentModelTrain, createdAt }
+  - FrameworkOutput: { id, journeyId, stepId, framework, data, confidence,
+    createdAt }
+  - Decision: { id, journeyId, question, selectedOptionId?, createdAt }
+  - DecisionOption: { id, decisionId, label, isSelected, reasonRejected?,
+    estimatedCost?, estimatedTimeline? }
+  - Evidence: { id, referenceId, confidence, snippet, sourceType, origin,
+    createdAt }
+  - Program: { id, journeyId, status, workstreamCount, timelineMonths, budget?,
+    locationId?, createdAt }
+
+  Relationships (initial set):
+
+  (Location)-[:WITHIN]->(Jurisdiction)
+  (JourneySession)-[:LOCATED_IN]->(Location)
+  (JourneySession)-[:UNDER]->(Jurisdiction)
+  (JourneySession)-[:TARGETS_INDUSTRY]->(Industry)
+  (Incentive)-[:AVAILABLE_IN]->(Jurisdiction)
+  (Incentive)-[:HAS_CRITERION]->(:EligibilityCriterion {key, operator, value})
+  (Decision)-[:SUPPORTED_BY]->(Evidence)
+  (Evidence)-[:CITES]->(Reference)
+  (JourneySession)-[:PRODUCED_FRAMEWORK]->(FrameworkOutput)
+  (FrameworkOutput)-[:CONCERNS_LOCATION]->(Location)
+  (FrameworkOutput)-[:CONCERNS_INDUSTRY]->(Industry)
+  (JourneySession)-[:GENERATED_PROGRAM]->(Program)
+  (Program)-[:ELIGIBLE_FOR]->(Incentive)
+  (Program)-[:CONSTRAINED_BY]->(Regulation)
+  (JourneySession)-[:WRITTEN_BY]->(EtlRun) // for provenance
+
+  (Nodes like EligibilityCriterion are simple {id, key, operator, value}.)
+
+  #### 3. Seed canonical data (scripts/etl)
+
+  Write one Node/TypeScript script per dataset; pattern:
+
+  type NodeUpsert = {
+    label:
+  'Location'|'Jurisdiction'|'Industry'|'Incentive'|'Regulation'|'Reference'|'Org
+  anization';
+    matchOn: { id?: string; extId?: string; sourceKey?: string };
+    properties: Record<string, unknown>;
+  };
+
+  type RelUpsert = {
+    from: { label: string; matchOn: { id?: string; extId?: string } };
+    type: 'WITHIN' | 'AVAILABLE_IN' | 'HAS_CRITERION' | ...;
+    to: { label: string; matchOn: { id?: string; extId?: string } };
+    properties?: Record<string, unknown>;
+  };
+
+  async function upsertNodes(session, nodes: NodeUpsert[]) { /* MERGE logic with
+  UNWIND */ }
+  async function upsertRelationships(session, rels: RelUpsert[]) { /* MERGE
+  logic */ }
+
+  Initial datasets:
+
+  1. Location taxonomy (district → jurisdiction → emirate): build a JSON file
+     manually or from open data for Abu Dhabi/Dubai.
+  2. Industries (subset for F&B, retail, software, etc.).
+  3. Incentives (ADDED, ADIO, Dubai DED) — store sourceKey, eligibilitySummary,
+     expiryDate.
+  4. Regulations (PDPL basics, Emiratisation quotas, etc.).
+  5. References (core internal decks or links) — optional for bootstrap.
+
+  Each script saves provenance: add dataSource, retrievedAt, etlJobId. Append to
+  scripts/output/etl_runs.csv and (later) create (:EtlRun) node.
+
+  #### 4. Journey capture → graph
+
+  Extend the golden record capture pipeline:
+
+  - After writing the JSON file, push data to Neo4j via helper functions.
+
+  Example steps (when capturing session journeySessionId):
+
+  await graph.upsertJourneySession({
+    id: sessionId,
+    journeyType: 'business_model_innovation',
+    versionNumber: latestVersion.versionNumber,
+    locationId,
+    jurisdictionId,
+    industryId,
+    consentAggregate,
+    consentPeerShare,
+    consentModelTrain,
+    createdAt,
+  });
+
+  await graph.upsertFrameworkOutput({
+    id: `${sessionId}-bmc`,
+    journeyId: sessionId,
+    stepId: 'BMI_BMC_RESEARCH',
+    framework: 'bmc',
+    data: result.analysisData.bmc_research,
+    confidence: result.analysisData?.bmc_research?.overallConfidence,
+    createdAt: new Date().toISOString(),
+  });
+
+  await graph.upsertDecision({ ... });          // from decisionsData
+  await graph.upsertDecisionOptions([{...}]);  // selected & rejected options
+  await graph.upsertProgram({ ... });          // from generated EPM
+  await graph.linkJourneyToIncentives(sessionId, [incentiveIds...]);
+  await graph.linkJourneyToRegulations(sessionId, [regulationIds...]);
+  await graph.createEvidenceLinks(decisionId, references); // Evidence ->
+  Reference edges
+
+  Make sure each helper logs (label, id) for rollbacks.
+
+  #### 5. Add graph service wrappers
+
+  Create src/server/services/knowledge-graph-service.ts with functions:
+
+  export async function upsertJourneySession(data: JourneySessionNode) {}
+  export async function upsertFrameworkOutput(data: FrameworkOutputNode) {}
+  export async function upsertDecision(data: DecisionNode) {}
+  export async function upsertDecisionOptions(data: DecisionOptionNode[]) {}
+  export async function upsertProgram(data: ProgramNode) {}
+  export async function linkJourneyToIncentives(journeyId, incentiveIds) {}
+  export async function linkJourneyToRegulations(journeyId, regulationIds) {}
+  export async function createEvidenceLinks(decisionId, evidenceList) {}
+  export async function getSimilarJourneys({ locationId, industryId,
+  rootCause }) {}
+  export async function getAvailableIncentives({ jurisdictionId, industryId })
+  {}
+
+  Each function should open a Neo4j session, perform WRITE or READ, and close
+  it.
+
+  #### 6. Expose initial API endpoints
+
+  Add to server/routes/knowledge.ts (create new route file):
+
+  - GET /api/knowledge/similar-strategies?sessionId=...
+      - Look up session, match other JourneySessions with same journeyType,
+        jurisdiction, industry, similar root cause (use vector similarity later,
+        for now match on category).
+      - Return top 3 with links and success/failure tags.
+  - GET /api/knowledge/incentives?sessionId=...
+      - Use journey’s jurisdictionId and industryId.
+      - Return active incentives (expiryDate >= today), eligibility summary,
+        source URL.
+
+  Also add a simple controller to log provenance (which dataset produced the
+  recommendation).
+
+  #### 7. Seed BMI journeys into the graph
+
+  Add a CLI script scripts/backfill-journeys-to-graph.ts:
+
+  - Iterate over recent BMI JourneySessions.
+  - For each, read the strategy version, decisions, and program.
+  - Convert to graph nodes/edges using the helper functions.
+  - Log counts and errors.
+
+  This brings existing sessions into the graph so the first features have data.
+
+  #### 8. Simple frontend hooks
+
+  - In the BMI results page (StrategyResultsPage or Decisions page), call /api/
+    knowledge/similar-strategies and render a card “Other planners did…”.
+  - In Decisions or Prioritization, call /api/knowledge/incentives to show
+    “Unlocks incentives” badges with links.
+  - Display a fallback text if no results.
+
+  #### 9. Document the system
+
+  Add docs/KNOWLEDGE_GRAPH.md including:
+
+  - Ontology summary (node/edge list).
+  - Data sources ingested, with license notes.
+  - ETL schedule / scripts.
+  - API endpoints and sample responses.
+  - Maintenance instructions (how to add new datasets, run backfill).
+
+  ———
+
+  ### User benefits after Phase 1
+
+  - “People like me did…” insights right in the Decisions page.
+  - Automatic incentive alerts for the current journey’s location and industry.
+  - Better transparency: every recommendation cites its source.
+  - Foundation for clarifications (location disambiguation), agentic AI
+    grounding, and more advanced graph features later.
+
