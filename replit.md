@@ -15,6 +15,8 @@ Preferred communication style: Simple, everyday language.
 ## UI/UX Decisions
 The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tailwind CSS) for a themeable "New York" style UI. It's a single-page application with mobile-first responsive design, including a breakpoint system, adaptive layouts, responsive typography, skeleton loading, and toast notifications. The "Five Whys" page features an interactive, responsive design with a progressive breadcrumb, carousel wheel picker for mobile, and a 2x2 grid for desktop.
 
+**Sidebar Navigation (November 2025):** Three-zone compact layout optimized for mobile and desktop visibility without scrolling. Features: (1) Compact profile header (~48px) with avatar, first name, and inline role badge; (2) Single-line navigation items (40px height) with semantic HTML; (3) Icon-only Settings/Logout footer with tooltips and aria-labels for accessibility. Provides ~40% space reduction over previous design while maintaining full accessibility.
+
 ## Technical Implementations
 - **Frontend**: React, TypeScript, Vite, TanStack Query, Wouter.
 - **Backend**: Node.js with Express.js (ES modules), Passport.js for session-based authentication, Express sessions, and a RESTful API with role-based middleware.
