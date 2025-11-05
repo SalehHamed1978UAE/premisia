@@ -245,48 +245,57 @@ export class LocationResolverService {
    * Main API: Extract and resolve locations using geocoder-first approach
    */
   async extractAndResolveLocations(text: string): Promise<LocationCandidate[]> {
-    console.log(`[LocationResolver] Starting geocoder-first extraction for text:`, text);
+    try {
+      console.log(`[LocationResolver] Starting geocoder-first extraction for text:`, text);
 
-    // Step 1: Generate n-grams
-    const ngrams = this.generateNGrams(text);
-    
-    if (ngrams.length === 0) {
-      console.log(`[LocationResolver] No valid n-grams generated`);
+      // Step 1: Generate n-grams
+      const ngrams = this.generateNGrams(text);
+      
+      if (ngrams.length === 0) {
+        console.log(`[LocationResolver] No valid n-grams generated`);
+        return [];
+      }
+
+      // Step 2: Geocode all n-grams (with throttling and caching)
+      const tasks = ngrams.map(ngram => async () => {
+        // Try raw query
+        let candidates = await this.geocode(ngram.text);
+        
+        // If failed, try title-cased
+        if (candidates.length === 0) {
+          const titleCased = this.toTitleCase(ngram.text);
+          if (titleCased !== ngram.text) {
+            candidates = await this.geocode(titleCased);
+          }
+        }
+        
+        return { ngram, candidates };
+      });
+
+      // Provide fallback for failed tasks to prevent blocking the entire flow
+      const results = await this.throttler.throttleAll(
+        tasks,
+        (taskIndex) => ({ ngram: ngrams[taskIndex], candidates: [] })
+      );
+      
+      // Step 3: Filter by importance threshold (≥0.6)
+      const strongHits = results.flatMap(({ ngram, candidates }) =>
+        candidates
+          .filter(c => c.importance >= this.IMPORTANCE_THRESHOLD)
+          .map(c => ({ ngram, candidate: c }))
+      );
+
+      console.log(`[LocationResolver] Found ${strongHits.length} strong hits (importance ≥ ${this.IMPORTANCE_THRESHOLD})`);
+
+      // Step 4: Merge overlapping candidates
+      const locations = this.mergeOverlapping(strongHits);
+      
+      console.log(`[LocationResolver] Final result: ${locations.length} locations`);
+      return locations;
+    } catch (error: any) {
+      console.error('[LocationResolver] extractAndResolveLocations failed completely, returning empty array:', error.message);
       return [];
     }
-
-    // Step 2: Geocode all n-grams (with throttling and caching)
-    const tasks = ngrams.map(ngram => async () => {
-      // Try raw query
-      let candidates = await this.geocode(ngram.text);
-      
-      // If failed, try title-cased
-      if (candidates.length === 0) {
-        const titleCased = this.toTitleCase(ngram.text);
-        if (titleCased !== ngram.text) {
-          candidates = await this.geocode(titleCased);
-        }
-      }
-      
-      return { ngram, candidates };
-    });
-
-    const results = await this.throttler.throttleAll(tasks);
-    
-    // Step 3: Filter by importance threshold (≥0.6)
-    const strongHits = results.flatMap(({ ngram, candidates }) =>
-      candidates
-        .filter(c => c.importance >= this.IMPORTANCE_THRESHOLD)
-        .map(c => ({ ngram, candidate: c }))
-    );
-
-    console.log(`[LocationResolver] Found ${strongHits.length} strong hits (importance ≥ ${this.IMPORTANCE_THRESHOLD})`);
-
-    // Step 4: Merge overlapping candidates
-    const locations = this.mergeOverlapping(strongHits);
-    
-    console.log(`[LocationResolver] Final result: ${locations.length} locations`);
-    return locations;
   }
 
   /**
@@ -337,39 +346,47 @@ export class LocationResolverService {
     autoResolved: LocationCandidate[];
     questions: GeographicQuestion[];
   }> {
-    const locations = await this.extractAndResolveLocations(text);
-    
-    console.log(`[LocationResolver] resolveAll found ${locations.length} high-confidence locations`);
-    
-    // Only show disambiguation UI if 2+ distinct high-confidence candidates
-    if (locations.length >= 2) {
-      // Create a single question asking which location(s) they mean
-      const question: GeographicQuestion = {
-        id: 'geo_multiple_locations',
-        question: `We found multiple locations in your input. Which one(s) are relevant?`,
-        rawQuery: text,
-        multiSelect: true,  // Allow selecting multiple
-        options: locations.map((candidate, idx) => ({
-          value: `location_${idx}`,
-          label: this.formatLocationLabel(candidate),
-          description: this.formatLocationDescription(candidate),
-          metadata: candidate,
-        })),
-        allowManualEntry: true,
-        manualEntryPlaceholder: 'Type the full city + country (e.g., "Madinat al Riyadh, Saudi Arabia")',
-      };
+    try {
+      const locations = await this.extractAndResolveLocations(text);
       
+      console.log(`[LocationResolver] resolveAll found ${locations.length} high-confidence locations`);
+      
+      // Only show disambiguation UI if 2+ distinct high-confidence candidates
+      if (locations.length >= 2) {
+        // Create a single question asking which location(s) they mean
+        const question: GeographicQuestion = {
+          id: 'geo_multiple_locations',
+          question: `We found multiple locations in your input. Which one(s) are relevant?`,
+          rawQuery: text,
+          multiSelect: true,  // Allow selecting multiple
+          options: locations.map((candidate, idx) => ({
+            value: `location_${idx}`,
+            label: this.formatLocationLabel(candidate),
+            description: this.formatLocationDescription(candidate),
+            metadata: candidate,
+          })),
+          allowManualEntry: true,
+          manualEntryPlaceholder: 'Type the full city + country (e.g., "Madinat al Riyadh, Saudi Arabia")',
+        };
+        
+        return {
+          autoResolved: [],
+          questions: [question]
+        };
+      }
+      
+      // 0 or 1 location - auto-resolve
+      return {
+        autoResolved: locations,
+        questions: []
+      };
+    } catch (error: any) {
+      console.error('[LocationResolver] resolveAll failed, returning empty result:', error.message);
       return {
         autoResolved: [],
-        questions: [question]
+        questions: []
       };
     }
-    
-    // 0 or 1 location - auto-resolve
-    return {
-      autoResolved: locations,
-      questions: []
-    };
   }
 
   /**
