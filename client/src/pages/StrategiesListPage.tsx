@@ -118,66 +118,69 @@ function StrategyCard({ strategy, selectionMode, isSelected, onToggleSelect, onN
             />
           </div>
         )}
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-2">
           <div className="flex items-start justify-between gap-3">
             <div className={`flex-1 min-w-0 ${selectionMode ? 'pl-8' : ''}`}>
               <CardTitle className="text-lg sm:text-xl mb-2 break-words" data-testid={`text-strategy-title-${strategy.id}`}>
                 {displayTitle}
               </CardTitle>
-              <CardDescription className="flex items-center gap-2 flex-wrap">
-                {strategy.initiativeType && (
-                  <Badge variant="outline" className="capitalize text-xs" data-testid={`badge-initiative-type-${strategy.id}`}>
-                    {strategy.initiativeType.replace(/_/g, ' ')}
-                  </Badge>
-                )}
-                {strategy.latestJourneyStatus && (
-                  <Badge className={`${statusColor} text-xs`} data-testid={`badge-status-${strategy.id}`}>
-                    {strategy.latestJourneyStatus.replace(/_/g, ' ')}
-                  </Badge>
-                )}
-              </CardDescription>
+              {strategy.latestJourneyStatus && (
+                <Badge className={`${statusColor} text-xs mb-2`} data-testid={`badge-status-${strategy.id}`}>
+                  {strategy.latestJourneyStatus.replace(/_/g, ' ')}
+                </Badge>
+              )}
             </div>
             <Rocket className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground flex-shrink-0" />
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+        <CardContent className="space-y-3">
+          {/* Compact 2x2 Grid */}
+          <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
-              <p className="text-muted-foreground">Journeys</p>
+              <p className="text-muted-foreground text-xs">Journeys</p>
               <p className="font-semibold" data-testid={`text-journey-count-${strategy.id}`}>
                 {strategy.journeyCount}
               </p>
             </div>
             <div>
-              <p className="text-muted-foreground">Frameworks</p>
+              <p className="text-muted-foreground text-xs">Frameworks</p>
               <p className="font-semibold" data-testid={`text-framework-count-${strategy.id}`}>
                 {availableFrameworks}
               </p>
             </div>
             <div>
-              <p className="text-muted-foreground">References</p>
+              <p className="text-muted-foreground text-xs">References</p>
               <p className="font-semibold" data-testid={`text-reference-count-${strategy.id}`}>
                 {availableReferences}
               </p>
             </div>
             <div>
-              <p className="text-muted-foreground">Confidence</p>
+              <p className="text-muted-foreground text-xs">Confidence</p>
               <p className="font-semibold" data-testid={`text-confidence-${strategy.id}`}>
                 {confidence > 0 ? `${(confidence * 100).toFixed(0)}%` : 'N/A'}
               </p>
             </div>
           </div>
-          <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-            <Calendar className="h-3 w-3" />
-            <span data-testid={`text-last-updated-${strategy.id}`}>
-              Updated {formatDistanceToNow(new Date(strategy.latestJourneyUpdated || strategy.updatedAt), { addSuffix: true })}
-            </span>
+
+          {/* Compact Bottom Info Row */}
+          <div className="flex items-center justify-between gap-2 pt-2 border-t text-xs text-muted-foreground flex-wrap">
+            <div className="flex items-center gap-2">
+              {strategy.initiativeType && (
+                <Badge variant="outline" className="capitalize text-xs" data-testid={`badge-initiative-type-${strategy.id}`}>
+                  {strategy.initiativeType.replace(/_/g, ' ')}
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              <Calendar className="h-3 w-3" />
+              <span data-testid={`text-last-updated-${strategy.id}`}>
+                {formatDistanceToNow(new Date(strategy.latestJourneyUpdated || strategy.updatedAt), { addSuffix: true })}
+              </span>
+            </div>
           </div>
           
           {/* Knowledge Graph Insights */}
-          <div className="mt-2">
-            <StrategyInsightsBadges sessionId={strategy.latestSessionId || null} />
-          </div>
+          <StrategyInsightsBadges sessionId={strategy.latestSessionId || null} />
         </CardContent>
       </Card>
     </div>
