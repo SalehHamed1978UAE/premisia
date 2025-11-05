@@ -25,7 +25,7 @@ interface SimilarStrategy {
   score: number;
   summary: string | null;
   completedAt: Date | null;
-  consent: boolean;
+  consent: 'private' | 'aggregate_only' | 'share_with_peers';
 }
 
 /**
@@ -121,8 +121,8 @@ export async function getSimilarStrategiesFromPostgres(
     // Transform to response format with consent check
     const results: SimilarStrategy[] = await Promise.all(
       similarStrategies.map(async (strategy) => {
-        // Check consent flag from session context
-        let consentPeerShare = false;
+        // Extract consent tier from session context
+        let consentTier: 'private' | 'aggregate_only' | 'share_with_peers' = 'private';
         if (strategy.sessionId) {
           const [session] = await db
             .select()
@@ -132,7 +132,19 @@ export async function getSimilarStrategiesFromPostgres(
           
           if (session) {
             const context = session.accumulatedContext as any;
-            consentPeerShare = context?.consentPeerShare ?? false;
+            const consentValue = context?.consentPeerShare;
+            
+            // Map consent value to tier string
+            if (typeof consentValue === 'string') {
+              // If already stored as a tier string, use it
+              if (consentValue === 'private' || consentValue === 'aggregate_only' || consentValue === 'share_with_peers') {
+                consentTier = consentValue;
+              }
+            } else if (consentValue === true) {
+              // If boolean true, map to 'share_with_peers'
+              consentTier = 'share_with_peers';
+            }
+            // If false or undefined, defaults to 'private'
           }
         }
 
@@ -151,14 +163,14 @@ export async function getSimilarStrategiesFromPostgres(
           score: Number(strategy.similarity) || 0.1,
           summary: typeof summary === 'string' ? summary : JSON.stringify(summary),
           completedAt: strategy.finalizedAt || strategy.createdAt,
-          consent: consentPeerShare,
+          consent: consentTier,
         };
       })
     );
 
-    // Filter out strategies without consent
-    const withConsent = results.filter(r => r.consent);
-    console.log(`[PG Insights] Returning ${withConsent.length} strategies with consent`);
+    // Filter out strategies with 'private' consent
+    const withConsent = results.filter(r => r.consent !== 'private');
+    console.log(`[PG Insights] Returning ${withConsent.length} strategies with consent (non-private)`);
 
     return withConsent.slice(0, 3); // Top 3
   } catch (error) {
