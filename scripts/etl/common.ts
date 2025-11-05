@@ -5,8 +5,12 @@
 
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { createSession } from '../../server/config/neo4j';
 import { NodeUpsert, RelUpsert, ETLRun } from '../../shared/knowledge-graph-types';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export { NodeUpsert, RelUpsert };
 

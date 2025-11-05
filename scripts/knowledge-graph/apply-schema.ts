@@ -7,7 +7,11 @@
 
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { createSession } from '../../server/config/neo4j';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 async function applySchema() {
   console.log('[apply-schema] Starting schema application...');
