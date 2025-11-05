@@ -5,12 +5,12 @@
  * Runs all individual ETL scripts in the correct order
  */
 
-import { loadOrganizations } from './organizations';
-import { loadLocations } from './locations';
-import { loadJurisdictions } from './jurisdictions';
-import { loadIndustries } from './industries';
-import { loadIncentives } from './incentives';
-import { loadRegulations } from './regulations';
+import { loadOrganizations } from './organizations.js';
+import { loadLocations } from './locations.js';
+import { loadJurisdictions } from './jurisdictions.js';
+import { loadIndustries } from './industries.js';
+import { loadIncentives } from './incentives.js';
+import { loadRegulations } from './regulations.js';
 
 async function loadAll() {
   console.log('========================================');

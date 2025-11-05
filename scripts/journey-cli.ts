@@ -16,12 +16,12 @@
  * npm run journeys:clear-summaries <understandingId>
  */
 
-import { JOURNEYS, getJourney, getAllJourneys } from '../server/journey/journey-registry';
-import { journeySummaryService } from '../server/services/journey-summary-service';
-import { db } from '../server/db';
+import { JOURNEYS, getJourney, getAllJourneys } from '../server/journey/journey-registry.js';
+import { journeySummaryService } from '../server/services/journey-summary-service.js';
+import { db } from '../server/db.js';
 import { journeySessions } from '@shared/schema';
 import { eq } from 'drizzle-orm';
-import type { JourneyType, JourneySummary } from '../shared/journey-types';
+import type { JourneyType, JourneySummary } from '../shared/journey-types.js';
 
 const command = process.argv[2];
 const args = process.argv.slice(3);

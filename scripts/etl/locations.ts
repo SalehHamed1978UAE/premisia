@@ -8,7 +8,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { upsertNodes, upsertRelationships, ETLRunTracker, NodeUpsert, RelUpsert } from './common';
+import { upsertNodes, upsertRelationships, ETLRunTracker, NodeUpsert, RelUpsert } from './common.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

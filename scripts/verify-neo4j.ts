@@ -4,7 +4,7 @@
  * Verify Neo4j connection and basic health
  */
 
-import { verifyConnection, createSession } from '../server/config/neo4j';
+import { verifyConnection, createSession } from '../server/config/neo4j.js';
 
 async function verifyNeo4j() {
   console.log('[verify-neo4j] Starting Neo4j health check...\n');

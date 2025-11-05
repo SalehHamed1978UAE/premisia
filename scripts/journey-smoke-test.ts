@@ -13,9 +13,9 @@
  * Exit code 0 = all tests passed, 1 = failures detected
  */
 
-import { JOURNEYS, getJourney } from '../server/journey/journey-registry';
-import { summaryBuilders } from '../server/services/journey-summary-service';
-import type { JourneyType, StrategicContext, JourneySummary } from '../shared/journey-types';
+import { JOURNEYS, getJourney } from '../server/journey/journey-registry.js';
+import { summaryBuilders } from '../server/services/journey-summary-service.js';
+import type { JourneyType, StrategicContext, JourneySummary } from '../shared/journey-types.js';
 
 interface TestResult {
   journeyType: JourneyType;
