@@ -296,12 +296,17 @@ export default function StatementDetailView() {
                         <div>
                           <h4 className="font-semibold text-sm text-muted-foreground mb-2">Key Findings</h4>
                           <ul className="space-y-2">
-                            {analysis.keyFindings.map((finding, i) => (
-                              <li key={i} className="flex items-start gap-2 text-sm">
-                                <span className="text-primary mt-1">•</span>
-                                <span>{finding}</span>
-                              </li>
-                            ))}
+                            {analysis.keyFindings.map((finding, i) => {
+                              const findingText = typeof finding === 'string' 
+                                ? finding 
+                                : (finding as any)?.answer || (finding as any)?.question || JSON.stringify(finding);
+                              return (
+                                <li key={i} className="flex items-start gap-2 text-sm">
+                                  <span className="text-primary mt-1">•</span>
+                                  <span>{findingText}</span>
+                                </li>
+                              );
+                            })}
                           </ul>
                         </div>
                       )}
