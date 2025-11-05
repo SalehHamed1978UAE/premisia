@@ -317,6 +317,7 @@ router.get('/insights/:sessionId', async (req: Request, res: Response) => {
     }
     
     // Check consent - if user hasn't consented to peer sharing, return empty insights
+    // Default to false for privacy-safe behavior (require explicit opt-in)
     const context = journeySession.accumulatedContext as any;
     const consentPeerShare = context?.consentPeerShare ?? false;
     

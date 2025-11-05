@@ -151,7 +151,17 @@ export function ExecutiveSummaryFormatter({ data }: { data: ExecutiveSummary }) 
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t">
         <KeyValue label="Investment Required" value={data.investmentRequired} />
-        <KeyValue label="Expected Outcomes" value={data.expectedOutcomes} />
+        <div>
+          <div className="text-sm font-medium mb-2">Expected Outcomes</div>
+          <ul className="list-disc list-inside space-y-1 text-sm text-foreground">
+            {(data.expectedOutcomes || '')
+              .split(/[;\n]+/)
+              .filter(Boolean)
+              .map((outcome, idx) => (
+                <li key={idx}>{outcome.trim()}</li>
+              ))}
+          </ul>
+        </div>
       </div>
     </div>
   );
