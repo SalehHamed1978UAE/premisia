@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { db } from '../db';
 import { storage } from '../storage';
 import { strategicUnderstanding, frameworkInsights, strategicEntities, strategyVersions, journeySessions, epmPrograms, references, strategyDecisions } from '@shared/schema';
-import { eq, desc, sql, inArray } from 'drizzle-orm';
+import { eq, desc, sql, inArray, and } from 'drizzle-orm';
 import { getStrategicUnderstanding } from '../services/secure-data-service';
 import { decryptKMS } from '../utils/kms-encryption';
 
@@ -16,7 +16,7 @@ router.get('/statements', async (req: any, res) => {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // Join with journeySessions to filter by userId
+    // Join with journeySessions to filter by userId (matches dashboard logic)
     const rawStatements = await db
       .selectDistinct({
         understandingId: strategicUnderstanding.id,
@@ -27,7 +27,10 @@ router.get('/statements', async (req: any, res) => {
       })
       .from(strategicUnderstanding)
       .innerJoin(journeySessions, eq(strategicUnderstanding.id, journeySessions.understandingId))
-      .where(eq(journeySessions.userId, userId))
+      .where(and(
+        eq(journeySessions.userId, userId),
+        eq(strategicUnderstanding.archived, false)
+      ))
       .orderBy(desc(strategicUnderstanding.createdAt));
     
     // Decrypt userInput for each statement
