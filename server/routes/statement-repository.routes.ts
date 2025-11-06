@@ -8,10 +8,17 @@ import { decryptKMS } from '../utils/kms-encryption';
 
 const router = Router();
 
-router.get('/statements', async (req, res) => {
+router.get('/statements', async (req: any, res) => {
   try {
+    const userId = req.user?.claims?.sub;
+    
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    // Join with journeySessions to filter by userId
     const rawStatements = await db
-      .select({
+      .selectDistinct({
         understandingId: strategicUnderstanding.id,
         sessionId: strategicUnderstanding.sessionId,
         statement: strategicUnderstanding.userInput,
@@ -19,6 +26,8 @@ router.get('/statements', async (req, res) => {
         createdAt: strategicUnderstanding.createdAt,
       })
       .from(strategicUnderstanding)
+      .innerJoin(journeySessions, eq(strategicUnderstanding.id, journeySessions.understandingId))
+      .where(eq(journeySessions.userId, userId))
       .orderBy(desc(strategicUnderstanding.createdAt));
     
     // Decrypt userInput for each statement
