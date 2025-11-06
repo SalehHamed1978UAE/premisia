@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
 // @ts-ignore - no type declarations available
 import HTMLtoDOCX from 'html-docx-js';
 import { getStrategicUnderstandingBySession } from './secure-data-service';
@@ -21,6 +22,42 @@ import {
   strategicUnderstanding,
 } from '@shared/schema';
 import { eq, and, desc } from 'drizzle-orm';
+
+/**
+ * Cached Chromium executable path (to avoid repeated execSync calls)
+ */
+let cachedChromiumPath: string | undefined | null = null;
+
+/**
+ * Find the Chromium/Chrome executable path (cached)
+ */
+function findChromiumExecutable(): string | undefined {
+  // Return cached value if already discovered
+  if (cachedChromiumPath !== null) {
+    return cachedChromiumPath || undefined;
+  }
+
+  try {
+    const path = execSync('command -v chromium-browser || command -v chromium || command -v google-chrome', {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'ignore']
+    }).trim();
+    
+    cachedChromiumPath = path || undefined;
+    
+    if (cachedChromiumPath) {
+      console.log('[Export Service] Chromium executable found:', cachedChromiumPath);
+    } else {
+      console.warn('[Export Service] Chromium executable not found - PDF generation will be skipped');
+    }
+    
+    return cachedChromiumPath;
+  } catch (error) {
+    console.warn('[Export Service] Failed to locate Chromium executable:', error instanceof Error ? error.message : String(error));
+    cachedChromiumPath = undefined;
+    return undefined;
+  }
+}
 
 export interface ExportRequest {
   sessionId: string;
@@ -82,16 +119,24 @@ export async function generateFullPassExport(
   console.log('[Export Service] Converting Markdown to HTML...');
   const html = await generateHtmlFromMarkdown(markdown);
   
-  // Try to generate PDF from HTML - skip if Puppeteer fails (e.g., on mobile)
+  // Try to generate PDF from HTML - skip if Puppeteer fails
   console.log('[Export Service] Generating PDF from HTML...');
   let pdf: Buffer | null = null;
   try {
     pdf = await generatePdfFromHtml(html);
+    console.log('[Export Service] PDF generated successfully');
   } catch (error) {
     const err = error as Error;
     const errorMsg = err?.message || String(error);
-    console.warn('[Export Service] PDF generation failed (Puppeteer unavailable), skipping:', errorMsg);
-    skippedFiles.push('report.pdf (Puppeteer unavailable)');
+    const isChromiumMissing = errorMsg.toLowerCase().includes('executable') || errorMsg.toLowerCase().includes('browser');
+    
+    if (isChromiumMissing) {
+      console.warn('[Export Service] PDF generation skipped - Chromium not available. Install chromium to enable PDF exports.');
+    } else {
+      console.warn('[Export Service] PDF generation failed:', errorMsg);
+    }
+    
+    skippedFiles.push(`report.pdf (${isChromiumMissing ? 'Chromium not available' : 'generation failed'})`);
   }
   
   console.log('[Export Service] Generating DOCX report...');
@@ -117,11 +162,19 @@ export async function generateFullPassExport(
   let uiPdf: Buffer | null = null;
   try {
     uiPdf = await generatePdfFromUiHtml(uiHtml);
+    console.log('[Export Service] UI-styled PDF generated successfully');
   } catch (error) {
     const err = error as Error;
     const errorMsg = err?.message || String(error);
-    console.warn('[Export Service] UI-styled PDF generation failed (Puppeteer unavailable), skipping:', errorMsg);
-    skippedFiles.push('report-ui.pdf (Puppeteer unavailable)');
+    const isChromiumMissing = errorMsg.toLowerCase().includes('executable') || errorMsg.toLowerCase().includes('browser');
+    
+    if (isChromiumMissing) {
+      console.warn('[Export Service] UI-styled PDF generation skipped - Chromium not available. Install chromium to enable PDF exports.');
+    } else {
+      console.warn('[Export Service] UI-styled PDF generation failed:', errorMsg);
+    }
+    
+    skippedFiles.push(`report-ui.pdf (${isChromiumMissing ? 'Chromium not available' : 'generation failed'})`);
   }
   
   console.log('[Export Service] Generating UI-styled DOCX...');
@@ -1580,9 +1633,11 @@ async function generateHtmlFromMarkdown(markdown: string): Promise<string> {
  * Generate PDF from HTML using Puppeteer
  */
 async function generatePdfFromHtml(html: string): Promise<Buffer> {
+  const chromiumPath = findChromiumExecutable();
   const browser = await puppeteer.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    executablePath: chromiumPath,
   });
 
   try {
@@ -4079,9 +4134,11 @@ function generateUiStyledHtml(pkg: FullExportPackage): string {
  * Generate PDF from UI-styled HTML using Puppeteer
  */
 async function generatePdfFromUiHtml(html: string): Promise<Buffer> {
+  const chromiumPath = findChromiumExecutable();
   const browser = await puppeteer.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    executablePath: chromiumPath,
   });
 
   try {
