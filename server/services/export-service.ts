@@ -4119,10 +4119,9 @@ function generateUiStyledHtml(pkg: FullExportPackage): string {
     </div>
   `);
 
-  // Read template and replace placeholders (ES module compatible)
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = dirname(__filename);
-  const templatePath = join(__dirname, '../export/templates/report-ui.html');
+  // Read template and replace placeholders
+  // Use process.cwd() for production compatibility (works in both dev and deployed environments)
+  const templatePath = join(process.cwd(), 'server/export/templates/report-ui.html');
   const template = readFileSync(templatePath, 'utf-8');
   
   return template
