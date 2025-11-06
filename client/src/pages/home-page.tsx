@@ -232,23 +232,23 @@ function OnboardingFlow() {
         <div className="gradient-orb orb3"></div>
       </div>
 
-      <div className="min-h-screen text-white p-6">
+      <div className="min-h-screen text-white p-4 sm:p-6">
         <div className="max-w-6xl mx-auto">
           {/* Hero Section */}
-          <div className="text-center mb-12">
-            <div className="flex flex-col items-center mb-8">
+          <div className="text-center mb-8 sm:mb-12">
+            <div className="flex flex-col items-center mb-6 sm:mb-8">
               <span className="px-3 py-1 text-sm font-semibold bg-white/10 text-white rounded-lg backdrop-blur-sm">BETA</span>
             </div>
-            <p className="text-lg md:text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
+            <p className="text-base sm:text-lg md:text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed px-2">
               Premisia structures complex choices so leaders can align, commit, and move. <span className="font-semibold text-white">66% of EMEA leaders already see significant AI productivity gains</span>—it's time to turn that into strategic advantage.
             </p>
           </div>
 
           {/* Step Indicators - Display only, not clickable */}
           <div className="flex justify-center mb-8 px-4">
-            <div className="flex flex-col sm:flex-row items-center gap-0">
+            <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-0">
               {ONBOARDING_STEPS.map((step, index) => (
-                <div key={step.id} className="flex items-center">
+                <div key={step.id} className="flex sm:flex-row flex-col items-center">
                   <div
                     className={cn(
                       "w-10 h-10 rounded-full flex items-center justify-center font-semibold transition-all",
@@ -269,7 +269,7 @@ function OnboardingFlow() {
                   {index < ONBOARDING_STEPS.length - 1 && (
                     <div 
                       className={cn(
-                        "w-12 sm:w-16 h-1 mx-2 transition-all",
+                        "w-1 h-8 sm:w-12 sm:h-1 sm:mx-2 my-0 transition-all hidden sm:block",
                         index < currentStep ? "bg-gradient-to-r from-[#3b82f6] to-[#10b981]" : "bg-white/20"
                       )} 
                     />
@@ -281,7 +281,7 @@ function OnboardingFlow() {
 
           {/* Current Step Content */}
           <Card className="max-w-4xl mx-auto bg-white/5 backdrop-blur-md border-white/10 shadow-2xl">
-            <CardContent className="p-8">
+            <CardContent className="p-4 sm:p-6 md:p-8">
               <div className="flex flex-col md:flex-row gap-8">
                 {/* Icon & Title */}
                 <div className="flex-shrink-0">
