@@ -630,7 +630,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(strategyVersions.sessionId, sessionId))
       .orderBy(desc(strategyVersions.versionNumber));
     
-    return await Promise.all(versions.map(v => this.decryptStrategyVersion(v)));
+    return await Promise.all(versions.map(v => this.decryptStrategyVersion(v as StrategyVersion)));
   }
 
   async getAllStrategyVersionsByUser(userId: string): Promise<StrategyVersion[]> {
@@ -639,7 +639,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(strategyVersions.userId, userId))
       .orderBy(desc(strategyVersions.createdAt));
     
-    return await Promise.all(versions.map(v => this.decryptStrategyVersion(v)));
+    return await Promise.all(versions.map(v => this.decryptStrategyVersion(v as StrategyVersion)));
   }
 
   async getStrategyVersion(sessionId: string, versionNumber: number): Promise<StrategyVersion | undefined> {
@@ -651,7 +651,7 @@ export class DatabaseStorage implements IStorage {
       ));
     
     if (!version) return undefined;
-    return await this.decryptStrategyVersion(version);
+    return await this.decryptStrategyVersion(version as StrategyVersion);
   }
 
   async getStrategyVersionById(id: string): Promise<StrategyVersion | undefined> {
@@ -661,7 +661,7 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
     
     if (!version) return undefined;
-    return await this.decryptStrategyVersion(version);
+    return await this.decryptStrategyVersion(version as StrategyVersion);
   }
 
   async createStrategyVersion(version: any): Promise<StrategyVersion> {
@@ -671,8 +671,8 @@ export class DatabaseStorage implements IStorage {
       dataToInsert.inputSummary = await encryptKMS(version.inputSummary);
     }
     
-    const [newVersion] = await db.insert(strategyVersions).values(dataToInsert).returning();
-    return newVersion;
+    const result = await db.insert(strategyVersions).values(dataToInsert as any).returning();
+    return (result as any[])[0];
   }
 
   async getInitiativeDescriptionForSession(sessionId: string): Promise<string | null> {
@@ -689,10 +689,10 @@ export class DatabaseStorage implements IStorage {
     }
     
     const [updated] = await db.update(strategyVersions)
-      .set({ ...dataToUpdate, updatedAt: new Date() })
+      .set({ ...dataToUpdate as any, updatedAt: new Date() })
       .where(eq(strategyVersions.id, id))
       .returning();
-    return updated;
+    return updated as StrategyVersion;
   }
 
   async getDashboardSummary(userId: string) {
@@ -825,7 +825,7 @@ export class DatabaseStorage implements IStorage {
         )
       )
       .returning();
-    return updated || null;
+    return (updated as StrategyVersion) || null;
   }
 
   // Golden Records
@@ -867,7 +867,7 @@ export class DatabaseStorage implements IStorage {
     let query = db.select().from(goldenRecords);
 
     if (journeyType) {
-      query = query.where(eq(goldenRecords.journeyType, journeyType)) as any;
+      query = query.where(eq(goldenRecords.journeyType, journeyType as any)) as any;
     }
 
     if (!includeHistory) {
@@ -884,7 +884,7 @@ export class DatabaseStorage implements IStorage {
       .from(goldenRecords)
       .where(
         and(
-          eq(goldenRecords.journeyType, journeyType),
+          eq(goldenRecords.journeyType, journeyType as any),
           eq(goldenRecords.version, version)
         )
       );
@@ -897,7 +897,7 @@ export class DatabaseStorage implements IStorage {
       .from(goldenRecords)
       .where(
         and(
-          eq(goldenRecords.journeyType, journeyType),
+          eq(goldenRecords.journeyType, journeyType as any),
           eq(goldenRecords.isCurrent, true)
         )
       );
@@ -909,7 +909,7 @@ export class DatabaseStorage implements IStorage {
     await db
       .update(goldenRecords)
       .set({ isCurrent: false })
-      .where(eq(goldenRecords.journeyType, journeyType));
+      .where(eq(goldenRecords.journeyType, journeyType as any));
 
     // Set the specified version as current
     const [promoted] = await db
@@ -917,7 +917,7 @@ export class DatabaseStorage implements IStorage {
       .set({ isCurrent: true })
       .where(
         and(
-          eq(goldenRecords.journeyType, journeyType),
+          eq(goldenRecords.journeyType, journeyType as any),
           eq(goldenRecords.version, version)
         )
       )
