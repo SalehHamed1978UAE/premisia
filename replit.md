@@ -71,6 +71,7 @@ Follow-on journeys create NEW journey sessions with unique IDs to maintain versi
 - **BMC Research Endpoint Dual-Mode**: The BMC research endpoint handles both journey session IDs (new flow) and understanding session IDs (legacy flow) by first attempting `getJourneySession(sessionId)`, then falling back to `getJourneySessionByUnderstandingSessionId(sessionId)`.
 - **StrategyVersions Isolation**: Each follow-on journey creates its own strategyVersion with the journey session ID as session_id, ensuring separate EPM programs are generated for each run.
 - **Database Evidence**: Journey sessions table stores unique IDs for each run; strategyVersions.session_id maps to journey session IDs (post-fix) or understanding session IDs (legacy).
+- **Knowledge Graph Insights Fix (November 2025)**: The `/api/strategy-workspace/epm/:id/session` endpoint uses journeySessions as lookup bridge (epmPrograms → strategyVersions → journeySessions → understandingId) to correctly retrieve understandingId for both first-run and follow-on journeys, fixing 404 errors when loading insights for follow-on runs.
 
 # External Dependencies
 - **Database Service**: Neon serverless PostgreSQL
