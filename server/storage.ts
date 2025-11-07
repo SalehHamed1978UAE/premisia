@@ -699,28 +699,28 @@ export class DatabaseStorage implements IStorage {
     try {
       // Get counts (filter out archived items)
       const counts = await Promise.all([
-        // Count analyses (DISTINCT strategic_understanding records) where user owns at least one journey session
-        db.select({ count: sql<number>`COUNT(*)` })
+        // Count analyses (DISTINCT strategic_understanding records) via journey sessions - matches repository logic
+        db.select({ count: sql<number>`COUNT(DISTINCT ${strategicUnderstanding.id})` })
           .from(strategicUnderstanding)
-          .where(and(
-            eq(strategicUnderstanding.archived, false),
-            sql`EXISTS (
-              SELECT 1 FROM ${journeySessions}
-              WHERE ${journeySessions.understandingId} = ${strategicUnderstanding.id}
-              AND ${journeySessions.userId} = ${userId}
-            )`
-          )),
-        // Count strategic_understanding records (strategies) where user owns at least one journey session
-        db.select({ count: sql<number>`COUNT(*)` })
+          .innerJoin(
+            journeySessions,
+            and(
+              eq(strategicUnderstanding.id, journeySessions.understandingId),
+              eq(journeySessions.userId, userId)
+            )
+          )
+          .where(eq(strategicUnderstanding.archived, false)),
+        // Count strategic_understanding records (strategies) via journey sessions for ownership
+        db.select({ count: sql<number>`COUNT(DISTINCT ${strategicUnderstanding.id})` })
           .from(strategicUnderstanding)
-          .where(and(
-            eq(strategicUnderstanding.archived, false),
-            sql`EXISTS (
-              SELECT 1 FROM ${journeySessions}
-              WHERE ${journeySessions.understandingId} = ${strategicUnderstanding.id}
-              AND ${journeySessions.userId} = ${userId}
-            )`
-          )),
+          .innerJoin(
+            journeySessions,
+            and(
+              eq(strategicUnderstanding.id, journeySessions.understandingId),
+              eq(journeySessions.userId, userId)
+            )
+          )
+          .where(eq(strategicUnderstanding.archived, false)),
         db.select({ count: count() })
           .from(epmPrograms)
           .where(and(
