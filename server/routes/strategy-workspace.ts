@@ -873,7 +873,7 @@ router.get('/epm/:id', async (req: Request, res: Response) => {
 });
 
 // GET /api/strategy-workspace/epm/:id/session
-// Get journey session ID for an EPM program (for Knowledge Graph insights)
+// Get understanding ID for an EPM program (for Knowledge Graph insights)
 router.get('/epm/:id/session', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -900,26 +900,26 @@ router.get('/epm/:id/session', async (req: Request, res: Response) => {
       .where(eq(strategyVersions.id, program.strategyVersionId))
       .limit(1);
 
-    if (!version) {
-      return res.status(404).json({ error: 'Strategy version not found' });
+    if (!version || !version.sessionId) {
+      return res.status(404).json({ error: 'Strategy version not found or has no session' });
     }
 
-    // The version.sessionId is an old-style session ID (e.g., session-*)
-    // We need to find the understanding ID for the knowledge insights service
-    const [understanding] = await db
+    // Look up the journey session to get the understanding ID
+    // This works for both first-run and follow-on journeys
+    const [journeySession] = await db
       .select({
-        id: strategicUnderstanding.id,
+        understandingId: journeySessions.understandingId,
       })
-      .from(strategicUnderstanding)
-      .where(eq(strategicUnderstanding.sessionId, version.sessionId))
+      .from(journeySessions)
+      .where(eq(journeySessions.id, version.sessionId))
       .limit(1);
 
-    if (!understanding) {
-      return res.status(404).json({ error: 'Strategic understanding not found for this session' });
+    if (!journeySession || !journeySession.understandingId) {
+      return res.status(404).json({ error: 'Journey session not found or has no understanding' });
     }
 
     // Return the understanding ID (this is what the knowledge insights service expects)
-    res.json({ sessionId: understanding.id });
+    res.json({ sessionId: journeySession.understandingId });
   } catch (error: any) {
     console.error('Error in GET /epm/:id/session:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch session ID' });
