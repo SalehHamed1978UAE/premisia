@@ -4122,11 +4122,21 @@ function generateUiStyledHtml(pkg: FullExportPackage): string {
   // Read template and replace placeholders
   // Use process.cwd() for production compatibility (works in both dev and deployed environments)
   const templatePath = join(process.cwd(), 'server/export/templates/report-ui.html');
-  const template = readFileSync(templatePath, 'utf-8');
   
-  return template
-    .replace('{{TITLE}}', escapeHtml(title))
-    .replace('{{CONTENT}}', contentParts.join('\n'));
+  try {
+    const template = readFileSync(templatePath, 'utf-8');
+    console.log('[Export] Successfully loaded HTML template from:', templatePath);
+    
+    return template
+      .replace('{{TITLE}}', escapeHtml(title))
+      .replace('{{CONTENT}}', contentParts.join('\n'));
+  } catch (error) {
+    console.error('[Export] Failed to read HTML template');
+    console.error('[Export] Template path:', templatePath);
+    console.error('[Export] process.cwd():', process.cwd());
+    console.error('[Export] Error:', error);
+    throw new Error(`Failed to load HTML template: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }
 
 /**
