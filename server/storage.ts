@@ -699,23 +699,28 @@ export class DatabaseStorage implements IStorage {
     try {
       // Get counts (filter out archived items)
       const counts = await Promise.all([
-        db.select({ count: count() })
-          .from(strategyVersions)
-          .where(and(
-            eq(strategyVersions.userId, userId),
-            eq(strategyVersions.archived, false)
-          )),
-        // Count strategic_understanding records (strategies) via journey sessions for ownership
-        db.select({ count: sql<number>`COUNT(DISTINCT ${strategicUnderstanding.id})` })
+        // Count analyses (DISTINCT strategic_understanding records) where user owns at least one journey session
+        db.select({ count: sql<number>`COUNT(*)` })
           .from(strategicUnderstanding)
-          .innerJoin(
-            journeySessions,
-            and(
-              eq(strategicUnderstanding.id, journeySessions.understandingId),
-              eq(journeySessions.userId, userId)
-            )
-          )
-          .where(eq(strategicUnderstanding.archived, false)),
+          .where(and(
+            eq(strategicUnderstanding.archived, false),
+            sql`EXISTS (
+              SELECT 1 FROM ${journeySessions}
+              WHERE ${journeySessions.understandingId} = ${strategicUnderstanding.id}
+              AND ${journeySessions.userId} = ${userId}
+            )`
+          )),
+        // Count strategic_understanding records (strategies) where user owns at least one journey session
+        db.select({ count: sql<number>`COUNT(*)` })
+          .from(strategicUnderstanding)
+          .where(and(
+            eq(strategicUnderstanding.archived, false),
+            sql`EXISTS (
+              SELECT 1 FROM ${journeySessions}
+              WHERE ${journeySessions.understandingId} = ${strategicUnderstanding.id}
+              AND ${journeySessions.userId} = ${userId}
+            )`
+          )),
         db.select({ count: count() })
           .from(epmPrograms)
           .where(and(
