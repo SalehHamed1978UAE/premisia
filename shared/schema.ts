@@ -1785,6 +1785,25 @@ export const goldenRecordChecks = pgTable("golden_record_checks", {
   executedAtIdx: index("idx_golden_record_checks_executed").on(table.executedAt),
 }));
 
+// Clarification Sessions table - Strategic input clarification workflow
+export const clarificationSessions = pgTable("clarification_sessions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  journeySessionId: varchar("journey_session_id").notNull(),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  originalInput: text("original_input").notNull(),
+  questionsAsked: jsonb("questions_asked").notNull().default(sql`'[]'::jsonb`), // Array of question definitions
+  answersCollected: jsonb("answers_collected").notNull().default(sql`'{}'::jsonb`), // Map of field -> answer
+  enrichedContext: jsonb("enriched_context"), // Derived strategic context from answers
+  status: text("status").notNull().default('in_progress'), // in_progress, completed, skipped
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  journeySessionIdx: index("idx_clarification_sessions_journey").on(table.journeySessionId),
+  userIdx: index("idx_clarification_sessions_user").on(table.userId),
+  statusIdx: index("idx_clarification_sessions_status").on(table.status),
+}));
+
 // Insert Schemas for Strategy Workspace
 export const insertSwProblemSchema = createInsertSchema(swProblems).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertSwProblem = z.infer<typeof insertSwProblemSchema>;
@@ -1852,3 +1871,8 @@ export type SelectGoldenRecord = typeof goldenRecords.$inferSelect;
 export const insertGoldenRecordCheckSchema = createInsertSchema(goldenRecordChecks).omit({ id: true, executedAt: true });
 export type InsertGoldenRecordCheck = z.infer<typeof insertGoldenRecordCheckSchema>;
 export type SelectGoldenRecordCheck = typeof goldenRecordChecks.$inferSelect;
+
+// Insert Schemas for Clarification Sessions
+export const insertClarificationSessionSchema = createInsertSchema(clarificationSessions).omit({ id: true, createdAt: true, updatedAt: true, completedAt: true });
+export type InsertClarificationSession = z.infer<typeof insertClarificationSessionSchema>;
+export type SelectClarificationSession = typeof clarificationSessions.$inferSelect;
