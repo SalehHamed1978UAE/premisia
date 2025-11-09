@@ -277,18 +277,9 @@ export function KnowledgeInsightsCard({
                       </p>
                     </div>
                     
-                    <p className="text-xs text-muted-foreground mb-3 line-clamp-3" data-testid={`text-rationale-${index}`}>
+                    <p className="text-xs text-muted-foreground line-clamp-3" data-testid={`text-rationale-${index}`}>
                       {incentive.rationale}
                     </p>
-                    
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      className="w-full text-xs"
-                      data-testid={`button-learn-more-${index}`}
-                    >
-                      Learn More
-                    </Button>
                   </div>
                 ))}
               </div>
