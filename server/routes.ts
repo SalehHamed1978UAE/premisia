@@ -1878,6 +1878,74 @@ Marketing and events: $3k/month`,
     }
   });
 
+  // ===== Encryption Migration API (Admin Only, One-Time Use) =====
+  
+  // Run encryption migration on legacy plaintext data
+  app.post('/api/admin/encrypt-legacy-data', requireAuth, requireRole(['Admin']), async (req: any, res) => {
+    try {
+      const { passphrase, dryRun = true } = req.body;
+      
+      // Validate auth claims exist
+      if (!req.user?.claims?.sub) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      
+      // Require passphrase for security (prevents accidental execution)
+      const requiredPassphrase = process.env.ENCRYPTION_MIGRATION_PASSPHRASE;
+      if (!requiredPassphrase) {
+        console.error('[Encryption Migration] ENCRYPTION_MIGRATION_PASSPHRASE not set');
+        return res.status(500).json({ 
+          error: 'Migration endpoint not configured. Set ENCRYPTION_MIGRATION_PASSPHRASE environment variable.' 
+        });
+      }
+      
+      if (!passphrase || passphrase !== requiredPassphrase) {
+        console.warn(`[Encryption Migration] Invalid passphrase attempt by user ${req.user.claims.sub}`);
+        return res.status(403).json({ error: 'Invalid passphrase' });
+      }
+      
+      console.log(`[Encryption Migration] Starting migration - User: ${req.user.claims.sub}, DryRun: ${dryRun}`);
+      
+      // Import migration service
+      const { runEncryptionMigration } = await import('./services/encryption-migration');
+      
+      // Run migration
+      const stats = await runEncryptionMigration({
+        dryRun,
+        batchSize: 50
+      });
+      
+      const response = {
+        success: true,
+        dryRun,
+        stats: {
+          totalRecords: stats.total,
+          recordsEncrypted: stats.encrypted,
+          recordsSkipped: stats.skipped,
+          recordsFailed: stats.failed,
+          durationMs: stats.duration
+        },
+        message: dryRun 
+          ? 'Dry run completed. No data was modified.' 
+          : stats.failed > 0
+            ? `Migration completed with ${stats.failed} failures. Check logs for details.`
+            : 'All plaintext data has been encrypted successfully!',
+        executedBy: req.user.claims.sub,
+        executedAt: new Date().toISOString()
+      };
+      
+      console.log('[Encryption Migration] Results:', response);
+      
+      res.json(response);
+    } catch (error) {
+      console.error('[Encryption Migration] Error running migration:', error);
+      res.status(500).json({ 
+        error: 'Migration failed',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
