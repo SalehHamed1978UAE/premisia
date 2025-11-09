@@ -135,4 +135,7 @@ app.get('/health', (_req: Request, res: Response) => {
       console.warn('[Neo4j] Not configured. Set NEO4J_URI and NEO4J_PASSWORD to enable Knowledge Graph features.');
     }
   });
-})();
+})().catch((error) => {
+  console.error('[Server] Fatal error during startup:', error);
+  process.exit(1);
+});
