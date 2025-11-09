@@ -57,10 +57,27 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check endpoint for deployment readiness probes
+// Health check endpoints for deployment readiness probes
 // Must be unauthenticated and respond quickly
 app.get('/health', (_req: Request, res: Response) => {
   res.status(200).json({ status: 'ok' });
+});
+
+// Root endpoint handler for deployment health checks
+// Health checks hit / by default and can't be configured in autoscale deployments  
+// This responds to health probes but allows SPA to load for browsers
+app.get('/', (req: Request, res: Response, next: Function) => {
+  // If request accepts HTML (browser), let it through to serve the SPA
+  const acceptHeader = req.headers.accept || '';
+  const acceptsHtml = acceptHeader.includes('text/html');
+  
+  if (acceptsHtml) {
+    // Browser request - continue to static file serving
+    next();
+  } else {
+    // Health check probe - respond immediately
+    res.status(200).json({ status: 'ok' });
+  }
 });
 
 (async () => {
