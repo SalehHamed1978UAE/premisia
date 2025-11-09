@@ -13,6 +13,7 @@ import {
   strategicUnderstanding,
 } from '@shared/schema';
 import { eq, and, ne, desc, sql, isNotNull } from 'drizzle-orm';
+import { decryptKMS, decryptJSONKMS } from '../utils/kms-encryption';
 
 /**
  * Similarity scoring result interface
@@ -148,6 +149,10 @@ export async function getSimilarStrategiesFromPostgres(
     // Transform to response format with consent check
     const results: SimilarStrategy[] = await Promise.all(
       similarStrategies.map(async (strategy) => {
+        // Decrypt encrypted fields
+        const decryptedInputSummary = strategy.inputSummary ? await decryptKMS(strategy.inputSummary) : null;
+        const decryptedAnalysisData = strategy.analysisData ? await decryptJSONKMS(strategy.analysisData) : null;
+        
         // Extract consent tier from session context
         let consentTier: 'private' | 'aggregate_only' | 'share_with_peers' = 'private';
         if (strategy.sessionId) {
@@ -175,9 +180,9 @@ export async function getSimilarStrategiesFromPostgres(
           }
         }
 
-        // Extract summary from analysisData
-        const analysisData = strategy.analysisData as any;
-        const summary = strategy.inputSummary || 
+        // Extract summary from decrypted analysisData
+        const analysisData = decryptedAnalysisData as any;
+        const summary = decryptedInputSummary || 
           analysisData?.summary || 
           analysisData?.executiveSummary || 
           'No summary available';
@@ -186,7 +191,7 @@ export async function getSimilarStrategiesFromPostgres(
           strategyId: strategy.strategyId,
           sessionId: strategy.sessionId,
           versionNumber: strategy.versionNumber,
-          title: strategy.inputSummary,
+          title: decryptedInputSummary,
           score: Number(strategy.similarity) || 0.1,
           summary: typeof summary === 'string' ? summary : JSON.stringify(summary),
           completedAt: strategy.finalizedAt || strategy.createdAt,
@@ -257,25 +262,33 @@ export async function getIncentivesFromPostgres(
 
     console.log(`[PG Insights] Found ${incentiveEntities.length} incentive-related entities`);
 
-    // Transform to response format
-    const results: Incentive[] = incentiveEntities.map((entity) => {
-      const metadata = entity.metadata as any;
-      
-      // Calculate score based on confidence
-      let score = 0.5; // Default
-      if (entity.confidence === 'high') score = 0.9;
-      else if (entity.confidence === 'medium') score = 0.6;
-      else if (entity.confidence === 'low') score = 0.3;
+    // Transform to response format with decryption
+    const results: Incentive[] = await Promise.all(
+      incentiveEntities.map(async (entity) => {
+        // Decrypt encrypted fields
+        const decryptedClaim = await decryptKMS(entity.claim);
+        const decryptedMetadata = entity.metadata ? (await decryptJSONKMS(entity.metadata as any) || {}) : {};
+        const decryptedEvidence = entity.evidence ? await decryptKMS(entity.evidence) : null;
+        const decryptedSource = await decryptKMS(entity.source);
+        
+        const metadata = decryptedMetadata as any;
+        
+        // Calculate score based on confidence
+        let score = 0.5; // Default
+        if (entity.confidence === 'high') score = 0.9;
+        else if (entity.confidence === 'medium') score = 0.6;
+        else if (entity.confidence === 'low') score = 0.3;
 
-      return {
-        id: entity.id,
-        name: entity.claim,
-        jurisdiction: metadata?.jurisdiction || currentContext?.jurisdiction || null,
-        deadline: metadata?.deadline || null,
-        rationale: entity.evidence || entity.source,
-        score,
-      };
-    });
+        return {
+          id: entity.id,
+          name: decryptedClaim || entity.claim,
+          jurisdiction: metadata?.jurisdiction || currentContext?.jurisdiction || null,
+          deadline: metadata?.deadline || null,
+          rationale: decryptedEvidence || decryptedSource || entity.source,
+          score,
+        };
+      })
+    );
 
     return results;
   } catch (error) {
@@ -343,14 +356,24 @@ export async function getEvidenceFromPostgres(
       }
     }
 
-    // Transform to response format
-    const results: Evidence[] = Array.from(urlMap.values()).map((ref) => ({
-      referenceId: ref.id,
-      title: ref.title,
-      url: ref.url,
-      topic: ref.topics?.[0] || null,
-      confidence: ref.confidence ? Number(ref.confidence) : null,
-    }));
+    // Transform to response format with decryption
+    const results: Evidence[] = await Promise.all(
+      Array.from(urlMap.values()).map(async (ref) => {
+        // Decrypt encrypted fields
+        const decryptedTitle = await decryptKMS(ref.title);
+        
+        // Note: topics is a plain text array field (not encrypted)
+        const topicsArray = ref.topics || null;
+        
+        return {
+          referenceId: ref.id,
+          title: decryptedTitle || ref.title,
+          url: ref.url,
+          topic: topicsArray?.[0] || null,
+          confidence: ref.confidence ? Number(ref.confidence) : null,
+        };
+      })
+    );
 
     return results;
   } catch (error) {
