@@ -144,6 +144,83 @@ Found 87 records with analysis or decisions data
 ✅ All plaintext data has been encrypted successfully!
 ```
 
+## Production Migration via API Endpoint
+
+For deployed Replit applications, use the secure admin endpoint instead of the CLI:
+
+### Step 1: Set Migration Passphrase
+
+In your **production deployment** (Replit Secrets):
+```
+ENCRYPTION_MIGRATION_PASSPHRASE=<choose-a-strong-random-passphrase>
+```
+
+Keep this passphrase secure - you'll need it to run the migration.
+
+### Step 2: Deploy Your Application
+
+Deploy the updated code with encryption fixes.
+
+### Step 3: Dry Run via API
+
+```bash
+curl -X POST https://your-app.replit.app/api/admin/encrypt-legacy-data \
+  -H "Content-Type: application/json" \
+  -d '{
+    "passphrase": "YOUR_PASSPHRASE_HERE",
+    "dryRun": true
+  }'
+```
+
+**Example Response:**
+```json
+{
+  "success": true,
+  "dryRun": true,
+  "stats": {
+    "totalRecords": 17,
+    "recordsEncrypted": 17,
+    "recordsSkipped": 0,
+    "recordsFailed": 0,
+    "durationMs": 305
+  },
+  "message": "Dry run completed. No data was modified."
+}
+```
+
+### Step 4: Run Live Migration
+
+```bash
+curl -X POST https://your-app.replit.app/api/admin/encrypt-legacy-data \
+  -H "Content-Type: application/json" \
+  -d '{
+    "passphrase": "YOUR_PASSPHRASE_HERE",
+    "dryRun": false
+  }'
+```
+
+### Step 5: Verify Encryption Complete
+
+Run dry run again - all records should be skipped (already encrypted):
+
+```bash
+curl -X POST https://your-app.replit.app/api/admin/encrypt-legacy-data \
+  -H "Content-Type: application/json" \
+  -d '{
+    "passphrase": "YOUR_PASSPHRASE_HERE",
+    "dryRun": true
+  }'
+```
+
+**Expected:** `recordsEncrypted: 0`, `recordsSkipped: <total>`
+
+### Security Notes
+
+- Requires Admin role authentication
+- Passphrase validation prevents accidental execution
+- All attempts are logged with user ID and timestamp
+- Invalid passphrase attempts are logged
+
 ## Verification
 
 After running the migration, verify the encryption worked:
