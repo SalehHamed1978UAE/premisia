@@ -69,7 +69,30 @@ app.get('/health/auth', (_req: Request, res: Response) => {
   res.json({ ready: authReadiness.isReady() });
 });
 
-// Root endpoint - remove this entirely, let Vite/static serving handle it
+// Track if routes/static serving are ready
+let appReady = false;
+
+// Root endpoint handler for BOTH health checks AND SPA serving
+app.get('/', (req: Request, res: Response, next: Function) => {
+  // Health check probes don't send Accept: text/html
+  // Browsers always send Accept: text/html
+  const acceptHeader = req.headers.accept || '';
+  const isHealthCheck = !acceptHeader.includes('text/html');
+  
+  if (isHealthCheck) {
+    // Health check probe - respond immediately
+    return res.status(200).json({ status: 'ok' });
+  }
+  
+  // Browser request - serve SPA
+  if (appReady) {
+    // Routes registered, pass to Vite/static serving
+    next();
+  } else {
+    // Routes not ready yet, return minimal loading page
+    res.status(200).send('<!DOCTYPE html><html><head><title>Loading...</title></head><body><p>Application starting, please refresh in a moment...</p></body></html>');
+  }
+});
 
 (async () => {
   // Create HTTP server immediately WITHOUT registering routes
@@ -117,7 +140,8 @@ app.get('/health/auth', (_req: Request, res: Response) => {
           } else {
             serveStatic(app);
           }
-          log('[Server] Static file serving configured');
+          appReady = true;
+          log('[Server] Static file serving configured - app ready');
         } catch (error: any) {
           console.error('[Server] FATAL: Route registration failed:', error.message);
           console.error('[Server] Application will not be functional. Exiting...');
