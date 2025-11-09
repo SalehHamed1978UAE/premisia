@@ -5,10 +5,20 @@ import { validateEncryptionKey } from "./utils/encryption";
 import { backgroundJobService } from "./services/background-job-service";
 import { registerFrameworkExecutors } from "./journey/register-frameworks";
 import { verifyConnection } from "./config/neo4j";
+import { initializeDatabaseExtensions } from "./db-init";
 
 const app = express();
 
 validateEncryptionKey();
+
+// Verify database extensions (required for knowledge graph features)
+// This must complete before accepting requests to ensure isKnowledgeGraphEnabled() works correctly
+try {
+  await initializeDatabaseExtensions();
+} catch (error: any) {
+  console.error('[Server] Extension verification failed:', error.message);
+  console.error('[Server] Knowledge Graph features will be disabled');
+}
 
 // Verify Neo4j connection if configured
 const hasNeo4jConfig = process.env.NEO4J_URI && process.env.NEO4J_PASSWORD;

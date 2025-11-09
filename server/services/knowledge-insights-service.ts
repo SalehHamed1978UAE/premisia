@@ -91,40 +91,57 @@ export async function getSimilarStrategiesFromPostgres(
 
     // Query similar strategies from the same user (excluding current understanding's sessions)
     // Strategy: Use trigram similarity on inputSummary and text content in analysisData
-    const similarStrategies = await db
-      .select({
-        strategyId: strategyVersions.id,
-        sessionId: strategyVersions.sessionId,
-        versionNumber: strategyVersions.versionNumber,
-        inputSummary: strategyVersions.inputSummary,
-        analysisData: strategyVersions.analysisData,
-        finalizedAt: strategyVersions.finalizedAt,
-        createdAt: strategyVersions.createdAt,
-        // Calculate similarity score using trigram similarity on inputSummary
-        similarity: sql<number>`
+    // Note: Requires pg_trgm extension to be installed
+    let similarStrategies: any[];
+    
+    try {
+      similarStrategies = await db
+        .select({
+          strategyId: strategyVersions.id,
+          sessionId: strategyVersions.sessionId,
+          versionNumber: strategyVersions.versionNumber,
+          inputSummary: strategyVersions.inputSummary,
+          analysisData: strategyVersions.analysisData,
+          finalizedAt: strategyVersions.finalizedAt,
+          createdAt: strategyVersions.createdAt,
+          // Calculate similarity score using trigram similarity on inputSummary
+          similarity: sql<number>`
+            GREATEST(
+              COALESCE(similarity(${strategyVersions.inputSummary}, ${currentInput}), 0),
+              0.1
+            )
+          `,
+        })
+        .from(strategyVersions)
+        .where(
+          and(
+            eq(strategyVersions.userId, userId),
+            currentSessionIds.length > 0 
+              ? sql`${strategyVersions.sessionId} NOT IN (${sql.join(currentSessionIds.map(id => sql`${id}`), sql`, `)})`
+              : sql`1=1`, // If no sessions, include all
+            isNotNull(strategyVersions.finalizedAt) // Only completed strategies
+          )
+        )
+        .orderBy(desc(sql`
           GREATEST(
             COALESCE(similarity(${strategyVersions.inputSummary}, ${currentInput}), 0),
             0.1
           )
-        `,
-      })
-      .from(strategyVersions)
-      .where(
-        and(
-          eq(strategyVersions.userId, userId),
-          currentSessionIds.length > 0 
-            ? sql`${strategyVersions.sessionId} NOT IN (${sql.join(currentSessionIds.map(id => sql`${id}`), sql`, `)})`
-            : sql`1=1`, // If no sessions, include all
-          isNotNull(strategyVersions.finalizedAt) // Only completed strategies
-        )
-      )
-      .orderBy(desc(sql`
-        GREATEST(
-          COALESCE(similarity(${strategyVersions.inputSummary}, ${currentInput}), 0),
-          0.1
-        )
-      `))
-      .limit(5);
+        `))
+        .limit(5);
+    } catch (error: any) {
+      // Check if error is due to missing pg_trgm extension
+      if (error.message?.includes('similarity') || error.message?.includes('pg_trgm') || error.message?.includes('function')) {
+        console.error('[PG Insights] similarity() function not available - pg_trgm extension likely missing');
+        console.error('[PG Insights] Knowledge Graph features require: CREATE EXTENSION IF NOT EXISTS pg_trgm;');
+        console.error('[PG Insights] Returning empty results instead of failing');
+        
+        // Return empty array instead of throwing - graceful degradation
+        similarStrategies = [];
+      } else {
+        throw error; // Re-throw other errors
+      }
+    }
 
     console.log(`[PG Insights] Found ${similarStrategies.length} potentially similar strategies`);
 
