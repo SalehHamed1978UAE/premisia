@@ -98,27 +98,19 @@ app.get('/', (req: Request, res: Response, next: Function) => {
   }
 });
 
-// Bootstrap function to start server - esbuild needs explicit execution entry point
-async function bootstrap() {
-  // Create HTTP server immediately WITHOUT registering routes
-  // This allows us to start listening before expensive route registration
-  const server = createServer(app);
+// Create HTTP server and start listening IMMEDIATELY (synchronous for fast health checks)
+const server = createServer(app);
+const port = parseInt(process.env.PORT || '5000', 10);
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
-
-  // START LISTENING IMMEDIATELY - This makes health checks pass right away
-  // Routes will be registered in the background after server is listening
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
-    log('Server ready for health checks');
+// START LISTENING IMMEDIATELY - This makes health checks pass right away
+// All async initialization happens in background after server is listening
+server.listen({
+  port,
+  host: "0.0.0.0",
+  reusePort: true,
+}, () => {
+  log(`serving on port ${port}`);
+  log('Server ready for health checks');
     
     // Defer ALL background initialization to avoid blocking the event loop
     // This ensures health check requests at / can be served immediately
@@ -209,7 +201,3 @@ async function bootstrap() {
       }
     });
   });
-}
-
-// Explicit execution trigger - esbuild preserves this in bundle output
-void bootstrap();
