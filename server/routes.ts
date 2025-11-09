@@ -21,14 +21,6 @@ import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
 import { db } from "./db";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Health check endpoint - must respond immediately without dependencies
-  app.get('/', (_req, res) => {
-    res.status(200).json({
-      status: 'healthy',
-      timestamp: new Date().toISOString()
-    });
-  });
-
   // Setup Replit Auth
   await setupAuth(app);
 
