@@ -20,7 +20,7 @@ import type { Store } from "express-session";
 import { ontologyService } from "./ontology-service";
 import type { EPMEntity } from "@shared/ontology";
 import { getStrategicUnderstandingBySession } from "./services/secure-data-service";
-import { encryptKMS, decryptKMS, decryptJSONKMS } from "./utils/kms-encryption";
+import { encryptKMS, decryptKMS, encryptJSONKMS, decryptJSONKMS } from "./utils/kms-encryption";
 
 const PostgresSessionStore = connectPg(session);
 
@@ -665,10 +665,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createStrategyVersion(version: any): Promise<StrategyVersion> {
-    // Encrypt inputSummary if it exists
+    // Encrypt sensitive fields if they exist
     const dataToInsert = { ...version };
+    
     if (version.inputSummary) {
       dataToInsert.inputSummary = await encryptKMS(version.inputSummary);
+    }
+    
+    if (version.analysisData) {
+      dataToInsert.analysisData = await encryptJSONKMS(version.analysisData);
+    }
+    
+    if (version.decisionsData) {
+      dataToInsert.decisionsData = await encryptJSONKMS(version.decisionsData);
     }
     
     const result = await db.insert(strategyVersions).values(dataToInsert as any).returning();
@@ -682,10 +691,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateStrategyVersion(id: string, data: any): Promise<StrategyVersion> {
-    // Encrypt inputSummary if it exists in the data parameter
+    // Encrypt sensitive fields if they exist in the data parameter
     const dataToUpdate = { ...data };
+    
     if (data.inputSummary !== undefined) {
       dataToUpdate.inputSummary = data.inputSummary ? await encryptKMS(data.inputSummary) : null;
+    }
+    
+    if (data.analysisData !== undefined) {
+      dataToUpdate.analysisData = data.analysisData ? await encryptJSONKMS(data.analysisData) : null;
+    }
+    
+    if (data.decisionsData !== undefined) {
+      dataToUpdate.decisionsData = data.decisionsData ? await encryptJSONKMS(data.decisionsData) : null;
     }
     
     const [updated] = await db.update(strategyVersions)
