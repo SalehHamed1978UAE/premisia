@@ -8,6 +8,7 @@ import type { Express, RequestHandler } from "express";
 import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
 import { storage } from "./storage";
+import { authReadiness } from "./auth-readiness";
 
 if (!process.env.REPLIT_DOMAINS) {
   throw new Error("Environment variable REPLIT_DOMAINS not provided");
@@ -67,12 +68,20 @@ async function upsertUser(
   });
 }
 
-export async function setupAuth(app: Express) {
+// Setup session and passport middleware synchronously (MUST happen before routes)
+export function setupAuthMiddleware(app: Express) {
   app.set("trust proxy", 1);
   app.use(getSession());
   app.use(passport.initialize());
   app.use(passport.session());
+  
+  passport.serializeUser((user: Express.User, cb) => cb(null, user));
+  passport.deserializeUser((user: Express.User, cb) => cb(null, user));
+}
 
+// Complete auth setup with OIDC config fetch and strategy registration
+// Can be deferred to after server.listen() to avoid blocking startup
+export async function finishAuthSetup(app: Express) {
   const config = await getOidcConfig();
 
   const verify: VerifyFunction = async (
@@ -99,9 +108,6 @@ export async function setupAuth(app: Express) {
     passport.use(strategy);
   }
 
-  passport.serializeUser((user: Express.User, cb) => cb(null, user));
-  passport.deserializeUser((user: Express.User, cb) => cb(null, user));
-
   const getStrategyName = (hostname: string) => {
     const domains = process.env.REPLIT_DOMAINS!.split(",");
     // Check if hostname matches any registered domain
@@ -111,6 +117,11 @@ export async function setupAuth(app: Express) {
   };
 
   app.get("/api/login", (req, res, next) => {
+    if (!authReadiness.isReady()) {
+      return res.status(503).header('Retry-After', '2').json({
+        message: 'Authentication system initializing, please retry in 2 seconds'
+      });
+    }
     passport.authenticate(getStrategyName(req.hostname), {
       prompt: "login consent",
       scope: ["openid", "email", "profile", "offline_access"],
@@ -118,6 +129,11 @@ export async function setupAuth(app: Express) {
   });
 
   app.get("/api/callback", (req, res, next) => {
+    if (!authReadiness.isReady()) {
+      return res.status(503).header('Retry-After', '2').json({
+        message: 'Authentication system initializing, please retry in 2 seconds'
+      });
+    }
     passport.authenticate(getStrategyName(req.hostname), {
       successReturnToOrRedirect: "/",
       failureRedirect: "/api/login",
@@ -134,6 +150,15 @@ export async function setupAuth(app: Express) {
       );
     });
   });
+
+  // Mark auth system as ready
+  authReadiness.setReady();
+}
+
+// Legacy setupAuth function for backwards compatibility
+export async function setupAuth(app: Express) {
+  setupAuthMiddleware(app);
+  await finishAuthSetup(app);
 }
 
 export const isAuthenticated: RequestHandler = async (req, res, next) => {

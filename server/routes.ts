@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupAuthMiddleware, isAuthenticated } from "./replitAuth";
 import { storage } from "./storage";
 import { insertProgramSchema, insertWorkstreamSchema, insertStageGateSchema, insertTaskSchema, insertKpiSchema, insertRiskSchema, insertBenefitSchema, insertFundingSourceSchema, insertExpenseSchema, insertResourceSchema, insertSessionContextSchema, orchestratorTaskSchema, backgroundJobs, journeySessions, strategicUnderstanding, sessionContext, references, strategyVersions, epmPrograms } from "@shared/schema";
 import { ontologyService } from "./ontology-service";
@@ -21,8 +21,9 @@ import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
 import { db } from "./db";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Setup Replit Auth
-  await setupAuth(app);
+  // Setup auth middleware synchronously (session, passport)
+  // This MUST happen before route registration for req.user to be populated
+  setupAuthMiddleware(app);
 
   // Auth user endpoint for Replit Auth
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {

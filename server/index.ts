@@ -6,6 +6,7 @@ import { backgroundJobService } from "./services/background-job-service";
 import { registerFrameworkExecutors } from "./journey/register-frameworks";
 import { verifyConnection } from "./config/neo4j";
 import { initializeDatabaseExtensions } from "./db-init";
+import { authReadiness } from "./auth-readiness";
 
 const app = express();
 
@@ -63,6 +64,11 @@ app.get('/health', (_req: Request, res: Response) => {
   res.status(200).json({ status: 'ok' });
 });
 
+// Auth readiness health check endpoint
+app.get('/health/auth', (_req: Request, res: Response) => {
+  res.json({ ready: authReadiness.isReady() });
+});
+
 // Root endpoint handler for deployment health checks
 // Health checks hit / by default and can't be configured in autoscale deployments  
 // This responds to health probes but allows SPA to load for browsers
@@ -81,6 +87,7 @@ app.get('/', (req: Request, res: Response, next: Function) => {
 });
 
 (async () => {
+  // Register routes (includes synchronous auth middleware setup)
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -111,6 +118,22 @@ app.get('/', (req: Request, res: Response, next: Function) => {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+    
+    // Complete auth setup (OIDC config + strategy registration) in background
+    // This happens AFTER server is listening to avoid delaying health check readiness
+    // There is a ~1s window where /api/login returns 500 if accessed before this completes
+    (async () => {
+      try {
+        log('[Server] Completing authentication setup...');
+        const { finishAuthSetup } = await import('./replitAuth');
+        await finishAuthSetup(app);
+        log('[Server] Authentication setup complete');
+      } catch (error: any) {
+        console.error('[Server] FATAL: Auth setup failed:', error.message);
+        console.error('[Server] Application will not be functional. Exiting...');
+        process.exit(1);
+      }
+    })();
     
     // Start background job dispatcher (polls every 15 seconds)
     setInterval(() => {
