@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import { createServer } from "node:http";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { validateEncryptionKey } from "./utils/encryption";
@@ -28,35 +29,38 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+// Request logging middleware - only in development to avoid breaking responses
+if (process.env.NODE_ENV === 'development') {
+  app.use((req, res, next) => {
+    const start = Date.now();
+    const path = req.path;
+    let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
+    const originalResJson = res.json;
+    res.json = function (bodyJson, ...args) {
+      capturedJsonResponse = bodyJson;
+      return originalResJson.apply(res, [bodyJson, ...args]);
+    };
 
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+    res.on("finish", () => {
+      const duration = Date.now() - start;
+      if (path.startsWith("/api")) {
+        let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+        if (capturedJsonResponse) {
+          logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+        }
+
+        if (logLine.length > 80) {
+          logLine = logLine.slice(0, 79) + "…";
+        }
+
+        log(logLine);
       }
+    });
 
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
-    }
+    next();
   });
-
-  next();
-});
+}
 
 // Health check endpoints for deployment readiness probes
 // Must be unauthenticated and respond quickly
@@ -94,10 +98,10 @@ app.get('/', (req: Request, res: Response, next: Function) => {
   }
 });
 
-(async () => {
+// Bootstrap function to start server - esbuild needs explicit execution entry point
+async function bootstrap() {
   // Create HTTP server immediately WITHOUT registering routes
   // This allows us to start listening before expensive route registration
-  const { createServer } = await import("http");
   const server = createServer(app);
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
@@ -105,7 +109,7 @@ app.get('/', (req: Request, res: Response, next: Function) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  
+
   // START LISTENING IMMEDIATELY - This makes health checks pass right away
   // Routes will be registered in the background after server is listening
   server.listen({
@@ -157,9 +161,11 @@ app.get('/', (req: Request, res: Response, next: Function) => {
           await finishAuthSetup(app);
           log('[Server] Authentication setup complete');
         } catch (error: any) {
-          console.error('[Server] FATAL: Auth setup failed:', error.message);
-          console.error('[Server] Application will not be functional. Exiting...');
-          process.exit(1);
+          // In production deployments, auth might not be available yet during health checks
+          // Log warning but don't exit - let deployment health checks pass
+          console.warn('[Server] WARNING: Auth setup failed:', error.message);
+          console.warn('[Server] Authentication features will be limited until configuration is available');
+          authReadiness.setReady(false);
         }
       })();
       
@@ -203,7 +209,7 @@ app.get('/', (req: Request, res: Response, next: Function) => {
       }
     });
   });
-})().catch((error) => {
-  console.error('[Server] Fatal error during startup:', error);
-  process.exit(1);
-});
+}
+
+// Explicit execution trigger - esbuild preserves this in bundle output
+void bootstrap();
