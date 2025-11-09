@@ -378,7 +378,7 @@ function ResearchLibraryTab({ strategyId }: { strategyId: string }) {
             <CardHeader>
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
-                  <CardTitle className="text-base mb-2" data-testid={`text-reference-title-${ref.id}`}>
+                  <CardTitle className="text-base mb-2 break-all line-clamp-2" data-testid={`text-reference-title-${ref.id}`}>
                     {ref.title}
                   </CardTitle>
                   <CardDescription className="flex items-center gap-2 flex-wrap">
@@ -396,7 +396,7 @@ function ResearchLibraryTab({ strategyId }: { strategyId: string }) {
                   </CardDescription>
                 </div>
                 {ref.url && (
-                  <a href={ref.url} target="_blank" rel="noopener noreferrer" data-testid={`link-reference-${ref.id}`}>
+                  <a href={ref.url} target="_blank" rel="noopener noreferrer" className="shrink-0" data-testid={`link-reference-${ref.id}`}>
                     <Button variant="ghost" size="sm">
                       <ExternalLink className="h-4 w-4" />
                     </Button>
