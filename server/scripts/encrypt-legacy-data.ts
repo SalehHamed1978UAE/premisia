@@ -16,136 +16,8 @@
  *   --batch-size: Number of records to process at once (default: 50)
  */
 
-import { db } from '../db';
-import { strategyVersions } from '@shared/schema';
-import { encryptJSONKMS } from '../utils/kms-encryption';
-import { eq, sql } from 'drizzle-orm';
-
-interface MigrationStats {
-  total: number;
-  encrypted: number;
-  skipped: number;
-  failed: number;
-}
-
-const stats: MigrationStats = {
-  total: 0,
-  encrypted: 0,
-  skipped: 0,
-  failed: 0
-};
-
-async function isPlaintextJSON(value: any): Promise<boolean> {
-  if (!value) return false;
-  
-  // Parse to object if it's a string
-  let parsed: any;
-  try {
-    parsed = typeof value === 'string' ? JSON.parse(value) : value;
-  } catch (e) {
-    // If it can't be parsed as JSON, treat as plaintext
-    return true;
-  }
-  
-  // Check if it has the encrypted envelope structure
-  // Encrypted data has: { dataKeyCiphertext, iv, ciphertext, authTag }
-  if (
-    parsed &&
-    typeof parsed === 'object' &&
-    'dataKeyCiphertext' in parsed &&
-    'iv' in parsed &&
-    'ciphertext' in parsed &&
-    'authTag' in parsed
-  ) {
-    // This is encrypted data
-    return false;
-  }
-  
-  // Any other JSON structure is plaintext
-  return true;
-}
-
-async function encryptStrategyVersions(dryRun: boolean, batchSize: number) {
-  console.log('\n🔍 Checking strategy_versions for plaintext data...\n');
-  
-  // Get all strategy versions with non-null analysisData or decisionsData
-  const versions = await db.select({
-    id: strategyVersions.id,
-    analysisData: strategyVersions.analysisData,
-    decisionsData: strategyVersions.decisionsData,
-    createdAt: strategyVersions.createdAt
-  })
-  .from(strategyVersions)
-  .where(sql`${strategyVersions.analysisData} IS NOT NULL OR ${strategyVersions.decisionsData} IS NOT NULL`);
-  
-  stats.total = versions.length;
-  console.log(`Found ${versions.length} records with analysis or decisions data\n`);
-  
-  let processed = 0;
-  
-  for (const version of versions) {
-    processed++;
-    
-    try {
-      const needsUpdate = {
-        analysisData: await isPlaintextJSON(version.analysisData),
-        decisionsData: await isPlaintextJSON(version.decisionsData)
-      };
-      
-      if (!needsUpdate.analysisData && !needsUpdate.decisionsData) {
-        stats.skipped++;
-        continue;
-      }
-      
-      console.log(`[${processed}/${versions.length}] ID: ${version.id.substring(0, 8)}...`);
-      
-      if (needsUpdate.analysisData) {
-        console.log(`  ⚠️  analysisData contains plaintext`);
-      }
-      if (needsUpdate.decisionsData) {
-        console.log(`  ⚠️  decisionsData contains plaintext`);
-      }
-      
-      if (dryRun) {
-        console.log(`  ℹ️  DRY RUN: Would encrypt this record`);
-        stats.encrypted++;
-        continue;
-      }
-      
-      // Encrypt the fields
-      const updateData: any = {};
-      
-      if (needsUpdate.analysisData && version.analysisData) {
-        updateData.analysisData = await encryptJSONKMS(version.analysisData);
-        console.log(`  ✅ Encrypted analysisData`);
-      }
-      
-      if (needsUpdate.decisionsData && version.decisionsData) {
-        updateData.decisionsData = await encryptJSONKMS(version.decisionsData);
-        console.log(`  ✅ Encrypted decisionsData`);
-      }
-      
-      // Update the record
-      await db.update(strategyVersions)
-        .set(updateData)
-        .where(eq(strategyVersions.id, version.id));
-      
-      stats.encrypted++;
-      console.log(`  ✅ Record updated successfully\n`);
-      
-      // Batch processing pause
-      if (processed % batchSize === 0) {
-        console.log(`  ⏸️  Processed ${processed} records, pausing briefly...\n`);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-      
-    } catch (error) {
-      stats.failed++;
-      console.error(`  ❌ Error encrypting record ${version.id}:`, error);
-      console.error(`     Continuing with next record...\n`);
-    }
-  }
-}
+import { runEncryptionMigration } from '../services/encryption-migration';
+import type { MigrationRecord } from '../services/encryption-migration';
 
 async function main() {
   const args = process.argv.slice(2);
@@ -160,12 +32,45 @@ async function main() {
   console.log(`Mode: ${dryRun ? '🔍 DRY RUN (no changes will be made)' : '⚡ LIVE (data will be encrypted)'}`);
   console.log(`Batch size: ${batchSize} records`);
   
-  const startTime = Date.now();
-  
   try {
-    await encryptStrategyVersions(dryRun, batchSize);
+    console.log('\n🔍 Checking strategy_versions for plaintext data...\n');
     
-    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+    let processed = 0;
+    
+    const stats = await runEncryptionMigration({
+      dryRun,
+      batchSize,
+      onProgress: (record: MigrationRecord, current: number, total: number) => {
+        processed++;
+        
+        console.log(`[${current}/${total}] ID: ${record.id.substring(0, 8)}...`);
+        
+        if (record.analysisPlaintext) {
+          console.log(`  ⚠️  analysisData contains plaintext`);
+        }
+        if (record.decisionsPlaintext) {
+          console.log(`  ⚠️  decisionsData contains plaintext`);
+        }
+        
+        if (dryRun) {
+          console.log(`  ℹ️  DRY RUN: Would encrypt this record`);
+        } else {
+          if (record.analysisPlaintext) {
+            console.log(`  ✅ Encrypted analysisData`);
+          }
+          if (record.decisionsPlaintext) {
+            console.log(`  ✅ Encrypted decisionsData`);
+          }
+          console.log(`  ✅ Record updated successfully\n`);
+        }
+      }
+    });
+    
+    if (stats.total > 0 && processed === 0) {
+      console.log(`Found ${stats.total} records with analysis or decisions data\n`);
+    }
+    
+    const duration = (stats.duration / 1000).toFixed(2);
     
     console.log('');
     console.log('╔════════════════════════════════════════════════════════╗');
