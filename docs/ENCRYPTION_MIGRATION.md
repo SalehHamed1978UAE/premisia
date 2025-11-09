@@ -6,7 +6,9 @@ This document explains how to encrypt existing plaintext data in the production 
 
 ## Background
 
-Prior to November 2025, the encryption system had a bug where `analysisData` and `decisionsData` fields in the `strategy_versions` table were **not being encrypted** on create/update operations. This resulted in sensitive business data (customer segments, revenue models, cost structures, BMC research, etc.) being stored in plaintext.
+Prior to November 2025, the encryption system had a critical bug where `analysisData` and `decisionsData` fields in the `strategy_versions` table were **not being encrypted** on create/update operations. This resulted in sensitive business data (customer segments, revenue models, cost structures, BMC research, strategic decisions, etc.) being stored in plaintext.
+
+**Root Cause:** The `storage.ts` methods `createStrategyVersion` and `updateStrategyVersion` were only encrypting `inputSummary`, but passing `analysisData` and `decisionsData` through without encryption.
 
 **What's Fixed (November 2025):**
 - ✅ `storage.ts` now properly encrypts `analysisData` and `decisionsData` on create/update
@@ -76,14 +78,17 @@ tsx server/scripts/encrypt-legacy-data.ts --batch-size=100
 
 ### Detection Logic
 
-The script identifies plaintext data by checking if the field:
-1. Does NOT contain `dataKeyCiphertext` or `ciphertext` (encryption markers)
-2. DOES contain business data keywords like:
-   - `primary_customer_segment`
-   - `revenue_model`
-   - `cost_structure`
-   - `bmc_research`
-   - `five_whys`
+The script uses **deterministic envelope detection** to identify plaintext data:
+
+1. **Parse the JSON data** - Convert string to object if needed
+2. **Check for encrypted envelope structure** - Encrypted data MUST have all fields:
+   - `dataKeyCiphertext` - Encrypted data encryption key
+   - `iv` - Initialization vector
+   - `ciphertext` - Encrypted payload
+   - `authTag` - Authentication tag
+3. **Classify as plaintext** - If ANY of these fields are missing, the data is plaintext
+
+This approach ensures **100% coverage** - no plaintext data can slip through, regardless of content.
 
 ### Encryption Process
 

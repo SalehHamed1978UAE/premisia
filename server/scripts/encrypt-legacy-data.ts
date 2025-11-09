@@ -38,23 +38,31 @@ const stats: MigrationStats = {
 async function isPlaintextJSON(value: any): Promise<boolean> {
   if (!value) return false;
   
-  const valueStr = typeof value === 'string' ? value : JSON.stringify(value);
-  
-  // Check if it looks like encrypted data (has dataKeyCiphertext)
-  if (valueStr.includes('dataKeyCiphertext') || valueStr.includes('ciphertext')) {
-    return false;
-  }
-  
-  // Check if it looks like business data
-  if (valueStr.includes('primary_customer_segment') || 
-      valueStr.includes('revenue_model') ||
-      valueStr.includes('cost_structure') ||
-      valueStr.includes('bmc_research') ||
-      valueStr.includes('five_whys')) {
+  // Parse to object if it's a string
+  let parsed: any;
+  try {
+    parsed = typeof value === 'string' ? JSON.parse(value) : value;
+  } catch (e) {
+    // If it can't be parsed as JSON, treat as plaintext
     return true;
   }
   
-  return false;
+  // Check if it has the encrypted envelope structure
+  // Encrypted data has: { dataKeyCiphertext, iv, ciphertext, authTag }
+  if (
+    parsed &&
+    typeof parsed === 'object' &&
+    'dataKeyCiphertext' in parsed &&
+    'iv' in parsed &&
+    'ciphertext' in parsed &&
+    'authTag' in parsed
+  ) {
+    // This is encrypted data
+    return false;
+  }
+  
+  // Any other JSON structure is plaintext
+  return true;
 }
 
 async function encryptStrategyVersions(dryRun: boolean, batchSize: number) {

@@ -40,7 +40,12 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tail
 - **Journey Builder System**: Allows users to choose from 6 pre-defined journeys or create custom ones with AI validation.
 - **Universal Background Jobs System**: Hybrid system for tracking long-running operations with database persistence and real-time SSE streaming.
 - **Non-Blocking Progress UX**: Uses a fixed-position progress card (`MinimizedJobTracker`) and polling.
-- **Enterprise Data Encryption**: AWS KMS envelope encryption with AES-256-GCM for sensitive business data at rest. All sensitive fields (including `input_summary` in strategy_versions) are encrypted before storage via `encryptKMS` in the storage layer. Migration completed November 2025 to encrypt legacy plaintext records.
+- **Enterprise Data Encryption**: AWS KMS envelope encryption with AES-256-GCM for sensitive business data at rest. All sensitive fields are encrypted before storage:
+  - **strategy_versions**: `inputSummary` (text), `analysisData` (JSONB), `decisionsData` (JSONB)
+  - **strategic_understanding**: `userInput`, `companyContext`, `initiativeDescription`
+  - **journey_sessions**: `accumulatedContext`, `summary`
+  - **epm_programs**: All 14 program fields (executiveSummary, workstreams, timeline, etc.)
+  - **Encryption Fix (November 2025)**: Discovered and fixed critical bug where `analysisData` and `decisionsData` in `strategy_versions` were NOT being encrypted in `storage.ts` (`createStrategyVersion`/`updateStrategyVersion` methods). Added `encryptJSONKMS` calls for both fields. Created migration script with deterministic envelope detection to encrypt 17 legacy plaintext records. All data now verified encrypted. See [docs/ENCRYPTION_MIGRATION.md](docs/ENCRYPTION_MIGRATION.md).
 - **Full-Pass Export System**: Generates ZIP bundles with strategic analysis and EPM program data in multiple formats.
 - **Document Intelligence Enrichment**: Background job pipeline for asynchronously extracting knowledge from uploaded documents (PDF, DOCX, Excel, images), populating the encrypted knowledge graph.
 - **Strategies Hub**: Unified view for all strategic initiatives, providing artifact hierarchy and research provenance.
