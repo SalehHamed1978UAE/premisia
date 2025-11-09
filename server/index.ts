@@ -69,22 +69,7 @@ app.get('/health/auth', (_req: Request, res: Response) => {
   res.json({ ready: authReadiness.isReady() });
 });
 
-// Root endpoint handler for deployment health checks
-// Health checks hit / by default and can't be configured in autoscale deployments  
-// This responds to health probes but allows SPA to load for browsers
-app.get('/', (req: Request, res: Response, next: Function) => {
-  // If request accepts HTML (browser), let it through to serve the SPA
-  const acceptHeader = req.headers.accept || '';
-  const acceptsHtml = acceptHeader.includes('text/html');
-  
-  if (acceptsHtml) {
-    // Browser request - continue to static file serving
-    next();
-  } else {
-    // Health check probe - respond immediately
-    res.status(200).json({ status: 'ok' });
-  }
-});
+// Root endpoint - remove this entirely, let Vite/static serving handle it
 
 (async () => {
   // Create HTTP server immediately WITHOUT registering routes
@@ -106,91 +91,93 @@ app.get('/', (req: Request, res: Response, next: Function) => {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+    log('Server ready for health checks');
     
-    // Register ALL routes in background (including auth middleware and API routes)
-    // This can take time due to database initialization, but health checks already pass
-    (async () => {
-      try {
-        log('[Server] Registering application routes...');
-        await registerRoutes(app);
-        log('[Server] Route registration complete');
-        
-        // Setup error handler AFTER routes are registered
-        app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-          const status = err.status || err.statusCode || 500;
-          const message = err.message || "Internal Server Error";
-          res.status(status).json({ message });
-          throw err;
-        });
-        
-        // Setup Vite or static serving AFTER routes
-        if (app.get("env") === "development") {
-          await setupVite(app, server);
-        } else {
-          serveStatic(app);
-        }
-        log('[Server] Static file serving configured');
-      } catch (error: any) {
-        console.error('[Server] FATAL: Route registration failed:', error.message);
-        console.error('[Server] Application will not be functional. Exiting...');
-        process.exit(1);
-      }
-    })();
-    
-    // Complete auth setup (OIDC config + strategy registration) in background
-    // This happens AFTER server is listening to avoid delaying health check readiness
-    (async () => {
-      try {
-        log('[Server] Completing authentication setup...');
-        const { finishAuthSetup } = await import('./replitAuth');
-        await finishAuthSetup(app);
-        log('[Server] Authentication setup complete');
-      } catch (error: any) {
-        console.error('[Server] FATAL: Auth setup failed:', error.message);
-        console.error('[Server] Application will not be functional. Exiting...');
-        process.exit(1);
-      }
-    })();
-    
-    // Start background job dispatcher (polls every 15 seconds)
-    setInterval(() => {
-      backgroundJobService.processPendingJobs().catch((error) => {
-        console.error('[Server] Background job dispatcher error:', error);
-      });
-    }, 15000);
-    
-    log('Background job dispatcher started (polling every 15s)');
-    
-    // Verify database extensions in background (non-blocking)
-    (async () => {
-      try {
-        log('[Server] Starting database extension verification...');
-        await initializeDatabaseExtensions();
-        log('[Server] Database extension verification complete');
-      } catch (error: any) {
-        console.warn('[Server] WARNING: Extension verification failed:', error.message);
-        console.warn('[Server] Knowledge Graph features will be disabled');
-      }
-    })();
-    
-    // Verify Neo4j connection if configured (non-blocking)
-    const hasNeo4jConfig = process.env.NEO4J_URI && process.env.NEO4J_PASSWORD;
-    if (hasNeo4jConfig) {
-      verifyConnection()
-        .then((connected) => {
-          if (connected) {
-            log('[Neo4j] Connection verified successfully');
+    // Defer ALL background initialization to avoid blocking the event loop
+    // This ensures health check requests at / can be served immediately
+    setImmediate(() => {
+      // Register ALL routes in background (including auth middleware and API routes)
+      (async () => {
+        try {
+          log('[Server] Registering application routes...');
+          await registerRoutes(app);
+          log('[Server] Route registration complete');
+          
+          // Setup error handler AFTER routes are registered
+          app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+            const status = err.status || err.statusCode || 500;
+            const message = err.message || "Internal Server Error";
+            res.status(status).json({ message });
+            throw err;
+          });
+          
+          // Setup Vite or static serving AFTER routes
+          if (app.get("env") === "development") {
+            await setupVite(app, server);
           } else {
-            console.warn('[Neo4j] WARNING: Connection failed. Knowledge Graph features may not work.');
+            serveStatic(app);
           }
-        })
-        .catch((error) => {
-          console.warn('[Neo4j] WARNING: Connection check failed:', error.message);
-          console.warn('[Neo4j] Knowledge Graph features will not be available.');
+          log('[Server] Static file serving configured');
+        } catch (error: any) {
+          console.error('[Server] FATAL: Route registration failed:', error.message);
+          console.error('[Server] Application will not be functional. Exiting...');
+          process.exit(1);
+        }
+      })();
+      
+      // Complete auth setup (OIDC config + strategy registration)
+      (async () => {
+        try {
+          log('[Server] Completing authentication setup...');
+          const { finishAuthSetup } = await import('./replitAuth');
+          await finishAuthSetup(app);
+          log('[Server] Authentication setup complete');
+        } catch (error: any) {
+          console.error('[Server] FATAL: Auth setup failed:', error.message);
+          console.error('[Server] Application will not be functional. Exiting...');
+          process.exit(1);
+        }
+      })();
+      
+      // Start background job dispatcher
+      setInterval(() => {
+        backgroundJobService.processPendingJobs().catch((error) => {
+          console.error('[Server] Background job dispatcher error:', error);
         });
-    } else {
-      console.warn('[Neo4j] Not configured. Set NEO4J_URI and NEO4J_PASSWORD to enable Knowledge Graph features.');
-    }
+      }, 15000);
+      log('Background job dispatcher started (polling every 15s)');
+      
+      // Verify database extensions
+      (async () => {
+        try {
+          log('[Server] Starting database extension verification...');
+          await initializeDatabaseExtensions();
+          log('[Server] Database extension verification complete');
+        } catch (error: any) {
+          console.warn('[Server] WARNING: Extension verification failed:', error.message);
+          console.warn('[Server] Knowledge Graph features will be disabled');
+        }
+      })();
+      
+      // Verify Neo4j connection if configured
+      const hasNeo4jConfig = process.env.NEO4J_URI && process.env.NEO4J_PASSWORD;
+      if (hasNeo4jConfig) {
+        verifyConnection()
+          .then((connected) => {
+            if (connected) {
+              log('[Neo4j] Connection verified successfully');
+            } else {
+              console.warn('[Neo4j] WARNING: Connection failed. Knowledge Graph features may not work.');
+            }
+          })
+          .catch((error) => {
+            console.warn('[Neo4j] WARNING: Connection check failed:', error.message);
+            console.warn('[Neo4j] Knowledge Graph features will not be available.');
+          });
+      } else {
+        console.warn('[Neo4j] Not configured. Set NEO4J_URI and NEO4J_PASSWORD to enable Knowledge Graph features.');
+      }
+    });
   });
 })().catch((error) => {
   console.error('[Server] Fatal error during startup:', error);
