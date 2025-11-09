@@ -11,34 +11,6 @@ const app = express();
 
 validateEncryptionKey();
 
-// Verify database extensions (required for knowledge graph features)
-// This must complete before accepting requests to ensure isKnowledgeGraphEnabled() works correctly
-try {
-  await initializeDatabaseExtensions();
-} catch (error: any) {
-  console.error('[Server] Extension verification failed:', error.message);
-  console.error('[Server] Knowledge Graph features will be disabled');
-}
-
-// Verify Neo4j connection if configured
-const hasNeo4jConfig = process.env.NEO4J_URI && process.env.NEO4J_PASSWORD;
-if (hasNeo4jConfig) {
-  verifyConnection()
-    .then((connected) => {
-      if (connected) {
-        log('[Neo4j] Connection verified successfully');
-      } else {
-        console.warn('[Neo4j] WARNING: Connection failed. Knowledge Graph features may not work.');
-      }
-    })
-    .catch((error) => {
-      console.warn('[Neo4j] WARNING: Connection check failed:', error.message);
-      console.warn('[Neo4j] Knowledge Graph features will not be available.');
-    });
-} else {
-  console.warn('[Neo4j] Not configured. Set NEO4J_URI and NEO4J_PASSWORD to enable Knowledge Graph features.');
-}
-
 // Register framework executors for modular journey execution
 registerFrameworkExecutors();
 
@@ -125,5 +97,36 @@ app.use((req, res, next) => {
     }, 15000);
     
     log('Background job dispatcher started (polling every 15s)');
+    
+    // Verify database extensions in background (non-blocking)
+    (async () => {
+      try {
+        log('[Server] Starting database extension verification...');
+        await initializeDatabaseExtensions();
+        log('[Server] Database extension verification complete');
+      } catch (error: any) {
+        console.warn('[Server] WARNING: Extension verification failed:', error.message);
+        console.warn('[Server] Knowledge Graph features will be disabled');
+      }
+    })();
+    
+    // Verify Neo4j connection if configured (non-blocking)
+    const hasNeo4jConfig = process.env.NEO4J_URI && process.env.NEO4J_PASSWORD;
+    if (hasNeo4jConfig) {
+      verifyConnection()
+        .then((connected) => {
+          if (connected) {
+            log('[Neo4j] Connection verified successfully');
+          } else {
+            console.warn('[Neo4j] WARNING: Connection failed. Knowledge Graph features may not work.');
+          }
+        })
+        .catch((error) => {
+          console.warn('[Neo4j] WARNING: Connection check failed:', error.message);
+          console.warn('[Neo4j] Knowledge Graph features will not be available.');
+        });
+    } else {
+      console.warn('[Neo4j] Not configured. Set NEO4J_URI and NEO4J_PASSWORD to enable Knowledge Graph features.');
+    }
   });
 })();
