@@ -57,6 +57,12 @@ app.use((req, res, next) => {
   next();
 });
 
+// Health check endpoint for deployment readiness probes
+// Must be unauthenticated and respond quickly
+app.get('/health', (_req: Request, res: Response) => {
+  res.status(200).json({ status: 'ok' });
+});
+
 (async () => {
   const server = await registerRoutes(app);
 
