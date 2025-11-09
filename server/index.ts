@@ -87,31 +87,19 @@ app.get('/', (req: Request, res: Response, next: Function) => {
 });
 
 (async () => {
-  // Register routes (includes synchronous auth middleware setup)
-  const server = await registerRoutes(app);
-
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    throw err;
-  });
-
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
-    await setupVite(app, server);
-  } else {
-    serveStatic(app);
-  }
+  // Create HTTP server immediately WITHOUT registering routes
+  // This allows us to start listening before expensive route registration
+  const { createServer } = await import("http");
+  const server = createServer(app);
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
+  
+  // START LISTENING IMMEDIATELY - This makes health checks pass right away
+  // Routes will be registered in the background after server is listening
   server.listen({
     port,
     host: "0.0.0.0",
@@ -119,9 +107,38 @@ app.get('/', (req: Request, res: Response, next: Function) => {
   }, () => {
     log(`serving on port ${port}`);
     
+    // Register ALL routes in background (including auth middleware and API routes)
+    // This can take time due to database initialization, but health checks already pass
+    (async () => {
+      try {
+        log('[Server] Registering application routes...');
+        await registerRoutes(app);
+        log('[Server] Route registration complete');
+        
+        // Setup error handler AFTER routes are registered
+        app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+          const status = err.status || err.statusCode || 500;
+          const message = err.message || "Internal Server Error";
+          res.status(status).json({ message });
+          throw err;
+        });
+        
+        // Setup Vite or static serving AFTER routes
+        if (app.get("env") === "development") {
+          await setupVite(app, server);
+        } else {
+          serveStatic(app);
+        }
+        log('[Server] Static file serving configured');
+      } catch (error: any) {
+        console.error('[Server] FATAL: Route registration failed:', error.message);
+        console.error('[Server] Application will not be functional. Exiting...');
+        process.exit(1);
+      }
+    })();
+    
     // Complete auth setup (OIDC config + strategy registration) in background
     // This happens AFTER server is listening to avoid delaying health check readiness
-    // There is a ~1s window where /api/login returns 500 if accessed before this completes
     (async () => {
       try {
         log('[Server] Completing authentication setup...');
