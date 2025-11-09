@@ -46,13 +46,13 @@ interface StrategyCardProps {
   onNavigate: (id: string) => void;
 }
 
-function StrategyInsightsBadges({ sessionId }: { sessionId: string | null }) {
+function StrategyInsightsBadges({ understandingId }: { understandingId: string | null }) {
   const { knowledgeGraph: knowledgeGraphEnabled } = useFeatureFlags();
-  const { data: insightsData } = useKnowledgeInsights(sessionId, {
-    enabled: knowledgeGraphEnabled && !!sessionId,
+  const { data: insightsData } = useKnowledgeInsights(understandingId, {
+    enabled: knowledgeGraphEnabled && !!understandingId,
   });
 
-  if (!knowledgeGraphEnabled || !sessionId || !insightsData) {
+  if (!knowledgeGraphEnabled || !understandingId || !insightsData) {
     return null;
   }
 
@@ -180,7 +180,7 @@ function StrategyCard({ strategy, selectionMode, isSelected, onToggleSelect, onN
           </div>
           
           {/* Knowledge Graph Insights */}
-          <StrategyInsightsBadges sessionId={strategy.latestSessionId || null} />
+          <StrategyInsightsBadges understandingId={strategy.id} />
         </CardContent>
       </Card>
     </div>

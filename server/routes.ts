@@ -95,6 +95,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get latest understanding ID for knowledge graph insights
+  app.get('/api/strategies/latest-understanding', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      
+      // Get the latest strategic understanding for this user
+      const [latestStrategy] = await db
+        .select({
+          understandingId: strategicUnderstanding.id,
+        })
+        .from(strategicUnderstanding)
+        .innerJoin(
+          journeySessions,
+          and(
+            eq(strategicUnderstanding.id, journeySessions.understandingId),
+            eq(journeySessions.userId, userId)
+          )
+        )
+        .where(eq(strategicUnderstanding.archived, false))
+        .groupBy(strategicUnderstanding.id)
+        .orderBy(desc(strategicUnderstanding.updatedAt))
+        .limit(1);
+
+      res.json({ understandingId: latestStrategy?.understandingId || null });
+    } catch (error) {
+      console.error("Error fetching latest understanding:", error);
+      res.status(500).json({ message: "Failed to fetch latest understanding" });
+    }
+  });
+
   // Get strategy detail with all artifacts
   app.get('/api/strategies/:id', isAuthenticated, async (req: any, res) => {
     try {

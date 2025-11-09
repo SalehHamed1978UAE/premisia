@@ -15,6 +15,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { useKnowledgeInsights } from "@/hooks/useKnowledgeInsights";
 import { KnowledgeInsightsCard } from "@/components/knowledge/KnowledgeInsightsCard";
+import { deriveKnowledgeInsightId } from "@/hooks/knowledgeUtils";
 
 interface StrategicUnderstanding {
   id: string;
@@ -84,8 +85,8 @@ function OverviewTab({ strategy, onNavigateToTab }: { strategy: StrategyDetail; 
   const metadata = strategy.understanding.strategyMetadata || {};
   const confidence = metadata.confidence || 0;
   
-  // Get latest session for Knowledge Graph insights
-  const latestSessionId = strategy.sessions?.[0]?.id;
+  // Get understanding ID for Knowledge Graph insights (always use understanding ID, not journey session ID)
+  const understandingId = strategy.understanding.id;
 
   return (
     <div className="space-y-6">
@@ -198,20 +199,20 @@ function OverviewTab({ strategy, onNavigateToTab }: { strategy: StrategyDetail; 
         </Card>
       )}
       
-      {latestSessionId && (
-        <SessionInsightsAccordion sessionId={latestSessionId} />
+      {understandingId && (
+        <SessionInsightsAccordion understandingId={understandingId} />
       )}
     </div>
   );
 }
 
-function SessionInsightsAccordion({ sessionId }: { sessionId: string }) {
+function SessionInsightsAccordion({ understandingId }: { understandingId: string }) {
   const { knowledgeGraph: knowledgeGraphEnabled } = useFeatureFlags();
   const {
     data: insightsData,
     isLoading,
     error
-  } = useKnowledgeInsights(sessionId, {
+  } = useKnowledgeInsights(understandingId, {
     enabled: knowledgeGraphEnabled,
   });
 
@@ -220,7 +221,7 @@ function SessionInsightsAccordion({ sessionId }: { sessionId: string }) {
   }
 
   return (
-    <Accordion type="single" collapsible className="w-full" data-testid={`accordion-insights-${sessionId}`}>
+    <Accordion type="single" collapsible className="w-full" data-testid={`accordion-insights-${understandingId}`}>
       <AccordionItem value="knowledge-insights" className="border-0">
         <AccordionTrigger className="text-sm hover:no-underline py-2 px-0">
           Knowledge Graph Insights
@@ -510,10 +511,10 @@ export default function StrategyDetailPage() {
     enabled: !!strategyId,
   });
 
-  // Get latest session for consent status check
-  const latestSessionId = strategy?.sessions?.[0]?.id || null;
-  const { data: insightsData } = useKnowledgeInsights(latestSessionId, {
-    enabled: knowledgeGraphEnabled && !!latestSessionId,
+  // Get understanding ID for knowledge graph insights
+  const understandingId = deriveKnowledgeInsightId(strategy);
+  const { data: insightsData } = useKnowledgeInsights(understandingId, {
+    enabled: knowledgeGraphEnabled && !!understandingId,
   });
 
   const displayTitle = strategy?.understanding.title || strategy?.understanding.initiativeDescription || "Strategy Details";

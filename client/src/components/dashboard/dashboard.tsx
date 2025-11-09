@@ -66,26 +66,26 @@ export function Dashboard() {
     enabled: !!selectedProgramId,
   });
 
-  // Fetch latest BMI session for Knowledge Graph insights
-  const { data: latestSession } = useQuery<{ sessionId: string | null }>({
-    queryKey: ['/api/strategies/latest-bmi-session'],
+  // Fetch latest understanding ID for Knowledge Graph insights
+  const { data: latestUnderstanding } = useQuery<{ understandingId: string | null }>({
+    queryKey: ['/api/strategies/latest-understanding'],
     queryFn: async () => {
-      const res = await fetch('/api/strategies/latest-bmi-session', {
+      const res = await fetch('/api/strategies/latest-understanding', {
         credentials: 'include',
       });
-      if (!res.ok) return { sessionId: null };
+      if (!res.ok) return { understandingId: null };
       return res.json();
     },
     enabled: knowledgeGraphEnabled,
   });
 
-  // Fetch Knowledge Graph insights for the latest BMI session
+  // Fetch Knowledge Graph insights for the latest understanding
   const {
     data: insightsData,
     isLoading: insightsLoading,
     error: insightsError
-  } = useKnowledgeInsights(latestSession?.sessionId || null, {
-    enabled: knowledgeGraphEnabled && !!latestSession?.sessionId,
+  } = useKnowledgeInsights(latestUnderstanding?.understandingId || null, {
+    enabled: knowledgeGraphEnabled && !!latestUnderstanding?.understandingId,
   });
 
   if (programsLoading || isLoading) {
@@ -212,7 +212,7 @@ export function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Knowledge Graph Insights - Show at top when available */}
-      {knowledgeGraphEnabled && latestSession?.sessionId && (
+      {knowledgeGraphEnabled && latestUnderstanding?.understandingId && (
         <KnowledgeInsightsCard
           insights={insightsData ? {
             similarStrategies: insightsData.similarStrategies || [],
