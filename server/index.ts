@@ -189,7 +189,7 @@ server.listen({
           // Log warning but don't exit - let deployment health checks pass
           console.warn('[Server] WARNING: Auth setup failed:', error.message);
           console.warn('[Server] Authentication features will be limited until configuration is available');
-          authReadiness.setReady(false);
+          // authReadiness remains false (default state)
         }
       })();
       
