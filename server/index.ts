@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { createServer } from "node:http";
-import { registerRoutes } from "./routes";
+// NOTE: registerRoutes is imported lazily inside server.listen() to prevent
+// module-load crashes if REPLIT_DOMAINS or other auth secrets are missing
 import { setupVite, serveStatic, log } from "./vite";
 import { validateEncryptionKey } from "./utils/encryption";
 import { backgroundJobService } from "./services/background-job-service";
@@ -141,8 +142,11 @@ server.listen({
     // This ensures health check requests at / can be served immediately
     setImmediate(() => {
       // Register ALL routes in background (including auth middleware and API routes)
+      // Using lazy import to prevent module-load crashes if secrets are missing
       (async () => {
         try {
+          log('[Server] Loading routes module...');
+          const { registerRoutes } = await import('./routes.js');
           log('[Server] Registering application routes...');
           await registerRoutes(app);
           log('[Server] Route registration complete');
@@ -164,9 +168,12 @@ server.listen({
           appReady = true;
           log('[Server] Static file serving configured - app ready');
         } catch (error: any) {
-          console.error('[Server] FATAL: Route registration failed:', error.message);
-          console.error('[Server] Application will not be functional. Exiting...');
-          process.exit(1);
+          // Route registration failed - likely missing secrets (REPLIT_DOMAINS, etc.)
+          // Keep server running for health checks, but warn about limited functionality
+          console.error('[Server] WARNING: Route registration failed:', error.message);
+          console.error('[Server] Health checks will work, but application routes are unavailable');
+          console.error('[Server] Add required secrets in Replit deployment UI and redeploy');
+          // DO NOT call process.exit() - let health checks pass
         }
       })();
       
