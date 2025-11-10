@@ -25,6 +25,7 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tail
 - **Background Jobs**: A hybrid system with database persistence and real-time tracking, dispatching jobs every 15 seconds. A `Modular Framework Executor Registry` supports a plugin system for strategic analysis frameworks.
 - **Enterprise Data Encryption**: AWS KMS envelope encryption with AES-256-GCM for sensitive business data at rest, covering all sensitive fields in `strategy_versions`, `strategic_understanding`, `journey_sessions`, and `epm_programs` tables.
 - **Journey Navigation Architecture**: Uses two orchestrator-driven entry points ("Strategic Consultant Journey" and "Strategies Hub Run Now") with a `pageSequence` array for navigation. Follow-on journeys create new, isolated journey sessions.
+- **BMI Workflow Resilience (November 2025)**: BMC SSE stream handler uses resilient version creation with 'system' user fallback when auth context is missing, ensuring AI-generated strategic decisions are always persisted to `strategy_versions` table. Comprehensive warning/error logging prevents silent failures and improves diagnostics for missing decision data.
 
 ## Feature Specifications
 - **AI Multi-Agent System**: Ontology-based architecture with Executive, Builder, QA Specialist Agents, and a Multi-Agent Orchestrator.
