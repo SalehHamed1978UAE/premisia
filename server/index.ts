@@ -84,10 +84,21 @@ app.get('/health/auth', (_req: Request, res: Response) => {
 // Track if routes/static serving are ready
 let appReady = false;
 
-// Root endpoint handler - UNCONDITIONAL immediate 200 for Replit autoscale health checks
-// No Accept-header logic, no next(), no delays - health probes must get instant response
-app.get('/', (_req: Request, res: Response) => {
-  res.status(200).json({ status: 'ok', ready: appReady, timestamp: Date.now() });
+// Root endpoint handler - serves health check JSON for probes, HTML app for browsers
+// Replit health probes send Accept: */* or application/json, browsers send text/html
+app.get('/', (req: Request, res: Response, next: Function) => {
+  const acceptHeader = req.get('Accept') || '';
+  
+  // Health check: Accept contains application/json OR doesn't contain text/html
+  const isHealthProbe = acceptHeader.includes('application/json') || !acceptHeader.includes('text/html');
+  
+  if (isHealthProbe) {
+    // Health probe - return instant JSON response
+    return res.status(200).json({ status: 'ok', ready: appReady, timestamp: Date.now() });
+  }
+  
+  // Browser request - let static middleware serve index.html
+  next();
 });
 
 // Readiness gate - runs BEFORE routes/static serving are registered
