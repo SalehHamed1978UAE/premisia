@@ -182,7 +182,7 @@ server.listen({
           const { registerRoutes } = await import('./routes.js');
           log('[Server] Registering application routes...');
           await registerRoutes(app);
-          log('[Server] Route registration complete');
+          log('[Server] Route registration complete (including auth)');
           
           // Setup error handler AFTER routes are registered
           app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -208,22 +208,6 @@ server.listen({
           console.error('[Server] Health checks will work, but application routes are unavailable');
           console.error('[Server] Add required secrets in Replit deployment UI and redeploy');
           // DO NOT call process.exit() - let health checks pass
-        }
-      })();
-      
-      // Complete auth setup (OIDC config + strategy registration)
-      (async () => {
-        try {
-          log('[Server] Completing authentication setup...');
-          const { finishAuthSetup } = await import('./replitAuth');
-          await finishAuthSetup(app);
-          log('[Server] Authentication setup complete');
-        } catch (error: any) {
-          // In production deployments, auth might not be available yet during health checks
-          // Log warning but don't exit - let deployment health checks pass
-          console.warn('[Server] WARNING: Auth setup failed:', error.message);
-          console.warn('[Server] Authentication features will be limited until configuration is available');
-          // authReadiness remains false (default state)
         }
       })();
       

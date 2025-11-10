@@ -24,6 +24,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Setup auth middleware synchronously (session, passport)
   // This MUST happen before route registration for req.user to be populated
   setupAuthMiddleware(app);
+  
+  // Complete auth setup (OIDC config + strategy registration + auth routes)
+  // This registers /api/login, /api/callback, /api/logout
+  const { finishAuthSetup } = await import('./replitAuth.js');
+  await finishAuthSetup(app);
 
   // Auth user endpoint for Replit Auth
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
