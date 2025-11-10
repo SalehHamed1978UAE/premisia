@@ -812,8 +812,8 @@ router.get('/versions/:sessionId', async (req: Request, res: Response) => {
         finalizedAt: v.finalizedAt,
         hasSelectedDecisions: !!v.selectedDecisions,
         hasProgram: !!v.programStructure,
-        decisions: v.decisionsData,  // Include AI-generated decisions for DecisionSummaryPage
-        analysis: v.analysisData,    // Include analysis data for frontend access
+        decisions: v.decisions,  // Include AI-generated decisions for DecisionSummaryPage
+        analysis: v.analysis,    // Include analysis data for frontend access
       })),
     });
   } catch (error: any) {
@@ -2022,12 +2022,15 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
     let version: any = null; // Declare version at outer scope
     
     try {
-      // Get userId from journey session instead of falling back to "system"
+      // Get userId from journey session with robust fallback logic
       const journeySession = await getJourneySessionByUnderstandingSessionId(sessionId);
-      const userId = journeySession?.userId || (req.user as any)?.claims?.sub;
+      
+      // Try multiple sources for userId with system fallback
+      let userId = journeySession?.userId || (req.user as any)?.claims?.sub;
       
       if (!userId) {
-        throw new Error('Cannot persist BMC stream version without a user');
+        console.warn(`[BMC-RESEARCH-STREAM] ⚠️  No authenticated user found for session ${sessionId}, using system fallback`);
+        userId = 'system';  // Fallback to system user to ensure version is created
       }
       
       // Determine version number with fallback logic
@@ -2091,10 +2094,12 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
         console.log(`[BMC-RESEARCH-STREAM] Updated existing version ${targetVersionNumber}`);
       }
       
-      console.log(`[BMC-RESEARCH-STREAM] Saved BMC results and ${decisions.decisions.length} decisions to version ${version.versionNumber}`);
+      console.log(`[BMC-RESEARCH-STREAM] ✓ Saved BMC results and ${decisions.decisions.length} decisions to version ${version.versionNumber}`);
     } catch (error: any) {
-      console.error('[BMC-RESEARCH-STREAM] Database save failed (non-critical):', error);
-      // Continue - we still have the results to send to frontend
+      console.error('[BMC-RESEARCH-STREAM] ⚠️  CRITICAL: Database save failed - decisions will NOT be persisted!');
+      console.error('[BMC-RESEARCH-STREAM] Error details:', error.message || error);
+      console.error('[BMC-RESEARCH-STREAM] This means the frontend will show the legacy wizard instead of AI decisions');
+      // Continue - we still have the results to send to frontend, but warn about missing persistence
     }
 
     // ALWAYS send completion message, even if some steps failed
