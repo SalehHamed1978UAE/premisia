@@ -83,9 +83,19 @@ app.get('/health/auth', (_req: Request, res: Response) => {
 // Track if routes/static serving are ready
 let appReady = false;
 
-// Root endpoint handler - UNCONDITIONAL immediate 200 response for health checks
-// No logic, no delays - health probes must get instant response
-app.get('/', (_req: Request, res: Response) => {
+// Root endpoint handler - Differentiate health checks from browser requests
+// Health probes (no Accept header or non-HTML) get instant JSON response
+// Browsers (Accept: text/html) pass through to SPA catch-all route
+app.get('/', (req: Request, res: Response, next: Function) => {
+  const acceptHeader = req.headers.accept ?? '';
+  const isBrowserRequest = acceptHeader.includes('text/html');
+  
+  if (isBrowserRequest) {
+    // Browser request - pass to catch-all for SPA serving
+    return next();
+  }
+  
+  // Health check probe - respond immediately with JSON
   res.status(200).json({ status: 'ok', ready: appReady, timestamp: Date.now() });
 });
 
