@@ -111,27 +111,27 @@ app.use((req: Request, res: Response, next: Function) => {
   next();
 });
 
-// CRITICAL: Create keepalive handle FIRST to prevent Node exit in autoscale environments
-// Without this, process can exit before server.listen() completes binding
+// CRITICAL: Create referenced keepalive handle to prevent Node exit in autoscale environments
+// Without this, process can exit before health checks complete
 process.stdout.write('[INIT] Creating keepalive interval\n');
 const keepalive = setInterval(() => {
-  process.stdout.write('[KEEPALIVE] Tick\n');
-}, 60000);
+  process.stdout.write('[KEEPALIVE] Tick at ' + new Date().toISOString() + '\n');
+}, 10000); // 10s for quicker watchdog logging
 
-// Prevent the interval from being garbage-collected
-keepalive.unref?.();
+// Explicitly keep the interval referenced (default behavior, but being explicit)
+keepalive.ref?.();
 
-// Keep event loop alive even if no sockets are active yet  
-process.stdin.resume();
-
-// Re-arm timer on beforeExit to keep Node alive
+// Re-arm referenced timer on beforeExit to keep Node alive
 process.on('beforeExit', (code) => {
-  console.log('[Server] beforeExit', code);
-  // Re-arm the timer so Node re-checks for open handles
-  setTimeout(() => {}, 1).unref?.();
+  console.log('[Server] beforeExit event fired with code:', code);
+  // Re-establish a referenced handle to keep process alive
+  keepalive.ref?.();
+  setTimeout(() => {
+    console.log('[Server] beforeExit recovery timer fired');
+  }, 100); // Referenced timeout (no unref call)
 });
 
-process.stdout.write('[INIT] Keepalive created\n');
+process.stdout.write('[INIT] Keepalive created (referenced, 10s interval)\n');
 
 // Create HTTP server and start listening IMMEDIATELY (synchronous for fast health checks)
 process.stdout.write('[INIT] Creating HTTP server\n');

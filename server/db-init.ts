@@ -96,13 +96,14 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         console.error('\n❌ CRITICAL: pg_trgm extension is missing!');
         console.error('Run this SQL as a database admin:');
         console.error('  CREATE EXTENSION IF NOT EXISTS pg_trgm;');
-        process.exit(1);
+        // DO NOT call process.exit() - keep process alive for server
+        return;
       }
       console.log('\n✅ All required extensions are installed');
-      process.exit(0);
+      // DO NOT call process.exit(0) - keep process alive for server
     })
     .catch((error) => {
       console.error('Extension verification failed:', error);
-      process.exit(1);
+      // DO NOT call process.exit() - keep process alive for server
     });
 }
