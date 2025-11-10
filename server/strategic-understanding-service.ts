@@ -256,24 +256,71 @@ Extract:
 
 Now extract entities from the provided user input. Return ONLY valid JSON:`;
 
-    const response = await aiClients.callWithFallback({
-      systemPrompt,
-      userMessage,
-      maxTokens: 3000,
-    }, "anthropic");
-
+    // Retry logic: AI calls can fail intermittently
     let validated;
-    try {
-      // Use robust parser with fallback mechanisms
-      const parsed = parseAIJson(response.content, 'entity extraction');
-      validated = entityExtractionSchema.parse(parsed);
-    } catch (error: any) {
-      console.error('[StrategicUnderstanding] Validation error:', error);
-      console.error('[StrategicUnderstanding] Raw AI response (first 500 chars):', response.content.substring(0, 500));
-      
-      // Provide helpful error message
-      const preview = response.content.substring(0, 300);
-      throw new Error(`Failed to parse AI response as JSON. Response preview: ${preview}...`);
+    let lastError: Error | null = null;
+    const maxRetries = 2;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`[StrategicUnderstanding] AI extraction attempt ${attempt}/${maxRetries}...`);
+        
+        const response = await aiClients.callWithFallback({
+          systemPrompt,
+          userMessage,
+          maxTokens: 3000,
+        }, "anthropic");
+
+        let parsed;
+        
+        try {
+          // Step 1: Parse JSON from AI response
+          parsed = parseAIJson(response.content, 'entity extraction');
+          console.log('[StrategicUnderstanding] ✓ JSON parsed successfully');
+        } catch (parseError: any) {
+          console.error('[StrategicUnderstanding] JSON parsing failed:', parseError);
+          console.error('[StrategicUnderstanding] Raw AI response (first 500 chars):', response.content.substring(0, 500));
+          throw new Error(`AI returned invalid JSON format. Please try again.`);
+        }
+        
+        try {
+          // Step 2: Validate against schema
+          validated = entityExtractionSchema.parse(parsed);
+          console.log('[StrategicUnderstanding] ✓ Schema validation passed');
+          break; // Success! Exit retry loop
+        } catch (validationError: any) {
+          console.error('[StrategicUnderstanding] Schema validation failed:', validationError);
+          console.error('[StrategicUnderstanding] Parsed JSON:', JSON.stringify(parsed, null, 2).substring(0, 1000));
+          
+          // Extract Zod error details if available
+          if (validationError.errors) {
+            const issues = validationError.errors.map((e: any) => 
+              `${e.path.join('.')}: ${e.message}`
+            ).join('; ');
+            throw new Error(`AI response structure is invalid: ${issues}`);
+          }
+          throw new Error(`AI response structure is invalid. Please try again.`);
+        }
+      } catch (error: any) {
+        lastError = error;
+        console.error(`[StrategicUnderstanding] Attempt ${attempt} failed:`, error.message);
+        
+        if (attempt < maxRetries) {
+          const delay = attempt * 1000; // 1s, 2s backoff
+          console.log(`[StrategicUnderstanding] Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+    
+    // If all retries failed, throw user-friendly error
+    if (!validated) {
+      console.error('[StrategicUnderstanding] All retry attempts exhausted');
+      throw new Error(
+        `Unable to process your input after ${maxRetries} attempts. ` +
+        `This is usually temporary - please try again in a moment. ` +
+        `If the issue persists, try rephrasing your input.`
+      );
     }
 
     console.log(`[StrategicUnderstanding] AI extracted ${validated.entities.length} entities, validating sources...`);
