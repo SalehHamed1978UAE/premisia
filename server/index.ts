@@ -11,7 +11,13 @@ import { authReadiness } from "./auth-readiness";
 
 const app = express();
 
-validateEncryptionKey();
+// Validate encryption but don't exit if it fails - let server start for health checks
+try {
+  validateEncryptionKey();
+} catch (error: any) {
+  console.warn('[Server] WARNING: Encryption validation failed:', error.message);
+  console.warn('[Server] Encrypted features may not work correctly');
+}
 
 // Register framework executors for modular journey execution
 registerFrameworkExecutors();
@@ -98,9 +104,22 @@ app.get('/', (req: Request, res: Response, next: Function) => {
   }
 });
 
+// CRITICAL: Create keepalive handle FIRST to prevent Node exit in autoscale environments
+// Without this, process can exit before server.listen() completes binding
+const keepalive = setInterval(() => {}, 60000);
+
 // Create HTTP server and start listening IMMEDIATELY (synchronous for fast health checks)
 const server = createServer(app);
 const port = parseInt(process.env.PORT || '5000', 10);
+
+// Critical: Add error handler BEFORE listen to catch startup failures
+server.on('error', (error: any) => {
+  console.error('[Server] FATAL: Server error:', error);
+  if (error.code === 'EADDRINUSE') {
+    console.error(`[Server] Port ${port} is already in use`);
+  }
+  process.exit(1);
+});
 
 // START LISTENING IMMEDIATELY - This makes health checks pass right away
 // All async initialization happens in background after server is listening
