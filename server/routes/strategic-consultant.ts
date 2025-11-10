@@ -812,6 +812,8 @@ router.get('/versions/:sessionId', async (req: Request, res: Response) => {
         finalizedAt: v.finalizedAt,
         hasSelectedDecisions: !!v.selectedDecisions,
         hasProgram: !!v.programStructure,
+        decisions: v.decisionsData,  // Include AI-generated decisions for DecisionSummaryPage
+        analysis: v.analysisData,    // Include analysis data for frontend access
       })),
     });
   } catch (error: any) {
