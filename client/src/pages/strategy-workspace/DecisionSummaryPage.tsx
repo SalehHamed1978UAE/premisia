@@ -138,6 +138,19 @@ export default function DecisionSummaryPage() {
   const strategyVersionId = versionResponse?.version?.id;
   const generatedDecisions = versionResponse?.version?.decisions;
   
+  // DEBUG: Log what we're actually receiving from the API
+  useEffect(() => {
+    if (versionResponse) {
+      console.log('[DecisionSummaryPage] Version response:', {
+        hasDecisions: !!versionResponse.version?.decisions,
+        decisionsType: typeof versionResponse.version?.decisions,
+        decisionsKeys: versionResponse.version?.decisions ? Object.keys(versionResponse.version.decisions) : [],
+        decisionsData: versionResponse.version?.decisions,
+        decisionCount: versionResponse.version?.decisions?.decisions?.length || 0,
+      });
+    }
+  }, [versionResponse]);
+  
   // Track which strategic decision options the user has selected
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
 

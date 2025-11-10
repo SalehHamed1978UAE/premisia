@@ -184,11 +184,31 @@ export class DatabaseStorage implements IStorage {
 
   // Helper to decrypt strategy version fields
   private async decryptStrategyVersion(version: StrategyVersion): Promise<StrategyVersion> {
+    // Helper to check if data is encrypted (KMS envelope format)
+    const isEncrypted = (data: any): boolean => {
+      if (!data || typeof data !== 'object') return false;
+      return 'dataKeyCiphertext' in data && 'iv' in data && 'authTag' in data && 'ciphertext' in data;
+    };
+    
+    // Only decrypt if data is actually encrypted; otherwise return as-is (already decrypted)
+    let decryptedAnalysis = version.analysisData;
+    if (version.analysisData && isEncrypted(version.analysisData)) {
+      // PostgreSQL JSONB returns objects, but KMS functions expect JSON strings
+      const analysisDataStr = JSON.stringify(version.analysisData);
+      decryptedAnalysis = await decryptJSONKMS(analysisDataStr);
+    }
+    
+    let decryptedDecisions = version.decisionsData;
+    if (version.decisionsData && isEncrypted(version.decisionsData)) {
+      const decisionsDataStr = JSON.stringify(version.decisionsData);
+      decryptedDecisions = await decryptJSONKMS(decisionsDataStr);
+    }
+    
     return {
       ...version,
       inputSummary: version.inputSummary ? await decryptKMS(version.inputSummary as string) : null,
-      analysisData: version.analysisData ? await decryptJSONKMS(version.analysisData as string) : null,
-      decisionsData: version.decisionsData ? await decryptJSONKMS(version.decisionsData as string) : null,
+      analysisData: decryptedAnalysis,
+      decisionsData: decryptedDecisions,
     };
   }
 
