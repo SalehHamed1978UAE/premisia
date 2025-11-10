@@ -1,5 +1,5 @@
 # Overview
-Premisia (formerly QGentic) is an AI-enhanced, full-stack web application designed for comprehensive enterprise program management. Tagline: "Think it through" It supports the entire program lifecycle, from program and task management to tracking resources, risks, benefits, KPIs, and financials via an intuitive dashboard. The project aims to provide a holistic solution for strategic decision-making and EPM integration, featuring real-time AI intelligence, a multi-agent architecture, and a formal ontology for expert guidance. Key capabilities include multi-modal input analysis, anti-bias research, document intelligence enrichment, and the conversion of strategic decisions into actionable EPM program structures.
+Premisia is an AI-enhanced, full-stack web application for comprehensive enterprise program management. It supports the entire program lifecycle, from program and task management to tracking resources, risks, benefits, KPIs, and financials via an intuitive dashboard. The project aims to provide a holistic solution for strategic decision-making and EPM integration, featuring real-time AI intelligence, a multi-agent architecture, and a formal ontology for expert guidance. Key capabilities include multi-modal input analysis, anti-bias research, document intelligence enrichment, and the conversion of strategic decisions into actionable EPM program structures.
 
 # User Preferences
 Preferred communication style: Simple, everyday language.
@@ -13,17 +13,16 @@ Preferred communication style: Simple, everyday language.
 # System Architecture
 
 ## UI/UX Decisions
-The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tailwind CSS) for a themeable "New York" style UI. It's a single-page application with mobile-first responsive design, including a breakpoint system, adaptive layouts, responsive typography, skeleton loading, and toast notifications. The "Five Whys" page features an interactive, responsive design with a progressive breadcrumb, carousel wheel picker for mobile, and a 2x2 grid for desktop.
-
-**Sidebar Navigation (November 2025):** Three-zone compact layout optimized for mobile and desktop visibility without scrolling. Features: (1) Compact profile header (~48px) with avatar, first name, and inline role badge; (2) Single-line navigation items (40px height) with semantic HTML; (3) Icon-only Settings/Logout footer with tooltips and aria-labels for accessibility. Provides ~40% space reduction over previous design while maintaining full accessibility.
+The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tailwind CSS) for a themeable "New York" style UI. It features a single-page application with mobile-first responsive design, including a breakpoint system, adaptive layouts, responsive typography, skeleton loading, and toast notifications. The "Five Whys" page is interactive and responsive, featuring a progressive breadcrumb, carousel wheel picker for mobile, and a 2x2 grid for desktop. The sidebar uses a compact, three-zone layout optimized for visibility on all devices.
 
 ## Technical Implementations
 - **Frontend**: React, TypeScript, Vite, TanStack Query, Wouter.
 - **Backend**: Node.js with Express.js (ES modules), Passport.js for session-based authentication, Express sessions, and a RESTful API with role-based middleware.
 - **Data Storage**: PostgreSQL with Neon serverless driver and Drizzle ORM for type-safe schema and Zod validation. `DBConnectionManager` handles database connections.
-- **Authentication/Authorization**: Session-based authentication via Passport.js with Replit OIDC, HTTP-only cookies, and a three-tier role system (Admin, Editor, Viewer).
-  - **Staged Startup with Readiness Guards (November 2025)**: Implements a two-phase auth initialization pattern to pass deployment health checks while preventing auth route errors. `setupAuthMiddleware()` registers session/passport middleware synchronously before routes (required for `req.user` population). `finishAuthSetup()` defers slow OIDC discovery fetch until after `server.listen()` to ensure health probes succeed immediately. `AuthReadiness` service tracks initialization state and gates `/api/login`, `/api/callback` with HTTP 503 + Retry-After headers until strategies are registered. Exposes `/health/auth` endpoint for observability. Solves Replit autoscale deployment health check timeout issue without compromising auth functionality.
+- **Authentication/Authorization**: Session-based authentication via Passport.js with Replit OIDC, HTTP-only cookies, and a three-tier role system (Admin, Editor, Viewer). Includes a two-phase auth initialization for robust deployment health checks and lazy route loading to prevent module-load crashes when production secrets are missing.
 - **Background Jobs**: A hybrid system with database persistence and real-time tracking, dispatching jobs every 15 seconds. A `Modular Framework Executor Registry` supports a plugin system for strategic analysis frameworks.
+- **Enterprise Data Encryption**: AWS KMS envelope encryption with AES-256-GCM for sensitive business data at rest, covering all sensitive fields in `strategy_versions`, `strategic_understanding`, `journey_sessions`, and `epm_programs` tables.
+- **Journey Navigation Architecture**: Uses two orchestrator-driven entry points ("Strategic Consultant Journey" and "Strategies Hub Run Now") with a `pageSequence` array for navigation. Follow-on journeys create new, isolated journey sessions.
 
 ## Feature Specifications
 - **AI Multi-Agent System**: Ontology-based architecture with Executive, Builder, QA Specialist Agents, and a Multi-Agent Orchestrator.
@@ -41,43 +40,15 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tail
 - **Journey Builder System**: Allows users to choose from 6 pre-defined journeys or create custom ones with AI validation.
 - **Universal Background Jobs System**: Hybrid system for tracking long-running operations with database persistence and real-time SSE streaming.
 - **Non-Blocking Progress UX**: Uses a fixed-position progress card (`MinimizedJobTracker`) and polling.
-- **Enterprise Data Encryption**: AWS KMS envelope encryption with AES-256-GCM for sensitive business data at rest. All sensitive fields are encrypted before storage:
-  - **strategy_versions**: `inputSummary` (text), `analysisData` (JSONB), `decisionsData` (JSONB)
-  - **strategic_understanding**: `userInput`, `companyContext`, `initiativeDescription`
-  - **journey_sessions**: `accumulatedContext`, `summary`
-  - **epm_programs**: All 14 program fields (executiveSummary, workstreams, timeline, etc.)
-  - **Encryption Fix (November 2025)**: Discovered and fixed critical bug where `analysisData` and `decisionsData` in `strategy_versions` were NOT being encrypted in `storage.ts` (`createStrategyVersion`/`updateStrategyVersion` methods). Added `encryptJSONKMS` calls for both fields. Created migration script with deterministic envelope detection to encrypt 17 legacy plaintext records. All data now verified encrypted. See [docs/ENCRYPTION_MIGRATION.md](docs/ENCRYPTION_MIGRATION.md).
 - **Full-Pass Export System**: Generates ZIP bundles with strategic analysis and EPM program data in multiple formats.
 - **Document Intelligence Enrichment**: Background job pipeline for asynchronously extracting knowledge from uploaded documents (PDF, DOCX, Excel, images), populating the encrypted knowledge graph.
 - **Strategies Hub**: Unified view for all strategic initiatives, providing artifact hierarchy and research provenance.
 - **Journey Launcher Modal**: Intelligent modal for initiating additional strategic analysis, with two modes (Full Journey, Single Framework) and journey-aware readiness checks.
 - **Ambiguity Resolution & Clarifications**: AI-powered clarification workflows for strategic inputs.
-- **Geographic Disambiguation**: Location-aware journey intake with OpenStreetMap/Nominatim integration. Automatically detects place names in user input, resolves high-confidence matches (≥0.85), and generates clarification questions for ambiguous locations (e.g., "Portland, OR" vs "Portland, ME"). Features include rate-limited API calls (1 req/sec), in-memory caching, confidence scoring, and persistence of resolved locations in a dedicated `locations` table. See [docs/GEOGRAPHIC_DISAMBIGUATION.md](docs/GEOGRAPHIC_DISAMBIGUATION.md) for details.
-- **Journey Registry V2** (FEATURE_JOURNEY_REGISTRY_V2): "Register once, works everywhere" system with centralized journey definitions, automatic summary generation, baseline reuse for follow-on runs, and intelligent readiness thresholds. Includes developer tools (sync script, smoke tests, CLI admin commands) and 100% test coverage with 18/18 automated tests passing.
-  - **EPM Completion Hook**: Bridges old and new flows by automatically saving journey summaries when BMI journeys complete through the legacy Five Whys → BMC → EPM endpoint flow. Uses two-step lookup (strategyVersions → strategicUnderstanding → journeySessions) to locate journey sessions and persist encrypted summaries for follow-on run reuse. Integration tests verify positive/negative/flag-gated behavior (tests/epm-completion-hook.spec.ts).
-- **Golden Records Automation System**: Baseline regression testing for journey executions with CLI utilities and auto-capture hooks. Features include versioned golden record snapshots, CLI capture and compare tools, automatic capture on journey completion (AUTO_CAPTURE_GOLDEN flag), promotion/rollback workflows, and data sanitization for security. See [docs/GOLDEN_RECORDS.md](docs/GOLDEN_RECORDS.md) for complete usage guide.
-- **BMC SSE Regression Test Suite**: Comprehensive test coverage for Business Model Canvas SSE streaming contract (tests/bmc-sse-regression.spec.ts). Validates all event types (context, query, synthesis, progress, debug, complete, error), requires mandatory events to exist (fails if backend stops emitting), and validates complete payload structure including nextUrl pattern, findings, references, searchQueriesUsed, sourcesAnalyzed, versionNumber, sessionId, and timeElapsed. Prevents frontend breaking changes by enforcing strict SSE contract validation.
-
-## Journey Navigation Architecture
-The application uses two orchestrator-driven entry points for strategic journeys: "Strategic Consultant Journey" (new analysis) and "Strategies Hub Run Now" (follow-on analysis). Both use a `pageSequence` array to determine navigation order. Critical navigation rules include using `pageSequence[1]` to skip the input page for journey execution and the strict requirement for both `sessionId` and `versionNumber` in the Strategic Decisions page route. Research endpoints are expected to return a `nextUrl` with the complete path and `versionNumber`.
-
-### BMI Journey Canonical Flow (November 2025)
-The Business Model Innovation (BMI) journey follows a strict five-step canonical pageSequence defined in `server/journey/journey-registry.ts`:
-1. `/strategic-consultant/input` - Strategic input collection (skipped for "Run Now" flows)
-2. `/strategic-consultant/whys-tree/:understandingId` - Five Whys analysis with AI coaching
-3. `/strategic-consultant/research/:sessionId` - BMC research with parallel block analysis
-4. `/strategy-workspace/decisions/:sessionId/:versionNumber` - Strategic decisions wizard (DecisionSummaryPage)
-5. `/strategy-workspace/prioritization/:sessionId/:versionNumber` - Decision prioritization before EPM generation
-
-Both Strategic Consultant and Strategies Hub "Run Now" flows use the same pageSequence, ensuring consistent navigation. The BMC research endpoint (`bmc-researcher.ts`) returns `nextUrl: "/strategy-workspace/decisions/..."` to enforce this flow.
-
-### Follow-on Journey Session ID Architecture (November 2025)
-Follow-on journeys create NEW journey sessions with unique IDs to maintain version isolation. Critical implementation details:
-- **WhysTreePage Navigation Fix**: WhysTreePage fetches the journey session ID from localStorage and uses it (not understanding.sessionId) when navigating to ResearchPage, ensuring downstream operations use the correct session context.
-- **BMC Research Endpoint Dual-Mode**: The BMC research endpoint handles both journey session IDs (new flow) and understanding session IDs (legacy flow) by first attempting `getJourneySession(sessionId)`, then falling back to `getJourneySessionByUnderstandingSessionId(sessionId)`.
-- **StrategyVersions Isolation**: Each follow-on journey creates its own strategyVersion with the journey session ID as session_id, ensuring separate EPM programs are generated for each run.
-- **Database Evidence**: Journey sessions table stores unique IDs for each run; strategyVersions.session_id maps to journey session IDs (post-fix) or understanding session IDs (legacy).
-- **Knowledge Graph Insights Fix (November 2025)**: The `/api/strategy-workspace/epm/:id/session` endpoint uses journeySessions as lookup bridge (epmPrograms → strategyVersions → journeySessions → understandingId) to correctly retrieve understandingId for both first-run and follow-on journeys, fixing 404 errors when loading insights for follow-on runs.
+- **Geographic Disambiguation**: Location-aware journey intake with OpenStreetMap/Nominatim integration for automatic detection and clarification of place names.
+- **Journey Registry V2**: Centralized journey definitions with automatic summary generation, baseline reuse, intelligent readiness thresholds, and comprehensive test coverage. Includes an EPM Completion Hook to bridge old and new flows.
+- **Golden Records Automation System**: Baseline regression testing for journey executions with versioned snapshots, CLI tools, and auto-capture hooks.
+- **BMC SSE Regression Test Suite**: Comprehensive test coverage for Business Model Canvas SSE streaming contract, validating all event types and payload structures.
 
 # External Dependencies
 - **Database Service**: Neon serverless PostgreSQL
@@ -89,3 +60,5 @@ Follow-on journeys create NEW journey sessions with unique IDs to maintain versi
 - **AI Providers**: OpenAI, Anthropic, Gemini
 - **ORM**: Drizzle ORM
 - **Authentication**: Passport.js with Replit OIDC
+- **Encryption**: AWS KMS (for AES-256-GCM)
+- **Geographic Data**: OpenStreetMap/Nominatim
