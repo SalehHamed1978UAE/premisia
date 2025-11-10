@@ -83,26 +83,10 @@ app.get('/health/auth', (_req: Request, res: Response) => {
 // Track if routes/static serving are ready
 let appReady = false;
 
-// Root endpoint handler for BOTH health checks AND SPA serving
-app.get('/', (req: Request, res: Response, next: Function) => {
-  // Health check probes don't send Accept: text/html
-  // Browsers always send Accept: text/html
-  const acceptHeader = req.headers.accept || '';
-  const isHealthCheck = !acceptHeader.includes('text/html');
-  
-  if (isHealthCheck) {
-    // Health check probe - respond immediately
-    return res.status(200).json({ status: 'ok' });
-  }
-  
-  // Browser request - serve SPA
-  if (appReady) {
-    // Routes registered, pass to Vite/static serving
-    next();
-  } else {
-    // Routes not ready yet, return minimal loading page
-    res.status(200).send('<!DOCTYPE html><html><head><title>Loading...</title></head><body><p>Application starting, please refresh in a moment...</p></body></html>');
-  }
+// Root endpoint handler - UNCONDITIONAL immediate 200 response for health checks
+// No logic, no delays - health probes must get instant response
+app.get('/', (_req: Request, res: Response) => {
+  res.status(200).json({ status: 'ok', ready: appReady, timestamp: Date.now() });
 });
 
 // CRITICAL: Create keepalive handle FIRST to prevent Node exit in autoscale environments
