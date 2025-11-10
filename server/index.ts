@@ -1,5 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { createServer } from "node:http";
+import path from "node:path";
 // NOTE: registerRoutes is imported lazily inside server.listen() to prevent
 // module-load crashes if REPLIT_DOMAINS or other auth secrets are missing
 import { setupVite, serveStatic, log } from "./vite";
@@ -83,20 +84,31 @@ app.get('/health/auth', (_req: Request, res: Response) => {
 // Track if routes/static serving are ready
 let appReady = false;
 
-// Root endpoint handler - Differentiate health checks from browser requests
-// Health probes (no Accept header or non-HTML) get instant JSON response
-// Browsers (Accept: text/html) pass through to SPA catch-all route
-app.get('/', (req: Request, res: Response, next: Function) => {
-  const acceptHeader = req.headers.accept ?? '';
-  const isBrowserRequest = acceptHeader.includes('text/html');
-  
-  if (isBrowserRequest) {
-    // Browser request - pass to catch-all for SPA serving
+// Root endpoint handler - UNCONDITIONAL immediate 200 for Replit autoscale health checks
+// No Accept-header logic, no next(), no delays - health probes must get instant response
+app.get('/', (_req: Request, res: Response) => {
+  res.status(200).json({ status: 'ok', ready: appReady, timestamp: Date.now() });
+});
+
+// Readiness gate - runs BEFORE routes/static serving are registered
+// Shows loading page to browsers while app initializes, lets API/assets through
+app.use((req: Request, res: Response, next: Function) => {
+  // Always let assets through
+  if (req.path.startsWith('/assets/') || req.path.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/)) {
     return next();
   }
   
-  // Health check probe - respond immediately with JSON
-  res.status(200).json({ status: 'ok', ready: appReady, timestamp: Date.now() });
+  // Let API requests through (they'll get 404 if routes not ready, which is better than HTML)
+  if (req.path.startsWith('/api/') || req.path.startsWith('/health')) {
+    return next();
+  }
+  
+  // Non-asset, non-API request (SPA navigation) - check appReady
+  if (!appReady) {
+    return res.status(200).send('<!DOCTYPE html><html><body><p>Application starting…</p></body></html>');
+  }
+  
+  next();
 });
 
 // CRITICAL: Create keepalive handle FIRST to prevent Node exit in autoscale environments
@@ -159,16 +171,6 @@ server.listen({
           } else {
             serveStatic(app);
           }
-          
-          // SPA catch-all route - handles browser requests after all other routes/static files
-          // Must be registered AFTER static middleware to avoid intercepting asset requests
-          app.get('*', (req: Request, res: Response, next: Function) => {
-            if (!appReady) {
-              return res.status(200).send('<!DOCTYPE html><html><head><title>Loading...</title></head><body><p>Application starting, please refresh in a moment...</p></body></html>');
-            }
-            // Pass to static middleware or Vite for actual SPA serving
-            next();
-          });
           
           appReady = true;
           log('[Server] Static file serving configured - app ready');
