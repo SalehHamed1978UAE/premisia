@@ -106,11 +106,17 @@ app.get('/', (req: Request, res: Response, next: Function) => {
 
 // CRITICAL: Create keepalive handle FIRST to prevent Node exit in autoscale environments
 // Without this, process can exit before server.listen() completes binding
-const keepalive = setInterval(() => {}, 60000);
+process.stdout.write('[INIT] Creating keepalive interval\n');
+const keepalive = setInterval(() => {
+  process.stdout.write('[KEEPALIVE] Tick\n');
+}, 60000);
+process.stdout.write('[INIT] Keepalive created\n');
 
 // Create HTTP server and start listening IMMEDIATELY (synchronous for fast health checks)
+process.stdout.write('[INIT] Creating HTTP server\n');
 const server = createServer(app);
 const port = parseInt(process.env.PORT || '5000', 10);
+process.stdout.write(`[INIT] Starting server on port ${port}\n`);
 
 // Critical: Add error handler BEFORE listen to catch startup failures
 server.on('error', (error: any) => {

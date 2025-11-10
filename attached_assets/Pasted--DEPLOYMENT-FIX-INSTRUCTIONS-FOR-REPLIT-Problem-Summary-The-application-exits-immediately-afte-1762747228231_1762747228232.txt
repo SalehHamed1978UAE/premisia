@@ -1,0 +1,127 @@
+ DEPLOYMENT FIX INSTRUCTIONS FOR REPLIT
+
+  Problem Summary
+
+  The application exits immediately after startup with exit code 0 in
+  production autoscale deployments. The message "main done, exiting" and
+  "command finished successfully with exit code 0" appears because the
+  Node.js process completes module execution before the Express server can
+  handle health check probes.
+
+  Root Cause
+
+  The file server/index.ts is an ES module that:
+  1. Executes synchronously from top to bottom
+  2. Has a keepalive timer at line 109: const keepalive = setInterval(() => 
+  {}, 60000);
+  3. Starts the HTTP server with server.listen() at line 126
+  4. BUT there's a race condition where the module completes execution
+  before the event loop is fully populated
+  5. In bundled production code with esbuild, execution is fast enough that
+  Node.js can exit before the server is fully bound
+
+  Required Changes
+
+  CHANGE 1: Add Top-Level Await to server/index.ts
+
+  File: server/index.ts
+
+  Location: At the very end of the file (after line 222, after the closing
+  }); of server.listen())
+
+  Add this code:
+  // CRITICAL: Prevent module from completing execution in production
+  // This ensures Node.js doesn't exit after initial module load completes
+  // The server and keepalive timer above keep the process alive, but we 
+  need
+  // to explicitly block module completion to prevent race conditions in 
+  cloud deployments
+  await new Promise(() => {
+    // This promise never resolves, keeping the module "active" indefinitely
+    // The process will stay alive as long as the HTTP server is listening
+  });
+
+  Why this works:
+  - The await keyword on a never-resolving Promise prevents the module from
+  completing
+  - The HTTP server on port 5000 keeps the event loop active
+  - Health checks can now reach the /health endpoint immediately
+  - The keepalive timer provides additional safety
+
+  CHANGE 2: Add Health Check Configuration to .replit
+
+  File: .replit
+
+  Location: In the [deployment] section (after line 12)
+
+  Add this configuration:
+  [deployment.health]
+  path = "/health"
+  initialDelaySeconds = 3
+  periodSeconds = 5
+  timeoutSeconds = 2
+  failureThreshold = 3
+
+  Complete deployment section should look like:
+  [deployment]
+  deploymentTarget = "autoscale"
+  build = ["npm", "run", "build"]
+  run = ["npm", "run", "start"]
+
+  [deployment.health]
+  path = "/health"
+  initialDelaySeconds = 3
+  periodSeconds = 5
+  timeoutSeconds = 2
+  failureThreshold = 3
+
+  Configuration explained:
+  - path = "/health" - Health check endpoint (already implemented in
+  server/index.ts line 73-75)
+  - initialDelaySeconds = 3 - Wait 3 seconds before first health check
+  - periodSeconds = 5 - Check every 5 seconds
+  - timeoutSeconds = 2 - Each check times out after 2 seconds
+  - failureThreshold = 3 - Mark unhealthy after 3 consecutive failures
+
+  Verification Steps
+
+  After making these changes:
+
+  1. Rebuild the application:
+  npm run build
+  2. Test locally that the build works:
+  NODE_ENV=production node dist/index.js
+    - Server should start and stay running
+    - Visit http://localhost:5000/health - should return {"status":"ok"}
+    - Press Ctrl+C to stop
+  3. Deploy to Replit autoscale:
+    - Commit the changes
+    - Trigger a new deployment
+    - Monitor deployment logs for "serving on port 5000" message
+    - Verify health checks pass
+
+  Expected Behavior After Fix
+
+  ✅ Server starts and binds to port 5000✅ Health check at /health responds
+   with {"status":"ok"}✅ Process stays running indefinitely✅ Replit
+  autoscale health probes succeed✅ Deployment completes successfully
+
+  Additional Context
+
+  The application already has:
+  - ✅ Health check endpoint at /health (line 73 in server/index.ts)
+  - ✅ Root endpoint / that handles health checks (line 86-105)
+  - ✅ Keepalive timer (line 109)
+  - ✅ Proper port configuration (5000)
+  - ✅ Background initialization deferred with setImmediate
+
+  The only missing pieces are:
+  1. Top-level await to prevent module completion
+  2. Explicit health check configuration in .replit
+
+  Files to Modify
+
+  1. server/index.ts - Add 6 lines at the end (after line 222)
+  2. .replit - Add 6 lines in deployment section (after line 12)
+
+  ---
