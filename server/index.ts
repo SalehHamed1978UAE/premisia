@@ -149,6 +149,17 @@ server.listen({
           } else {
             serveStatic(app);
           }
+          
+          // SPA catch-all route - handles browser requests after all other routes/static files
+          // Must be registered AFTER static middleware to avoid intercepting asset requests
+          app.get('*', (req: Request, res: Response, next: Function) => {
+            if (!appReady) {
+              return res.status(200).send('<!DOCTYPE html><html><head><title>Loading...</title></head><body><p>Application starting, please refresh in a moment...</p></body></html>');
+            }
+            // Pass to static middleware or Vite for actual SPA serving
+            next();
+          });
+          
           appReady = true;
           log('[Server] Static file serving configured - app ready');
         } catch (error: any) {
