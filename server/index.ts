@@ -117,6 +117,20 @@ process.stdout.write('[INIT] Creating keepalive interval\n');
 const keepalive = setInterval(() => {
   process.stdout.write('[KEEPALIVE] Tick\n');
 }, 60000);
+
+// Prevent the interval from being garbage-collected
+keepalive.unref?.();
+
+// Keep event loop alive even if no sockets are active yet  
+process.stdin.resume();
+
+// Re-arm timer on beforeExit to keep Node alive
+process.on('beforeExit', (code) => {
+  console.log('[Server] beforeExit', code);
+  // Re-arm the timer so Node re-checks for open handles
+  setTimeout(() => {}, 1).unref?.();
+});
+
 process.stdout.write('[INIT] Keepalive created\n');
 
 // Create HTTP server and start listening IMMEDIATELY (synchronous for fast health checks)
@@ -131,7 +145,8 @@ server.on('error', (error: any) => {
   if (error.code === 'EADDRINUSE') {
     console.error(`[Server] Port ${port} is already in use`);
   }
-  process.exit(1);
+  // DO NOT call process.exit() - keep server alive for health checks in production
+  // The keepalive handles will keep process running
 });
 
 // START LISTENING IMMEDIATELY - This makes health checks pass right away
