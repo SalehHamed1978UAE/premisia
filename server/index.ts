@@ -111,27 +111,28 @@ app.use((req: Request, res: Response, next: Function) => {
   next();
 });
 
-// CRITICAL: Create referenced keepalive handle to prevent Node exit in autoscale environments
+// CRITICAL: Create multiple referenced handles to prevent Node exit in autoscale environments
 // Without this, process can exit before health checks complete
-process.stdout.write('[INIT] Creating keepalive interval\n');
+process.stdout.write('[INIT] Creating keepalive handles\n');
+
+// Keep stdin active to prevent process exit
+process.stdin.resume();
+
+// Create referenced interval for watchdog logging
 const keepalive = setInterval(() => {
   process.stdout.write('[KEEPALIVE] Tick at ' + new Date().toISOString() + '\n');
 }, 10000); // 10s for quicker watchdog logging
 
-// Explicitly keep the interval referenced (default behavior, but being explicit)
-keepalive.ref?.();
-
-// Re-arm referenced timer on beforeExit to keep Node alive
+// Re-arm with fresh referenced timer on beforeExit to keep Node alive
 process.on('beforeExit', (code) => {
   console.log('[Server] beforeExit event fired with code:', code);
-  // Re-establish a referenced handle to keep process alive
-  keepalive.ref?.();
+  // Create a fresh referenced timeout to keep process alive
   setTimeout(() => {
-    console.log('[Server] beforeExit recovery timer fired');
-  }, 100); // Referenced timeout (no unref call)
+    console.log('[Server] beforeExit recovery - process staying alive');
+  }, 1000); // Fresh referenced timeout (no unref call)
 });
 
-process.stdout.write('[INIT] Keepalive created (referenced, 10s interval)\n');
+process.stdout.write('[INIT] Keepalive handles created (stdin + 10s interval)\n');
 
 // Create HTTP server and start listening IMMEDIATELY (synchronous for fast health checks)
 process.stdout.write('[INIT] Creating HTTP server\n');
