@@ -1968,15 +1968,28 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
       throw error;
     }
 
-    // Try to generate decisions, but don't fail the whole stream if this fails
+    // Try to generate decisions with timeout protection
+    let timeoutHandle: NodeJS.Timeout | undefined;
     try {
       console.log('[BMC-RESEARCH-STREAM] Generating strategic decisions from BMC analysis...');
-      decisions = await decisionGenerator.generateDecisionsFromBMC(result, input);
+      
+      // Add 60-second timeout for decision generation to prevent hanging
+      const decisionPromise = decisionGenerator.generateDecisionsFromBMC(result, input);
+      const timeoutPromise = new Promise((_, reject) => {
+        timeoutHandle = setTimeout(() => reject(new Error('Decision generation timeout after 60s')), 60000);
+      });
+      
+      decisions = await Promise.race([decisionPromise, timeoutPromise]) as any;
       console.log(`[BMC-RESEARCH-STREAM] Generated ${decisions.decisions.length} strategic decisions`);
     } catch (error: any) {
       console.error('[BMC-RESEARCH-STREAM] Decision generation failed (non-critical):', error);
       // Continue with empty decisions rather than failing
       decisions = { decisions: [] };
+    } finally {
+      // Always clear timeout to prevent unhandled rejection
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
     }
 
     // Persist references from BMC research
