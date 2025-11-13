@@ -313,6 +313,8 @@ export interface SecureEPMProgram {
   id?: string;
   userId: string;
   sessionId: string;
+  strategyVersionId?: string;
+  frameworkType?: string;
   frameworkRunId?: string | null;
   programName?: string;
   executiveSummary?: string;

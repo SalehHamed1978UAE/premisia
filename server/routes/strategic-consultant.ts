@@ -29,6 +29,7 @@ import { fiveWhysCoach } from '../services/five-whys-coach.js';
 import { buildStrategicSummary } from '../services/strategic-summary-builder';
 import { referenceService } from '../services/reference-service';
 import { journeySummaryService } from '../services/journey-summary-service';
+import { decryptKMS } from '../utils/kms-encryption';
 
 const router = Router();
 const upload = multer({ 
@@ -2703,10 +2704,21 @@ router.get('/bmc-knowledge/:programId', async (req: Request, res: Response) => {
         // Determine which is user claim and which is research claim
         const isFromUser = fromEntity?.discoveredBy === 'user_input';
         
+        // Decrypt relationship evidence if encrypted
+        let decryptedEvidence = rel.evidence || '';
+        if (decryptedEvidence) {
+          try {
+            decryptedEvidence = await decryptKMS(decryptedEvidence) || decryptedEvidence;
+          } catch (e) {
+            // If decryption fails, it might already be plaintext
+            console.warn('Evidence decryption failed, using as-is:', e);
+          }
+        }
+        
         return {
           userClaim: isFromUser ? fromEntity : toEntity,
           researchClaim: isFromUser ? toEntity : fromEntity,
-          evidence: rel.evidence || ''
+          evidence: decryptedEvidence
         };
       })
     );
