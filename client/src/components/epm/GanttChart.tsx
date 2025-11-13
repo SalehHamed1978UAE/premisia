@@ -482,8 +482,8 @@ export default function GanttChart({
         width={tooltipWidth}
         height={tooltipHeight}
       >
-        <Card className="shadow-lg border-2 border-blue-500">
-          <CardContent className="p-3 text-xs space-y-1">
+        <Card className="shadow-lg border-2 border-blue-500 bg-white dark:bg-gray-900">
+          <CardContent className="p-3 text-xs space-y-1 bg-white dark:bg-gray-900">
             <div className="font-bold text-sm">{task.name}</div>
             <div className="text-muted-foreground">{task.description}</div>
             <div className="grid grid-cols-2 gap-2 pt-2">
