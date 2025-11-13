@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { useKnowledgeInsights } from "@/hooks/useKnowledgeInsights";
 import { KnowledgeInsightsCard } from "@/components/knowledge/KnowledgeInsightsCard";
+import { BMCKnowledgeCard } from "@/components/knowledge/BMCKnowledgeCard";
 import {
   ExecutiveSummaryFormatter,
   WorkstreamsFormatter,
@@ -125,6 +126,23 @@ export default function EPMProgramView() {
     error: insightsError
   } = useKnowledgeInsights(sessionData?.sessionId || null, {
     enabled: knowledgeGraphEnabled && !!sessionData?.sessionId,
+  });
+
+  // Fetch BMC Knowledge Graph data for "Before You Launch"
+  const { 
+    data: bmcKnowledgeData, 
+    isLoading: bmcKnowledgeLoading, 
+    error: bmcKnowledgeError 
+  } = useQuery({
+    queryKey: ['/api/strategic-consultant/bmc-knowledge', programId],
+    queryFn: async () => {
+      const res = await fetch(`/api/strategic-consultant/bmc-knowledge/${programId}`, {
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to fetch BMC knowledge data');
+      return res.json();
+    },
+    enabled: !!programId,
   });
 
   // Finalize mutation
@@ -337,6 +355,14 @@ export default function EPMProgramView() {
             </AlertDescription>
           </Alert>
         )}
+
+        {/* BMC Knowledge Card - Before You Launch */}
+        <BMCKnowledgeCard
+          programId={programId!}
+          data={bmcKnowledgeData}
+          loading={bmcKnowledgeLoading}
+          error={bmcKnowledgeError}
+        />
 
         {/* Knowledge Graph Insights - Before you launch */}
         {knowledgeGraphEnabled && sessionData?.sessionId && (

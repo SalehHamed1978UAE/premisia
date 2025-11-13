@@ -14,8 +14,8 @@ import { BMCResearcher } from '../strategic-consultant/bmc-researcher';
 import { storage } from '../storage';
 import { unlink } from 'fs/promises';
 import { db } from '../db';
-import { strategicUnderstanding, journeySessions, strategyVersions } from '@shared/schema';
-import { eq } from 'drizzle-orm';
+import { strategicUnderstanding, journeySessions, strategyVersions, epmPrograms, bmcAnalyses, strategicEntities, strategicRelationships } from '@shared/schema';
+import { eq, and, inArray } from 'drizzle-orm';
 import { strategicUnderstandingService } from '../strategic-understanding-service';
 import { JourneyOrchestrator } from '../journey/journey-orchestrator';
 import { journeyRegistry } from '../journey/journey-registry';
@@ -2612,6 +2612,130 @@ router.get('/config/features', (req: Request, res: Response) => {
     journeyRegistryV2: isJourneyRegistryV2Enabled(),
     knowledgeGraph: isKnowledgeGraphEnabled()
   });
+});
+
+/**
+ * GET /api/strategic-consultant/bmc-knowledge/:programId
+ * Retrieve BMC knowledge graph data for an EPM program
+ * Query chain: EPM Program → Strategy Version → Strategic Understanding → Entities/Relationships
+ */
+router.get('/bmc-knowledge/:programId', async (req: Request, res: Response) => {
+  try {
+    const { programId } = req.params;
+    const userId = (req.user as any)?.claims?.sub;
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // STEP 1: Get EPM program and verify ownership
+    const [program] = await db
+      .select()
+      .from(epmPrograms)
+      .where(and(
+        eq(epmPrograms.id, programId),
+        eq(epmPrograms.userId, userId)
+      ))
+      .limit(1);
+
+    if (!program) {
+      return res.status(404).json({ error: 'EPM program not found' });
+    }
+
+    // STEP 2: Get strategy version to find sessionId
+    const [strategyVersion] = await db
+      .select()
+      .from(strategyVersions)
+      .where(eq(strategyVersions.id, program.strategyVersionId))
+      .limit(1);
+
+    if (!strategyVersion || !strategyVersion.sessionId) {
+      // No session ID means no knowledge graph data available
+      return res.json({
+        userAssumptions: [],
+        researchFindings: [],
+        contradictions: [],
+        criticalGaps: []
+      });
+    }
+
+    // STEP 3: Get strategic understanding
+    const understanding = await getStrategicUnderstandingBySession(strategyVersion.sessionId);
+
+    if (!understanding) {
+      return res.json({
+        userAssumptions: [],
+        researchFindings: [],
+        contradictions: [],
+        criticalGaps: []
+      });
+    }
+
+    // STEP 4: Get all entities (automatically decrypted by service)
+    const allEntities = await strategicUnderstandingService.getEntitiesByUnderstanding(understanding.id);
+
+    // STEP 5: Filter entities by discoveredBy
+    const userAssumptions = allEntities.filter(e => e.discoveredBy === 'user_input');
+    const researchFindings = allEntities.filter(e => e.discoveredBy === 'bmc_agent');
+
+    // STEP 6: Get contradictions from relationships - FILTER BY CURRENT UNDERSTANDING
+    // Security: Only get contradictions where BOTH entities belong to this understanding
+    const entityIds = allEntities.map(e => e.id);
+    
+    const contradictionRelationships = entityIds.length > 0 
+      ? await db
+          .select()
+          .from(strategicRelationships)
+          .where(and(
+            eq(strategicRelationships.relationshipType, 'contradicts'),
+            inArray(strategicRelationships.fromEntityId, entityIds),
+            inArray(strategicRelationships.toEntityId, entityIds)
+          ))
+          .orderBy(strategicRelationships.discoveredAt)
+      : [];
+
+    // Map contradictions with full entity details
+    const contradictions = await Promise.all(
+      contradictionRelationships.map(async (rel) => {
+        const fromEntity = allEntities.find(e => e.id === rel.fromEntityId);
+        const toEntity = allEntities.find(e => e.id === rel.toEntityId);
+
+        // Determine which is user claim and which is research claim
+        const isFromUser = fromEntity?.discoveredBy === 'user_input';
+        
+        return {
+          userClaim: isFromUser ? fromEntity : toEntity,
+          researchClaim: isFromUser ? toEntity : fromEntity,
+          evidence: rel.evidence || ''
+        };
+      })
+    );
+
+    // Filter out any contradictions with missing entities
+    const validContradictions = contradictions.filter(c => c.userClaim && c.researchClaim);
+
+    // STEP 7: Get critical gaps from BMC analyses
+    const bmcAnalysisRecords = await db
+      .select()
+      .from(bmcAnalyses)
+      .where(eq(bmcAnalyses.strategyVersionId, program.strategyVersionId))
+      .limit(1);
+
+    const criticalGaps = bmcAnalysisRecords[0]?.criticalGaps || [];
+
+    // Return the knowledge graph data
+    res.json({
+      userAssumptions,
+      researchFindings,
+      contradictions: validContradictions,
+      criticalGaps
+    });
+  } catch (error: any) {
+    console.error('Error in /bmc-knowledge/:programId:', error);
+    res.status(500).json({ 
+      error: error.message || 'Failed to retrieve BMC knowledge data' 
+    });
+  }
 });
 
 router.get('/health', (req: Request, res: Response) => {
