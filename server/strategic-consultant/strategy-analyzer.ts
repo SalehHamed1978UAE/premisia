@@ -1,6 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { strategyOntologyService } from '../ontology/strategy-ontology-service';
 import { ResearchFindings, Source, Finding } from './market-researcher';
+import { groundStrategicAnalysis, isContextFoundryConfigured } from '../services/grounded-analysis-service';
+import { ContextBundle } from '../services/context-foundry-client';
 
 export interface FiveWhysAnalysis {
   problem_statement: string;
@@ -89,16 +91,38 @@ export interface EnhancedAnalysisResult {
 
 export class StrategyAnalyzer {
   private anthropic: Anthropic;
+  private useGrounding: boolean;
 
-  constructor() {
+  constructor(options?: { useGrounding?: boolean }) {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
       throw new Error('ANTHROPIC_API_KEY environment variable is required');
     }
     this.anthropic = new Anthropic({ apiKey });
+    this.useGrounding = options?.useGrounding ?? isContextFoundryConfigured();
   }
 
-  async analyzeFiveWhys(input: string): Promise<FiveWhysAnalysis> {
+  /**
+   * Analyze Five Whys with optional Context Foundry grounding
+   */
+  async analyzeFiveWhys(input: string, focalEntity?: string): Promise<FiveWhysAnalysis & { groundingContext?: ContextBundle | null }> {
+    let analysisInput = input;
+    let groundingContext: ContextBundle | null = null;
+
+    // Apply Context Foundry grounding if configured
+    if (this.useGrounding) {
+      try {
+        const grounding = await groundStrategicAnalysis(input, 'five_whys', focalEntity);
+        if (grounding.grounded) {
+          analysisInput = grounding.prompt;
+          groundingContext = grounding.context;
+          console.log('[StrategyAnalyzer] Five Whys analysis grounded with Context Foundry');
+        }
+      } catch (error) {
+        console.warn('[StrategyAnalyzer] Grounding failed, proceeding without:', error);
+      }
+    }
+
     const response = await this.anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4000,
@@ -118,7 +142,7 @@ Each "Why?" should probe these BUSINESS dimensions:
 - Resource constraints and capabilities
 
 INPUT:
-${input}
+${analysisInput}
 
 Perform a systematic 5 Whys analysis using business-focused causal reasoning. Each answer should address practical business factors, NOT cultural or anthropological theories.
 
@@ -166,10 +190,30 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
       throw new Error('Failed to extract JSON from 5 Whys analysis response');
     }
 
-    return JSON.parse(jsonMatch[0]);
+    const result = JSON.parse(jsonMatch[0]);
+    return { ...result, groundingContext };
   }
 
-  async analyzePortersFiveForces(input: string): Promise<PortersFiveForcesAnalysis> {
+  /**
+   * Analyze Porter's Five Forces with optional Context Foundry grounding
+   */
+  async analyzePortersFiveForces(input: string, focalEntity?: string): Promise<PortersFiveForcesAnalysis & { groundingContext?: ContextBundle | null }> {
+    let analysisInput = input;
+    let groundingContext: ContextBundle | null = null;
+
+    // Apply Context Foundry grounding if configured
+    if (this.useGrounding) {
+      try {
+        const grounding = await groundStrategicAnalysis(input, 'porters', focalEntity);
+        if (grounding.grounded) {
+          analysisInput = grounding.prompt;
+          groundingContext = grounding.context;
+          console.log('[StrategyAnalyzer] Porter\'s analysis grounded with Context Foundry');
+        }
+      } catch (error) {
+        console.warn('[StrategyAnalyzer] Grounding failed, proceeding without:', error);
+      }
+    }
     const response = await this.anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4000,
@@ -180,7 +224,7 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
           content: `You are a strategic consultant performing Porter's Five Forces analysis.
 
 INPUT:
-${input}
+${analysisInput}
 
 Analyze the competitive environment using Porter's Five Forces. Return ONLY valid JSON with this exact structure (no markdown, no explanation):
 
@@ -227,7 +271,8 @@ Analyze the competitive environment using Porter's Five Forces. Return ONLY vali
       throw new Error('Failed to extract JSON from Porter\'s Five Forces analysis response');
     }
 
-    return JSON.parse(jsonMatch[0]);
+    const result = JSON.parse(jsonMatch[0]);
+    return { ...result, groundingContext };
   }
 
   async recommendStrategy(

@@ -2663,7 +2663,7 @@ router.get('/bmc-knowledge/:programId', async (req: Request, res: Response) => {
     // STEP 3: Get strategic understanding
     const understanding = await getStrategicUnderstandingBySession(strategyVersion.sessionId);
 
-    if (!understanding) {
+    if (!understanding || !understanding.id) {
       return res.json({
         userAssumptions: [],
         researchFindings: [],
@@ -2746,6 +2746,35 @@ router.get('/bmc-knowledge/:programId', async (req: Request, res: Response) => {
     console.error('Error in /bmc-knowledge/:programId:', error);
     res.status(500).json({ 
       error: error.message || 'Failed to retrieve BMC knowledge data' 
+    });
+  }
+});
+
+/**
+ * GET /api/strategic-consultant/context-foundry/status
+ * Check Context Foundry integration status
+ */
+router.get('/context-foundry/status', async (req: Request, res: Response) => {
+  try {
+    const { validateContextFoundryConnection, isContextFoundryConfigured } = await import('../services/grounded-analysis-service');
+    
+    const status = await validateContextFoundryConnection();
+    
+    res.json({
+      configured: status.configured,
+      connected: status.connected,
+      error: status.error,
+      message: status.connected 
+        ? 'Context Foundry is connected and ready for grounded analysis'
+        : status.configured 
+          ? 'Context Foundry is configured but connection failed'
+          : 'Context Foundry API key not configured'
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      configured: false,
+      connected: false,
+      error: error.message
     });
   }
 });
