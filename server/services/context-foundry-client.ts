@@ -4,88 +4,106 @@
  * Provides grounded context for AI analysis by querying verified facts
  * from the Context Foundry service. This constrains LLM responses to
  * use verified data with proper source citations.
+ * 
+ * Based on the official Premisia <-> Context Foundry integration spec.
  */
+
+export type ConfidenceLevel = 'high' | 'medium' | 'low';
 
 export interface Entity {
   id: string;
-  name: string;
   type: string;
-  attributes: Record<string, unknown>;
+  name: string;
+  properties: Record<string, unknown>;
   confidence: number;
-  sources: string[];
+  source?: string;
 }
 
 export interface Relationship {
-  id: string;
-  sourceEntityId: string;
-  targetEntityId: string;
-  type: string;
-  attributes: Record<string, unknown>;
+  sourceEntity: string;
+  relationshipType: string;
+  targetEntity: string;
   confidence: number;
-  sources: string[];
 }
 
-export interface Boundary {
-  type: 'temporal' | 'geographic' | 'domain' | 'organizational';
-  value: string;
-  description: string;
+export interface KnowledgeBoundary {
+  frontierNodes: string[];
+  missingTypes: string[];
+  lowCoverageAreas: string[];
 }
 
 export interface ContextBundle {
-  entities: Entity[];
-  relationships: Relationship[];
-  boundaries: Boundary[];
-  confidence: number;
-  sources: string[];
-  focalEntity: string | null;
   query: string;
-  timestamp: string;
+  answer: string;
+  confidence: number;
+  confidenceLevel: ConfidenceLevel;
+  confirmedEntities: Entity[];
+  inferredRelationships: Relationship[];
+  boundaries: KnowledgeBoundary;
+  evidenceChain: Array<Record<string, unknown>>;
+  sources: string[];
   isGrounded: boolean;
+  focalEntity: string | null;
+  timestamp: string;
 }
 
 export interface ContextFoundryConfig {
   apiKey: string;
   baseUrl?: string;
   timeout?: number;
+  confidenceThreshold?: number;
 }
+
+export interface VerifyResult {
+  verified: boolean | null;
+  confidence: number;
+  evidence?: unknown[];
+  note?: string;
+}
+
+const DEFAULT_CONFIDENCE_THRESHOLD = 0.6;
 
 export class ContextFoundryClient {
   private apiKey: string;
   private baseUrl: string;
   private timeout: number;
+  private confidenceThreshold: number;
 
   constructor(config: ContextFoundryConfig) {
     this.apiKey = config.apiKey;
-    this.baseUrl = config.baseUrl || 'https://api.contextfoundry.com/v1';
+    // Use the actual Context Foundry URL
+    this.baseUrl = config.baseUrl || 'https://context-foundry-darinkishore.replit.app';
     this.timeout = config.timeout || 30000;
+    this.confidenceThreshold = config.confidenceThreshold || DEFAULT_CONFIDENCE_THRESHOLD;
   }
 
   /**
    * Query Context Foundry for grounded context
-   * @param query - The analysis query (e.g., "operational risks")
-   * @param focalEntity - Optional focal entity to center the query around
+   * @param query - Natural language question
+   * @param focalEntity - Optional entity to center the query around
+   * @param includeEpisodic - Include time-sensitive/recent facts
    * @returns ContextBundle with verified facts
    */
-  async query(query: string, focalEntity?: string): Promise<ContextBundle> {
+  async query(query: string, focalEntity?: string, includeEpisodic = false): Promise<ContextBundle> {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
-      const response = await fetch(`${this.baseUrl}/context/query`, {
+      const payload: Record<string, unknown> = { query };
+      if (focalEntity) {
+        payload.focal_entity = focalEntity;
+      }
+      if (includeEpisodic) {
+        payload.include_episodic = true;
+      }
+
+      const response = await fetch(`${this.baseUrl}/api/query`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`,
-          'X-Client': 'premisia-platform'
+          'Authorization': `Bearer ${this.apiKey}`
         },
-        body: JSON.stringify({
-          query,
-          focal_entity: focalEntity,
-          include_relationships: true,
-          include_boundaries: true,
-          max_entities: 50,
-          min_confidence: 0.7
-        }),
+        body: JSON.stringify(payload),
         signal: controller.signal
       });
 
@@ -94,24 +112,11 @@ export class ContextFoundryClient {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('[ContextFoundry] API error:', response.status, errorText);
-        
-        // Return empty grounded context on error
         return this.createEmptyContext(query, focalEntity);
       }
 
       const data = await response.json();
-      
-      return {
-        entities: data.entities || [],
-        relationships: data.relationships || [],
-        boundaries: data.boundaries || [],
-        confidence: data.confidence || 0,
-        sources: data.sources || [],
-        focalEntity: focalEntity || null,
-        query,
-        timestamp: new Date().toISOString(),
-        isGrounded: (data.entities?.length > 0) || (data.relationships?.length > 0)
-      };
+      return this.parseResponse(query, data, focalEntity);
 
     } catch (error) {
       console.error('[ContextFoundry] Query failed:', error);
@@ -120,162 +125,258 @@ export class ContextFoundryClient {
   }
 
   /**
+   * Verify a factual claim against the knowledge graph
+   */
+  async verify(statement: string, context?: string): Promise<VerifyResult> {
+    try {
+      const payload: Record<string, string> = { statement };
+      if (context) {
+        payload.context = context;
+      }
+
+      const response = await fetch(`${this.baseUrl}/api/verify`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (response.status === 404) {
+        return { verified: null, confidence: 0, note: 'verify endpoint not available' };
+      }
+
+      if (!response.ok) {
+        return { verified: null, confidence: 0, note: `API error: ${response.status}` };
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('[ContextFoundry] Verify failed:', error);
+      return { verified: null, confidence: 0, note: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  /**
    * Check if the API key is valid
    */
   async validateApiKey(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseUrl}/auth/validate`, {
-        method: 'GET',
+      // Try a simple query to validate the API key
+      const response = await fetch(`${this.baseUrl}/api/query`, {
+        method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`
-        }
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ query: 'test connection' })
       });
-      return response.ok;
+      // Accept 200 or 401 (unauthorized means endpoint works but key is bad)
+      return response.ok || response.status !== 401;
     } catch {
       return false;
     }
   }
 
+  private parseResponse(query: string, data: Record<string, unknown>, focalEntity?: string): ContextBundle {
+    const tieredResults = (data.tiered_results || {}) as Record<string, unknown>;
+    const confirmed = (tieredResults.confirmed || {}) as Record<string, unknown[]>;
+    const inferred = (tieredResults.inferred || {}) as Record<string, unknown[]>;
+    const boundariesRaw = (tieredResults.boundaries || {}) as Record<string, string[]>;
+
+    // Parse entities
+    const entities: Entity[] = ((confirmed.entities || []) as Record<string, unknown>[]).map(e => ({
+      id: String(e.id || ''),
+      type: String(e.type || ''),
+      name: String(e.name || (e.properties as Record<string, unknown>)?.name || ''),
+      properties: (e.properties || {}) as Record<string, unknown>,
+      confidence: Number(e.confidence) || 0.5,
+      source: e.source ? String(e.source) : undefined
+    }));
+
+    // Parse relationships
+    const relationships: Relationship[] = ((inferred.relationships || []) as Record<string, unknown>[]).map(r => ({
+      sourceEntity: String(r.source || ''),
+      relationshipType: String(r.type || ''),
+      targetEntity: String(r.target || ''),
+      confidence: Number(r.confidence) || 0.5
+    }));
+
+    // Parse boundaries
+    const boundaries: KnowledgeBoundary = {
+      frontierNodes: (boundariesRaw.frontier_nodes || []).map(String),
+      missingTypes: (boundariesRaw.missing_types || []).map(String),
+      lowCoverageAreas: (boundariesRaw.low_coverage_areas || []).map(String)
+    };
+
+    // Determine confidence level
+    const confidence = Number(data.confidence) || 0;
+    let confidenceLevel: ConfidenceLevel;
+    if (confidence >= 0.8) {
+      confidenceLevel = 'high';
+    } else if (confidence >= 0.6) {
+      confidenceLevel = 'medium';
+    } else {
+      confidenceLevel = 'low';
+    }
+
+    // Extract sources from evidence chain
+    const evidenceChain = (data.evidence_chain || []) as Record<string, unknown>[];
+    const sourceSet = new Set<string>();
+    evidenceChain.forEach(e => {
+      if (e.source) sourceSet.add(String(e.source));
+    });
+    const sources = Array.from(sourceSet);
+
+    const isGrounded = confidence >= this.confidenceThreshold && entities.length > 0;
+
+    return {
+      query,
+      answer: String(data.answer || ''),
+      confidence,
+      confidenceLevel,
+      confirmedEntities: entities,
+      inferredRelationships: relationships,
+      boundaries,
+      evidenceChain,
+      sources,
+      isGrounded,
+      focalEntity: focalEntity || null,
+      timestamp: new Date().toISOString()
+    };
+  }
+
   private createEmptyContext(query: string, focalEntity?: string): ContextBundle {
     return {
-      entities: [],
-      relationships: [],
-      boundaries: [],
-      confidence: 0,
-      sources: [],
-      focalEntity: focalEntity || null,
       query,
-      timestamp: new Date().toISOString(),
-      isGrounded: false
+      answer: '',
+      confidence: 0,
+      confidenceLevel: 'low',
+      confirmedEntities: [],
+      inferredRelationships: [],
+      boundaries: {
+        frontierNodes: [],
+        missingTypes: [],
+        lowCoverageAreas: []
+      },
+      evidenceChain: [],
+      sources: [],
+      isGrounded: false,
+      focalEntity: focalEntity || null,
+      timestamp: new Date().toISOString()
     };
   }
 }
 
 /**
- * Generate a prompt that constrains the LLM to use verified facts
- * from the Context Foundry context bundle
+ * Generate a grounded prompt for Premisia's LLM.
+ * 
+ * This injects verified organizational facts into the prompt,
+ * ensuring the LLM response is grounded in reality.
  */
-export function groundAnalysis(userQuestion: string, context: ContextBundle): string {
-  if (!context.isGrounded) {
-    return `User Question: ${userQuestion}
+export function groundAnalysis(
+  userQuestion: string, 
+  context: ContextBundle,
+  analysisType: string = 'strategic'
+): string {
+  // Build entity context
+  const entityFacts = context.confirmedEntities.map(e => {
+    const confMarker = e.confidence >= 0.8 ? '✓' : '~';
+    return `  ${confMarker} ${e.type}: ${e.name} (confidence: ${Math.round(e.confidence * 100)}%)`;
+  });
 
-Note: No verified context available for this query. Proceed with caution and clearly indicate any assumptions made.`;
+  // Build relationship context
+  const relationshipFacts = context.inferredRelationships.map(r => 
+    `  - ${r.sourceEntity} --[${r.relationshipType}]--> ${r.targetEntity}`
+  );
+
+  // Build boundaries context (what we DON'T know)
+  const boundaryNotes: string[] = [];
+  if (context.boundaries.frontierNodes.length > 0) {
+    boundaryNotes.push(`  - Knowledge boundary at: ${context.boundaries.frontierNodes.slice(0, 5).join(', ')}`);
+  }
+  if (context.boundaries.lowCoverageAreas.length > 0) {
+    boundaryNotes.push(`  - Limited data on: ${context.boundaries.lowCoverageAreas.slice(0, 3).join(', ')}`);
   }
 
-  const entityDescriptions = context.entities.map(e => 
-    `- ${e.name} (${e.type}): ${JSON.stringify(e.attributes)} [Confidence: ${Math.round(e.confidence * 100)}%]`
-  ).join('\n');
+  return `You are a ${analysisType} consultant using Premisia. Answer the following question using ONLY the verified organizational context provided below. Do not hallucinate or invent facts.
 
-  const relationshipDescriptions = context.relationships.map(r => {
-    const source = context.entities.find(e => e.id === r.sourceEntityId)?.name || r.sourceEntityId;
-    const target = context.entities.find(e => e.id === r.targetEntityId)?.name || r.targetEntityId;
-    return `- ${source} → ${r.type} → ${target} [Confidence: ${Math.round(r.confidence * 100)}%]`;
-  }).join('\n');
+## User Question
+${userQuestion}
 
-  const boundaryDescriptions = context.boundaries.map(b =>
-    `- ${b.type}: ${b.value} (${b.description})`
-  ).join('\n');
+## Verified Context from Organization's Knowledge Graph
+**Overall Confidence: ${Math.round(context.confidence * 100)}% (${context.confidenceLevel})**
 
-  const sourceList = context.sources.map((s, i) => `[${i + 1}] ${s}`).join('\n');
+### Context Foundry's Answer
+${context.answer || 'No direct answer available'}
 
-  return `## Grounded Analysis Request
+### Confirmed Entities (${context.confirmedEntities.length} found)
+${entityFacts.length > 0 ? entityFacts.join('\n') : '  No entities found'}
 
-**User Question:** ${userQuestion}
+### Relationships
+${relationshipFacts.length > 0 ? relationshipFacts.join('\n') : '  No relationships found'}
 
-**IMPORTANT INSTRUCTIONS:**
-You MUST base your analysis on the following verified facts. Do NOT make claims that contradict this verified information. Cite sources using [n] notation where applicable.
-
-${context.focalEntity ? `**Focal Entity:** ${context.focalEntity}\n` : ''}
-**Overall Confidence:** ${Math.round(context.confidence * 100)}%
-
-### Verified Entities
-${entityDescriptions || 'No entities available.'}
-
-### Verified Relationships
-${relationshipDescriptions || 'No relationships available.'}
-
-### Context Boundaries
-${boundaryDescriptions || 'No boundaries specified.'}
+### Knowledge Boundaries (what we don't know)
+${boundaryNotes.length > 0 ? boundaryNotes.join('\n') : '  No significant gaps identified'}
 
 ### Sources
-${sourceList || 'No sources available.'}
+${context.sources.length > 0 ? context.sources.join(', ') : 'No sources available'}
 
----
+## Instructions
+1. Base your analysis on the verified context above
+2. If confidence is below 80%, note the uncertainty
+3. If the knowledge boundary limits your answer, say so explicitly
+4. Do not invent facts not present in the context
+5. Cite sources when making specific claims
 
-**Response Guidelines:**
-1. Only make claims supported by the verified facts above
-2. Cite sources using [n] notation
-3. Clearly flag any uncertainty or gaps in the verified data
-4. If the question requires information beyond the verified facts, acknowledge this limitation
-5. Maintain consistency with established relationships and entity attributes`;
+## Your Analysis:`;
 }
 
 /**
- * Format context bundle as a markdown section for Premisia reports
+ * Format Context Bundle for inclusion in a Premisia report.
+ * Returns markdown-formatted findings section.
  */
 export function formatForReport(context: ContextBundle, sectionTitle?: string): string {
-  const title = sectionTitle || 'Grounded Context';
+  const title = sectionTitle || 'Findings from Organizational Knowledge Graph';
   
-  if (!context.isGrounded) {
-    return `## ${title}
+  const lines: string[] = [
+    `## ${title}`,
+    '',
+    `**Query:** ${context.query}`,
+    `**Confidence:** ${Math.round(context.confidence * 100)}%`,
+    ''
+  ];
 
-*No verified context was available for this analysis. Results should be treated as ungrounded.*`;
-  }
-
-  let markdown = `## ${title}
-
-**Query:** ${context.query}
-${context.focalEntity ? `**Focal Entity:** ${context.focalEntity}` : ''}
-**Confidence Level:** ${Math.round(context.confidence * 100)}%
-**Retrieved:** ${new Date(context.timestamp).toLocaleString()}
-
-### Key Entities (${context.entities.length})
-
-| Entity | Type | Confidence | Key Attributes |
-|--------|------|------------|----------------|
-`;
-
-  for (const entity of context.entities.slice(0, 15)) {
-    const attrs = Object.entries(entity.attributes)
-      .slice(0, 3)
-      .map(([k, v]) => `${k}: ${v}`)
-      .join(', ');
-    markdown += `| ${entity.name} | ${entity.type} | ${Math.round(entity.confidence * 100)}% | ${attrs} |\n`;
-  }
-
-  if (context.entities.length > 15) {
-    markdown += `\n*...and ${context.entities.length - 15} more entities*\n`;
-  }
-
-  if (context.relationships.length > 0) {
-    markdown += `\n### Key Relationships (${context.relationships.length})\n\n`;
-    
-    for (const rel of context.relationships.slice(0, 10)) {
-      const source = context.entities.find(e => e.id === rel.sourceEntityId)?.name || rel.sourceEntityId;
-      const target = context.entities.find(e => e.id === rel.targetEntityId)?.name || rel.targetEntityId;
-      markdown += `- **${source}** → *${rel.type}* → **${target}** (${Math.round(rel.confidence * 100)}% confidence)\n`;
+  if (context.confirmedEntities.length > 0) {
+    lines.push('### Verified Entities');
+    const highConfEntities = context.confirmedEntities.filter(e => e.confidence >= 0.8);
+    for (const e of highConfEntities) {
+      lines.push(`- **${e.name}** (${e.type})`);
+      for (const [key, val] of Object.entries(e.properties)) {
+        if (key !== 'name' && val) {
+          lines.push(`  - ${key}: ${val}`);
+        }
+      }
     }
-    
-    if (context.relationships.length > 10) {
-      markdown += `\n*...and ${context.relationships.length - 10} more relationships*\n`;
-    }
-  }
-
-  if (context.boundaries.length > 0) {
-    markdown += `\n### Context Boundaries\n\n`;
-    for (const boundary of context.boundaries) {
-      markdown += `- **${boundary.type}:** ${boundary.value} — ${boundary.description}\n`;
-    }
+    lines.push('');
   }
 
   if (context.sources.length > 0) {
-    markdown += `\n### Sources\n\n`;
-    context.sources.forEach((source, i) => {
-      markdown += `${i + 1}. ${source}\n`;
-    });
+    lines.push('### Sources');
+    for (const src of context.sources) {
+      lines.push(`- ${src}`);
+    }
+    lines.push('');
   }
 
-  return markdown;
+  if (context.boundaries.lowCoverageAreas.length > 0) {
+    lines.push('### Data Limitations');
+    lines.push(`Limited information available on: ${context.boundaries.lowCoverageAreas.join(', ')}`);
+    lines.push('');
+  }
+
+  return lines.join('\n');
 }
 
 // Singleton instance - initialized when API key is available
