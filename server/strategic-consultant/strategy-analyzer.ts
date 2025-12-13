@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { strategyOntologyService } from '../ontology/strategy-ontology-service';
 import { ResearchFindings, Source, Finding } from './market-researcher';
-import { groundStrategicAnalysis, isContextFoundryConfigured } from '../services/grounded-analysis-service';
+import { groundStrategicAnalysis, isContextFoundryConfigured, orchestrateAnalysis, OrchestrationResult } from '../services/grounded-analysis-service';
 import { ContextBundle } from '../services/context-foundry-client';
 
 export interface FiveWhysAnalysis {
@@ -105,21 +105,23 @@ export class StrategyAnalyzer {
   /**
    * Analyze Five Whys with optional Context Foundry grounding
    */
-  async analyzeFiveWhys(input: string, focalEntity?: string): Promise<FiveWhysAnalysis & { groundingContext?: ContextBundle | null }> {
+  async analyzeFiveWhys(input: string, focalEntity?: string): Promise<FiveWhysAnalysis & { groundingContext?: ContextBundle | null; flaggedAssumptions?: string[]; externalClaimsForWebSearch?: string[] }> {
     let analysisInput = input;
     let groundingContext: ContextBundle | null = null;
+    let flaggedAssumptions: string[] = [];
+    let externalClaimsForWebSearch: string[] = [];
 
-    // Apply Context Foundry grounding if configured
+    // Apply intelligent routing orchestration if configured
     if (this.useGrounding) {
       try {
-        const grounding = await groundStrategicAnalysis(input, 'five_whys', focalEntity);
-        if (grounding.grounded) {
-          analysisInput = grounding.prompt;
-          groundingContext = grounding.context;
-          console.log('[StrategyAnalyzer] Five Whys analysis grounded with Context Foundry');
-        }
+        const orchestration = await orchestrateAnalysis(input, 'five_whys', focalEntity);
+        analysisInput = orchestration.groundedPrompt;
+        groundingContext = orchestration.cfContext;
+        flaggedAssumptions = orchestration.flaggedAssumptions;
+        externalClaimsForWebSearch = orchestration.externalClaimsForWebSearch;
+        console.log('[StrategyAnalyzer] Five Whys analysis orchestrated with intelligent routing');
       } catch (error) {
-        console.warn('[StrategyAnalyzer] Grounding failed, proceeding without:', error);
+        console.warn('[StrategyAnalyzer] Orchestration failed, proceeding without:', error);
       }
     }
 
@@ -191,27 +193,29 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
     }
 
     const result = JSON.parse(jsonMatch[0]);
-    return { ...result, groundingContext };
+    return { ...result, groundingContext, flaggedAssumptions, externalClaimsForWebSearch };
   }
 
   /**
    * Analyze Porter's Five Forces with optional Context Foundry grounding
    */
-  async analyzePortersFiveForces(input: string, focalEntity?: string): Promise<PortersFiveForcesAnalysis & { groundingContext?: ContextBundle | null }> {
+  async analyzePortersFiveForces(input: string, focalEntity?: string): Promise<PortersFiveForcesAnalysis & { groundingContext?: ContextBundle | null; flaggedAssumptions?: string[]; externalClaimsForWebSearch?: string[] }> {
     let analysisInput = input;
     let groundingContext: ContextBundle | null = null;
+    let flaggedAssumptions: string[] = [];
+    let externalClaimsForWebSearch: string[] = [];
 
-    // Apply Context Foundry grounding if configured
+    // Apply intelligent routing orchestration if configured
     if (this.useGrounding) {
       try {
-        const grounding = await groundStrategicAnalysis(input, 'porters', focalEntity);
-        if (grounding.grounded) {
-          analysisInput = grounding.prompt;
-          groundingContext = grounding.context;
-          console.log('[StrategyAnalyzer] Porter\'s analysis grounded with Context Foundry');
-        }
+        const orchestration = await orchestrateAnalysis(input, 'porters', focalEntity);
+        analysisInput = orchestration.groundedPrompt;
+        groundingContext = orchestration.cfContext;
+        flaggedAssumptions = orchestration.flaggedAssumptions;
+        externalClaimsForWebSearch = orchestration.externalClaimsForWebSearch;
+        console.log('[StrategyAnalyzer] Porter\'s analysis orchestrated with intelligent routing');
       } catch (error) {
-        console.warn('[StrategyAnalyzer] Grounding failed, proceeding without:', error);
+        console.warn('[StrategyAnalyzer] Orchestration failed, proceeding without:', error);
       }
     }
     const response = await this.anthropic.messages.create({
@@ -272,7 +276,7 @@ Analyze the competitive environment using Porter's Five Forces. Return ONLY vali
     }
 
     const result = JSON.parse(jsonMatch[0]);
-    return { ...result, groundingContext };
+    return { ...result, groundingContext, flaggedAssumptions, externalClaimsForWebSearch };
   }
 
   async recommendStrategy(
