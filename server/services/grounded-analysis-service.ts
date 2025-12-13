@@ -54,14 +54,27 @@ const INTERNAL_KEYWORDS = [
   'manager', 'role', 'internal', 'our', 'we', 'staff', 'personnel',
   'procedure', 'policy', 'protocol', 'organization', 'organisational',
   'organizational', 'division', 'unit', 'group', 'colleague', 'supervisor',
-  'stakeholder', 'budget', 'resource', 'capacity', 'infrastructure'
+  'stakeholder', 'budget', 'resource', 'capacity', 'infrastructure',
+  // Technical infrastructure terms (should trigger CF for service topology)
+  'service', 'services', 'api', 'gateway', 'dependency', 'dependencies',
+  'microservice', 'microservices', 'backend', 'frontend', 'database',
+  'server', 'servers', 'cluster', 'deployment', 'architecture',
+  'component', 'components', 'module', 'modules', 'integration',
+  'endpoint', 'endpoints', 'circuit', 'breaker', 'failover', 'redundancy',
+  'downtime', 'uptime', 'availability', 'reliability', 'latency',
+  'timeout', 'retry', 'cascade', 'cascading', 'interconnected'
 ];
 
 const INTERNAL_PHRASES = [
   'how we do', 'our approach', 'we currently', 'our team', 'our process',
   'we have', 'we use', 'our system', 'our workflow', 'internally',
   'in-house', 'our department', 'our organization', 'our company',
-  'depends on', 'reports to', 'managed by', 'owned by', 'responsible for'
+  'depends on', 'reports to', 'managed by', 'owned by', 'responsible for',
+  // Technical infrastructure phrases
+  'api gateway', 'service mesh', 'load balancer', 'circuit breaker',
+  'cascading failure', 'dependent service', 'downstream service',
+  'upstream service', 'service topology', 'system architecture',
+  'service dependency', 'interconnected system', 'failure cascade'
 ];
 
 const EXTERNAL_KEYWORDS = [
@@ -432,6 +445,12 @@ export async function orchestrateAnalysis(
   analysisType: 'five_whys' | 'porters' | 'bmc' | 'pestle' | 'swot' | 'general',
   focalEntity?: string
 ): Promise<OrchestrationResult> {
+  console.log(`\n[Orchestrator] ========== STARTING ORCHESTRATION ==========`);
+  console.log(`[Orchestrator] Analysis type: ${analysisType}`);
+  console.log(`[Orchestrator] Focal entity: ${focalEntity || 'none'}`);
+  console.log(`[Orchestrator] Input length: ${userInput.length} chars`);
+  console.log(`[Orchestrator] Input preview: ${userInput.substring(0, 200)}...`);
+  
   const classifier = new ClaimClassifier();
   const classifications = classifier.classifyClaims(userInput);
   
@@ -440,17 +459,43 @@ export async function orchestrateAnalysis(
   const frameworkClaims = classifications.filter(c => c.claimType === 'framework');
 
   console.log(`[Orchestrator] Classified claims: ${internalClaims.length} internal, ${externalClaims.length} external, ${frameworkClaims.length} framework`);
+  
+  // Log each classification for debugging
+  for (const claim of classifications) {
+    console.log(`[Orchestrator] - ${claim.claimType.toUpperCase()}: "${claim.topic}" | entities: [${claim.entities.join(', ')}]`);
+  }
 
   let cfContext: ContextBundle | null = null;
   const flaggedAssumptions: string[] = [];
   const externalClaimsForWebSearch: string[] = [];
+
+  console.log(`[Orchestrator] Context Foundry configured: ${isContextFoundryConfigured()}`);
 
   if (internalClaims.length > 0 && isContextFoundryConfigured()) {
     const internalEntities = internalClaims.flatMap(c => c.entities);
     const internalTopics = internalClaims.map(c => c.topic).join('; ');
     
     const cfQuery = buildContextQuery(analysisType, focalEntity, internalTopics);
+    console.log(`[Orchestrator] CF Query: ${cfQuery}`);
+    console.log(`[Orchestrator] Querying Context Foundry with focal entity: ${focalEntity || internalEntities[0] || 'none'}`);
+    
     cfContext = await queryContext(cfQuery, focalEntity || internalEntities[0]);
+    
+    console.log(`[Orchestrator] CF Response received:`);
+    console.log(`[Orchestrator] - isGrounded: ${cfContext?.isGrounded}`);
+    console.log(`[Orchestrator] - confidence: ${cfContext?.confidence}`);
+    console.log(`[Orchestrator] - confirmedEntities: ${cfContext?.confirmedEntities?.length || 0}`);
+    console.log(`[Orchestrator] - inferredRelationships: ${cfContext?.inferredRelationships?.length || 0}`);
+    if (cfContext?.confirmedEntities?.length) {
+      for (const entity of cfContext.confirmedEntities.slice(0, 5)) {
+        console.log(`[Orchestrator]   * ${entity.type}: ${entity.name} (${Math.round(entity.confidence * 100)}%)`);
+      }
+    }
+    if (cfContext?.inferredRelationships?.length) {
+      for (const rel of cfContext.inferredRelationships.slice(0, 5)) {
+        console.log(`[Orchestrator]   * ${rel.sourceEntity} --[${rel.relationshipType}]--> ${rel.targetEntity}`);
+      }
+    }
 
     if (cfContext && cfContext.isGrounded) {
       for (const claim of internalClaims) {
