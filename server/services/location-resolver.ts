@@ -48,18 +48,56 @@ export class LocationResolverService {
   private readonly NOMINATIM_BASE_URL = 'https://nominatim.openstreetmap.org';
   private readonly USER_AGENT = 'StrategicPlanningApp/1.0 (strategic-planning-contact@example.com)';
   private readonly IMPORTANCE_THRESHOLD = 0.6;
+  private readonly CIRCUIT_BREAKER_THRESHOLD = 2; // Stop after 2 consecutive failures
   
   private cache: Map<string, LocationCandidate[]>;
   private throttler: RequestThrottler;
+  private consecutiveFailures: number = 0;
+  private circuitOpen: boolean = false;
+  private circuitOpenUntil: number = 0;
 
   constructor() {
     this.cache = new Map();
     this.throttler = new RequestThrottler({
       maxConcurrent: 1,
       delayBetweenBatches: 1000, // 1 second for Nominatim
-      maxRetries: 3,
-      initialRetryDelay: 1000
+      maxRetries: 1, // Reduced retries - fail fast
+      initialRetryDelay: 500
     });
+  }
+
+  /**
+   * Check if circuit breaker is open (API is blocked/unavailable)
+   */
+  private isCircuitOpen(): boolean {
+    if (!this.circuitOpen) return false;
+    // Reset circuit after 5 minutes
+    if (Date.now() > this.circuitOpenUntil) {
+      this.circuitOpen = false;
+      this.consecutiveFailures = 0;
+      console.log('[LocationResolver] Circuit breaker reset');
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Record API failure and potentially open circuit breaker
+   */
+  private recordFailure(): void {
+    this.consecutiveFailures++;
+    if (this.consecutiveFailures >= this.CIRCUIT_BREAKER_THRESHOLD) {
+      this.circuitOpen = true;
+      this.circuitOpenUntil = Date.now() + 5 * 60 * 1000; // 5 minutes
+      console.log('[LocationResolver] Circuit breaker OPEN - Nominatim API unavailable, skipping geocoding for 5 minutes');
+    }
+  }
+
+  /**
+   * Record API success and reset failure counter
+   */
+  private recordSuccess(): void {
+    this.consecutiveFailures = 0;
   }
 
   /**
@@ -126,6 +164,11 @@ export class LocationResolverService {
    * Geocode a single query (no rate limiting - handled by throttler)
    */
   private async geocode(query: string): Promise<LocationCandidate[]> {
+    // Check circuit breaker first - fail fast if API is blocked
+    if (this.isCircuitOpen()) {
+      return [];
+    }
+
     // Check cache first
     const cacheKey = query.toLowerCase();
     if (this.cache.has(cacheKey)) {
@@ -141,20 +184,35 @@ export class LocationResolverService {
         'accept-language': 'en',
       });
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
       const response = await fetch(
         `${this.NOMINATIM_BASE_URL}/search?${searchParams}`,
         {
           headers: {
             'User-Agent': this.USER_AGENT,
           },
+          signal: controller.signal,
         }
       );
 
+      clearTimeout(timeoutId);
+
       if (!response.ok) {
-        throw new Error(`Nominatim API error: ${response.status}`);
+        // Record failure for circuit breaker
+        this.recordFailure();
+        // Don't log every error - just note it's failing
+        if (this.consecutiveFailures <= this.CIRCUIT_BREAKER_THRESHOLD) {
+          console.warn(`[LocationResolver] Nominatim API returned ${response.status} for "${query}"`);
+        }
+        return [];
       }
 
       const results = await response.json();
+      
+      // Success - reset failure counter
+      this.recordSuccess();
 
       const candidates: LocationCandidate[] = results.map((result: any) => {
         const importance = parseFloat(result.importance) || 0;
@@ -180,8 +238,13 @@ export class LocationResolverService {
       this.cache.set(cacheKey, candidates);
 
       return candidates;
-    } catch (error) {
-      console.error(`[LocationResolver] Error geocoding "${query}":`, error);
+    } catch (error: any) {
+      // Record failure for circuit breaker
+      this.recordFailure();
+      // Only log first few errors
+      if (this.consecutiveFailures <= this.CIRCUIT_BREAKER_THRESHOLD) {
+        console.warn(`[LocationResolver] Geocode failed for "${query}": ${error.message}`);
+      }
       return [];
     }
   }
@@ -246,7 +309,13 @@ export class LocationResolverService {
    */
   async extractAndResolveLocations(text: string): Promise<LocationCandidate[]> {
     try {
-      console.log(`[LocationResolver] Starting geocoder-first extraction for text:`, text);
+      // Check circuit breaker first - skip entirely if API is blocked
+      if (this.isCircuitOpen()) {
+        console.log(`[LocationResolver] Circuit breaker open, skipping location resolution`);
+        return [];
+      }
+
+      console.log(`[LocationResolver] Starting geocoder-first extraction for text:`, text.substring(0, 100));
 
       // Step 1: Generate n-grams
       const ngrams = this.generateNGrams(text);
@@ -255,6 +324,8 @@ export class LocationResolverService {
         console.log(`[LocationResolver] No valid n-grams generated`);
         return [];
       }
+      
+      console.log(`[LocationResolver] Generated ${ngrams.length} n-grams to check`);
 
       // Step 2: Geocode all n-grams (with throttling and caching)
       const tasks = ngrams.map(ngram => async () => {
