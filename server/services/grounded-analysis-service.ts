@@ -72,7 +72,7 @@ export async function prepareGroundedAnalysis(
     // Generate report section
     const reportSection = formatForReport(context, `Grounded Context: ${request.analysisType.toUpperCase()}`);
 
-    console.log(`[GroundedAnalysis] Successfully grounded analysis with ${context.entities.length} entities, ${context.relationships.length} relationships`);
+    console.log(`[GroundedAnalysis] Successfully grounded analysis with ${context.confirmedEntities.length} entities, ${context.inferredRelationships.length} relationships`);
 
     return {
       groundedPrompt,

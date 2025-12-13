@@ -185,8 +185,9 @@ export class ContextFoundryClient {
     const inferred = (tieredResults.inferred || {}) as Record<string, unknown[]>;
     const boundariesRaw = (tieredResults.boundaries || {}) as Record<string, string[]>;
 
-    // Parse entities
-    const entities: Entity[] = ((confirmed.entities || []) as Record<string, unknown>[]).map(e => ({
+    // Parse entities - API returns 'nodes' not 'entities'
+    const nodesOrEntities = (confirmed as Record<string, unknown>).nodes || (confirmed as Record<string, unknown>).entities || [];
+    const entities: Entity[] = (nodesOrEntities as Record<string, unknown>[]).map(e => ({
       id: String(e.id || ''),
       type: String(e.type || ''),
       name: String(e.name || (e.properties as Record<string, unknown>)?.name || ''),
@@ -195,8 +196,9 @@ export class ContextFoundryClient {
       source: e.source ? String(e.source) : undefined
     }));
 
-    // Parse relationships
-    const relationships: Relationship[] = ((inferred.relationships || []) as Record<string, unknown>[]).map(r => ({
+    // Parse relationships - API returns 'edges' not 'relationships'
+    const edgesOrRelationships = (inferred as Record<string, unknown>).edges || (inferred as Record<string, unknown>).relationships || [];
+    const relationships: Relationship[] = (edgesOrRelationships as Record<string, unknown>[]).map(r => ({
       sourceEntity: String(r.source || ''),
       relationshipType: String(r.type || ''),
       targetEntity: String(r.target || ''),
