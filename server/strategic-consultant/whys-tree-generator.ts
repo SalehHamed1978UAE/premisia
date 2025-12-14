@@ -1,5 +1,11 @@
 import { randomUUID } from 'crypto';
 import { aiClients } from '../ai-clients.js';
+import { 
+  orchestrateAnalysis, 
+  OrchestrationResult,
+  isContextFoundryConfigured 
+} from '../services/grounded-analysis-service';
+import type { ContextBundle } from '../services/context-foundry-client';
 
 export interface WhyNode {
   id: string;
@@ -13,6 +19,17 @@ export interface WhyNode {
   supporting_evidence: string[];
   counter_arguments: string[];
   consideration: string;
+  isVerified?: boolean;
+  verificationSource?: string;
+}
+
+export interface GroundingMetadata {
+  isGrounded: boolean;
+  confidence: number;
+  confirmedEntities: Array<{ name: string; type: string; confidence: number }>;
+  relationships: Array<{ source: string; type: string; target: string }>;
+  flaggedAssumptions: string[];
+  externalClaimsForWebSearch: string[];
 }
 
 export interface WhyTree {
@@ -20,6 +37,7 @@ export interface WhyTree {
   branches: WhyNode[];
   maxDepth: number;
   sessionId: string;
+  groundingMetadata?: GroundingMetadata;
 }
 
 interface BranchContext {
@@ -30,6 +48,50 @@ interface BranchContext {
 
 export class WhysTreeGenerator {
   private readonly maxDepth = 5;
+  private groundingContext: OrchestrationResult | null = null;
+  private cfContextPrompt: string = '';
+
+  /**
+   * Build a context prompt section from Context Foundry data
+   */
+  private buildCFContextPrompt(orchestration: OrchestrationResult): string {
+    const sections: string[] = [];
+    
+    if (orchestration.cfContext && orchestration.cfContext.isGrounded) {
+      sections.push(`\n## Verified Organizational Context (from Knowledge Graph)`);
+      sections.push(`**Confidence: ${Math.round(orchestration.cfContext.confidence * 100)}%**`);
+      
+      if (orchestration.cfContext.confirmedEntities.length > 0) {
+        sections.push(`\n### Confirmed Entities - USE THESE FACTS:`);
+        for (const entity of orchestration.cfContext.confirmedEntities.slice(0, 10)) {
+          sections.push(`- ${entity.type}: **${entity.name}** (${Math.round(entity.confidence * 100)}% confidence)`);
+        }
+      }
+
+      if (orchestration.cfContext.inferredRelationships.length > 0) {
+        sections.push(`\n### Known Relationships - USE THESE FACTS:`);
+        for (const rel of orchestration.cfContext.inferredRelationships.slice(0, 10)) {
+          sections.push(`- ${rel.sourceEntity} → ${rel.relationshipType} → ${rel.targetEntity}`);
+        }
+      }
+
+      if (orchestration.cfContext.answer) {
+        sections.push(`\n### Context Foundry Analysis:`);
+        sections.push(orchestration.cfContext.answer);
+      }
+      
+      sections.push(`\n**IMPORTANT: Reference these verified entities and relationships in your analysis. Mark any claims NOT from this list as [ASSUMED].**`);
+    }
+
+    if (orchestration.flaggedAssumptions.length > 0) {
+      sections.push(`\n## ⚠️ Flagged Assumptions (unverified claims):`);
+      for (const assumption of orchestration.flaggedAssumptions.slice(0, 5)) {
+        sections.push(`- ${assumption}`);
+      }
+    }
+
+    return sections.join('\n');
+  }
 
   private extractJSON(response: { content: string; provider: string; model: string }, context: string, fallback?: any): any {
     console.log(`[WhysTreeGenerator] ${context} - AI provider:`, response.provider, 'model:', response.model);
@@ -79,6 +141,45 @@ export class WhysTreeGenerator {
   }
 
   async generateTree(input: string, sessionId: string): Promise<WhyTree> {
+    // Step 1: Query Context Foundry for grounding BEFORE any AI calls
+    let groundingMetadata: GroundingMetadata | undefined;
+    
+    if (isContextFoundryConfigured()) {
+      try {
+        console.log('[WhysTreeGenerator] Querying Context Foundry for grounding...');
+        this.groundingContext = await orchestrateAnalysis(input, 'five_whys');
+        this.cfContextPrompt = this.buildCFContextPrompt(this.groundingContext);
+        
+        console.log(`[WhysTreeGenerator] CF grounding result: isGrounded=${this.groundingContext.cfContext?.isGrounded}, entities=${this.groundingContext.cfContext?.confirmedEntities?.length || 0}, relationships=${this.groundingContext.cfContext?.inferredRelationships?.length || 0}`);
+        
+        // Build metadata for output
+        if (this.groundingContext.cfContext) {
+          groundingMetadata = {
+            isGrounded: this.groundingContext.cfContext.isGrounded,
+            confidence: this.groundingContext.cfContext.confidence,
+            confirmedEntities: this.groundingContext.cfContext.confirmedEntities.map(e => ({
+              name: e.name,
+              type: e.type,
+              confidence: e.confidence
+            })),
+            relationships: this.groundingContext.cfContext.inferredRelationships.map(r => ({
+              source: r.sourceEntity,
+              type: r.relationshipType,
+              target: r.targetEntity
+            })),
+            flaggedAssumptions: this.groundingContext.flaggedAssumptions,
+            externalClaimsForWebSearch: this.groundingContext.externalClaimsForWebSearch
+          };
+        }
+      } catch (error) {
+        console.warn('[WhysTreeGenerator] Context Foundry grounding failed, proceeding without:', error);
+        this.groundingContext = null;
+        this.cfContextPrompt = '';
+      }
+    } else {
+      console.log('[WhysTreeGenerator] Context Foundry not configured, proceeding without grounding');
+    }
+    
     const rootQuestion = await this.generateRootQuestion(input);
     
     const level1Branches = await this.generateLevelInParallel(
@@ -106,14 +207,21 @@ export class WhysTreeGenerator {
       branches: level1WithLevel2,
       maxDepth: this.maxDepth,
       sessionId,
+      groundingMetadata,
     };
   }
 
   async generateRootQuestion(input: string): Promise<string> {
-    const response = await aiClients.callWithFallback({
-      systemPrompt: 'You\'re a friendly strategic consultant helping someone think through their business challenge. You use the "5 Whys" technique - asking "why" to get to the heart of the matter.',
-      userMessage: `Here's what they told you:
+    // Build system prompt with CF context if available
+    let systemPrompt = 'You\'re a friendly strategic consultant helping someone think through their business challenge. You use the "5 Whys" technique - asking "why" to get to the heart of the matter.';
+    
+    if (this.cfContextPrompt) {
+      systemPrompt += `\n\nYou have access to verified organizational data. Use specific entity names and relationships from this data when forming your questions.`;
+    }
+    
+    let userMessage = `Here's what they told you:
 ${input}
+${this.cfContextPrompt}
 
 Let's start by asking a good "Why" question that gets to the core of what's going on. 
 
@@ -121,11 +229,16 @@ Write a question that:
 - Feels natural and conversational (like you're talking to a friend)
 - Gets at the real reason or purpose behind what they shared
 - Opens the door for deeper exploration
+${this.cfContextPrompt ? '- References specific entities or relationships from the verified context above when relevant' : ''}
 
 Return a JSON object with the question:
 {
   "question": "Why [phrase this naturally]?"
-}`,
+}`;
+
+    const response = await aiClients.callWithFallback({
+      systemPrompt,
+      userMessage,
       maxTokens: 1000,
     });
 
@@ -190,17 +303,25 @@ Return a JSON object with the question:
     const isLeaf = depth >= this.maxDepth;
     const maxRetries = 3;
     
+    // Build system prompt with CF context awareness
+    let systemPrompt = 'You\'re a friendly business advisor helping someone figure out what\'s really going on with their business. Talk to them like a supportive friend who gets business stuff.';
+    if (this.cfContextPrompt) {
+      systemPrompt += '\n\nIMPORTANT: You have verified organizational data available. When making claims about the organization\'s systems, services, or relationships, use the specific entity names and facts provided. Mark claims as [VERIFIED] when they match the provided context, or [ASSUMED] when they go beyond it.';
+    }
+    
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       const response = await aiClients.callWithFallback({
-        systemPrompt: 'You\'re a friendly business advisor helping someone figure out what\'s really going on with their business. Talk to them like a supportive friend who gets business stuff.',
+        systemPrompt,
         userMessage: `Alright, let's dig into this together! We're trying to understand the business reasons behind what's going on.
 
 So here's the thing - we want to stay focused on business angles. That means looking at stuff like what's happening in the market, how customers are behaving, what the competition is doing, pricing dynamics, or resource constraints. Skip the cultural or social observations - those don't help us figure out the business logic here.
+${this.cfContextPrompt}
 
 A few quick examples of what I'm looking for:
 - "The market's growing 40% yearly with only 3 main players" ✓
 - "This solves a problem that costs businesses $50K each year" ✓
 - "Competitors don't have this feature yet - you've got a 6-month window" ✓
+${this.cfContextPrompt ? '- "API Gateway has 3 dependent services that cascade on failure" ✓ (uses verified entities)' : ''}
 - "Cultural norms around hierarchy affect decisions" ✗ (too cultural, not business-focused)
 
 What they told us originally:
