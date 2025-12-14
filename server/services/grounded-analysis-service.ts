@@ -18,9 +18,9 @@ import {
 
 export interface GroundedAnalysisRequest {
   query: string;
-  focalEntity?: string;
   analysisType: 'five_whys' | 'porters' | 'bmc' | 'pestle' | 'swot' | 'general';
   originalInput: string;
+  sessionContext?: { userId?: string; sessionId?: string };
 }
 
 export interface GroundedAnalysisResult {
@@ -305,10 +305,20 @@ export async function prepareGroundedAnalysis(
   }
 
   try {
-    const context = await queryContext(request.query, request.focalEntity);
+    const analysisTypeMap: Record<string, string> = {
+      'five_whys': 'root_cause',
+      'porters': 'competitive',
+      'bmc': 'business_model',
+      'pestle': 'environmental',
+      'swot': 'strategic',
+      'general': 'root_cause'
+    };
+    const cfAnalysisType = analysisTypeMap[request.analysisType] || 'root_cause';
+    
+    const context = await queryContext(request.originalInput, cfAnalysisType, request.sessionContext);
 
     if (!context || !context.isGrounded) {
-      console.log('[GroundedAnalysis] No grounded context found for query:', request.query);
+      console.log('[GroundedAnalysis] No grounded context found. Status:', context?.resolutionStatus || 'NO_RESPONSE');
       return {
         groundedPrompt: request.originalInput,
         context: context,
@@ -320,7 +330,7 @@ export async function prepareGroundedAnalysis(
     const groundedPrompt = groundAnalysis(request.originalInput, context);
     const reportSection = formatForReport(context, `Grounded Context: ${request.analysisType.toUpperCase()}`);
 
-    console.log(`[GroundedAnalysis] Successfully grounded analysis with ${context.confirmedEntities.length} entities, ${context.inferredRelationships.length} relationships`);
+    console.log(`[GroundedAnalysis] Successfully grounded analysis - status: ${context.resolutionStatus}, entities: ${context.confirmedEntities.length}, resolvedEntity: ${context.resolvedEntity?.name || 'none'}`);
 
     return {
       groundedPrompt,
@@ -341,31 +351,18 @@ export async function prepareGroundedAnalysis(
 }
 
 /**
- * Extract a query for Context Foundry based on analysis type
+ * Map Premisia analysis types to Context Foundry analysis types
  */
-export function buildContextQuery(
-  analysisType: string,
-  focalEntity?: string,
-  additionalContext?: string
-): string {
-  const entityPrefix = focalEntity ? `${focalEntity}: ` : '';
-  
-  const queryTemplates: Record<string, string> = {
-    'five_whys': `${entityPrefix}root cause analysis factors, operational challenges, business problems`,
-    'porters': `${entityPrefix}competitive dynamics, market forces, industry structure, competitors`,
-    'bmc': `${entityPrefix}business model components, revenue streams, customer segments, value proposition`,
-    'pestle': `${entityPrefix}political, economic, social, technological, legal, environmental factors`,
-    'swot': `${entityPrefix}strengths, weaknesses, opportunities, threats, competitive position`,
-    'general': `${entityPrefix}strategic context, business environment, key stakeholders`
+export function mapAnalysisType(analysisType: string): string {
+  const mapping: Record<string, string> = {
+    'five_whys': 'root_cause',
+    'porters': 'competitive',
+    'bmc': 'business_model',
+    'pestle': 'environmental',
+    'swot': 'strategic',
+    'general': 'root_cause'
   };
-
-  const baseQuery = queryTemplates[analysisType] || queryTemplates['general'];
-  
-  if (additionalContext) {
-    return `${baseQuery}. Additional context: ${additionalContext.substring(0, 200)}`;
-  }
-  
-  return baseQuery;
+  return mapping[analysisType] || 'root_cause';
 }
 
 /**
@@ -411,19 +408,18 @@ export async function validateContextFoundryConnection(): Promise<{
 
 /**
  * Grounded analysis helper for strategy analyzer
+ * Now sends raw user input to CF - no app-side entity extraction
  */
 export async function groundStrategicAnalysis(
   userInput: string,
   analysisType: 'five_whys' | 'porters' | 'bmc' | 'pestle' | 'swot' | 'general',
-  focalEntity?: string
+  sessionContext?: { userId?: string; sessionId?: string }
 ): Promise<{ prompt: string; context: ContextBundle | null; grounded: boolean }> {
-  const query = buildContextQuery(analysisType, focalEntity, userInput);
-  
   const result = await prepareGroundedAnalysis({
-    query,
-    focalEntity,
+    query: userInput,
     analysisType,
-    originalInput: userInput
+    originalInput: userInput,
+    sessionContext
   });
 
   return {
@@ -436,20 +432,19 @@ export async function groundStrategicAnalysis(
 /**
  * Orchestrate analysis by routing claims through appropriate sources
  * 
- * - Internal claims → Query Context Foundry
+ * - Internal claims → Query Context Foundry (sends raw text, CF extracts entities)
  * - External claims → Flag for web search
  * - Framework claims → Pass through to LLM
  */
 export async function orchestrateAnalysis(
   userInput: string,
   analysisType: 'five_whys' | 'porters' | 'bmc' | 'pestle' | 'swot' | 'general',
-  focalEntity?: string
+  sessionContext?: { userId?: string; sessionId?: string }
 ): Promise<OrchestrationResult> {
   console.log(`\n[Orchestrator] ========== STARTING ORCHESTRATION ==========`);
   console.log(`[Orchestrator] Analysis type: ${analysisType}`);
-  console.log(`[Orchestrator] Focal entity: ${focalEntity || 'none'}`);
   console.log(`[Orchestrator] Input length: ${userInput.length} chars`);
-  console.log(`[Orchestrator] Input preview: ${userInput.substring(0, 200)}...`);
+  console.log(`[Orchestrator] Querying Context Foundry with raw text: "${userInput.substring(0, 100)}..."`);
   
   const classifier = new ClaimClassifier();
   const classifications = classifier.classifyClaims(userInput);
@@ -460,7 +455,6 @@ export async function orchestrateAnalysis(
 
   console.log(`[Orchestrator] Classified claims: ${internalClaims.length} internal, ${externalClaims.length} external, ${frameworkClaims.length} framework`);
   
-  // Log each classification for debugging
   for (const claim of classifications) {
     console.log(`[Orchestrator] - ${claim.claimType.toUpperCase()}: "${claim.topic}" | entities: [${claim.entities.join(', ')}]`);
   }
@@ -472,14 +466,9 @@ export async function orchestrateAnalysis(
   console.log(`[Orchestrator] Context Foundry configured: ${isContextFoundryConfigured()}`);
 
   if (internalClaims.length > 0 && isContextFoundryConfigured()) {
-    const internalEntities = internalClaims.flatMap(c => c.entities);
-    const internalTopics = internalClaims.map(c => c.topic).join('; ');
+    const cfAnalysisType = mapAnalysisType(analysisType);
     
-    const cfQuery = buildContextQuery(analysisType, focalEntity, internalTopics);
-    console.log(`[Orchestrator] CF Query: ${cfQuery}`);
-    console.log(`[Orchestrator] Querying Context Foundry with focal entity: ${focalEntity || internalEntities[0] || 'none'}`);
-    
-    cfContext = await queryContext(cfQuery, focalEntity || internalEntities[0]);
+    cfContext = await queryContext(userInput, cfAnalysisType, sessionContext);
     
     console.log(`[Orchestrator] CF Response received:`);
     console.log(`[Orchestrator] - isGrounded: ${cfContext?.isGrounded}`);

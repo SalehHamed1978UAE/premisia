@@ -104,17 +104,19 @@ export class StrategyAnalyzer {
 
   /**
    * Analyze Five Whys with optional Context Foundry grounding
+   * Note: focalEntity parameter is now deprecated - CF handles entity extraction internally
    */
-  async analyzeFiveWhys(input: string, focalEntity?: string): Promise<FiveWhysAnalysis & { groundingContext?: ContextBundle | null; flaggedAssumptions?: string[]; externalClaimsForWebSearch?: string[] }> {
+  async analyzeFiveWhys(input: string, _focalEntity?: string): Promise<FiveWhysAnalysis & { groundingContext?: ContextBundle | null; flaggedAssumptions?: string[]; externalClaimsForWebSearch?: string[] }> {
     let analysisInput = input;
     let groundingContext: ContextBundle | null = null;
     let flaggedAssumptions: string[] = [];
     let externalClaimsForWebSearch: string[] = [];
 
     // Apply intelligent routing orchestration if configured
+    // Now sends raw text to CF - entity extraction happens server-side
     if (this.useGrounding) {
       try {
-        const orchestration = await orchestrateAnalysis(input, 'five_whys', focalEntity);
+        const orchestration = await orchestrateAnalysis(input, 'five_whys');
         analysisInput = orchestration.groundedPrompt;
         groundingContext = orchestration.cfContext;
         flaggedAssumptions = orchestration.flaggedAssumptions;
@@ -198,17 +200,19 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
 
   /**
    * Analyze Porter's Five Forces with optional Context Foundry grounding
+   * Note: focalEntity parameter is now deprecated - CF handles entity extraction internally
    */
-  async analyzePortersFiveForces(input: string, focalEntity?: string): Promise<PortersFiveForcesAnalysis & { groundingContext?: ContextBundle | null; flaggedAssumptions?: string[]; externalClaimsForWebSearch?: string[] }> {
+  async analyzePortersFiveForces(input: string, _focalEntity?: string): Promise<PortersFiveForcesAnalysis & { groundingContext?: ContextBundle | null; flaggedAssumptions?: string[]; externalClaimsForWebSearch?: string[] }> {
     let analysisInput = input;
     let groundingContext: ContextBundle | null = null;
     let flaggedAssumptions: string[] = [];
     let externalClaimsForWebSearch: string[] = [];
 
     // Apply intelligent routing orchestration if configured
+    // Now sends raw text to CF - entity extraction happens server-side
     if (this.useGrounding) {
       try {
-        const orchestration = await orchestrateAnalysis(input, 'porters', focalEntity);
+        const orchestration = await orchestrateAnalysis(input, 'porters');
         analysisInput = orchestration.groundedPrompt;
         groundingContext = orchestration.cfContext;
         flaggedAssumptions = orchestration.flaggedAssumptions;

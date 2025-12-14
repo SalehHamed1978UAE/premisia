@@ -10,6 +10,8 @@
 
 export type ConfidenceLevel = 'high' | 'medium' | 'low';
 
+export type CFQueryStatus = 'RESOLVED' | 'AMBIGUOUS' | 'NO_MATCHES';
+
 export interface Entity {
   id: string;
   type: string;
@@ -32,6 +34,29 @@ export interface KnowledgeBoundary {
   lowCoverageAreas: string[];
 }
 
+export interface ResolvedEntity {
+  entity_id: string;
+  name: string;
+  confidence?: number;
+}
+
+export interface EntityResolution {
+  selected?: ResolvedEntity;
+  candidates?: ResolvedEntity[];
+}
+
+export interface CFV1Answer {
+  grounded_facts: Array<Record<string, unknown>>;
+  gaps: string[];
+}
+
+export interface CFV1Response {
+  status: CFQueryStatus;
+  entity_resolution?: EntityResolution;
+  answer?: CFV1Answer;
+  confidence: number;
+}
+
 export interface ContextBundle {
   query: string;
   answer: string;
@@ -43,7 +68,8 @@ export interface ContextBundle {
   evidenceChain: Array<Record<string, unknown>>;
   sources: string[];
   isGrounded: boolean;
-  focalEntity: string | null;
+  resolvedEntity: ResolvedEntity | null;
+  resolutionStatus: CFQueryStatus;
   timestamp: string;
 }
 
@@ -78,26 +104,30 @@ export class ContextFoundryClient {
   }
 
   /**
-   * Query Context Foundry for grounded context
-   * @param query - Natural language question
-   * @param focalEntity - Optional entity to center the query around
-   * @param includeEpisodic - Include time-sensitive/recent facts
+   * Query Context Foundry for grounded context using the new /api/v1/query endpoint
+   * @param rawText - Raw user text (CF handles entity extraction internally)
+   * @param analysisType - Type of analysis being performed
+   * @param sessionContext - Optional session context for tracking
    * @returns ContextBundle with verified facts
    */
-  async query(query: string, focalEntity?: string, includeEpisodic = false): Promise<ContextBundle> {
+  async query(rawText: string, analysisType: string = 'root_cause', sessionContext?: { userId?: string; sessionId?: string }): Promise<ContextBundle> {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
-      const payload: Record<string, unknown> = { query };
-      if (focalEntity) {
-        payload.focal_entity = focalEntity;
-      }
-      if (includeEpisodic) {
-        payload.include_episodic = true;
-      }
+      const payload: Record<string, unknown> = {
+        query: rawText,
+        analysis_type: analysisType,
+        context: {
+          app_id: 'premisia',
+          user_id: sessionContext?.userId || 'anonymous',
+          session_id: sessionContext?.sessionId || 'default'
+        }
+      };
 
-      const response = await fetch(`${this.baseUrl}/api/query`, {
+      console.log(`[ContextFoundry] Querying /api/v1/query with raw text: "${rawText.substring(0, 100)}..."`);
+
+      const response = await fetch(`${this.baseUrl}/api/v1/query`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -112,15 +142,15 @@ export class ContextFoundryClient {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('[ContextFoundry] API error:', response.status, errorText);
-        return this.createEmptyContext(query, focalEntity);
+        return this.createEmptyContext(rawText);
       }
 
-      const data = await response.json();
-      return this.parseResponse(query, data, focalEntity);
+      const data = await response.json() as CFV1Response;
+      return this.parseV1Response(rawText, data);
 
     } catch (error) {
       console.error('[ContextFoundry] Query failed:', error);
-      return this.createEmptyContext(query, focalEntity);
+      return this.createEmptyContext(rawText);
     }
   }
 
@@ -163,57 +193,31 @@ export class ContextFoundryClient {
    */
   async validateApiKey(): Promise<boolean> {
     try {
-      // Try a simple query to validate the API key
-      const response = await fetch(`${this.baseUrl}/api/query`, {
+      const response = await fetch(`${this.baseUrl}/api/v1/query`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ query: 'test connection' })
+        body: JSON.stringify({ 
+          query: 'test connection',
+          analysis_type: 'root_cause',
+          context: { app_id: 'premisia' }
+        })
       });
-      // Accept 200 or 401 (unauthorized means endpoint works but key is bad)
       return response.ok || response.status !== 401;
     } catch {
       return false;
     }
   }
 
-  private parseResponse(query: string, data: Record<string, unknown>, focalEntity?: string): ContextBundle {
-    const tieredResults = (data.tiered_results || {}) as Record<string, unknown>;
-    const confirmed = (tieredResults.confirmed || {}) as Record<string, unknown[]>;
-    const inferred = (tieredResults.inferred || {}) as Record<string, unknown[]>;
-    const boundariesRaw = (tieredResults.boundaries || {}) as Record<string, string[]>;
-
-    // Parse entities - API returns 'nodes' not 'entities'
-    const nodesOrEntities = (confirmed as Record<string, unknown>).nodes || (confirmed as Record<string, unknown>).entities || [];
-    const entities: Entity[] = (nodesOrEntities as Record<string, unknown>[]).map(e => ({
-      id: String(e.id || ''),
-      type: String(e.type || ''),
-      name: String(e.name || (e.properties as Record<string, unknown>)?.name || ''),
-      properties: (e.properties || {}) as Record<string, unknown>,
-      confidence: Number(e.confidence) || 0.5,
-      source: e.source ? String(e.source) : undefined
-    }));
-
-    // Parse relationships - API returns 'edges' not 'relationships'
-    const edgesOrRelationships = (inferred as Record<string, unknown>).edges || (inferred as Record<string, unknown>).relationships || [];
-    const relationships: Relationship[] = (edgesOrRelationships as Record<string, unknown>[]).map(r => ({
-      sourceEntity: String(r.source || ''),
-      relationshipType: String(r.type || ''),
-      targetEntity: String(r.target || ''),
-      confidence: Number(r.confidence) || 0.5
-    }));
-
-    // Parse boundaries
-    const boundaries: KnowledgeBoundary = {
-      frontierNodes: (boundariesRaw.frontier_nodes || []).map(String),
-      missingTypes: (boundariesRaw.missing_types || []).map(String),
-      lowCoverageAreas: (boundariesRaw.low_coverage_areas || []).map(String)
-    };
-
-    // Determine confidence level
-    const confidence = Number(data.confidence) || 0;
+  /**
+   * Parse V1 API response format
+   */
+  private parseV1Response(query: string, data: CFV1Response): ContextBundle {
+    const status = data.status || 'NO_MATCHES';
+    const confidence = data.confidence || 0;
+    
     let confidenceLevel: ConfidenceLevel;
     if (confidence >= 0.8) {
       confidenceLevel = 'high';
@@ -223,33 +227,61 @@ export class ContextFoundryClient {
       confidenceLevel = 'low';
     }
 
-    // Extract sources from evidence chain
-    const evidenceChain = (data.evidence_chain || []) as Record<string, unknown>[];
-    const sourceSet = new Set<string>();
-    evidenceChain.forEach(e => {
-      if (e.source) sourceSet.add(String(e.source));
-    });
-    const sources = Array.from(sourceSet);
+    const resolvedEntity = data.entity_resolution?.selected || null;
+    const groundedFacts = data.answer?.grounded_facts || [];
+    const gaps = data.answer?.gaps || [];
 
-    const isGrounded = confidence >= this.confidenceThreshold && entities.length > 0;
+    const entities: Entity[] = [];
+    if (resolvedEntity) {
+      entities.push({
+        id: resolvedEntity.entity_id,
+        type: 'resolved_entity',
+        name: resolvedEntity.name,
+        properties: {},
+        confidence: resolvedEntity.confidence || confidence,
+        source: 'context_foundry'
+      });
+    }
+
+    for (const fact of groundedFacts) {
+      if (fact.entity_id && fact.name) {
+        entities.push({
+          id: String(fact.entity_id),
+          type: String(fact.type || 'fact'),
+          name: String(fact.name),
+          properties: fact as Record<string, unknown>,
+          confidence: Number(fact.confidence) || confidence,
+          source: 'context_foundry'
+        });
+      }
+    }
+
+    const isGrounded = status === 'RESOLVED' && confidence >= this.confidenceThreshold;
+
+    console.log(`[ContextFoundry] V1 Response: status=${status}, confidence=${confidence}, resolvedEntity=${resolvedEntity?.name || 'none'}, isGrounded=${isGrounded}`);
 
     return {
       query,
-      answer: String(data.answer || ''),
+      answer: resolvedEntity ? `Resolved entity: ${resolvedEntity.name}` : '',
       confidence,
       confidenceLevel,
       confirmedEntities: entities,
-      inferredRelationships: relationships,
-      boundaries,
-      evidenceChain,
-      sources,
+      inferredRelationships: [],
+      boundaries: {
+        frontierNodes: [],
+        missingTypes: [],
+        lowCoverageAreas: gaps
+      },
+      evidenceChain: groundedFacts,
+      sources: ['context_foundry'],
       isGrounded,
-      focalEntity: focalEntity || null,
+      resolvedEntity,
+      resolutionStatus: status,
       timestamp: new Date().toISOString()
     };
   }
 
-  private createEmptyContext(query: string, focalEntity?: string): ContextBundle {
+  private createEmptyContext(query: string): ContextBundle {
     return {
       query,
       answer: '',
@@ -265,7 +297,8 @@ export class ContextFoundryClient {
       evidenceChain: [],
       sources: [],
       isGrounded: false,
-      focalEntity: focalEntity || null,
+      resolvedEntity: null,
+      resolutionStatus: 'NO_MATCHES',
       timestamp: new Date().toISOString()
     };
   }
@@ -403,13 +436,21 @@ export function getContextFoundryClient(): ContextFoundryClient | null {
 }
 
 /**
- * Query Context Foundry with automatic client initialization
- * Returns null if client is not configured
+ * Query Context Foundry with automatic client initialization using V1 API
+ * @param rawText - Raw user text (CF handles entity extraction internally)
+ * @param analysisType - Type of analysis: 'root_cause', 'porters', 'bmc', etc.
+ * @param sessionContext - Optional session context for tracking
+ * @returns ContextBundle with verified facts or null if not configured
  */
-export async function queryContext(query: string, focalEntity?: string): Promise<ContextBundle | null> {
+export async function queryContext(
+  rawText: string, 
+  analysisType: string = 'root_cause',
+  sessionContext?: { userId?: string; sessionId?: string }
+): Promise<ContextBundle | null> {
   const client = getContextFoundryClient();
   if (!client) {
     return null;
   }
-  return client.query(query, focalEntity);
+  console.log(`[Orchestrator] Querying Context Foundry with raw text: "${rawText.substring(0, 100)}..."`);
+  return client.query(rawText, analysisType, sessionContext);
 }
