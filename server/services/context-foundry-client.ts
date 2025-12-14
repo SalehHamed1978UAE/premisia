@@ -98,7 +98,7 @@ export class ContextFoundryClient {
   constructor(config: ContextFoundryConfig) {
     this.apiKey = config.apiKey;
     // Use the actual Context Foundry URL
-    this.baseUrl = config.baseUrl || 'https://context-foundry-darinkishore.replit.app';
+    this.baseUrl = config.baseUrl || 'https://1ccacfa5-76d6-4bc8-b11c-e8a59e39c1f1-00-i16a1ywb4a3m.riker.replit.dev';
     this.timeout = config.timeout || 30000;
     this.confidenceThreshold = config.confidenceThreshold || DEFAULT_CONFIDENCE_THRESHOLD;
   }
@@ -131,7 +131,7 @@ export class ContextFoundryClient {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
+          'X-CF-API-Key': this.apiKey
         },
         body: JSON.stringify(payload),
         signal: controller.signal
@@ -168,7 +168,7 @@ export class ContextFoundryClient {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`
+          'X-CF-API-Key': this.apiKey
         },
         body: JSON.stringify(payload)
       });
@@ -196,8 +196,8 @@ export class ContextFoundryClient {
       const response = await fetch(`${this.baseUrl}/api/v1/query`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-CF-API-Key': this.apiKey
         },
         body: JSON.stringify({ 
           query: 'test connection',
