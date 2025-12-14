@@ -178,6 +178,9 @@ export class WhysTreeGenerator {
       }
     } else {
       console.log('[WhysTreeGenerator] Context Foundry not configured, proceeding without grounding');
+      // Explicitly reset to prevent stale data from previous runs
+      this.groundingContext = null;
+      this.cfContextPrompt = '';
     }
     
     const rootQuestion = await this.generateRootQuestion(input);

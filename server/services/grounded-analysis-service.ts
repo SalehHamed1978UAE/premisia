@@ -271,7 +271,7 @@ export class ClaimClassifier {
       }
     }
 
-    return [...new Set(entities)].slice(0, 5);
+    return Array.from(new Set(entities)).slice(0, 5);
   }
 
   private extractTopic(sentence: string): string {
