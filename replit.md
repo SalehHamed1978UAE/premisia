@@ -28,6 +28,7 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tail
 - **BMI Workflow Resilience (November 2025)**: BMC SSE stream handler uses resilient version creation with 'system' user fallback when auth context is missing, ensuring AI-generated strategic decisions are always persisted to `strategy_versions` table. Comprehensive warning/error logging prevents silent failures and improves diagnostics for missing decision data.
 - **BMC Knowledge Security Tests (November 2025)**: Comprehensive automated test suite (`tests/bmc-knowledge-security.spec.ts`) with 11 tests validates cross-user data isolation, authorization, and decryption for the `/bmc-knowledge/:programId` endpoint. Tests expose and prevent regression of critical security vulnerabilities, including multi-program ownership edge cases. Fixed production bug where contradiction evidence fields were encrypted but not decrypted.
 - **Context Foundry Integration (December 2025)**: Grounded analysis capability that queries verified organizational facts from Context Foundry before AI analysis. Constrains LLM responses to use verified data with proper source citations. Integrated into StrategyAnalyzer for Five Whys and Porter's analysis. Status endpoint at `/api/strategic-consultant/context-foundry/status`.
+  - **Configuration (December 15, 2025)**: Connected to live Context Foundry instance at `https://1ccacfa5-76d6-4bc8-b11c-e8a59e39c1f1-00-i16a1ywb4a3m.riker.replit.dev`. Uses `X-CF-API-Key` header for authentication with key stored in `CONTEXT_FOUNDRY_API_KEY` secret. V1 API endpoint `/api/v1/query` handles entity resolution internally—Premisia sends raw user text, CF extracts and resolves entities from its knowledge graph.
 
 ## Feature Specifications
 - **AI Multi-Agent System**: Ontology-based architecture with Executive, Builder, QA Specialist Agents, and a Multi-Agent Orchestrator.
@@ -67,3 +68,4 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tail
 - **Authentication**: Passport.js with Replit OIDC
 - **Encryption**: AWS KMS (for AES-256-GCM)
 - **Geographic Data**: OpenStreetMap/Nominatim
+- **Knowledge Graph**: Context Foundry (for grounded organizational facts)
