@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 
-const AI_TIMEOUT_MS = 60000; // 60 second timeout for AI calls
+const AI_TIMEOUT_MS = 90000; // 90 second timeout for standard AI calls
+const AI_TIMEOUT_LONG_MS = 180000; // 180 second timeout for large AI calls (gene library)
 const MAX_RETRIES = 3;
 const INITIAL_BACKOFF_MS = 1000; // Start with 1 second backoff
 
@@ -260,7 +261,7 @@ Return ONLY valid JSON with this structure:
           max_tokens: 16000,
           messages: [{ role: 'user', content: prompt }],
         }),
-        AI_TIMEOUT_MS,
+        AI_TIMEOUT_LONG_MS, // Longer timeout for large gene library generation
         'generateGeneLibrary'
       );
 
