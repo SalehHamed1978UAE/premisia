@@ -1,5 +1,54 @@
 import Anthropic from '@anthropic-ai/sdk';
 
+const AI_TIMEOUT_MS = 60000; // 60 second timeout for AI calls
+const MAX_RETRIES = 3;
+const INITIAL_BACKOFF_MS = 1000; // Start with 1 second backoff
+
+// Helper to wrap promise with timeout
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, operation: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error(`AI operation '${operation}' timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    promise
+      .then(result => {
+        clearTimeout(timeout);
+        resolve(result);
+      })
+      .catch(error => {
+        clearTimeout(timeout);
+        reject(error);
+      });
+  });
+}
+
+// Retry with exponential backoff
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  operation: string,
+  maxRetries: number = MAX_RETRIES
+): Promise<T> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      
+      if (attempt < maxRetries) {
+        const backoff = INITIAL_BACKOFF_MS * Math.pow(2, attempt - 1);
+        console.log(`[SegmentDiscoveryEngine] ${operation} attempt ${attempt} failed, retrying in ${backoff}ms...`);
+        await new Promise(resolve => setTimeout(resolve, backoff));
+      }
+    }
+  }
+  
+  console.error(`[SegmentDiscoveryEngine] ${operation} failed after ${maxRetries} attempts`);
+  throw lastError;
+}
+
 export interface GeneLibrary {
   dimensions: {
     industry_vertical: string[];
@@ -204,12 +253,16 @@ Return ONLY valid JSON with this structure:
   }
 }`;
 
-    try {
-      const response = await this.anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 16000,
-        messages: [{ role: 'user', content: prompt }],
-      });
+    return withRetry(async () => {
+      const response = await withTimeout(
+        this.anthropic.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 16000,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+        AI_TIMEOUT_MS,
+        'generateGeneLibrary'
+      );
 
       const content = response.content[0];
       if (content.type !== 'text') {
@@ -230,10 +283,7 @@ Return ONLY valid JSON with this structure:
       console.log(`[SegmentDiscoveryEngine] Gene library dimensions: ${counts}`);
       
       return library;
-    } catch (error) {
-      console.error('[SegmentDiscoveryEngine] Error generating gene library:', error);
-      throw error;
-    }
+    }, 'generateGeneLibrary');
   }
 
   async generateGenomes(geneLibrary: GeneLibrary, context: DiscoveryContext, count: number = 100): Promise<Genome[]> {
@@ -360,12 +410,16 @@ Return ONLY valid JSON array with exactly ${count} genomes:
   ...
 ]`;
 
-    try {
-      const response = await this.anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 8000,
-        messages: [{ role: 'user', content: prompt }],
-      });
+    return withRetry(async () => {
+      const response = await withTimeout(
+        this.anthropic.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 8000,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+        AI_TIMEOUT_MS,
+        `generateGenomeBatch-${batchIndex}`
+      );
 
       const content = response.content[0];
       if (content.type !== 'text') {
@@ -395,10 +449,7 @@ Return ONLY valid JSON array with exactly ${count} genomes:
         },
         narrativeReason: '',
       }));
-    } catch (error) {
-      console.error(`[SegmentDiscoveryEngine] Error generating genome batch ${batchIndex}:`, error);
-      throw error;
-    }
+    }, `generateGenomeBatch-${batchIndex}`);
   }
 
   async scoreGenomes(genomes: Genome[], context: DiscoveryContext): Promise<Genome[]> {
@@ -468,12 +519,16 @@ Return ONLY valid JSON array:
   ...
 ]`;
 
-    try {
-      const response = await this.anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 8000,
-        messages: [{ role: 'user', content: prompt }],
-      });
+    return withRetry(async () => {
+      const response = await withTimeout(
+        this.anthropic.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 8000,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+        AI_TIMEOUT_MS,
+        'scoreBatch'
+      );
 
       const content = response.content[0];
       if (content.type !== 'text') {
@@ -515,10 +570,7 @@ Return ONLY valid JSON array:
         }
         return genome;
       });
-    } catch (error) {
-      console.error('[SegmentDiscoveryEngine] Error scoring batch:', error);
-      throw error;
-    }
+    }, 'scoreBatch');
   }
 
   async stressTest(topGenomes: Genome[]): Promise<Genome[]> {
@@ -580,56 +632,62 @@ Return ONLY valid JSON array with updated genomes:
 ]`;
 
     try {
-      const response = await this.anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 4000,
-        messages: [{ role: 'user', content: prompt }],
-      });
+      return await withRetry(async () => {
+        const response = await withTimeout(
+          this.anthropic.messages.create({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 4000,
+            messages: [{ role: 'user', content: prompt }],
+          }),
+          AI_TIMEOUT_MS,
+          'stressTestBatch'
+        );
 
-      const content = response.content[0];
-      if (content.type !== 'text') {
-        throw new Error('Unexpected response type');
-      }
-
-      const jsonMatch = content.text.match(/\[[\s\S]*\]/);
-      if (!jsonMatch) {
-        throw new Error('No JSON array found in response');
-      }
-
-      const testedGenomes = JSON.parse(jsonMatch[0]) as Array<{
-        id: string;
-        fitness: Genome['fitness'];
-        narrativeReason: string;
-        stressTestFindings?: string[];
-      }>;
-
-      const testedMap = new Map(testedGenomes.map(g => [g.id, g]));
-
-      return genomes.map(genome => {
-        const tested = testedMap.get(genome.id);
-        if (tested) {
-          const fitness = tested.fitness;
-          fitness.totalScore = 
-            fitness.painIntensity +
-            fitness.accessToDecisionMaker +
-            fitness.purchasePowerMatch +
-            fitness.competitionSaturation +
-            fitness.productFit +
-            fitness.urgencyAlignment +
-            fitness.scalePotential +
-            fitness.gtmEfficiency;
-
-          return {
-            ...genome,
-            genes: genome.genes,
-            fitness,
-            narrativeReason: tested.narrativeReason,
-          };
+        const content = response.content[0];
+        if (content.type !== 'text') {
+          throw new Error('Unexpected response type');
         }
-        return genome;
-      });
+
+        const jsonMatch = content.text.match(/\[[\s\S]*\]/);
+        if (!jsonMatch) {
+          throw new Error('No JSON array found in response');
+        }
+
+        const testedGenomes = JSON.parse(jsonMatch[0]) as Array<{
+          id: string;
+          fitness: Genome['fitness'];
+          narrativeReason: string;
+          stressTestFindings?: string[];
+        }>;
+
+        const testedMap = new Map(testedGenomes.map(g => [g.id, g]));
+
+        return genomes.map(genome => {
+          const tested = testedMap.get(genome.id);
+          if (tested) {
+            const fitness = tested.fitness;
+            fitness.totalScore = 
+              fitness.painIntensity +
+              fitness.accessToDecisionMaker +
+              fitness.purchasePowerMatch +
+              fitness.competitionSaturation +
+              fitness.productFit +
+              fitness.urgencyAlignment +
+              fitness.scalePotential +
+              fitness.gtmEfficiency;
+
+            return {
+              ...genome,
+              genes: genome.genes,
+              fitness,
+              narrativeReason: tested.narrativeReason,
+            };
+          }
+          return genome;
+        });
+      }, 'stressTestBatch');
     } catch (error) {
-      console.error('[SegmentDiscoveryEngine] Error in stress test batch:', error);
+      console.error('[SegmentDiscoveryEngine] Error in stress test batch (after retries):', error);
       return genomes;
     }
   }
@@ -696,12 +754,16 @@ Return ONLY valid JSON:
   ]
 }`;
 
-    try {
-      const response = await this.anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 4000,
-        messages: [{ role: 'user', content: prompt }],
-      });
+    return withRetry(async () => {
+      const response = await withTimeout(
+        this.anthropic.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 4000,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+        AI_TIMEOUT_MS,
+        'synthesize'
+      );
 
       const content = response.content[0];
       if (content.type !== 'text') {
@@ -746,10 +808,7 @@ Return ONLY valid JSON:
         neverList: neverListItems,
         strategicInsights: result.strategicInsights,
       };
-    } catch (error) {
-      console.error('[SegmentDiscoveryEngine] Error in synthesis:', error);
-      throw error;
-    }
+    }, 'synthesize');
   }
 
   async runDiscovery(
