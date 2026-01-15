@@ -415,6 +415,36 @@ router.post('/beta/increment', async (req: Request, res: Response) => {
   }
 });
 
+// List all discoveries for the current user - MUST be before /:id to avoid catch-all
+router.get('/discoveries', async (req: Request, res: Response) => {
+  try {
+    const user = req.user as any;
+    if (!user?.claims?.sub) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const userId = user.claims.sub;
+
+    const records = await db.select({
+      id: segmentDiscoveryResults.id,
+      offeringType: segmentDiscoveryResults.offeringType,
+      stage: segmentDiscoveryResults.stage,
+      status: segmentDiscoveryResults.status,
+      createdAt: segmentDiscoveryResults.createdAt,
+      completedAt: segmentDiscoveryResults.completedAt,
+    })
+      .from(segmentDiscoveryResults)
+      .where(eq(segmentDiscoveryResults.userId, userId))
+      .orderBy(desc(segmentDiscoveryResults.createdAt))
+      .limit(50);
+
+    res.json({ discoveries: records });
+  } catch (error: any) {
+    console.error('[Marketing Consultant] Error in GET discoveries:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch discoveries' });
+  }
+});
+
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const user = req.user as any;
@@ -665,36 +695,6 @@ router.get('/discovery-stream/:id', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('[Marketing Consultant] Error in discovery stream:', error);
     res.status(500).json({ error: error.message || 'Failed to stream discovery' });
-  }
-});
-
-// List all discoveries for the current user
-router.get('/discoveries', async (req: Request, res: Response) => {
-  try {
-    const user = req.user as any;
-    if (!user?.claims?.sub) {
-      return res.status(401).json({ error: 'Authentication required' });
-    }
-
-    const userId = user.claims.sub;
-
-    const records = await db.select({
-      id: segmentDiscoveryResults.id,
-      offeringType: segmentDiscoveryResults.offeringType,
-      stage: segmentDiscoveryResults.stage,
-      status: segmentDiscoveryResults.status,
-      createdAt: segmentDiscoveryResults.createdAt,
-      completedAt: segmentDiscoveryResults.completedAt,
-    })
-      .from(segmentDiscoveryResults)
-      .where(eq(segmentDiscoveryResults.userId, userId))
-      .orderBy(desc(segmentDiscoveryResults.createdAt))
-      .limit(50);
-
-    res.json({ discoveries: records });
-  } catch (error: any) {
-    console.error('[Marketing Consultant] Error in GET discoveries:', error);
-    res.status(500).json({ error: error.message || 'Failed to fetch discoveries' });
   }
 });
 

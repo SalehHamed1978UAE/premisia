@@ -368,7 +368,9 @@ export default function SegmentDiscoveryPage() {
   }
 
   if (pageState === 'results' && results) {
-    const { geneLibrary, genomes, synthesis } = results;
+    const { geneLibrary, synthesis } = results;
+    // Ensure genomes is an array (handles decryption edge cases)
+    const genomes: Genome[] = Array.isArray(results.genomes) ? results.genomes : [];
     const top20 = genomes.slice(0, 20);
 
     const alleleUsageCount = (dimension: keyof GeneLibrary['dimensions'], allele: string) => {
