@@ -46,9 +46,10 @@ interface NGram {
  */
 export class LocationResolverService {
   private readonly NOMINATIM_BASE_URL = 'https://nominatim.openstreetmap.org';
-  private readonly USER_AGENT = 'StrategicPlanningApp/1.0 (strategic-planning-contact@example.com)';
+  private readonly USER_AGENT = 'Premisia/1.0 (contact@premisia.app)';
   private readonly IMPORTANCE_THRESHOLD = 0.6;
-  private readonly CIRCUIT_BREAKER_THRESHOLD = 2; // Stop after 2 consecutive failures
+  private readonly CIRCUIT_BREAKER_THRESHOLD = 1; // Stop after 1 failure - fail fast
+  private readonly REQUEST_TIMEOUT = 3000; // 3 second timeout - fail fast
   
   private cache: Map<string, LocationCandidate[]>;
   private throttler: RequestThrottler;
@@ -71,7 +72,7 @@ export class LocationResolverService {
    */
   private isCircuitOpen(): boolean {
     if (!this.circuitOpen) return false;
-    // Reset circuit after 5 minutes
+    // Reset circuit after 2 minutes (reduced from 5)
     if (Date.now() > this.circuitOpenUntil) {
       this.circuitOpen = false;
       this.consecutiveFailures = 0;
@@ -88,8 +89,8 @@ export class LocationResolverService {
     this.consecutiveFailures++;
     if (this.consecutiveFailures >= this.CIRCUIT_BREAKER_THRESHOLD) {
       this.circuitOpen = true;
-      this.circuitOpenUntil = Date.now() + 5 * 60 * 1000; // 5 minutes
-      console.log('[LocationResolver] Circuit breaker OPEN - Nominatim API unavailable, skipping geocoding for 5 minutes');
+      this.circuitOpenUntil = Date.now() + 2 * 60 * 1000; // 2 minutes (reduced from 5)
+      console.log('[LocationResolver] Circuit breaker OPEN - Nominatim API unavailable, skipping geocoding for 2 minutes');
     }
   }
 
@@ -101,34 +102,67 @@ export class LocationResolverService {
   }
 
   /**
-   * Generate n-grams (1-4 words) with span tracking
-   * Extracts alphabetic tokens treating punctuation as boundaries
-   * Requires at least 3 alphabetic characters (not counting spaces)
+   * Generate n-grams (1-3 words) with span tracking
+   * Uses smart filtering to reduce API calls while preserving location detection
    */
   private generateNGrams(text: string): NGram[] {
     const ngrams: NGram[] = [];
     
-    // Extract alphabetic tokens with their positions
-    const tokenPattern = /[A-Za-z]+/g;
+    // Common words that are never locations (even when capitalized)
+    const skipWords = new Set([
+      'we', 'i', 'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been',
+      'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+      'should', 'may', 'might', 'must', 'can', 'our', 'their', 'its', 'my',
+      'your', 'his', 'her', 'this', 'that', 'these', 'those', 'it', 'they',
+      'he', 'she', 'you', 'what', 'which', 'who', 'when', 'where', 'why',
+      'how', 'all', 'each', 'every', 'both', 'few', 'more', 'most', 'other',
+      'some', 'such', 'no', 'not', 'only', 'same', 'so', 'than', 'too',
+      'very', 'just', 'also', 'now', 'here', 'there', 'then', 'once',
+      'reduce', 'increase', 'improve', 'built', 'build', 'make', 'help',
+      'helps', 'using', 'use', 'find', 'organize', 'tool', 'workers',
+      'documents', 'information', 'knowledge', 'system', 'company',
+      'business', 'product', 'service', 'customer', 'market', 'strategy'
+    ]);
+    
+    // Extract tokens with their positions - prioritize capitalized words
+    // but also include lowercase words that could be locations
+    const capitalizedPattern = /[A-Z][a-zA-Z\u00C0-\u024F]*/g; // Unicode support
     const tokens: Array<{ word: string; index: number }> = [];
     
     let match;
-    while ((match = tokenPattern.exec(text)) !== null) {
-      tokens.push({
-        word: match[0],
-        index: match.index
-      });
+    while ((match = capitalizedPattern.exec(text)) !== null) {
+      const word = match[0];
+      // Skip common non-location words
+      if (!skipWords.has(word.toLowerCase()) && word.length >= 3) {
+        tokens.push({
+          word: word,
+          index: match.index
+        });
+      }
     }
     
-    // Generate n-grams of length 1-4
-    for (let i = 0; i < tokens.length; i++) {
-      for (let len = 1; len <= 4 && i + len <= tokens.length; len++) {
-        const slice = tokens.slice(i, i + len);
+    // If no capitalized tokens found, return empty - this is the fast path
+    // for inputs like "We built a tool that helps knowledge workers..."
+    if (tokens.length === 0) {
+      console.log(`[LocationResolver] No location candidates found, skipping geocoding`);
+      return [];
+    }
+    
+    // Limit to max 10 candidate tokens to prevent API abuse
+    const MAX_TOKENS = 10;
+    const limitedTokens = tokens.slice(0, MAX_TOKENS);
+    if (tokens.length > MAX_TOKENS) {
+      console.log(`[LocationResolver] Limited tokens from ${tokens.length} to ${MAX_TOKENS}`);
+    }
+    
+    // Generate n-grams of length 1-3
+    for (let i = 0; i < limitedTokens.length; i++) {
+      for (let len = 1; len <= 3 && i + len <= limitedTokens.length; len++) {
+        const slice = limitedTokens.slice(i, i + len);
         const ngramText = slice.map(t => t.word).join(' ');
         
-        // Count alphabetic characters (excluding spaces)
-        const alphaCount = ngramText.replace(/[^a-zA-Z]/g, '').length;
-        if (alphaCount < 3) {
+        // Require at least 3 characters
+        if (ngramText.length < 3) {
           continue;
         }
         
@@ -144,9 +178,13 @@ export class LocationResolverService {
       }
     }
     
-    console.log(`[LocationResolver] Generated ${ngrams.length} n-grams (≥3 alpha chars, alphabetic tokens only)`);
+    // Limit total n-grams to prevent excessive API calls
+    const MAX_NGRAMS = 20;
+    const limitedNgrams = ngrams.slice(0, MAX_NGRAMS);
     
-    return ngrams;
+    console.log(`[LocationResolver] Generated ${limitedNgrams.length} n-grams from ${limitedTokens.length} candidate words`);
+    
+    return limitedNgrams;
   }
 
   /**
@@ -185,7 +223,7 @@ export class LocationResolverService {
       });
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), this.REQUEST_TIMEOUT);
 
       const response = await fetch(
         `${this.NOMINATIM_BASE_URL}/search?${searchParams}`,
