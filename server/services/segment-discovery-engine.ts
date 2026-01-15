@@ -137,6 +137,72 @@ Return ONLY valid JSON with this structure:
   }
 
   async generateGenomes(geneLibrary: GeneLibrary, context: DiscoveryContext, count: number = 100): Promise<Genome[]> {
+    // Split into 4 parallel batches for faster generation
+    const batchSize = Math.ceil(count / 4);
+    const batchCount = 4;
+    
+    const batchPromises = Array.from({ length: batchCount }, (_, batchIndex) => 
+      this.generateGenomeBatch(geneLibrary, context, batchSize, batchIndex)
+    );
+
+    console.log(`[SegmentDiscoveryEngine] Starting ${batchCount} parallel genome batches of ${batchSize} each`);
+    const batchResults = await Promise.all(batchPromises);
+    
+    // Flatten and deduplicate using canonical hash (sorted keys)
+    const allGenomes = batchResults.flat();
+    const seen = new Set<string>();
+    const uniqueGenomes: Genome[] = [];
+    
+    for (const genome of allGenomes) {
+      // Canonical hash with sorted keys for reliable deduplication
+      const hash = this.getCanonicalGenomeHash(genome.genes);
+      if (!seen.has(hash)) {
+        seen.add(hash);
+        uniqueGenomes.push({
+          ...genome,
+          id: `genome_${String(uniqueGenomes.length + 1).padStart(3, '0')}`,
+        });
+      }
+    }
+
+    console.log(`[SegmentDiscoveryEngine] Generated ${uniqueGenomes.length} unique genomes (${allGenomes.length - uniqueGenomes.length} duplicates removed)`);
+    
+    // Ensure we have at least 'count' genomes (or as many as we could generate)
+    if (uniqueGenomes.length < count) {
+      console.log(`[SegmentDiscoveryEngine] Warning: Only ${uniqueGenomes.length} unique genomes available (requested ${count})`);
+    }
+    
+    return uniqueGenomes.slice(0, count);
+  }
+
+  private getCanonicalGenomeHash(genes: Genome['genes']): string {
+    // Create canonical hash with explicit key ordering
+    const orderedKeys: (keyof Genome['genes'])[] = [
+      'industry_vertical',
+      'company_size', 
+      'decision_maker',
+      'purchase_trigger',
+      'tech_adoption',
+      'buying_process',
+      'budget_authority',
+      'urgency_profile'
+    ];
+    return orderedKeys.map(key => genes[key]).join('|');
+  }
+
+  private async generateGenomeBatch(
+    geneLibrary: GeneLibrary, 
+    context: DiscoveryContext, 
+    count: number, 
+    batchIndex: number
+  ): Promise<Genome[]> {
+    const focusAreas = [
+      'high-potential obvious segments that are most likely to succeed',
+      'non-obvious but promising niche segments with unique opportunities',
+      'edge cases and challenging segments to stress-test assumptions',
+      'diverse combinations exploring the full gene space'
+    ];
+
     const prompt = `You are a market strategist creating segment combinations for discovery.
 
 OFFERING CONTEXT:
@@ -149,20 +215,20 @@ OFFERING CONTEXT:
 GENE LIBRARY (available alleles for each dimension):
 ${JSON.stringify(geneLibrary.dimensions, null, 2)}
 
-Generate ${count} unique segment combinations (genomes). Each genome is a specific combination of one allele from each dimension.
+YOUR FOCUS: Generate ${count} unique segment combinations focusing on ${focusAreas[batchIndex]}.
 
-IMPORTANT:
-- Create STRATEGICALLY interesting combinations, not random ones
-- Include some obvious high-potential segments
-- Include some non-obvious but promising segments
-- Include some deliberately challenging segments to test against
-- Ensure variety across all dimensions
+BATCH ID: ${batchIndex + 1} of 4 - Use IDs starting with genome_${String(batchIndex * count + 1).padStart(3, '0')}.
+
+REQUIREMENTS:
+- Create STRATEGICALLY interesting combinations for your focus area
+- Each genome is a specific combination of one allele from each dimension
 - Consider which combinations make logical sense together
+- Ensure variety within your focus area
 
 Return ONLY valid JSON array with exactly ${count} genomes:
 [
   {
-    "id": "genome_001",
+    "id": "genome_${String(batchIndex * count + 1).padStart(3, '0')}",
     "genes": {
       "industry_vertical": "one allele from the library",
       "company_size": "one allele from the library",
@@ -180,7 +246,7 @@ Return ONLY valid JSON array with exactly ${count} genomes:
     try {
       const response = await this.anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 16000,
+        max_tokens: 8000,
         messages: [{ role: 'user', content: prompt }],
       });
 
@@ -197,7 +263,7 @@ Return ONLY valid JSON array with exactly ${count} genomes:
       const genomes = JSON.parse(jsonMatch[0]) as Array<{ id: string; genes: Genome['genes'] }>;
       
       return genomes.map((g, idx) => ({
-        id: g.id || `genome_${String(idx + 1).padStart(3, '0')}`,
+        id: g.id || `genome_${String(batchIndex * count + idx + 1).padStart(3, '0')}`,
         genes: g.genes,
         fitness: {
           painIntensity: 0,
@@ -213,7 +279,7 @@ Return ONLY valid JSON array with exactly ${count} genomes:
         narrativeReason: '',
       }));
     } catch (error) {
-      console.error('[SegmentDiscoveryEngine] Error generating genomes:', error);
+      console.error(`[SegmentDiscoveryEngine] Error generating genome batch ${batchIndex}:`, error);
       throw error;
     }
   }
@@ -578,12 +644,14 @@ Return ONLY valid JSON:
     const testedGenomes = await this.stressTest(top20);
     console.log('[SegmentDiscoveryEngine] Stress tested top 20');
 
+    // Merge stress-tested genomes with remaining scored genomes
     const finalGenomes = [
       ...testedGenomes,
       ...scoredGenomes.slice(20),
     ];
 
     onProgress('Synthesizing recommendations', 90);
+    // Synthesize using stress-tested data for consistent rationales
     const synthesis = await this.synthesize(finalGenomes, context);
     console.log('[SegmentDiscoveryEngine] Synthesis complete, beachhead:', synthesis.beachhead.genome.id);
 
