@@ -456,4 +456,247 @@ router.get('/:id', async (req: Request, res: Response) => {
   }
 });
 
+// Progress tracking for SSE
+const discoveryProgress = new Map<string, { step: string; progress: number; message: string }>();
+
+router.post('/start-discovery/:id', async (req: Request, res: Response) => {
+  try {
+    const user = req.user as any;
+    if (!user?.claims?.sub) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const userId = user.claims.sub;
+    const { id } = req.params;
+
+    const [record] = await db.select()
+      .from(segmentDiscoveryResults)
+      .where(eq(segmentDiscoveryResults.id, id))
+      .limit(1);
+
+    if (!record) {
+      return res.status(404).json({ error: 'Record not found' });
+    }
+
+    if (record.userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    if (record.status === 'processing') {
+      return res.status(400).json({ error: 'Discovery already in progress' });
+    }
+
+    // Update status to processing
+    await db.update(segmentDiscoveryResults)
+      .set({ status: 'processing', updatedAt: new Date() })
+      .where(eq(segmentDiscoveryResults.id, id));
+
+    // Initialize progress tracking
+    discoveryProgress.set(id, { step: 'Starting', progress: 0, message: 'Initializing segment discovery...' });
+
+    // Start discovery in background
+    runSegmentDiscovery(id, {
+      offeringDescription: record.offeringDescription,
+      offeringType: record.offeringType || 'other',
+      stage: record.stage || 'idea_stage',
+      gtmConstraint: record.gtmConstraint || 'solo_founder',
+      salesMotion: record.salesMotion || 'self_serve',
+      existingHypothesis: record.existingHypothesis || undefined,
+    });
+
+    res.json({
+      success: true,
+      message: 'Discovery started',
+      understandingId: id,
+    });
+  } catch (error: any) {
+    console.error('[Marketing Consultant] Error starting discovery:', error);
+    res.status(500).json({ error: error.message || 'Failed to start discovery' });
+  }
+});
+
+async function runSegmentDiscovery(id: string, context: any) {
+  try {
+    const { segmentDiscoveryEngine } = await import('../services/segment-discovery-engine');
+    
+    const result = await segmentDiscoveryEngine.runDiscovery(
+      context,
+      (step: string, progress: number) => {
+        discoveryProgress.set(id, { step, progress, message: step });
+        console.log(`[Segment Discovery ${id}] ${step}: ${progress}%`);
+      }
+    );
+
+    // Save results to database
+    await db.update(segmentDiscoveryResults)
+      .set({
+        geneLibrary: result.geneLibrary,
+        genomes: result.genomes,
+        synthesis: result.synthesis,
+        status: 'completed',
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(segmentDiscoveryResults.id, id));
+
+    discoveryProgress.set(id, { step: 'Complete', progress: 100, message: 'Discovery complete!' });
+    console.log(`[Segment Discovery ${id}] Completed successfully`);
+  } catch (error: any) {
+    console.error(`[Segment Discovery ${id}] Failed:`, error);
+    
+    await db.update(segmentDiscoveryResults)
+      .set({
+        status: 'failed',
+        errorMessage: error.message,
+        updatedAt: new Date(),
+      })
+      .where(eq(segmentDiscoveryResults.id, id));
+
+    discoveryProgress.set(id, { step: 'Error', progress: -1, message: error.message });
+  }
+}
+
+router.get('/discovery-stream/:id', async (req: Request, res: Response) => {
+  try {
+    const user = req.user as any;
+    if (!user?.claims?.sub) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const userId = user.claims.sub;
+    const { id } = req.params;
+
+    const [record] = await db.select()
+      .from(segmentDiscoveryResults)
+      .where(eq(segmentDiscoveryResults.id, id))
+      .limit(1);
+
+    if (!record) {
+      return res.status(404).json({ error: 'Record not found' });
+    }
+
+    if (record.userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    // Set SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+
+    // Send initial connected event
+    res.write(`data: ${JSON.stringify({ type: 'connected', message: 'Discovery stream connected' })}\n\n`);
+
+    // Poll for progress updates
+    const pollInterval = setInterval(async () => {
+      try {
+        const progress = discoveryProgress.get(id);
+        
+        if (progress) {
+          if (progress.progress === 100) {
+            res.write(`data: ${JSON.stringify({ type: 'complete', ...progress })}\n\n`);
+            clearInterval(pollInterval);
+            res.end();
+            return;
+          }
+          
+          if (progress.progress === -1) {
+            res.write(`data: ${JSON.stringify({ type: 'error', message: progress.message })}\n\n`);
+            clearInterval(pollInterval);
+            res.end();
+            return;
+          }
+          
+          res.write(`data: ${JSON.stringify({ type: 'progress', ...progress })}\n\n`);
+        } else {
+          // Check database for completed status
+          const [current] = await db.select()
+            .from(segmentDiscoveryResults)
+            .where(eq(segmentDiscoveryResults.id, id))
+            .limit(1);
+          
+          if (current?.status === 'completed') {
+            res.write(`data: ${JSON.stringify({ type: 'complete', step: 'Complete', progress: 100 })}\n\n`);
+            clearInterval(pollInterval);
+            res.end();
+            return;
+          }
+          
+          if (current?.status === 'failed') {
+            res.write(`data: ${JSON.stringify({ type: 'error', message: current.errorMessage || 'Discovery failed' })}\n\n`);
+            clearInterval(pollInterval);
+            res.end();
+            return;
+          }
+        }
+      } catch (pollError) {
+        console.error('[Discovery Stream] Poll error:', pollError);
+      }
+    }, 1000);
+
+    // Clean up on client disconnect
+    req.on('close', () => {
+      clearInterval(pollInterval);
+    });
+
+    // Timeout after 10 minutes
+    setTimeout(() => {
+      clearInterval(pollInterval);
+      res.write(`data: ${JSON.stringify({ type: 'error', message: 'Discovery timed out' })}\n\n`);
+      res.end();
+    }, 10 * 60 * 1000);
+
+  } catch (error: any) {
+    console.error('[Marketing Consultant] Error in discovery stream:', error);
+    res.status(500).json({ error: error.message || 'Failed to stream discovery' });
+  }
+});
+
+router.get('/results/:id', async (req: Request, res: Response) => {
+  try {
+    const user = req.user as any;
+    if (!user?.claims?.sub) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const userId = user.claims.sub;
+    const { id } = req.params;
+
+    const [record] = await db.select()
+      .from(segmentDiscoveryResults)
+      .where(eq(segmentDiscoveryResults.id, id))
+      .limit(1);
+
+    if (!record) {
+      return res.status(404).json({ error: 'Record not found' });
+    }
+
+    if (record.userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    res.json({
+      id: record.id,
+      offeringDescription: record.offeringDescription,
+      offeringType: record.offeringType,
+      stage: record.stage,
+      gtmConstraint: record.gtmConstraint,
+      salesMotion: record.salesMotion,
+      existingHypothesis: record.existingHypothesis,
+      geneLibrary: record.geneLibrary,
+      genomes: record.genomes,
+      synthesis: record.synthesis,
+      status: record.status,
+      errorMessage: record.errorMessage,
+      createdAt: record.createdAt,
+      completedAt: record.completedAt,
+    });
+  } catch (error: any) {
+    console.error('[Marketing Consultant] Error in GET results:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch results' });
+  }
+});
+
 export default router;
