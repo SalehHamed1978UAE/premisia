@@ -73,12 +73,15 @@ const classificationSchema = z.object({
 type ClassificationFormData = z.infer<typeof classificationSchema>;
 
 interface MarketingUnderstanding {
-  id: number;
+  id: string;
+  offeringDescription?: string;
   offeringType?: string;
-  companyStage?: string;
+  stage?: string;
   gtmConstraint?: string;
   salesMotion?: string;
-  existingCustomerHypothesis?: string;
+  existingHypothesis?: string;
+  clarifications?: string;
+  status?: string;
   classificationConfidence?: number;
 }
 
@@ -107,10 +110,10 @@ export default function MarketingClassificationPage() {
     if (understanding) {
       form.reset({
         offeringType: understanding.offeringType || '',
-        companyStage: understanding.companyStage || '',
+        companyStage: understanding.stage || '',
         gtmConstraint: understanding.gtmConstraint || '',
         salesMotion: understanding.salesMotion || '',
-        existingCustomerHypothesis: understanding.existingCustomerHypothesis || '',
+        existingCustomerHypothesis: understanding.existingHypothesis || '',
       });
     }
   }, [understanding, form]);
@@ -119,7 +122,11 @@ export default function MarketingClassificationPage() {
     mutationFn: async (data: ClassificationFormData) => {
       const response = await apiRequest('POST', '/api/marketing-consultant/classification/confirm', {
         understandingId,
-        ...data,
+        offeringType: data.offeringType,
+        stage: data.companyStage,
+        gtmConstraint: data.gtmConstraint,
+        salesMotion: data.salesMotion,
+        existingHypothesis: data.existingCustomerHypothesis || null,
       });
       return response.json();
     },

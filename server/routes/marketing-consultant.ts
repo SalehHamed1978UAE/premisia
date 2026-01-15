@@ -482,13 +482,13 @@ router.post('/start-discovery/:id', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    if (record.status === 'processing') {
+    if (record.status === 'running') {
       return res.status(400).json({ error: 'Discovery already in progress' });
     }
 
-    // Update status to processing
+    // Update status to running
     await db.update(segmentDiscoveryResults)
-      .set({ status: 'processing', updatedAt: new Date() })
+      .set({ status: 'running', updatedAt: new Date() })
       .where(eq(segmentDiscoveryResults.id, id));
 
     // Initialize progress tracking

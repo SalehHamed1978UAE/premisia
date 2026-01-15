@@ -77,10 +77,75 @@ export default function MarketingInputPage() {
       return;
     }
 
-    toast({
-      title: "Coming Soon",
-      description: "Marketing Consultant API is being developed. Check back soon!",
-    });
+    setIsAnalyzing(true);
+    setProgress(10);
+
+    try {
+      // Step 1: Check for ambiguities in the input
+      setProgress(20);
+      const ambiguityResponse = await fetch('/api/marketing-consultant/check-ambiguities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userInput: text.trim() }),
+        credentials: 'include'
+      });
+
+      if (!ambiguityResponse.ok) {
+        throw new Error('Failed to analyze input');
+      }
+
+      const ambiguityData = await ambiguityResponse.json();
+      const clarifications = ambiguityData.questions || [];
+      setProgress(50);
+
+      // Step 2: Create understanding record
+      const understandingResponse = await fetch('/api/marketing-consultant/understanding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          input: text.trim(),
+          clarifications
+        }),
+        credentials: 'include'
+      });
+
+      if (!understandingResponse.ok) {
+        throw new Error('Failed to create understanding');
+      }
+
+      const understandingData = await understandingResponse.json();
+      const understandingId = understandingData.understandingId || understandingData.id;
+      setProgress(80);
+
+      // Step 3: Navigate to classification page with understanding ID
+      // If there are clarification questions, they will be shown on the classification page
+      setProgress(100);
+      
+      // Store understanding in sessionStorage for downstream pages
+      sessionStorage.setItem('marketingUnderstandingId', understandingId);
+      sessionStorage.setItem('marketingRawInput', text.trim());
+      if (clarifications.length > 0) {
+        sessionStorage.setItem('marketingClarifications', JSON.stringify(clarifications));
+      }
+
+      toast({
+        title: "Analysis Complete",
+        description: "Proceeding to classification...",
+      });
+
+      setLocation(`/marketing-consultant/classification/${understandingId}`);
+
+    } catch (error) {
+      console.error('Marketing consultant error:', error);
+      toast({
+        title: "Analysis Failed",
+        description: error instanceof Error ? error.message : "Please try again",
+        variant: "destructive"
+      });
+    } finally {
+      setIsAnalyzing(false);
+      setProgress(0);
+    }
   };
 
   return (
