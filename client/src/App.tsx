@@ -20,6 +20,7 @@ import InputPage from "@/pages/strategic-consultant/InputPage";
 import MarketingInputPage from "@/pages/marketing-consultant/InputPage";
 import MarketingClassificationPage from "@/pages/marketing-consultant/ClassificationPage";
 import MarketingJourneySelectionPage from "@/pages/marketing-consultant/JourneySelectionPage";
+import SegmentDiscoveryPage from "@/pages/marketing-consultant/SegmentDiscoveryPage";
 import ClassificationPage from "@/pages/strategic-consultant/ClassificationPage";
 import JourneySelectionPage from "@/pages/strategic-consultant/JourneySelectionPage";
 import JourneyResultsPage from "@/pages/strategic-consultant/JourneyResultsPage";
@@ -82,6 +83,7 @@ function Router() {
         <ProtectedRoute path="/marketing-consultant/input" component={MarketingInputPage} />
         <ProtectedRoute path="/marketing-consultant/classification/:understandingId" component={MarketingClassificationPage} />
         <ProtectedRoute path="/marketing-consultant/journey-selection/:understandingId" component={MarketingJourneySelectionPage} />
+        <ProtectedRoute path="/marketing-consultant/segment-discovery/:understandingId" component={SegmentDiscoveryPage} />
         <ProtectedRoute path="/journeys" component={JourneyHub} />
         <ProtectedRoute path="/strategies/:id" component={StrategyDetailPage} />
         <ProtectedRoute path="/strategies" component={StrategiesListPage} />
