@@ -88,12 +88,15 @@ interface ProgressEvent {
 type PageState = 'starting' | 'progress' | 'results' | 'error';
 
 export default function SegmentDiscoveryPage() {
-  const [, params] = useRoute("/marketing-consultant/segment-discovery/:understandingId");
-  const understandingId = params?.understandingId;
+  // Support both /segment-discovery/:id and /results/:id routes
+  const [, discoveryParams] = useRoute("/marketing-consultant/segment-discovery/:understandingId");
+  const [, resultsParams] = useRoute("/marketing-consultant/results/:understandingId");
+  const understandingId = discoveryParams?.understandingId || resultsParams?.understandingId;
+  const isViewingResults = !!resultsParams?.understandingId;
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   
-  const [pageState, setPageState] = useState<PageState>('starting');
+  const [pageState, setPageState] = useState<PageState>(isViewingResults ? 'results' : 'starting');
   const [currentStep, setCurrentStep] = useState('Initializing...');
   const [progress, setProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -106,6 +109,8 @@ export default function SegmentDiscoveryPage() {
   });
 
   useEffect(() => {
+    // Skip discovery start if we're just viewing saved results
+    if (isViewingResults) return;
     if (!understandingId || hasStartedRef.current) return;
     hasStartedRef.current = true;
 
@@ -142,7 +147,7 @@ export default function SegmentDiscoveryPage() {
         eventSourceRef.current.close();
       }
     };
-  }, [understandingId, toast]);
+  }, [understandingId, isViewingResults, toast]);
 
   const connectToSSE = () => {
     if (!understandingId) return;

@@ -1,8 +1,9 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db';
 import { segmentDiscoveryResults, betaUsageCounters, users } from '@shared/schema';
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, desc } from 'drizzle-orm';
 import Anthropic from '@anthropic-ai/sdk';
+import { encryptKMS, decryptKMS, encryptJSONKMS, decryptJSONKMS } from '../utils/kms-encryption';
 
 const router = Router();
 
@@ -249,14 +250,18 @@ router.post('/understanding', async (req: Request, res: Response) => {
 
     const classification = await classifyOffering(input);
 
+    // Encrypt sensitive business data
+    const encryptedDescription = await encryptKMS(input);
+    const encryptedClarifications = clarifications ? await encryptJSONKMS(clarifications) : null;
+
     const [newRecord] = await db.insert(segmentDiscoveryResults).values({
       userId,
-      offeringDescription: input,
+      offeringDescription: encryptedDescription || input,
       offeringType: classification.offeringType,
       stage: classification.suggestedStage,
       gtmConstraint: classification.suggestedGtmConstraint,
       salesMotion: classification.suggestedSalesMotion,
-      clarifications: clarifications ? JSON.stringify(clarifications) : null,
+      clarifications: encryptedClarifications,
       status: 'pending',
     }).returning();
 
@@ -437,15 +442,20 @@ router.get('/:id', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Not authorized to view this record' });
     }
 
+    // Decrypt sensitive fields (handles both encrypted and unencrypted legacy data)
+    const decryptedDescription = await decryptKMS(record.offeringDescription);
+    const decryptedHypothesis = record.existingHypothesis ? await decryptKMS(record.existingHypothesis) : null;
+    const decryptedClarifications = record.clarifications ? await decryptJSONKMS(record.clarifications as string) : null;
+
     res.json({
       id: record.id,
-      offeringDescription: record.offeringDescription,
+      offeringDescription: decryptedDescription || record.offeringDescription,
       offeringType: record.offeringType,
       stage: record.stage,
       gtmConstraint: record.gtmConstraint,
       salesMotion: record.salesMotion,
-      existingHypothesis: record.existingHypothesis,
-      clarifications: record.clarifications,
+      existingHypothesis: decryptedHypothesis,
+      clarifications: decryptedClarifications,
       status: record.status,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
@@ -527,12 +537,16 @@ async function runSegmentDiscovery(id: string, context: any) {
       }
     );
 
-    // Save results to database
+    // Encrypt and save results to database
+    const encryptedGeneLibrary = await encryptJSONKMS(result.geneLibrary);
+    const encryptedGenomes = await encryptJSONKMS(result.genomes);
+    const encryptedSynthesis = await encryptJSONKMS(result.synthesis);
+
     await db.update(segmentDiscoveryResults)
       .set({
-        geneLibrary: result.geneLibrary,
-        genomes: result.genomes,
-        synthesis: result.synthesis,
+        geneLibrary: encryptedGeneLibrary || result.geneLibrary,
+        genomes: encryptedGenomes || result.genomes,
+        synthesis: encryptedSynthesis || result.synthesis,
         status: 'completed',
         completedAt: new Date(),
         updatedAt: new Date(),
@@ -654,6 +668,36 @@ router.get('/discovery-stream/:id', async (req: Request, res: Response) => {
   }
 });
 
+// List all discoveries for the current user
+router.get('/discoveries', async (req: Request, res: Response) => {
+  try {
+    const user = req.user as any;
+    if (!user?.claims?.sub) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const userId = user.claims.sub;
+
+    const records = await db.select({
+      id: segmentDiscoveryResults.id,
+      offeringType: segmentDiscoveryResults.offeringType,
+      stage: segmentDiscoveryResults.stage,
+      status: segmentDiscoveryResults.status,
+      createdAt: segmentDiscoveryResults.createdAt,
+      completedAt: segmentDiscoveryResults.completedAt,
+    })
+      .from(segmentDiscoveryResults)
+      .where(eq(segmentDiscoveryResults.userId, userId))
+      .orderBy(desc(segmentDiscoveryResults.createdAt))
+      .limit(50);
+
+    res.json({ discoveries: records });
+  } catch (error: any) {
+    console.error('[Marketing Consultant] Error in GET discoveries:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch discoveries' });
+  }
+});
+
 router.get('/results/:id', async (req: Request, res: Response) => {
   try {
     const user = req.user as any;
@@ -677,17 +721,26 @@ router.get('/results/:id', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
+    // Decrypt sensitive fields
+    const decryptedDescription = await decryptKMS(record.offeringDescription);
+    const decryptedHypothesis = record.existingHypothesis ? await decryptKMS(record.existingHypothesis) : null;
+    const decryptedClarifications = record.clarifications ? await decryptJSONKMS(record.clarifications as string) : null;
+    const decryptedGeneLibrary = record.geneLibrary ? await decryptJSONKMS(record.geneLibrary as string) : record.geneLibrary;
+    const decryptedGenomes = record.genomes ? await decryptJSONKMS(record.genomes as string) : record.genomes;
+    const decryptedSynthesis = record.synthesis ? await decryptJSONKMS(record.synthesis as string) : record.synthesis;
+
     res.json({
       id: record.id,
-      offeringDescription: record.offeringDescription,
+      offeringDescription: decryptedDescription || record.offeringDescription,
       offeringType: record.offeringType,
       stage: record.stage,
       gtmConstraint: record.gtmConstraint,
       salesMotion: record.salesMotion,
-      existingHypothesis: record.existingHypothesis,
-      geneLibrary: record.geneLibrary,
-      genomes: record.genomes,
-      synthesis: record.synthesis,
+      existingHypothesis: decryptedHypothesis,
+      clarifications: decryptedClarifications,
+      geneLibrary: decryptedGeneLibrary,
+      genomes: decryptedGenomes,
+      synthesis: decryptedSynthesis,
       status: record.status,
       errorMessage: record.errorMessage,
       createdAt: record.createdAt,

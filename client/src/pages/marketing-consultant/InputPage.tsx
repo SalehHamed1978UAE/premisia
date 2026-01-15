@@ -1,15 +1,26 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Loader2, FileText, Image, FileSpreadsheet, X } from "lucide-react";
+import { Upload, Loader2, FileText, Image, FileSpreadsheet, X, History, ChevronRight } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { formatDistanceToNow } from "date-fns";
+
+interface Discovery {
+  id: string;
+  offeringType: string;
+  stage: string;
+  status: string;
+  createdAt: string;
+  completedAt: string | null;
+}
 
 const SUPPORTED_FORMATS = {
   'application/pdf': '.pdf',
@@ -32,6 +43,26 @@ export default function MarketingInputPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Fetch past discoveries
+  const { data: discoveriesData } = useQuery<{ discoveries: Discovery[] }>({
+    queryKey: ['/api/marketing-consultant/discoveries'],
+  });
+
+  const completedDiscoveries = discoveriesData?.discoveries?.filter(d => d.status === 'completed') || [];
+
+  const formatOfferingType = (type: string) => {
+    const labels: Record<string, string> = {
+      b2b_software: 'B2B Software',
+      b2c_software: 'B2C Software',
+      professional_services: 'Professional Services',
+      physical_product: 'Physical Product',
+      marketplace_platform: 'Marketplace',
+      content_education: 'Content/Education',
+      other: 'Other',
+    };
+    return labels[type] || type;
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -249,6 +280,46 @@ export default function MarketingInputPage() {
             </form>
           </CardContent>
         </Card>
+
+        {/* Past Discoveries */}
+        {completedDiscoveries.length > 0 && (
+          <Card data-testid="card-past-discoveries">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <History className="h-5 w-5" />
+                Past Discoveries
+              </CardTitle>
+              <CardDescription>
+                View your previous segment discovery results
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {completedDiscoveries.slice(0, 5).map((discovery) => (
+                  <button
+                    key={discovery.id}
+                    onClick={() => setLocation(`/marketing-consultant/results/${discovery.id}`)}
+                    className="w-full p-3 border rounded-lg hover:bg-muted/50 transition-colors text-left flex items-center justify-between group"
+                    data-testid={`button-discovery-${discovery.id}`}
+                  >
+                    <div>
+                      <div className="font-medium">
+                        {formatOfferingType(discovery.offeringType)}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {discovery.completedAt 
+                          ? formatDistanceToNow(new Date(discovery.completedAt), { addSuffix: true })
+                          : 'In progress'
+                        }
+                      </div>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </AppLayout>
   );
