@@ -70,7 +70,7 @@ export class SegmentDiscoveryEngine {
   }
 
   async generateGeneLibrary(context: DiscoveryContext): Promise<GeneLibrary> {
-    const prompt = `You are a market segmentation expert. Generate a comprehensive gene library for segment discovery.
+    const prompt = `You are a market segmentation expert specializing in discovering SURPRISING, NON-OBVIOUS customer segments. Your job is to surface segments that founders would never think of on their own.
 
 OFFERING CONTEXT:
 - Description: ${context.offeringDescription}
@@ -80,42 +80,134 @@ OFFERING CONTEXT:
 - Sales Motion: ${context.salesMotion}
 ${context.existingHypothesis ? `- Existing Hypothesis: ${context.existingHypothesis}` : ''}
 
-Generate 5-10 specific, relevant alleles for each of the 8 dimensions below. Make them SPECIFIC to this offering, not generic.
+Generate a COMPREHENSIVE gene library with 50+ options per dimension. The goal is DIVERSITY and DISCOVERY - push beyond the obvious.
 
-DIMENSIONS TO POPULATE:
-1. industry_vertical - Specific industries where this offering could succeed
-2. company_size - Company sizes that match the offering (Solo/SMB/Mid-market/Enterprise/etc)
-3. decision_maker - Specific roles who would buy this (be specific: VP Engineering, Head of Growth, etc)
-4. purchase_trigger - Events that trigger a purchase (pain events, growth mandates, budget cycles, etc)
-5. tech_adoption - Technology adoption profiles (Innovator, Early adopter, Pragmatist, Laggard)
-6. buying_process - How they buy (Self-serve, Team decision, Procurement, etc)
-7. budget_authority - Who controls the budget (Personal card, Team budget, Dept budget, C-suite approval)
-8. urgency_profile - How urgent is their need (Burning platform, Active search, Nice to have, Exploring)
+KEY PRINCIPLE: "Who has this problem but nobody's building for them?"
+
+DIMENSIONS TO POPULATE (50+ alleles each):
+
+1. industry_vertical - FORCE DIVERSITY across:
+   - Professional services (consulting, legal, accounting)
+   - Creative industries (film, music, gaming, art)
+   - Industrial/manufacturing (factories, logistics, construction)
+   - Agriculture/farming (farms, ranches, agricultural suppliers)
+   - Healthcare (hospitals, clinics, caregiving, wellness)
+   - Education (schools, tutoring, training, e-learning)
+   - Government/public sector (municipalities, agencies)
+   - Non-profit/religious (churches, charities, foundations)
+   - Consumer services (retail, hospitality, food service)
+   - Sports/fitness (gyms, teams, coaches, athletes)
+   - Trade/skilled labor (electricians, plumbers, mechanics)
+   - Entertainment/media (streamers, podcasters, influencers)
+   - Hobbyist communities (collectors, crafters, enthusiasts)
+   Include UNUSUAL industries that might have the underlying need.
+
+2. company_size - Full spectrum from individuals to enterprises:
+   - Solo practitioners, freelancers, one-person businesses
+   - Micro-businesses (2-5 people)
+   - Small businesses (6-50)
+   - Mid-market (51-500)
+   - Enterprise (500+)
+   - Also include: community groups, volunteer organizations, family businesses, creator collectives
+
+3. decision_maker - INCLUDE NON-OBVIOUS ROLES:
+   Obvious: CEO, CTO, VP Engineering, Head of Marketing, Product Manager
+   NON-OBVIOUS (include these!): 
+   - Farmers, ranchers, farm managers
+   - Game masters, dungeon masters, community moderators
+   - Pastors, clergy, religious leaders
+   - Coaches (sports, life, business)
+   - Tradespeople (electricians, plumbers, contractors)
+   - Caregivers, home health aides
+   - Teachers, tutors, trainers
+   - Artists, musicians, performers
+   - Hobbyist leaders, club organizers
+   - Parents, family caregivers
+   - Volunteers, community organizers
+   - Retirees with side projects
+   Be SPECIFIC with titles, not generic.
+
+4. purchase_trigger - Events that create urgency:
+   - Pain events (failure, loss, crisis)
+   - Growth mandates (scaling, expanding)
+   - Budget cycles (fiscal year, grants)
+   - Life events (new job, new baby, retirement)
+   - Seasonal needs (harvest, holidays, tax season)
+   - Compliance requirements
+   - Competitive pressure
+   - Technology shifts
+
+5. tech_adoption - Technology comfort levels:
+   - Innovators (bleeding edge)
+   - Early adopters (try new things)
+   - Pragmatists (proven solutions)
+   - Late majority (when others do)
+   - Skeptics (only when forced)
+   - Tech-resistant but high-need
+
+6. buying_process - How decisions get made:
+   - Impulse/immediate (personal card)
+   - Self-serve research
+   - Peer recommendation required
+   - Family/partner approval
+   - Team consensus
+   - Committee/board approval
+   - Procurement process
+   - Grant-funded
+   - Crowdfunded/community-funded
+
+7. budget_authority - Who controls spending:
+   - Personal funds/credit card
+   - Household budget
+   - Small discretionary budget
+   - Department budget
+   - C-suite approval
+   - Board approval
+   - External funding (grants, investors)
+   - Community/membership dues
+
+8. urgency_profile - Need intensity:
+   - Burning platform (crisis mode)
+   - Active search (shopping now)
+   - Planning ahead (6-12 months)
+   - Nice to have (if budget allows)
+   - Exploring options (no timeline)
+   - Recurring/seasonal need
+
+MUTATION REQUIREMENT:
+For each dimension, include 5-10 "MUTATION" options - roles, industries, or contexts that seem like UNLIKELY or COUNTERINTUITIVE fits at first glance but might have the underlying need. These are often where the best insights come from.
+
+Example mutations:
+- A D&D game master who needs project management tools to run campaigns
+- A farmer who needs analytics to track crop yields
+- A church group that needs team collaboration software
+- A hobbyist collector who needs inventory management
 
 REQUIREMENTS:
-- Each dimension should have 5-10 alleles
-- Alleles should be SPECIFIC to this offering context
-- Include both obvious and non-obvious segments
-- Consider the GTM constraints when generating alleles
+- Generate 50+ alleles per dimension
+- Include obvious segments but PRIORITIZE non-obvious ones
+- Force diversity - no dimension should be dominated by one category
+- Include the mutation options explicitly
+- Think about underserved segments that are overlooked
 
 Return ONLY valid JSON with this structure:
 {
   "dimensions": {
-    "industry_vertical": ["Industry 1", "Industry 2", ...],
-    "company_size": ["Size 1", "Size 2", ...],
-    "decision_maker": ["Role 1", "Role 2", ...],
-    "purchase_trigger": ["Trigger 1", "Trigger 2", ...],
-    "tech_adoption": ["Profile 1", "Profile 2", ...],
-    "buying_process": ["Process 1", "Process 2", ...],
-    "budget_authority": ["Authority 1", "Authority 2", ...],
-    "urgency_profile": ["Profile 1", "Profile 2", ...]
+    "industry_vertical": ["Industry 1", "Industry 2", ... 50+ options],
+    "company_size": ["Size 1", "Size 2", ... 50+ options],
+    "decision_maker": ["Role 1", "Role 2", ... 50+ options],
+    "purchase_trigger": ["Trigger 1", "Trigger 2", ... 50+ options],
+    "tech_adoption": ["Profile 1", "Profile 2", ... 50+ options],
+    "buying_process": ["Process 1", "Process 2", ... 50+ options],
+    "budget_authority": ["Authority 1", "Authority 2", ... 50+ options],
+    "urgency_profile": ["Profile 1", "Profile 2", ... 50+ options]
   }
 }`;
 
     try {
       const response = await this.anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 4000,
+        max_tokens: 16000,
         messages: [{ role: 'user', content: prompt }],
       });
 
@@ -129,7 +221,15 @@ Return ONLY valid JSON with this structure:
         throw new Error('No JSON found in response');
       }
 
-      return JSON.parse(jsonMatch[0]) as GeneLibrary;
+      const library = JSON.parse(jsonMatch[0]) as GeneLibrary;
+      
+      // Log dimension counts for debugging
+      const counts = Object.entries(library.dimensions).map(([dim, alleles]) => 
+        `${dim}: ${alleles.length}`
+      ).join(', ');
+      console.log(`[SegmentDiscoveryEngine] Gene library dimensions: ${counts}`);
+      
+      return library;
     } catch (error) {
       console.error('[SegmentDiscoveryEngine] Error generating gene library:', error);
       throw error;
@@ -148,24 +248,41 @@ Return ONLY valid JSON with this structure:
     console.log(`[SegmentDiscoveryEngine] Starting ${batchCount} parallel genome batches of ${batchSize} each`);
     const batchResults = await Promise.all(batchPromises);
     
-    // Flatten and deduplicate using canonical hash (sorted keys)
+    // Flatten and apply diversity constraints
     const allGenomes = batchResults.flat();
     const seen = new Set<string>();
+    const roleCounts = new Map<string, number>();
+    const MAX_GENOMES_PER_ROLE = 3;
     const uniqueGenomes: Genome[] = [];
+    let duplicatesRemoved = 0;
+    let roleConstraintFiltered = 0;
     
     for (const genome of allGenomes) {
       // Canonical hash with sorted keys for reliable deduplication
       const hash = this.getCanonicalGenomeHash(genome.genes);
-      if (!seen.has(hash)) {
-        seen.add(hash);
-        uniqueGenomes.push({
-          ...genome,
-          id: `genome_${String(uniqueGenomes.length + 1).padStart(3, '0')}`,
-        });
+      if (seen.has(hash)) {
+        duplicatesRemoved++;
+        continue;
       }
+      
+      // Diversity constraint: max 3 genomes per decision_maker role
+      const role = genome.genes.decision_maker;
+      const currentRoleCount = roleCounts.get(role) || 0;
+      if (currentRoleCount >= MAX_GENOMES_PER_ROLE) {
+        roleConstraintFiltered++;
+        continue;
+      }
+      
+      seen.add(hash);
+      roleCounts.set(role, currentRoleCount + 1);
+      uniqueGenomes.push({
+        ...genome,
+        id: `genome_${String(uniqueGenomes.length + 1).padStart(3, '0')}`,
+      });
     }
 
-    console.log(`[SegmentDiscoveryEngine] Generated ${uniqueGenomes.length} unique genomes (${allGenomes.length - uniqueGenomes.length} duplicates removed)`);
+    console.log(`[SegmentDiscoveryEngine] Generated ${uniqueGenomes.length} unique genomes (${duplicatesRemoved} duplicates, ${roleConstraintFiltered} filtered by role constraint)`);
+    console.log(`[SegmentDiscoveryEngine] Role diversity: ${roleCounts.size} unique decision_maker roles`);
     
     // Ensure we have at least 'count' genomes (or as many as we could generate)
     if (uniqueGenomes.length < count) {
@@ -405,10 +522,28 @@ Return ONLY valid JSON array:
   }
 
   async stressTest(topGenomes: Genome[]): Promise<Genome[]> {
+    // Split into 4 parallel batches for faster stress testing
+    const batchSize = Math.ceil(topGenomes.length / 4);
+    const batches: Genome[][] = [];
+    for (let i = 0; i < topGenomes.length; i += batchSize) {
+      batches.push(topGenomes.slice(i, i + batchSize));
+    }
+
+    console.log(`[SegmentDiscoveryEngine] Starting ${batches.length} parallel stress test batches of ${batchSize} each`);
+    
+    const batchPromises = batches.map(batch => this.stressTestBatch(batch));
+    const batchResults = await Promise.all(batchPromises);
+    
+    // Flatten and re-sort by score
+    const allTested = batchResults.flat();
+    return allTested.sort((a, b) => b.fitness.totalScore - a.fitness.totalScore);
+  }
+
+  private async stressTestBatch(genomes: Genome[]): Promise<Genome[]> {
     const prompt = `You are a critical market strategist stress-testing segment candidates.
 
 TOP SEGMENT CANDIDATES:
-${JSON.stringify(topGenomes.map(g => ({
+${JSON.stringify(genomes.map(g => ({
   id: g.id,
   genes: g.genes,
   totalScore: g.fitness.totalScore,
@@ -447,7 +582,7 @@ Return ONLY valid JSON array with updated genomes:
     try {
       const response = await this.anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 8000,
+        max_tokens: 4000,
         messages: [{ role: 'user', content: prompt }],
       });
 
@@ -470,7 +605,7 @@ Return ONLY valid JSON array with updated genomes:
 
       const testedMap = new Map(testedGenomes.map(g => [g.id, g]));
 
-      return topGenomes.map(genome => {
+      return genomes.map(genome => {
         const tested = testedMap.get(genome.id);
         if (tested) {
           const fitness = tested.fitness;
@@ -492,10 +627,10 @@ Return ONLY valid JSON array with updated genomes:
           };
         }
         return genome;
-      }).sort((a, b) => b.fitness.totalScore - a.fitness.totalScore);
+      });
     } catch (error) {
-      console.error('[SegmentDiscoveryEngine] Error in stress test:', error);
-      return topGenomes;
+      console.error('[SegmentDiscoveryEngine] Error in stress test batch:', error);
+      return genomes;
     }
   }
 
