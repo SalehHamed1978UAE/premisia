@@ -21,6 +21,7 @@ import MarketingInputPage from "@/pages/marketing-consultant/InputPage";
 import MarketingClassificationPage from "@/pages/marketing-consultant/ClassificationPage";
 import MarketingJourneySelectionPage from "@/pages/marketing-consultant/JourneySelectionPage";
 import SegmentDiscoveryPage from "@/pages/marketing-consultant/SegmentDiscoveryPage";
+import MyDiscoveriesPage from "@/pages/marketing-consultant/MyDiscoveriesPage";
 import ClassificationPage from "@/pages/strategic-consultant/ClassificationPage";
 import JourneySelectionPage from "@/pages/strategic-consultant/JourneySelectionPage";
 import JourneyResultsPage from "@/pages/strategic-consultant/JourneyResultsPage";
@@ -81,6 +82,7 @@ function Router() {
         <ProtectedRoute path="/strategy-workspace/epm/:id" component={EPMProgramView} />
         <ProtectedRoute path="/marketing-consultant" component={MarketingInputPage} />
         <ProtectedRoute path="/marketing-consultant/input" component={MarketingInputPage} />
+        <ProtectedRoute path="/marketing-consultant/discoveries" component={MyDiscoveriesPage} />
         <ProtectedRoute path="/marketing-consultant/classification/:understandingId" component={MarketingClassificationPage} />
         <ProtectedRoute path="/marketing-consultant/journey-selection/:understandingId" component={MarketingJourneySelectionPage} />
         <ProtectedRoute path="/marketing-consultant/segment-discovery/:understandingId" component={SegmentDiscoveryPage} />
