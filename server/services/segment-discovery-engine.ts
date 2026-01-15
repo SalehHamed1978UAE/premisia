@@ -219,15 +219,19 @@ Return ONLY valid JSON array with exactly ${count} genomes:
   }
 
   async scoreGenomes(genomes: Genome[], context: DiscoveryContext): Promise<Genome[]> {
-    const batchSize = 20;
-    const scoredGenomes: Genome[] = [];
+    const batchSize = 25;
+    const batches: Genome[][] = [];
 
     for (let i = 0; i < genomes.length; i += batchSize) {
-      const batch = genomes.slice(i, i + batchSize);
-      const scoredBatch = await this.scoreBatch(batch, context);
-      scoredGenomes.push(...scoredBatch);
+      batches.push(genomes.slice(i, i + batchSize));
     }
 
+    // Run all batches in parallel for much faster scoring
+    const scoredBatches = await Promise.all(
+      batches.map(batch => this.scoreBatch(batch, context))
+    );
+
+    const scoredGenomes = scoredBatches.flat();
     return scoredGenomes.sort((a, b) => b.fitness.totalScore - a.fitness.totalScore);
   }
 
