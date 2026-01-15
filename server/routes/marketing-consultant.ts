@@ -410,4 +410,50 @@ router.post('/beta/increment', async (req: Request, res: Response) => {
   }
 });
 
+router.get('/:id', async (req: Request, res: Response) => {
+  try {
+    const user = req.user as any;
+    if (!user?.claims?.sub) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const userId = user.claims.sub;
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ error: 'ID is required' });
+    }
+
+    const [record] = await db.select()
+      .from(segmentDiscoveryResults)
+      .where(eq(segmentDiscoveryResults.id, id))
+      .limit(1);
+
+    if (!record) {
+      return res.status(404).json({ error: 'Record not found' });
+    }
+
+    if (record.userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized to view this record' });
+    }
+
+    res.json({
+      id: record.id,
+      offeringDescription: record.offeringDescription,
+      offeringType: record.offeringType,
+      stage: record.stage,
+      gtmConstraint: record.gtmConstraint,
+      salesMotion: record.salesMotion,
+      existingHypothesis: record.existingHypothesis,
+      clarifications: record.clarifications,
+      status: record.status,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+    });
+  } catch (error: any) {
+    console.error('[Marketing Consultant] Error in GET /:id:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch record' });
+  }
+});
+
 export default router;
