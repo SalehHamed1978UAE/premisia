@@ -725,9 +725,55 @@ router.get('/results/:id', async (req: Request, res: Response) => {
     const decryptedDescription = await decryptKMS(record.offeringDescription);
     const decryptedHypothesis = record.existingHypothesis ? await decryptKMS(record.existingHypothesis) : null;
     const decryptedClarifications = record.clarifications ? await decryptJSONKMS(record.clarifications as string) : null;
-    const decryptedGeneLibrary = record.geneLibrary ? await decryptJSONKMS(record.geneLibrary as string) : record.geneLibrary;
-    const decryptedGenomes = record.genomes ? await decryptJSONKMS(record.genomes as string) : record.genomes;
-    const decryptedSynthesis = record.synthesis ? await decryptJSONKMS(record.synthesis as string) : record.synthesis;
+    
+    // Helper to decrypt JSONB fields that may be:
+    // 1. Encrypted string stored in JSONB (comes back as string from Drizzle)
+    // 2. Unencrypted object stored in JSONB (comes back as object from Drizzle)
+    const decryptJsonbField = async <T>(field: any): Promise<T | null> => {
+      if (!field) return null;
+      
+      // If it's already an object (not encrypted), return as-is
+      if (typeof field === 'object' && field !== null && !('dataKeyCiphertext' in field)) {
+        return field as T;
+      }
+      
+      // If it's an object with encryption format keys, stringify it first
+      if (typeof field === 'object' && 'dataKeyCiphertext' in field) {
+        return await decryptJSONKMS<T>(JSON.stringify(field));
+      }
+      
+      // If it's a string, try to decrypt it
+      if (typeof field === 'string') {
+        return await decryptJSONKMS<T>(field);
+      }
+      
+      return null;
+    };
+    
+    let decryptedGeneLibrary: any = null;
+    let decryptedGenomes: any = null;
+    let decryptedSynthesis: any = null;
+    
+    try {
+      decryptedGeneLibrary = await decryptJsonbField(record.geneLibrary);
+      console.log('[Results] geneLibrary decrypted, dimensions:', decryptedGeneLibrary?.dimensions ? Object.keys(decryptedGeneLibrary.dimensions).length : 0);
+    } catch (e) {
+      console.error('[Results] geneLibrary decryption failed:', e);
+    }
+    
+    try {
+      decryptedGenomes = await decryptJsonbField(record.genomes);
+      console.log('[Results] genomes decrypted, count:', Array.isArray(decryptedGenomes) ? decryptedGenomes.length : 0);
+    } catch (e) {
+      console.error('[Results] genomes decryption failed:', e);
+    }
+    
+    try {
+      decryptedSynthesis = await decryptJsonbField(record.synthesis);
+      console.log('[Results] synthesis decrypted, has beachhead:', !!decryptedSynthesis?.beachhead);
+    } catch (e) {
+      console.error('[Results] synthesis decryption failed:', e);
+    }
 
     res.json({
       id: record.id,
