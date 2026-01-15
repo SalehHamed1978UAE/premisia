@@ -15,6 +15,7 @@ import journeyBuilderRoutes from "./routes/journey-builder";
 import taskAssignmentsRoutes from "./routes/task-assignments";
 import exportsRoutes from "./routes/exports";
 import knowledgeRoutes from "./routes/knowledge";
+import marketingConsultantRoutes from "./routes/marketing-consultant";
 import { backgroundJobService } from "./services/background-job-service";
 import { decrypt } from "./utils/encryption";
 import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
@@ -512,6 +513,9 @@ Marketing and events: $3k/month`,
 
   // Knowledge Graph routes (protected with auth)
   app.use("/api/knowledge", requireAuth, knowledgeRoutes);
+
+  // Marketing Consultant routes (protected with auth)
+  app.use("/api/marketing-consultant", requireAuth, marketingConsultantRoutes);
 
   // Middleware to check roles (updated for Replit Auth)
   const requireRole = (roles: string[]) => async (req: any, res: any, next: any) => {
