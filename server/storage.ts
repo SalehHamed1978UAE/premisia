@@ -4,7 +4,7 @@ import {
   tasks, taskDependencies, kpis, kpiMeasurements, risks, riskMitigations,
   benefits, fundingSources, expenses, sessionContext, strategyVersions,
   strategyDecisions, epmPrograms, strategicUnderstanding, journeySessions, goldenRecords, goldenRecordChecks,
-  locations
+  locations, segmentDiscoveryResults
 } from "@shared/schema";
 import type { 
   User, InsertUser, UpsertUser, Program, Workstream, Resource, StageGate, StageGateReview,
@@ -110,6 +110,7 @@ export interface IStorage {
       analyses: number;
       strategies: number;
       programs: number;
+      segments: number;
     };
     recentArtifacts: Array<{
       id: string;
@@ -764,12 +765,20 @@ export class DatabaseStorage implements IStorage {
           .where(and(
             eq(epmPrograms.userId, userId),
             eq(epmPrograms.archived, false)
+          )),
+        // Count completed segment discoveries
+        db.select({ count: count() })
+          .from(segmentDiscoveryResults)
+          .where(and(
+            eq(segmentDiscoveryResults.userId, userId),
+            eq(segmentDiscoveryResults.status, 'completed')
           ))
       ]);
 
       const [analysesCount] = counts[0];
       const [strategiesCount] = counts[1];
       const [programsCount] = counts[2];
+      const [segmentsCount] = counts[3];
 
       // Fetch recent artifacts (analyses and programs)
       const [recentAnalyses, recentPrograms] = await Promise.all([
@@ -844,6 +853,7 @@ export class DatabaseStorage implements IStorage {
           analyses: analysesCount?.count || 0,
           strategies: strategiesCount?.count || 0,
           programs: programsCount?.count || 0,
+          segments: segmentsCount?.count || 0,
         },
         recentArtifacts: allArtifacts
       };

@@ -59,6 +59,7 @@ interface DashboardSummary {
     analyses: number;
     strategies: number;
     programs: number;
+    segments: number;
   };
   recentArtifacts: Array<{
     id: string;
@@ -383,7 +384,7 @@ function Dashboard({ summary }: { summary: DashboardSummary }) {
         </div>
 
         {/* Stats Cards - Now Interactive Quick Actions */}
-        <div className="grid gap-2 grid-cols-3 md:gap-4">
+        <div className="grid gap-2 grid-cols-2 md:grid-cols-4 md:gap-4">
         {/* Analyses Complete - Click to navigate to repository */}
         <Link href="/repository">
           <Card className="shadow-lg border-primary/20 hover:shadow-xl hover:border-primary/40 transition-all cursor-pointer group" data-testid="button-go-to-analyses">
@@ -438,6 +439,26 @@ function Dashboard({ summary }: { summary: DashboardSummary }) {
                     <span className="hidden md:inline">Programs Complete</span>
                   </p>
                   <p className="text-xl md:text-2xl font-bold text-foreground">{summary.counts.programs}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+
+        {/* Segments Discovered - Click to navigate to marketing consultant */}
+        <Link href="/marketing-consultant/input">
+          <Card className="shadow-lg border-primary/20 hover:shadow-xl hover:border-primary/40 transition-all cursor-pointer group" data-testid="button-go-to-segments">
+            <CardContent className="p-3 md:p-5">
+              <div className="flex flex-col md:flex-row items-center md:gap-3 text-center md:text-left">
+                <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center flex-shrink-0 shadow-md group-hover:scale-110 transition-transform mb-2 md:mb-0">
+                  <Users className="h-5 w-5 md:h-6 md:w-6 text-white" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-[10px] md:text-xs font-medium text-muted-foreground leading-tight">
+                    <span className="md:hidden">Segments<br />Found</span>
+                    <span className="hidden md:inline">Segments Discovered</span>
+                  </p>
+                  <p className="text-xl md:text-2xl font-bold text-foreground">{summary.counts.segments}</p>
                 </div>
               </div>
             </CardContent>
