@@ -368,10 +368,23 @@ export default function SegmentDiscoveryPage() {
   }
 
   if (pageState === 'results' && results) {
-    const { geneLibrary, synthesis } = results;
+    const { geneLibrary } = results;
     // Ensure genomes is an array (handles decryption edge cases)
     const genomes: Genome[] = Array.isArray(results.genomes) ? results.genomes : [];
     const top20 = genomes.slice(0, 20);
+    
+    // Ensure synthesis has valid structure (handles incomplete/corrupted data)
+    const synthesis: SegmentSynthesis = results.synthesis && typeof results.synthesis === 'object' 
+      ? results.synthesis as SegmentSynthesis
+      : {
+          beachhead: { genome: genomes[0] || {} as Genome, rationale: 'No synthesis data available', validationPlan: [] },
+          backupSegments: [],
+          neverList: [],
+          strategicInsights: []
+        };
+    
+    // Guard against missing beachhead
+    const hasValidBeachhead = synthesis.beachhead && synthesis.beachhead.genome && synthesis.beachhead.genome.fitness;
 
     const alleleUsageCount = (dimension: keyof GeneLibrary['dimensions'], allele: string) => {
       return genomes.filter(g => g.genes[dimension] === allele).length;
@@ -419,54 +432,72 @@ export default function SegmentDiscoveryPage() {
             </TabsList>
 
             <TabsContent value="beachhead" className="space-y-6 mt-6">
-              <Card className="border-2 border-primary bg-primary/5">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Target className="h-6 w-6 text-primary" />
-                      <CardTitle>Your Beachhead Market</CardTitle>
+              {hasValidBeachhead ? (
+                <Card className="border-2 border-primary bg-primary/5">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Target className="h-6 w-6 text-primary" />
+                        <CardTitle>Your Beachhead Market</CardTitle>
+                      </div>
+                      <Badge variant="default" className="text-lg px-4 py-1">
+                        Score: {synthesis.beachhead.genome.fitness.totalScore}/40
+                      </Badge>
                     </div>
-                    <Badge variant="default" className="text-lg px-4 py-1">
-                      Score: {synthesis.beachhead.genome.fitness.totalScore}/40
-                    </Badge>
-                  </div>
-                  <CardDescription>
-                    This is your recommended initial target segment
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div>
-                    <h4 className="font-semibold mb-2">Segment Profile</h4>
-                    {renderGeneDetails(synthesis.beachhead.genome.genes)}
-                  </div>
+                    <CardDescription>
+                      This is your recommended initial target segment
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div>
+                      <h4 className="font-semibold mb-2">Segment Profile</h4>
+                      {renderGeneDetails(synthesis.beachhead.genome.genes)}
+                    </div>
 
-                  <div>
-                    <h4 className="font-semibold mb-2">Fitness Scores</h4>
-                    {renderFitnessScores(synthesis.beachhead.genome.fitness)}
-                  </div>
+                    <div>
+                      <h4 className="font-semibold mb-2">Fitness Scores</h4>
+                      {renderFitnessScores(synthesis.beachhead.genome.fitness)}
+                    </div>
 
-                  <div>
-                    <h4 className="font-semibold mb-2">Why This Segment?</h4>
-                    <p className="text-sm text-muted-foreground" data-testid="text-beachhead-rationale">
-                      {synthesis.beachhead.rationale}
-                    </p>
-                  </div>
+                    <div>
+                      <h4 className="font-semibold mb-2">Why This Segment?</h4>
+                      <p className="text-sm text-muted-foreground" data-testid="text-beachhead-rationale">
+                        {synthesis.beachhead.rationale}
+                      </p>
+                    </div>
 
-                  <div>
-                    <h4 className="font-semibold mb-2">Validation Plan</h4>
-                    <ul className="space-y-2" data-testid="list-validation-plan">
-                      {synthesis.beachhead.validationPlan.map((step, idx) => (
-                        <li key={idx} className="flex items-start gap-2 text-sm">
-                          <input type="checkbox" className="mt-1" />
-                          <span>{step}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </CardContent>
-              </Card>
+                    <div>
+                      <h4 className="font-semibold mb-2">Validation Plan</h4>
+                      <ul className="space-y-2" data-testid="list-validation-plan">
+                        {(synthesis.beachhead.validationPlan || []).map((step, idx) => (
+                          <li key={idx} className="flex items-start gap-2 text-sm">
+                            <input type="checkbox" className="mt-1" />
+                            <span>{step}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card className="border-2 border-yellow-200 bg-yellow-50 dark:bg-yellow-950/20">
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-3">
+                      <AlertTriangle className="h-8 w-8 text-yellow-600" />
+                      <div>
+                        <h3 className="text-lg font-semibold text-yellow-900 dark:text-yellow-100">
+                          Incomplete Analysis Data
+                        </h3>
+                        <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                          The discovery process was interrupted. Please run a new segment discovery to get complete results.
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
-              {synthesis.backupSegments.length > 0 && (
+              {(synthesis.backupSegments || []).length > 0 && (
                 <div>
                   <h3 className="text-lg font-semibold mb-4">Backup Segments</h3>
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3" data-testid="grid-backup-segments">
@@ -494,7 +525,7 @@ export default function SegmentDiscoveryPage() {
                 </div>
               )}
 
-              {synthesis.strategicInsights.length > 0 && (
+              {(synthesis.strategicInsights || []).length > 0 && (
                 <Card>
                   <CardHeader>
                     <CardTitle>Strategic Insights</CardTitle>
@@ -565,7 +596,7 @@ export default function SegmentDiscoveryPage() {
                 </CardHeader>
                 <CardContent>
                   <Accordion type="multiple" className="w-full" data-testid="accordion-gene-library">
-                    {Object.entries(geneLibrary.dimensions).map(([dimension, alleles]) => (
+                    {Object.entries(geneLibrary?.dimensions || {}).map(([dimension, alleles]) => (
                       <AccordionItem key={dimension} value={dimension}>
                         <AccordionTrigger className="text-left">
                           <div className="flex items-center justify-between w-full pr-4">
@@ -612,28 +643,30 @@ export default function SegmentDiscoveryPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {synthesis.neverList.length === 0 ? (
+                  {(synthesis.neverList || []).length === 0 ? (
                     <p className="text-sm text-muted-foreground">No segments on the never list.</p>
                   ) : (
                     <div className="space-y-4" data-testid="list-never">
-                      {synthesis.neverList.map((item, idx) => (
-                        <Card key={item.genome.id} className="border-destructive/30 bg-destructive/5" data-testid={`card-never-${idx}`}>
+                      {(synthesis.neverList || []).map((item, idx) => (
+                        <Card key={item.genome?.id || idx} className="border-destructive/30 bg-destructive/5" data-testid={`card-never-${idx}`}>
                           <CardContent className="pt-4 space-y-3">
                             <div className="flex items-start justify-between">
                               <div className="flex items-center gap-2">
                                 <AlertTriangle className="h-4 w-4 text-destructive" />
                                 <span className="font-medium">Avoid This Segment</span>
                               </div>
-                              <Badge variant="destructive">
-                                {item.genome.fitness.totalScore}/40
-                              </Badge>
+                              {item.genome?.fitness && (
+                                <Badge variant="destructive">
+                                  {item.genome.fitness.totalScore}/40
+                                </Badge>
+                              )}
                             </div>
                             
                             <p className="text-sm text-destructive font-medium">
                               {item.reason}
                             </p>
 
-                            {renderGeneDetails(item.genome.genes)}
+                            {item.genome?.genes && renderGeneDetails(item.genome.genes)}
                           </CardContent>
                         </Card>
                       ))}
