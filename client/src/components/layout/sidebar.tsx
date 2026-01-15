@@ -12,8 +12,10 @@ import {
   X,
   LayoutDashboard,
   Map,
-  Target
+  Target,
+  BarChart3
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -133,6 +135,21 @@ export function Sidebar({ isOpen = false, onToggle = () => {} }: SidebarProps) {
             >
               <Sparkles className="h-5 w-5 mr-3 flex-shrink-0" />
               <span className="font-medium">Strategic Consultant</span>
+            </Button>
+
+            {/* Marketing Consultant */}
+            <Button
+              variant={location.startsWith('/marketing-consultant') ? 'default' : 'ghost'}
+              className={cn(
+                "w-full justify-start h-10 px-3 py-2 text-white hover:text-white",
+                location.startsWith('/marketing-consultant') && "bg-primary text-primary-foreground"
+              )}
+              onClick={() => navigate('/marketing-consultant')}
+              data-testid="nav-marketing-consultant"
+            >
+              <BarChart3 className="h-5 w-5 mr-3 flex-shrink-0" />
+              <span className="font-medium">Marketing Consultant</span>
+              <Badge variant="secondary" className="ml-2 px-1.5 py-0 text-[10px] font-semibold bg-primary/10 text-primary">BETA</Badge>
             </Button>
 
             {/* Strategies Hub */}

@@ -138,6 +138,45 @@ export const assignmentResourceTypeEnum = pgEnum('assignment_resource_type', ['i
 export const referenceSourceTypeEnum = pgEnum('reference_source_type', ['article', 'report', 'document', 'dataset', 'manual_entry']);
 export const referenceOriginEnum = pgEnum('reference_origin', ['web_search', 'manual_upload', 'document_extract', 'manual_entry']);
 
+// Marketing Consultant enums
+export const offeringTypeEnum = pgEnum('offering_type', [
+  'b2b_software',
+  'b2c_software',
+  'professional_services',
+  'physical_product',
+  'marketplace_platform',
+  'content_education',
+  'other'
+]);
+
+export const companyStageEnum = pgEnum('company_stage', [
+  'idea_stage',
+  'built_no_users',
+  'early_users',
+  'growing',
+  'scaling'
+]);
+
+export const gtmConstraintEnum = pgEnum('gtm_constraint', [
+  'solo_founder',
+  'small_team',
+  'funded_startup',
+  'established_company'
+]);
+
+export const salesMotionEnum = pgEnum('sales_motion', [
+  'self_serve',
+  'light_touch',
+  'enterprise',
+  'partner_channel'
+]);
+
+export const segmentFlagEnum = pgEnum('segment_flag', [
+  'high_potential',
+  'worth_exploring',
+  'deprioritize'
+]);
+
 // Session storage table for Replit Auth
 export const sessions = pgTable(
   "sessions",
@@ -939,6 +978,54 @@ export const bmcFindings = pgTable("bmc_findings", {
   blockIdx: index("idx_bmc_findings_block").on(table.bmcBlockId),
 }));
 
+// Marketing Consultant - Segment Discovery Results
+export const segmentDiscoveryResults = pgTable("segment_discovery_results", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  
+  // Input fields (encrypted for sensitive business data)
+  offeringDescription: text("offering_description").notNull(), // encrypted
+  offeringType: offeringTypeEnum("offering_type").notNull(),
+  stage: companyStageEnum("stage").notNull(),
+  gtmConstraint: gtmConstraintEnum("gtm_constraint").notNull(),
+  salesMotion: salesMotionEnum("sales_motion").notNull(),
+  existingHypothesis: text("existing_hypothesis"), // optional, encrypted if present
+  
+  // Clarifications from user
+  clarifications: jsonb("clarifications"), // encrypted
+  
+  // Document metadata (if uploaded)
+  documentMetadata: jsonb("document_metadata"),
+  
+  // Generated results (encrypted - sensitive competitive intelligence)
+  geneLibrary: jsonb("gene_library"), // encrypted
+  genomes: jsonb("genomes"), // encrypted - array of 100 genomes with scores
+  synthesis: jsonb("synthesis"), // encrypted - beachhead, backup, validation plan
+  
+  // Status tracking
+  status: jobStatusEnum("status").notNull().default('pending'),
+  progressMessage: text("progress_message"),
+  errorMessage: text("error_message"),
+  
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+}, (table) => ({
+  userIdx: index("idx_segment_discovery_user").on(table.userId),
+  statusIdx: index("idx_segment_discovery_status").on(table.status),
+}));
+
+// Beta usage tracking for Marketing Consultant
+export const betaUsageCounters = pgTable("beta_usage_counters", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  featureName: varchar("feature_name", { length: 100 }).notNull().unique(),
+  currentCount: integer("current_count").notNull().default(0),
+  maxCount: integer("max_count").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   programs: many(programs),
@@ -1103,6 +1190,10 @@ export const insertTrendClaimsCacheSchema = createInsertSchema(trendClaimsCache)
 export const insertTrendAnalysisJobSchema = createInsertSchema(trendAnalysisJobs).omit({ jobId: true, createdAt: true });
 export const insertFrameworkInsightSchema = createInsertSchema(frameworkInsights).omit({ id: true, createdAt: true });
 
+// Marketing Consultant insert schemas
+export const insertSegmentDiscoveryResultSchema = createInsertSchema(segmentDiscoveryResults).omit({ id: true, createdAt: true, updatedAt: true, completedAt: true });
+export const insertBetaUsageCounterSchema = createInsertSchema(betaUsageCounters).omit({ id: true, createdAt: true, updatedAt: true });
+
 // Type exports
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UpsertUser = typeof users.$inferInsert;  // For Replit Auth
@@ -1179,6 +1270,12 @@ export type TrendAnalysisJob = typeof trendAnalysisJobs.$inferSelect;
 export type InsertTrendAnalysisJob = z.infer<typeof insertTrendAnalysisJobSchema>;
 export type FrameworkInsight = typeof frameworkInsights.$inferSelect;
 export type InsertFrameworkInsight = z.infer<typeof insertFrameworkInsightSchema>;
+
+// Marketing Consultant types
+export type SegmentDiscoveryResult = typeof segmentDiscoveryResults.$inferSelect;
+export type InsertSegmentDiscoveryResult = z.infer<typeof insertSegmentDiscoveryResultSchema>;
+export type BetaUsageCounter = typeof betaUsageCounters.$inferSelect;
+export type InsertBetaUsageCounter = z.infer<typeof insertBetaUsageCounterSchema>;
 
 // AI Orchestration Types
 
