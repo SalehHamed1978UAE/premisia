@@ -1002,6 +1002,9 @@ export const segmentDiscoveryResults = pgTable("segment_discovery_results", {
   genomes: jsonb("genomes"), // encrypted - array of 100 genomes with scores
   synthesis: jsonb("synthesis"), // encrypted - beachhead, backup, validation plan
   
+  // LLM-generated summary for Strategic Consultant handoff (encrypted)
+  strategicSummary: text("strategic_summary"), // encrypted - cached summary for strategic analysis
+  
   // Status tracking
   status: jobStatusEnum("status").notNull().default('pending'),
   progressMessage: text("progress_message"),
