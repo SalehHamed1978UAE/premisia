@@ -29,6 +29,23 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tail
 - **BMC Knowledge Security Tests (November 2025)**: Comprehensive automated test suite (`tests/bmc-knowledge-security.spec.ts`) with 11 tests validates cross-user data isolation, authorization, and decryption for the `/bmc-knowledge/:programId` endpoint. Tests expose and prevent regression of critical security vulnerabilities, including multi-program ownership edge cases. Fixed production bug where contradiction evidence fields were encrypted but not decrypted.
 - **Context Foundry Integration (December 2025)**: Grounded analysis capability that queries verified organizational facts from Context Foundry before AI analysis. Constrains LLM responses to use verified data with proper source citations. Integrated into StrategyAnalyzer for Five Whys and Porter's analysis. Status endpoint at `/api/strategic-consultant/context-foundry/status`.
   - **Configuration (December 15, 2025)**: Connected to live Context Foundry instance at `https://1ccacfa5-76d6-4bc8-b11c-e8a59e39c1f1-00-i16a1ywb4a3m.riker.replit.dev`. Uses `X-CF-API-Key` header for authentication with key stored in `CONTEXT_FOUNDRY_API_KEY` secret. V1 API endpoint `/api/v1/query` handles entity resolution internally—Premisia sends raw user text, CF extracts and resolves entities from its knowledge graph.
+  - **Future Integration Points (January 2026)**:
+    - **BMC (Business Model Canvas) 9-Block Analysis**: Each block should query CF for organizational grounding:
+      1. Customer Segments: Query customer/market entities from CF knowledge graph
+      2. Value Propositions: Ground in verified product/service offerings
+      3. Channels: Validate against known distribution channels
+      4. Customer Relationships: Check CRM/engagement patterns
+      5. Revenue Streams: Ground in financial/pricing entities
+      6. Key Resources: Query infrastructure/asset entities
+      7. Key Activities: Validate against operational processes
+      8. Key Partnerships: Ground in verified partner/vendor relationships
+      9. Cost Structure: Check financial/cost center entities
+      - Integration point: `server/strategic-consultant/bmc-analyzer.ts` - wrap each block's analysis with `queryContext()` before LLM generation
+    - **Segment Discovery Synthesis Phase**: The beachhead recommendation synthesis should query CF for:
+      - Customer entity verification: Check if target segments exist in CF knowledge graph
+      - Market position grounding: Validate competitive positioning claims against CF data
+      - Resource capability validation: Ground capability scores in verified organizational assets
+      - Integration point: `server/services/segment-discovery-engine.ts` in `synthesizeResults()` method - query CF before generating final beachhead recommendations
 
 ## Feature Specifications
 - **AI Multi-Agent System**: Ontology-based architecture with Executive, Builder, QA Specialist Agents, and a Multi-Agent Orchestrator.
