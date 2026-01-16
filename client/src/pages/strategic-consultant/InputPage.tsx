@@ -43,7 +43,62 @@ export default function InputPage() {
   const urlParams = new URLSearchParams(window.location.search);
   const prefilledText = urlParams.get('text') || '';
   const journeySessionId = urlParams.get('journeySession');
+  const discoveryId = urlParams.get('discoveryId');
   const [text, setText] = useState(prefilledText);
+  const [isLoadingSummary, setIsLoadingSummary] = useState(false);
+
+  // Fetch strategic summary from Segment Discovery if discoveryId is present
+  useEffect(() => {
+    if (!discoveryId) return; // No discovery context to load
+    
+    const fetchSummary = async () => {
+      setIsLoadingSummary(true);
+      try {
+        const res = await fetch(`/api/marketing-consultant/strategic-summary/${discoveryId}`, {
+          credentials: 'include',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.summary) {
+            setText(data.summary);
+            toast({
+              title: "Context loaded",
+              description: "Your segment discovery insights have been loaded. Review and start your strategic analysis.",
+            });
+          }
+        } else if (res.status === 401 || res.status === 403) {
+          toast({
+            title: "Access denied",
+            description: "You don't have access to this segment discovery. Please enter your context manually.",
+            variant: "destructive",
+          });
+        } else if (res.status === 404) {
+          toast({
+            title: "Discovery not found",
+            description: "The segment discovery could not be found. Please enter your context manually.",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Could not load context",
+            description: "Failed to load segment discovery insights. You can still enter your context manually.",
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.error('[InputPage] Failed to fetch strategic summary:', error);
+        toast({
+          title: "Connection error",
+          description: "Could not connect to load context. Please try again or enter your context manually.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingSummary(false);
+      }
+    };
+    
+    fetchSummary();
+  }, [discoveryId, toast]);
 
   // Fetch journey data if journeySession parameter exists
   const { data: journeyData, isLoading: loadingJourney, refetch: refetchJourney } = useQuery({
@@ -692,15 +747,30 @@ export default function InputPage() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="text-input">Text Input</Label>
+                <Label htmlFor="text-input">
+                  Text Input
+                  {isLoadingSummary && (
+                    <span className="ml-2 text-muted-foreground text-sm">
+                      <Loader2 className="inline h-3 w-3 animate-spin mr-1" />
+                      Loading segment discovery context...
+                    </span>
+                  )}
+                  {discoveryId && !isLoadingSummary && text && (
+                    <Badge variant="secondary" className="ml-2">
+                      From Segment Discovery
+                    </Badge>
+                  )}
+                </Label>
                 <Textarea
                   id="text-input"
                   data-testid="input-strategic-text"
-                  placeholder="e.g., Our SaaS company needs to expand into enterprise markets. Current revenue is $10M ARR from SMB customers. We need to decide on enterprise features, sales strategy, and architecture..."
+                  placeholder={isLoadingSummary 
+                    ? "Loading your segment discovery insights..." 
+                    : "e.g., Our SaaS company needs to expand into enterprise markets. Current revenue is $10M ARR from SMB customers. We need to decide on enterprise features, sales strategy, and architecture..."}
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   rows={8}
-                  disabled={isAnalyzing}
+                  disabled={isAnalyzing || isLoadingSummary}
                   className="resize-none"
                 />
               </div>

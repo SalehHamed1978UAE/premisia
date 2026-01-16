@@ -811,4 +811,144 @@ router.get('/results/:id', async (req: Request, res: Response) => {
   }
 });
 
+// Generate strategic summary for handoff to Strategic Consultant
+router.get('/strategic-summary/:discoveryId', async (req: Request, res: Response) => {
+  try {
+    const user = (req as any).user;
+    if (!user?.claims?.sub) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const userId = user.claims.sub;
+    const { discoveryId } = req.params;
+
+    const [record] = await db.select()
+      .from(segmentDiscoveryResults)
+      .where(eq(segmentDiscoveryResults.id, discoveryId))
+      .limit(1);
+
+    if (!record) {
+      return res.status(404).json({ error: 'Discovery not found' });
+    }
+
+    if (record.userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    if (record.status !== 'completed') {
+      return res.status(400).json({ error: 'Discovery not yet completed' });
+    }
+
+    // Check if we have a cached summary
+    if (record.strategicSummary) {
+      const cachedSummary = await decryptKMS(record.strategicSummary);
+      console.log('[Strategic Summary] Returning cached summary for:', discoveryId);
+      return res.json({ summary: cachedSummary, cached: true });
+    }
+
+    // Decrypt the data for LLM summarization
+    const decryptedDescription = await decryptKMS(record.offeringDescription);
+    
+    // Helper to decrypt JSONB fields
+    const decryptJsonbField = async <T>(field: any): Promise<T | null> => {
+      if (!field) return null;
+      if (typeof field === 'object' && field !== null && !('dataKeyCiphertext' in field)) {
+        return field as T;
+      }
+      if (typeof field === 'object' && 'dataKeyCiphertext' in field) {
+        return await decryptJSONKMS<T>(JSON.stringify(field));
+      }
+      if (typeof field === 'string') {
+        return await decryptJSONKMS<T>(field);
+      }
+      return null;
+    };
+
+    const decryptedClarifications = record.clarifications ? await decryptJsonbField(record.clarifications) : null;
+    const decryptedSynthesis = await decryptJsonbField<any>(record.synthesis);
+
+    // Build context for LLM
+    const beachhead = decryptedSynthesis?.beachhead;
+    const backupSegments = decryptedSynthesis?.backupSegments?.slice(0, 3) || [];
+    
+    const offeringTypeLabels: Record<string, string> = {
+      'b2b_software': 'B2B Software',
+      'b2c_software': 'B2C Software',
+      'professional_services': 'Professional Services',
+      'physical_product': 'Physical Product',
+      'marketplace_platform': 'Marketplace/Platform',
+      'content_education': 'Content/Education',
+      'other': 'Other'
+    };
+
+    const stageLabels: Record<string, string> = {
+      'idea_stage': 'Idea Stage',
+      'built_no_users': 'Built, No Users',
+      'early_users': 'Early Users',
+      'growing': 'Growing',
+      'scaling': 'Scaling'
+    };
+
+    const prompt = `You are helping a user transition from market segmentation analysis to strategic planning. Generate a concise summary that will pre-fill their strategic analysis input.
+
+## Segment Discovery Results
+
+**Offering:** ${decryptedDescription}
+
+**Business Context:**
+- Type: ${offeringTypeLabels[record.offeringType] || record.offeringType}
+- Stage: ${stageLabels[record.stage] || record.stage}
+- GTM: ${record.gtmConstraint?.replace(/_/g, ' ')}
+- Sales Motion: ${record.salesMotion?.replace(/_/g, ' ')}
+
+${decryptedClarifications ? `**User Clarifications:** ${JSON.stringify(decryptedClarifications)}` : ''}
+
+**Recommended Beachhead Market:**
+${beachhead ? `
+- Industry: ${beachhead.genes?.industry_vertical || 'Not specified'}
+- Company Size: ${beachhead.genes?.company_size || 'Not specified'}
+- Decision Maker: ${beachhead.genes?.decision_maker || 'Not specified'}
+- Purchase Trigger: ${beachhead.genes?.purchase_trigger || 'Not specified'}
+- Score: ${beachhead.fitness?.totalScore || 'N/A'}/40
+- Rationale: ${beachhead.rationale || 'Not provided'}
+` : 'No beachhead identified'}
+
+${backupSegments.length > 0 ? `**Backup Segments:**
+${backupSegments.map((s: any, i: number) => `${i + 1}. ${s.genes?.industry_vertical || 'Unknown'} - ${s.genes?.decision_maker || 'Unknown'} (Score: ${s.fitness?.totalScore || 'N/A'}/40)`).join('\n')}
+` : ''}
+
+## Task
+
+Write a 2-3 paragraph summary suitable for pasting into a strategic analysis tool. The summary should:
+1. Briefly describe what the offering is and who it's for
+2. Highlight the recommended beachhead market and why it was selected
+3. Note key strategic considerations for the next phase of analysis
+
+Write in first person as if the user is describing their situation. Be concise and actionable. Do NOT use markdown headers or bullet points - write flowing prose paragraphs.`;
+
+    console.log('[Strategic Summary] Generating LLM summary for:', discoveryId);
+    
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      messages: [{ role: 'user', content: prompt }]
+    });
+
+    const summaryText = response.content[0].type === 'text' ? response.content[0].text : '';
+    
+    // Cache the summary (encrypted)
+    const encryptedSummary = await encryptKMS(summaryText);
+    await db.update(segmentDiscoveryResults)
+      .set({ strategicSummary: encryptedSummary, updatedAt: new Date() })
+      .where(eq(segmentDiscoveryResults.id, discoveryId));
+
+    console.log('[Strategic Summary] Summary generated and cached for:', discoveryId);
+    
+    res.json({ summary: summaryText, cached: false });
+  } catch (error: any) {
+    console.error('[Strategic Summary] Error:', error);
+    res.status(500).json({ error: error.message || 'Failed to generate summary' });
+  }
+});
+
 export default router;

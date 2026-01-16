@@ -689,7 +689,7 @@ export default function SegmentDiscoveryPage() {
                   Start New Discovery
                 </Button>
                 <Button
-                  onClick={() => setLocation('/journeys')}
+                  onClick={() => setLocation(`/journeys?discoveryId=${understandingId}`)}
                   className="flex-1"
                   data-testid="button-view-journeys"
                 >

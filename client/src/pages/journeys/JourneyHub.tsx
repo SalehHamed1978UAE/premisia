@@ -24,6 +24,10 @@ export function JourneyHub() {
   const [, setLocation] = useLocation();
   const [showBuilder, setShowBuilder] = useState(false);
 
+  // Check for discoveryId from Segment Discovery handoff
+  const urlParams = new URLSearchParams(window.location.search);
+  const discoveryId = urlParams.get('discoveryId');
+
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['journey-registry'],
     queryFn: async () => {
@@ -41,10 +45,10 @@ export function JourneyHub() {
   const comingSoonJourneys = journeys.filter(j => !j.available);
 
   const startJourney = (journeyType: string) => {
-    // Navigate to strategic consultant page
-    // This is the primary entry point for all strategic journeys
-    // User will proceed through: Input → Journey Selection → Analysis
-    setLocation(`/strategic-consultant`);
+    // Navigate to strategic consultant page with discoveryId if available
+    // This enables pre-filling the input with segment discovery context
+    const params = discoveryId ? `?discoveryId=${discoveryId}` : '';
+    setLocation(`/strategic-consultant${params}`);
   };
 
   if (isLoading) {
