@@ -414,7 +414,7 @@ Return ONLY valid JSON array with exactly ${count} genomes:
     return withRetry(async () => {
       const response = await withTimeout(
         this.anthropic.messages.create({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-3-5-haiku-20241022', // FAST model for batch genome generation
           max_tokens: 8000,
           messages: [{ role: 'user', content: prompt }],
         }),
@@ -523,7 +523,7 @@ Return ONLY valid JSON array:
     return withRetry(async () => {
       const response = await withTimeout(
         this.anthropic.messages.create({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-3-5-haiku-20241022', // FAST model for scoring batches
           max_tokens: 8000,
           messages: [{ role: 'user', content: prompt }],
         }),
@@ -636,7 +636,7 @@ Return ONLY valid JSON array with updated genomes:
       return await withRetry(async () => {
         const response = await withTimeout(
           this.anthropic.messages.create({
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-3-5-haiku-20241022', // FAST model for stress testing
             max_tokens: 4000,
             messages: [{ role: 'user', content: prompt }],
           }),
