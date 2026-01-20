@@ -470,6 +470,64 @@ Return ONLY valid JSON array with exactly ${count} genomes:
     return scoredGenomes.sort((a, b) => b.fitness.totalScore - a.fitness.totalScore);
   }
 
+  async scoreGenomesWithProgress(
+    genomes: Genome[], 
+    context: DiscoveryContext,
+    onProgress: (step: string, progress: number) => void,
+    startTime: number,
+    ttfurLogged: boolean,
+    setTtfurLogged: (logged: boolean) => void
+  ): Promise<Genome[]> {
+    const batchSize = 25;
+    const batches: Genome[][] = [];
+
+    for (let i = 0; i < genomes.length; i += batchSize) {
+      batches.push(genomes.slice(i, i + batchSize));
+    }
+
+    const scoredBatches: Genome[][] = [];
+    let scoredCount = 0;
+    const totalGenomes = genomes.length;
+
+    // Process batches in parallel but emit progress after each completes
+    const batchPromises = batches.map((batch, batchIndex) => 
+      this.scoreBatch(batch, context).then(result => {
+        scoredCount += result.length;
+        scoredBatches[batchIndex] = result;
+        
+        // Emit partial_scores after each batch completes
+        const partialData = {
+          scored: result.map(g => ({
+            id: g.id,
+            genes: g.genes,
+            score: g.fitness.totalScore,
+            narrative: g.narrativeReason
+          })),
+          progress: `${scoredCount}/${totalGenomes} segments scored`,
+          batchIndex: batchIndex + 1,
+          totalBatches: batches.length,
+          elapsed: Date.now() - startTime
+        };
+        
+        onProgress('partial_scores:' + JSON.stringify(partialData), Math.round((scoredCount / totalGenomes) * 20) + 50);
+        
+        // Log TTFUR on first partial event
+        if (!ttfurLogged) {
+          const ttfur = Date.now() - startTime;
+          console.log(`[Performance] TTFUR: ${(ttfur/1000).toFixed(1)}s`);
+          setTtfurLogged(true);
+        }
+        
+        return result;
+      })
+    );
+
+    await Promise.all(batchPromises);
+
+    const scoredGenomes = scoredBatches.flat();
+    return scoredGenomes.sort((a, b) => b.fitness.totalScore - a.fitness.totalScore);
+  }
+
   private async scoreBatch(genomes: Genome[], context: DiscoveryContext): Promise<Genome[]> {
     const prompt = `You are a rigorous market analyst scoring segment viability.
 
@@ -825,6 +883,7 @@ Return ONLY valid JSON:
     // Timing instrumentation
     const timings: Record<string, number> = {};
     const discoveryStartTime = Date.now();
+    let ttfurLogged = false;
     
     const time = async <T>(name: string, fn: () => Promise<T>): Promise<T> => {
       const start = Date.now();
@@ -832,6 +891,12 @@ Return ONLY valid JSON:
       timings[name] = Date.now() - start;
       console.log(`[SegmentDiscovery Timing] ${name}: ${timings[name]}ms (${(timings[name]/1000).toFixed(1)}s)`);
       return result;
+    };
+
+    // Helper to count unique roles
+    const countUniqueRoles = (genomes: Genome[]): number => {
+      const roles = new Set(genomes.map(g => g.genes.decision_maker));
+      return roles.size;
     };
 
     onProgress('Generating gene library', 10);
@@ -846,14 +911,52 @@ Return ONLY valid JSON:
 
     onProgress('Scoring segments', 50);
     const scoredGenomes = await time('scoreGenomes', () => 
-      this.scoreGenomes(genomes, context));
+      this.scoreGenomesWithProgress(genomes, context, onProgress, discoveryStartTime, ttfurLogged, (logged) => { ttfurLogged = logged; }));
     console.log('[SegmentDiscoveryEngine] Scored genomes, top score:', scoredGenomes[0]?.fitness.totalScore);
+
+    // Emit intermediate_results after scoring completes
+    const intermediateData = {
+      topGenomes: scoredGenomes.slice(0, 20).map(g => ({
+        id: g.id,
+        genes: g.genes,
+        score: g.fitness.totalScore,
+        narrative: g.narrativeReason
+      })),
+      stats: {
+        totalSegments: scoredGenomes.length,
+        uniqueRoles: countUniqueRoles(scoredGenomes),
+        currentStage: 'stress_testing',
+        stagesCompleted: 3,
+        totalStages: 5
+      },
+      ttfur: Date.now() - discoveryStartTime
+    };
+    onProgress('intermediate_results:' + JSON.stringify(intermediateData), 60);
+    
+    // Log TTFUR on first intermediate event
+    if (!ttfurLogged) {
+      const ttfur = Date.now() - discoveryStartTime;
+      console.log(`[Performance] TTFUR: ${(ttfur/1000).toFixed(1)}s`);
+      ttfurLogged = true;
+    }
 
     onProgress('Stress testing top candidates', 70);
     const top20 = scoredGenomes.slice(0, 20);
-    const testedGenomes = await time('stressTest', () => 
-      this.stressTest(top20));
-    console.log('[SegmentDiscoveryEngine] Stress tested top 20');
+    let testedGenomes: Genome[];
+    try {
+      testedGenomes = await time('stressTest', () => 
+        this.stressTest(top20));
+      console.log('[SegmentDiscoveryEngine] Stress tested top 20');
+    } catch (error: any) {
+      console.error('[SegmentDiscoveryEngine] Stress test failed:', error.message);
+      onProgress('stage_error:' + JSON.stringify({
+        failedStage: 'stress_testing',
+        error: error.message,
+        preserveResults: true
+      }), -1);
+      // Use un-stressed genomes and continue
+      testedGenomes = top20;
+    }
 
     // Merge stress-tested genomes with remaining scored genomes
     const finalGenomes = [
@@ -862,9 +965,30 @@ Return ONLY valid JSON:
     ];
 
     onProgress('Synthesizing recommendations', 90);
-    const synthesis = await time('synthesize', () => 
-      this.synthesize(finalGenomes, context));
-    console.log('[SegmentDiscoveryEngine] Synthesis complete, beachhead:', synthesis.beachhead.genome.id);
+    let synthesis: SegmentSynthesis;
+    try {
+      synthesis = await time('synthesize', () => 
+        this.synthesize(finalGenomes, context));
+      console.log('[SegmentDiscoveryEngine] Synthesis complete, beachhead:', synthesis.beachhead.genome.id);
+    } catch (error: any) {
+      console.error('[SegmentDiscoveryEngine] Synthesis failed:', error.message);
+      onProgress('stage_error:' + JSON.stringify({
+        failedStage: 'synthesis',
+        error: error.message,
+        preserveResults: true
+      }), -1);
+      // Create minimal synthesis from available data
+      synthesis = {
+        beachhead: {
+          genome: finalGenomes[0],
+          rationale: 'Unable to complete full synthesis due to error. This is the highest-scoring segment.',
+          validationPlan: ['Contact 5 potential customers in this segment', 'Validate problem-solution fit', 'Test pricing sensitivity'],
+        },
+        backupSegments: finalGenomes.slice(1, 4),
+        neverList: [],
+        strategicInsights: ['Synthesis incomplete - manual review recommended'],
+      };
+    }
 
     // Print timing summary
     const totalTime = Date.now() - discoveryStartTime;
@@ -877,7 +1001,8 @@ Return ONLY valid JSON:
     });
     console.log('[SegmentDiscovery] ───────────────────────────────────────');
     console.log(`[SegmentDiscovery] TOTAL: ${(totalTime/1000).toFixed(1)}s`);
-    console.log('[SegmentDiscovery] ═══════════════════════════════════════\n');
+    console.log('[SegmentDiscovery] ═══════════════════════════════════════');
+    console.log(`[Performance] Total: ${(totalTime/1000).toFixed(1)}s | TTFUR: ${ttfurLogged ? 'logged' : 'N/A'}\n`);
 
     onProgress('Complete', 100);
 

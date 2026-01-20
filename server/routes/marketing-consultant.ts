@@ -703,7 +703,32 @@ router.get('/discovery-stream/:id', async (req: Request, res: Response) => {
             return;
           }
           
-          res.write(`data: ${JSON.stringify({ type: 'progress', ...progress })}\n\n`);
+          // Parse special event types encoded in step string
+          if (progress.step?.startsWith('intermediate_results:')) {
+            try {
+              const data = JSON.parse(progress.step.replace('intermediate_results:', ''));
+              res.write(`event: intermediate_results\ndata: ${JSON.stringify(data)}\n\n`);
+            } catch (e) {
+              console.error('[Discovery Stream] Failed to parse intermediate_results:', e);
+            }
+          } else if (progress.step?.startsWith('partial_scores:')) {
+            try {
+              const data = JSON.parse(progress.step.replace('partial_scores:', ''));
+              res.write(`event: partial_scores\ndata: ${JSON.stringify(data)}\n\n`);
+            } catch (e) {
+              console.error('[Discovery Stream] Failed to parse partial_scores:', e);
+            }
+          } else if (progress.step?.startsWith('stage_error:')) {
+            try {
+              const data = JSON.parse(progress.step.replace('stage_error:', ''));
+              res.write(`event: stage_error\ndata: ${JSON.stringify(data)}\n\n`);
+            } catch (e) {
+              console.error('[Discovery Stream] Failed to parse stage_error:', e);
+            }
+          } else {
+            // Standard progress event
+            res.write(`data: ${JSON.stringify({ type: 'progress', ...progress })}\n\n`);
+          }
         } else {
           // Check database for completed status
           const [current] = await db.select()
