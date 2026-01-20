@@ -26,14 +26,16 @@ interface BMCBlock {
   researchQueries: string[];
 }
 
+type FlexibleItem = string | { priority?: string; action?: string; rationale?: string; [key: string]: any };
+
 interface BMCResult {
   blocks: BMCBlock[];
   overallConfidence: number;
   viability: string;
-  keyInsights: string[];
-  criticalGaps: string[];
-  consistencyChecks: string[];
-  recommendations: string[];
+  keyInsights: FlexibleItem[];
+  criticalGaps: FlexibleItem[];
+  consistencyChecks: FlexibleItem[];
+  recommendations: FlexibleItem[];
   contradictions?: any[];
 }
 
@@ -178,7 +180,7 @@ export default function BMCResultsPage() {
         </div>
 
         {/* Key Insights */}
-        {bmcResult.keyInsights && bmcResult.keyInsights.length > 0 && (
+        {Array.isArray(bmcResult.keyInsights) && bmcResult.keyInsights.length > 0 && (
           <Card className="mb-6">
             <CardHeader>
               <CardTitle>Key Insights</CardTitle>
@@ -186,7 +188,9 @@ export default function BMCResultsPage() {
             <CardContent>
               <ul className="list-disc list-inside space-y-2">
                 {bmcResult.keyInsights.map((insight, idx) => (
-                  <li key={idx} className="text-sm">{insight}</li>
+                  <li key={idx} className="text-sm">
+                    {typeof insight === 'string' ? insight : (insight?.action || insight?.rationale || JSON.stringify(insight))}
+                  </li>
                 ))}
               </ul>
             </CardContent>
@@ -194,7 +198,7 @@ export default function BMCResultsPage() {
         )}
 
         {/* Recommendations */}
-        {bmcResult.recommendations && bmcResult.recommendations.length > 0 && (
+        {Array.isArray(bmcResult.recommendations) && bmcResult.recommendations.length > 0 && (
           <Card className="mb-6">
             <CardHeader>
               <CardTitle>Strategic Recommendations</CardTitle>
@@ -202,7 +206,17 @@ export default function BMCResultsPage() {
             <CardContent>
               <ul className="list-disc list-inside space-y-2">
                 {bmcResult.recommendations.map((rec, idx) => (
-                  <li key={idx} className="text-sm">{rec}</li>
+                  <li key={idx} className="text-sm">
+                    {typeof rec === 'string' ? rec : (
+                      rec?.action ? (
+                        <span>
+                          {rec.priority && <Badge variant="outline" className="mr-2 text-xs">{rec.priority}</Badge>}
+                          <span className="font-medium">{rec.action}</span>
+                          {rec.rationale && <span className="text-muted-foreground ml-1">— {rec.rationale}</span>}
+                        </span>
+                      ) : JSON.stringify(rec)
+                    )}
+                  </li>
                 ))}
               </ul>
             </CardContent>
@@ -286,7 +300,9 @@ export default function BMCResultsPage() {
             <CardContent>
               <ul className="list-disc list-inside space-y-2">
                 {bmcResult.criticalGaps.map((gap, idx) => (
-                  <li key={idx} className="text-sm text-amber-600">{gap}</li>
+                  <li key={idx} className="text-sm text-amber-600">
+                    {typeof gap === 'string' ? gap : (gap?.action || gap?.rationale || JSON.stringify(gap))}
+                  </li>
                 ))}
               </ul>
             </CardContent>
