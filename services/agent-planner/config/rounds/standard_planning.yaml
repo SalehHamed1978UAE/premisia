@@ -1,0 +1,156 @@
+name: Standard Planning Process
+description: A 7-round collaborative planning process for enterprise program management
+
+rounds:
+  - round: 1
+    name: Framing
+    description: Understand scope, objectives, constraints, and success criteria
+    objectives:
+      - Clarify the program vision and strategic intent
+      - Define scope boundaries and exclusions
+      - Identify key stakeholders and their expectations
+      - Establish success metrics and acceptance criteria
+      - Surface initial constraints and assumptions
+    participating_agents:
+      - program_coordinator
+      - tech_architecture
+      - platform_delivery
+      - go_to_market
+      - customer_success
+      - risk_compliance
+      - finance_resources
+    outputs:
+      - program_charter
+      - scope_statement
+      - stakeholder_map
+      - success_criteria
+
+  - round: 2
+    name: Dependency Discovery
+    description: Identify cross-workstream dependencies, integration points, and sequencing constraints
+    objectives:
+      - Map dependencies between workstreams
+      - Identify external dependencies and third-party integrations
+      - Surface critical path elements
+      - Document handoff points between teams
+      - Identify shared resources and potential bottlenecks
+    participating_agents:
+      - program_coordinator
+      - tech_architecture
+      - platform_delivery
+      - go_to_market
+      - customer_success
+    outputs:
+      - dependency_matrix
+      - integration_map
+      - critical_path_analysis
+      - resource_conflict_report
+
+  - round: 3
+    name: Negotiation
+    description: Resolve conflicts, make trade-offs, and reach consensus on contested decisions
+    objectives:
+      - Surface conflicting requirements and priorities
+      - Facilitate trade-off discussions with clear criteria
+      - Reach consensus on scope, timeline, and resource allocation
+      - Document decisions and rationale
+      - Identify acceptable compromises
+    participating_agents:
+      - program_coordinator
+      - tech_architecture
+      - platform_delivery
+      - go_to_market
+      - customer_success
+      - risk_compliance
+      - finance_resources
+    outputs:
+      - trade_off_decisions
+      - priority_rankings
+      - scope_adjustments
+      - decision_log
+
+  - round: 4
+    name: Resource & Timeline
+    description: Allocate resources, build detailed schedule, and establish milestones
+    objectives:
+      - Assign resources to workstreams and tasks
+      - Build detailed project schedule with dependencies
+      - Define milestones and phase gates
+      - Identify resource gaps and hiring needs
+      - Establish capacity buffers and contingencies
+    participating_agents:
+      - program_coordinator
+      - platform_delivery
+      - finance_resources
+      - tech_architecture
+    outputs:
+      - resource_allocation_plan
+      - project_schedule
+      - milestone_roadmap
+      - capacity_analysis
+
+  - round: 5
+    name: Risk Assessment
+    description: Identify risks, assess impact and probability, define mitigation strategies
+    objectives:
+      - Identify technical, operational, market, and financial risks
+      - Assess risk impact and probability
+      - Define mitigation and contingency strategies
+      - Assign risk owners and escalation paths
+      - Establish risk monitoring and reporting cadence
+    participating_agents:
+      - program_coordinator
+      - risk_compliance
+      - tech_architecture
+      - finance_resources
+      - platform_delivery
+    outputs:
+      - risk_register
+      - mitigation_plans
+      - contingency_reserves
+      - risk_monitoring_plan
+
+  - round: 6
+    name: Reconciliation
+    description: Final adjustments, verify consistency, and ensure plan coherence
+    objectives:
+      - Verify alignment across all workstream plans
+      - Reconcile budget with resource allocations
+      - Ensure timeline consistency across dependencies
+      - Validate that risks are adequately addressed
+      - Confirm stakeholder expectations are captured
+    participating_agents:
+      - program_coordinator
+      - knowledge_curator
+      - finance_resources
+      - platform_delivery
+    outputs:
+      - consolidated_program_plan
+      - budget_reconciliation
+      - timeline_validation
+      - consistency_report
+
+  - round: 7
+    name: Sign-off
+    description: Final review, confidence scoring, and formal approval
+    objectives:
+      - Present consolidated plan for final review
+      - Collect confidence scores from each agent
+      - Document outstanding concerns and assumptions
+      - Obtain formal sign-off from all agents
+      - Generate final program documentation
+    participating_agents:
+      - program_coordinator
+      - tech_architecture
+      - platform_delivery
+      - go_to_market
+      - customer_success
+      - risk_compliance
+      - finance_resources
+      - knowledge_curator
+    outputs:
+      - final_program_plan
+      - confidence_scores
+      - sign_off_record
+      - outstanding_items_log
+      - knowledge_artifacts

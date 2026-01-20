@@ -60,6 +60,13 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tail
 - **Strategy Workspace**: Bridges AI analysis and EPM programs through a 4-page wizard and EPM Program View.
 - **EPM Display Formatters**: Enterprise-grade visual components for EPM data across 7 tabs with 14 specialized formatters.
 - **Intelligent Planning System**: AI-powered project planning library for schedule optimization, resource allocation, and validation.
+- **Multi-Agent EPM Generation System (January 2026)**: CrewAI-based Python service for generating EPM programs using 7 specialized agents working through 7 rounds of progressive elaboration.
+  - **Architecture**: TypeScript router (`server/services/epm-generator/`) with feature-flag controlled switching between legacy and multi-agent generators, automatic fallback on error.
+  - **Agents**: Program Coordinator, Tech Architecture Lead, Platform Delivery Manager, Go-to-Market Strategist, Customer Success Lead, Risk & Compliance Officer, Finance & Resource Manager.
+  - **Rounds**: Framing → Dependency Discovery → Negotiation → Resource & Timeline → Risk Assessment → Reconciliation → Sign-off.
+  - **Knowledge Curator**: Post-generation extraction of 10-30 knowledge emissions per program with confidence scores, supporting evidence, and contradiction tracking.
+  - **Feature Flags**: `USE_MULTI_AGENT_EPM` (default: false), `EPM_FALLBACK_ON_ERROR` (default: true), `CREWAI_SERVICE_URL`, `CF_INTEGRATION_ENABLED`, `CF_INTEGRATION_MODE`.
+  - **Python Service**: FastAPI at `services/agent-planner/` with `/health` and `/generate-program` endpoints.
 - **Journey Builder System**: Allows users to choose from 6 pre-defined journeys or create custom ones with AI validation.
 - **Universal Background Jobs System**: Hybrid system for tracking long-running operations with database persistence and real-time SSE streaming.
 - **Non-Blocking Progress UX**: Uses a fixed-position progress card (`MinimizedJobTracker`) and polling.

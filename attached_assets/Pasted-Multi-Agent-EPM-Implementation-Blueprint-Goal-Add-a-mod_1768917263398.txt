@@ -1,0 +1,77 @@
+Multi-Agent EPM Implementation Blueprint
+
+  - Goal
+    Add a modular multi-agent planner (CrewAI prototype + TS router) with a
+    post-round Knowledge Curator. Keep the legacy generator intact; allow
+    switching via feature flag.
+  - Repo Structure
+      - server/services/epm-generator/
+          - types.ts – shared interfaces (BusinessContext, EPMGeneratorInput/
+            Output, KnowledgeEmission, etc.)
+          - legacy-generator.ts – wraps existing pipeline; transforms inputs to
+            legacy format and back (wired to EPMSynthesizer)
+          - multi-agent-generator.ts – HTTP client for CrewAI service; 10‑minute
+            timeout, health check
+          - index.ts – router with options { forceMultiAgent, forceLegacy,
+            fallbackOnError }; env flag USE_MULTI_AGENT_EPM; automatic legacy
+            fallback
+          - cf-integration.ts – stub/live interfaces for Context Foundry
+            (Phase 1 logging, Phase 2 real calls)
+      - services/agent-planner/ (Python)
+          - main.py (FastAPI) + Dockerfile, requirements.txt
+          - crews/program_crew.py – fixed crew: all agents run together each
+            round, context‑chained tasks, coordinator synthesis, structured
+            parsing into program state
+          - crews/knowledge_curator.py – extraction/verification/dedup; hooks to
+            CFIntegrationHook
+          - config/agents/*.yaml – agent profiles (Program Coordinator, Tech
+            Architecture, Platform Delivery, Go-to-Market, Customer Success,
+            Risk, Finance, Knowledge Curator)
+          - config/rounds/standard_planning.yaml – 7 rounds (Framing, Dependency
+            Discovery, Negotiation, Resource & Timeline, Risk, Reconciliation,
+            Sign-off)
+          - crews/agent_loader.py, models/schemas.py (Pydantic), docker-
+            compose.yml
+  - Feature Flags & Env
+      - .env
+
+        USE_MULTI_AGENT_EPM=false
+        EPM_FALLBACK_ON_ERROR=true
+        CREWAI_SERVICE_URL=http://localhost:8001
+        CF_INTEGRATION_ENABLED=false
+        CF_INTEGRATION_MODE=stub
+        CF_API_URL=http://localhost:8002
+      - Toggle per request via router options (forceLegacy, forceMultiAgent).
+  - Execution Flow
+      1. Client calls EPM generation endpoint.
+      2. Router picks generator (legacy vs multi-agent). Multi-agent path hits
+         CrewAI service; on failure, auto-falls back to legacy if enabled.
+      3. CrewAI service runs ProgramPlanningCrew:
+          - All agents in one crew per round; tasks have structured prompts with
+            required sections (scope, deliverables, dependencies, questions,
+            risks, timeline, resources).
+          - Coordinator task synthesizes agreements/conflicts, updates
+            dependencies/open questions.
+          - Parser extracts deliverables, timelines, resources, dependencies,
+            risks into ProgramState.
+      4. After convergence, Knowledge Curator processes transcript →
+         knowledgeLedger + stats; CF hook logs/ingests.
+      5. Service returns unified EPMGeneratorOutput (program/timeline/resources/
+         risks/financial, metadata, conversationLog, decisions,
+         knowledgeLedger).
+      6. TypeScript backend forwards result to clients.
+  - Testing
+      - Start Python service (docker-compose up).
+      - USE_MULTI_AGENT_EPM=false: run legacy flow to ensure no regressions.
+      - USE_MULTI_AGENT_EPM=true: run API Gateway scenario; inspect workstreams,
+        dependencies, knowledge ledger. Confirm fallback works by stopping
+        Python service.
+      - Validate knowledge stats and ledger display.
+  - Next Steps
+      - Add CF live integration when service is available (switch
+        CF_INTEGRATION_MODE=live).
+      - Harden CrewAI service (auth, retries, persistence).
+      - Iterate prompts and parser as new agents/industries are added.
+
+  Use this blueprint as the master handoff to Replit; all paths and files are
+  named as in the repo, so they can implement step by step.

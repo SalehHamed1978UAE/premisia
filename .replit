@@ -41,3 +41,11 @@ author = "agent"
 task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5000
+
+[userenv]
+
+[userenv.shared]
+USE_MULTI_AGENT_EPM = "false"
+EPM_FALLBACK_ON_ERROR = "true"
+CF_INTEGRATION_ENABLED = "false"
+CF_INTEGRATION_MODE = "stub"
