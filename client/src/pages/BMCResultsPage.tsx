@@ -1,10 +1,10 @@
-import { useRoute } from "wouter";
+import { useRoute, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, AlertCircle, Download, FileJson, AlertTriangle } from "lucide-react";
+import { Loader2, AlertCircle, Download, FileJson, AlertTriangle, ArrowRight } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 
@@ -54,10 +54,15 @@ interface Version {
 
 export default function BMCResultsPage() {
   const [, params] = useRoute("/bmc/results/:sessionId/:versionNumber");
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   
   const sessionId = params?.sessionId || '';
   const versionNumber = params?.versionNumber ? parseInt(params.versionNumber) : 1;
+
+  const handleProceedToDecisions = () => {
+    setLocation(`/strategic-consultant/decisions/${sessionId}/${versionNumber}`);
+  };
 
   const { data: response, isLoading, error } = useQuery<{ success: boolean; version: Version }>({
     queryKey: ['/api/strategic-consultant/versions', sessionId, versionNumber],
@@ -140,14 +145,25 @@ export default function BMCResultsPage() {
                 Session: {sessionId} • Version {versionNumber}
               </p>
             </div>
-            <Button
-              onClick={handleDownloadJSON}
-              data-testid="button-download-json"
-              className="gap-2"
-            >
-              <Download className="h-4 w-4" />
-              Download JSON
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={handleDownloadJSON}
+                data-testid="button-download-json"
+                variant="outline"
+                className="gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Download JSON
+              </Button>
+              <Button
+                onClick={handleProceedToDecisions}
+                data-testid="button-proceed-decisions"
+                className="gap-2"
+              >
+                Proceed to Decisions
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           {/* Overall Metrics */}
