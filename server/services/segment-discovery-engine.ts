@@ -821,22 +821,38 @@ Return ONLY valid JSON:
     synthesis: SegmentSynthesis;
   }> {
     console.log('[SegmentDiscoveryEngine] Starting discovery for:', context.offeringType);
+    
+    // Timing instrumentation
+    const timings: Record<string, number> = {};
+    const discoveryStartTime = Date.now();
+    
+    const time = async <T>(name: string, fn: () => Promise<T>): Promise<T> => {
+      const start = Date.now();
+      const result = await fn();
+      timings[name] = Date.now() - start;
+      console.log(`[SegmentDiscovery Timing] ${name}: ${timings[name]}ms (${(timings[name]/1000).toFixed(1)}s)`);
+      return result;
+    };
 
     onProgress('Generating gene library', 10);
-    const geneLibrary = await this.generateGeneLibrary(context);
+    const geneLibrary = await time('generateGeneLibrary', () => 
+      this.generateGeneLibrary(context));
     console.log('[SegmentDiscoveryEngine] Gene library generated:', Object.keys(geneLibrary.dimensions).length, 'dimensions');
 
     onProgress('Creating segment combinations', 30);
-    const genomes = await this.generateGenomes(geneLibrary, context, 100);
+    const genomes = await time('generateGenomes', () => 
+      this.generateGenomes(geneLibrary, context, 100));
     console.log('[SegmentDiscoveryEngine] Generated', genomes.length, 'genomes');
 
     onProgress('Scoring segments', 50);
-    const scoredGenomes = await this.scoreGenomes(genomes, context);
+    const scoredGenomes = await time('scoreGenomes', () => 
+      this.scoreGenomes(genomes, context));
     console.log('[SegmentDiscoveryEngine] Scored genomes, top score:', scoredGenomes[0]?.fitness.totalScore);
 
     onProgress('Stress testing top candidates', 70);
     const top20 = scoredGenomes.slice(0, 20);
-    const testedGenomes = await this.stressTest(top20);
+    const testedGenomes = await time('stressTest', () => 
+      this.stressTest(top20));
     console.log('[SegmentDiscoveryEngine] Stress tested top 20');
 
     // Merge stress-tested genomes with remaining scored genomes
@@ -846,9 +862,22 @@ Return ONLY valid JSON:
     ];
 
     onProgress('Synthesizing recommendations', 90);
-    // Synthesize using stress-tested data for consistent rationales
-    const synthesis = await this.synthesize(finalGenomes, context);
+    const synthesis = await time('synthesize', () => 
+      this.synthesize(finalGenomes, context));
     console.log('[SegmentDiscoveryEngine] Synthesis complete, beachhead:', synthesis.beachhead.genome.id);
+
+    // Print timing summary
+    const totalTime = Date.now() - discoveryStartTime;
+    console.log('\n[SegmentDiscovery] ═══════════════════════════════════════');
+    console.log('[SegmentDiscovery] TIMING SUMMARY');
+    console.log('[SegmentDiscovery] ═══════════════════════════════════════');
+    Object.entries(timings).forEach(([name, ms]) => {
+      const pct = ((ms / totalTime) * 100).toFixed(1);
+      console.log(`[SegmentDiscovery] ${name.padEnd(25)} ${(ms/1000).toFixed(1)}s (${pct}%)`);
+    });
+    console.log('[SegmentDiscovery] ───────────────────────────────────────');
+    console.log(`[SegmentDiscovery] TOTAL: ${(totalTime/1000).toFixed(1)}s`);
+    console.log('[SegmentDiscovery] ═══════════════════════════════════════\n');
 
     onProgress('Complete', 100);
 
