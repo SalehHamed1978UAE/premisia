@@ -827,6 +827,12 @@ router.get('/results/:id', async (req: Request, res: Response) => {
     if (!record) {
       return res.status(404).json({ error: 'Record not found' });
     }
+    
+    // Debug: log what fields Drizzle returns
+    console.log('[Results] Record keys:', Object.keys(record));
+    console.log('[Results] geneLibrary type:', typeof record.geneLibrary, 'truthy:', !!record.geneLibrary);
+    console.log('[Results] genomes type:', typeof record.genomes, 'truthy:', !!record.genomes);
+    console.log('[Results] synthesis type:', typeof record.synthesis, 'truthy:', !!record.synthesis);
 
     if (record.userId !== userId) {
       return res.status(403).json({ error: 'Not authorized' });
