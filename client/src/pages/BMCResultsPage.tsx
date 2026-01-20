@@ -218,7 +218,7 @@ export default function BMCResultsPage() {
                   <CardDescription className="mt-2">{block.description}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {block.keyFindings && block.keyFindings.length > 0 && (
+                  {Array.isArray(block.keyFindings) && block.keyFindings.length > 0 && (
                     <div>
                       <h4 className="font-semibold text-sm mb-2">Key Findings</h4>
                       <ul className="list-disc list-inside space-y-1">
@@ -229,7 +229,7 @@ export default function BMCResultsPage() {
                     </div>
                   )}
 
-                  {block.strategicImplications && block.strategicImplications.length > 0 && (
+                  {Array.isArray(block.strategicImplications) && block.strategicImplications.length > 0 && (
                     <div>
                       <h4 className="font-semibold text-sm mb-2">Strategic Implications</h4>
                       <ul className="list-disc list-inside space-y-1">
@@ -240,7 +240,7 @@ export default function BMCResultsPage() {
                     </div>
                   )}
 
-                  {block.identifiedGaps && block.identifiedGaps.length > 0 && (
+                  {Array.isArray(block.identifiedGaps) && block.identifiedGaps.length > 0 && (
                     <div>
                       <h4 className="font-semibold text-sm mb-2 text-amber-600">Identified Gaps</h4>
                       <ul className="list-disc list-inside space-y-1">
@@ -257,7 +257,7 @@ export default function BMCResultsPage() {
         </div>
 
         {/* Critical Gaps */}
-        {bmcResult.criticalGaps && bmcResult.criticalGaps.length > 0 && (
+        {Array.isArray(bmcResult.criticalGaps) && bmcResult.criticalGaps.length > 0 && (
           <Card className="mt-6">
             <CardHeader>
               <CardTitle className="text-amber-600">Critical Gaps to Address</CardTitle>
