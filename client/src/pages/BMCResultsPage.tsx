@@ -8,13 +8,21 @@ import { Loader2, AlertCircle, Download, FileJson, AlertTriangle } from "lucide-
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 
+interface StrategicImplication {
+  priority?: string;
+  action: string;
+  rationale?: string;
+}
+
+type ImplicationItem = string | StrategicImplication;
+
 interface BMCBlock {
   blockName: string;
   description: string;
-  keyFindings: string[];
+  keyFindings: (string | { action?: string; rationale?: string })[];
   confidence: number;
-  strategicImplications: string[];
-  identifiedGaps: string[];
+  strategicImplications: ImplicationItem[];
+  identifiedGaps: (string | { action?: string; rationale?: string })[];
   researchQueries: string[];
 }
 
@@ -223,7 +231,9 @@ export default function BMCResultsPage() {
                       <h4 className="font-semibold text-sm mb-2">Key Findings</h4>
                       <ul className="list-disc list-inside space-y-1">
                         {block.keyFindings.map((finding, fidx) => (
-                          <li key={fidx} className="text-sm text-muted-foreground">{finding}</li>
+                          <li key={fidx} className="text-sm text-muted-foreground">
+                            {typeof finding === 'string' ? finding : (finding?.action || finding?.rationale || JSON.stringify(finding))}
+                          </li>
                         ))}
                       </ul>
                     </div>
@@ -234,7 +244,16 @@ export default function BMCResultsPage() {
                       <h4 className="font-semibold text-sm mb-2">Strategic Implications</h4>
                       <ul className="list-disc list-inside space-y-1">
                         {block.strategicImplications.map((impl, iidx) => (
-                          <li key={iidx} className="text-sm text-muted-foreground">{impl}</li>
+                          <li key={iidx} className="text-sm text-muted-foreground">
+                            {typeof impl === 'string' ? impl : (
+                              impl?.action ? (
+                                <span>
+                                  <span className="font-medium">{impl.action}</span>
+                                  {impl.rationale && <span className="text-xs text-muted-foreground/70 ml-1">— {impl.rationale}</span>}
+                                </span>
+                              ) : JSON.stringify(impl)
+                            )}
+                          </li>
                         ))}
                       </ul>
                     </div>
@@ -245,7 +264,9 @@ export default function BMCResultsPage() {
                       <h4 className="font-semibold text-sm mb-2 text-amber-600">Identified Gaps</h4>
                       <ul className="list-disc list-inside space-y-1">
                         {block.identifiedGaps.map((gap, gidx) => (
-                          <li key={gidx} className="text-sm text-amber-600">{gap}</li>
+                          <li key={gidx} className="text-sm text-amber-600">
+                            {typeof gap === 'string' ? gap : (gap?.action || gap?.rationale || JSON.stringify(gap))}
+                          </li>
                         ))}
                       </ul>
                     </div>
