@@ -604,6 +604,9 @@ async function runSegmentDiscovery(id: string, userId: string, context: any) {
     // Cache the result for future requests (user-scoped)
     discoveryCacheService.set(userId, context, result);
 
+    // Debug: Log result sizes before encryption
+    console.log(`[Segment Discovery ${id}] Result sizes - geneLibrary: ${result.geneLibrary ? Object.keys(result.geneLibrary.dimensions || {}).length : 'null'} dims, genomes: ${result.genomes?.length || 0}, synthesis: ${result.synthesis?.beachhead ? 'has beachhead' : 'null'}`);
+
     // Encrypt and save results to database (parallel for speed)
     const [encryptedGeneLibrary, encryptedGenomes, encryptedSynthesis] = await Promise.all([
       encryptJSONKMS(result.geneLibrary),
@@ -611,17 +614,25 @@ async function runSegmentDiscovery(id: string, userId: string, context: any) {
       encryptJSONKMS(result.synthesis),
     ]);
 
+    // Debug: Log encryption results
+    console.log(`[Segment Discovery ${id}] Encryption results - geneLibrary: ${encryptedGeneLibrary ? encryptedGeneLibrary.length + ' chars' : 'NULL'}, genomes: ${encryptedGenomes ? encryptedGenomes.length + ' chars' : 'NULL'}, synthesis: ${encryptedSynthesis ? encryptedSynthesis.length + ' chars' : 'NULL'}`);
+
+    if (!encryptedGeneLibrary || !encryptedGenomes || !encryptedSynthesis) {
+      console.error(`[Segment Discovery ${id}] ENCRYPTION FAILED - one or more fields returned null!`);
+    }
+
     await db.update(segmentDiscoveryResults)
       .set({
-        geneLibrary: encryptedGeneLibrary || result.geneLibrary,
-        genomes: encryptedGenomes || result.genomes,
-        synthesis: encryptedSynthesis || result.synthesis,
+        geneLibrary: encryptedGeneLibrary,
+        genomes: encryptedGenomes,
+        synthesis: encryptedSynthesis,
         status: 'completed',
         completedAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(segmentDiscoveryResults.id, id));
 
+    console.log(`[Segment Discovery ${id}] Database update completed`);
     discoveryProgress.set(id, { step: 'Complete', progress: 100, message: 'Discovery complete!' });
     console.log(`[Segment Discovery ${id}] Completed successfully`);
   } catch (error: any) {
