@@ -1,10 +1,10 @@
-modules = ["nodejs-20", "web", "postgresql-16"]
+modules = ["nodejs-20", "web", "postgresql-16", "python-3.11"]
 run = "npm run dev"
 hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
 [nix]
 channel = "stable-24_05"
-packages = ["glib", "nss", "nspr", "atk", "at-spi2-core", "cups", "dbus", "libdrm", "gtk3", "pango", "cairo", "xorg.libxcb", "libxkbcommon", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "mesa", "expat", "alsa-lib", "chromium"]
+packages = ["alsa-lib", "at-spi2-core", "atk", "cairo", "chromium", "cups", "dbus", "expat", "glib", "gtk3", "libdrm", "libxcrypt", "libxkbcommon", "mesa", "nspr", "nss", "pango", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "xorg.libxcb"]
 
 [deployment]
 deploymentTarget = "autoscale"
@@ -45,7 +45,8 @@ waitForPort = 5000
 [userenv]
 
 [userenv.shared]
-USE_MULTI_AGENT_EPM = "false"
+USE_MULTI_AGENT_EPM = "true"
 EPM_FALLBACK_ON_ERROR = "true"
 CF_INTEGRATION_ENABLED = "false"
 CF_INTEGRATION_MODE = "stub"
+CREWAI_SERVICE_URL = "http://localhost:8001"
