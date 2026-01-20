@@ -1002,6 +1002,20 @@ export const segmentDiscoveryResults = pgTable("segment_discovery_results", {
   genomes: jsonb("genomes"), // encrypted - array of 100 genomes with scores
   synthesis: jsonb("synthesis"), // encrypted - beachhead, backup, validation plan
   
+  // Lightweight summary for instant loading (NOT encrypted for fast access)
+  summary: jsonb("summary").$type<{
+    topGenomes: Array<{
+      id: string;
+      genes: Record<string, string>;
+      score: number;
+      narrative: string;
+    }>;
+    beachheadId: string;
+    totalSegments: number;
+    uniqueRoles: number;
+    completedAt: string;
+  }>(),
+  
   // LLM-generated summary for Strategic Consultant handoff (encrypted)
   strategicSummary: text("strategic_summary"), // encrypted - cached summary for strategic analysis
   

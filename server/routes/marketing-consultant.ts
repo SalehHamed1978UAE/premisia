@@ -621,11 +621,27 @@ async function runSegmentDiscovery(id: string, userId: string, context: any) {
       console.error(`[Segment Discovery ${id}] ENCRYPTION FAILED - one or more fields returned null!`);
     }
 
+    // Create lightweight summary for instant loading (NOT encrypted)
+    const uniqueRoles = new Set(result.genomes.map(g => g.genes.decision_maker)).size;
+    const summary = {
+      topGenomes: result.genomes.slice(0, 20).map(g => ({
+        id: g.id,
+        genes: g.genes,
+        score: g.fitness.totalScore,
+        narrative: g.narrativeReason
+      })),
+      beachheadId: result.synthesis.beachhead.genome.id,
+      totalSegments: result.genomes.length,
+      uniqueRoles,
+      completedAt: new Date().toISOString()
+    };
+
     await db.update(segmentDiscoveryResults)
       .set({
         geneLibrary: encryptedGeneLibrary,
         genomes: encryptedGenomes,
         synthesis: encryptedSynthesis,
+        summary,
         status: 'completed',
         completedAt: new Date(),
         updatedAt: new Date(),
@@ -782,6 +798,7 @@ router.get('/results/:id', async (req: Request, res: Response) => {
 
     const userId = user.claims.sub;
     const { id } = req.params;
+    const expandFull = req.query.expand === 'full';
 
     const [record] = await db.select()
       .from(segmentDiscoveryResults)
@@ -796,7 +813,21 @@ router.get('/results/:id', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    // Decrypt sensitive fields
+    // If summary exists and expand=full is not requested, return lightweight summary
+    if (record.summary && !expandFull) {
+      console.log('[Results] Returning lightweight summary (no decryption)');
+      return res.json({
+        id: record.id,
+        summary: record.summary,
+        offeringType: record.offeringType,
+        stage: record.stage,
+        status: record.status,
+        createdAt: record.createdAt,
+        completedAt: record.completedAt,
+      });
+    }
+
+    // Full payload - decrypt all fields
     const decryptedDescription = await decryptKMS(record.offeringDescription);
     const decryptedHypothesis = record.existingHypothesis ? await decryptKMS(record.existingHypothesis) : null;
     const decryptedClarifications = record.clarifications ? await decryptJSONKMS(record.clarifications as string) : null;
@@ -875,6 +906,7 @@ router.get('/results/:id', async (req: Request, res: Response) => {
       geneLibrary: decryptedGeneLibrary,
       genomes: decryptedGenomes,
       synthesis: decryptedSynthesis,
+      summary: record.summary,
       status: record.status,
       errorMessage: record.errorMessage,
       createdAt: record.createdAt,
