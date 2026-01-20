@@ -129,8 +129,9 @@ interface StreamingState {
   ttfur: number | null;
   scoredCount: number;
   topScore: number;
-  topGenomes: Array<{id: string; score: number; genes: Genome['genes']}>;
+  topGenomes: Array<{id: string; score: number; genes: Genome['genes']; narrative?: string}>;
   stageErrors: string[];
+  earlyPreviewReady: boolean;
 }
 
 export default function SegmentDiscoveryPage() {
@@ -154,6 +155,7 @@ export default function SegmentDiscoveryPage() {
     topScore: 0,
     topGenomes: [],
     stageErrors: [],
+    earlyPreviewReady: false,
   });
 
   const { data: results, refetch: refetchResults } = useQuery<DiscoveryResults>({
@@ -256,11 +258,30 @@ export default function SegmentDiscoveryPage() {
     eventSource.addEventListener('partial_scores', (event: MessageEvent) => {
       try {
         const data = JSON.parse(event.data);
-        setStreamingState(prev => ({
-          ...prev,
-          scoredCount: data.scoredCount || 0,
-          topScore: data.topScore || 0,
+        console.log('[SegmentDiscovery] Received partial_scores:', data.scored?.length, 'genomes');
+        
+        // Extract scored genomes from this batch
+        const newScoredGenomes = (data.scored || []).map((g: any) => ({
+          id: g.id,
+          score: g.score,
+          genes: g.genes,
+          narrative: g.narrative
         }));
+        
+        setStreamingState(prev => {
+          // Merge new genomes with existing, keeping highest scores on top
+          const allGenomes = [...prev.topGenomes, ...newScoredGenomes];
+          const sortedGenomes = allGenomes.sort((a, b) => b.score - a.score).slice(0, 20);
+          const topScore = sortedGenomes[0]?.score || 0;
+          
+          return {
+            ...prev,
+            scoredCount: prev.scoredCount + newScoredGenomes.length,
+            topScore,
+            topGenomes: sortedGenomes,
+            earlyPreviewReady: sortedGenomes.length > 0,
+          };
+        });
       } catch (e) {
         console.error('[SegmentDiscovery] Failed to parse partial_scores:', e);
       }
