@@ -80,12 +80,36 @@ interface DiscoveryResults {
 }
 
 interface ProgressEvent {
+  type?: string;
   step: string;
   progress: number;
-  message: string;
+  message?: string;
+  ttfur?: number;
+  stageError?: string;
+  partialScores?: {
+    scoredCount: number;
+    topScore: number;
+    averageScore: number;
+  };
+  intermediateResults?: {
+    genomesCount: number;
+    topGenomes: Array<{
+      id: string;
+      score: number;
+      genes: Genome['genes'];
+    }>;
+  };
 }
 
 type PageState = 'starting' | 'progress' | 'results' | 'error';
+
+interface StreamingState {
+  ttfur: number | null;
+  scoredCount: number;
+  topScore: number;
+  topGenomes: Array<{id: string; score: number; genes: Genome['genes']}>;
+  stageErrors: string[];
+}
 
 export default function SegmentDiscoveryPage() {
   // Support both /segment-discovery/:id and /results/:id routes
@@ -102,6 +126,13 @@ export default function SegmentDiscoveryPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const hasStartedRef = useRef(false);
+  const [streamingState, setStreamingState] = useState<StreamingState>({
+    ttfur: null,
+    scoredCount: 0,
+    topScore: 0,
+    topGenomes: [],
+    stageErrors: [],
+  });
 
   const { data: results, refetch: refetchResults } = useQuery<DiscoveryResults>({
     queryKey: ['/api/marketing-consultant/results', understandingId],
@@ -155,21 +186,80 @@ export default function SegmentDiscoveryPage() {
     const eventSource = new EventSource(`/api/marketing-consultant/discovery-stream/${understandingId}`);
     eventSourceRef.current = eventSource;
 
+    // Handle default message events (progress updates)
     eventSource.onmessage = (event) => {
       try {
         const data: ProgressEvent = JSON.parse(event.data);
+        
+        // Update basic progress
         setCurrentStep(data.step);
         setProgress(data.progress);
 
-        if (data.step === 'complete' || data.progress >= 100) {
+        // Handle completion
+        if (data.type === 'complete' || data.step === 'complete' || data.progress >= 100) {
           eventSource.close();
           setPageState('results');
           refetchResults();
+        }
+
+        // Handle fatal error
+        if (data.type === 'error') {
+          eventSource.close();
+          setErrorMessage(data.message || 'Discovery failed');
+          setPageState('error');
         }
       } catch (error) {
         console.error('[SegmentDiscovery] SSE parse error:', error);
       }
     };
+
+    // Handle named events for streaming updates
+    eventSource.addEventListener('intermediate_results', (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log('[SegmentDiscovery] Received intermediate_results:', data.genomesCount);
+        setStreamingState(prev => ({
+          ...prev,
+          topGenomes: data.topGenomes || [],
+        }));
+        if (data.ttfur !== undefined) {
+          console.log(`[SegmentDiscovery] TTFUR: ${data.ttfur}s`);
+          setStreamingState(prev => ({ ...prev, ttfur: data.ttfur }));
+        }
+      } catch (e) {
+        console.error('[SegmentDiscovery] Failed to parse intermediate_results:', e);
+      }
+    });
+
+    eventSource.addEventListener('partial_scores', (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        setStreamingState(prev => ({
+          ...prev,
+          scoredCount: data.scoredCount || 0,
+          topScore: data.topScore || 0,
+        }));
+      } catch (e) {
+        console.error('[SegmentDiscovery] Failed to parse partial_scores:', e);
+      }
+    });
+
+    eventSource.addEventListener('stage_error', (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        setStreamingState(prev => ({
+          ...prev,
+          stageErrors: [...prev.stageErrors, data.error || data.message || 'Stage error'],
+        }));
+        toast({
+          title: "Warning",
+          description: data.error || data.message || 'A stage encountered an issue but discovery continues',
+          variant: "default",
+        });
+      } catch (e) {
+        console.error('[SegmentDiscovery] Failed to parse stage_error:', e);
+      }
+    });
 
     eventSource.onerror = (error) => {
       console.error('[SegmentDiscovery] SSE error:', error);
@@ -308,12 +398,14 @@ export default function SegmentDiscoveryPage() {
   }
 
   if (pageState === 'progress') {
+    const hasEarlyResults = streamingState.topGenomes.length > 0;
+    
     return (
       <AppLayout
         title="Segment Discovery"
         subtitle="Analyzing market segments..."
       >
-        <div className="flex items-center justify-center min-h-[60vh]" data-testid="state-progress">
+        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6" data-testid="state-progress">
           <div className="w-full max-w-md space-y-8">
             <div className="text-center space-y-4">
               <div className="relative inline-flex items-center justify-center">
@@ -353,6 +445,11 @@ export default function SegmentDiscoveryPage() {
                 <p className="text-sm text-muted-foreground">
                   Discovering your ideal customer segments...
                 </p>
+                {streamingState.scoredCount > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Scored {streamingState.scoredCount}/100 segments • Top score: {streamingState.topScore}/40
+                  </p>
+                )}
               </div>
             </div>
 
@@ -362,6 +459,38 @@ export default function SegmentDiscoveryPage() {
               This may take a few minutes. Please don't close this page.
             </div>
           </div>
+
+          {/* Early results preview */}
+          {hasEarlyResults && (
+            <Card className="w-full max-w-2xl border-primary/20 bg-primary/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Target className="h-4 w-4 text-primary" />
+                  Early Results Preview
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Top segments identified so far (final results may differ)
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {streamingState.topGenomes.slice(0, 5).map((genome, idx) => (
+                    <div key={genome.id} className="flex items-center justify-between p-2 rounded bg-background/50 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">{idx + 1}</Badge>
+                        <span className="font-medium">{genome.genes.decision_maker}</span>
+                        <span className="text-muted-foreground">in</span>
+                        <span>{genome.genes.industry_vertical}</span>
+                      </div>
+                      <Badge variant={genome.score > 32 ? 'default' : 'secondary'}>
+                        {genome.score}/40
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </AppLayout>
     );
