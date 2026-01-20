@@ -1,0 +1,279 @@
+Here's the complete document:
+
+Premisia Performance Optimization: Phases 4, 5 & 7 (Final)
+Goal
+Reduce perceived wait time by streaming intermediate results and loading summaries instantly. The core genome pipeline remains sequential to preserve output diversity.
+
+Phase 4: Intermediate Streaming & Progressive UI
+Backend Changes (server/services/segment-discovery-engine.ts):
+
+TTFUR Logging: At the start of runSegmentDiscovery, capture the start time:
+
+typescriptconst startTime = Date.now();
+let ttfurLogged = false;
+
+Callback compatibility: The current onProgress signature is (step: string, progress: number). To avoid breaking changes, encode the new event types in the step string:
+
+typescript// After scoring completes:
+const intermediateData = {
+  topGenomes: scoredGenomes.slice(0, 20).map(g => ({
+    id: g.id,
+    genes: g.genes,
+    score: g.score,
+    narrative: g.narrative
+  })),
+  stats: {
+    totalSegments: scoredGenomes.length,
+    uniqueRoles: countUniqueRoles(scoredGenomes),
+    currentStage: 'stress_testing',
+    stagesCompleted: 3,
+    totalStages: 5
+  },
+  ttfur: Date.now() - startTime
+};
+
+onProgress('intermediate_results:' + JSON.stringify(intermediateData), 60);
+
+// Log TTFUR on first intermediate or partial event
+if (!ttfurLogged) {
+  const ttfur = Date.now() - startTime;
+  console.log(`[Performance] TTFUR: ${(ttfur/1000).toFixed(1)}s`);
+  ttfurLogged = true;
+}
+
+Partial scoring (emit per batch of 25): Scoring already runs in batches of 25. Emit after each batch completes:
+
+typescript// Inside scoring loop, after each batch of 25 completes:
+const partialData = {
+  scored: currentBatch,
+  progress: `${scoredCount}/${totalGenomes} segments scored`,
+  elapsed: Date.now() - startTime
+};
+
+onProgress('partial_scores:' + JSON.stringify(partialData), Math.round((scoredCount / totalGenomes) * 50) + 30);
+
+// Log TTFUR on first partial event
+if (!ttfurLogged) {
+  const ttfur = Date.now() - startTime;
+  console.log(`[Performance] TTFUR: ${(ttfur/1000).toFixed(1)}s`);
+  ttfurLogged = true;
+}
+
+Final timing log: At the end of the run:
+
+typescriptconst totalDuration = Date.now() - startTime;
+console.log(`[Performance] Total: ${(totalDuration/1000).toFixed(1)}s | TTFUR: ${ttfurLogged ? 'logged' : 'N/A'}`);
+Backend Changes (server/routes/marketing-consultant.ts):
+
+Update the SSE handler to parse and forward the new event types:
+
+typescript// When step starts with 'intermediate_results:', 'partial_scores:', or 'stage_error:'
+if (step.startsWith('intermediate_results:')) {
+  const data = JSON.parse(step.replace('intermediate_results:', ''));
+  res.write(`event: intermediate_results\ndata: ${JSON.stringify(data)}\n\n`);
+} else if (step.startsWith('partial_scores:')) {
+  const data = JSON.parse(step.replace('partial_scores:', ''));
+  res.write(`event: partial_scores\ndata: ${JSON.stringify(data)}\n\n`);
+} else if (step.startsWith('stage_error:')) {
+  const data = JSON.parse(step.replace('stage_error:', ''));
+  res.write(`event: stage_error\ndata: ${JSON.stringify(data)}\n\n`);
+} else {
+  // Existing progress handling
+}
+```
+
+**Frontend Changes (Discovery Results Page):**
+
+6. **Skeleton UI:** Render the full results page layout immediately on navigation (empty cards, headers, sections). Don't wait for data to show structure.
+
+7. **Progressive data display:** 
+   - Listen for `intermediate_results` and `partial_scores` SSE events
+   - When received, populate the skeleton with real data
+   - Label the section clearly: **"Top candidates so far..."** with a subtle pulsing dot or spinner indicating processing continues
+   - As more data arrives, update in place without layout shift
+
+8. **Stage indicator:** Display current progress using the timing data:
+```
+   Step 3 of 5: Scoring segments
+   Usually takes 2-3 minutes total
+   ████████░░░░░░░░ 60%
+   89 segments analyzed · 52 decision-maker roles identified
+
+Background processing option (future enhancement): Add a "Notify me when complete" button that allows users to navigate elsewhere. Mark as optional for this phase.
+
+Error Handling (Critical):
+
+SSE error event: If stress testing or synthesis fails, the backend must send an explicit error event:
+
+typescriptonProgress('stage_error:' + JSON.stringify({
+  failedStage: 'stress_testing',
+  error: error.message,
+  preserveResults: true
+}), -1);
+
+Frontend error preservation - THIS IS CRITICAL: When a stage_error event is received:
+
+DO NOT clear the previously streamed "top candidates" snapshot
+Never call setState([]) or clear the genome preview on error
+Keep all previously rendered intermediate results visible
+Append the error message below the existing content
+Show which stage failed: "Stress testing encountered an error"
+Future enhancement: "Retry from [failed stage]" button (requires persisting intermediate state to database - defer to later phase)
+
+
+
+
+Phase 5: Lightweight Summary Storage & Lazy Loading
+Schema Changes (shared/schema.ts):
+
+Add a summary column to the segmentDiscoveryResults table:
+
+typescriptsummary: jsonb('summary').$type<{
+  topGenomes: Array<{
+    id: string;
+    genes: string[];
+    score: number;
+    narrative: string;
+  }>;
+  beachheadId: string;
+  totalSegments: number;
+  uniqueRoles: number;
+  completedAt: string;
+}>()
+
+Run migration after schema update:
+
+bashnpm run db:push
+Backend Changes:
+
+When saving discovery results, populate the summary with a compact snapshot:
+
+typescriptconst summary = {
+  topGenomes: results.genomes.slice(0, 20).map(g => ({
+    id: g.id,
+    genes: g.genes,
+    score: g.score,
+    narrative: g.narrative
+  })),
+  beachheadId: results.beachhead.id,
+  totalSegments: results.genomes.length,
+  uniqueRoles: countUniqueRoles(results.genomes),
+  completedAt: new Date().toISOString()
+};
+
+Update the /api/marketing-consultant/results/:id endpoint (verify actual route path matches your routing structure):
+
+Default behavior: Return only the summary column (no decryption, instant response)
+Full payload: Only decrypt and return complete data when ?expand=full query param is present
+
+
+
+typescript// GET /api/marketing-consultant/results/:id
+if (req.query.expand === 'full') {
+  // Decrypt and return full payload
+  const decrypted = await decrypt(result.encryptedData);
+  return res.json({ ...result, data: decrypted });
+} else {
+  // Return summary only (no decryption)
+  return res.json({ 
+    id: result.id,
+    summary: result.summary,
+    createdAt: result.createdAt
+  });
+}
+Frontend Changes:
+
+Results list page: Use summary data to render cards immediately
+Results detail page:
+
+Load with summary data first (instant)
+Show a "View full genome list" button that triggers ?expand=full fetch
+Display loading state only for the expanded section, not the whole page
+
+
+
+
+Phase 7: Strategic Consultant Batched Web Searches
+Setup:
+bashnpm install p-limit
+Backend Changes (server/routes/strategic-consultant.ts):
+
+Identify where web search queries are made during market research/analysis phases.
+Implement batched parallel execution with a concurrency limit of 3, using Promise.allSettled for resilience:
+
+typescriptimport pLimit from 'p-limit';
+
+const limit = pLimit(3); // Max 3 concurrent searches
+
+async function batchedWebSearch(queries: string[], onProgress: ProgressCallback) {
+  const results = await Promise.allSettled(
+    queries.map((query, index) => 
+      limit(async () => {
+        const result = await webSearch(query);
+        onProgress({
+          type: 'search_progress',
+          data: {
+            completed: index + 1,
+            total: queries.length,
+            query: query
+          }
+        });
+        return result;
+      })
+    )
+  );
+  
+  // Handle mixed success/failure
+  const successful = results
+    .filter((r): r is PromiseFulfilledResult<SearchResult> => r.status === 'fulfilled')
+    .map(r => r.value);
+  
+  const failed = results
+    .filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+  
+  if (failed.length > 0) {
+    console.warn(`[SEARCH] ${failed.length}/${queries.length} searches failed`);
+  }
+  
+  return successful;
+}
+```
+
+3. Emit SSE progress after each search completes so the UI can show incremental results.
+
+**Note:** This applies only to the Strategic Consultant's research/web search flows. **DO NOT** apply parallel batching to any genome pipeline stages (gene library, genome creation, scoring) - those must remain sequential to avoid duplicate outputs.
+
+---
+
+### Metrics to Track
+
+After implementing Phase 4, measure and log both:
+
+| Metric | Description | Current Estimate | Target |
+|--------|-------------|------------------|--------|
+| **TTFUR** | Time from start to first `partial_scores` event | ~195 seconds | ~150-155 seconds (after first scoring batch) |
+| **Total Duration** | Full discovery completion time | ~227 seconds | <180 seconds |
+
+Log format:
+```
+[Performance] TTFUR: 152.3s
+[Performance] Total: 215.0s | TTFUR: logged
+
+Summary of Changes
+FileChangesserver/services/segment-discovery-engine.tsAdd TTFUR timing with ttfurLogged flag, emit intermediate_results after scoring, emit partial_scores after each batch of 25, emit stage_error on failuresserver/routes/marketing-consultant.tsParse step string prefixes and forward as typed SSE eventsshared/schema.tsAdd summary column to segmentDiscoveryResultsDatabaseRun npm run db:push after schema change/api/marketing-consultant/results/:idReturn summary by default, full payload only on ?expand=fullserver/routes/strategic-consultant.tsInstall p-limit, batch web searches with concurrency of 3, use Promise.allSettledFrontend results pagesSkeleton UI, progressive data display, stage indicator, error preservation (never clear state on error)
+
+Critical Reminders
+
+DO NOT parallelize genome pipeline stages - gene library, genome creation, and scoring must remain sequential to prevent duplicate outputs
+Preserve intermediate results on error - never wipe displayed data if a later stage fails; never call setState([]) on error; show error alongside existing results
+Verify actual route paths - confirm /api/marketing-consultant/results/:id matches your routing structure
+Run migration - execute npm run db:push after schema changes
+Track TTFUR - this is now the primary measure of perceived performance, separate from total runtime
+Emit partial_scores after each batch of 25 - align with existing batch structure, don't use arbitrary intervals
+
+
+Deferred to Future Phases
+
+"Retry from failed stage" functionality (requires intermediate state persistence)
+"Notify me when complete" background processing
+User-scoped caching for repeated similar inputs
