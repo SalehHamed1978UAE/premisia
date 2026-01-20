@@ -2151,6 +2151,14 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
     }
     
     const finalVersionNumber = version?.versionNumber || targetVersionNumber;
+    
+    // Use journey registry to get the correct next page in the journey sequence
+    const nextUrl = journeyRegistry.getNextPage(
+      'business_model_innovation',
+      '/strategic-consultant/research/:sessionId',
+      { sessionId, versionNumber: finalVersionNumber }
+    ) || `/bmc/results/${sessionId}/${finalVersionNumber}`;
+    
     res.write(`data: ${JSON.stringify({ 
       type: 'complete', 
       data: {
@@ -2159,11 +2167,11 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
         versionNumber: finalVersionNumber,
         sourcesAnalyzed: findings.sources.length || 9,
         timeElapsed: '~2 minutes',
-        nextUrl: `/strategy-workspace/decisions/${sessionId}/${finalVersionNumber}`,
+        nextUrl,
       }
     })}\n\n`);
     res.end();
-    console.log('[BMC-RESEARCH-STREAM] Stream ended successfully, nextUrl: /strategy-workspace/decisions/' + sessionId + '/' + finalVersionNumber);
+    console.log('[BMC-RESEARCH-STREAM] Stream ended successfully, nextUrl:', nextUrl);
   } catch (error: any) {
     console.error('Error in /bmc-research/stream:', error);
     // Ensure error has type field for frontend handling

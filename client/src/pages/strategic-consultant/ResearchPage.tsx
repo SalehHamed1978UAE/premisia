@@ -13,6 +13,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ResearchExperience } from "@/components/research-experience/ResearchExperience";
+import { BMCResearchExperience } from "@/components/research-experience/BMCResearchExperience";
 
 interface Finding {
   fact: string;
@@ -119,6 +120,7 @@ export default function ResearchPage() {
   }>>([]);
   const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [autoAdvance, setAutoAdvance] = useState<boolean>(true);
+  const [isBMCJourney, setIsBMCJourney] = useState<boolean>(false);
   
   // Use ref to prevent double execution in React Strict Mode
   const hasInitiatedResearch = useRef(false);
@@ -171,15 +173,16 @@ export default function ResearchPage() {
 
     // Only require Five-Whys data for journeys that use it (Porter's, etc.)
     // BMI/BMC journeys don't go through Five Whys, so skip this check for them
-    const isBMCJourney = journeyType === 'business_model_innovation';
-    const requiresFiveWhys = !isBMCJourney;
+    const isBMC = journeyType === 'business_model_innovation';
+    setIsBMCJourney(isBMC);
+    const requiresFiveWhys = !isBMC;
 
     if (requiresFiveWhys && (!rootCause || !whysPath.length || !input)) {
       setError('Missing required data from previous steps');
       return;
     }
 
-    if (!isBMCJourney && !input) {
+    if (!isBMC && !input) {
       setError('Missing required input from previous steps');
       return;
     }
@@ -189,7 +192,7 @@ export default function ResearchPage() {
     
     let eventSource: EventSource;
     
-    if (isBMCJourney) {
+    if (isBMC) {
       // For BMC journeys, use GET /bmc-research/stream with SSE
       // Note: Input is fetched from journey session on the backend, not passed as query param
       eventSource = new EventSource(`/api/strategic-consultant/bmc-research/stream/${sessionId}`);
@@ -343,6 +346,15 @@ export default function ResearchPage() {
   }
 
   if (isResearching) {
+    if (isBMCJourney) {
+      return (
+        <BMCResearchExperience
+          progress={progress}
+          currentMessage={currentQuery}
+          elapsedSeconds={elapsedSeconds}
+        />
+      );
+    }
     return (
       <ResearchExperience
         progress={progress}
