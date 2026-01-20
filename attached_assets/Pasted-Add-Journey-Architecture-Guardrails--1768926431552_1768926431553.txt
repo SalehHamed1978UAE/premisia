@@ -1,0 +1,278 @@
+Add Journey Architecture Guardrails                  
+                                                                                
+  Please create/update these 4 files to protect the modular journey             
+  architecture:                                                                 
+                                                                                
+  ---                                                                           
+  1. CREATE: docs/JOURNEY_ARCHITECTURE.md                                       
+                                                                                
+  # Journey Architecture - MANDATORY READING                                    
+                                                                                
+  > **If you're modifying journey, research, or framework code, READ THIS       
+  FIRST.**                                                                      
+                                                                                
+  ## Source of Truth                                                            
+                                                                                
+  | What | File |                                                               
+  |------|------|                                                               
+  | Journey Definitions | `server/journey/journey-registry.ts` |                
+  | Module Execution | `server/journey/journey-orchestrator.ts` |               
+  | Context Flow | `server/journey/strategic-context-accumulator.ts` |          
+  | Module Bridges | `server/journey/bridges/*.ts` |                            
+  | Framework Executors | `server/journey/executors/*.ts` |                     
+                                                                                
+  ## The 6 Pre-Defined Journeys                                                 
+                                                                                
+  | Journey Type | Module Sequence |                                            
+  |--------------|-----------------|                                            
+  | `business_model_innovation` | Five Whys → BMC |                             
+  | `market_entry` | PESTLE → Porter's → SWOT |                                 
+  | `competitive_strategy` | Porter's → BMC → Blue Ocean |                      
+  | `digital_transformation` | PESTLE → BMC → Ansoff |                          
+  | `crisis_recovery` | Five Whys → SWOT → BMC |                                
+  | `growth_strategy` | PESTLE → Ansoff → BMC |                                 
+                                                                                
+  ## Framework UI Components                                                    
+                                                                                
+  Each framework has its OWN UI component. DO NOT share components.             
+                                                                                
+  | Framework | Categories/Blocks | UI Component |                              
+  |-----------|-------------------|--------------|                              
+  | BMC | 9 blocks: customer_segments, value_propositions, revenue_streams,     
+  channels, customer_relationships, key_resources, key_activities,              
+  key_partnerships, cost_structure | `BMCResearchExperience.tsx` |              
+  | Porter's | 5 forces: market_dynamics, competitive_landscape, buyer_behavior,
+   regulatory_factors, language_preferences | `PortersResearchExperience.tsx` | 
+                                                                                
+  ## Rules (MUST FOLLOW)                                                        
+                                                                                
+  ### 1. Never Hardcode Journey Logic                                           
+                                                                                
+  ```typescript                                                                 
+  // ❌ WRONG - Hardcoded logic that WILL break                                 
+  if (journeyType === 'business_model_innovation') {                            
+    categories = ['customer_segments', ...];                                    
+  } else {                                                                      
+    categories = ['market_dynamics', ...];                                      
+  }                                                                             
+                                                                                
+  // ✅ CORRECT - Query the journey system                                      
+  const journey = getJourneyByType(journeyType);                                
+  const currentFramework = journey.frameworks[currentFrameworkIndex];           
+                                                                                
+  2. Never Hardcode URLs                                                        
+                                                                                
+  // ❌ WRONG - Bypasses journey page sequence                                  
+  nextUrl: `/strategy-workspace/decisions/${sessionId}/${version}`              
+                                                                                
+  // ✅ CORRECT - Use journey registry                                          
+  import { getNextPage } from '../journey/journey-registry';                    
+  const nextUrl = getNextPage(journey, currentPage, { sessionId, version });    
+                                                                                
+  3. Keep Module UIs Separate                                                   
+                                                                                
+  // ❌ WRONG - One component trying to handle all frameworks                   
+  <ResearchExperience categories={hardcodedArray} />                            
+                                                                                
+  // ✅ CORRECT - Each framework has its own component                          
+  if (currentFramework === 'bmc') {                                             
+    return <BMCResearchExperience />;                                           
+  } else if (currentFramework === 'porters') {                                  
+    return <PortersResearchExperience />;                                       
+  }                                                                             
+                                                                                
+  Files That MUST Stay In Sync                                                  
+                                                                                
+  1. server/journey/journey-registry.ts - Journey definitions                   
+  2. client/src/pages/strategic-consultant/ResearchPage.tsx - Journey type      
+  detection                                                                     
+  3. client/src/components/research-experience/*.tsx - Module-specific UIs      
+  4. server/routes/strategic-consultant.ts - SSE events and routing             
+                                                                                
+  Before Merging ANY Journey Changes                                            
+                                                                                
+  npm run test:journeys                                                         
+                                                                                
+  Common Mistakes That Break Things                                             
+  Mistake: Hardcoding categories in ResearchExperience                          
+  Why It Breaks: BMC shows Porter's UI                                          
+  Fix: Use separate components per framework                                    
+  ────────────────────────────────────────                                      
+  Mistake: Hardcoding nextUrl in routes                                         
+  Why It Breaks: Wrong page after research                                      
+  Fix: Use getNextPage()                                                        
+  ────────────────────────────────────────                                      
+  Mistake: Sharing state between modules                                        
+  Why It Breaks: Data doesn't flow correctly                                    
+  Fix: Use context accumulator                                                  
+  ---                                                                           
+                                                                                
+  ### 2. UPDATE: Add to TOP of `REPLIT.md`                                      
+                                                                                
+  Add this block at the very beginning of the file:                             
+                                                                                
+  ```markdown                                                                   
+  # ⚠️ CRITICAL: MODULAR JOURNEY ARCHITECTURE ⚠️                                
+                                                                                
+  **BEFORE MODIFYING ANY JOURNEY, RESEARCH, OR FRAMEWORK CODE, READ             
+  `/docs/JOURNEY_ARCHITECTURE.md`**                                             
+                                                                                
+  ## Quick Rules (Violations Break the App)                                     
+                                                                                
+  ### Source of Truth                                                           
+  | What | File |                                                               
+  |------|------|                                                               
+  | Journey Definitions | `server/journey/journey-registry.ts` |                
+  | Module Execution | `server/journey/journey-orchestrator.ts` |               
+  | Context Flow | `server/journey/strategic-context-accumulator.ts` |          
+                                                                                
+  ### NEVER DO THIS                                                             
+  ```typescript                                                                 
+  // ❌ Hardcoded categories - BREAKS BMC JOURNEY                               
+  const categories = ["market_dynamics", "competitive_landscape", ...];         
+                                                                                
+  // ❌ Hardcoded URLs - BREAKS ROUTING                                         
+  nextUrl: `/strategy-workspace/decisions/${sessionId}`;                        
+                                                                                
+  ALWAYS DO THIS                                                                
+                                                                                
+  // ✅ Query the journey system                                                
+  const journey = getJourneyByType(journeyType);                                
+  const nextUrl = getNextPage(journey, currentPage, params);                    
+                                                                                
+  Separate UI Components Per Framework                                          
+                                                                                
+  - BMC (9 blocks) → BMCResearchExperience.tsx                                  
+  - Porter's (5 forces) → PortersResearchExperience.tsx                         
+  - DO NOT make one component handle multiple frameworks                        
+                                                                                
+  Before Merging Journey Changes                                                
+                                                                                
+  npm run test:journeys                                                         
+                                                                                
+  ---                                                                           
+  ---                                                                           
+                                                                                
+  ### 3. UPDATE: Add comment banner to                                          
+  `client/src/pages/strategic-consultant/ResearchPage.tsx`                      
+                                                                                
+  Add this at the very top of the file (before imports):                        
+                                                                                
+  ```typescript                                                                 
+  /**                                                                           
+   *                                                                            
+  ╔═══════════════════════════════════════════════════════════════════════════╗ 
+   * ║  ⚠️  CRITICAL: MODULAR JOURNEY ARCHITECTURE  ⚠️                          
+    ║                                                                           
+   * ║                                                                          
+   ║                                                                            
+   * ║  This page serves MULTIPLE journey types (BMC, Porter's, PESTLE, etc.)   
+  ║                                                                             
+   * ║                                                                          
+   ║                                                                            
+   * ║  BEFORE MODIFYING:                                                       
+   ║                                                                            
+   * ║  1. Read /docs/JOURNEY_ARCHITECTURE.md                                   
+   ║                                                                            
+   * ║  2. Check server/journey/journey-registry.ts for journey definitions     
+   ║                                                                            
+   * ║  3. Use getNextPage() instead of hardcoding URLs                         
+   ║                                                                            
+   * ║  4. Render framework-specific UIs based on currentFramework              
+   ║                                                                            
+   * ║                                                                          
+   ║                                                                            
+   * ║  DO NOT:                                                                 
+   ║                                                                            
+   * ║  - Hardcode category arrays (breaks other journeys)                      
+   ║                                                                            
+   * ║  - Use a single component for all frameworks                             
+   ║                                                                            
+   * ║  - Hardcode nextUrl values                                               
+   ║                                                                            
+   * ║                                                                          
+   ║                                                                            
+   * ║  Each framework needs its own UI component:                              
+   ║                                                                            
+   * ║  - BMC (9 blocks) → BMCResearchExperience                                
+   ║                                                                            
+   * ║  - Porter's (5 forces) → PortersResearchExperience                       
+   ║                                                                            
+   * ║                                                                          
+   ║                                                                            
+   * ║  Run: npm run test:journeys before merging                               
+   ║                                                                            
+   *                                                                            
+  ╚═══════════════════════════════════════════════════════════════════════════╝ 
+   */                                                                           
+                                                                                
+  ---                                                                           
+  4. UPDATE: Add to package.json scripts                                        
+                                                                                
+  Add these two scripts:                                                        
+                                                                                
+  "test:journeys": "npx jest tests/journeys/ --passWithNoTests",                
+  "test:architecture": "npx jest tests/journeys/journey-architecture.spec.ts"   
+                                                                                
+  ---                                                                           
+  5. CREATE: tests/journeys/journey-architecture.spec.ts                        
+                                                                                
+  /**                                                                           
+   * Journey Architecture Integrity Tests                                       
+   * Fails build if someone hardcodes journey-specific logic in shared          
+  components                                                                    
+   */                                                                           
+                                                                                
+  import fs from 'fs';                                                          
+  import path from 'path';                                                      
+                                                                                
+  describe('Journey Architecture Integrity', () => {                            
+                                                                                
+    it('ResearchExperience should not hardcode Porter categories', () => {      
+      const filePath =                                                          
+  'client/src/components/research-experience/ResearchExperience.tsx';           
+      if (!fs.existsSync(filePath)) return;                                     
+                                                                                
+      const content = fs.readFileSync(filePath, 'utf8');                        
+      const porterCategories = ['market_dynamics', 'competitive_landscape',     
+  'buyer_behavior'];                                                            
+                                                                                
+      for (const cat of porterCategories) {                                     
+        if (content.includes(`"${cat}"`) || content.includes(`'${cat}'`)) {     
+          throw new Error(                                                      
+            `Found hardcoded Porter's category "${cat}" in shared component.\n` 
+  +                                                                             
+            `This breaks BMC journeys. Move to PortersResearchExperience.tsx.`  
+          );                                                                    
+        }                                                                       
+      }                                                                         
+    });                                                                         
+                                                                                
+    it('strategic-consultant.ts should use getNextPage for routing', () => {    
+      const filePath = 'server/routes/strategic-consultant.ts';                 
+      if (!fs.existsSync(filePath)) return;                                     
+                                                                                
+      const content = fs.readFileSync(filePath, 'utf8');                        
+                                                                                
+      if (/nextUrl:\s*[`'"]\/strategy-workspace/.test(content) &&               
+  !content.includes('getNextPage')) {                                           
+        throw new Error(                                                        
+          `Found hardcoded nextUrl in strategic-consultant.ts.\n` +             
+          `Use getNextPage() from journey-registry.ts instead.`                 
+        );                                                                      
+      }                                                                         
+    });                                                                         
+                                                                                
+    it('journey-registry.ts should exist and define BMC journey', () => {       
+      const filePath = 'server/journey/journey-registry.ts';                    
+      expect(fs.existsSync(filePath)).toBe(true);                               
+                                                                                
+      const content = fs.readFileSync(filePath, 'utf8');                        
+      expect(content).toContain('business_model_innovation');                   
+      expect(content).toContain('bmc');                                         
+    });                                                                         
+  });                                                                           
+                                                                                
+  ---                                                                           
+  After creating these files, run npm run test:journeys to verify everything    
+  works.     
