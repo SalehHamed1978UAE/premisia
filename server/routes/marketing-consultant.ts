@@ -4,6 +4,7 @@ import { segmentDiscoveryResults, betaUsageCounters, users } from '@shared/schem
 import { eq, sql, desc } from 'drizzle-orm';
 import Anthropic from '@anthropic-ai/sdk';
 import { encryptKMS, decryptKMS, encryptJSONKMS, decryptJSONKMS } from '../utils/kms-encryption';
+import { discoveryCacheService } from '../services/discovery-cache-service';
 
 const router = Router();
 
@@ -534,8 +535,8 @@ router.post('/start-discovery/:id', async (req: Request, res: Response) => {
     // Initialize progress tracking
     discoveryProgress.set(id, { step: 'Starting', progress: 0, message: 'Initializing segment discovery...' });
 
-    // Start discovery in background
-    runSegmentDiscovery(id, {
+    // Start discovery in background (pass userId for caching)
+    runSegmentDiscovery(id, userId, {
       offeringDescription: record.offeringDescription,
       offeringType: record.offeringType || 'other',
       stage: record.stage || 'idea_stage',
@@ -555,8 +556,37 @@ router.post('/start-discovery/:id', async (req: Request, res: Response) => {
   }
 });
 
-async function runSegmentDiscovery(id: string, context: any) {
+async function runSegmentDiscovery(id: string, userId: string, context: any) {
   try {
+    // Check cache first for instant results on retry
+    const cached = discoveryCacheService.get(userId, context);
+    if (cached) {
+      console.log(`[Segment Discovery ${id}] Using cached result`);
+      discoveryProgress.set(id, { step: 'Using cached results', progress: 50, message: 'Loading cached results...' });
+      
+      // Encrypt cached result and save to database
+      const [encryptedGeneLibrary, encryptedGenomes, encryptedSynthesis] = await Promise.all([
+        encryptJSONKMS(cached.geneLibrary),
+        encryptJSONKMS(cached.genomes),
+        encryptJSONKMS(cached.synthesis),
+      ]);
+
+      await db.update(segmentDiscoveryResults)
+        .set({
+          geneLibrary: encryptedGeneLibrary || cached.geneLibrary,
+          genomes: encryptedGenomes || cached.genomes,
+          synthesis: encryptedSynthesis || cached.synthesis,
+          status: 'completed',
+          completedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(segmentDiscoveryResults.id, id));
+
+      discoveryProgress.set(id, { step: 'Complete (cached)', progress: 100, message: 'Discovery complete!' });
+      console.log(`[Segment Discovery ${id}] Completed from cache`);
+      return;
+    }
+
     const { segmentDiscoveryEngine } = await import('../services/segment-discovery-engine');
     
     const result = await segmentDiscoveryEngine.runDiscovery(
@@ -567,10 +597,15 @@ async function runSegmentDiscovery(id: string, context: any) {
       }
     );
 
-    // Encrypt and save results to database
-    const encryptedGeneLibrary = await encryptJSONKMS(result.geneLibrary);
-    const encryptedGenomes = await encryptJSONKMS(result.genomes);
-    const encryptedSynthesis = await encryptJSONKMS(result.synthesis);
+    // Cache the result for future requests (user-scoped)
+    discoveryCacheService.set(userId, context, result);
+
+    // Encrypt and save results to database (parallel for speed)
+    const [encryptedGeneLibrary, encryptedGenomes, encryptedSynthesis] = await Promise.all([
+      encryptJSONKMS(result.geneLibrary),
+      encryptJSONKMS(result.genomes),
+      encryptJSONKMS(result.synthesis),
+    ]);
 
     await db.update(segmentDiscoveryResults)
       .set({
