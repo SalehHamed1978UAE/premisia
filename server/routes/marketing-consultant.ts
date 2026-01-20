@@ -623,6 +623,7 @@ async function runSegmentDiscovery(id: string, userId: string, context: any) {
 
     // Create lightweight summary for instant loading (NOT encrypted)
     const uniqueRoles = new Set(result.genomes.map(g => g.genes.decision_maker)).size;
+    const beachheadGenome = result.synthesis.beachhead.genome;
     const summary = {
       topGenomes: result.genomes.slice(0, 20).map(g => ({
         id: g.id,
@@ -630,6 +631,24 @@ async function runSegmentDiscovery(id: string, userId: string, context: any) {
         score: g.fitness.totalScore,
         narrative: g.narrativeReason
       })),
+      // Include full beachhead data for instant display
+      beachhead: {
+        genome: {
+          id: beachheadGenome.id,
+          genes: beachheadGenome.genes,
+          fitness: beachheadGenome.fitness,
+          narrativeReason: beachheadGenome.narrativeReason
+        },
+        rationale: result.synthesis.beachhead.rationale,
+        validationPlan: result.synthesis.beachhead.validationPlan
+      },
+      backupSegments: (result.synthesis.backupSegments || []).slice(0, 3).map(s => ({
+        id: s.id,
+        genes: s.genes,
+        fitness: s.fitness,
+        narrativeReason: s.narrativeReason
+      })),
+      strategicInsights: result.synthesis.strategicInsights || [],
       beachheadId: result.synthesis.beachhead.genome.id,
       totalSegments: result.genomes.length,
       uniqueRoles,

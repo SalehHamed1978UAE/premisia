@@ -73,10 +73,32 @@ interface SegmentSynthesis {
   strategicInsights: string[];
 }
 
+interface SummaryGenome {
+  id: string;
+  score: number;
+  genes: Genome['genes'];
+  narrative?: string;
+}
+
+interface DiscoverySummary {
+  topGenomes: SummaryGenome[];
+  beachhead?: {
+    genome: Genome;
+    rationale: string;
+    validationPlan: string[];
+  };
+  backupSegments?: Genome[];
+  strategicInsights?: string[];
+  totalSegments?: number;
+  beachheadId?: string;
+}
+
 interface DiscoveryResults {
-  geneLibrary: GeneLibrary;
-  genomes: Genome[];
-  synthesis: SegmentSynthesis;
+  id?: string;
+  geneLibrary?: GeneLibrary;
+  genomes?: Genome[];
+  synthesis?: SegmentSynthesis;
+  summary?: DiscoverySummary;
 }
 
 interface ProgressEvent {
@@ -497,20 +519,40 @@ export default function SegmentDiscoveryPage() {
   }
 
   if (pageState === 'results' && results) {
-    const { geneLibrary } = results;
-    // Ensure genomes is an array (handles decryption edge cases)
-    const genomes: Genome[] = Array.isArray(results.genomes) ? results.genomes : [];
-    const top20 = genomes.slice(0, 20);
+    const { geneLibrary, summary } = results;
+    
+    // Use full genomes if available, otherwise use summary topGenomes
+    const genomes: Genome[] = Array.isArray(results.genomes) && results.genomes.length > 0 
+      ? results.genomes 
+      : [];
+    
+    // For display: use summary topGenomes when full genomes aren't available
+    const summaryTopGenomes = summary?.topGenomes || [];
+    const displayGenomesCount = genomes.length > 0 ? genomes.length : summaryTopGenomes.length;
+    const top20 = genomes.length > 0 ? genomes.slice(0, 20) : summaryTopGenomes;
+    
+    // Check if we have incomplete data (summary only, no full results)
+    const hasIncompleteData = genomes.length === 0 && summaryTopGenomes.length > 0;
     
     // Ensure synthesis has valid structure (handles incomplete/corrupted data)
     const synthesis: SegmentSynthesis = results.synthesis && typeof results.synthesis === 'object' 
       ? results.synthesis as SegmentSynthesis
-      : {
-          beachhead: { genome: genomes[0] || {} as Genome, rationale: 'No synthesis data available', validationPlan: [] },
-          backupSegments: [],
-          neverList: [],
-          strategicInsights: []
-        };
+      : summary?.beachhead
+        ? {
+            beachhead: summary.beachhead,
+            backupSegments: (summary.backupSegments || []) as Genome[],
+            neverList: [],
+            strategicInsights: summary.strategicInsights || []
+          }
+        : {
+            beachhead: { genome: genomes[0] || {} as Genome, rationale: 'No synthesis data available', validationPlan: [] },
+            backupSegments: [],
+            neverList: [],
+            strategicInsights: []
+          };
+    
+    // Use totalSegments from summary if available
+    const totalSegmentsCount = summary?.totalSegments || displayGenomesCount;
     
     // Guard against missing beachhead
     const hasValidBeachhead = synthesis.beachhead && synthesis.beachhead.genome && synthesis.beachhead.genome.fitness;
@@ -534,7 +576,7 @@ export default function SegmentDiscoveryPage() {
                     Segment Discovery Complete!
                   </h3>
                   <p className="text-sm text-green-700 dark:text-green-300">
-                    We analyzed {genomes.length} potential segments and identified your beachhead market.
+                    We analyzed {totalSegmentsCount} potential segments and identified your beachhead market.
                   </p>
                 </div>
               </div>
@@ -675,43 +717,53 @@ export default function SegmentDiscoveryPage() {
 
             <TabsContent value="top20" className="mt-6">
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" data-testid="grid-top20">
-                {top20.map((genome, idx) => (
-                  <Card 
-                    key={genome.id} 
-                    className={`${getScoreColor(genome.fitness.totalScore)}`}
-                    data-testid={`card-segment-${idx}`}
-                  >
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base">#{idx + 1}</CardTitle>
-                        <Badge variant={getScoreBadgeVariant(genome.fitness.totalScore)}>
-                          {genome.fitness.totalScore}/40
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <p className="text-sm">{genome.narrativeReason}</p>
-                      <div className="text-xs space-y-1">
-                        <div><span className="opacity-70">Industry:</span> {genome.genes.industry_vertical}</div>
-                        <div><span className="opacity-70">Size:</span> {genome.genes.company_size}</div>
-                        <div><span className="opacity-70">DM:</span> {genome.genes.decision_maker}</div>
-                        <div><span className="opacity-70">Trigger:</span> {genome.genes.purchase_trigger}</div>
-                      </div>
-                      <div className="pt-2 border-t">
-                        <div className="grid grid-cols-4 gap-1 text-xs">
-                          <div title="Pain">P:{genome.fitness.painIntensity}</div>
-                          <div title="Access">A:{genome.fitness.accessToDecisionMaker}</div>
-                          <div title="Budget">B:{genome.fitness.purchasePowerMatch}</div>
-                          <div title="Competition">C:{genome.fitness.competitionSaturation}</div>
-                          <div title="Fit">F:{genome.fitness.productFit}</div>
-                          <div title="Urgency">U:{genome.fitness.urgencyAlignment}</div>
-                          <div title="Scale">S:{genome.fitness.scalePotential}</div>
-                          <div title="GTM">G:{genome.fitness.gtmEfficiency}</div>
+                {top20.map((genome, idx) => {
+                  // Handle both full Genome and SummaryGenome types
+                  const score = 'fitness' in genome ? genome.fitness.totalScore : genome.score;
+                  const hasFitness = 'fitness' in genome && genome.fitness;
+                  const narrative = 'narrativeReason' in genome ? genome.narrativeReason : 
+                                    'narrative' in genome ? (genome as SummaryGenome).narrative : '';
+                  
+                  return (
+                    <Card 
+                      key={genome.id} 
+                      className={`${getScoreColor(score)}`}
+                      data-testid={`card-segment-${idx}`}
+                    >
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-base">#{idx + 1}</CardTitle>
+                          <Badge variant={getScoreBadgeVariant(score)}>
+                            {score}/40
+                          </Badge>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {narrative && <p className="text-sm">{narrative}</p>}
+                        <div className="text-xs space-y-1">
+                          <div><span className="opacity-70">Industry:</span> {genome.genes.industry_vertical}</div>
+                          <div><span className="opacity-70">Size:</span> {genome.genes.company_size}</div>
+                          <div><span className="opacity-70">DM:</span> {genome.genes.decision_maker}</div>
+                          <div><span className="opacity-70">Trigger:</span> {genome.genes.purchase_trigger}</div>
+                        </div>
+                        {hasFitness && (
+                          <div className="pt-2 border-t">
+                            <div className="grid grid-cols-4 gap-1 text-xs">
+                              <div title="Pain">P:{(genome as Genome).fitness.painIntensity}</div>
+                              <div title="Access">A:{(genome as Genome).fitness.accessToDecisionMaker}</div>
+                              <div title="Budget">B:{(genome as Genome).fitness.purchasePowerMatch}</div>
+                              <div title="Competition">C:{(genome as Genome).fitness.competitionSaturation}</div>
+                              <div title="Fit">F:{(genome as Genome).fitness.productFit}</div>
+                              <div title="Urgency">U:{(genome as Genome).fitness.urgencyAlignment}</div>
+                              <div title="Scale">S:{(genome as Genome).fitness.scalePotential}</div>
+                              <div title="GTM">G:{(genome as Genome).fitness.gtmEfficiency}</div>
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             </TabsContent>
 
