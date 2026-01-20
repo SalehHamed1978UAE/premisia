@@ -1,0 +1,89 @@
+I found the complete picture. Here's the diagnosis and fix for Replit:        
+                                                                                
+  ---                                                                           
+  Root Cause Analysis for Replit                                                
+                                                                                
+  There are 3 separate bugs causing this:                                       
+                                                                                
+  Bug 1: ResearchExperience shows Porter's categories for BMC                   
+                                                                                
+  File: client/src/components/research-experience/ResearchExperience.tsx (line  
+  62)                                                                           
+  // WRONG - Hardcoded for Porter's                                             
+  const categories = ["market_dynamics", "competitive_landscape",               
+  "buyer_behavior", "regulatory_factors", "language_preferences"];              
+                                                                                
+  Fix: Accept a journeyType prop and use BMC blocks when appropriate:           
+  interface ResearchExperienceProps {                                           
+    progress: number;                                                           
+    currentMessage: string;                                                     
+    elapsedSeconds: number;                                                     
+    journeyType?: string;  // ADD THIS                                          
+  }                                                                             
+                                                                                
+  // Inside component:                                                          
+  const categories = journeyType === 'business_model_innovation'                
+    ? ["customer_segments", "value_propositions", "revenue_streams", "channels",
+   "customer_relationships", "key_resources", "key_activities",                 
+  "key_partnerships", "cost_structure"]                                         
+    : ["market_dynamics", "competitive_landscape", "buyer_behavior",            
+  "regulatory_factors", "language_preferences"];                                
+                                                                                
+  Bug 2: ResearchPage doesn't pass journeyType to ResearchExperience            
+                                                                                
+  File: client/src/pages/strategic-consultant/ResearchPage.tsx (line 347)       
+  // WRONG - No journeyType passed                                              
+  return <ResearchExperience progress={progress} currentMessage={currentQuery}  
+  elapsedSeconds={elapsedSeconds} />;                                           
+                                                                                
+  Fix:                                                                          
+  // Line 174 already has: const isBMCJourney = journeyType ===                 
+  'business_model_innovation';                                                  
+  // Pass it down:                                                              
+  return <ResearchExperience                                                    
+    progress={progress}                                                         
+    currentMessage={currentQuery}                                               
+    elapsedSeconds={elapsedSeconds}                                             
+    journeyType={journeyType}  // ADD THIS                                      
+  />;                                                                           
+                                                                                
+  Bug 3: Backend sends wrong nextUrl, bypasses journey page sequence            
+                                                                                
+  File: server/routes/strategic-consultant.ts (line 2162)                       
+  // WRONG - Hardcoded URL ignores journey's page sequence                      
+  nextUrl: `/strategy-workspace/decisions/${sessionId}/${finalVersionNumber}`   
+                                                                                
+  Fix: Use journey-aware routing from the registry:                             
+  import { getJourneyByType, getNextPage } from '../journey/journey-registry';  
+                                                                                
+  // At line 2162:                                                              
+  const journey = getJourneyByType('business_model_innovation');                
+  const currentPage = `/strategic-consultant/research/${sessionId}`;            
+  const nextUrl = getNextPage(journey, currentPage, { sessionId, versionNumber: 
+  finalVersionNumber });                                                        
+  // This will return: /strategy-workspace/decisions/:sessionId/:versionNumber  
+  from the page sequence                                                        
+                                                                                
+  ---                                                                           
+  Quick Summary for Replit                                                      
+  What's Broken: Porter's categories shown for BMC                              
+  Where: ResearchExperience.tsx:62                                              
+  Fix: Accept journeyType prop, conditionally use BMC blocks                    
+  ────────────────────────────────────────                                      
+  What's Broken: journeyType not passed to UI                                   
+  Where: ResearchPage.tsx:347                                                   
+  Fix: Add journeyType={journeyType} prop                                       
+  ────────────────────────────────────────                                      
+  What's Broken: Wrong page after research                                      
+  Where: strategic-consultant.ts:2162                                           
+  Fix: Use journey registry's getNextPage() instead of hardcoded URL            
+  ---                                                                           
+  The 9 BMC Blocks (for reference)                                              
+                                                                                
+  customer_segments, value_propositions, revenue_streams,                       
+  channels, customer_relationships, key_resources,                              
+  key_activities, key_partnerships, cost_structure                              
+                                                                                
+  The backend already sends these in SSE synthesis events                       
+  (server/strategic-consultant/bmc-researcher.ts:256), the frontend just ignores
+   them.                                                    
