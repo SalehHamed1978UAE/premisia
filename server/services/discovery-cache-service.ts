@@ -17,6 +17,7 @@ class DiscoveryCacheService {
       stage: context.stage,
       gtmConstraint: context.gtmConstraint,
       salesMotion: context.salesMotion,
+      existingHypothesis: context.existingHypothesis?.toLowerCase().trim() || null,
     });
     return crypto.createHash('sha256')
       .update(`${userId}||${normalized}`)

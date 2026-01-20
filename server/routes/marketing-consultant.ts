@@ -527,6 +527,10 @@ router.post('/start-discovery/:id', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Discovery already in progress' });
     }
 
+    // Decrypt sensitive fields before passing to discovery engine
+    const decryptedDescription = await decryptKMS(record.offeringDescription);
+    const decryptedHypothesis = record.existingHypothesis ? await decryptKMS(record.existingHypothesis) : undefined;
+
     // Update status to running
     await db.update(segmentDiscoveryResults)
       .set({ status: 'running', updatedAt: new Date() })
@@ -535,14 +539,14 @@ router.post('/start-discovery/:id', async (req: Request, res: Response) => {
     // Initialize progress tracking
     discoveryProgress.set(id, { step: 'Starting', progress: 0, message: 'Initializing segment discovery...' });
 
-    // Start discovery in background (pass userId for caching)
+    // Start discovery in background (pass userId for caching, use decrypted values)
     runSegmentDiscovery(id, userId, {
-      offeringDescription: record.offeringDescription,
+      offeringDescription: decryptedDescription || record.offeringDescription,
       offeringType: record.offeringType || 'other',
       stage: record.stage || 'idea_stage',
       gtmConstraint: record.gtmConstraint || 'solo_founder',
       salesMotion: record.salesMotion || 'self_serve',
-      existingHypothesis: record.existingHypothesis || undefined,
+      existingHypothesis: decryptedHypothesis,
     });
 
     res.json({
