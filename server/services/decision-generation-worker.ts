@@ -99,11 +99,11 @@ export async function processDecisionGenerationJob(job: SelectBackgroundJob): Pr
         throw new Error(`Strategy version not found for session ${sessionId} version ${versionNumber}`);
       }
 
-      // Update the version with decisions
+      // Update the version with decisions (must use decisionsData column, not decisions)
       await db
         .update(strategyVersions)
         .set({
-          decisions: decisions,
+          decisionsData: decisions,
           updatedAt: new Date()
         })
         .where(eq(strategyVersions.id, existingVersion.id));
@@ -150,7 +150,7 @@ export async function processDecisionGenerationJob(job: SelectBackgroundJob): Pr
           await db
             .update(strategyVersions)
             .set({
-              decisions: { 
+              decisionsData: { 
                 decisions: [], 
                 decisionsQueued: false,
                 decisionError: error.message || 'Decision generation failed'
