@@ -756,18 +756,25 @@ export class EPMSynthesizer {
       return workstreams;
       
     } catch (error) {
-      console.error('[EPM Synthesis] WBS Builder failed, falling back to legacy generation:', error);
+      console.error('[EPM Synthesis] WBS Builder failed, falling back to template-based generation:', error);
+      console.log('[EPM Synthesis] ⚠️ Generating template deliverables for workstreams (WBS Builder unavailable)');
       
-      // Fallback to legacy workstream generation
+      // Fallback to template-based workstream generation
       const workstreamInsights = insights.insights.filter(i => i.type === 'workstream');
       
       const workstreams: Workstream[] = workstreamInsights.map((insight, index) => {
-        const deliverables = this.generateDeliverables(insight, index);
+        // Extract workstream name from insight source or generate from category
+        const workstreamName = this.extractWorkstreamName(insight, index);
+        const workstreamCategory = this.categorizeWorkstream(workstreamName);
+        
+        // Generate proper deliverables based on workstream type
+        const deliverables = this.generateDeliverablesForWorkstream(workstreamName, workstreamCategory, index);
+        console.log(`[EPM] Falling back to template deliverables for workstream WS${String(index + 1).padStart(3, '0')}: ${workstreamName} (${deliverables.length} deliverables)`);
         
         return {
           id: `WS${String(index + 1).padStart(3, '0')}`,
-          name: insight.content.split('\n')[0] || `Workstream ${index + 1}`,
-          description: insight.content,
+          name: workstreamName,
+          description: `Strategic workstream for ${workstreamName.toLowerCase()}. ${insight.source ? `Derived from ${insight.source}.` : ''}`,
           deliverables,
           startMonth: Math.floor(index / 2) + 1,
           endMonth: Math.min(Math.floor(index / 2) + 1 + deliverables.length, 12),
@@ -782,6 +789,108 @@ export class EPMSynthesizer {
 
       return workstreams;
     }
+  }
+
+  /**
+   * Extract a proper workstream name from insight, avoiding raw research content
+   */
+  private extractWorkstreamName(insight: StrategyInsight, index: number): string {
+    // Try to get name from source field first
+    if (insight.source) {
+      const sourceMatch = insight.source.match(/(?:objective|activity|block):\s*(.+)/i);
+      if (sourceMatch) {
+        return this.titleCase(sourceMatch[1].trim());
+      }
+    }
+    
+    // Try to extract from category in source
+    if (insight.source?.includes('key_partners')) return 'Partnership Development';
+    if (insight.source?.includes('key_activities')) return 'Core Operations Setup';
+    if (insight.source?.includes('key_resources')) return 'Resource Acquisition';
+    if (insight.source?.includes('value_propositions')) return 'Value Proposition Development';
+    if (insight.source?.includes('customer_relationships')) return 'Customer Engagement';
+    if (insight.source?.includes('channels')) return 'Channel Development';
+    if (insight.source?.includes('customer_segments')) return 'Market Segmentation';
+    if (insight.source?.includes('cost_structure')) return 'Financial Planning';
+    if (insight.source?.includes('revenue_streams')) return 'Revenue Model Implementation';
+    
+    // Fallback to generic numbered workstream
+    return `Strategic Initiative ${index + 1}`;
+  }
+
+  /**
+   * Categorize workstream to select appropriate deliverable templates
+   */
+  private categorizeWorkstream(name: string): 'operations' | 'marketing' | 'finance' | 'hr' | 'technology' | 'partnerships' | 'general' {
+    const lower = name.toLowerCase();
+    if (lower.includes('partner') || lower.includes('vendor') || lower.includes('supplier')) return 'partnerships';
+    if (lower.includes('operation') || lower.includes('process') || lower.includes('setup')) return 'operations';
+    if (lower.includes('market') || lower.includes('customer') || lower.includes('channel') || lower.includes('brand')) return 'marketing';
+    if (lower.includes('financ') || lower.includes('revenue') || lower.includes('cost') || lower.includes('budget')) return 'finance';
+    if (lower.includes('team') || lower.includes('hire') || lower.includes('recruit') || lower.includes('staff')) return 'hr';
+    if (lower.includes('tech') || lower.includes('system') || lower.includes('platform') || lower.includes('digital')) return 'technology';
+    return 'general';
+  }
+
+  /**
+   * Generate proper actionable deliverables based on workstream type
+   */
+  private generateDeliverablesForWorkstream(
+    workstreamName: string,
+    category: 'operations' | 'marketing' | 'finance' | 'hr' | 'technology' | 'partnerships' | 'general',
+    workstreamIndex: number
+  ): Array<{ id: string; name: string; description: string; dueMonth: number; effort: 'low' | 'medium' | 'high' }> {
+    const templates: Record<string, Array<{ name: string; description: string; effort: 'low' | 'medium' | 'high' }>> = {
+      operations: [
+        { name: 'Operations Requirements Document', description: 'Detailed requirements for operational setup and processes', effort: 'medium' },
+        { name: 'Process Flow Documentation', description: 'End-to-end process flows for core operations', effort: 'medium' },
+        { name: 'Operational Launch Checklist', description: 'Comprehensive checklist for operational go-live', effort: 'low' },
+      ],
+      marketing: [
+        { name: 'Market Analysis Report', description: 'Comprehensive analysis of target market segments', effort: 'high' },
+        { name: 'Marketing Strategy Document', description: 'Detailed marketing and go-to-market strategy', effort: 'medium' },
+        { name: 'Brand Guidelines', description: 'Brand identity and messaging guidelines', effort: 'medium' },
+      ],
+      finance: [
+        { name: 'Financial Model', description: 'Detailed financial projections and business model', effort: 'high' },
+        { name: 'Budget Allocation Plan', description: 'Resource and budget allocation across initiatives', effort: 'medium' },
+        { name: 'Revenue Tracking Dashboard', description: 'KPIs and metrics for financial performance', effort: 'low' },
+      ],
+      hr: [
+        { name: 'Organizational Structure', description: 'Org chart and role definitions', effort: 'medium' },
+        { name: 'Recruitment Plan', description: 'Hiring timeline and job descriptions', effort: 'medium' },
+        { name: 'Onboarding Program', description: 'New hire onboarding materials and process', effort: 'low' },
+      ],
+      technology: [
+        { name: 'Technical Architecture Document', description: 'System architecture and technology stack decisions', effort: 'high' },
+        { name: 'Implementation Roadmap', description: 'Phased technical implementation plan', effort: 'medium' },
+        { name: 'System Integration Specification', description: 'Integration requirements and API specifications', effort: 'medium' },
+      ],
+      partnerships: [
+        { name: 'Partner Evaluation Matrix', description: 'Criteria and scoring for potential partners', effort: 'medium' },
+        { name: 'Partnership Agreement Template', description: 'Legal and commercial terms for partnerships', effort: 'medium' },
+        { name: 'Partner Onboarding Process', description: 'Process for integrating new partners', effort: 'low' },
+      ],
+      general: [
+        { name: 'Initiative Charter', description: 'Scope, objectives, and success criteria', effort: 'medium' },
+        { name: 'Implementation Plan', description: 'Detailed timeline and resource requirements', effort: 'medium' },
+        { name: 'Progress Report Template', description: 'Standardized reporting format for updates', effort: 'low' },
+      ],
+    };
+
+    const categoryTemplates = templates[category] || templates.general;
+    
+    return categoryTemplates.map((template, idx) => ({
+      id: `D${String(workstreamIndex + 1).padStart(3, '0')}.${idx + 1}`,
+      name: template.name,
+      description: template.description,
+      dueMonth: workstreamIndex + idx + 2,
+      effort: template.effort,
+    }));
+  }
+
+  private titleCase(str: string): string {
+    return str.replace(/\b\w/g, l => l.toUpperCase());
   }
 
   /**
@@ -1009,18 +1118,8 @@ export class EPMSynthesizer {
     };
   }
 
-  private generateDeliverables(insight: StrategyInsight, workstreamIndex: number) {
-    const lines = insight.content.split('\n').filter(l => l.trim());
-    const deliverableLines = lines.slice(1, 4); // Take up to 3 deliverables
-    
-    return deliverableLines.map((line, idx) => ({
-      id: `D${String(workstreamIndex + 1).padStart(3, '0')}.${idx + 1}`,
-      name: line.replace(/^[-•]\s*/, '').trim(),
-      description: line.replace(/^[-•]\s*/, '').trim(),
-      dueMonth: workstreamIndex + idx + 2,
-      effort: this.estimateEffort(line),
-    }));
-  }
+  // Old generateDeliverables method removed - replaced by generateDeliverablesForWorkstream
+  // which provides proper template-based deliverables instead of splitting insight.content
 
   private async generateTimeline(
     insights: StrategyInsights,
