@@ -644,17 +644,29 @@ Include a JSON block at the end with key decisions in this format:
             contingency=total_budget * 0.1
         )
     
-    async def generate(self, input_data: EPMGeneratorInput) -> Dict[str, Any]:
+    def generate_sync(self, input_data: EPMGeneratorInput) -> Dict[str, Any]:
         """
-        Generate an EPM program using multi-agent collaboration.
+        Generate an EPM program using multi-agent collaboration (synchronous).
         
         Runs 7 planning rounds with all agents participating, then synthesizes
         the results into a complete EPM program.
+        
+        This is a synchronous method because CrewAI's crew.kickoff() is blocking.
+        Call from async context via run_in_executor().
         """
+        import traceback
+        print(f"[ProgramCrew] Starting generation for: {input_data.business_context.name}")
+        
         self.conversation_log = []
         self.decisions = []
         
-        self.agents = self._create_agents()
+        try:
+            self.agents = self._create_agents()
+            print(f"[ProgramCrew] Created {len(self.agents)} agents")
+        except Exception as e:
+            print(f"[ProgramCrew ERROR] Failed to create agents: {e}")
+            print(f"[ProgramCrew ERROR] Traceback:\n{traceback.format_exc()}")
+            raise
         
         all_synthesis_outputs = []
         previous_outputs: Dict[int, str] = {}
@@ -684,7 +696,9 @@ Include a JSON block at the end with key decisions in this format:
             )
             
             try:
+                print(f"[ProgramCrew] Executing round {round_num} with {len(round_tasks)} tasks...")
                 result = crew.kickoff()
+                print(f"[ProgramCrew] Round {round_num} kickoff complete")
                 
                 round_outputs = []
                 if hasattr(result, 'tasks_output'):
@@ -713,8 +727,10 @@ Include a JSON block at the end with key decisions in this format:
                     verbose=True
                 )
                 
+                print(f"[ProgramCrew] Starting synthesis for round {round_num}...")
                 synthesis_result = synthesis_crew.kickoff()
                 synthesis_output = str(synthesis_result)
+                print(f"[ProgramCrew] Synthesis for round {round_num} complete")
                 
                 all_synthesis_outputs.append(synthesis_output)
                 previous_outputs[round_num] = synthesis_output
@@ -725,12 +741,17 @@ Include a JSON block at the end with key decisions in this format:
                 self.decisions.extend(round_decisions)
                 
             except Exception as e:
+                import traceback
+                error_msg = f"Round {round_num} encountered an error: {str(e)}"
+                print(f"[ProgramCrew ERROR] {error_msg}")
+                print(f"[ProgramCrew ERROR] Traceback:\n{traceback.format_exc()}")
                 self._log_conversation(
                     round_num,
                     "system",
-                    f"Round {round_num} encountered an error: {str(e)}"
+                    error_msg
                 )
-                continue
+                # Don't continue on error - fail fast so we see the actual issue
+                raise
         
         workstreams = self._extract_workstreams(all_synthesis_outputs, input_data)
         risks = self._extract_risks(all_synthesis_outputs)

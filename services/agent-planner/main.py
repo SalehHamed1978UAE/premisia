@@ -5,8 +5,15 @@ Multi-agent EPM generator using CrewAI for collaborative program planning.
 """
 
 import os
+import sys
 import uuid
+import traceback
+import asyncio
 from datetime import datetime
+
+# Ensure Python stdout is unbuffered so logs appear immediately
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -75,15 +82,21 @@ async def generate_program(input_data: EPMGeneratorInput) -> JSONResponse:
     """
     try:
         start_time = datetime.now()
+        print(f"[CrewAI] Starting program generation for session {input_data.session_id}")
         
         crew = ProgramPlanningCrew()
-        crew_result = await crew.generate(input_data)
+        
+        # Run synchronous crew.generate() in a thread pool to avoid blocking async context
+        loop = asyncio.get_event_loop()
+        crew_result = await loop.run_in_executor(None, crew.generate_sync, input_data)
         
         program: EPMProgram = crew_result["program"]
         conversation_log = crew_result["conversation_log"]
         decisions = crew_result["decisions"]
         rounds_completed = crew_result["rounds_completed"]
         agents_participated = crew_result["agents_participated"]
+        
+        print(f"[CrewAI] Program generation complete. Rounds: {rounds_completed}, Agents: {agents_participated}")
         
         curator = KnowledgeCurator()
         knowledge_ledger = await curator.curate(
@@ -115,13 +128,19 @@ async def generate_program(input_data: EPMGeneratorInput) -> JSONResponse:
         return JSONResponse(content=output.model_dump(by_alias=True))
         
     except ValueError as e:
+        print(f"[CrewAI ERROR] ValueError: {str(e)}")
+        print(f"[CrewAI ERROR] Traceback:\n{traceback.format_exc()}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         error_msg = f"Program generation failed: {str(e)}"
-        print(f"Error in generate_program: {error_msg}")
+        print(f"[CrewAI ERROR] {error_msg}")
+        print(f"[CrewAI ERROR] Full traceback:\n{traceback.format_exc()}")
         
-        fallback_output = await _generate_fallback_program(input_data, str(e))
-        return JSONResponse(content=fallback_output.model_dump(by_alias=True))
+        # Return 500 error with details instead of fallback - let TypeScript handle fallback
+        raise HTTPException(
+            status_code=500, 
+            detail=f"{error_msg}. Check CrewAI service logs for details."
+        )
 
 
 async def _generate_fallback_program(

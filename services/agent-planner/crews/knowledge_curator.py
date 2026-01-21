@@ -496,9 +496,18 @@ Extract 10-30 diverse knowledge candidates. Focus on actionable, reusable insigh
         Returns:
             KnowledgeLedger containing verified, contested, and rejected knowledge
         """
+        import asyncio
+        
         conversation_summary = self._prepare_conversation_summary(conversation_log)
         
-        raw_candidates = self._extract_candidates_with_llm(conversation_summary, program)
+        # Run the synchronous LLM extraction in a thread pool to avoid blocking
+        loop = asyncio.get_event_loop()
+        raw_candidates = await loop.run_in_executor(
+            None, 
+            self._extract_candidates_with_llm, 
+            conversation_summary, 
+            program
+        )
         
         valid_candidates = [c for c in raw_candidates if self._validate_candidate(c)]
         
