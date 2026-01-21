@@ -47,4 +47,29 @@ describe('Journey Architecture Integrity', () => {
     expect(content).toContain('business_model_innovation');
     expect(content).toContain('bmc');
   });
+
+  it('PortersResearchExperience should not contain hardcoded BMC blocks', () => {
+    const filePath = 'client/src/components/research-experience/PortersResearchExperience.tsx';
+    if (!fs.existsSync(filePath)) return;
+
+    const content = fs.readFileSync(filePath, 'utf8');
+    const bmcBlocks = [
+      'customer_segments',
+      'value_propositions',
+      'revenue_streams',
+      'key_resources',
+      'key_activities',
+      'key_partnerships',
+      'cost_structure'
+    ];
+
+    for (const block of bmcBlocks) {
+      if (content.includes(`"${block}"`) || content.includes(`'${block}'`)) {
+        throw new Error(
+          `Found hardcoded BMC block "${block}" in PortersResearchExperience.tsx.\n` +
+          `This breaks Porter's journeys. Move to BMCResearchExperience.tsx.`
+        );
+      }
+    }
+  });
 });

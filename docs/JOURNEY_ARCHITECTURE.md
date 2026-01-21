@@ -2,6 +2,16 @@
 
 > **If you're modifying journey, research, or framework code, READ THIS FIRST.**
 
+## Overview
+
+Premisia uses a **modular journey architecture**. Journeys are composed of reusable framework modules that execute in sequence, passing context between them.
+
+```
+Journey = [Module1] → [Module2] → [Module3] → ... → [EPM Output]
+```
+
+Each module is self-contained and communicates through the **Strategic Context Accumulator**.
+
 ## Source of Truth
 
 | What | File |
@@ -31,6 +41,8 @@ Each framework has its OWN UI component. DO NOT share components.
 |-----------|-------------------|--------------|
 | BMC | 9 blocks: customer_segments, value_propositions, revenue_streams, channels, customer_relationships, key_resources, key_activities, key_partnerships, cost_structure | `BMCResearchExperience.tsx` |
 | Porter's | 5 forces: market_dynamics, competitive_landscape, buyer_behavior, regulatory_factors, language_preferences | `PortersResearchExperience.tsx` |
+| Five Whys | Root cause analysis tree | `WhysTreePage.tsx` |
+| PESTLE | 6 factors: Political, Economic, Social, Technological, Legal, Environmental | `PESTLEExperience.tsx` |
 
 ## Rules (MUST FOLLOW)
 
@@ -72,6 +84,18 @@ if (currentFramework === 'bmc') {
 } else if (currentFramework === 'porters') {
   return <PortersResearchExperience />;
 }
+```
+
+### 4. Use Context Accumulator for Data Flow
+
+```typescript
+// ❌ WRONG - Passing data directly between components
+const bmcInput = fiveWhysOutput.rootCauses;
+
+// ✅ CORRECT - Use the accumulator
+import { addFrameworkResult } from '../journey/strategic-context-accumulator';
+context = addFrameworkResult(context, fiveWhysResult);
+// BMC executor reads from context.insights.rootCauses
 ```
 
 ## Files That MUST Stay In Sync

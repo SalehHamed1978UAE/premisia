@@ -37,6 +37,11 @@ const nextUrl = getNextPage(journey, currentPage, params);
 npm run test:journeys
 ```
 
+### Run Journey Tests Manually
+```bash
+npx jest tests/journeys/ --passWithNoTests
+```
+
 ---
 
 # Overview
