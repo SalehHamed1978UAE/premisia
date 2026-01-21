@@ -3,10 +3,16 @@
  * 
  * Automatically spawns and manages the CrewAI Python service
  * ensuring it's always available for multi-agent EPM generation.
+ * 
+ * Includes PID guard to:
+ * - Kill orphaned processes on port 8001 before starting
+ * - Write PID file for process tracking
+ * - Properly clean up on shutdown
  */
 
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, ChildProcess, execSync } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 
 const CREWAI_PORT = 8001;
 const CREWAI_URL = `http://localhost:${CREWAI_PORT}`;
@@ -14,6 +20,7 @@ const HEALTH_CHECK_INTERVAL = 10000; // 10 seconds
 const MAX_STARTUP_RETRIES = 30;
 const STARTUP_RETRY_INTERVAL = 2000; // 2 seconds
 const RESTART_DELAY = 5000; // 5 seconds
+const PID_FILE = '/tmp/crewai.pid';
 
 let crewaiProcess: ChildProcess | null = null;
 let healthCheckTimer: NodeJS.Timeout | null = null;
@@ -21,6 +28,88 @@ let isShuttingDown = false;
 let isStarting = false; // Lock to prevent concurrent starts
 let consecutiveHealthFailures = 0;
 const MAX_HEALTH_FAILURES = 3;
+let externalServiceMode = false; // If true, service is run by separate workflow
+
+/**
+ * Kill any orphaned processes on port 8001
+ */
+function killOrphanedProcesses(): void {
+  try {
+    console.log('[CrewAI Manager] Checking for orphaned processes on port 8001...');
+    const result = execSync('lsof -ti:8001 2>/dev/null || true', { encoding: 'utf8' }).trim();
+    
+    if (result) {
+      const pids = result.split('\n').filter(p => p.trim());
+      console.log(`[CrewAI Manager] Found ${pids.length} orphaned process(es): ${pids.join(', ')}`);
+      
+      for (const pid of pids) {
+        try {
+          execSync(`kill -9 ${pid} 2>/dev/null || true`);
+          console.log(`[CrewAI Manager] Killed orphaned process ${pid}`);
+        } catch {
+          // Ignore kill errors
+        }
+      }
+      
+      // Brief wait for ports to be released
+      execSync('sleep 1');
+    } else {
+      console.log('[CrewAI Manager] No orphaned processes found');
+    }
+  } catch (err) {
+    console.log('[CrewAI Manager] Could not check for orphaned processes:', err);
+  }
+}
+
+/**
+ * Write PID to file for tracking
+ */
+function writePidFile(pid: number): void {
+  try {
+    fs.writeFileSync(PID_FILE, String(pid));
+    console.log(`[CrewAI Manager] Wrote PID ${pid} to ${PID_FILE}`);
+  } catch (err) {
+    console.log('[CrewAI Manager] Could not write PID file:', err);
+  }
+}
+
+/**
+ * Read PID from file
+ */
+function readPidFile(): number | null {
+  try {
+    if (fs.existsSync(PID_FILE)) {
+      const pid = parseInt(fs.readFileSync(PID_FILE, 'utf8').trim(), 10);
+      return isNaN(pid) ? null : pid;
+    }
+  } catch {
+    // Ignore read errors
+  }
+  return null;
+}
+
+/**
+ * Clean up PID file
+ */
+function cleanupPidFile(): void {
+  try {
+    if (fs.existsSync(PID_FILE)) {
+      const pid = readPidFile();
+      if (pid) {
+        try {
+          process.kill(pid, 'SIGTERM');
+          console.log(`[CrewAI Manager] Sent SIGTERM to PID ${pid} from PID file`);
+        } catch {
+          // Process may already be gone
+        }
+      }
+      fs.unlinkSync(PID_FILE);
+      console.log(`[CrewAI Manager] Cleaned up PID file`);
+    }
+  } catch {
+    // Ignore cleanup errors
+  }
+}
 
 /**
  * Check if CrewAI service is healthy
@@ -161,6 +250,7 @@ function startHealthChecks() {
 
 /**
  * Start the CrewAI service (with lock to prevent concurrent starts)
+ * Uses PID guard to kill orphaned processes and track the service
  */
 export async function startCrewAIService(): Promise<boolean> {
   // Prevent concurrent starts
@@ -176,23 +266,33 @@ export async function startCrewAIService(): Promise<boolean> {
   isStarting = true;
   
   try {
-    // Check if already running and healthy
+    // Check if already running and healthy (maybe from separate workflow)
     if (await isCrewAIHealthy()) {
-      console.log('[CrewAI Manager] Service already running and healthy');
+      console.log('[CrewAI Manager] Service already running and healthy (may be external workflow)');
+      externalServiceMode = true;
       startHealthChecks();
       return true;
     }
     
-    // Kill any existing process
+    // Kill any existing managed process
     if (crewaiProcess) {
-      console.log('[CrewAI Manager] Killing existing process...');
+      console.log('[CrewAI Manager] Killing existing managed process...');
       crewaiProcess.kill('SIGTERM');
       crewaiProcess = null;
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
     
+    // PID GUARD: Kill any orphaned processes on port 8001
+    killOrphanedProcesses();
+    
     // Spawn new process
+    externalServiceMode = false;
     crewaiProcess = spawnCrewAI();
+    
+    // Write PID file for tracking
+    if (crewaiProcess.pid) {
+      writePidFile(crewaiProcess.pid);
+    }
     
     // Wait for it to be healthy
     const healthy = await waitForHealthy();
@@ -209,6 +309,7 @@ export async function startCrewAIService(): Promise<boolean> {
 
 /**
  * Stop the CrewAI service (synchronous cleanup for exit handlers)
+ * Uses PID file for reliable cleanup even with orphaned processes
  */
 function stopCrewAIServiceSync(): void {
   isShuttingDown = true;
@@ -218,11 +319,20 @@ function stopCrewAIServiceSync(): void {
     healthCheckTimer = null;
   }
   
+  // Don't kill if running in external service mode (managed by separate workflow)
+  if (externalServiceMode) {
+    console.log('[CrewAI Manager] External service mode - not killing Python process');
+    return;
+  }
+  
   if (crewaiProcess) {
-    console.log('[CrewAI Manager] Stopping service...');
+    console.log('[CrewAI Manager] Stopping managed service...');
     crewaiProcess.kill('SIGTERM');
     crewaiProcess = null;
   }
+  
+  // Also cleanup via PID file (catches orphaned processes)
+  cleanupPidFile();
 }
 
 /**
@@ -236,8 +346,14 @@ export async function stopCrewAIService(): Promise<void> {
     healthCheckTimer = null;
   }
   
+  // Don't kill if running in external service mode
+  if (externalServiceMode) {
+    console.log('[CrewAI Manager] External service mode - not killing Python process');
+    return;
+  }
+  
   if (crewaiProcess) {
-    console.log('[CrewAI Manager] Stopping service...');
+    console.log('[CrewAI Manager] Stopping managed service...');
     const proc = crewaiProcess;
     crewaiProcess = null;
     
@@ -258,6 +374,9 @@ export async function stopCrewAIService(): Promise<void> {
     
     console.log('[CrewAI Manager] Service stopped');
   }
+  
+  // Cleanup PID file
+  cleanupPidFile();
 }
 
 /**
@@ -268,14 +387,17 @@ export async function getCrewAIStatus(): Promise<{
   healthy: boolean;
   pid: number | null;
   url: string;
+  externalMode: boolean;
 }> {
   const healthy = await isCrewAIHealthy();
+  const pidFromFile = readPidFile();
   
   return {
     running: crewaiProcess !== null || healthy,
     healthy,
-    pid: crewaiProcess?.pid || null,
-    url: CREWAI_URL
+    pid: crewaiProcess?.pid || pidFromFile || null,
+    url: CREWAI_URL,
+    externalMode: externalServiceMode
   };
 }
 
