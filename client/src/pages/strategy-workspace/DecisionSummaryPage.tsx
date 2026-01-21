@@ -115,6 +115,8 @@ export default function DecisionSummaryPage() {
   const versionNumber = params?.versionNumber ? parseInt(params.versionNumber) : 1;
 
   const [currentStep, setCurrentStep] = useState(1);
+  const [progressId, setProgressId] = useState<string | null>(null);
+  const [showProgress, setShowProgress] = useState(false);
   const [decisionData, setDecisionData] = useState<Partial<StrategyDecision>>({
     riskTolerance: 'balanced',
     timelinePreference: 'sustainable_pace',
@@ -249,12 +251,32 @@ export default function DecisionSummaryPage() {
       return epmResponse.json();
     },
     onSuccess: (data) => {
-      toast({
-        title: "EPM Program Generated",
-        description: `Created with ${Math.round(parseFloat(data.overallConfidence) * 100)}% confidence`,
-      });
-      // Navigate to EPM view
-      setLocation(`/strategy-workspace/epm/${data.epmProgramId}`);
+      // New response format includes progressId for async generation
+      if (data.progressId) {
+        setProgressId(data.progressId);
+        setShowProgress(true);
+        toast({
+          title: "EPM Generation Started",
+          description: "Your program is being generated. You can navigate away safely.",
+        });
+        // Navigate to programs list where user can see progress
+        setLocation('/strategy-workspace/programs');
+      } else if (data.epmProgramId) {
+        // Fallback to old synchronous format
+        const confidence = data.overallConfidence ? Math.round(parseFloat(data.overallConfidence) * 100) : 0;
+        toast({
+          title: "EPM Program Generated",
+          description: `Created with ${confidence}% confidence`,
+        });
+        setLocation(`/strategy-workspace/epm/${data.epmProgramId}`);
+      } else {
+        // Handle unexpected response
+        toast({
+          title: "EPM Generation Started",
+          description: "Check the Programs page for your new program.",
+        });
+        setLocation('/strategy-workspace/programs');
+      }
     },
     onError: (error: any) => {
       toast({
