@@ -214,8 +214,14 @@ export interface EPMGeneratorOutput {
   knowledgeLedger?: KnowledgeLedger;
 }
 
+export type ProgressCallback = (progress: GenerationProgress) => void;
+
+export interface GenerateOptions {
+  onProgress?: ProgressCallback;
+}
+
 export interface IEPMGenerator {
-  generate(input: EPMGeneratorInput): Promise<EPMGeneratorOutput>;
+  generate(input: EPMGeneratorInput, options?: GenerateOptions): Promise<EPMGeneratorOutput>;
 }
 
 export interface GenerationProgress {
@@ -230,4 +236,5 @@ export interface EPMRouterOptions {
   forceMultiAgent?: boolean;
   forceLegacy?: boolean;
   fallbackOnError?: boolean;
+  onProgress?: ProgressCallback;
 }

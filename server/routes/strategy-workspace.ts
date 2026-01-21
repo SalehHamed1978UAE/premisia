@@ -549,7 +549,24 @@ async function processEPMGeneration(
 
       try {
         const router = getEPMRouter();
-        const routerResult = await router.generate(epmInput);
+        
+        // Progress callback for real-time SSE updates during multi-agent generation
+        const onProgress = (progress: { round: number; totalRounds: number; currentAgent: string; message: string; percentComplete: number }) => {
+          // Map progress: rounds 1-7 map to 15-80%
+          const baseProgress = 15;
+          const maxProgress = 80;
+          const progressRange = maxProgress - baseProgress;
+          const mappedProgress = Math.round(baseProgress + (progress.round / progress.totalRounds) * progressRange);
+          
+          sendSSEEvent(progressId, {
+            type: 'step-progress',
+            step: 'multi-agent-generation',
+            progress: mappedProgress,
+            description: progress.message || `Round ${progress.round}/${progress.totalRounds}: Agent collaboration in progress...`,
+          });
+        };
+        
+        const routerResult = await router.generate(epmInput, { onProgress });
         
         // Extract metadata from router output
         generatorMetadata = routerResult.metadata;

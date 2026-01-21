@@ -5,19 +5,34 @@
  * to provide a consistent interface matching the multi-agent generator.
  */
 
-import type { IEPMGenerator, EPMGeneratorInput, EPMGeneratorOutput, EPMProgram, Workstream, Risk, FinancialItem } from './types';
+import type { IEPMGenerator, EPMGeneratorInput, EPMGeneratorOutput, EPMProgram, Workstream, Risk, FinancialItem, GenerateOptions } from './types';
 
 export class LegacyEPMGenerator implements IEPMGenerator {
   
   /**
    * Generate EPM program using the existing pipeline
    */
-  async generate(input: EPMGeneratorInput): Promise<EPMGeneratorOutput> {
+  async generate(input: EPMGeneratorInput, options?: GenerateOptions): Promise<EPMGeneratorOutput> {
     const startTime = Date.now();
     console.log('[LegacyEPMGenerator] Starting legacy EPM generation');
     console.log(`[LegacyEPMGenerator] Session: ${input.sessionId}`);
+    
+    // Helper to report progress if callback provided
+    const reportProgress = (round: number, message: string) => {
+      if (options?.onProgress) {
+        options.onProgress({
+          round,
+          totalRounds: 3,  // Legacy has 3 main phases
+          currentAgent: 'Legacy Generator',
+          message,
+          percentComplete: Math.min(15 + (round * 22), 80),  // 15% -> 37% -> 59% -> 80%
+        });
+      }
+    };
 
     try {
+      reportProgress(0, 'Initializing legacy EPM pipeline...');
+      
       // Dynamically import existing modules to avoid circular dependencies
       const { EPMSynthesizer, ContextBuilder } = await import('../../intelligence/epm-synthesizer');
       const { aiClients } = await import('../../ai-clients');
@@ -86,14 +101,21 @@ export class LegacyEPMGenerator implements IEPMGenerator {
         },
       };
 
+      reportProgress(1, 'Building planning context and strategy insights...');
+      
       // Create synthesizer with LLM provider for proper WBS generation
       const synthesizer = new EPMSynthesizer(llmProvider);
+      
+      reportProgress(2, 'Generating EPM structure with AI...');
+      
       const legacyResult = await synthesizer.synthesize(
         strategyInsights,
         { id: input.userId } as any,
         planningContext
       );
 
+      reportProgress(3, 'Converting to unified EPM format...');
+      
       // Convert legacy format to new unified format
       const program = this.convertToUnifiedFormat(legacyResult, input);
       const generationTime = Date.now() - startTime;

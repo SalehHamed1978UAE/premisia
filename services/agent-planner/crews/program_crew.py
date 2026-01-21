@@ -652,7 +652,7 @@ Include a JSON block at the end with key decisions in this format:
             contingency=total_budget * 0.1
         )
     
-    def generate_sync(self, input_data: EPMGeneratorInput) -> Dict[str, Any]:
+    def generate_sync(self, input_data: EPMGeneratorInput, on_progress: Optional[callable] = None) -> Dict[str, Any]:
         """
         Generate an EPM program using multi-agent collaboration (synchronous).
         
@@ -661,6 +661,10 @@ Include a JSON block at the end with key decisions in this format:
         
         This is a synchronous method because CrewAI's crew.kickoff() is blocking.
         Call from async context via run_in_executor().
+        
+        Args:
+            input_data: The EPM generator input containing business context and insights
+            on_progress: Optional callback for progress updates: on_progress(round_num, round_name, agent_name=None)
         """
         import traceback
         print(f"[ProgramCrew] Starting generation for: {input_data.business_context.name}")
@@ -747,6 +751,13 @@ Include a JSON block at the end with key decisions in this format:
                 
                 round_decisions = self._extract_decisions(synthesis_output, round_num)
                 self.decisions.extend(round_decisions)
+                
+                # Report progress after each round completes
+                if on_progress:
+                    try:
+                        on_progress(round_num, round_name, "Program Coordinator")
+                    except Exception as e:
+                        print(f"[ProgramCrew] Progress callback error: {e}")
                 
             except Exception as e:
                 import traceback

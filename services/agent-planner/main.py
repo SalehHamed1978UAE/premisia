@@ -66,6 +66,7 @@ app.add_middleware(
 )
 
 jobs_store: dict = {}
+session_to_job: dict = {}  # Maps session_id -> job_id for idempotency
 
 
 @app.on_event("startup")
@@ -116,12 +117,29 @@ def _run_generation_job(job_id: str, input_data: EPMGeneratorInput):
         start_time = datetime.now()
         print(f"[Job {job_id}] Starting program generation")
         
+        # Progress callback to update job status during round execution
+        def on_round_progress(round_num: int, round_name: str, agent_name: str = None):
+            """Called by ProgramPlanningCrew after each agent/round completes."""
+            # Progress from 10% to 80% across 7 rounds (10% per round)
+            base_progress = 10 + (round_num * 10)
+            progress = min(base_progress, 80)
+            
+            jobs_store[job_id]["progress"] = progress
+            jobs_store[job_id]["current_round"] = round_num
+            
+            if agent_name:
+                jobs_store[job_id]["message"] = f"Round {round_num}: {agent_name} completed"
+            else:
+                jobs_store[job_id]["message"] = f"Starting round {round_num}: {round_name}"
+            
+            print(f"[Job {job_id}] Progress: {progress}% - Round {round_num}: {round_name}")
+        
         crew = ProgramPlanningCrew()
         
         jobs_store[job_id]["progress"] = 10
         jobs_store[job_id]["message"] = "Agents initialized, starting round 1..."
         
-        crew_result = crew.generate_sync(input_data)
+        crew_result = crew.generate_sync(input_data, on_progress=on_round_progress)
         
         program: EPMProgram = crew_result["program"]
         conversation_log = crew_result["conversation_log"]
@@ -192,8 +210,28 @@ async def start_job(input_data: EPMGeneratorInput):
     
     Returns a job ID immediately. Use /job-status/{job_id} to poll for progress
     and /job-result/{job_id} to get the result when complete.
+    
+    Idempotent: If a job is already running for this session, returns the existing job ID.
     """
+    session_id = input_data.session_id
+    
+    # Check if a job is already running for this session (idempotency)
+    if session_id and session_id in session_to_job:
+        existing_job_id = session_to_job[session_id]
+        existing_job = jobs_store.get(existing_job_id)
+        
+        if existing_job and existing_job["status"] in ["pending", "running"]:
+            print(f"[Job] Returning existing job {existing_job_id} for session {session_id}")
+            return JobStartResponse(jobId=existing_job_id)
+        else:
+            # Job completed or failed, allow new job
+            del session_to_job[session_id]
+    
     job_id = str(uuid.uuid4())
+    
+    # Track session -> job mapping for idempotency
+    if session_id:
+        session_to_job[session_id] = job_id
     
     jobs_store[job_id] = {
         "status": "pending",

@@ -8,7 +8,7 @@
  * to the agent-generated workstreams, ensuring mathematical rigor.
  */
 
-import type { IEPMGenerator, EPMGeneratorInput, EPMGeneratorOutput } from './types';
+import type { IEPMGenerator, EPMGeneratorInput, EPMGeneratorOutput, GenerateOptions, GenerationProgress } from './types';
 import { createCFIntegration } from './cf-integration';
 import { postProcessWithCPM } from './cpm-processor';
 
@@ -83,7 +83,7 @@ export class MultiAgentEPMGenerator implements IEPMGenerator {
    * 2. Poll /job-status/{jobId} for progress updates
    * 3. Fetch result from /job-result/{jobId} when complete
    */
-  async generate(input: EPMGeneratorInput): Promise<EPMGeneratorOutput> {
+  async generate(input: EPMGeneratorInput, options?: GenerateOptions): Promise<EPMGeneratorOutput> {
     const startTime = Date.now();
     console.log('[MultiAgentGenerator] Starting multi-agent collaboration (async pattern)');
     console.log(`[MultiAgentGenerator] Service URL: ${this.serviceUrl}`);
@@ -154,11 +154,27 @@ export class MultiAgentEPMGenerator implements IEPMGenerator {
 
           const status = await statusResponse.json();
           
-          // Log progress changes
+          // Log progress changes and call callback
           if (status.progress !== lastProgress || status.currentRound !== lastRound) {
             console.log(`[MultiAgentGenerator] Progress: ${status.progress}% | Round: ${status.currentRound || 0}/7 | ${status.message || ''}`);
             lastProgress = status.progress;
             lastRound = status.currentRound || 0;
+            
+            // Call progress callback if provided
+            if (options?.onProgress) {
+              const progress: GenerationProgress = {
+                round: status.currentRound || 0,
+                totalRounds: 7,
+                currentAgent: status.message?.includes(':') ? status.message.split(':')[1]?.trim() || '' : '',
+                message: status.message || '',
+                percentComplete: status.progress || 0,
+              };
+              try {
+                options.onProgress(progress);
+              } catch (e) {
+                console.warn('[MultiAgentGenerator] Progress callback error:', e);
+              }
+            }
           }
 
           if (status.status === 'completed') {

@@ -68,7 +68,7 @@ export class EPMGeneratorRouter {
     
     // If using legacy or fallback is disabled, just run directly
     if (generator instanceof LegacyEPMGenerator || !fallbackEnabled) {
-      return generator.generate(input);
+      return generator.generate(input, { onProgress: options?.onProgress });
     }
 
     // Multi-agent with fallback enabled - check health first
@@ -78,7 +78,7 @@ export class EPMGeneratorRouter {
       console.log('[EPM] Multi-agent system READY (7 agents on port 8001)');
     } else {
       console.warn('[EPM] Multi-agent UNAVAILABLE - using legacy generator');
-      const fallbackResult = await this.legacyGenerator.generate(input);
+      const fallbackResult = await this.legacyGenerator.generate(input, { onProgress: options?.onProgress });
       return {
         ...fallbackResult,
         metadata: {
@@ -91,12 +91,12 @@ export class EPMGeneratorRouter {
     
     try {
       console.log('[EPMRouter] Attempting multi-agent generation...');
-      return await generator.generate(input);
+      return await generator.generate(input, { onProgress: options?.onProgress });
     } catch (error: any) {
       console.error('[EPMRouter] Multi-agent generation failed:', error.message);
       console.warn('[EPM] Multi-agent FAILED - falling back to legacy generator');
       
-      const fallbackResult = await this.legacyGenerator.generate(input);
+      const fallbackResult = await this.legacyGenerator.generate(input, { onProgress: options?.onProgress });
       
       // Mark that we fell back
       return {
