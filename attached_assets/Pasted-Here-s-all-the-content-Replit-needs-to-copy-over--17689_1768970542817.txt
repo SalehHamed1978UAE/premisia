@@ -1,0 +1,489 @@
+Here's all the content Replit needs to copy over:                             
+                                                                                
+  ---                                                                           
+  1. Create /docs/JOURNEY_ARCHITECTURE.md                                       
+                                                                                
+  # Journey Architecture - MANDATORY READING                                    
+                                                                                
+  > **If you're modifying journey, research, or framework code, READ THIS       
+  FIRST.**                                                                      
+                                                                                
+  ## Overview                                                                   
+                                                                                
+  Premisia uses a **modular journey architecture**. Journeys are composed of    
+  reusable framework modules that execute in sequence, passing context between  
+  them.                                                                         
+                                                                                
+  Journey = [Module1] → [Module2] → [Module3] → ... → [EPM Output]              
+                                                                                
+  ## Source of Truth                                                            
+                                                                                
+  | What | File | Purpose |                                                     
+  |------|------|---------|                                                     
+  | Journey Definitions | `server/journey/journey-registry.ts` | Defines which  
+  modules run in which order |                                                  
+  | Module Execution | `server/journey/journey-orchestrator.ts` | Executes      
+  frameworks in sequence |                                                      
+  | Context Flow | `server/journey/strategic-context-accumulator.ts` | Passes   
+  data between modules |                                                        
+  | Module Bridges | `server/journey/bridges/*.ts` | Transforms outputs for     
+  downstream modules |                                                          
+  | Framework Executors | `server/journey/executors/*.ts` | Self-contained      
+  module implementations |                                                      
+                                                                                
+  ## The 6 Pre-Defined Journeys                                                 
+                                                                                
+  | Journey Type | Module Sequence |                                            
+  |--------------|-----------------|                                            
+  | `business_model_innovation` | Five Whys → BMC |                             
+  | `market_entry` | PESTLE → Porter's → SWOT |                                 
+  | `competitive_strategy` | Porter's → BMC → Blue Ocean |                      
+  | `digital_transformation` | PESTLE → BMC → Ansoff |                          
+  | `crisis_recovery` | Five Whys → SWOT → BMC |                                
+  | `growth_strategy` | PESTLE → Ansoff → BMC |                                 
+                                                                                
+  ## Framework Modules & Their UI Components                                    
+                                                                                
+  Each framework module has its OWN UI component. **Do NOT share components     
+  between frameworks.**                                                         
+                                                                                
+  | Framework | Research Categories | UI Component |                            
+  |-----------|-------------------|--------------|                              
+  | BMC | 9 blocks: customer_segments, value_propositions, revenue_streams,     
+  channels, customer_relationships, key_resources, key_activities,              
+  key_partnerships, cost_structure | `BMCResearchExperience.tsx` |              
+  | Porter's | 5 forces: market_dynamics, competitive_landscape, buyer_behavior,
+   regulatory_factors, language_preferences | `PortersResearchExperience.tsx` | 
+  | Five Whys | Root cause analysis | `WhysTreePage.tsx` |                      
+  | PESTLE | 6 factors: Political, Economic, Social, Technological, Legal,      
+  Environmental | `PESTLEExperience.tsx` |                                      
+                                                                                
+  ## Rules (MUST FOLLOW)                                                        
+                                                                                
+  ### 1. Never Hardcode Journey Logic                                           
+                                                                                
+  ```typescript                                                                 
+  // ❌ WRONG - Hardcoded logic that WILL break                                 
+  if (journeyType === 'business_model_innovation') {                            
+    categories = ['customer_segments', ...];                                    
+  } else {                                                                      
+    categories = ['market_dynamics', ...];                                      
+  }                                                                             
+                                                                                
+  // ✅ CORRECT - Query the journey system                                      
+  const journey = getJourneyByType(journeyType);                                
+  const currentFramework = journey.frameworks[currentFrameworkIndex];           
+  const ModuleUI = getModuleUI(currentFramework);                               
+                                                                                
+  2. Never Hardcode URLs                                                        
+                                                                                
+  // ❌ WRONG - Bypasses journey page sequence                                  
+  nextUrl: `/strategy-workspace/decisions/${sessionId}/${version}`              
+                                                                                
+  // ✅ CORRECT - Use journey registry                                          
+  import { getNextPage } from '../journey/journey-registry';                    
+  const nextUrl = getNextPage(journey, currentPage, { sessionId, version });    
+                                                                                
+  3. Keep Module UIs Separate                                                   
+                                                                                
+  // ❌ WRONG - One component trying to handle all frameworks                   
+  <ResearchExperience categories={hardcodedArray} />                            
+                                                                                
+  // ✅ CORRECT - Each framework has its own component                          
+  if (currentFramework === 'bmc') {                                             
+    return <BMCResearchExperience />;                                           
+  } else if (currentFramework === 'porters') {                                  
+    return <PortersResearchExperience />;                                       
+  }                                                                             
+                                                                                
+  4. Use Context Accumulator for Data Flow                                      
+                                                                                
+  // ❌ WRONG - Passing data directly between components                        
+  const bmcInput = fiveWhysOutput.rootCauses;                                   
+                                                                                
+  // ✅ CORRECT - Use the accumulator                                           
+  import { addFrameworkResult } from '../journey/strategic-context-accumulator';
+  context = addFrameworkResult(context, fiveWhysResult);                        
+  // BMC executor reads from context.insights.rootCauses                        
+                                                                                
+  Files That MUST Stay In Sync                                                  
+                                                                                
+  If you modify one, check the others:                                          
+                                                                                
+  1. server/journey/journey-registry.ts - Journey definitions                   
+  2. client/src/pages/strategic-consultant/ResearchPage.tsx - Journey type      
+  detection                                                                     
+  3. client/src/components/research-experience/*.tsx - Module-specific UIs      
+  4. server/routes/strategic-consultant.ts - SSE events and routing             
+                                                                                
+  Testing Requirements                                                          
+                                                                                
+  Before merging ANY journey-related changes:                                   
+                                                                                
+  npm run test:journeys                                                         
+                                                                                
+  Common Mistakes That Break Things                                             
+  Mistake: Hardcoding categories in ResearchExperience                          
+  Why It Breaks: BMC shows Porter's UI                                          
+  Fix: Use separate components per framework                                    
+  ────────────────────────────────────────                                      
+  Mistake: Hardcoding nextUrl in routes                                         
+  Why It Breaks: Wrong page after research                                      
+  Fix: Use getNextPage()                                                        
+  ────────────────────────────────────────                                      
+  Mistake: Sharing state between modules                                        
+  Why It Breaks: Data doesn't flow correctly                                    
+  Fix: Use context accumulator                                                  
+  ────────────────────────────────────────                                      
+  Mistake: Adding journey-specific logic to shared components                   
+  Why It Breaks: Other journeys break                                           
+  Fix: Create module-specific components                                        
+  ---                                                                           
+                                                                                
+  ## 2. Add warning block to top of `REPLIT.md`                                 
+                                                                                
+  Add this at the very top of the existing REPLIT.md:                           
+                                                                                
+  ```markdown                                                                   
+  # ⚠️ CRITICAL: MODULAR JOURNEY ARCHITECTURE ⚠️                                
+                                                                                
+  **BEFORE MODIFYING ANY JOURNEY, RESEARCH, OR FRAMEWORK CODE, READ             
+  `/docs/JOURNEY_ARCHITECTURE.md`**                                             
+                                                                                
+  ## Quick Rules (Violations Break the App)                                     
+                                                                                
+  ### Source of Truth                                                           
+  | What | File |                                                               
+  |------|------|                                                               
+  | Journey Definitions | `server/journey/journey-registry.ts` |                
+  | Module Execution | `server/journey/journey-orchestrator.ts` |               
+  | Context Flow | `server/journey/strategic-context-accumulator.ts` |          
+                                                                                
+  ### NEVER DO THIS                                                             
+  ```typescript                                                                 
+  // ❌ Hardcoded categories - BREAKS BMC JOURNEY                               
+  const categories = ["market_dynamics", "competitive_landscape", ...];         
+                                                                                
+  // ❌ Hardcoded URLs - BREAKS ROUTING                                         
+  nextUrl: `/strategy-workspace/decisions/${sessionId}`;                        
+                                                                                
+  ALWAYS DO THIS                                                                
+                                                                                
+  // ✅ Query the journey system                                                
+  const journey = getJourneyByType(journeyType);                                
+  const nextUrl = getNextPage(journey, currentPage, params);                    
+                                                                                
+  Separate UI Components Per Framework                                          
+                                                                                
+  - BMC (9 blocks) → BMCResearchExperience.tsx                                  
+  - Porter's (5 forces) → PortersResearchExperience.tsx                         
+  - DO NOT make one component handle multiple frameworks                        
+                                                                                
+  Before Merging Journey Changes                                                
+                                                                                
+  npm run test:journeys                                                         
+                                                                                
+  ---                                                                           
+  ---                                                                           
+                                                                                
+  ## 3. Add comment to top of                                                   
+  `client/src/pages/strategic-consultant/ResearchPage.tsx`                      
+                                                                                
+  Add this comment block at the very top of the file (before imports):          
+                                                                                
+  ```typescript                                                                 
+  /**                                                                           
+   *                                                                            
+  ╔═══════════════════════════════════════════════════════════════════════════╗ 
+   * ║  ⚠️  CRITICAL: MODULAR JOURNEY ARCHITECTURE  ⚠️                          
+    ║                                                                           
+   *                                                                            
+  ╠═══════════════════════════════════════════════════════════════════════════╣ 
+   * ║  This page serves MULTIPLE journey types (BMC, Porter's, PESTLE, etc.)   
+  ║                                                                             
+   * ║                                                                          
+   ║                                                                            
+   * ║  BEFORE MODIFYING:                                                       
+   ║                                                                            
+   * ║  1. Read /docs/JOURNEY_ARCHITECTURE.md                                   
+   ║                                                                            
+   * ║  2. Use getJourneyByType() - never hardcode journey logic                
+   ║                                                                            
+   * ║  3. Use getNextPage() - never hardcode URLs                              
+   ║                                                                            
+   * ║  4. Each framework needs its OWN UI component                            
+   ║                                                                            
+   * ║                                                                          
+   ║                                                                            
+   * ║  COMMON MISTAKE: Hardcoding Porter's categories here breaks BMC journey  
+   ║                                                                            
+   * ║                                                                          
+   ║                                                                            
+   * ║  Source of truth: server/journey/journey-registry.ts                     
+   ║                                                                            
+   *                                                                            
+  ╚═══════════════════════════════════════════════════════════════════════════╝ 
+   */                                                                           
+                                                                                
+  ---                                                                           
+  4. Add scripts to package.json                                                
+                                                                                
+  Add these to the scripts section:                                             
+                                                                                
+  "test:journeys": "NODE_OPTIONS='--experimental-vm-modules' jest               
+  tests/journeys/ --passWithNoTests",                                           
+  "test:architecture": "NODE_OPTIONS='--experimental-vm-modules' jest           
+  tests/journeys/journey-architecture.spec.ts"                                  
+                                                                                
+  ---                                                                           
+  5. Create tests/journeys/journey-architecture.spec.ts                         
+                                                                                
+  /**                                                                           
+   * Journey Architecture Integrity Tests                                       
+   *                                                                            
+   * These tests ensure the modular journey architecture is not violated.       
+   * If these tests fail, someone has hardcoded journey-specific logic          
+   * that will break other journeys.                                            
+   *                                                                            
+   * See: /docs/JOURNEY_ARCHITECTURE.md                                         
+   */                                                                           
+                                                                                
+  import fs from 'fs';                                                          
+  import path from 'path';                                                      
+                                                                                
+  describe('Journey Architecture Integrity', () => {                            
+                                                                                
+    describe('ResearchExperience should not hardcode framework categories', ()  
+  => {                                                                          
+                                                                                
+      it('should not contain hardcoded Porter categories in shared components', 
+  () => {                                                                       
+        const filePath = path.join(process.cwd(),                               
+  'client/src/components/research-experience/ResearchExperience.tsx');          
+                                                                                
+        if (!fs.existsSync(filePath)) {                                         
+          console.warn('ResearchExperience.tsx not found - skipping test');     
+          return;                                                               
+        }                                                                       
+                                                                                
+        const content = fs.readFileSync(filePath, 'utf8');                      
+                                                                                
+        const porterCategories = [                                              
+          'market_dynamics',                                                    
+          'competitive_landscape',                                              
+          'buyer_behavior',                                                     
+          'regulatory_factors',                                                 
+          'language_preferences'                                                
+        ];                                                                      
+                                                                                
+        for (const category of porterCategories) {                              
+          const regex = new RegExp(`["']${category}["']`, 'g');                 
+          const matches = content.match(regex) || [];                           
+                                                                                
+          if (matches.length > 0) {                                             
+            const isPortersFile = filePath.includes('Porters') ||               
+  filePath.includes('porters');                                                 
+                                                                                
+            if (!isPortersFile) {                                               
+              throw new Error(                                                  
+                `Found hardcoded Porter's category "${category}" in shared      
+  component ${filePath}.\n` +                                                   
+                `This will break BMC and other journeys.\n` +                   
+                `Fix: Move to PortersResearchExperience.tsx or use journey      
+  registry.`                                                                    
+              );                                                                
+            }                                                                   
+          }                                                                     
+        }                                                                       
+      });                                                                       
+                                                                                
+      it('should not contain hardcoded BMC blocks in shared components', () => {
+        const filePath = path.join(process.cwd(),                               
+  'client/src/components/research-experience/ResearchExperience.tsx');          
+                                                                                
+        if (!fs.existsSync(filePath)) {                                         
+          console.warn('ResearchExperience.tsx not found - skipping test');     
+          return;                                                               
+        }                                                                       
+                                                                                
+        const content = fs.readFileSync(filePath, 'utf8');                      
+                                                                                
+        const bmcBlocks = [                                                     
+          'customer_segments',                                                  
+          'value_propositions',                                                 
+          'revenue_streams',                                                    
+          'key_resources',                                                      
+          'key_activities',                                                     
+          'key_partnerships',                                                   
+          'cost_structure'                                                      
+        ];                                                                      
+                                                                                
+        for (const block of bmcBlocks) {                                        
+          const regex = new RegExp(`["']${block}["']`, 'g');                    
+          const matches = content.match(regex) || [];                           
+                                                                                
+          if (matches.length > 0) {                                             
+            const isBMCFile = filePath.includes('BMC') ||                       
+  filePath.includes('bmc');                                                     
+                                                                                
+            if (!isBMCFile) {                                                   
+              throw new Error(                                                  
+                `Found hardcoded BMC block "${block}" in shared component       
+  ${filePath}.\n` +                                                             
+                `This couples the shared component to BMC journey.\n` +         
+                `Fix: Move to BMCResearchExperience.tsx or use journey          
+  registry.`                                                                    
+              );                                                                
+            }                                                                   
+          }                                                                     
+        }                                                                       
+      });                                                                       
+    });                                                                         
+                                                                                
+    describe('Routes should use getNextPage instead of hardcoded URLs', () => { 
+                                                                                
+      it('strategic-consultant.ts should not hardcode nextUrl for BMC', () => { 
+        const filePath = path.join(process.cwd(),                               
+  'server/routes/strategic-consultant.ts');                                     
+                                                                                
+        if (!fs.existsSync(filePath)) {                                         
+          console.warn('strategic-consultant.ts not found - skipping test');    
+          return;                                                               
+        }                                                                       
+                                                                                
+        const content = fs.readFileSync(filePath, 'utf8');                      
+                                                                                
+        const hardcodedPatterns = [                                             
+          /nextUrl:\s*[`'"]\/strategy-workspace\/decisions/,                    
+          /nextUrl:\s*[`'"]\/bmc\/results/,                                     
+          /nextUrl:\s*[`'"]\/strategic-consultant\/research/,                   
+        ];                                                                      
+                                                                                
+        for (const pattern of hardcodedPatterns) {                              
+          if (pattern.test(content)) {                                          
+            if (!content.includes('getNextPage')) {                             
+              throw new Error(                                                  
+                `Found hardcoded nextUrl in strategic-consultant.ts matching    
+  ${pattern}.\n` +                                                              
+                `This bypasses the journey registry and breaks modular          
+  routing.\n` +                                                                 
+                `Fix: Use getNextPage() from journey-registry.ts instead.`      
+              );                                                                
+            }                                                                   
+          }                                                                     
+        }                                                                       
+      });                                                                       
+    });                                                                         
+                                                                                
+    describe('Journey Registry should define all journeys correctly', () => {   
+                                                                                
+      it('business_model_innovation journey should include BMC framework', async
+   () => {                                                                      
+        try {                                                                   
+          const { getJourney } = await                                          
+  import('../../server/journey/journey-registry');                              
+          const journey = getJourney('business_model_innovation');              
+                                                                                
+          expect(journey).toBeDefined();                                        
+          expect(journey.frameworks).toContain('bmc');                          
+          expect(journey.frameworks).toContain('five_whys');                    
+        } catch (e) {                                                           
+          console.warn('Could not import journey-registry - skipping runtime    
+  test');                                                                       
+        }                                                                       
+      });                                                                       
+                                                                                
+      it('journey registry file should exist and define frameworks', () => {    
+        const filePath = path.join(process.cwd(),                               
+  'server/journey/journey-registry.ts');                                        
+                                                                                
+        expect(fs.existsSync(filePath)).toBe(true);                             
+                                                                                
+        const content = fs.readFileSync(filePath, 'utf8');                      
+                                                                                
+        expect(content).toContain('business_model_innovation');                 
+        expect(content).toContain('frameworks:');                               
+        expect(content).toContain('pageSequence:');                             
+      });                                                                       
+    });                                                                         
+                                                                                
+    describe('ResearchPage should branch on journeyType', () => {               
+                                                                                
+      it('ResearchPage should check journeyType before rendering', () => {      
+        const filePath = path.join(process.cwd(),                               
+  'client/src/pages/strategic-consultant/ResearchPage.tsx');                    
+                                                                                
+        if (!fs.existsSync(filePath)) {                                         
+          console.warn('ResearchPage.tsx not found - skipping test');           
+          return;                                                               
+        }                                                                       
+                                                                                
+        const content = fs.readFileSync(filePath, 'utf8');                      
+                                                                                
+        const hasJourneyTypeCheck =                                             
+          content.includes('journeyType') &&                                    
+          (content.includes('business_model_innovation') ||                     
+  content.includes('isBMCJourney'));                                            
+                                                                                
+        if (!hasJourneyTypeCheck) {                                             
+          throw new Error(                                                      
+            `ResearchPage.tsx does not appear to branch on journeyType.\n` +    
+            `This means all journeys render the same UI, breaking BMC/Porter's  
+  distinction.\n` +                                                             
+            `Fix: Add journeyType check and render appropriate framework UI.`   
+          );                                                                    
+        }                                                                       
+      });                                                                       
+    });                                                                         
+  });                                                                           
+                                                                                
+  ---                                                                           
+  6. Create tests/tsconfig.json                                                 
+                                                                                
+  {                                                                             
+    "compilerOptions": {                                                        
+      "target": "ES2022",                                                       
+      "module": "ESNext",                                                       
+      "moduleResolution": "bundler",                                            
+      "esModuleInterop": true,                                                  
+      "strict": true,                                                           
+      "skipLibCheck": true,                                                     
+      "types": ["jest", "node"]                                                 
+    },                                                                          
+    "include": ["./**/*.ts"]                                                    
+  }                                                                             
+                                                                                
+  ---                                                                           
+  7. Create jest.config.js (root level)                                         
+                                                                                
+  /** @type {import('jest').Config} */                                          
+  export default {                                                              
+    preset: 'ts-jest/presets/default-esm',                                      
+    testEnvironment: 'node',                                                    
+    extensionsToTreatAsEsm: ['.ts'],                                            
+    moduleNameMapper: {                                                         
+      '^(\\.{1,2}/.*)\\.js$': '$1',                                             
+    },                                                                          
+    transform: {                                                                
+      '^.+\\.tsx?$': [                                                          
+        'ts-jest',                                                              
+        {                                                                       
+          useESM: true,                                                         
+          tsconfig: 'tests/tsconfig.json',                                      
+        },                                                                      
+      ],                                                                        
+    },                                                                          
+    testMatch: ['**/tests/**/*.spec.ts'],                                       
+    moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],           
+    rootDir: '.',                                                               
+    testPathIgnorePatterns: ['/node_modules/', '/dist/'],                       
+  };                                                                            
+                                                                                
+  ---                                                                           
+  8. Install test dependencies                                                  
+                                                                                
+  npm install --save-dev ts-jest jest @types/jest                               
+                                                                                
+  ---                                                                           
+  Once Replit has added all these, run npm run test:journeys to verify. Then    
+  you're ready for the multi-agent EPM test.    
