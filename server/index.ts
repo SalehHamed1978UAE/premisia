@@ -10,6 +10,7 @@ import { registerFrameworkExecutors } from "./journey/register-frameworks";
 import { verifyConnection } from "./config/neo4j";
 import { initializeDatabaseExtensions } from "./db-init";
 import { authReadiness } from "./auth-readiness";
+import { startCrewAIService, isCrewAIHealthy } from "./services/crewai-service-manager";
 
 // Log buffer for debugging server restarts (temporary - remove after debugging)
 const LAST_EVENTS: string[] = [];
@@ -237,6 +238,26 @@ server.listen({
         });
       }, 15000);
       log('Background job dispatcher started (polling every 15s)');
+      
+      // Start CrewAI Python service for multi-agent EPM generation
+      if (process.env.USE_MULTI_AGENT_EPM === 'true') {
+        (async () => {
+          try {
+            log('[CrewAI] Starting multi-agent EPM service...');
+            const healthy = await startCrewAIService();
+            if (healthy) {
+              log('[CrewAI] ✅ Multi-agent EPM service is ready on port 8001');
+            } else {
+              console.warn('[CrewAI] ⚠️ Service not available, EPM will use legacy generator');
+            }
+          } catch (error: any) {
+            console.warn('[CrewAI] Failed to start service:', error.message);
+            console.warn('[CrewAI] EPM generation will fall back to legacy generator');
+          }
+        })();
+      } else {
+        log('[CrewAI] Multi-agent EPM disabled (USE_MULTI_AGENT_EPM != true)');
+      }
       
       // Verify database extensions
       (async () => {
