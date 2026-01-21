@@ -208,6 +208,10 @@ export interface EPMGeneratorOutput {
     agentsParticipated?: number;
     knowledgeEmissions?: number;
     generationTimeMs?: number;
+    /** Multi-agent session ID for resume capability */
+    multiAgentSessionId?: string;
+    /** Whether this session can be resumed */
+    resumable?: boolean;
   };
   conversationLog?: ConversationEntry[];
   decisions?: Decision[];

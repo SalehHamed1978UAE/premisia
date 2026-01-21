@@ -36,18 +36,43 @@ export class MultiAgentOrchestrator {
     this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
+  /**
+   * Generate an EPM program through multi-agent collaboration.
+   * Session ID handling:
+   * - If providedSessionId exists and is not completed, resume it
+   * - If providedSessionId exists and is completed, return the cached result
+   * - If providedSessionId doesn't exist, create a new session with that ID
+   * - If no providedSessionId, generate a new session ID
+   */
   async generate(
     userId: string,
     businessContext: BusinessContext,
     bmcInsights: any,
     journeySessionId?: string,
-    onProgress?: (progress: ProgressUpdate) => void
+    onProgress?: (progress: ProgressUpdate) => void,
+    providedSessionId?: string
   ): Promise<{ sessionId: string; program: EPMProgram }> {
+    // Check if we should resume or return cached result for existing session
+    if (providedSessionId) {
+      const sessionStatus = await conversationPersistence.getSessionStatus(providedSessionId);
+      if (sessionStatus.exists) {
+        if (sessionStatus.status === 'completed') {
+          console.log(`[Orchestrator] Session ${providedSessionId} already completed, returning cached result`);
+          // Session is completed - return the cached program
+          return this.resume(providedSessionId, onProgress);
+        } else {
+          console.log(`[Orchestrator] Session ${providedSessionId} exists with status ${sessionStatus.status}, resuming...`);
+          return this.resume(providedSessionId, onProgress);
+        }
+      }
+    }
+
     const sessionId = await conversationPersistence.createSession(
       userId,
       businessContext,
       bmcInsights,
-      journeySessionId
+      journeySessionId,
+      providedSessionId
     );
 
     console.log(`[Orchestrator] Created session ${sessionId} for ${businessContext.name}`);

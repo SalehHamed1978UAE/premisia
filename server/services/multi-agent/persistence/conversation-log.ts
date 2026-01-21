@@ -9,6 +9,18 @@ export interface BusinessContext {
   scale: string;
   description: string;
   industry?: string;
+  keywords?: string[];
+  constraints?: {
+    budget?: number;
+    deadline?: string;
+    regulations?: string[];
+    maxHeadcount?: number;
+    maxContractors?: number;
+  };
+  bmcInsights?: any;
+  strategyInsights?: any;
+  userId?: string;
+  journeyType?: string;
 }
 
 export interface ConversationTurn {
@@ -50,13 +62,19 @@ export interface ResumePoint {
 }
 
 export class ConversationPersistence {
+  /**
+   * Create a new multi-agent session.
+   * If providedSessionId is given, use it; otherwise generate a new one.
+   * This allows callers to maintain their own session ID for resume capability.
+   */
   async createSession(
     userId: string,
     businessContext: BusinessContext,
     bmcInsights?: any,
-    journeySessionId?: string
+    journeySessionId?: string,
+    providedSessionId?: string
   ): Promise<string> {
-    const sessionId = uuid();
+    const sessionId = providedSessionId || uuid();
     
     await db.insert(multiAgentSessions).values({
       id: sessionId,
@@ -71,6 +89,33 @@ export class ConversationPersistence {
     });
     
     return sessionId;
+  }
+
+  /**
+   * Check if a session exists and return its status
+   */
+  async getSessionStatus(sessionId: string): Promise<{
+    exists: boolean;
+    status?: string;
+    currentRound?: number;
+  }> {
+    const sessions = await db.select({
+      status: multiAgentSessions.status,
+      currentRound: multiAgentSessions.currentRound,
+    })
+      .from(multiAgentSessions)
+      .where(eq(multiAgentSessions.id, sessionId))
+      .limit(1);
+    
+    if (sessions.length === 0) {
+      return { exists: false };
+    }
+    
+    return {
+      exists: true,
+      status: sessions[0].status,
+      currentRound: sessions[0].currentRound,
+    };
   }
 
   async updateSessionStatus(

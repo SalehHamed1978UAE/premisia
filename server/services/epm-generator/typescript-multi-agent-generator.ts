@@ -43,12 +43,25 @@ export class TypeScriptMultiAgentGenerator implements IEPMGenerator {
 
     try {
       // Convert EPMGeneratorInput to BusinessContext for orchestrator
+      // Include all fields for complete context preservation
       const businessContext: BusinessContext = {
         name: input.businessContext.name,
         type: input.businessContext.type,
         scale: input.businessContext.scale,
         description: input.businessContext.description,
         industry: input.businessContext.industry,
+        keywords: input.businessContext.keywords,
+        constraints: input.constraints ? {
+          budget: input.constraints.budget,
+          deadline: input.constraints.deadline?.toISOString(),
+          regulations: input.constraints.regulations,
+          maxHeadcount: input.constraints.resourceLimits?.maxHeadcount,
+          maxContractors: input.constraints.resourceLimits?.maxContractors,
+        } : undefined,
+        bmcInsights: input.bmcInsights,
+        strategyInsights: input.strategyInsights,
+        userId: input.userId,
+        journeyType: input.journeyType,
       };
 
       // Progress callback to emit SSE events if provided
@@ -60,12 +73,14 @@ export class TypeScriptMultiAgentGenerator implements IEPMGenerator {
         : undefined;
 
       // Execute the full multi-agent orchestration
+      // Pass input.sessionId as both journeySessionId and providedSessionId for correlation
       const result = await multiAgentOrchestrator.generate(
         input.userId,
         businessContext,
         input.bmcInsights,
-        input.sessionId,
-        onProgress
+        input.sessionId,  // journeySessionId for linking
+        onProgress,
+        input.sessionId   // providedSessionId - use caller's ID for resume capability
       );
 
       const generationTime = Date.now() - startTime;
@@ -82,6 +97,7 @@ export class TypeScriptMultiAgentGenerator implements IEPMGenerator {
       console.log(`[TSMultiAgentGenerator] Generation time: ${(generationTime / 1000).toFixed(1)}s`);
 
       // Return in the expected EPMGeneratorOutput format
+      // Expose sessionId for resume capability
       return {
         program: program || this.createEmptyProgram(input),
         metadata: {
@@ -90,6 +106,8 @@ export class TypeScriptMultiAgentGenerator implements IEPMGenerator {
           confidence: 0.85,
           generationTimeMs: generationTime,
           roundsCompleted: 7,
+          multiAgentSessionId: result.sessionId,
+          resumable: true,
         },
       };
 
@@ -137,6 +155,8 @@ export class TypeScriptMultiAgentGenerator implements IEPMGenerator {
           confidence: 0.85,
           generationTimeMs: generationTime,
           roundsCompleted: 7,
+          multiAgentSessionId: result.sessionId,
+          resumable: true,
         },
       };
     } catch (error: any) {
