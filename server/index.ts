@@ -11,22 +11,19 @@ import { verifyConnection } from "./config/neo4j";
 import { initializeDatabaseExtensions } from "./db-init";
 import { authReadiness } from "./auth-readiness";
 
-// Process signal handlers for debugging server restarts
-process.on('SIGTERM', () => {
-  console.log('[Server] Received SIGTERM - server shutting down');
-});
+// Log buffer for debugging server restarts (temporary - remove after debugging)
+const LAST_EVENTS: string[] = [];
+function logEvent(msg: string) {
+  const line = `[${new Date().toISOString()}] ${msg}`;
+  LAST_EVENTS.push(line);
+  if (LAST_EVENTS.length > 20) LAST_EVENTS.shift();
+  console.log(msg);
+}
 
-process.on('SIGINT', () => {
-  console.log('[Server] Received SIGINT - server shutting down');
-});
-
-process.on('uncaughtException', (error) => {
-  console.error('[Server] Uncaught exception:', error);
-});
-
-process.on('unhandledRejection', (reason) => {
-  console.error('[Server] Unhandled rejection:', reason);
-});
+process.on('SIGTERM', () => logEvent('[Server] Received SIGTERM - shutting down'));
+process.on('SIGINT', () => logEvent('[Server] Received SIGINT - shutting down'));
+process.on('uncaughtException', (error) => logEvent('[Server] Uncaught exception: ' + (error as Error).stack));
+process.on('unhandledRejection', (reason) => logEvent('[Server] Unhandled rejection: ' + reason));
 
 const app = express();
 
@@ -96,6 +93,11 @@ app.get('/health', (_req: Request, res: Response) => {
 // Auth readiness health check endpoint
 app.get('/health/auth', (_req: Request, res: Response) => {
   res.json({ ready: authReadiness.isReady() });
+});
+
+// Temporary endpoint to view last events after restart (remove after debugging)
+app.get('/system/events', (_req: Request, res: Response) => {
+  res.json({ events: LAST_EVENTS });
 });
 
 // Track if routes/static serving are ready

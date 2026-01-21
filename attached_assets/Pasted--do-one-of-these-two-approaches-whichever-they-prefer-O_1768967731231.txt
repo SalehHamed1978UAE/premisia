@@ -1,0 +1,57 @@
+ do one of these two approaches (whichever they prefer):
+
+  ———
+
+  ### Option A: Log buffer + endpoint (easy to read in UI)
+
+  1. In server/index.ts, add this near the top:
+
+     const LAST_EVENTS: string[] = [];
+     function logEvent(msg: string) {
+       const line = `[${new Date().toISOString()}] ${msg}`;
+       LAST_EVENTS.push(line);
+       if (LAST_EVENTS.length > 20) LAST_EVENTS.shift();
+       console.log(msg);
+     }
+
+     process.on('SIGTERM', () => logEvent('[Server] Received SIGTERM - shutting
+  down'));
+     process.on('SIGINT', () => logEvent('[Server] Received SIGINT - shutting
+  down'));
+     process.on('uncaughtException', (error) => logEvent('[Server] Uncaught
+  exception: ' + error.stack));
+     process.on('unhandledRejection', (reason) => logEvent('[Server] Unhandled
+  rejection: ' + reason));
+  2. Add a temporary endpoint so we can read the buffer after a restart:
+
+     app.get('/system/events', (_req, res) => {
+       res.json({ events: LAST_EVENTS });
+     });
+  3. Restart the server, run the BMI → “Generate EPM” flow, and when the restart
+     happens, wait a few seconds and visit https://<replit url>/system/events.
+     Copy the JSON response (it will show the last events, including the signal
+     or exception that killed the server) and send it to us.
+  4. After we’re done debugging, remove the /system/events endpoint and the
+     buffer so we’re not exposing internal logs in production.
+
+  ———
+
+  ### Option B: Redirect server output to a file
+
+  1. In the Replit shell, start the server with output redirected:
+
+     npm run dev > /tmp/server.log 2>&1 &
+
+     (Use the same command Replit normally runs, e.g., npm run dev.)
+  2. Tail the log in another shell:
+
+     tail -f /tmp/server.log
+  3. Trigger the BMI → “Generate EPM” run in the browser. When the server
+     restarts, the /tmp/server.log file will keep the log lines (including the
+     SIGTERM/exception message). Copy the relevant lines from that file and
+     report back.
+
+  ———
+
+  Either approach will show the exact reason for the restart so we can fix it
+  with confidence.
