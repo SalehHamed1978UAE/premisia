@@ -37,7 +37,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { ResearchExperience } from "@/components/research-experience/ResearchExperience";
+import { PortersResearchExperience } from "@/components/research-experience/PortersResearchExperience";
 import { BMCResearchExperience } from "@/components/research-experience/BMCResearchExperience";
 
 interface Finding {
@@ -381,7 +381,7 @@ export default function ResearchPage() {
       );
     }
     return (
-      <ResearchExperience
+      <PortersResearchExperience
         progress={progress}
         currentMessage={currentQuery}
         elapsedSeconds={elapsedSeconds}
