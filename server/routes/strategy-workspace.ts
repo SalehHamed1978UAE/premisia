@@ -3,6 +3,7 @@ import { db } from '../db';
 import { strategyDecisions, epmPrograms, journeySessions, strategyVersions, strategicUnderstanding, taskAssignments, goldenRecords } from '@shared/schema';
 import { eq, desc, inArray, and } from 'drizzle-orm';
 import { BMCAnalyzer, PortersAnalyzer, PESTLEAnalyzer, EPMSynthesizer } from '../intelligence';
+import { getEPMRouter, type EPMGeneratorInput } from '../services/epm-generator';
 import type { BMCResults, PortersResults, PESTLEResults } from '../intelligence/types';
 import { storage } from '../storage';
 import { createOpenAIProvider } from '../../src/lib/intelligent-planning/llm-provider';
@@ -497,27 +498,142 @@ async function processEPMGeneration(
       sessionId: version.sessionId,  // Pass sessionId for initiative type lookup
     };
     
-    // Run through EPM synthesizer with naming context and real-time progress
-    const epmProgram = await epmSynthesizer.synthesize(
-      insights,
-      decisionsWithPriority,
-      namingContext,
-      {
-        onProgress: (event) => {
-          // Forward intelligent planning events to SSE stream
-          sendSSEEvent(progressId, event);
-          
-          // Update background job progress (alongside SSE)
-          if (jobId && event.progress !== undefined) {
-            backgroundJobService.updateJob(jobId, {
-              progress: event.progress,
-              progressMessage: event.description || event.message
-            }).catch(err => console.error('[EPM Generation] Job progress update failed:', err));
-          }
+    // Check if multi-agent EPM generation is enabled
+    const useMultiAgent = process.env.USE_MULTI_AGENT_EPM === 'true';
+    let epmProgram: any;
+    let generatorMetadata: any = null;
+    let conversationLog: any = null;
+    let knowledgeLedger: any = null;
+
+    if (useMultiAgent) {
+      // Use the new EPM Generator Router (routes to CrewAI multi-agent system)
+      console.log('[EPM Generation] 🤖 Using Multi-Agent EPM Generator (CrewAI)');
+      
+      sendSSEEvent(progressId, {
+        type: 'step-start',
+        step: 'multi-agent-init',
+        progress: 15,
+        description: 'Initializing multi-agent collaboration...'
+      });
+
+      // Build EPMGeneratorInput from available data
+      const epmInput: EPMGeneratorInput = {
+        businessContext: {
+          name: namingContext.bmcKeyInsights?.[0] || version.inputSummary || 'Strategic Initiative',
+          type: initiativeType || 'business_model_innovation',
+          scale: 'smb' as const,
+          description: version.inputSummary || version.marketContext || '',
+          industry: bmcAnalysis.keyInsights?.find((i: string) => i.toLowerCase().includes('industry')) || undefined,
+          keywords: bmcAnalysis.keyInsights?.slice(0, 5) || [],
         },
-        initiativeType: initiativeType  // EXPLICIT: Pass initiative type from database
+        bmcInsights: {
+          blocks: bmcAnalysis.blocks || [],
+          keyInsights: bmcAnalysis.keyInsights || [],
+          recommendations: bmcAnalysis.recommendations || [],
+          findings: blocks.flatMap((b: any) => b.findings || []),
+        },
+        strategyInsights: insights,
+        constraints: userDecisions?.investmentCapacityMax ? {
+          budget: userDecisions.investmentCapacityMax,
+          resourceLimits: userDecisions.teamSizeMax ? {
+            maxHeadcount: userDecisions.teamSizeMax,
+          } : undefined,
+        } : undefined,
+        userId,
+        sessionId: version.sessionId,
+        journeyType: initiativeType,
+      };
+
+      try {
+        const router = getEPMRouter();
+        const routerResult = await router.generate(epmInput);
+        
+        // Extract metadata from router output
+        generatorMetadata = routerResult.metadata;
+        conversationLog = routerResult.conversationLog;
+        knowledgeLedger = routerResult.knowledgeLedger;
+        
+        // Convert unified EPMProgram format to legacy format for DB storage
+        const unifiedProgram = routerResult.program;
+        epmProgram = {
+          executiveSummary: {
+            title: unifiedProgram.title,
+            description: unifiedProgram.description,
+            confidence: unifiedProgram.overallConfidence,
+          },
+          workstreams: unifiedProgram.workstreams,
+          timeline: unifiedProgram.timeline,
+          resourcePlan: unifiedProgram.resourcePlan,
+          financialPlan: unifiedProgram.financialPlan,
+          riskRegister: unifiedProgram.riskRegister,
+          benefitsRealization: { benefits: [], confidence: 0.75 },
+          stageGates: { gates: unifiedProgram.timeline?.phases || [], confidence: 0.75 },
+          kpis: { metrics: [], confidence: 0.75 },
+          stakeholderMap: { stakeholders: [], confidence: 0.75 },
+          governance: { structure: [], confidence: 0.75 },
+          qaPlan: { standards: [], confidence: 0.75 },
+          procurement: { items: [], confidence: 0.75 },
+          exitStrategy: { strategies: [], confidence: 0.75 },
+          overallConfidence: unifiedProgram.overallConfidence,
+        };
+        
+        console.log(`[EPM Generation] ✅ Multi-agent generation complete: generator=${generatorMetadata?.generator}`);
+        if (generatorMetadata?.fallbackReason) {
+          console.log(`[EPM Generation] ⚠️ Fell back to legacy: ${generatorMetadata.fallbackReason}`);
+        }
+        
+        sendSSEEvent(progressId, {
+          type: 'step-complete',
+          step: 'multi-agent-complete',
+          progress: 80,
+          description: `Multi-agent collaboration complete (${generatorMetadata?.agentsParticipated || 7} agents, ${generatorMetadata?.roundsCompleted || 7} rounds)`,
+        });
+      } catch (routerError: any) {
+        console.error('[EPM Generation] ❌ Router failed:', routerError.message);
+        console.log('[EPM Generation] Falling back to legacy synthesizer...');
+        
+        // Fallback to legacy synthesizer (returns legacy format directly)
+        epmProgram = await epmSynthesizer.synthesize(
+          insights,
+          decisionsWithPriority,
+          namingContext,
+          {
+            onProgress: (event) => {
+              sendSSEEvent(progressId, event);
+              if (jobId && event.progress !== undefined) {
+                backgroundJobService.updateJob(jobId, {
+                  progress: event.progress,
+                  progressMessage: event.description || event.message
+                }).catch(err => console.error('[EPM Generation] Job progress update failed:', err));
+              }
+            },
+            initiativeType: initiativeType
+          }
+        );
+        generatorMetadata = { generator: 'legacy', fallbackReason: routerError.message };
       }
-    );
+    } else {
+      // Use legacy EPM synthesizer with SSE progress
+      console.log('[EPM Generation] Using Legacy EPM Synthesizer');
+      epmProgram = await epmSynthesizer.synthesize(
+        insights,
+        decisionsWithPriority,
+        namingContext,
+        {
+          onProgress: (event) => {
+            sendSSEEvent(progressId, event);
+            if (jobId && event.progress !== undefined) {
+              backgroundJobService.updateJob(jobId, {
+                progress: event.progress,
+                progressMessage: event.description || event.message
+              }).catch(err => console.error('[EPM Generation] Job progress update failed:', err));
+            }
+          },
+          initiativeType: initiativeType
+        }
+      );
+      generatorMetadata = { generator: 'legacy' };
+    }
 
     // Extract component-level confidence scores
     const componentConfidence = extractComponentConfidence(epmProgram);
@@ -546,7 +662,11 @@ async function processEPMGeneration(
       exitStrategy: epmProgram.exitStrategy,
       componentConfidence: finalConfidence,
       overallConfidence: overallConfidence.toString(),
-      editTracking: {},
+      editTracking: {
+        generatorMetadata: generatorMetadata || { generator: 'legacy' },
+        ...(conversationLog && { conversationLog }),
+        ...(knowledgeLedger && { knowledgeLedger }),
+      },
       status: 'draft',
     }).returning();
 

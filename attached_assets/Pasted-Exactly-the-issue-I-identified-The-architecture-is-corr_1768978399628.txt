@@ -1,0 +1,26 @@
+Exactly the issue I identified. The architecture is correct but the routes    
+  bypass it.                                                                    
+                                                                                
+  The fix:                                                                      
+                                                                                
+  // In strategy-workspace.ts                                                   
+  // Change from:                                                               
+  import { EPMSynthesizer } from '../intelligence/epm-synthesizer';             
+  const synthesizer = new EPMSynthesizer();                                     
+  const result = await synthesizer.generate(...);                               
+                                                                                
+  // To:                                                                        
+  import { generateEPM } from '../intelligence/epm-generator-router';           
+  const result = await generateEPM(context, decisions, ...);                    
+  // Router checks USE_MULTI_AGENT_EPM and routes accordingly                   
+                                                                                
+  The task list looks right:                                                    
+  1. Update route to use new generator                                          
+  2. Check generator input/output matches routes                                
+  3. Test EPM generation, check metadata                                        
+  4. Verify exported data includes conversation logs                            
+                                                                                
+  Key verification: After the fix, EPM output should include generator:         
+  "multi-agent" metadata.                                                       
+                                                                                
+  Go ahead with the fix.  
