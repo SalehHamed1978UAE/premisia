@@ -1,0 +1,57 @@
+Codex's plan is correct. Pass this to Replit:                                 
+                                                                                
+  ---                                                                           
+  Stabilize Environment for Multi-Agent EPM                                     
+                                                                                
+  The multi-agent generation needs 10-15 minutes uninterrupted. Current workflow
+   restarts are killing the process mid-run.                                    
+                                                                                
+  1. Separate Workflows (Priority)                                              
+                                                                                
+  - Create dedicated workflow for agent-planner (Python/uvicorn)                
+  - Main workflow runs Node.js only                                             
+  - Python service starts first, Node waits for health check                    
+                                                                                
+  2. Stop Auto-Restart                                                          
+                                                                                
+  - Identify restart trigger (file watcher? log overflow? idle timeout?)        
+  - Disable npm run dev watch mode during tests                                 
+  - Use NODE_ENV=production node dist/index.js instead                          
+                                                                                
+  3. PID Guard (Implement Now)                                                  
+                                                                                
+  // In crewai-service-manager.ts                                               
+  import { execSync } from 'child_process';                                     
+                                                                                
+  async startService() {                                                        
+    // Kill anything on port 8001                                               
+    execSync('lsof -ti:8001 | xargs kill -9 2>/dev/null || true');              
+                                                                                
+    // Spawn new process                                                        
+    this.process = spawn('python', [...]);                                      
+                                                                                
+    // Write PID                                                                
+    fs.writeFileSync('/tmp/crewai.pid', String(this.process.pid));              
+  }                                                                             
+                                                                                
+  // On Node exit                                                               
+  process.on('SIGTERM', () => {                                                 
+    const pid = fs.readFileSync('/tmp/crewai.pid', 'utf8');                     
+    if (pid) process.kill(parseInt(pid), 'SIGTERM');                            
+  });                                                                           
+                                                                                
+  4. Long Test Pattern                                                          
+                                                                                
+  # Always use nohup for multi-agent tests                                      
+  nohup curl -X POST http://localhost:8001/generate-program \                   
+    -H "Content-Type: application/json" \                                       
+    -d '{"businessContext": {...}, "bmcInsights": {}, "userId": "test"}' \      
+    --max-time 900 > /tmp/crewai-test.log 2>&1 &                                
+                                                                                
+  # Check result later                                                          
+  tail -f /tmp/crewai-test.log                                                  
+                                                                                
+  ---                                                                           
+  Until this is implemented, every test will get interrupted. The multi-agent   
+  code works - we've seen agents executing through Round 1. The environment is  
+  the blocker.   
