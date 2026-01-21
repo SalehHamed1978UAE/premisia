@@ -67,7 +67,7 @@ class KnowledgeCurator:
             raise ValueError("ANTHROPIC_API_KEY environment variable not set")
         
         self.llm = LLM(
-            model="anthropic/claude-3-5-sonnet-20241022",
+            model="anthropic/claude-sonnet-4-20250514",
             api_key=api_key,
             temperature=0.3
         )
