@@ -394,7 +394,7 @@ export default function GanttChart({
           textAnchor="middle"
           className="text-xs fill-white font-semibold pointer-events-none"
         >
-          {Math.round(task.confidence * 100)}%
+          {Math.round((task.confidence || 0) * 100)}%
         </text>
 
         {/* Owner indicator */}
@@ -491,7 +491,7 @@ export default function GanttChart({
                 <span className="font-medium">Duration:</span> {task.duration} months
               </div>
               <div>
-                <span className="font-medium">Confidence:</span> {Math.round(task.confidence * 100)}%
+                <span className="font-medium">Confidence:</span> {Math.round((task.confidence || 0) * 100)}%
               </div>
               {task.owner && (
                 <div className="col-span-2">

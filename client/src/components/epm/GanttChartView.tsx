@@ -188,7 +188,7 @@ export default function GanttChartView({ workstreams, timeline, stageGates }: Ga
                     </div>
                     <div className="text-right">
                       <div className="text-sm font-semibold text-red-900 dark:text-red-100">
-                        {Math.round(task.confidence * 100)}% confidence
+                        {Math.round((task.confidence || 0) * 100)}% confidence
                       </div>
                       {task.dependencies.length > 0 && (
                         <div className="text-xs text-red-700 dark:text-red-300">

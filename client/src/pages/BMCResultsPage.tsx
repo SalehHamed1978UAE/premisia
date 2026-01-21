@@ -52,6 +52,13 @@ interface Version {
   program?: any;
 }
 
+const formatConfidence = (confidence: number | undefined | null): string => {
+  if (confidence === undefined || confidence === null || isNaN(confidence)) {
+    return 'N/A';
+  }
+  return `${Math.round(confidence * 100)}%`;
+};
+
 export default function BMCResultsPage() {
   const [, params] = useRoute("/bmc/results/:sessionId/:versionNumber");
   const [, setLocation] = useLocation();
@@ -172,7 +179,7 @@ export default function BMCResultsPage() {
               <div className="flex items-center justify-between">
                 <CardTitle>Overall Assessment</CardTitle>
                 <Badge variant={bmcResult.overallConfidence > 0.7 ? "default" : "secondary"}>
-                  {Math.round(bmcResult.overallConfidence * 100)}% Confidence
+                  {formatConfidence(bmcResult.overallConfidence)} Confidence
                 </Badge>
               </div>
             </CardHeader>
@@ -250,7 +257,7 @@ export default function BMCResultsPage() {
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">{block.blockName}</CardTitle>
                     <Badge variant="outline">
-                      {Math.round(block.confidence * 100)}%
+                      {formatConfidence(block.confidence)}
                     </Badge>
                   </div>
                   <CardDescription className="mt-2">{block.description}</CardDescription>

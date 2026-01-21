@@ -497,7 +497,7 @@ export function BenefitsRealizationFormatter({ data }: { data: BenefitsRealizati
                   </Badge>
                   <div className="text-left sm:text-right">
                     <Badge variant="outline">
-                      {Math.round(benefit.confidence * 100)}% confidence
+                      {Math.round((benefit.confidence || 0) * 100)}% confidence
                     </Badge>
                     <div className="text-xs text-muted-foreground mt-1">
                       Realized: Month {benefit.realizationMonth}
@@ -638,7 +638,7 @@ export function StageGatesFormatter({ data }: { data: StageGates }) {
 
             <div className="pt-2 border-t">
               <Badge variant="outline">
-                {Math.round(gate.confidence * 100)}% confidence
+                {Math.round((gate.confidence || 0) * 100)}% confidence
               </Badge>
             </div>
           </CardContent>
@@ -679,7 +679,7 @@ export function KPIsFormatter({ data }: { data: KPIs }) {
                 )}
               </div>
               <Badge variant="outline" className="w-fit">
-                {Math.round(kpi.confidence * 100)}% confidence
+                {Math.round((kpi.confidence || 0) * 100)}% confidence
               </Badge>
             </div>
 

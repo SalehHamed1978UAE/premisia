@@ -88,12 +88,12 @@ export function InsightCard({ insight, index, prefersReducedMotion }: InsightCar
                   <motion.div
                     className="h-full bg-primary"
                     initial={{ width: 0 }}
-                    animate={{ width: `${insight.confidence * 100}%` }}
+                    animate={{ width: `${(insight.confidence || 0) * 100}%` }}
                     transition={{ duration: 0.5, delay: 0.2 }}
                   />
                 </div>
                 <span className="text-xs text-muted-foreground">
-                  {Math.round(insight.confidence * 100)}%
+                  {Math.round((insight.confidence || 0) * 100)}%
                 </span>
               </div>
             </div>
