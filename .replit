@@ -19,6 +19,10 @@ externalPort = 80
 localPort = 8000
 externalPort = 8000
 
+[[ports]]
+localPort = 8001
+externalPort = 3000
+
 [env]
 PORT = "5000"
 
@@ -45,6 +49,15 @@ author = "agent"
 task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5000
+
+[[workflows.workflow]]
+name = " agent-planner"
+mode = "sequential"
+author = 47253622
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd services/agent-planner && python3 -m uvicorn main:app --host 0.0.0.0   --port 8001"
 
 [userenv]
 
