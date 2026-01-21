@@ -1,3 +1,44 @@
+# ⚠️ CRITICAL: MODULAR JOURNEY ARCHITECTURE ⚠️
+
+**BEFORE MODIFYING ANY JOURNEY, RESEARCH, OR FRAMEWORK CODE, READ `/docs/JOURNEY_ARCHITECTURE.md`**
+
+## Quick Rules (Violations Break the App)
+
+### Source of Truth
+| What | File |
+|------|------|
+| Journey Definitions | `server/journey/journey-registry.ts` |
+| Module Execution | `server/journey/journey-orchestrator.ts` |
+| Context Flow | `server/journey/strategic-context-accumulator.ts` |
+
+### NEVER DO THIS
+```typescript
+// ❌ Hardcoded categories - BREAKS BMC JOURNEY
+const categories = ["market_dynamics", "competitive_landscape", ...];
+
+// ❌ Hardcoded URLs - BREAKS ROUTING
+nextUrl: `/strategy-workspace/decisions/${sessionId}`;
+```
+
+### ALWAYS DO THIS
+```typescript
+// ✅ Query the journey system
+const journey = getJourneyByType(journeyType);
+const nextUrl = getNextPage(journey, currentPage, params);
+```
+
+### Separate UI Components Per Framework
+- BMC (9 blocks) → BMCResearchExperience.tsx
+- Porter's (5 forces) → PortersResearchExperience.tsx
+- DO NOT make one component handle multiple frameworks
+
+### Before Merging Journey Changes
+```bash
+npm run test:journeys
+```
+
+---
+
 # Overview
 Premisia is an AI-enhanced, full-stack web application for comprehensive enterprise program management. It supports the entire program lifecycle, from program and task management to tracking resources, risks, benefits, KPIs, and financials via an intuitive dashboard. The project aims to provide a holistic solution for strategic decision-making and EPM integration, featuring real-time AI intelligence, a multi-agent architecture, and a formal ontology for expert guidance. Key capabilities include multi-modal input analysis, anti-bias research, document intelligence enrichment, and the conversion of strategic decisions into actionable EPM program structures.
 

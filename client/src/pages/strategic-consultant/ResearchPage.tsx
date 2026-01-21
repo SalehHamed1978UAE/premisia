@@ -1,3 +1,28 @@
+/**
+ * ╔═══════════════════════════════════════════════════════════════════════════╗
+ * ║  ⚠️  CRITICAL: MODULAR JOURNEY ARCHITECTURE  ⚠️                           ║
+ * ║                                                                           ║
+ * ║  This page serves MULTIPLE journey types (BMC, Porter's, PESTLE, etc.)   ║
+ * ║                                                                           ║
+ * ║  BEFORE MODIFYING:                                                        ║
+ * ║  1. Read /docs/JOURNEY_ARCHITECTURE.md                                    ║
+ * ║  2. Check server/journey/journey-registry.ts for journey definitions      ║
+ * ║  3. Use getNextPage() instead of hardcoding URLs                          ║
+ * ║  4. Render framework-specific UIs based on currentFramework               ║
+ * ║                                                                           ║
+ * ║  DO NOT:                                                                  ║
+ * ║  - Hardcode category arrays (breaks other journeys)                       ║
+ * ║  - Use a single component for all frameworks                              ║
+ * ║  - Hardcode nextUrl values                                                ║
+ * ║                                                                           ║
+ * ║  Each framework needs its own UI component:                               ║
+ * ║  - BMC (9 blocks) → BMCResearchExperience                                 ║
+ * ║  - Porter's (5 forces) → PortersResearchExperience                        ║
+ * ║                                                                           ║
+ * ║  Run: npm run test:journeys before merging                                ║
+ * ╚═══════════════════════════════════════════════════════════════════════════╝
+ */
+
 import { useEffect, useState, useRef } from "react";
 import { useRoute, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
