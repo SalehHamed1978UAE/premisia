@@ -124,7 +124,8 @@ export const jobTypeEnum = pgEnum('job_type', [
   'document_enrichment',
   'journey_execution',
   'framework_execution',
-  'research_enrichment'
+  'research_enrichment',
+  'decision_generation'
 ]);
 
 // Research Batch enums

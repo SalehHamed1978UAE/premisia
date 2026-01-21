@@ -1969,29 +1969,10 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
       throw error;
     }
 
-    // Try to generate decisions with timeout protection
-    let timeoutHandle: NodeJS.Timeout | undefined;
-    try {
-      console.log('[BMC-RESEARCH-STREAM] Generating strategic decisions from BMC analysis...');
-      
-      // Add 60-second timeout for decision generation to prevent hanging
-      const decisionPromise = decisionGenerator.generateDecisionsFromBMC(result, input);
-      const timeoutPromise = new Promise((_, reject) => {
-        timeoutHandle = setTimeout(() => reject(new Error('Decision generation timeout after 60s')), 60000);
-      });
-      
-      decisions = await Promise.race([decisionPromise, timeoutPromise]) as any;
-      console.log(`[BMC-RESEARCH-STREAM] Generated ${decisions.decisions.length} strategic decisions`);
-    } catch (error: any) {
-      console.error('[BMC-RESEARCH-STREAM] Decision generation failed (non-critical):', error);
-      // Continue with empty decisions rather than failing
-      decisions = { decisions: [] };
-    } finally {
-      // Always clear timeout to prevent unhandled rejection
-      if (timeoutHandle) {
-        clearTimeout(timeoutHandle);
-      }
-    }
+    // Decision generation is now handled asynchronously via background job
+    // Initialize with empty decisions - will be marked as queued after job creation succeeds
+    decisions = { decisions: [] };
+    console.log('[BMC-RESEARCH-STREAM] Decision generation will be queued as background job');
 
     // Persist references from BMC research
     try {
@@ -2108,7 +2089,45 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
         console.log(`[BMC-RESEARCH-STREAM] Updated existing version ${targetVersionNumber}`);
       }
       
-      console.log(`[BMC-RESEARCH-STREAM] ✓ Saved BMC results and ${decisions.decisions.length} decisions to version ${version.versionNumber}`);
+      console.log(`[BMC-RESEARCH-STREAM] ✓ Saved BMC results to version ${version.versionNumber}`);
+      
+      // Enqueue background job for decision generation
+      try {
+        const { backgroundJobService } = await import('../services/background-job-service');
+        const journeySession = await getJourneySessionByUnderstandingSessionId(sessionId);
+        const jobUserId = journeySession?.userId || (req.user as any)?.claims?.sub;
+        
+        if (jobUserId && jobUserId !== 'system') {
+          const jobId = await backgroundJobService.createJob({
+            userId: jobUserId,
+            jobType: 'decision_generation',
+            inputData: {
+              bmcResult: result,
+              originalInput: input,
+              sessionId,
+              versionNumber: targetVersionNumber
+            },
+            sessionId,
+            relatedEntityId: version.id,
+            relatedEntityType: 'strategy_version'
+          });
+          
+          if (jobId) {
+            // Mark version as having queued decisions ONLY after job is successfully created
+            await storage.updateStrategyVersion(version.id, {
+              decisionsData: { decisions: [], decisionsQueued: true }
+            });
+            console.log(`[BMC-RESEARCH-STREAM] ✓ Queued decision generation job: ${jobId}`);
+          } else {
+            console.warn('[BMC-RESEARCH-STREAM] ⚠️ Job creation returned null, decisions not queued');
+          }
+        } else {
+          console.warn('[BMC-RESEARCH-STREAM] ⚠️ No user ID available, decisions will show empty state');
+        }
+      } catch (jobError: any) {
+        console.error('[BMC-RESEARCH-STREAM] Failed to queue decision job:', jobError.message);
+        // Don't set decisionsQueued - let frontend show "not found" rather than poll forever
+      }
     } catch (error: any) {
       console.error('[BMC-RESEARCH-STREAM] ⚠️  CRITICAL: Database save failed - decisions will NOT be persisted!');
       console.error('[BMC-RESEARCH-STREAM] Error details:', error.message || error);
