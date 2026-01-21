@@ -71,13 +71,30 @@ export class EPMGeneratorRouter {
       return generator.generate(input);
     }
 
-    // Multi-agent with fallback enabled
+    // Multi-agent with fallback enabled - check health first
+    const crewAIHealthy = await this.multiAgentGenerator.isHealthy();
+    
+    if (crewAIHealthy) {
+      console.log('[EPM] Multi-agent system READY (7 agents on port 8001)');
+    } else {
+      console.warn('[EPM] Multi-agent UNAVAILABLE - using legacy generator');
+      const fallbackResult = await this.legacyGenerator.generate(input);
+      return {
+        ...fallbackResult,
+        metadata: {
+          ...fallbackResult.metadata,
+          generator: 'legacy',
+          fallbackReason: 'CrewAI service not healthy',
+        },
+      } as EPMGeneratorOutput;
+    }
+    
     try {
       console.log('[EPMRouter] Attempting multi-agent generation...');
       return await generator.generate(input);
     } catch (error: any) {
       console.error('[EPMRouter] Multi-agent generation failed:', error.message);
-      console.log('[EPMRouter] Falling back to legacy generator...');
+      console.warn('[EPM] Multi-agent FAILED - falling back to legacy generator');
       
       const fallbackResult = await this.legacyGenerator.generate(input);
       
