@@ -11,6 +11,23 @@ import { verifyConnection } from "./config/neo4j";
 import { initializeDatabaseExtensions } from "./db-init";
 import { authReadiness } from "./auth-readiness";
 
+// Process signal handlers for debugging server restarts
+process.on('SIGTERM', () => {
+  console.log('[Server] Received SIGTERM - server shutting down');
+});
+
+process.on('SIGINT', () => {
+  console.log('[Server] Received SIGINT - server shutting down');
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('[Server] Uncaught exception:', error);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[Server] Unhandled rejection:', reason);
+});
+
 const app = express();
 
 // Validate encryption but don't exit if it fails - let server start for health checks
