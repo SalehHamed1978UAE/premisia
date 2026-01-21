@@ -720,6 +720,13 @@ Include a JSON block at the end with key decisions in this format:
                 print(f"[ProgramCrew] Tasks: {[t.description[:50] + '...' for t in round_tasks]}", flush=True)
                 sys.stdout.flush()
                 
+                # Signal round is starting (for intra-round progress)
+                if on_progress:
+                    try:
+                        on_progress(round_num, round_name, None, "starting", len(round_tasks))
+                    except:
+                        pass
+                
                 kickoff_start = time.time()
                 result = crew.kickoff()
                 kickoff_duration = time.time() - kickoff_start
@@ -728,7 +735,7 @@ Include a JSON block at the end with key decisions in this format:
                 
                 round_outputs = []
                 if hasattr(result, 'tasks_output'):
-                    for task_output in result.tasks_output:
+                    for idx, task_output in enumerate(result.tasks_output):
                         output_str = str(task_output)
                         round_outputs.append(output_str)
                         
@@ -740,6 +747,12 @@ Include a JSON block at the end with key decisions in this format:
                         
                         if agent_id:
                             self._log_conversation(round_num, agent_id, output_str[:2000])
+                            # Signal agent completion for intra-round progress
+                            if on_progress:
+                                try:
+                                    on_progress(round_num, round_name, agent.role if agent_id else f"Agent {idx+1}", "agent_done", len(round_tasks), idx + 1)
+                                except:
+                                    pass
                 else:
                     round_outputs = [str(result)]
                     self._log_conversation(round_num, "crew", str(result)[:2000])
@@ -769,7 +782,7 @@ Include a JSON block at the end with key decisions in this format:
                 # Report progress after each round completes
                 if on_progress:
                     try:
-                        on_progress(round_num, round_name, "Program Coordinator")
+                        on_progress(round_num, round_name, "Synthesis Complete", "round_done")
                     except Exception as e:
                         print(f"[ProgramCrew] Progress callback error: {e}")
                 

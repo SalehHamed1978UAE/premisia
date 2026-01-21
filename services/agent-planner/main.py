@@ -121,21 +121,44 @@ def _run_generation_job(job_id: str, input_data: EPMGeneratorInput):
         sys.stdout.flush()
         
         # Progress callback to update job status during round execution
-        def on_round_progress(round_num: int, round_name: str, agent_name: str = None):
-            """Called by ProgramPlanningCrew after each agent/round completes."""
-            # Progress from 10% to 80% across 7 rounds (10% per round)
-            base_progress = 10 + (round_num * 10)
-            progress = min(base_progress, 80)
+        def on_round_progress(round_num: int, round_name: str, agent_name: str = None, 
+                               event_type: str = "round_done", total_agents: int = 7, 
+                               agents_done: int = 0):
+            """Called by ProgramPlanningCrew during execution for granular progress updates.
+            
+            Args:
+                round_num: Current round number (1-7)
+                round_name: Name of the current round
+                agent_name: Name of agent that just completed (or None)
+                event_type: "starting", "agent_done", or "round_done"
+                total_agents: Total agents in this round
+                agents_done: Number of agents completed so far
+            """
+            # Progress from 10% to 80% across 7 rounds
+            # Base progress at start of round = 10 + ((round_num - 1) * 10)
+            # Progress increases incrementally as agents complete
+            base_progress = 10 + ((round_num - 1) * 10)
+            
+            if event_type == "starting":
+                progress = base_progress
+                message = f"Round {round_num}/{7}: Starting {round_name}..."
+            elif event_type == "agent_done":
+                # Increment progress based on agent completion within round
+                agent_progress = (agents_done / max(total_agents, 1)) * 8  # Up to 8% per round for agents
+                progress = int(base_progress + agent_progress)
+                message = f"Round {round_num}/{7}: {agent_name or 'Agent'} done ({agents_done}/{total_agents})"
+            else:  # round_done
+                progress = base_progress + 10  # Full 10% for completed round
+                message = f"Round {round_num}/{7} complete: {round_name}"
+            
+            progress = min(progress, 80)
             
             jobs_store[job_id]["progress"] = progress
             jobs_store[job_id]["current_round"] = round_num
+            jobs_store[job_id]["message"] = message
+            jobs_store[job_id]["last_update"] = datetime.now().isoformat()
             
-            if agent_name:
-                jobs_store[job_id]["message"] = f"Round {round_num}: {agent_name} completed"
-            else:
-                jobs_store[job_id]["message"] = f"Starting round {round_num}: {round_name}"
-            
-            print(f"[Job {job_id}] Progress: {progress}% - Round {round_num}: {round_name}")
+            print(f"[Job {job_id}] Progress: {progress}% - {message}", flush=True)
         
         print(f"[Job {job_id}] Creating ProgramPlanningCrew...", flush=True)
         sys.stdout.flush()
