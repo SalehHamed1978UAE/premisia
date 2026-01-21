@@ -57,6 +57,10 @@ export interface Workstream {
   // CPM-calculated fields (added by post-processing)
   startDate?: Date;
   endDate?: Date;
+  earlyStart?: number;
+  lateStart?: number;
+  earlyFinish?: number;
+  lateFinish?: number;
   slack?: number;
   isCritical?: boolean;
 }

@@ -1,0 +1,163 @@
+ Instructions for Replit: Fix EPM Quality Issues                               
+                                                                                
+  Problem Summary                                                               
+                                                                                
+  The latest EPM output (Neapolitan Pizza Dubai) has critical quality issues:   
+                                                                                
+  1. Deliverables contain research content instead of actual deliverables       
+  2. Empty sections (resources, KPIs, stakeholders, governance, etc.)           
+  3. Executive summary title is malformed                                       
+  4. Multi-agent path failed (fallbackReason: "fetch failed")                   
+  5. No CPM fields on legacy path                                               
+                                                                                
+  ---                                                                           
+  Fix 1: Deliverable Mapping Bug (Critical)                                     
+                                                                                
+  Location: server/intelligence/epm-synthesizer.ts (or wherever                 
+  workstreams/deliverables are generated)                                       
+                                                                                
+  Problem: BMC research block content is being mapped directly to deliverables  
+  instead of generating proper workstream deliverables.                         
+                                                                                
+  Example of bug:                                                               
+  // Workstream: "Site selection and lease negotiation"                         
+  // Deliverable should be: "Signed Lease Agreement"                            
+  // Actual deliverable: "Dubai restaurants reach customers through a           
+  multi-channel approach dominated by food delivery aggregators..."             
+                                                                                
+  Fix: Find where deliverables are being populated and ensure they come from    
+  workstream-specific generation, not BMC research blocks.                      
+                                                                                
+  // WRONG - pulling from research content                                      
+  deliverables: bmcBlock.research?.map(r => ({                                  
+    name: r.content,  // This is research content, not a deliverable            
+    ...                                                                         
+  }))                                                                           
+                                                                                
+  // RIGHT - generate actual deliverables for the workstream                    
+  deliverables: await generateDeliverablesForWorkstream(workstream.name,        
+  workstream.description)                                                       
+                                                                                
+  Search for: Look for where deliverables array is populated in workstream      
+  generation. Check if it's pulling from research, channels,                    
+  customer_relationships or other BMC fields incorrectly.                       
+                                                                                
+  ---                                                                           
+  Fix 2: Empty Sections                                                         
+                                                                                
+  Problem: These sections are empty arrays:                                     
+  - resourcePlan.roles                                                          
+  - benefitsRealization.benefits                                                
+  - kpis.metrics                                                                
+  - stakeholderMap.stakeholders                                                 
+  - governance.structure                                                        
+  - qaPlan.standards                                                            
+  - procurement.items                                                           
+  - exitStrategy.strategies                                                     
+                                                                                
+  Fix: Verify the legacy generator's component generators are being called and  
+  returning data. Add logging:                                                  
+                                                                                
+  const resourcePlan = await this.generateResourcePlan(insights, workstreams,   
+  userContext, initiativeType);                                                 
+  console.log('[EPM] resourcePlan.roles count:', resourcePlan.roles?.length ||  
+  0);                                                                           
+                                                                                
+  const benefitsRealization = await this.generateBenefitsRealization(insights,  
+  timeline);                                                                    
+  console.log('[EPM] benefits count:', benefitsRealization.benefits?.length ||  
+  0);                                                                           
+                                                                                
+  If counts are 0, the generators aren't extracting from insights correctly.    
+                                                                                
+  ---                                                                           
+  Fix 3: Executive Summary Title                                                
+                                                                                
+  Problem: The title contains a strategic warning instead of a program name:    
+  "title": "Target market contradiction creates fundamental strategy            
+  misalignment..."                                                              
+                                                                                
+  Fix: In generateExecutiveSummary(), ensure title comes from programName       
+  parameter, not from insights content:                                         
+                                                                                
+  // In generateExecutiveSummary                                                
+  return {                                                                      
+    title: programName,  // Should be "Authentic Neapolitan Pizza Restaurant    
+  Launch"                                                                       
+    // NOT: insights.insights[0].content (which is research content)            
+    ...                                                                         
+  }                                                                             
+                                                                                
+  ---                                                                           
+  Fix 4: Multi-Agent Path Reliability                                           
+                                                                                
+  Problem: fallbackReason: "fetch failed" - the CrewAI service wasn't reachable.
+                                                                                
+  Fix: Ensure CrewAI service is running before EPM generation:                  
+                                                                                
+  1. Add health check retry in multi-agent-generator.ts:                        
+  async checkServiceHealth(retries = 3): Promise<boolean> {                     
+    for (let i = 0; i < retries; i++) {                                         
+      try {                                                                     
+        const response = await fetch(`${CREWAI_URL}/health`);                   
+        if (response.ok) return true;                                           
+      } catch (e) {                                                             
+        console.log(`[MultiAgent] Health check attempt ${i + 1} failed`);       
+        await sleep(1000);                                                      
+      }                                                                         
+    }                                                                           
+    return false;                                                               
+  }                                                                             
+                                                                                
+  2. Log why fetch failed:                                                      
+  try {                                                                         
+    const response = await fetch(`${CREWAI_URL}/generate-program`, {...});      
+  } catch (error) {                                                             
+    console.error('[MultiAgent] Fetch failed:', error.message);                 
+    // Is it ECONNREFUSED? Timeout? DNS?                                        
+  }                                                                             
+                                                                                
+  ---                                                                           
+  Fix 5: Apply CPM Post-Processing to Legacy Path                               
+                                                                                
+  Problem: Legacy generator output doesn't have slack, isCritical, criticalPath 
+  properly calculated.                                                          
+                                                                                
+  Fix: Apply the same CPM post-processing to legacy output that you added for   
+  multi-agent:                                                                  
+                                                                                
+  // In EPMSynthesizer.buildWithOldSystem() - after generating                  
+  workstreams/timeline                                                          
+  import { postProcessWithCPM } from                                            
+  '../services/epm-generator/multi-agent-generator';                            
+                                                                                
+  // Before returning the program                                               
+  const programWithCPM = await postProcessWithCPM(program);                     
+  return programWithCPM;                                                        
+                                                                                
+  Or extract postProcessWithCPM to a shared utility and call it from both paths.
+                                                                                
+  ---                                                                           
+  Verification Checklist                                                        
+                                                                                
+  After fixes, re-run EPM generation and verify:                                
+                                                                                
+  - Deliverables are actual deliverables (e.g., "Signed Lease Agreement",       
+  "Staffing Plan")                                                              
+  - resourcePlan.roles has entries                                              
+  - benefitsRealization.benefits has entries                                    
+  - kpis.metrics has entries                                                    
+  - stakeholderMap.stakeholders has entries                                     
+  - Executive summary title is a proper program name                            
+  - timeline.criticalPath is populated                                          
+  - Workstreams have slack and isCritical fields                                
+  - Multi-agent path works (no fallback)                                        
+                                                                                
+  ---                                                                           
+  Priority Order                                                                
+                                                                                
+  1. Fix deliverable mapping - Critical, affects core output quality            
+  2. Fix executive summary title - High, visible to users                       
+  3. Fix empty sections - High, missing important content                       
+  4. Apply CPM to legacy - Medium, improves scheduling rigor                    
+  5. Multi-agent reliability - Medium, already has fallback  

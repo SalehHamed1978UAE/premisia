@@ -4,6 +4,7 @@ import { strategyDecisions, epmPrograms, journeySessions, strategyVersions, stra
 import { eq, desc, inArray, and } from 'drizzle-orm';
 import { BMCAnalyzer, PortersAnalyzer, PESTLEAnalyzer, EPMSynthesizer } from '../intelligence';
 import { getEPMRouter, type EPMGeneratorInput } from '../services/epm-generator';
+import { postProcessWithCPM } from '../services/epm-generator/cpm-processor';
 import type { BMCResults, PortersResults, PESTLEResults } from '../intelligence/types';
 import { storage } from '../storage';
 import { createOpenAIProvider } from '../../src/lib/intelligent-planning/llm-provider';
@@ -375,7 +376,7 @@ async function processEPMGeneration(
           sessionId: version.sessionId,
           versionNumber: version.versionNumber,
         },
-        sessionId: version.sessionId, // Store sessionId for session-based lookups
+        sessionId: version.sessionId || undefined, // Store sessionId for session-based lookups
         relatedEntityId: strategyVersionId,
         relatedEntityType: 'strategy_version',
       });
@@ -517,9 +518,11 @@ async function processEPMGeneration(
       });
 
       // Build EPMGeneratorInput from available data
+      // Use inputSummary or a derived name, NOT bmcKeyInsights (which contains research content)
+      const businessName = version.inputSummary || version.marketContext?.split('.')[0] || 'Strategic Initiative';
       const epmInput: EPMGeneratorInput = {
         businessContext: {
-          name: namingContext.bmcKeyInsights?.[0] || version.inputSummary || 'Strategic Initiative',
+          name: businessName,
           type: initiativeType || 'business_model_innovation',
           scale: 'smb' as const,
           description: version.inputSummary || version.marketContext || '',
@@ -540,7 +543,7 @@ async function processEPMGeneration(
           } : undefined,
         } : undefined,
         userId,
-        sessionId: version.sessionId,
+        sessionId: version.sessionId || '',
         journeyType: initiativeType,
       };
 
@@ -557,15 +560,15 @@ async function processEPMGeneration(
         const unifiedProgram = routerResult.program;
         epmProgram = {
           executiveSummary: {
-            title: unifiedProgram.title,
-            description: unifiedProgram.description,
-            confidence: unifiedProgram.overallConfidence,
+            title: unifiedProgram.title || businessName,
+            description: unifiedProgram.description || version.inputSummary || '',
+            confidence: unifiedProgram.overallConfidence || 0.75,
           },
-          workstreams: unifiedProgram.workstreams,
-          timeline: unifiedProgram.timeline,
-          resourcePlan: unifiedProgram.resourcePlan,
-          financialPlan: unifiedProgram.financialPlan,
-          riskRegister: unifiedProgram.riskRegister,
+          workstreams: unifiedProgram.workstreams || [],
+          timeline: unifiedProgram.timeline || { phases: [], totalMonths: 12, criticalPath: [] },
+          resourcePlan: unifiedProgram.resourcePlan || { roles: [], totalHeadcount: 0, totalCost: 0 },
+          financialPlan: unifiedProgram.financialPlan || { capex: [], opex: [], totalBudget: 0, contingency: 0 },
+          riskRegister: unifiedProgram.riskRegister || { risks: [], overallRiskLevel: 'medium' },
           benefitsRealization: { benefits: [], confidence: 0.75 },
           stageGates: { gates: unifiedProgram.timeline?.phases || [], confidence: 0.75 },
           kpis: { metrics: [], confidence: 0.75 },
@@ -574,7 +577,7 @@ async function processEPMGeneration(
           qaPlan: { standards: [], confidence: 0.75 },
           procurement: { items: [], confidence: 0.75 },
           exitStrategy: { strategies: [], confidence: 0.75 },
-          overallConfidence: unifiedProgram.overallConfidence,
+          overallConfidence: unifiedProgram.overallConfidence || 0.75,
         };
         
         console.log(`[EPM Generation] ✅ Multi-agent generation complete: generator=${generatorMetadata?.generator}`);
@@ -582,12 +585,22 @@ async function processEPMGeneration(
           console.log(`[EPM Generation] ⚠️ Fell back to legacy: ${generatorMetadata.fallbackReason}`);
         }
         
-        sendSSEEvent(progressId, {
-          type: 'step-complete',
-          step: 'multi-agent-complete',
-          progress: 80,
-          description: `Multi-agent collaboration complete (${generatorMetadata?.agentsParticipated || 7} agents, ${generatorMetadata?.roundsCompleted || 7} rounds)`,
-        });
+        // Send appropriate SSE message based on whether multi-agent actually ran or fell back
+        if (generatorMetadata?.generator === 'multi-agent') {
+          sendSSEEvent(progressId, {
+            type: 'step-complete',
+            step: 'multi-agent-complete',
+            progress: 80,
+            description: `Multi-agent collaboration complete (${generatorMetadata.agentsParticipated || 7} agents, ${generatorMetadata.roundsCompleted || 7} rounds)`,
+          });
+        } else {
+          sendSSEEvent(progressId, {
+            type: 'step-complete',
+            step: 'legacy-fallback',
+            progress: 80,
+            description: `Using legacy generator (fallback: ${generatorMetadata?.fallbackReason || 'unknown'})`,
+          });
+        }
       } catch (routerError: any) {
         console.error('[EPM Generation] ❌ Router failed:', routerError.message);
         console.log('[EPM Generation] Falling back to legacy synthesizer...');
@@ -635,13 +648,21 @@ async function processEPMGeneration(
       generatorMetadata = { generator: 'legacy' };
     }
 
+    // Apply CPM post-processing for legacy generator path
+    // This ensures workstreams get: earlyStart, lateStart, earlyFinish, lateFinish, slack, isCritical
+    // and timeline.criticalPath is properly populated
+    if (generatorMetadata?.generator === 'legacy') {
+      console.log('[EPM Generation] Applying CPM post-processing to legacy output...');
+      epmProgram = postProcessWithCPM(epmProgram);
+    }
+
     // Extract component-level confidence scores
     const componentConfidence = extractComponentConfidence(epmProgram);
     const finalConfidence = boostConfidenceWithDecisions(componentConfidence, userDecisions);
     const overallConfidence = calculateOverallConfidence(finalConfidence);
 
     // Save EPM program to database
-    const [savedProgram] = await db.insert(epmPrograms).values({
+    const insertResult = await db.insert(epmPrograms).values({
       strategyVersionId,
       strategyDecisionId: decisionId || null,
       userId,
@@ -669,10 +690,11 @@ async function processEPMGeneration(
       },
       status: 'draft',
     }).returning();
+    const savedProgram = Array.isArray(insertResult) ? insertResult[0] : null;
 
     // Verify program was saved and ID exists
     if (!savedProgram || !savedProgram.id) {
-      console.error('[EPM Generation] ❌ Program save failed - no ID returned:', savedProgram);
+      console.error('[EPM Generation] ❌ Program save failed - no ID returned:', insertResult);
       throw new Error('Failed to save EPM program - no ID returned from database');
     }
 
@@ -864,19 +886,18 @@ async function processEPMGeneration(
                     // Save to file system
                     const filePath = await saveGoldenRecordToFile(sanitizedData);
                     
-                    // Save to database
+                    // Save to database using current schema columns
                     await db.insert(goldenRecords).values({
                       journeyType: 'business_model_innovation',
                       version: nextVersion,
-                      filePath,
-                      capturedAt: new Date(),
-                      capturedBy: 'system',
-                      status: 'captured',
+                      createdBy: userId || 'system',
+                      steps: sanitizedData,
                       metadata: {
                         autoCapture: true,
                         source: 'epm_completion_hook',
                         sessionId: journeySession.id,
                         versionNumber: journeySession.versionNumber,
+                        filePath, // Store file path in metadata
                       },
                     });
                     
