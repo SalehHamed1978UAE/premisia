@@ -1,0 +1,36 @@
+1. Legacy generator still can’t produce real workstreams
+      - In server/services/epm-generator/legacy-generator.ts, the synthesizer is
+        instantiated with new EPMSynthesizer() (no LLM).
+      - When multi-agent falls back, the WBS builder crashes (no
+        generateStructured), so the synthesizer always uses the template
+        deliverables (“Initiative Charter…”) you’re seeing.
+      - Replit must inject an LLM provider (wrap aiClients.callWithFallback in a
+        generateStructured helper) and pass it into new
+        EPMSynthesizer(llmProvider). That will stop the template fallback and
+        produce proper workstreams/deliverables even when legacy runs.
+  2. Multi-agent server hang: Knowledge Curator blocks the request
+      - After the seven agent rounds finish, generate_program instantiates
+        KnowledgeCurator and calls await curator.curate(...). Inside curate,
+        _extract_candidates_with_llm calls crew.kickoff() synchronously in the
+        event loop.
+      - If that extraction takes several minutes (big conversation log), the
+        FastAPI request stalls while the SSE progress stays at ~5%. It appears
+        “hung” until the curator finishes (or times out).
+      - Fix: run the curator extraction in a thread executor (same pattern as
+        ProgramPlanningCrew.generate_sync) or move knowledge extraction into a
+        background job so the API can respond immediately. At minimum, add
+        logging around _extract_candidates_with_llm so we can see whether it’s
+        the curator or the planning rounds that are stuck.
+  3. Action items for Replit
+      - Legacy path: implement the LLM injection in legacy-generator.ts and re-
+        run BMI→EPM to confirm deliverables aren’t the template trio anymore.
+      - Multi-agent stability: wrap curator.curate (or its internal
+        crew.kickoff) in run_in_executor, add logging/timing around it, and
+        report the duration so we stop seeing “5%” for minutes. If the curator
+        is slow, consider moving knowledge extraction to a background job after
+        the main response.
+      - Verification: run a new BMI→EPM journey, confirm
+        editTracking.generatorMetadata.generator === "multi-agent" and check
+        that data/epm.json has the conversation log, knowledge ledger, and CPM
+        fields populated. If it still falls back, capture the Python log from /
+        tmp/agent-planner.log for the failing request.

@@ -65,10 +65,18 @@ class ProgramPlanningCrew:
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY environment variable not set")
         
+        masked_key = f"{api_key[:4]}...{api_key[-4:]}" if len(api_key) > 8 else "***"
+        model_id = os.environ.get("CREWAI_MODEL", "anthropic/claude-sonnet-4-20250514")
+        
+        print(f"[ProgramCrew] API key found: {masked_key}")
+        print(f"[ProgramCrew] Using model: {model_id}")
+        
         self.llm = LLM(
-            model="anthropic/claude-sonnet-4-20250514",
+            model=model_id,
             api_key=api_key,
-            temperature=0.7
+            temperature=0.7,
+            timeout=120,
+            max_retries=2
         )
         
     def _load_agent_configs(self) -> Dict[str, Dict]:

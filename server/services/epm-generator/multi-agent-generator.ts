@@ -14,7 +14,8 @@ import { postProcessWithCPM } from './cpm-processor';
 
 export class MultiAgentEPMGenerator implements IEPMGenerator {
   private serviceUrl: string;
-  private timeout: number;
+  private jobPollInterval: number;
+  private maxJobDuration: number;
 
   constructor() {
     const serviceUrl = process.env.CREWAI_SERVICE_URL;
@@ -22,7 +23,8 @@ export class MultiAgentEPMGenerator implements IEPMGenerator {
       console.warn('[MultiAgentGenerator] CREWAI_SERVICE_URL not set - multi-agent generation will not be available');
     }
     this.serviceUrl = serviceUrl || '';
-    this.timeout = 600000; // 10 minutes - multi-agent collaboration takes time
+    this.jobPollInterval = 5000; // Poll every 5 seconds
+    this.maxJobDuration = 3600000; // 60 minutes max for multi-agent (7 rounds × ~5 min each)
   }
 
   /**
@@ -74,13 +76,19 @@ export class MultiAgentEPMGenerator implements IEPMGenerator {
   }
 
   /**
-   * Generate EPM program using multi-agent collaboration
+   * Generate EPM program using multi-agent collaboration with async job pattern.
+   * 
+   * Uses the new async pattern:
+   * 1. POST /start-job to begin generation, returns jobId immediately
+   * 2. Poll /job-status/{jobId} for progress updates
+   * 3. Fetch result from /job-result/{jobId} when complete
    */
   async generate(input: EPMGeneratorInput): Promise<EPMGeneratorOutput> {
     const startTime = Date.now();
-    console.log('[MultiAgentGenerator] Starting multi-agent collaboration');
+    console.log('[MultiAgentGenerator] Starting multi-agent collaboration (async pattern)');
     console.log(`[MultiAgentGenerator] Service URL: ${this.serviceUrl}`);
     console.log(`[MultiAgentGenerator] Session: ${input.sessionId}`);
+    console.log(`[MultiAgentGenerator] Max duration: ${Math.round(this.maxJobDuration / 60000)} minutes`);
 
     // Check service health first
     const healthy = await this.isHealthy();
@@ -89,19 +97,11 @@ export class MultiAgentEPMGenerator implements IEPMGenerator {
     }
 
     try {
-      const generateUrl = `${this.serviceUrl}/generate-program`;
-      const timeoutSeconds = Math.round(this.timeout / 1000);
-      
-      console.log(`[MultiAgentGenerator] Initiating request to ${generateUrl}`);
-      console.log(`[MultiAgentGenerator] Timeout configured: ${timeoutSeconds}s (${Math.round(timeoutSeconds / 60)}m)`);
+      // Step 1: Start the async job
+      const startJobUrl = `${this.serviceUrl}/start-job`;
+      console.log(`[MultiAgentGenerator] Starting async job via ${startJobUrl}`);
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => {
-        console.warn(`[MultiAgentGenerator] Timeout will trigger in 0s - aborting request after ${timeoutSeconds}s`);
-        controller.abort();
-      }, this.timeout);
-
-      const response = await fetch(generateUrl, {
+      const startResponse = await fetch(startJobUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -125,17 +125,75 @@ export class MultiAgentEPMGenerator implements IEPMGenerator {
           session_id: input.sessionId,
           journey_type: input.journeyType,
         }),
-        signal: controller.signal,
       });
 
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`CrewAI service error: ${response.status} - ${errorText}`);
+      if (!startResponse.ok) {
+        const errorText = await startResponse.text();
+        throw new Error(`Failed to start job: ${startResponse.status} - ${errorText}`);
       }
 
-      const result = await response.json();
+      const { jobId } = await startResponse.json();
+      console.log(`[MultiAgentGenerator] Job started with ID: ${jobId}`);
+
+      // Step 2: Poll for job completion
+      const statusUrl = `${this.serviceUrl}/job-status/${jobId}`;
+      const deadline = Date.now() + this.maxJobDuration;
+      let lastProgress = 0;
+      let lastRound = 0;
+
+      while (Date.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, this.jobPollInterval));
+
+        try {
+          const statusResponse = await fetch(statusUrl);
+          
+          if (!statusResponse.ok) {
+            console.warn(`[MultiAgentGenerator] Status check failed: ${statusResponse.status}`);
+            continue;
+          }
+
+          const status = await statusResponse.json();
+          
+          // Log progress changes
+          if (status.progress !== lastProgress || status.currentRound !== lastRound) {
+            console.log(`[MultiAgentGenerator] Progress: ${status.progress}% | Round: ${status.currentRound || 0}/7 | ${status.message || ''}`);
+            lastProgress = status.progress;
+            lastRound = status.currentRound || 0;
+          }
+
+          if (status.status === 'completed') {
+            console.log('[MultiAgentGenerator] Job completed successfully');
+            break;
+          }
+
+          if (status.status === 'failed') {
+            throw new Error(`Job failed: ${status.error || 'Unknown error'}`);
+          }
+        } catch (pollError: any) {
+          if (pollError.message?.includes('Job failed')) {
+            throw pollError;
+          }
+          console.warn(`[MultiAgentGenerator] Poll error (will retry): ${pollError.message}`);
+        }
+      }
+
+      // Check if we timed out
+      if (Date.now() >= deadline) {
+        throw new Error(`Multi-agent generation timed out after ${Math.round(this.maxJobDuration / 60000)} minutes`);
+      }
+
+      // Step 3: Fetch the result
+      const resultUrl = `${this.serviceUrl}/job-result/${jobId}`;
+      console.log(`[MultiAgentGenerator] Fetching result from ${resultUrl}`);
+
+      const resultResponse = await fetch(resultUrl);
+      
+      if (!resultResponse.ok) {
+        const errorText = await resultResponse.text();
+        throw new Error(`Failed to fetch result: ${resultResponse.status} - ${errorText}`);
+      }
+
+      const result = await resultResponse.json();
       const generationTime = Date.now() - startTime;
 
       console.log('[MultiAgentGenerator] Generation complete');
@@ -175,35 +233,15 @@ export class MultiAgentEPMGenerator implements IEPMGenerator {
       };
 
     } catch (error: any) {
-      const generateUrl = `${this.serviceUrl}/generate-program`;
       const errorType = error.name || typeof error;
       const errorMessage = error.message || String(error);
-      
-      if (error.name === 'AbortError') {
-        console.error(`[MultiAgentGenerator] Request timed out after ${Math.round(this.timeout / 1000 / 60)} minutes`);
-        console.error(`[MultiAgentGenerator] URL: ${generateUrl}`);
-        throw new Error(`Multi-agent generation timed out after ${Math.round(this.timeout / 1000 / 60)} minutes`);
-      }
       
       console.error('[MultiAgentGenerator] Generate request failed');
       console.error(`[MultiAgentGenerator] Error type: ${errorType}`);
       console.error(`[MultiAgentGenerator] Error message: ${errorMessage}`);
-      console.error(`[MultiAgentGenerator] URL: ${generateUrl}`);
       
-      // Log common error types for easier diagnosis
-      if (errorType === 'TypeError') {
-        if (errorMessage.includes('fetch')) {
-          console.error('[MultiAgentGenerator] This appears to be a network connectivity issue');
-        }
-      }
       if (errorMessage.includes('ECONNREFUSED')) {
-        console.error('[MultiAgentGenerator] Connection refused - service may not be running at the configured URL');
-      }
-      if (errorMessage.includes('ENOTFOUND') || errorMessage.includes('getaddrinfo')) {
-        console.error('[MultiAgentGenerator] DNS resolution failed - unable to reach the service host');
-      }
-      if (errorMessage.includes('ETIMEDOUT')) {
-        console.error('[MultiAgentGenerator] Connection timed out - service is not responding');
+        console.error('[MultiAgentGenerator] Connection refused - service may not be running');
       }
       
       throw error;

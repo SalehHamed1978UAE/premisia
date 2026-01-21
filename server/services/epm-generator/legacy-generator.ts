@@ -20,6 +20,7 @@ export class LegacyEPMGenerator implements IEPMGenerator {
     try {
       // Dynamically import existing modules to avoid circular dependencies
       const { EPMSynthesizer, ContextBuilder } = await import('../../intelligence/epm-synthesizer');
+      const { aiClients } = await import('../../ai-clients');
       
       // Build planning context from inputs
       const strategyInsights = input.strategyInsights || this.buildInsightsFromBMC(input.bmcInsights);
@@ -60,8 +61,33 @@ export class LegacyEPMGenerator implements IEPMGenerator {
         }
       }
 
-      // Create synthesizer and generate
-      const synthesizer = new EPMSynthesizer();
+      // Create LLM provider wrapper for WBS Builder
+      const llmProvider = {
+        async generateStructured<T>(request: { prompt: string; schema: any }): Promise<T> {
+          console.log('[LegacyEPMGenerator] Using aiClients for structured generation');
+          const response = await aiClients.callWithFallback({
+            systemPrompt: 'You are a strategic business analyst. Return strictly valid JSON matching the provided schema. Do not include any markdown formatting or code blocks.',
+            userMessage: `${request.prompt}\n\nRequired JSON schema:\n${JSON.stringify(request.schema, null, 2)}\n\nRespond with only valid JSON.`,
+          });
+          
+          // Parse JSON from response, handling potential markdown code blocks
+          let jsonStr = response.content.trim();
+          if (jsonStr.startsWith('```json')) {
+            jsonStr = jsonStr.slice(7);
+          } else if (jsonStr.startsWith('```')) {
+            jsonStr = jsonStr.slice(3);
+          }
+          if (jsonStr.endsWith('```')) {
+            jsonStr = jsonStr.slice(0, -3);
+          }
+          jsonStr = jsonStr.trim();
+          
+          return JSON.parse(jsonStr) as T;
+        },
+      };
+
+      // Create synthesizer with LLM provider for proper WBS generation
+      const synthesizer = new EPMSynthesizer(llmProvider);
       const legacyResult = await synthesizer.synthesize(
         strategyInsights,
         { id: input.userId } as any,

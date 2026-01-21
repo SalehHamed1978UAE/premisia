@@ -1,0 +1,40 @@
+There are actually three issues stacking:        
+  Issue: Python service not running                                             
+  Status: Port 8001 empty                                                       
+  Impact: Immediate fallback to legacy                                          
+  ────────────────────────────────────────                                      
+  Issue: Model ID wrong                                                         
+  Status: If service runs, LLM calls hang                                       
+  Impact: Infinite hang                                                         
+  ────────────────────────────────────────                                      
+  Issue: 10-min timeout too short                                               
+  Status: Even if working, 44 calls take 30-60 min                              
+  Impact: Times out, falls back                                                 
+  My recommendation: Options 3 + 4                                              
+                                                                                
+  1. Start the Python service first (Option 3) - without this, nothing works    
+  2. Then implement true async support (Option 4) - this is the correct         
+  architecture                                                                  
+                                                                                
+  Option 4 is the right long-term solution because:                             
+  - 30-60 minute blocking HTTP requests are bad architecture                    
+  - Users shouldn't have to keep their browser open for an hour                 
+  - Background job with polling lets users see incremental progress ("Round 3 of
+   7 complete")                                                                 
+  - Can survive page refreshes, network blips, etc.                             
+                                                                                
+  Do NOT just increase timeout to 45 minutes (Option 1) - that's a band-aid that
+   creates other problems (memory pressure, connection pooling issues, terrible 
+  UX).                                                                          
+                                                                                
+  Reducing rounds (Option 2) degrades the multi-agent collaboration quality -   
+  that should be a last resort.                                                 
+                                                                                
+  Ask Replit to:                                                                
+  1. Start the Python service                                                   
+  2. Verify the model ID fix is applied (my fix from earlier)                   
+  3. Convert to async background job pattern:                                   
+    - POST /generate-program returns { jobId: "xxx" } immediately               
+    - GET /job-status/:jobId returns { progress: 42, round: 3, status: "running"
+   }                                                                            
+    - Results stored when complete, fetched via /job-result/:jobId   

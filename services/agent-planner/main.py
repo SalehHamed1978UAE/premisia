@@ -25,6 +25,9 @@ from models.schemas import (
     EPMProgram,
     EPMGeneratorMetadata,
     HealthResponse,
+    JobStartResponse,
+    JobStatusResponse,
+    JobResultResponse,
     Workstream,
     Deliverable,
     ResourceRequirement,
@@ -62,11 +65,194 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+jobs_store: dict = {}
+
+
+@app.on_event("startup")
+async def validate_llm():
+    """Test LLM connectivity on startup."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    model_id = os.environ.get("CREWAI_MODEL", "anthropic/claude-sonnet-4-20250514")
+    
+    if not api_key:
+        print("[Startup] WARNING: ANTHROPIC_API_KEY not set - multi-agent generation will fail!")
+        return
+    
+    masked_key = f"{api_key[:4]}...{api_key[-4:]}" if len(api_key) > 8 else "***"
+    print(f"[Startup] API key: {masked_key}")
+    print(f"[Startup] Model: {model_id}")
+    
+    try:
+        from anthropic import Anthropic
+        
+        print(f"[Startup] Testing LLM connectivity with Anthropic SDK...")
+        client = Anthropic(api_key=api_key)
+        
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=10,
+            messages=[{"role": "user", "content": "Say hello"}]
+        )
+        result = response.content[0].text if response.content else "OK"
+        print(f"[Startup] LLM test successful: {result}")
+    except Exception as e:
+        print(f"[Startup] WARNING: LLM test failed: {e}")
+        print("[Startup] Multi-agent generation may not work!")
+
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
     """Health check endpoint"""
     return HealthResponse(status="healthy", agents=7)
+
+
+def _run_generation_job(job_id: str, input_data: EPMGeneratorInput):
+    """Background worker function to run the generation job."""
+    try:
+        jobs_store[job_id]["status"] = "running"
+        jobs_store[job_id]["progress"] = 5
+        jobs_store[job_id]["message"] = "Starting multi-agent generation..."
+        
+        start_time = datetime.now()
+        print(f"[Job {job_id}] Starting program generation")
+        
+        crew = ProgramPlanningCrew()
+        
+        jobs_store[job_id]["progress"] = 10
+        jobs_store[job_id]["message"] = "Agents initialized, starting round 1..."
+        
+        crew_result = crew.generate_sync(input_data)
+        
+        program: EPMProgram = crew_result["program"]
+        conversation_log = crew_result["conversation_log"]
+        decisions = crew_result["decisions"]
+        rounds_completed = crew_result["rounds_completed"]
+        agents_participated = crew_result["agents_participated"]
+        
+        jobs_store[job_id]["progress"] = 85
+        jobs_store[job_id]["current_round"] = 7
+        jobs_store[job_id]["message"] = "Curating knowledge from agent conversations..."
+        
+        print(f"[Job {job_id}] Program generation complete. Rounds: {rounds_completed}")
+        
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        curator = KnowledgeCurator()
+        knowledge_ledger = loop.run_until_complete(curator.curate(
+            conversation_log=conversation_log,
+            program=program,
+            decisions=decisions
+        ))
+        loop.close()
+        
+        end_time = datetime.now()
+        generation_time_ms = int((end_time - start_time).total_seconds() * 1000)
+        
+        metadata = EPMGeneratorMetadata(
+            generator="multi-agent",
+            generated_at=datetime.now().isoformat(),
+            confidence=program.overall_confidence,
+            rounds_completed=rounds_completed,
+            agents_participated=agents_participated,
+            knowledge_emissions=len(knowledge_ledger.emissions),
+            generation_time_ms=generation_time_ms
+        )
+        
+        output = EPMGeneratorOutput(
+            program=program,
+            metadata=metadata,
+            conversation_log=conversation_log,
+            decisions=decisions,
+            knowledge_ledger=knowledge_ledger
+        )
+        
+        jobs_store[job_id]["status"] = "completed"
+        jobs_store[job_id]["progress"] = 100
+        jobs_store[job_id]["message"] = "Generation complete!"
+        jobs_store[job_id]["result"] = output
+        
+        print(f"[Job {job_id}] Completed successfully in {generation_time_ms}ms")
+        
+    except Exception as e:
+        error_msg = f"Generation failed: {str(e)}"
+        print(f"[Job {job_id}] ERROR: {error_msg}")
+        print(f"[Job {job_id}] Traceback:\n{traceback.format_exc()}")
+        
+        jobs_store[job_id]["status"] = "failed"
+        jobs_store[job_id]["error"] = error_msg
+        jobs_store[job_id]["message"] = f"Failed: {str(e)[:100]}"
+
+
+@app.post("/start-job", response_model=JobStartResponse)
+async def start_job(input_data: EPMGeneratorInput):
+    """
+    Start an async EPM generation job.
+    
+    Returns a job ID immediately. Use /job-status/{job_id} to poll for progress
+    and /job-result/{job_id} to get the result when complete.
+    """
+    job_id = str(uuid.uuid4())
+    
+    jobs_store[job_id] = {
+        "status": "pending",
+        "progress": 0,
+        "current_round": 0,
+        "message": "Job queued...",
+        "result": None,
+        "error": None,
+        "input_data": input_data,
+        "created_at": datetime.now().isoformat()
+    }
+    
+    print(f"[CrewAI] Starting async job {job_id} for session {input_data.session_id}")
+    
+    import threading
+    thread = threading.Thread(target=_run_generation_job, args=(job_id, input_data))
+    thread.daemon = True
+    thread.start()
+    
+    return JobStartResponse(job_id=job_id, status="pending")
+
+
+@app.get("/job-status/{job_id}", response_model=JobStatusResponse)
+async def get_job_status(job_id: str):
+    """Get the current status and progress of a generation job."""
+    if job_id not in jobs_store:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    
+    job = jobs_store[job_id]
+    return JobStatusResponse(
+        job_id=job_id,
+        status=job["status"],
+        progress=job["progress"],
+        current_round=job.get("current_round"),
+        total_rounds=7,
+        message=job.get("message"),
+        error=job.get("error")
+    )
+
+
+@app.get("/job-result/{job_id}")
+async def get_job_result(job_id: str) -> JSONResponse:
+    """Get the result of a completed generation job."""
+    if job_id not in jobs_store:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    
+    job = jobs_store[job_id]
+    
+    if job["status"] == "pending" or job["status"] == "running":
+        return JSONResponse(
+            status_code=202,
+            content={"jobId": job_id, "status": job["status"], "message": "Job still in progress"}
+        )
+    
+    if job["status"] == "failed":
+        raise HTTPException(status_code=500, detail=job.get("error", "Job failed"))
+    
+    result: EPMGeneratorOutput = job["result"]
+    return JSONResponse(content=result.model_dump(by_alias=True))
 
 
 @app.post("/generate-program")

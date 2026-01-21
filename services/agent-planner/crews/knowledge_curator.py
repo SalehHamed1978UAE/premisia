@@ -66,10 +66,14 @@ class KnowledgeCurator:
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY environment variable not set")
         
+        model_id = os.environ.get("CREWAI_MODEL", "anthropic/claude-sonnet-4-20250514")
+        
         self.llm = LLM(
-            model="anthropic/claude-sonnet-4-20250514",
+            model=model_id,
             api_key=api_key,
-            temperature=0.3
+            temperature=0.3,
+            timeout=120,
+            max_retries=2
         )
         
     def _load_curator_config(self):

@@ -166,7 +166,13 @@ function spawnCrewAI(): ChildProcess {
   ], {
     cwd: servicePath,
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env }
+    env: { 
+      ...process.env,
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
+      CREWAI_MODEL: process.env.CREWAI_MODEL || 'anthropic/claude-sonnet-4-20250514',
+      PYTHONUNBUFFERED: '1',
+    }
   });
   
   proc.stdout?.on('data', (data) => {

@@ -225,3 +225,25 @@ class EPMGeneratorOutput(CamelModel):
 class HealthResponse(BaseModel):
     status: str
     agents: int
+
+
+class JobStartResponse(CamelModel):
+    job_id: str = Field(..., alias="jobId")
+    status: str
+
+
+class JobStatusResponse(CamelModel):
+    job_id: str = Field(..., alias="jobId")
+    status: Literal['pending', 'running', 'completed', 'failed']
+    progress: int
+    current_round: Optional[int] = Field(None, alias="currentRound")
+    total_rounds: int = Field(7, alias="totalRounds")
+    message: Optional[str] = None
+    error: Optional[str] = None
+
+
+class JobResultResponse(CamelModel):
+    job_id: str = Field(..., alias="jobId")
+    status: Literal['completed', 'failed', 'pending', 'running']
+    result: Optional[EPMGeneratorOutput] = None
+    error: Optional[str] = None
