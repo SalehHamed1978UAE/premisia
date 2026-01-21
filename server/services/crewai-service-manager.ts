@@ -13,10 +13,14 @@ const CREWAI_URL = `http://localhost:${CREWAI_PORT}`;
 const HEALTH_CHECK_INTERVAL = 10000; // 10 seconds
 const MAX_STARTUP_RETRIES = 30;
 const STARTUP_RETRY_INTERVAL = 2000; // 2 seconds
+const RESTART_DELAY = 5000; // 5 seconds
 
 let crewaiProcess: ChildProcess | null = null;
 let healthCheckTimer: NodeJS.Timeout | null = null;
 let isShuttingDown = false;
+let isStarting = false; // Lock to prevent concurrent starts
+let consecutiveHealthFailures = 0;
+const MAX_HEALTH_FAILURES = 3;
 
 /**
  * Check if CrewAI service is healthy
@@ -99,71 +103,126 @@ function spawnCrewAI(): ChildProcess {
     console.log(`[CrewAI Manager] Process exited with code ${code}, signal ${signal}`);
     crewaiProcess = null;
     
-    // Auto-restart if not shutting down
-    if (!isShuttingDown && code !== 0) {
-      console.log('[CrewAI Manager] Auto-restarting in 5 seconds...');
+    // Auto-restart on ANY unexpected exit (not just non-zero) when not shutting down
+    if (!isShuttingDown) {
+      console.log(`[CrewAI Manager] Unexpected exit, auto-restarting in ${RESTART_DELAY / 1000} seconds...`);
       setTimeout(() => {
-        if (!isShuttingDown) {
+        if (!isShuttingDown && !isStarting) {
           startCrewAIService().catch(console.error);
         }
-      }, 5000);
+      }, RESTART_DELAY);
     }
   });
   
   proc.on('error', (err) => {
     console.error('[CrewAI Manager] Failed to start process:', err.message);
+    crewaiProcess = null;
   });
   
   return proc;
 }
 
 /**
- * Start periodic health checks
+ * Start periodic health checks with auto-restart
  */
 function startHealthChecks() {
   if (healthCheckTimer) return;
   
+  consecutiveHealthFailures = 0;
+  
   healthCheckTimer = setInterval(async () => {
-    if (isShuttingDown) return;
+    if (isShuttingDown || isStarting) return;
     
     const healthy = await isCrewAIHealthy();
     
-    if (!healthy && crewaiProcess) {
-      console.log('[CrewAI Manager] Health check failed, service may be down');
+    if (!healthy) {
+      consecutiveHealthFailures++;
+      console.log(`[CrewAI Manager] Health check failed (${consecutiveHealthFailures}/${MAX_HEALTH_FAILURES})`);
+      
+      // Auto-restart after consecutive failures
+      if (consecutiveHealthFailures >= MAX_HEALTH_FAILURES) {
+        console.log('[CrewAI Manager] Service appears down, attempting restart...');
+        consecutiveHealthFailures = 0;
+        
+        // Kill process if it exists but isn't responding
+        if (crewaiProcess) {
+          crewaiProcess.kill('SIGTERM');
+          crewaiProcess = null;
+        }
+        
+        // Restart
+        startCrewAIService().catch(console.error);
+      }
+    } else {
+      consecutiveHealthFailures = 0;
     }
   }, HEALTH_CHECK_INTERVAL);
 }
 
 /**
- * Start the CrewAI service
+ * Start the CrewAI service (with lock to prevent concurrent starts)
  */
 export async function startCrewAIService(): Promise<boolean> {
-  // Check if already running
-  if (await isCrewAIHealthy()) {
-    console.log('[CrewAI Manager] Service already running and healthy');
-    startHealthChecks();
-    return true;
+  // Prevent concurrent starts
+  if (isStarting) {
+    console.log('[CrewAI Manager] Start already in progress, waiting...');
+    // Wait for the current start to complete
+    while (isStarting) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    return isCrewAIHealthy();
   }
   
-  // Kill any existing process
+  isStarting = true;
+  
+  try {
+    // Check if already running and healthy
+    if (await isCrewAIHealthy()) {
+      console.log('[CrewAI Manager] Service already running and healthy');
+      startHealthChecks();
+      return true;
+    }
+    
+    // Kill any existing process
+    if (crewaiProcess) {
+      console.log('[CrewAI Manager] Killing existing process...');
+      crewaiProcess.kill('SIGTERM');
+      crewaiProcess = null;
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    
+    // Spawn new process
+    crewaiProcess = spawnCrewAI();
+    
+    // Wait for it to be healthy
+    const healthy = await waitForHealthy();
+    
+    if (healthy) {
+      startHealthChecks();
+    }
+    
+    return healthy;
+  } finally {
+    isStarting = false;
+  }
+}
+
+/**
+ * Stop the CrewAI service (synchronous cleanup for exit handlers)
+ */
+function stopCrewAIServiceSync(): void {
+  isShuttingDown = true;
+  
+  if (healthCheckTimer) {
+    clearInterval(healthCheckTimer);
+    healthCheckTimer = null;
+  }
+  
   if (crewaiProcess) {
-    console.log('[CrewAI Manager] Killing existing process...');
+    console.log('[CrewAI Manager] Stopping service...');
     crewaiProcess.kill('SIGTERM');
     crewaiProcess = null;
-    await new Promise(resolve => setTimeout(resolve, 1000));
   }
-  
-  // Spawn new process
-  crewaiProcess = spawnCrewAI();
-  
-  // Wait for it to be healthy
-  const healthy = await waitForHealthy();
-  
-  if (healthy) {
-    startHealthChecks();
-  }
-  
-  return healthy;
 }
 
 /**
@@ -179,16 +238,24 @@ export async function stopCrewAIService(): Promise<void> {
   
   if (crewaiProcess) {
     console.log('[CrewAI Manager] Stopping service...');
-    crewaiProcess.kill('SIGTERM');
+    const proc = crewaiProcess;
+    crewaiProcess = null;
+    
+    proc.kill('SIGTERM');
     
     // Wait for graceful shutdown
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise<void>((resolve) => {
+      const timeout = setTimeout(() => {
+        proc.kill('SIGKILL');
+        resolve();
+      }, 2000);
+      
+      proc.once('exit', () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+    });
     
-    if (crewaiProcess) {
-      crewaiProcess.kill('SIGKILL');
-    }
-    
-    crewaiProcess = null;
     console.log('[CrewAI Manager] Service stopped');
   }
 }
@@ -212,11 +279,27 @@ export async function getCrewAIStatus(): Promise<{
   };
 }
 
-// Graceful shutdown handlers
+// Graceful shutdown handlers - use sync version for immediate handlers
 process.on('SIGTERM', () => {
-  stopCrewAIService().catch(console.error);
+  stopCrewAIServiceSync();
 });
 
 process.on('SIGINT', () => {
-  stopCrewAIService().catch(console.error);
+  stopCrewAIServiceSync();
+});
+
+// Handle process exit - ensure cleanup
+process.on('exit', () => {
+  stopCrewAIServiceSync();
+});
+
+// Handle uncaught exceptions - cleanup before crash
+process.on('uncaughtException', (err) => {
+  console.error('[CrewAI Manager] Uncaught exception, cleaning up:', err.message);
+  stopCrewAIServiceSync();
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[CrewAI Manager] Unhandled rejection:', reason);
+  // Don't stop service for unhandled rejections, just log
 });
