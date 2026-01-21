@@ -109,13 +109,16 @@ async def health_check():
 
 def _run_generation_job(job_id: str, input_data: EPMGeneratorInput):
     """Background worker function to run the generation job."""
+    import sys
     try:
         jobs_store[job_id]["status"] = "running"
         jobs_store[job_id]["progress"] = 5
         jobs_store[job_id]["message"] = "Starting multi-agent generation..."
         
         start_time = datetime.now()
-        print(f"[Job {job_id}] Starting program generation")
+        print(f"[Job {job_id}] Starting program generation", flush=True)
+        print(f"[Job {job_id}] Business context: {input_data.business_context.name}", flush=True)
+        sys.stdout.flush()
         
         # Progress callback to update job status during round execution
         def on_round_progress(round_num: int, round_name: str, agent_name: str = None):
@@ -134,12 +137,24 @@ def _run_generation_job(job_id: str, input_data: EPMGeneratorInput):
             
             print(f"[Job {job_id}] Progress: {progress}% - Round {round_num}: {round_name}")
         
+        print(f"[Job {job_id}] Creating ProgramPlanningCrew...", flush=True)
+        sys.stdout.flush()
+        
         crew = ProgramPlanningCrew()
+        
+        print(f"[Job {job_id}] ProgramPlanningCrew created successfully", flush=True)
+        sys.stdout.flush()
         
         jobs_store[job_id]["progress"] = 10
         jobs_store[job_id]["message"] = "Agents initialized, starting round 1..."
         
+        print(f"[Job {job_id}] Calling crew.generate_sync()...", flush=True)
+        sys.stdout.flush()
+        
         crew_result = crew.generate_sync(input_data, on_progress=on_round_progress)
+        
+        print(f"[Job {job_id}] crew.generate_sync() completed", flush=True)
+        sys.stdout.flush()
         
         program: EPMProgram = crew_result["program"]
         conversation_log = crew_result["conversation_log"]

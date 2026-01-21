@@ -61,6 +61,8 @@ class ProgramPlanningCrew:
         
     def _initialize_llm(self):
         """Initialize the LLM for all agents."""
+        import sys
+        
         api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY environment variable not set")
@@ -68,15 +70,19 @@ class ProgramPlanningCrew:
         masked_key = f"{api_key[:4]}...{api_key[-4:]}" if len(api_key) > 8 else "***"
         model_id = os.environ.get("CREWAI_MODEL", "anthropic/claude-sonnet-4-20250514")
         
-        print(f"[ProgramCrew] API key found: {masked_key}")
-        print(f"[ProgramCrew] Using model: {model_id}")
+        print(f"[ProgramCrew] API key found: {masked_key}", flush=True)
+        print(f"[ProgramCrew] Using model: {model_id}", flush=True)
+        print(f"[ProgramCrew] LLM timeout: 300s (5 minutes)", flush=True)
+        
+        # Flush stdout to ensure logs appear
+        sys.stdout.flush()
         
         self.llm = LLM(
             model=model_id,
             api_key=api_key,
             temperature=0.7,
-            timeout=120,
-            max_retries=2
+            timeout=300,  # 5 minutes for complex agent tasks
+            max_retries=3
         )
         
     def _load_agent_configs(self) -> Dict[str, Dict]:
@@ -708,9 +714,17 @@ Include a JSON block at the end with key decisions in this format:
             )
             
             try:
-                print(f"[ProgramCrew] Executing round {round_num} with {len(round_tasks)} tasks...")
+                import sys
+                import time
+                print(f"[ProgramCrew] Executing round {round_num} with {len(round_tasks)} tasks...", flush=True)
+                print(f"[ProgramCrew] Tasks: {[t.description[:50] + '...' for t in round_tasks]}", flush=True)
+                sys.stdout.flush()
+                
+                kickoff_start = time.time()
                 result = crew.kickoff()
-                print(f"[ProgramCrew] Round {round_num} kickoff complete")
+                kickoff_duration = time.time() - kickoff_start
+                print(f"[ProgramCrew] Round {round_num} kickoff complete in {kickoff_duration:.1f}s", flush=True)
+                sys.stdout.flush()
                 
                 round_outputs = []
                 if hasattr(result, 'tasks_output'):
