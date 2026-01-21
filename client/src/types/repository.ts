@@ -1,3 +1,12 @@
+export interface JourneyProgress {
+  status: 'in_progress' | 'completed' | 'abandoned';
+  journeyType?: string;
+  hasAnalysis: boolean;
+  hasDecisions: boolean;
+  nextStep?: 'bmc_results' | 'decisions' | 'workspace' | 'complete';
+  nextUrl?: string;
+}
+
 export interface StatementSummary {
   understandingId: string;
   sessionId: string;
@@ -7,6 +16,7 @@ export interface StatementSummary {
   analyses: Record<string, { count: number; latestVersion: string }>;
   totalAnalyses: number;
   lastActivity: Date | string;
+  journeyProgress?: JourneyProgress;
 }
 
 export interface AnalysisInfo {

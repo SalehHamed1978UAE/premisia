@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Archive, Calendar, TrendingUp, FileText, AlertTriangle, Trash2, ArchiveIcon, Download, Eye } from 'lucide-react';
+import { Archive, Calendar, TrendingUp, FileText, AlertTriangle, Trash2, ArchiveIcon, Download, Eye, PlayCircle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { StatementSummary } from '@/types/repository';
 import { useToast } from '@/hooks/use-toast';
@@ -405,6 +405,23 @@ export default function RepositoryBrowser() {
                   ) : (
                     <div className="text-sm text-muted-foreground italic">
                       No analyses yet
+                    </div>
+                  )}
+
+                  {/* Continue Journey Button - only show for incomplete journeys */}
+                  {statement.journeyProgress?.status !== 'completed' && statement.journeyProgress?.nextUrl && (
+                    <div className="pt-2 border-t mb-2">
+                      <Button
+                        className="w-full gap-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLocation(statement.journeyProgress!.nextUrl!);
+                        }}
+                        data-testid={`button-continue-journey-${statement.understandingId}`}
+                      >
+                        <PlayCircle className="h-4 w-4" />
+                        Continue Journey
+                      </Button>
                     </div>
                   )}
 

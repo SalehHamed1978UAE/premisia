@@ -119,6 +119,55 @@ router.get('/statements', async (req: any, res) => {
 
         const totalAnalyses = oldAnalyses.length + newAnalyses.length;
 
+        // Get journey progress from journey_sessions (linked through understanding_id)
+        const [journeySession] = await db
+          .select({
+            status: journeySessions.status,
+            journeyType: journeySessions.journeyType,
+          })
+          .from(journeySessions)
+          .where(eq(journeySessions.understandingId, stmt.understandingId))
+          .limit(1);
+
+        // Determine journey progress
+        let journeyProgress: any = undefined;
+        if (journeySession) {
+          const latestVersion = newAnalyses[0];
+          const hasAnalysis = latestVersion?.analysisData != null;
+          const hasDecisions = latestVersion?.decisionsData != null;
+          const versionNumber = latestVersion?.versionNumber || 1;
+          
+          let nextStep: string | undefined;
+          let nextUrl: string | undefined;
+          
+          if (journeySession.status !== 'completed') {
+            if (!hasAnalysis) {
+              // Still running BMC research - go to results page which will poll
+              nextStep = 'bmc_results';
+              nextUrl = `/marketing-consultant/bmc-results/${stmt.sessionId}/${versionNumber}`;
+            } else if (!hasDecisions) {
+              // BMC complete but no decisions - go to decisions page
+              nextStep = 'decisions';
+              nextUrl = `/marketing-consultant/decisions/${stmt.sessionId}/${versionNumber}`;
+            } else {
+              // Has decisions - go to workspace
+              nextStep = 'workspace';
+              nextUrl = `/strategy-workspace/decisions/${stmt.sessionId}/${versionNumber}`;
+            }
+          } else {
+            nextStep = 'complete';
+          }
+
+          journeyProgress = {
+            status: journeySession.status || 'in_progress',
+            journeyType: journeySession.journeyType,
+            hasAnalysis,
+            hasDecisions,
+            nextStep,
+            nextUrl,
+          };
+        }
+
         return {
           understandingId: stmt.understandingId,
           sessionId: stmt.sessionId,
@@ -128,6 +177,7 @@ router.get('/statements', async (req: any, res) => {
           analyses: analysisSummary,
           totalAnalyses,
           lastActivity: latestActivity,
+          journeyProgress,
         };
       })
     );
