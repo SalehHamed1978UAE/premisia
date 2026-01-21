@@ -54,6 +54,11 @@ export interface Workstream {
   startMonth: number;
   endMonth: number;
   confidence: number;
+  // CPM-calculated fields (added by post-processing)
+  startDate?: Date;
+  endDate?: Date;
+  slack?: number;
+  isCritical?: boolean;
 }
 
 export interface ResourceRequirement {
@@ -167,6 +172,9 @@ export interface EPMProgram {
     phases: TimelinePhase[];
     totalMonths: number;
     criticalPath: string[];
+    startDate?: Date;
+    endDate?: Date;
+    confidence?: number;
   };
   resourcePlan: {
     roles: ResourceRequirement[];

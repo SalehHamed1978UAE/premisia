@@ -1,0 +1,136 @@
+ Task: Add CPM Post-Processing to Multi-Agent EPM Output                       
+                                                                                
+  The multi-agent CrewAI system generates rich domain content from 7 specialized
+   agents, but the timeline/scheduling is weak - agents just propose timelines  
+  in text that get extracted via regex. The legacy system has a proper CPM      
+  scheduler that we need to apply to the multi-agent output.                    
+                                                                                
+  The Gap                                                                       
+                                                                                
+  Multi-agent output has:                                                       
+  - Rich workstream descriptions from domain experts                            
+  - Dependency "claims" in natural language                                     
+  - Agent-proposed timelines (Month X to Month Y)                               
+                                                                                
+  Multi-agent output is missing:                                                
+  - Critical Path Method (CPM) scheduling                                       
+  - PERT duration estimates                                                     
+  - Slack/float calculation                                                     
+  - Algorithmically validated dependencies                                      
+  - Proper critical path identification                                         
+                                                                                
+  The Fix                                                                       
+                                                                                
+  After CrewAI returns its output, pipe the workstreams through the existing CPM
+   scheduler before returning to the client.                                    
+                                                                                
+  Location: server/services/epm-generator/multi-agent-generator.ts (or wherever 
+  the CrewAI response is processed)                                             
+                                                                                
+  Implementation:                                                               
+                                                                                
+  import { CPMScheduler } from '../../src/lib/intelligent-planning/scheduler';  
+  import type { Task, Duration } from                                           
+  '../../src/lib/intelligent-planning/types';                                   
+                                                                                
+  async function postProcessWithCPM(crewAIOutput: any): Promise<any> {          
+    // 1. Convert agent workstreams to CPM tasks                                
+    const tasks: Task[] = crewAIOutput.workstreams.map((ws: any) => ({          
+      id: ws.id,                                                                
+      name: ws.name,                                                            
+      dependencies: ws.dependencies || [],                                      
+      duration: {                                                               
+        // Use agent-proposed duration or estimate from deliverable count       
+        optimistic: Math.max(1, (ws.endMonth - ws.startMonth) * 0.75),          
+        likely: ws.endMonth - ws.startMonth || ws.deliverables?.length || 2,    
+        pessimistic: Math.max(3, (ws.endMonth - ws.startMonth) * 1.5),          
+        unit: 'months' as const                                                 
+      }                                                                         
+    }));                                                                        
+                                                                                
+    // 2. Run CPM scheduling                                                    
+    const scheduler = new CPMScheduler();                                       
+    const schedule = scheduler.schedule(tasks);                                 
+                                                                                
+    // 3. Update workstreams with CPM-calculated times                          
+    for (const scheduledTask of schedule.tasks) {                               
+      const ws = crewAIOutput.workstreams.find((w: any) => w.id ===             
+  scheduledTask.id);                                                            
+      if (ws) {                                                                 
+        ws.startMonth = scheduledTask.earlyStart;                               
+        ws.endMonth = scheduledTask.earlyFinish;                                
+        ws.startDate = scheduledTask.startDate;                                 
+        ws.endDate = scheduledTask.endDate;                                     
+        ws.slack = scheduledTask.slack;                                         
+        ws.isCritical = scheduledTask.isCritical;                               
+      }                                                                         
+    }                                                                           
+                                                                                
+    // 4. Build proper timeline object                                          
+    crewAIOutput.timeline = {                                                   
+      totalMonths: schedule.totalDuration,                                      
+      startDate: schedule.startDate,                                            
+      endDate: schedule.endDate,                                                
+      criticalPath: schedule.criticalPath,                                      
+      phases: buildPhasesFromSchedule(schedule),                                
+      confidence: 0.85                                                          
+    };                                                                          
+                                                                                
+    return crewAIOutput;                                                        
+  }                                                                             
+                                                                                
+  function buildPhasesFromSchedule(schedule: any) {                             
+    const totalMonths = schedule.totalDuration;                                 
+    return [                                                                    
+      { name: 'Planning & Setup', phase: 1, startMonth: 0, endMonth:            
+  Math.floor(totalMonths * 0.3) },                                              
+      { name: 'Development & Execution', phase: 2, startMonth:                  
+  Math.floor(totalMonths * 0.3), endMonth: Math.floor(totalMonths * 0.8) },     
+      { name: 'Testing & Validation', phase: 3, startMonth:                     
+  Math.floor(totalMonths * 0.8), endMonth: totalMonths }                        
+    ];                                                                          
+  }                                                                             
+                                                                                
+  Where to call it:                                                             
+                                                                                
+  // In the multi-agent generator, after receiving CrewAI response:             
+  const crewAIResponse = await fetch('http://localhost:8001/generate-epm',      
+  {...});                                                                       
+  const rawOutput = await crewAIResponse.json();                                
+                                                                                
+  // NEW: Post-process with CPM                                                 
+  const optimizedOutput = await postProcessWithCPM(rawOutput);                  
+                                                                                
+  return optimizedOutput;                                                       
+                                                                                
+  What This Gives Us                                                            
+  ┌──────────────────────────┬──────────────────────────────────┐               
+  │ Before (raw multi-agent) │ After (with CPM post-processing) │               
+  ├──────────────────────────┼──────────────────────────────────┤               
+  │ Agent-proposed timelines │ CPM-calculated early/late start  │               
+  ├──────────────────────────┼──────────────────────────────────┤               
+  │ Text-based dependencies  │ Graph-resolved dependencies      │               
+  ├──────────────────────────┼──────────────────────────────────┤               
+  │ No critical path         │ Identified critical path         │               
+  ├──────────────────────────┼──────────────────────────────────┤               
+  │ No slack values          │ Slack calculated per task        │               
+  ├──────────────────────────┼──────────────────────────────────┤               
+  │ Regex-extracted dates    │ PERT-estimated durations         │               
+  └──────────────────────────┴──────────────────────────────────┘               
+  Files to Modify                                                               
+                                                                                
+  1. server/services/epm-generator/multi-agent-generator.ts - Add               
+  post-processing call                                                          
+  2. May need to import from src/lib/intelligent-planning/scheduler.ts          
+                                                                                
+  Verification                                                                  
+                                                                                
+  After implementing, the multi-agent EPM output should include:                
+  - timeline.criticalPath array with task IDs                                   
+  - workstream.slack values (0 = critical)                                      
+  - workstream.isCritical boolean                                               
+  - Workstream dates that respect dependency ordering                           
+                                                                                
+  ---                                                                           
+  This closes the gap by keeping the rich agent content while adding the        
+  mathematical rigor of CPM scheduling.    
