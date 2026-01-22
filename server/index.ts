@@ -225,6 +225,7 @@ server.listen({
           // Route registration failed - likely missing secrets (REPLIT_DOMAINS, etc.)
           // Keep server running for health checks, but warn about limited functionality
           console.error('[Server] WARNING: Route registration failed:', error.message);
+          console.error('[Server] Full error stack:', error.stack);
           console.error('[Server] Health checks will work, but application routes are unavailable');
           console.error('[Server] Add required secrets in Replit deployment UI and redeploy');
           // DO NOT call process.exit() - let health checks pass

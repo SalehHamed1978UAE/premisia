@@ -9,28 +9,40 @@
 import type { IEPMGenerator, EPMGeneratorInput, EPMGeneratorOutput, EPMRouterOptions } from './types';
 import { LegacyEPMGenerator } from './legacy-generator';
 import { MultiAgentEPMGenerator } from './multi-agent-generator';
+import { TypeScriptMultiAgentGenerator } from './typescript-multi-agent-generator';
 
 export * from './types';
 export { LegacyEPMGenerator } from './legacy-generator';
 export { MultiAgentEPMGenerator } from './multi-agent-generator';
+export { TypeScriptMultiAgentGenerator } from './typescript-multi-agent-generator';
 export { createCFIntegration } from './cf-integration';
 
 /**
  * EPM Generator Router
  * 
  * Manages generator selection and fallback behavior.
+ * Now supports TypeScript-native multi-agent generator (default) or legacy CrewAI HTTP client.
  */
 export class EPMGeneratorRouter {
   private legacyGenerator: LegacyEPMGenerator;
   private multiAgentGenerator: MultiAgentEPMGenerator;
+  private tsMultiAgentGenerator: TypeScriptMultiAgentGenerator;
 
   constructor() {
     this.legacyGenerator = new LegacyEPMGenerator();
     this.multiAgentGenerator = new MultiAgentEPMGenerator();
+    this.tsMultiAgentGenerator = new TypeScriptMultiAgentGenerator();
   }
 
   /**
    * Get the active generator based on configuration.
+   * 
+   * Priority:
+   * 1. forceLegacy option → Legacy Generator
+   * 2. forceMultiAgent option → TypeScript Multi-Agent Generator
+   * 3. USE_MULTI_AGENT_EPM=true → TypeScript Multi-Agent Generator
+   * 4. USE_CREWAI_HTTP=true + USE_MULTI_AGENT_EPM=true → CrewAI HTTP client (deprecated)
+   * 5. Default → Legacy Generator
    */
   getGenerator(options?: EPMRouterOptions): IEPMGenerator {
     if (options?.forceLegacy) {
@@ -39,15 +51,20 @@ export class EPMGeneratorRouter {
     }
 
     if (options?.forceMultiAgent) {
-      console.log('[EPMRouter] Forced to use Multi-Agent Generator');
-      return this.multiAgentGenerator;
+      console.log('[EPMRouter] Forced to use TypeScript Multi-Agent Generator');
+      return this.tsMultiAgentGenerator;
     }
 
     const useMultiAgent = process.env.USE_MULTI_AGENT_EPM === 'true';
+    const useCrewAIHttp = process.env.USE_CREWAI_HTTP === 'true';
 
     if (useMultiAgent) {
-      console.log('[EPMRouter] Config: Using Multi-Agent Generator');
-      return this.multiAgentGenerator;
+      if (useCrewAIHttp) {
+        console.log('[EPMRouter] Config: Using CrewAI HTTP Multi-Agent Generator (deprecated)');
+        return this.multiAgentGenerator;
+      }
+      console.log('[EPMRouter] Config: Using TypeScript Multi-Agent Generator');
+      return this.tsMultiAgentGenerator;
     } else {
       console.log('[EPMRouter] Config: Using Legacy Generator');
       return this.legacyGenerator;
@@ -71,13 +88,37 @@ export class EPMGeneratorRouter {
       return generator.generate(input, { onProgress: options?.onProgress });
     }
 
-    // Multi-agent with fallback enabled - check health first
+    // TypeScript multi-agent generator is always available (runs in-process)
+    if (generator instanceof TypeScriptMultiAgentGenerator) {
+      console.log('[EPM] TypeScript Multi-Agent system READY (7 agents, in-process)');
+      try {
+        console.log('[EPMRouter] Starting TypeScript multi-agent generation...');
+        return await generator.generate(input, { onProgress: options?.onProgress });
+      } catch (error: any) {
+        console.error('[EPMRouter] TypeScript multi-agent generation failed:', error.message);
+        if (fallbackEnabled) {
+          console.warn('[EPM] TypeScript Multi-agent FAILED - falling back to legacy generator');
+          const fallbackResult = await this.legacyGenerator.generate(input, { onProgress: options?.onProgress });
+          return {
+            ...fallbackResult,
+            metadata: {
+              ...fallbackResult.metadata,
+              generator: 'legacy',
+              fallbackReason: error.message,
+            },
+          } as EPMGeneratorOutput;
+        }
+        throw error;
+      }
+    }
+
+    // CrewAI HTTP multi-agent - check health first
     const crewAIHealthy = await this.multiAgentGenerator.isHealthy();
     
     if (crewAIHealthy) {
-      console.log('[EPM] Multi-agent system READY (7 agents on port 8001)');
+      console.log('[EPM] CrewAI Multi-agent system READY (7 agents on port 8001)');
     } else {
-      console.warn('[EPM] Multi-agent UNAVAILABLE - using legacy generator');
+      console.warn('[EPM] CrewAI Multi-agent UNAVAILABLE - using legacy generator');
       const fallbackResult = await this.legacyGenerator.generate(input, { onProgress: options?.onProgress });
       return {
         ...fallbackResult,
@@ -90,11 +131,11 @@ export class EPMGeneratorRouter {
     }
     
     try {
-      console.log('[EPMRouter] Attempting multi-agent generation...');
+      console.log('[EPMRouter] Attempting CrewAI multi-agent generation...');
       return await generator.generate(input, { onProgress: options?.onProgress });
     } catch (error: any) {
-      console.error('[EPMRouter] Multi-agent generation failed:', error.message);
-      console.warn('[EPM] Multi-agent FAILED - falling back to legacy generator');
+      console.error('[EPMRouter] CrewAI multi-agent generation failed:', error.message);
+      console.warn('[EPM] CrewAI Multi-agent FAILED - falling back to legacy generator');
       
       const fallbackResult = await this.legacyGenerator.generate(input, { onProgress: options?.onProgress });
       
@@ -122,12 +163,16 @@ export class EPMGeneratorRouter {
    */
   getStatus(): {
     useMultiAgent: boolean;
+    useTypescriptGenerator: boolean;
     fallbackEnabled: boolean;
     crewAIConfigured: boolean;
     cfIntegrationEnabled: boolean;
   } {
+    const useMultiAgent = process.env.USE_MULTI_AGENT_EPM === 'true';
+    const useCrewAIHttp = process.env.USE_CREWAI_HTTP === 'true';
     return {
-      useMultiAgent: process.env.USE_MULTI_AGENT_EPM === 'true',
+      useMultiAgent,
+      useTypescriptGenerator: useMultiAgent && !useCrewAIHttp,
       fallbackEnabled: process.env.EPM_FALLBACK_ON_ERROR !== 'false',
       crewAIConfigured: !!process.env.CREWAI_SERVICE_URL,
       cfIntegrationEnabled: process.env.CF_INTEGRATION_ENABLED === 'true',
