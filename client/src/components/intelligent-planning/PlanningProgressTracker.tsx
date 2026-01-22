@@ -96,6 +96,12 @@ export function PlanningProgressTracker({
           ));
           break;
 
+        case 'step-progress':
+          // Handle incremental progress updates from multi-agent generator
+          setProgress(event.progress || 0);
+          setCurrentStep(event.description || '');
+          break;
+
         case 'complete':
           setProgress(100);
           setSteps(prev => prev.map(step => ({ ...step, status: step.status === 'pending' ? 'pending' : 'complete' })));
