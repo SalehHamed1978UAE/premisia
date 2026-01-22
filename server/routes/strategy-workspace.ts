@@ -265,6 +265,77 @@ router.post('/decisions', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/strategy-workspace/epm/generate-from-session
+// Generate EPM program directly from a sessionId (finds latest strategy version)
+router.post('/epm/generate-from-session', async (req: Request, res: Response) => {
+  const progressId = `progress-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+  
+  try {
+    const { sessionId } = req.body;
+    const userId = (req.user as any)?.claims?.sub;
+
+    if (!sessionId || typeof sessionId !== 'string') {
+      return res.status(400).json({ error: 'sessionId is required and must be a string' });
+    }
+    
+    // Find the latest strategy version for this session
+    const versions = await db
+      .select()
+      .from(strategyVersions)
+      .where(eq(strategyVersions.sessionId, sessionId))
+      .orderBy(desc(strategyVersions.versionNumber))
+      .limit(1);
+    
+    if (versions.length === 0) {
+      return res.status(404).json({ error: 'No strategy version found for this session' });
+    }
+    
+    const latestVersion = versions[0];
+    
+    // Security check: Verify the user owns this session
+    // Strategy versions should belong to the requesting user
+    // Deny access if:
+    // 1. The version has a different owner
+    // 2. The version has no owner (legacy data) - require explicit ownership
+    if (!latestVersion.userId) {
+      console.warn(`[EPM] Access denied: session ${sessionId} has no owner (legacy data)`);
+      return res.status(403).json({ error: 'This analysis has no owner assigned. Please contact support.' });
+    }
+    if (latestVersion.userId !== userId) {
+      console.warn(`[EPM] Unauthorized access attempt: user ${userId} tried to access session ${sessionId} owned by ${latestVersion.userId}`);
+      return res.status(403).json({ error: 'You do not have permission to generate EPM for this session' });
+    }
+    
+    // Return progress ID immediately so client can connect to SSE
+    res.json({
+      success: true,
+      progressId,
+      strategyVersionId: latestVersion.id,
+      message: 'EPM generation started. Connect to progress stream for updates.'
+    });
+
+    // Continue processing in background using existing function
+    processEPMGeneration(latestVersion.id, undefined, undefined, progressId, req).catch(error => {
+      console.error('Background EPM generation error:', error);
+      sendSSEEvent(progressId, {
+        type: 'error',
+        message: error.message || 'EPM generation failed'
+      });
+      const stream = progressStreams.get(progressId);
+      if (stream) {
+        stream.res.end();
+        progressStreams.delete(progressId);
+      }
+    });
+  } catch (error: any) {
+    console.error('Error in POST /epm/generate-from-session:', error);
+    sendSSEEvent(progressId, {
+      type: 'error',
+      message: error.message || 'EPM generation failed'
+    });
+  }
+});
+
 // POST /api/strategy-workspace/epm/generate
 // Generate EPM program from framework results + user decisions
 router.post('/epm/generate', async (req: Request, res: Response) => {
@@ -550,6 +621,19 @@ async function processEPMGeneration(
       try {
         const router = getEPMRouter();
         
+        // Map round numbers to frontend step IDs for progress tracking
+        const roundToStepId: Record<number, string> = {
+          1: 'wbs-generation',      // WBS Definition
+          2: 'extract-tasks',        // Task Extraction  
+          3: 'schedule',             // Schedule Creation
+          4: 'allocate-resources',   // Resource Allocation
+          5: 'level-resources',      // Resource Optimization
+          6: 'optimize',             // AI Optimization
+          7: 'validate',             // Final Validation
+        };
+        
+        let lastRound = 0;
+        
         // Progress callback for real-time SSE updates during multi-agent generation
         const onProgress = (progress: { round: number; totalRounds: number; currentAgent: string; message: string; percentComplete: number }) => {
           // Map progress: rounds 1-7 map to 15-80%
@@ -558,12 +642,41 @@ async function processEPMGeneration(
           const progressRange = maxProgress - baseProgress;
           const mappedProgress = Math.round(baseProgress + (progress.round / progress.totalRounds) * progressRange);
           
-          sendSSEEvent(progressId, {
-            type: 'step-progress',
-            step: 'multi-agent-generation',
-            progress: mappedProgress,
-            description: progress.message || `Round ${progress.round}/${progress.totalRounds}: Agent collaboration in progress...`,
-          });
+          const stepId = roundToStepId[progress.round] || 'multi-agent-generation';
+          
+          // When round changes, mark previous step complete and new step starting
+          if (progress.round !== lastRound) {
+            // Mark previous step complete (if not first round)
+            if (lastRound > 0) {
+              const prevStepId = roundToStepId[lastRound];
+              if (prevStepId) {
+                sendSSEEvent(progressId, {
+                  type: 'step-complete',
+                  step: prevStepId,
+                  progress: mappedProgress - 5,
+                  description: `Completed round ${lastRound}`,
+                });
+              }
+            }
+            
+            // Mark new step as starting
+            sendSSEEvent(progressId, {
+              type: 'step-start',
+              step: stepId,
+              progress: mappedProgress,
+              description: progress.message || `Round ${progress.round}/${progress.totalRounds}: ${progress.currentAgent} is analyzing...`,
+            });
+            
+            lastRound = progress.round;
+          } else {
+            // Same round - send incremental progress
+            sendSSEEvent(progressId, {
+              type: 'step-progress',
+              step: stepId,
+              progress: mappedProgress,
+              description: progress.message || `Round ${progress.round}/${progress.totalRounds}: ${progress.currentAgent} is analyzing...`,
+            });
+          }
         };
         
         const routerResult = await router.generate(epmInput, { onProgress });
