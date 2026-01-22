@@ -125,6 +125,14 @@ export function PlanningProgressTracker({
           setCurrentStep(event.description || 'Switching to optimized generator...');
           break;
 
+        case 'reset':
+          // Handle reset event - clear all step states when switching generators
+          // This prevents confusing mixed states (some complete, some in-progress)
+          setProgress(event.progress || 15);
+          setCurrentStep(event.description || 'Restarting...');
+          setSteps(prev => prev.map(step => ({ ...step, status: 'pending' })));
+          break;
+
         case 'complete':
           setProgress(100);
           setSteps(prev => prev.map(step => ({ ...step, status: step.status === 'pending' ? 'pending' : 'complete' })));

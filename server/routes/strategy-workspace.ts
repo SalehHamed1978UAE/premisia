@@ -749,35 +749,40 @@ async function processEPMGeneration(
         console.error('[EPM Generation] ❌ Router failed:', routerError.message);
         console.log('[EPM Generation] Falling back to legacy synthesizer...');
         
-        // Send explicit fallback notification so frontend knows we're switching
-        // Legacy continues from where multi-agent left off (lastEmittedPercent)
-        const legacyStartPercent = lastEmittedPercent || 15;
+        // Reset step states - multi-agent may have marked steps complete before failing
+        // Clear all to pending so legacy can track progress fresh
+        completedSteps.length = 0; // Clear completed steps array
+        lastEmittedPercent = 15; // Reset to start
+        
+        // Send reset event so frontend clears all step states
         sendSSEEvent(progressId, {
-          type: 'fallback_start',
-          step: 'legacy-fallback',
-          progress: legacyStartPercent,
+          type: 'reset',
+          step: 'fallback-reset',
+          progress: 15,
           description: `Switching to optimized generator...`,
           fallbackReason: routerError.message,
+          completedSteps: [],
+          activeStep: 0,
         });
         
         // Fallback to legacy synthesizer (returns legacy format directly)
-        // Wrap progress to ensure monotonic values (continue from lastEmittedPercent)
+        // Track legacy progress using lastEmittedPercent (reset to 15 above)
         epmProgram = await epmSynthesizer.synthesize(
           insights,
           decisionsWithPriority,
           namingContext,
           {
             onProgress: (event) => {
-              // Map legacy progress (typically 15-80%) to continue from where we left off
-              // Legacy sends progress 15->37->59->80, we need to ensure monotonic
-              const adjustedProgress = event.progress !== undefined 
-                ? Math.max(legacyStartPercent, event.progress) 
-                : legacyStartPercent;
+              // Ensure monotonic progress - only go forward
+              const newProgress = event.progress !== undefined ? event.progress : lastEmittedPercent;
+              const adjustedProgress = Math.max(lastEmittedPercent, newProgress);
+              lastEmittedPercent = adjustedProgress;
+              
               sendSSEEvent(progressId, {
                 ...event,
                 progress: adjustedProgress,
               });
-              if (jobId && adjustedProgress !== undefined) {
+              if (jobId) {
                 backgroundJobService.updateJob(jobId, {
                   progress: adjustedProgress,
                   progressMessage: event.description || event.message
