@@ -621,41 +621,51 @@ async function processEPMGeneration(
       try {
         const router = getEPMRouter();
         
-        // Map round numbers to frontend step IDs for progress tracking
-        const roundToStepId: Record<number, string> = {
-          1: 'wbs-generation',      // WBS Definition
-          2: 'extract-tasks',        // Task Extraction  
-          3: 'schedule',             // Schedule Creation
-          4: 'allocate-resources',   // Resource Allocation
-          5: 'level-resources',      // Resource Optimization
-          6: 'optimize',             // AI Optimization
-          7: 'validate',             // Final Validation
+        // STAGE_RANGES: Fixed percent boundaries per step (ensures monotonic progress)
+        // Progress MUST only go up, never down - each stage has fixed start/end range
+        const STAGE_RANGES: Record<number, { stepId: string; start: number; end: number }> = {
+          1: { stepId: 'wbs-generation', start: 15, end: 25 },       // WBS Definition
+          2: { stepId: 'extract-tasks', start: 25, end: 35 },        // Task Extraction  
+          3: { stepId: 'schedule', start: 35, end: 50 },             // Schedule Creation
+          4: { stepId: 'allocate-resources', start: 50, end: 60 },   // Resource Allocation
+          5: { stepId: 'level-resources', start: 60, end: 70 },      // Resource Optimization
+          6: { stepId: 'optimize', start: 70, end: 75 },             // AI Optimization
+          7: { stepId: 'validate', start: 75, end: 80 },             // Final Validation
         };
         
         let lastRound = 0;
+        let lastEmittedPercent = 15; // Track to ensure monotonic progress
+        const completedSteps: string[] = []; // Track completed steps for activeStep/completedSteps
         
         // Progress callback for real-time SSE updates during multi-agent generation
         const onProgress = (progress: { round: number; totalRounds: number; currentAgent: string; message: string; percentComplete: number }) => {
-          // Map progress: rounds 1-7 map to 15-80%
-          const baseProgress = 15;
-          const maxProgress = 80;
-          const progressRange = maxProgress - baseProgress;
-          const mappedProgress = Math.round(baseProgress + (progress.round / progress.totalRounds) * progressRange);
+          const stageConfig = STAGE_RANGES[progress.round] || { stepId: 'multi-agent-generation', start: 15, end: 80 };
+          const stepId = stageConfig.stepId;
           
-          const stepId = roundToStepId[progress.round] || 'multi-agent-generation';
+          // Calculate progress within this stage's fixed range (mid-stage)
+          const stageProgress = 0.5; // Within-stage progress indicator
+          const calculatedPercent = Math.round(stageConfig.start + (stageProgress * (stageConfig.end - stageConfig.start)));
+          
+          // Ensure progress NEVER goes backwards (monotonic)
+          const safePercent = Math.max(lastEmittedPercent, calculatedPercent);
+          lastEmittedPercent = safePercent;
           
           // When round changes, mark previous step complete and new step starting
           if (progress.round !== lastRound) {
             // Mark previous step complete (if not first round)
             if (lastRound > 0) {
-              const prevStepId = roundToStepId[lastRound];
-              if (prevStepId) {
+              const prevStageConfig = STAGE_RANGES[lastRound];
+              if (prevStageConfig) {
+                completedSteps.push(prevStageConfig.stepId);
                 sendSSEEvent(progressId, {
                   type: 'step-complete',
-                  step: prevStepId,
-                  progress: mappedProgress - 5,
+                  step: prevStageConfig.stepId,
+                  progress: prevStageConfig.end, // Use stage end percent
                   description: `Completed round ${lastRound}`,
+                  activeStep: progress.round,
+                  completedSteps: [...completedSteps],
                 });
+                lastEmittedPercent = Math.max(lastEmittedPercent, prevStageConfig.end);
               }
             }
             
@@ -663,18 +673,22 @@ async function processEPMGeneration(
             sendSSEEvent(progressId, {
               type: 'step-start',
               step: stepId,
-              progress: mappedProgress,
+              progress: Math.max(lastEmittedPercent, stageConfig.start),
               description: progress.message || `Round ${progress.round}/${progress.totalRounds}: ${progress.currentAgent} is analyzing...`,
+              activeStep: progress.round,
+              completedSteps: [...completedSteps],
             });
             
             lastRound = progress.round;
           } else {
-            // Same round - send incremental progress
+            // Same round - send incremental progress (use safe monotonic percent)
             sendSSEEvent(progressId, {
               type: 'step-progress',
               step: stepId,
-              progress: mappedProgress,
+              progress: safePercent,
               description: progress.message || `Round ${progress.round}/${progress.totalRounds}: ${progress.currentAgent} is analyzing...`,
+              activeStep: progress.round,
+              completedSteps: [...completedSteps],
             });
           }
         };
@@ -735,17 +749,37 @@ async function processEPMGeneration(
         console.error('[EPM Generation] ❌ Router failed:', routerError.message);
         console.log('[EPM Generation] Falling back to legacy synthesizer...');
         
+        // Send explicit fallback notification so frontend knows we're switching
+        // Legacy continues from where multi-agent left off (lastEmittedPercent)
+        const legacyStartPercent = lastEmittedPercent || 15;
+        sendSSEEvent(progressId, {
+          type: 'fallback_start',
+          step: 'legacy-fallback',
+          progress: legacyStartPercent,
+          description: `Switching to optimized generator...`,
+          fallbackReason: routerError.message,
+        });
+        
         // Fallback to legacy synthesizer (returns legacy format directly)
+        // Wrap progress to ensure monotonic values (continue from lastEmittedPercent)
         epmProgram = await epmSynthesizer.synthesize(
           insights,
           decisionsWithPriority,
           namingContext,
           {
             onProgress: (event) => {
-              sendSSEEvent(progressId, event);
-              if (jobId && event.progress !== undefined) {
+              // Map legacy progress (typically 15-80%) to continue from where we left off
+              // Legacy sends progress 15->37->59->80, we need to ensure monotonic
+              const adjustedProgress = event.progress !== undefined 
+                ? Math.max(legacyStartPercent, event.progress) 
+                : legacyStartPercent;
+              sendSSEEvent(progressId, {
+                ...event,
+                progress: adjustedProgress,
+              });
+              if (jobId && adjustedProgress !== undefined) {
                 backgroundJobService.updateJob(jobId, {
-                  progress: event.progress,
+                  progress: adjustedProgress,
                   progressMessage: event.description || event.message
                 }).catch(err => console.error('[EPM Generation] Job progress update failed:', err));
               }
