@@ -66,6 +66,97 @@ function normalizeDependencies(deps: any): string[] {
   });
 }
 
+/**
+ * Parse duration string (e.g., "12 weeks", "6 months", "90 days") to months
+ */
+function parseDurationToMonths(duration: any): number {
+  if (typeof duration === 'number') return duration;
+  if (typeof duration !== 'string') return 3; // default
+
+  const lower = duration.toLowerCase().trim();
+  
+  // Try to extract number and unit
+  const match = lower.match(/(\d+(?:\.\d+)?)\s*(week|month|day|wk|mo|d|w|m)/i);
+  if (match) {
+    const value = parseFloat(match[1]);
+    const unit = match[2].toLowerCase();
+    
+    if (unit.startsWith('week') || unit === 'wk' || unit === 'w') {
+      return Math.ceil(value / 4.33); // ~4.33 weeks per month
+    }
+    if (unit.startsWith('month') || unit === 'mo' || unit === 'm') {
+      return Math.ceil(value);
+    }
+    if (unit.startsWith('day') || unit === 'd') {
+      return Math.ceil(value / 30); // ~30 days per month
+    }
+  }
+  
+  // Try just a number
+  const numMatch = lower.match(/^(\d+(?:\.\d+)?)/);
+  if (numMatch) {
+    const value = parseFloat(numMatch[1]);
+    // Assume weeks if number is > 6, otherwise assume months
+    if (value > 6) {
+      return Math.ceil(value / 4.33);
+    }
+    return Math.ceil(value);
+  }
+  
+  return 3; // default to 3 months
+}
+
+/**
+ * Build intelligent dependency chain from textual dependencies
+ * Maps workstream names/descriptions to IDs, or falls back to sequential ordering
+ */
+function buildSmartDependencies(
+  workstreams: Array<{ id: string; name: string; rawDeps: string[] }>,
+  index: number
+): string[] {
+  const current = workstreams[index];
+  if (!current || index === 0) return []; // First workstream has no deps
+  
+  // Try to match textual dependencies to workstream names
+  const matchedDeps: string[] = [];
+  
+  for (const depText of current.rawDeps) {
+    const depLower = depText.toLowerCase();
+    
+    // Look for matching workstreams by name similarity
+    for (let i = 0; i < index; i++) { // Only look at previous workstreams
+      const other = workstreams[i];
+      const nameLower = other.name.toLowerCase();
+      
+      // Check for keyword matches
+      const depWords = depLower.split(/\s+/).filter(w => w.length > 3);
+      const nameWords = nameLower.split(/\s+/).filter(w => w.length > 3);
+      const overlap = depWords.filter(w => nameWords.some(n => n.includes(w) || w.includes(n)));
+      
+      if (overlap.length >= 1) {
+        matchedDeps.push(other.id);
+        break;
+      }
+    }
+  }
+  
+  // If no matches found, use sequential dependency (each ws depends on previous)
+  if (matchedDeps.length === 0 && index > 0) {
+    // Create overlapping dependencies for parallelism
+    // Group workstreams into phases that can run in parallel
+    const phase = Math.floor(index / 2); // Every 2 workstreams form a phase
+    if (phase > 0) {
+      // Depend on last workstream of previous phase
+      const prevPhaseEnd = phase * 2 - 1;
+      if (prevPhaseEnd < workstreams.length && prevPhaseEnd >= 0) {
+        matchedDeps.push(workstreams[Math.min(prevPhaseEnd, index - 1)].id);
+      }
+    }
+  }
+  
+  return matchedDeps;
+}
+
 // ============= END NORMALIZATION HELPERS =============
 
 export interface EPMWorkstream {
@@ -223,7 +314,22 @@ export class EPMAssembler {
       return this.generateDefaultWorkstreams(businessContext);
     }
     
+    // First pass: assign IDs and extract raw dependency text
+    const workstreamMeta = round1.map((ws: any, index: number) => ({
+      id: ws.id || `WS${String(index + 1).padStart(3, '0')}`,
+      name: ws.name || `Workstream ${index + 1}`,
+      rawDeps: normalizeDependencies(ws.dependencies),
+    }));
+    
     return round1.map((ws: any, index: number) => {
+      // Parse duration - AI returns strings like "12 weeks", "6 months"
+      const estimatedDurationMonths = parseDurationToMonths(
+        ws.estimatedDurationMonths || ws.duration || ws.durationMonths
+      );
+      
+      // Build smart dependencies - try to match text deps to workstream IDs
+      const dependencies = buildSmartDependencies(workstreamMeta, index);
+      
       // Normalize deliverables - AI sometimes returns strings instead of objects
       const rawDeliverables = Array.isArray(ws.deliverables) ? ws.deliverables : [];
       const normalizedDeliverables = rawDeliverables.map((d: any, dIndex: number) => {
@@ -231,15 +337,17 @@ export class EPMAssembler {
         return {
           id: normalized.id,
           name: normalized.name,
-          relativeMonth: normalized.dueMonth || Math.floor((dIndex + 1) * 2 / (rawDeliverables.length || 1)),
+          relativeMonth: normalized.dueMonth || Math.floor((dIndex + 1) * estimatedDurationMonths / (rawDeliverables.length || 1)),
         };
       });
       
+      console.log(`[EPM Assembler] Workstream ${index + 1}: "${ws.name}" - Duration: ${estimatedDurationMonths}mo, Dependencies: [${dependencies.join(', ')}]`);
+      
       return {
-        id: ws.id || `WS${String(index + 1).padStart(3, '0')}`,
-        name: ws.name || `Workstream ${index + 1}`,
-        estimatedDurationMonths: ws.estimatedDurationMonths || 3,
-        dependencies: normalizeDependencies(ws.dependencies),
+        id: workstreamMeta[index].id,
+        name: workstreamMeta[index].name,
+        estimatedDurationMonths,
+        dependencies,
         deliverables: normalizedDeliverables,
       };
     });
