@@ -52,8 +52,11 @@ export default function RepositoryBrowser() {
     setGeneratingSessionId(sessionId);
     
     try {
+      // Always force regenerate when user explicitly clicks "Generate EPM"
+      // This ensures a fresh generation instead of resuming old/failed sessions
       const res = await apiRequest('POST', '/api/strategy-workspace/epm/generate-from-session', {
         sessionId,
+        forceRegenerate: true,
       });
       
       if (!res.ok) {

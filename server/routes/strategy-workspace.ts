@@ -267,11 +267,12 @@ router.post('/decisions', async (req: Request, res: Response) => {
 
 // POST /api/strategy-workspace/epm/generate-from-session
 // Generate EPM program directly from a sessionId (finds latest strategy version)
+// Pass forceRegenerate: true to start fresh instead of resuming a failed/completed session
 router.post('/epm/generate-from-session', async (req: Request, res: Response) => {
   const progressId = `progress-${Date.now()}-${Math.random().toString(36).substring(7)}`;
   
   try {
-    const { sessionId } = req.body;
+    const { sessionId, forceRegenerate } = req.body;
     const userId = (req.user as any)?.claims?.sub;
 
     if (!sessionId || typeof sessionId !== 'string') {
@@ -315,7 +316,8 @@ router.post('/epm/generate-from-session', async (req: Request, res: Response) =>
     });
 
     // Continue processing in background using existing function
-    processEPMGeneration(latestVersion.id, undefined, undefined, progressId, req).catch(error => {
+    // Pass forceRegenerate to create a new session instead of resuming old one
+    processEPMGeneration(latestVersion.id, undefined, undefined, progressId, req, !!forceRegenerate).catch(error => {
       console.error('Background EPM generation error:', error);
       sendSSEEvent(progressId, {
         type: 'error',
@@ -385,7 +387,8 @@ async function processEPMGeneration(
   decisionId: string | undefined,
   prioritizedOrder: any,
   progressId: string,
-  req: Request
+  req: Request,
+  forceRegenerate: boolean = false
 ) {
   const startTime = Date.now(); // Track elapsed time
   const userId = (req.user as any)?.claims?.sub || null;
@@ -591,6 +594,17 @@ async function processEPMGeneration(
       // Build EPMGeneratorInput from available data
       // Use inputSummary or a derived name, NOT bmcKeyInsights (which contains research content)
       const businessName = version.inputSummary || version.marketContext?.split('.')[0] || 'Strategic Initiative';
+      
+      // When forceRegenerate is true, create a NEW session ID so we don't resume old data
+      // This allows users to regenerate from scratch instead of resuming a failed/stale session
+      const effectiveSessionId = forceRegenerate 
+        ? `session-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`
+        : (version.sessionId || '');
+      
+      if (forceRegenerate) {
+        console.log(`[EPM Generation] 🔄 Force regenerate enabled - creating new session: ${effectiveSessionId}`);
+      }
+      
       const epmInput: EPMGeneratorInput = {
         businessContext: {
           name: businessName,
@@ -614,7 +628,7 @@ async function processEPMGeneration(
           } : undefined,
         } : undefined,
         userId,
-        sessionId: version.sessionId || '',
+        sessionId: effectiveSessionId,
         journeyType: initiativeType,
       };
 
