@@ -136,6 +136,10 @@ app.use((req: Request, res: Response, next: Function) => {
   
   // Non-asset, non-API request (SPA navigation) - check appReady
   if (!appReady) {
+    // Prevent caching so browser always gets fresh loading page
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
     return res.status(200).send(`<!DOCTYPE html>
 <html>
 <head>
