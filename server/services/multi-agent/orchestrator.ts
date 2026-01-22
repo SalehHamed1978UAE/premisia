@@ -176,13 +176,18 @@ export class MultiAgentOrchestrator {
         currentRound: roundDef.round,
       });
 
+      // skipAgents should be true ONLY when resuming mid-round and all agents are already done
+      // needsSynthesis = true means all agents completed, synthesis pending
+      // If we're at a new round (resumePoint.round < roundDef.round), run fresh (skipAgents = false)
+      const skipAgents = resumePoint.round === roundDef.round && resumePoint.needsSynthesis;
+      
       await this.executeRound(
         sessionId,
         roundDef,
         businessContext,
         bmcInsights,
         resumePoint.round === roundDef.round ? resumePoint.agentsCompleted : [],
-        resumePoint.round === roundDef.round ? !resumePoint.needsSynthesis : true,
+        skipAgents,
         onProgress
       );
 

@@ -386,22 +386,24 @@ export function FinancialPlanFormatter({ data }: { data: FinancialPlan }) {
         </Card>
       </div>
 
-      <Section title="Cost Breakdown" icon={DollarSign}>
-        <div className="space-y-2">
-          {data.costBreakdown.map((cost, i) => (
-            <div key={i} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 bg-muted rounded">
-              <div className="flex-1 min-w-0">
-                <div className="font-medium break-words">{cost.category}</div>
-                <div className="text-sm text-muted-foreground break-words">{cost.description}</div>
+      {data.costBreakdown && data.costBreakdown.length > 0 && (
+        <Section title="Cost Breakdown" icon={DollarSign}>
+          <div className="space-y-2">
+            {data.costBreakdown.map((cost, i) => (
+              <div key={i} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 bg-muted rounded">
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium break-words">{cost.category}</div>
+                  <div className="text-sm text-muted-foreground break-words">{cost.description}</div>
+                </div>
+                <div className="text-left sm:text-right flex-shrink-0">
+                  <div className="font-bold">${cost.amount.toLocaleString()}</div>
+                  <div className="text-sm text-muted-foreground">{cost.percentage}%</div>
+                </div>
               </div>
-              <div className="text-left sm:text-right flex-shrink-0">
-                <div className="font-bold">${cost.amount.toLocaleString()}</div>
-                <div className="text-sm text-muted-foreground">{cost.percentage}%</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Section>
+            ))}
+          </div>
+        </Section>
+      )}
 
       {data.cashFlow && data.cashFlow.length > 0 && (
         <Section title="Cash Flow" icon={TrendingUp}>
