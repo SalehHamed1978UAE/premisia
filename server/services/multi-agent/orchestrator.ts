@@ -15,6 +15,7 @@ export interface ProgressUpdate {
   progress?: number;
   message?: string;
   error?: string;
+  skipped?: boolean; // True when round was already completed (resume case)
 }
 
 export interface OrchestratorConfig {
@@ -160,6 +161,15 @@ export class MultiAgentOrchestrator {
 
       if (roundDef.round < resumePoint.round) {
         console.log(`[Orchestrator] Skipping completed round ${roundDef.round}`);
+        // Emit progress event for already-completed round so frontend knows it's done
+        onProgress?.({
+          type: 'round_complete',
+          round: roundDef.round,
+          name: roundDef.name,
+          progress: Math.round((roundDef.round / totalRounds) * 100),
+          message: `Round ${roundDef.round}/${totalRounds}: ${roundDef.name} (already completed)`,
+          skipped: true,
+        });
         continue;
       }
 

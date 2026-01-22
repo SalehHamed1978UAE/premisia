@@ -665,9 +665,21 @@ export function KPIsFormatter({ data }: { data: KPIs }) {
     }
   };
 
+  // Handle undefined/null kpis array
+  const kpis = data?.kpis || [];
+  
+  if (kpis.length === 0) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        <p>No KPIs defined yet.</p>
+        <p className="text-sm">KPIs will be generated during program refinement.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
-      {data.kpis.map((kpi) => (
+      {kpis.map((kpi) => (
         <Card key={kpi.id}>
           <CardContent className="pt-4">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">

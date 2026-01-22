@@ -618,24 +618,24 @@ async function processEPMGeneration(
         journeyType: initiativeType,
       };
 
+      // STAGE_RANGES: Fixed percent boundaries per step (ensures monotonic progress)
+      // Progress MUST only go up, never down - each stage has fixed start/end range
+      const STAGE_RANGES: Record<number, { stepId: string; start: number; end: number }> = {
+        1: { stepId: 'wbs-generation', start: 15, end: 25 },       // WBS Definition
+        2: { stepId: 'extract-tasks', start: 25, end: 35 },        // Task Extraction  
+        3: { stepId: 'schedule', start: 35, end: 50 },             // Schedule Creation
+        4: { stepId: 'allocate-resources', start: 50, end: 60 },   // Resource Allocation
+        5: { stepId: 'level-resources', start: 60, end: 70 },      // Resource Optimization
+        6: { stepId: 'optimize', start: 70, end: 75 },             // AI Optimization
+        7: { stepId: 'validate', start: 75, end: 80 },             // Final Validation
+      };
+      
+      let lastRound = 0;
+      let lastEmittedPercent = 15; // Track to ensure monotonic progress
+      const completedSteps: string[] = []; // Track completed steps for activeStep/completedSteps
+      
       try {
         const router = getEPMRouter();
-        
-        // STAGE_RANGES: Fixed percent boundaries per step (ensures monotonic progress)
-        // Progress MUST only go up, never down - each stage has fixed start/end range
-        const STAGE_RANGES: Record<number, { stepId: string; start: number; end: number }> = {
-          1: { stepId: 'wbs-generation', start: 15, end: 25 },       // WBS Definition
-          2: { stepId: 'extract-tasks', start: 25, end: 35 },        // Task Extraction  
-          3: { stepId: 'schedule', start: 35, end: 50 },             // Schedule Creation
-          4: { stepId: 'allocate-resources', start: 50, end: 60 },   // Resource Allocation
-          5: { stepId: 'level-resources', start: 60, end: 70 },      // Resource Optimization
-          6: { stepId: 'optimize', start: 70, end: 75 },             // AI Optimization
-          7: { stepId: 'validate', start: 75, end: 80 },             // Final Validation
-        };
-        
-        let lastRound = 0;
-        let lastEmittedPercent = 15; // Track to ensure monotonic progress
-        const completedSteps: string[] = []; // Track completed steps for activeStep/completedSteps
         
         // Progress callback for real-time SSE updates during multi-agent generation
         const onProgress = (progress: { round: number; totalRounds: number; currentAgent: string; message: string; percentComplete: number }) => {
