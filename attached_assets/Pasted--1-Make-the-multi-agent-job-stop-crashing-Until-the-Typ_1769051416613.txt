@@ -1,0 +1,121 @@
+### 1. Make the multi-agent job stop crashing
+
+  Until the TypeScript generator runs end‑to‑end, the SSE stream will always
+  freeze at 15%. Fix the FK error first.
+
+  - File: server/services/epm-generator/multi-agent/typescript-multi-agent-
+    generator.ts
+  - When inserting into multi_agent_sessions, use the real journey_sessions.id
+    (UUID) instead of the session string. You already have it via the journey
+    version → strategic understanding → journey session chain. Fetch it once and
+    pass it into the insert:
+
+  const journeySession = await db
+    .select({ id: journeySessions.id })
+    .from(journeySessions)
+    .where(eq(journeySessions.understandingId, understandingId))
+    .limit(1);
+
+  await db.insert(multiAgentSessions).values({
+    id: newSessionId,
+    journeySessionId: journeySession?.id ?? null, // or make column nullable
+  temporarily
+    ...
+  });
+
+  (If you can’t get the UUID quickly, make journey_session_id nullable so the
+  insert succeeds, but the proper fix is to wire the UUID through.)
+
+  ———
+
+  ### 2. Emit SSE progress for every stage, even on fallback
+
+  Currently we send only the initial “multi-agent init” event. Send explicit
+  events at each checkpoint.
+
+  Server changes (same file + router):
+
+  1. Define a helper near the top of strategy-workspace.ts:
+
+  const sendProgress = (
+    progressStream: SSEStream,
+    step: string,
+    message: string,
+    percent: number,
+    meta: Record<string, any> = {}
+  ) => {
+    progressStream.write({
+      event: 'epm-progress',
+      data: { step, message, percent, ...meta },
+    });
+  };
+
+  2. Update the multi-agent path:
+
+  sendProgress(stream, 'multi-agent', 'Initializing multi-agent collaboration…',
+  15);
+
+  const generatorResult = await router.generate(epmInput, {
+    onRoundStart: ({ round, name }) => sendProgress(stream, 'multi-agent',
+  `Round ${round}: ${name}`, computePercent(round, 'start')),
+    onRoundComplete: ({ round, name }) => sendProgress(stream, 'multi-agent',
+  `Round ${round} complete`, computePercent(round, 'end')),
+  });
+
+  Expose onRoundStart/onRoundComplete callbacks from typescript-multi-agent-
+  generator.ts so the generator can push updates after every agent batch.
+
+  3. When the router falls back to legacy:
+
+  sendProgress(stream, 'legacy-fallback', 'Multi-agent failed, switching to
+  legacy generator', 40, { reason: fallbackReason });
+
+  4. Inside legacy generation, emit the same type of events:
+
+  sendProgress(stream, 'legacy', 'Generating workstreams', 50);
+  sendProgress(stream, 'legacy', 'Extracting tasks', 60);
+  ...
+  sendProgress(stream, 'legacy', 'Finalizing program', 95);
+
+  5. On success, always finish with:
+
+  sendProgress(stream, 'completed', 'Program plan ready', 100, { generator:
+  generatorResult.metadata.generator });
+
+  ———
+
+  ### 3. Frontend: handle the new events
+
+  File: client/src/pages/strategy-workspace/DecisionSummaryPage.tsx (or wherever
+  the SSE is consumed)
+
+  - Ensure the EventSource listens for epm-progress.
+  - Update the UI state immediately for any event, not just the first one:
+
+  eventSource.addEventListener('epm-progress', (event) => {
+    const payload = JSON.parse(event.data);
+    setProgress((prev) => ({
+      percent: payload.percent,
+      step: payload.step,
+      message: payload.message,
+      generator: payload.generator ?? prev.generator,
+    }));
+  });
+
+  - Add special messaging when step === 'legacy-fallback' so you can see when
+    the system drops to legacy.
+
+  ———
+
+  ### 4. Verification checklist for Replit
+
+  1. Trigger multi-agent run; confirm DB insert succeeds and
+     multi_agent_sessions row exists.
+  2. Watch network tab: SSE stream should now show multiple epm-progress events
+     with increasing percent values, even if fallback occurs.
+  3. UI progress modal should move beyond 15% and hit 100% at completion.
+  4. When intentionally killing the CrewAI service, the fallback event should
+     appear and UI should show “legacy fallback”.
+
+  Once these steps are followed, you’ll finally see real-time status of the EPM
+  generation instead of the frozen 15% indicator.
