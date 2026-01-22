@@ -716,22 +716,60 @@ async function processEPMGeneration(
         
         // Convert unified EPMProgram format to legacy format for DB storage
         const unifiedProgram = routerResult.program;
+        
+        // Extract strategic imperatives from workstreams (top objectives/goals)
+        const strategicImperatives = (unifiedProgram.workstreams || [])
+          .slice(0, 5)
+          .map((ws: any) => ws.description || ws.name || 'Strategic initiative');
+        
+        // Extract key success factors from workstreams and deliverables
+        const keySuccessFactors = (unifiedProgram.workstreams || [])
+          .flatMap((ws: any) => (ws.deliverables || []).slice(0, 2))
+          .slice(0, 4)
+          .map((d: any) => d.name || d.description || 'Key deliverable');
+        
+        // Build risk summary from risk register
+        const riskCount = Array.isArray(unifiedProgram.riskRegister) 
+          ? unifiedProgram.riskRegister.length 
+          : (unifiedProgram.riskRegister?.risks?.length || 0);
+        const highRisks = Array.isArray(unifiedProgram.riskRegister)
+          ? unifiedProgram.riskRegister.filter((r: any) => r.impact === 'high' || r.probability === 'high').length
+          : 0;
+        const riskSummary = riskCount > 0 
+          ? `${riskCount} risks identified, ${highRisks} high-priority. Key mitigations in place.`
+          : 'Risk assessment pending';
+        
+        // Extract market opportunity from business context or description
+        const marketOpportunity = version.marketContext || version.inputSummary || 
+          `Strategic opportunity in ${initiativeType || 'business'} sector`;
+        
+        // Calculate investment from financial plan
+        const totalBudget = unifiedProgram.financialPlan?.totalBudget || 0;
+        const investmentRequired = totalBudget > 0 
+          ? `$${totalBudget.toLocaleString()}` 
+          : 'Investment to be determined';
+        
         epmProgram = {
           executiveSummary: {
             title: unifiedProgram.title || businessName,
             description: unifiedProgram.description || version.inputSummary || '',
             confidence: unifiedProgram.overallConfidence || 0.75,
+            strategicImperatives,
+            keySuccessFactors,
+            riskSummary,
+            marketOpportunity,
+            investmentRequired,
           },
           workstreams: unifiedProgram.workstreams || [],
           timeline: unifiedProgram.timeline || { phases: [], totalMonths: 12, criticalPath: [] },
           resourcePlan: unifiedProgram.resourcePlan || { roles: [], totalHeadcount: 0, totalCost: 0 },
           financialPlan: unifiedProgram.financialPlan || { capex: [], opex: [], totalBudget: 0, contingency: 0 },
           riskRegister: unifiedProgram.riskRegister || { risks: [], overallRiskLevel: 'medium' },
-          benefitsRealization: { benefits: [], confidence: 0.75 },
-          stageGates: { gates: unifiedProgram.timeline?.phases || [], confidence: 0.75 },
-          kpis: { metrics: [], confidence: 0.75 },
-          stakeholderMap: { stakeholders: [], confidence: 0.75 },
-          governance: { structure: [], confidence: 0.75 },
+          benefitsRealization: (unifiedProgram as any).benefitsRealization || { benefits: [], confidence: 0.75 },
+          stageGates: { gates: (unifiedProgram as any).stageGates || unifiedProgram.timeline?.phases || [], confidence: 0.75 },
+          kpis: { metrics: (unifiedProgram as any).benefitsRealization?.kpis || [], confidence: 0.75 },
+          stakeholderMap: { stakeholders: (unifiedProgram as any).stakeholderMap || [], confidence: 0.75 },
+          governance: (unifiedProgram as any).governance || { structure: [], confidence: 0.75 },
           qaPlan: { standards: [], confidence: 0.75 },
           procurement: { items: [], confidence: 0.75 },
           exitStrategy: { strategies: [], confidence: 0.75 },
