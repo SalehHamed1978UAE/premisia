@@ -2,6 +2,72 @@ import { randomUUID as uuid } from 'crypto';
 import { ConversationLog, BusinessContext } from '../persistence/conversation-log';
 import { cpmScheduler, WorkstreamScheduleInput } from '../scheduling/cpm-scheduler';
 
+// ============= DATA NORMALIZATION HELPERS =============
+// AI often returns invalid enum values or wrong types - normalize them here
+
+/**
+ * Normalize impact/probability values to valid enum: 'low' | 'medium' | 'high'
+ */
+function normalizeImpactLevel(value: any): 'low' | 'medium' | 'high' {
+  if (!value || typeof value !== 'string') return 'medium';
+  const v = value.toLowerCase().trim();
+  if (v === 'low' || v === 'minimal' || v === 'minor') return 'low';
+  if (v === 'medium' || v === 'moderate' || v === 'normal') return 'medium';
+  if (v === 'high' || v === 'critical' || v === 'severe' || v === 'very high' || v === 'major') return 'high';
+  return 'medium';
+}
+
+/**
+ * Ensure skills is always an array of strings
+ */
+function normalizeSkillsArray(skills: any): string[] {
+  if (Array.isArray(skills)) {
+    return skills.map(s => typeof s === 'string' ? s : String(s));
+  }
+  if (typeof skills === 'string') {
+    // Split comma-separated or return as single item
+    return skills.includes(',') ? skills.split(',').map(s => s.trim()) : [skills];
+  }
+  return [];
+}
+
+/**
+ * Normalize deliverables - can be strings or objects
+ */
+function normalizeDeliverable(d: any, index: number, wsIndex: number): { id: string; name: string; description?: string; dueMonth?: number; effort?: string } {
+  if (typeof d === 'string') {
+    return {
+      id: `D${String(wsIndex + 1).padStart(3, '0')}.${index + 1}`,
+      name: d,
+      description: d,
+    };
+  }
+  return {
+    id: d.id || `D${String(wsIndex + 1).padStart(3, '0')}.${index + 1}`,
+    name: d.name || d.title || `Deliverable ${index + 1}`,
+    description: d.description || d.name || d.title,
+    dueMonth: d.dueMonth,
+    effort: d.effort,
+  };
+}
+
+/**
+ * Normalize dependencies - can be strings or objects
+ */
+function normalizeDependencies(deps: any): string[] {
+  if (!deps) return [];
+  if (!Array.isArray(deps)) return [];
+  return deps.map((d: any) => {
+    if (typeof d === 'string') return d;
+    if (typeof d === 'object' && d !== null) {
+      return d.id || d.from || d.target || d.name || String(d);
+    }
+    return String(d);
+  });
+}
+
+// ============= END NORMALIZATION HELPERS =============
+
 export interface EPMWorkstream {
   id: string;
   name: string;
@@ -157,17 +223,26 @@ export class EPMAssembler {
       return this.generateDefaultWorkstreams(businessContext);
     }
     
-    return round1.map((ws: any, index: number) => ({
-      id: ws.id || `WS${String(index + 1).padStart(3, '0')}`,
-      name: ws.name || `Workstream ${index + 1}`,
-      estimatedDurationMonths: ws.estimatedDurationMonths || 3,
-      dependencies: ws.dependencies || [],
-      deliverables: (ws.deliverables || []).map((d: any, dIndex: number) => ({
-        id: d.id || `D${String(index + 1).padStart(3, '0')}.${dIndex + 1}`,
-        name: d.name || `Deliverable ${dIndex + 1}`,
-        relativeMonth: d.dueMonth || Math.floor((dIndex + 1) * 2 / (ws.deliverables?.length || 1)),
-      })),
-    }));
+    return round1.map((ws: any, index: number) => {
+      // Normalize deliverables - AI sometimes returns strings instead of objects
+      const rawDeliverables = Array.isArray(ws.deliverables) ? ws.deliverables : [];
+      const normalizedDeliverables = rawDeliverables.map((d: any, dIndex: number) => {
+        const normalized = normalizeDeliverable(d, dIndex, index);
+        return {
+          id: normalized.id,
+          name: normalized.name,
+          relativeMonth: normalized.dueMonth || Math.floor((dIndex + 1) * 2 / (rawDeliverables.length || 1)),
+        };
+      });
+      
+      return {
+        id: ws.id || `WS${String(index + 1).padStart(3, '0')}`,
+        name: ws.name || `Workstream ${index + 1}`,
+        estimatedDurationMonths: ws.estimatedDurationMonths || 3,
+        dependencies: normalizeDependencies(ws.dependencies),
+        deliverables: normalizedDeliverables,
+      };
+    });
   }
 
   private generateDefaultWorkstreams(businessContext: BusinessContext): WorkstreamScheduleInput[] {
@@ -236,9 +311,9 @@ export class EPMAssembler {
     return uniqueRisks.slice(0, 15).map((risk, index) => ({
       id: risk.id || `R${String(index + 1).padStart(3, '0')}`,
       category: risk.category || 'General',
-      description: risk.description || 'Risk description',
-      probability: risk.probability || 'medium',
-      impact: risk.impact || 'medium',
+      description: risk.description || risk.name || risk.title || 'Risk identified during analysis',
+      probability: normalizeImpactLevel(risk.probability || risk.likelihood),
+      impact: normalizeImpactLevel(risk.impact),
       mitigation: risk.mitigation || risk.mitigationStrategy || 'Mitigation to be defined',
       owner: risk.owner,
       status: risk.status || 'identified',
@@ -280,10 +355,10 @@ export class EPMAssembler {
     const consolidated = this.consolidateResources(allResources);
     
     return consolidated.map(r => ({
-      role: r.role || 'Team Member',
-      skills: r.skills || [],
-      count: r.count || 1,
-      allocation: r.allocation || 'Full-time',
+      role: r.role || r.name || r.title || 'Team Member',
+      skills: normalizeSkillsArray(r.skills),
+      count: typeof r.count === 'number' ? r.count : 1,
+      allocation: r.allocation || r.commitment || 'Full-time',
       costPerMonth: r.costPerMonth,
     }));
   }
