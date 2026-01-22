@@ -2,6 +2,128 @@ import { randomUUID as uuid } from 'crypto';
 import { ConversationLog, BusinessContext } from '../persistence/conversation-log';
 import { cpmScheduler, WorkstreamScheduleInput } from '../scheduling/cpm-scheduler';
 
+// ============= INTELLIGENT PLANNING INTEGRATION =============
+// These functions generate proper phases, milestones, and critical paths
+
+/**
+ * Generate proper phases from scheduled workstreams
+ * Creates 2-4 logical project phases based on total duration
+ */
+function generatePhasesFromSchedule(totalMonths: number, startDate: Date): Array<{
+  id: string;
+  phase: number;
+  name: string;
+  startMonth: number;
+  endMonth: number;
+  startDate: Date;
+  endDate: Date;
+  workstreamIds: string[];
+  milestones: Array<{ id: string; name: string; dueMonth: number; deliverableIds: string[] }>;
+}> {
+  // Divide into 2-4 logical phases based on duration
+  const phaseCount = totalMonths <= 4 ? 2 : totalMonths <= 8 ? 3 : 4;
+  const monthsPerPhase = Math.max(1, Math.ceil(totalMonths / phaseCount));
+  
+  const phaseNames = [
+    'Planning & Setup',
+    'Development & Execution', 
+    'Testing & Validation',
+    'Deployment & Handover'
+  ];
+  
+  const phases = [];
+  for (let i = 0; i < phaseCount; i++) {
+    const startMonth = i * monthsPerPhase;
+    const endMonth = Math.min((i + 1) * monthsPerPhase, totalMonths);
+    
+    phases.push({
+      id: `phase-${i + 1}`,
+      phase: i + 1,
+      name: phaseNames[i] || `Phase ${i + 1}`,
+      startMonth,
+      endMonth,
+      startDate: new Date(startDate.getTime() + startMonth * 30 * 24 * 60 * 60 * 1000),
+      endDate: new Date(startDate.getTime() + endMonth * 30 * 24 * 60 * 60 * 1000),
+      workstreamIds: [],
+      milestones: [{
+        id: `ms-${i + 1}`,
+        name: `${phaseNames[i] || `Phase ${i + 1}`} Complete`,
+        dueMonth: endMonth,
+        deliverableIds: []
+      }]
+    });
+  }
+  
+  return phases;
+}
+
+/**
+ * Extract milestones from workstreams and phases
+ * Creates milestones from deliverables and phase completions
+ */
+function extractMilestonesFromWorkstreams(
+  workstreams: Array<{ id: string; name: string; deliverables?: Array<{ id: string; name: string; dueMonth: number }> }>,
+  phases: Array<{ id: string; name: string; endMonth: number }>
+): Array<{ id: string; name: string; dueMonth: number; type: 'deliverable' | 'phase'; sourceId: string }> {
+  const milestones: Array<{ id: string; name: string; dueMonth: number; type: 'deliverable' | 'phase'; sourceId: string }> = [];
+  
+  // Extract deliverable milestones
+  workstreams.forEach(ws => {
+    if (ws.deliverables?.length > 0) {
+      ws.deliverables.forEach(d => {
+        milestones.push({
+          id: d.id,
+          name: d.name,
+          dueMonth: d.dueMonth,
+          type: 'deliverable',
+          sourceId: ws.id
+        });
+      });
+    }
+  });
+  
+  // Add phase completion milestones
+  phases.forEach(phase => {
+    milestones.push({
+      id: `${phase.id}-complete`,
+      name: `${phase.name} Complete`,
+      dueMonth: phase.endMonth,
+      type: 'phase',
+      sourceId: phase.id
+    });
+  });
+  
+  // Sort by due month
+  milestones.sort((a, b) => a.dueMonth - b.dueMonth);
+  
+  return milestones;
+}
+
+/**
+ * Build proper stage gates from phases
+ * Each phase end becomes a stage gate with review criteria
+ */
+function buildStageGatesFromPhases(
+  phases: Array<{ id: string; phase: number; name: string; endMonth: number }>,
+  totalMonths: number
+): { gates: Array<{ gate: number; name: string; month: number; criteria: string[]; status: string }>, confidence: number } {
+  const gates = phases.map((phase, index) => ({
+    gate: index + 1,
+    name: `Gate ${index + 1}: ${phase.name} Review`,
+    month: phase.endMonth,
+    criteria: [
+      `All ${phase.name.toLowerCase()} activities completed`,
+      'Deliverables reviewed and approved',
+      'Risks assessed and mitigated',
+      'Budget variance within tolerance',
+      'Stakeholder sign-off obtained'
+    ],
+    status: 'pending'
+  }));
+  
+  return { gates, confidence: 0.75 };
+}
+
 // ============= DATA NORMALIZATION HELPERS =============
 // AI often returns invalid enum values or wrong types - normalize them here
 
@@ -241,20 +363,45 @@ export interface EPMProgram {
 export class EPMAssembler {
   assemble(conversationLog: ConversationLog, businessContext: BusinessContext): EPMProgram {
     const roundOutputs = this.extractRoundOutputs(conversationLog);
+    const programStartDate = new Date();
     
     const workstreamInputs = this.extractWorkstreamInputs(roundOutputs, businessContext);
-    const { scheduled, timeline } = cpmScheduler.schedule(workstreamInputs, new Date());
+    const { scheduled, timeline } = cpmScheduler.schedule(workstreamInputs, programStartDate);
 
     const workstreams = this.buildWorkstreams(roundOutputs, scheduled, businessContext);
     const riskRegister = this.buildRiskRegister(roundOutputs);
     const resourcePlan = this.buildResourcePlan(roundOutputs);
     const financialPlan = this.buildFinancialPlan(roundOutputs);
     const stakeholderMap = this.buildStakeholderMap(roundOutputs);
-    const stageGates = this.buildStageGates(roundOutputs);
     const benefitsRealization = this.buildBenefitsRealization(roundOutputs);
     const governance = this.buildGovernance(roundOutputs);
     const componentConfidence = this.extractComponentConfidence(roundOutputs);
     const overallConfidence = this.calculateOverallConfidence(roundOutputs);
+
+    // ====== INTELLIGENT PLANNING INTEGRATION ======
+    // Generate proper phases based on total duration
+    const phases = generatePhasesFromSchedule(timeline.totalMonths, programStartDate);
+    
+    // Assign workstreams to phases based on their start month
+    workstreams.forEach(ws => {
+      const wsPhase = phases.find(p => ws.startMonth >= p.startMonth && ws.startMonth < p.endMonth);
+      if (wsPhase) {
+        wsPhase.workstreamIds.push(ws.id);
+      }
+    });
+    
+    // Extract milestones from workstreams and phases
+    const milestones = extractMilestonesFromWorkstreams(workstreams, phases);
+    
+    // Build proper stage gates aligned with phases
+    const stageGates = buildStageGatesFromPhases(phases, timeline.totalMonths);
+    
+    // Calculate proper critical path (workstreams with zero slack on longest path)
+    const criticalPath = scheduled
+      .filter(s => s.isOnCriticalPath)
+      .map(s => s.id);
+    
+    console.log(`[EPM Assembler] Generated ${phases.length} phases, ${milestones.length} milestones, ${criticalPath.length} critical path items`);
 
     return {
       id: uuid(),
@@ -262,12 +409,20 @@ export class EPMAssembler {
       workstreams,
       timeline: {
         totalMonths: timeline.totalMonths,
-        phases: timeline.phases.map(p => ({
+        startDate: programStartDate.toISOString(),
+        endDate: new Date(programStartDate.getTime() + timeline.totalMonths * 30 * 24 * 60 * 60 * 1000).toISOString(),
+        phases: phases.map(p => ({
+          id: p.id,
+          phase: p.phase,
           name: p.name,
           startMonth: p.startMonth,
           endMonth: p.endMonth,
+          workstreamIds: p.workstreamIds,
+          milestones: p.milestones,
         })),
-        criticalPath: timeline.criticalPath,
+        milestones,
+        criticalPath: criticalPath.length > 0 ? criticalPath : timeline.criticalPath,
+        confidence: overallConfidence,
       },
       resourcePlan,
       financialPlan,
