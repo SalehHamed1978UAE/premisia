@@ -33,6 +33,19 @@ import {
 } from "@/types/intelligence";
 
 // ============================================================================
+// Helper Functions
+// ============================================================================
+
+// Helper to format months with proper rounding (avoid floating point noise like 15.600000000000001)
+const formatMonths = (value: number | undefined | null): string => {
+  if (value === undefined || value === null) return '0';
+  // Round to 1 decimal place to avoid floating point noise
+  const rounded = Math.round(value * 10) / 10;
+  // If it's a whole number, show without decimals
+  return Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(1);
+};
+
+// ============================================================================
 // Helper Components
 // ============================================================================
 
@@ -194,7 +207,7 @@ export function WorkstreamsFormatter({ data }: { data: Workstream[] }) {
           <CardContent className="space-y-3">
             <KeyValue 
               label="Timeline" 
-              value={`Month ${ws.startMonth} - ${ws.endMonth} (${ws.endMonth - ws.startMonth + 1} months)`} 
+              value={`Month ${formatMonths(ws.startMonth)} - ${formatMonths(ws.endMonth)} (${formatMonths((ws.endMonth || 0) - (ws.startMonth || 0) + 1)} months)`} 
             />
             {ws.owner && <KeyValue label="Owner" value={ws.owner} />}
             
@@ -243,7 +256,7 @@ export function TimelineFormatter({ data }: { data: Timeline }) {
       <div className="flex items-center gap-4">
         <Badge variant="outline" className="text-base px-4 py-2">
           <Calendar className="h-4 w-4 mr-2" />
-          {data.totalMonths} Months Total
+          {formatMonths(data.totalMonths)} Months Total
         </Badge>
       </div>
 
@@ -256,7 +269,7 @@ export function TimelineFormatter({ data }: { data: Timeline }) {
                   <Badge>{phase.phase}</Badge>
                   {phase.name}
                   <span className="text-xs text-muted-foreground font-normal ml-auto">
-                    Months {phase.startMonth}-{phase.endMonth}
+                    Months {formatMonths(phase.startMonth)}-{formatMonths(phase.endMonth)}
                   </span>
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">{phase.description}</p>

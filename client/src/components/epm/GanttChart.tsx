@@ -686,7 +686,7 @@ export default function GanttChart({
               {/* Legend in chart */}
               <g transform={`translate(${dimensions.leftMargin}, ${dimensions.height - 25})`}>
                 <text className="text-xs fill-gray-600">
-                  Total Duration: {totalMonths} months | 
+                  Total Duration: {Math.round(totalMonths * 10) / 10} months | 
                   Critical Path Tasks: {criticalPath.length} | 
                   Total Tasks: {tasks.length}
                 </text>
@@ -705,7 +705,7 @@ export default function GanttChart({
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-blue-500" />
               <div>
-                <div className="text-2xl font-bold">{totalMonths}</div>
+                <div className="text-2xl font-bold">{Math.round(totalMonths * 10) / 10}</div>
                 <div className="text-xs text-muted-foreground">Months Total</div>
               </div>
             </div>

@@ -147,7 +147,9 @@ export class EPMAssembler {
     roundOutputs: Record<number, any>,
     businessContext: BusinessContext
   ): WorkstreamScheduleInput[] {
-    const round1 = roundOutputs[1]?.synthesis?.consolidatedOutputs?.workstreams || [];
+    const rawRound1 = roundOutputs[1]?.synthesis?.consolidatedOutputs?.workstreams;
+    // Ensure round1 is always an array (AI might return object or unexpected format)
+    const round1 = Array.isArray(rawRound1) ? rawRound1 : [];
     const round2 = roundOutputs[2]?.synthesis?.consolidatedOutputs || {};
     const round4 = roundOutputs[4]?.synthesis?.consolidatedOutputs || {};
     
@@ -194,10 +196,12 @@ export class EPMAssembler {
     businessContext: BusinessContext
   ): EPMWorkstream[] {
     const workstreamData = roundOutputs[1]?.synthesis?.consolidatedOutputs?.workstreams || [];
-    const resourceAssignments = roundOutputs[4]?.synthesis?.consolidatedOutputs?.resources || [];
+    const rawResources = roundOutputs[4]?.synthesis?.consolidatedOutputs?.resources;
+    // Ensure resourceAssignments is always an array (AI might return object or unexpected format)
+    const resourceAssignments = Array.isArray(rawResources) ? rawResources : [];
     
     return scheduled.map((sched, index) => {
-      const wsData = workstreamData.find((w: any) => w.id === sched.id) || {};
+      const wsData = Array.isArray(workstreamData) ? (workstreamData.find((w: any) => w.id === sched.id) || {}) : {};
       const owner = resourceAssignments.find((r: any) => r.workstreamId === sched.id)?.owner;
       
       return {
@@ -221,7 +225,9 @@ export class EPMAssembler {
   }
 
   private buildRiskRegister(roundOutputs: Record<number, any>): EPMRisk[] {
-    const round5Risks = roundOutputs[5]?.synthesis?.consolidatedOutputs?.risks || [];
+    const rawRound5Risks = roundOutputs[5]?.synthesis?.consolidatedOutputs?.risks;
+    // Ensure round5Risks is always an array (AI might return object or unexpected format)
+    const round5Risks = Array.isArray(rawRound5Risks) ? rawRound5Risks : [];
     const agentRisks = this.collectAgentRisks(roundOutputs);
     
     const allRisks = [...round5Risks, ...agentRisks];
@@ -245,7 +251,7 @@ export class EPMAssembler {
     for (const round of Object.values(roundOutputs)) {
       for (const agentOutput of Object.values(round.agentOutputs || {})) {
         const output = agentOutput as any;
-        if (output?.risks) {
+        if (output?.risks && Array.isArray(output.risks)) {
           risks.push(...output.risks);
         }
       }
@@ -265,7 +271,9 @@ export class EPMAssembler {
   }
 
   private buildResourcePlan(roundOutputs: Record<number, any>): EPMResource[] {
-    const round4Resources = roundOutputs[4]?.synthesis?.consolidatedOutputs?.resources || [];
+    const rawRound4Resources = roundOutputs[4]?.synthesis?.consolidatedOutputs?.resources;
+    // Ensure round4Resources is always an array (AI might return object or unexpected format)
+    const round4Resources = Array.isArray(rawRound4Resources) ? rawRound4Resources : [];
     const agentResources = this.collectAgentResources(roundOutputs);
     
     const allResources = [...round4Resources, ...agentResources];
@@ -286,7 +294,7 @@ export class EPMAssembler {
     for (const round of Object.values(roundOutputs)) {
       for (const agentOutput of Object.values(round.agentOutputs || {})) {
         const output = agentOutput as any;
-        if (output?.resourceRequirements) {
+        if (output?.resourceRequirements && Array.isArray(output.resourceRequirements)) {
           resources.push(...output.resourceRequirements);
         }
       }
