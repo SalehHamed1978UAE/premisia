@@ -73,14 +73,18 @@ export class TypeScriptMultiAgentGenerator implements IEPMGenerator {
         : undefined;
 
       // Execute the full multi-agent orchestration
-      // Pass input.sessionId as both journeySessionId and providedSessionId for correlation
+      // Only pass journeySessionId if it's a valid UUID (not a session-* string)
+      // Session strings like "session-1234-xxx" are NOT journey_sessions.id references
+      const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.sessionId || '');
+      const journeySessionId = isValidUUID ? input.sessionId : undefined;
+      
       const result = await multiAgentOrchestrator.generate(
         input.userId,
         businessContext,
         input.bmcInsights,
-        input.sessionId,  // journeySessionId for linking
+        journeySessionId,  // Only pass if it's a valid UUID, null otherwise
         onProgress,
-        input.sessionId   // providedSessionId - use caller's ID for resume capability
+        input.sessionId   // providedSessionId - use caller's ID for resume capability (can be any string)
       );
 
       const generationTime = Date.now() - startTime;
