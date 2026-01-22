@@ -136,7 +136,33 @@ app.use((req: Request, res: Response, next: Function) => {
   
   // Non-asset, non-API request (SPA navigation) - check appReady
   if (!appReady) {
-    return res.status(200).send('<!DOCTYPE html><html><body><p>Application starting…</p></body></html>');
+    return res.status(200).send(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Premisia - Starting...</title>
+  <style>
+    body { font-family: system-ui, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f5f5f5; }
+    .loader { text-align: center; }
+    .spinner { width: 40px; height: 40px; border: 3px solid #ddd; border-top-color: #333; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="loader">
+    <div class="spinner"></div>
+    <p>Application starting...</p>
+  </div>
+  <script>
+    // Poll server health and reload when ready
+    (function checkServer() {
+      fetch('/api/auth/user', { cache: 'no-store' })
+        .then(r => { if (r.ok || r.status === 401) window.location.reload(); else setTimeout(checkServer, 1500); })
+        .catch(() => setTimeout(checkServer, 1500));
+    })();
+  </script>
+</body>
+</html>`);
   }
   
   next();
