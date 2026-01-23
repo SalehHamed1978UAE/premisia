@@ -729,10 +729,27 @@ router.get('/results/:id', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
+    // Handle race condition: if status is 'completed' but data is missing, retry
+    let finalRecord = record;
+    if (record.status === 'completed' && (!record.geneLibrary || !record.genomes)) {
+      console.log('[Results] Data missing despite completed status, retrying after delay...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const [retryRecord] = await db.select()
+        .from(segmentDiscoveryResults)
+        .where(eq(segmentDiscoveryResults.id, id))
+        .limit(1);
+      
+      if (retryRecord) {
+        finalRecord = retryRecord;
+        console.log(`[Results] Retry successful, geneLibrary: ${finalRecord.geneLibrary ? 'has value' : 'null'}`);
+      }
+    }
+
     // Decrypt sensitive fields
-    const decryptedDescription = await decryptKMS(record.offeringDescription);
-    const decryptedHypothesis = record.existingHypothesis ? await decryptKMS(record.existingHypothesis) : null;
-    const decryptedClarifications = record.clarifications ? await decryptJSONKMS(record.clarifications as string) : null;
+    const decryptedDescription = await decryptKMS(finalRecord.offeringDescription);
+    const decryptedHypothesis = finalRecord.existingHypothesis ? await decryptKMS(finalRecord.existingHypothesis) : null;
+    const decryptedClarifications = finalRecord.clarifications ? await decryptJSONKMS(finalRecord.clarifications as string) : null;
     
     // Helper to decrypt JSONB fields that may be:
     // 1. Encrypted string stored in JSONB (comes back as string from Drizzle)
@@ -776,42 +793,42 @@ router.get('/results/:id', async (req: Request, res: Response) => {
     let decryptedSynthesis: any = null;
     
     try {
-      decryptedGeneLibrary = await decryptJsonbField(record.geneLibrary, 'geneLibrary');
+      decryptedGeneLibrary = await decryptJsonbField(finalRecord.geneLibrary, 'geneLibrary');
       console.log('[Results] geneLibrary decrypted, dimensions:', decryptedGeneLibrary?.dimensions ? Object.keys(decryptedGeneLibrary.dimensions).length : 0);
     } catch (e) {
       console.error('[Results] geneLibrary decryption failed:', e);
     }
     
     try {
-      decryptedGenomes = await decryptJsonbField(record.genomes, 'genomes');
+      decryptedGenomes = await decryptJsonbField(finalRecord.genomes, 'genomes');
       console.log('[Results] genomes decrypted, count:', Array.isArray(decryptedGenomes) ? decryptedGenomes.length : 0);
     } catch (e) {
       console.error('[Results] genomes decryption failed:', e);
     }
     
     try {
-      decryptedSynthesis = await decryptJsonbField(record.synthesis, 'synthesis');
+      decryptedSynthesis = await decryptJsonbField(finalRecord.synthesis, 'synthesis');
       console.log('[Results] synthesis decrypted, has beachhead:', !!decryptedSynthesis?.beachhead);
     } catch (e) {
       console.error('[Results] synthesis decryption failed:', e);
     }
 
     res.json({
-      id: record.id,
-      offeringDescription: decryptedDescription || record.offeringDescription,
-      offeringType: record.offeringType,
-      stage: record.stage,
-      gtmConstraint: record.gtmConstraint,
-      salesMotion: record.salesMotion,
+      id: finalRecord.id,
+      offeringDescription: decryptedDescription || finalRecord.offeringDescription,
+      offeringType: finalRecord.offeringType,
+      stage: finalRecord.stage,
+      gtmConstraint: finalRecord.gtmConstraint,
+      salesMotion: finalRecord.salesMotion,
       existingHypothesis: decryptedHypothesis,
       clarifications: decryptedClarifications,
       geneLibrary: decryptedGeneLibrary,
       genomes: decryptedGenomes,
       synthesis: decryptedSynthesis,
-      status: record.status,
-      errorMessage: record.errorMessage,
-      createdAt: record.createdAt,
-      completedAt: record.completedAt,
+      status: finalRecord.status,
+      errorMessage: finalRecord.errorMessage,
+      createdAt: finalRecord.createdAt,
+      completedAt: finalRecord.completedAt,
     });
   } catch (error: any) {
     console.error('[Marketing Consultant] Error in GET results:', error);
