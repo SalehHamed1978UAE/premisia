@@ -163,12 +163,15 @@ const STOPWORDS = new Set([
 ]);
 
 export function extractContextKeywords(description: string): string[] {
+  if (!description || description.trim().length < 10) return [];
+  
   const text = description.toLowerCase();
   
   const nounPhrasePatterns = [
-    /(?:premium|luxury|affordable|innovative|traditional|modern|artisan|gourmet|authentic|organic|sustainable|local|global|digital|mobile|online|physical)\s+[a-z]+(?:\s+[a-z]+)?/gi,
-    /[a-z]+(?:\s+[a-z]+)?\s+(?:restaurant|cafe|shop|store|service|platform|app|software|product|solution|business|company|brand|agency)/gi,
-    /(?:chinese|italian|mexican|indian|japanese|french|thai|mediterranean|american|asian|european|middle eastern|african)\s+(?:food|cuisine|restaurant|fusion|cooking|dishes)/gi,
+    /(?:premium|luxury|affordable|innovative|traditional|modern|artisan|gourmet|authentic|organic|sustainable|local|global|digital|mobile|online|physical)\s+[\w]+(?:\s+[\w]+)?/gi,
+    /[\w]+(?:\s+[\w]+)?\s+(?:restaurant|cafe|shop|store|service|platform|app|software|product|solution|business|company|brand|agency)/gi,
+    /(?:chinese|italian|mexican|indian|japanese|french|thai|mediterranean|american|asian|european|middle eastern|african|vietnamese|korean|greek|spanish|german|british|polish|russian|brazilian|peruvian|cuban|ethiopian|moroccan|lebanese|turkish|persian|pakistani|bengali|nepali|tibetan|burmese|malaysian|indonesian|filipino|hawaiian|caribbean|cajun|soul|southern|tex-mex|southwestern|new england|pacific)\s+(?:food|cuisine|restaurant|fusion|cooking|dishes|flavors?|recipes?|ingredients?|spices?|style)/gi,
+    /[\w]+\s+[\w]+\s+[\w]+(?:\s+[\w]+)?/gi,
   ];
   
   const extractedPhrases: string[] = [];
@@ -178,9 +181,9 @@ export function extractContextKeywords(description: string): string[] {
   }
   
   const words = text
-    .replace(/[^a-z\s-]/g, ' ')
+    .replace(/[^\w\s\u00C0-\u024F\u1E00-\u1EFF-]/g, ' ')
     .split(/\s+/)
-    .filter(word => word.length > 3 && !STOPWORDS.has(word));
+    .filter(word => word.length >= 2 && !STOPWORDS.has(word));
   
   const wordFreq = new Map<string, number>();
   for (const word of words) {
@@ -190,11 +193,11 @@ export function extractContextKeywords(description: string): string[] {
   const sortedWords = Array.from(wordFreq.entries())
     .sort((a, b) => b[1] - a[1])
     .map(([word]) => word)
-    .slice(0, 10);
+    .slice(0, 12);
   
   const allKeywords = Array.from(new Set([...extractedPhrases, ...sortedWords]));
   
-  return allKeywords.slice(0, 8);
+  return allKeywords.slice(0, 10);
 }
 
 export class SegmentDiscoveryEngine {
@@ -336,8 +339,8 @@ Return ONLY valid JSON with this structure:
 
   private getB2CGeneLibraryPrompt(context: DiscoveryContext): string {
     const keywords = context.contextKeywords || [];
-    const keywordsSection = keywords.length > 0 
-      ? `\nCONTEXT_KEYWORDS: ${JSON.stringify(keywords)}\n\nCRITICAL CONSTRAINT: ALL generated segments MUST directly tie to the context keywords above. Every dimension option should be relevant to "${keywords.join(', ')}". Do NOT include generic segments unrelated to this specific offering.`
+    const keywordsSection = keywords.length >= 3 
+      ? `\nCONTEXT GUIDANCE: Consider these context keywords when generating segments: ${keywords.slice(0, 6).join(', ')}. Prioritize segments that connect to this offering's specific domain while still exploring surprising adjacent opportunities.`
       : '';
     
     return `You are a consumer market segmentation expert specializing in discovering SURPRISING, NON-OBVIOUS B2C customer segments. Your job is to surface consumer segments that founders would never think of on their own.
@@ -751,38 +754,60 @@ ${this.getGenomeExampleForMode(mode, batchIndex, count)}`;
     const mode = context.segmentationMode || detectSegmentationMode(context.offeringType);
     const keywords = context.contextKeywords || [];
     
-    // Skip filter for B2B or when no keywords available
-    if (mode !== 'b2c' || keywords.length === 0) {
+    // Skip filter for B2B or when few/no keywords available
+    if (mode !== 'b2c' || keywords.length < 3) {
       return genomes;
     }
     
     const originalCount = genomes.length;
     
-    // Filter genomes that have at least one keyword overlap
-    const filtered = genomes.filter(genome => {
-      // Get all gene values as a single text string
+    // Split multi-word keywords into individual words for flexible matching
+    const keywordWords = new Set<string>();
+    for (const kw of keywords) {
+      const words = kw.toLowerCase().split(/\s+/);
+      for (const w of words) {
+        if (w.length >= 3) keywordWords.add(w);
+      }
+    }
+    
+    // Score genomes by keyword relevance
+    const scoredByRelevance = genomes.map(genome => {
       const geneText = Object.values(genome.genes).join(' ').toLowerCase();
       const narrativeText = (genome.narrativeReason || '').toLowerCase();
       const combinedText = `${geneText} ${narrativeText}`;
       
-      // Check for keyword overlap
-      const matchCount = keywords.filter(keyword => 
-        combinedText.includes(keyword.toLowerCase())
-      ).length;
+      // Count word-level matches (partial matching for stems)
+      let matchScore = 0;
+      for (const word of keywordWords) {
+        if (combinedText.includes(word)) matchScore++;
+        // Also check if any word in combinedText starts with keyword (stem match)
+        const words = combinedText.split(/\s+/);
+        if (words.some(w => w.startsWith(word.slice(0, Math.min(4, word.length))))) {
+          matchScore += 0.5;
+        }
+      }
       
-      // Require at least one keyword match
-      return matchCount >= 1;
+      return { genome, matchScore };
     });
+    
+    // Keep genomes with any match, but sort non-matching to the end
+    const filtered = scoredByRelevance
+      .filter(g => g.matchScore > 0)
+      .map(g => g.genome);
     
     const prunedCount = originalCount - filtered.length;
     if (prunedCount > 0) {
-      console.log(`[SegmentDiscoveryEngine] Filtered ${prunedCount} genomes for low relevance (no keyword overlap)`);
+      console.log(`[SegmentDiscoveryEngine] Soft-filtered ${prunedCount} genomes with low keyword relevance`);
     }
     
-    // Ensure we always return at least some genomes
-    if (filtered.length < 20 && genomes.length >= 20) {
-      console.log(`[SegmentDiscoveryEngine] Warning: Only ${filtered.length} genomes passed relevance filter, keeping top 20 by score`);
-      return genomes.slice(0, 20);
+    // Ensure we always return enough genomes - be lenient
+    if (filtered.length < 40 && genomes.length >= 40) {
+      console.log(`[SegmentDiscoveryEngine] Adding top-scoring genomes to ensure diversity`);
+      const needed = 40 - filtered.length;
+      const additional = genomes
+        .filter(g => !filtered.includes(g))
+        .slice(0, needed);
+      return [...filtered, ...additional];
     }
     
     return filtered.length > 0 ? filtered : genomes;
