@@ -581,15 +581,26 @@ async function runSegmentDiscovery(id: string, context: any) {
     );
 
     // Encrypt and save results to database
+    // Note: encryptJSONKMS returns a JSON string, but JSONB columns need objects
+    // Parse the encrypted string into an object for proper JSONB storage
     const encryptedGeneLibrary = await encryptJSONKMS(result.geneLibrary);
     const encryptedGenomes = await encryptJSONKMS(result.genomes);
     const encryptedSynthesis = await encryptJSONKMS(result.synthesis);
+    
+    const parseEncrypted = (encrypted: string | null, fallback: any) => {
+      if (!encrypted) return fallback;
+      try {
+        return JSON.parse(encrypted);
+      } catch {
+        return encrypted; // Return as-is if not JSON
+      }
+    };
 
     await db.update(segmentDiscoveryResults)
       .set({
-        geneLibrary: encryptedGeneLibrary || result.geneLibrary,
-        genomes: encryptedGenomes || result.genomes,
-        synthesis: encryptedSynthesis || result.synthesis,
+        geneLibrary: parseEncrypted(encryptedGeneLibrary, result.geneLibrary),
+        genomes: parseEncrypted(encryptedGenomes, result.genomes),
+        synthesis: parseEncrypted(encryptedSynthesis, result.synthesis),
         status: 'completed',
         completedAt: new Date(),
         updatedAt: new Date(),
