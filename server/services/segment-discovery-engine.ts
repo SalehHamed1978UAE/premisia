@@ -666,8 +666,18 @@ Return ONLY valid JSON with this structure:
       'diverse combinations exploring the full gene space'
     ];
 
-    const prompt = `You are a ${segmentType} market strategist creating segment combinations for discovery.
+    // Strong B2C guidance to prevent B2B drift
+    const b2cGuidance = mode === 'b2c' ? `
+CRITICAL B2C RULES:
+- These are INDIVIDUAL PEOPLE (consumers/end-users), NOT businesses or organizations
+- For restaurants/cafes/local businesses: customers are DINERS/PATRONS who come to eat/drink, not other business owners
+- Examples of CORRECT B2C segments: "Young professionals seeking date night spots", "Affluent couples celebrating anniversaries", "Food enthusiasts exploring new cuisines"
+- Examples of WRONG B2B segments (never use these): "Shisha lounge owners", "Event planners", "Corporate catering managers", "Restaurant consultants"
+- All segments must be people who would personally use/consume the offering
+` : '';
 
+    const prompt = `You are a ${segmentType} market strategist creating segment combinations for discovery.
+${b2cGuidance}
 OFFERING CONTEXT:
 - Description: ${context.offeringDescription}
 - Type: ${context.offeringType}
@@ -687,6 +697,7 @@ REQUIREMENTS:
 - Each genome is a specific combination of one allele from each dimension
 - Consider which combinations make logical sense together
 - Ensure variety within your focus area
+${mode === 'b2c' ? '- REMEMBER: All segments must be individual people who personally consume the offering' : ''}
 
 Return ONLY valid JSON array with exactly ${count} genomes:
 ${this.getGenomeExampleForMode(mode, batchIndex, count)}`;
@@ -815,18 +826,21 @@ ${this.getGenomeExampleForMode(mode, batchIndex, count)}`;
 
   private getScoringCriteriaForMode(mode: SegmentationMode): string {
     if (mode === 'b2c') {
-      return `Score each consumer segment on these 8 criteria (1-5 scale each, 40 points max total):
+      // B2C uses consumer-friendly scoring terminology
+      return `Score each CONSUMER segment on these 8 criteria (1-5 scale each, 40 points max total):
 
-1. painIntensity (1-5): How intense is the need/desire this consumer segment experiences?
-2. accessToDecisionMaker (1-5): How easy is it to reach and acquire these consumers?
-3. purchasePowerMatch (1-5): Does their spending ability match your pricing?
-4. competitionSaturation (1-5): How uncrowded is this segment? (5 = very uncrowded/good)
-5. productFit (1-5): How well does your offering fit their needs and lifestyle?
-6. urgencyAlignment (1-5): How urgent is their purchase intent?
-7. scalePotential (1-5): Can you scale to reach more consumers in this segment?
-8. gtmEfficiency (1-5): Can you efficiently market to this segment given your constraints?`;
+CRITICAL: These are individual people/consumers who personally use the offering (e.g., diners at a restaurant), NOT businesses.
+
+1. painIntensity (1-5): "Desire Strength" - How strong is this consumer's desire/craving for this type of offering?
+2. accessToDecisionMaker (1-5): "Reachability" - How easy is it to reach and attract these individual consumers? (social media, local presence, word of mouth)
+3. purchasePowerMatch (1-5): "Spending Match" - Does their disposable income match your pricing?
+4. competitionSaturation (1-5): "Market Opportunity" - How underserved is this segment? (5 = many unmet needs)
+5. productFit (1-5): "Lifestyle Fit" - How well does your offering match their lifestyle and preferences?
+6. urgencyAlignment (1-5): "Purchase Readiness" - How motivated are they to buy/visit soon?
+7. scalePotential (1-5): "Segment Size" - How many consumers like this exist in your market?
+8. gtmEfficiency (1-5): "Marketing Efficiency" - Can you efficiently reach this consumer segment with your marketing resources?`;
     }
-    return `Score each business segment on these 8 criteria (1-5 scale each, 40 points max total):
+    return `Score each BUSINESS segment on these 8 criteria (1-5 scale each, 40 points max total):
 
 1. painIntensity (1-5): How intense is the pain this segment experiences?
 2. accessToDecisionMaker (1-5): How easy is it to reach the decision maker?
@@ -1058,9 +1072,19 @@ Return ONLY valid JSON array with updated genomes:
   async synthesize(genomes: Genome[], context: DiscoveryContext): Promise<SegmentSynthesis> {
     const top10 = genomes.slice(0, 10);
     const bottom5 = genomes.slice(-5);
+    const mode = context.segmentationMode || detectSegmentationMode(context.offeringType);
+    
+    // Strong B2C guidance for synthesis
+    const b2cSynthesisGuidance = mode === 'b2c' ? `
+CRITICAL B2C CONTEXT:
+- These segments are INDIVIDUAL CONSUMERS (people), not businesses
+- For restaurants/cafes: these are DINERS who come to eat, not other business owners
+- Validation plans should focus on reaching individual consumers (social media, local events, dining apps)
+- NOT business networking, B2B partnerships, or industry conferences
+` : '';
 
-    const prompt = `You are a strategic advisor synthesizing segment discovery findings.
-
+    const prompt = `You are a strategic advisor synthesizing ${mode === 'b2c' ? 'consumer' : 'business'} segment discovery findings.
+${b2cSynthesisGuidance}
 OFFERING CONTEXT:
 - Description: ${context.offeringDescription}
 - Type: ${context.offeringType}
