@@ -670,6 +670,13 @@ router.get('/discovery-stream/:id', async (req: Request, res: Response) => {
     // Send initial connected event
     res.write(`data: ${JSON.stringify({ type: 'connected', message: 'Discovery stream connected' })}\n\n`);
 
+    // Send heartbeat every 15 seconds to keep connection alive
+    const heartbeatInterval = setInterval(() => {
+      if (!res.writableEnded) {
+        res.write(`event: heartbeat\ndata: ${JSON.stringify({ timestamp: Date.now() })}\n\n`);
+      }
+    }, 15000);
+
     // Poll for progress updates
     const pollInterval = setInterval(async () => {
       try {
@@ -720,11 +727,13 @@ router.get('/discovery-stream/:id', async (req: Request, res: Response) => {
     // Clean up on client disconnect
     req.on('close', () => {
       clearInterval(pollInterval);
+      clearInterval(heartbeatInterval);
     });
 
     // Timeout after 10 minutes
     setTimeout(() => {
       clearInterval(pollInterval);
+      clearInterval(heartbeatInterval);
       res.write(`data: ${JSON.stringify({ type: 'error', message: 'Discovery timed out' })}\n\n`);
       res.end();
     }, 10 * 60 * 1000);

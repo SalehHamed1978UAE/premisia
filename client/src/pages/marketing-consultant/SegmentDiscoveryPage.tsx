@@ -311,6 +311,11 @@ export default function SegmentDiscoveryPage() {
       }
     };
 
+    // Listen for heartbeat events to reset retry counter
+    eventSource.addEventListener('heartbeat', () => {
+      sseRetryCountRef.current = 0;
+    });
+
     eventSource.onerror = (error) => {
       console.error('[SegmentDiscovery] SSE error:', error);
       eventSource.close();
@@ -432,6 +437,44 @@ export default function SegmentDiscoveryPage() {
     );
   }
 
+  const checkForResults = async () => {
+    try {
+      const response = await fetch(`/api/marketing-consultant/discovery-status/${understandingId}`);
+      if (!response.ok) throw new Error('Failed to check status');
+      const data = await response.json();
+      
+      if (data.status === 'completed') {
+        toast({
+          title: "Results found!",
+          description: "The analysis completed successfully.",
+        });
+        clearProgress();
+        setPageState('results');
+        refetchResults();
+      } else if (data.status === 'running') {
+        toast({
+          title: "Still in progress",
+          description: "Resuming monitoring...",
+        });
+        setErrorMessage(null);
+        setPageState('progress');
+        startPollingFallback();
+      } else {
+        toast({
+          title: "No results available",
+          description: "The analysis did not complete. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Check failed",
+        description: "Could not verify results. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (pageState === 'error') {
     return (
       <AppLayout
@@ -448,13 +491,25 @@ export default function SegmentDiscoveryPage() {
               <p className="text-sm text-muted-foreground mb-4">
                 {errorMessage || 'An unexpected error occurred during segment discovery.'}
               </p>
-              <Button
-                variant="outline"
-                onClick={() => setLocation('/marketing-consultant/input')}
-                data-testid="button-start-new"
-              >
-                Start New Analysis
-              </Button>
+              <p className="text-xs text-muted-foreground mb-4">
+                If the analysis was interrupted, it may have completed in the background.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="default"
+                  onClick={checkForResults}
+                  data-testid="button-check-results"
+                >
+                  Check for Results
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setLocation('/marketing-consultant/input')}
+                  data-testid="button-start-new"
+                >
+                  Start New Analysis
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -512,6 +567,25 @@ export default function SegmentDiscoveryPage() {
             </div>
 
             <Progress value={progress} className="h-2" data-testid="progress-bar" />
+
+            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+              {usePollingFallbackRef.current ? (
+                <span className="flex items-center gap-1" data-testid="status-polling">
+                  <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+                  Checking status...
+                </span>
+              ) : sseRetryCountRef.current > 0 ? (
+                <span className="flex items-center gap-1" data-testid="status-reconnecting">
+                  <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                  Reconnecting ({sseRetryCountRef.current}/{MAX_SSE_RETRIES})...
+                </span>
+              ) : (
+                <span className="flex items-center gap-1" data-testid="status-connected">
+                  <span className="w-2 h-2 rounded-full bg-green-500" />
+                  Live connection
+                </span>
+              )}
+            </div>
 
             <div className="text-center text-xs text-muted-foreground">
               This may take a few minutes. Please don't close this page.

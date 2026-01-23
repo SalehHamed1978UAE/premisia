@@ -782,6 +782,7 @@ ${this.getGenomeExampleForMode(mode, batchIndex, count)}`;
     }
     
     // Score genomes by keyword relevance
+    const keywordWordsArray = Array.from(keywordWords);
     const scoredByRelevance = genomes.map(genome => {
       const geneText = Object.values(genome.genes).join(' ').toLowerCase();
       const narrativeText = (genome.narrativeReason || '').toLowerCase();
@@ -789,7 +790,7 @@ ${this.getGenomeExampleForMode(mode, batchIndex, count)}`;
       
       // Count word-level matches (partial matching for stems)
       let matchScore = 0;
-      for (const word of keywordWords) {
+      for (const word of keywordWordsArray) {
         if (combinedText.includes(word)) matchScore++;
         // Also check if any word in combinedText starts with keyword (stem match)
         const words = combinedText.split(/\s+/);
