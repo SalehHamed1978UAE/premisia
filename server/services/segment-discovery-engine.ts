@@ -471,6 +471,9 @@ Return ONLY valid JSON with this structure:
     
     console.log(`[SegmentDiscoveryEngine] Using ${mode.toUpperCase()} segmentation mode for: ${context.offeringType}`);
     console.log(`[SegmentDiscoveryEngine] Prompt type: ${mode === 'b2c' ? 'B2C Consumer Segments' : 'B2B Business Segments'}`);
+    if (context.contextKeywords?.length) {
+      console.log(`[SegmentDiscoveryEngine] Context keywords: ${context.contextKeywords.join(', ')}`);
+    }
     console.log(`[SegmentDiscoveryEngine] Prompt preview: ${prompt.substring(0, 150).replace(/\n/g, ' ')}...`);
 
     return withRetry(async () => {
@@ -742,6 +745,47 @@ ${this.getGenomeExampleForMode(mode, batchIndex, count)}`;
 
     const scoredGenomes = scoredBatches.flat();
     return scoredGenomes.sort((a, b) => b.fitness.totalScore - a.fitness.totalScore);
+  }
+  
+  filterByRelevance(genomes: Genome[], context: DiscoveryContext): Genome[] {
+    const mode = context.segmentationMode || detectSegmentationMode(context.offeringType);
+    const keywords = context.contextKeywords || [];
+    
+    // Skip filter for B2B or when no keywords available
+    if (mode !== 'b2c' || keywords.length === 0) {
+      return genomes;
+    }
+    
+    const originalCount = genomes.length;
+    
+    // Filter genomes that have at least one keyword overlap
+    const filtered = genomes.filter(genome => {
+      // Get all gene values as a single text string
+      const geneText = Object.values(genome.genes).join(' ').toLowerCase();
+      const narrativeText = (genome.narrativeReason || '').toLowerCase();
+      const combinedText = `${geneText} ${narrativeText}`;
+      
+      // Check for keyword overlap
+      const matchCount = keywords.filter(keyword => 
+        combinedText.includes(keyword.toLowerCase())
+      ).length;
+      
+      // Require at least one keyword match
+      return matchCount >= 1;
+    });
+    
+    const prunedCount = originalCount - filtered.length;
+    if (prunedCount > 0) {
+      console.log(`[SegmentDiscoveryEngine] Filtered ${prunedCount} genomes for low relevance (no keyword overlap)`);
+    }
+    
+    // Ensure we always return at least some genomes
+    if (filtered.length < 20 && genomes.length >= 20) {
+      console.log(`[SegmentDiscoveryEngine] Warning: Only ${filtered.length} genomes passed relevance filter, keeping top 20 by score`);
+      return genomes.slice(0, 20);
+    }
+    
+    return filtered.length > 0 ? filtered : genomes;
   }
 
   private getScoringCriteriaForMode(mode: SegmentationMode): string {
@@ -1126,16 +1170,19 @@ Return ONLY valid JSON:
     onProgress('Scoring segments', 50);
     const scoredGenomes = await this.scoreGenomes(genomes, context);
     console.log('[SegmentDiscoveryEngine] Scored genomes, top score:', scoredGenomes[0]?.fitness.totalScore);
+    
+    // Apply relevance filter for B2C mode
+    const filteredGenomes = this.filterByRelevance(scoredGenomes, context);
 
     onProgress('Stress testing top candidates', 70);
-    const top20 = scoredGenomes.slice(0, 20);
+    const top20 = filteredGenomes.slice(0, 20);
     const testedGenomes = await this.stressTest(top20);
     console.log('[SegmentDiscoveryEngine] Stress tested top 20');
 
     // Merge stress-tested genomes with remaining scored genomes
     const finalGenomes = [
       ...testedGenomes,
-      ...scoredGenomes.slice(20),
+      ...filteredGenomes.slice(20),
     ];
 
     onProgress('Synthesizing recommendations', 90);

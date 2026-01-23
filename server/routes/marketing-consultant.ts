@@ -541,10 +541,18 @@ router.post('/start-discovery/:id', async (req: Request, res: Response) => {
 
     // Determine segmentation mode based on offering type (using centralized function)
     const offeringType = record.offeringType || 'other';
-    const { detectSegmentationMode } = await import('../services/segment-discovery-engine');
+    const { detectSegmentationMode, extractContextKeywords } = await import('../services/segment-discovery-engine');
     const segmentationMode = detectSegmentationMode(offeringType);
     
+    // Extract context keywords for B2C mode
+    const contextKeywords = segmentationMode === 'b2c' 
+      ? extractContextKeywords(record.offeringDescription || '')
+      : undefined;
+    
     console.log(`[Marketing Consultant] Starting discovery with ${segmentationMode.toUpperCase()} mode for offering type: ${offeringType}`);
+    if (contextKeywords?.length) {
+      console.log(`[Marketing Consultant] Context keywords: ${contextKeywords.join(', ')}`);
+    }
 
     // Start discovery in background
     runSegmentDiscovery(id, {
@@ -555,6 +563,7 @@ router.post('/start-discovery/:id', async (req: Request, res: Response) => {
       salesMotion: record.salesMotion || 'self_serve',
       existingHypothesis: record.existingHypothesis || undefined,
       segmentationMode,
+      contextKeywords,
     });
 
     res.json({
