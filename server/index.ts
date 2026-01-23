@@ -10,8 +10,12 @@ import { registerFrameworkExecutors } from "./journey/register-frameworks";
 import { verifyConnection } from "./config/neo4j";
 import { initializeDatabaseExtensions } from "./db-init";
 import { authReadiness } from "./auth-readiness";
+import { registerServices } from "./services/container";
 
 const app = express();
+
+// Register all services and repositories in the DI container
+registerServices();
 
 // Validate encryption but don't exit if it fails - let server start for health checks
 try {

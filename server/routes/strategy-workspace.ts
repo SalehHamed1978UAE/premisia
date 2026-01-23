@@ -319,6 +319,7 @@ async function processEPMGeneration(
 ) {
   const startTime = Date.now(); // Track elapsed time
   const userId = (req.user as any)?.claims?.sub || null;
+  let jobId: string | null = null; // Declare outside try for catch block access
   
   try {
     // Send initial progress event
@@ -362,7 +363,6 @@ async function processEPMGeneration(
     }
 
     // Create background job record for tracking (after we have sessionId)
-    let jobId: string | null = null;
     try {
       jobId = await backgroundJobService.createJob({
         userId,
