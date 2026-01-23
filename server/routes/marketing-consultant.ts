@@ -534,14 +534,22 @@ router.post('/start-discovery/:id', async (req: Request, res: Response) => {
     // Initialize progress tracking
     discoveryProgress.set(id, { step: 'Starting', progress: 0, message: 'Initializing segment discovery...' });
 
+    // Determine segmentation mode based on offering type (using centralized function)
+    const offeringType = record.offeringType || 'other';
+    const { detectSegmentationMode } = await import('../services/segment-discovery-engine');
+    const segmentationMode = detectSegmentationMode(offeringType);
+    
+    console.log(`[Marketing Consultant] Starting discovery with ${segmentationMode.toUpperCase()} mode for offering type: ${offeringType}`);
+
     // Start discovery in background
     runSegmentDiscovery(id, {
       offeringDescription: record.offeringDescription,
-      offeringType: record.offeringType || 'other',
+      offeringType,
       stage: record.stage || 'idea_stage',
       gtmConstraint: record.gtmConstraint || 'solo_founder',
       salesMotion: record.salesMotion || 'self_serve',
       existingHypothesis: record.existingHypothesis || undefined,
+      segmentationMode,
     });
 
     res.json({

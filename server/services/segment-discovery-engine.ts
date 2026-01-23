@@ -50,7 +50,9 @@ async function withRetry<T>(
   throw lastError;
 }
 
-export interface GeneLibrary {
+export type SegmentationMode = 'b2b' | 'b2c';
+
+export interface B2BGeneLibrary {
   dimensions: {
     industry_vertical: string[];
     company_size: string[];
@@ -63,18 +65,46 @@ export interface GeneLibrary {
   };
 }
 
+export interface B2CGeneLibrary {
+  dimensions: {
+    demographic_segment: string[];
+    psychographic_profile: string[];
+    lifestyle_context: string[];
+    purchase_occasion: string[];
+    channel_preference: string[];
+    price_sensitivity: string[];
+    brand_relationship: string[];
+    usage_frequency: string[];
+  };
+}
+
+export type GeneLibrary = B2BGeneLibrary | B2CGeneLibrary;
+
+export interface B2BGenes {
+  industry_vertical: string;
+  company_size: string;
+  decision_maker: string;
+  purchase_trigger: string;
+  tech_adoption: string;
+  buying_process: string;
+  budget_authority: string;
+  urgency_profile: string;
+}
+
+export interface B2CGenes {
+  demographic_segment: string;
+  psychographic_profile: string;
+  lifestyle_context: string;
+  purchase_occasion: string;
+  channel_preference: string;
+  price_sensitivity: string;
+  brand_relationship: string;
+  usage_frequency: string;
+}
+
 export interface Genome {
   id: string;
-  genes: {
-    industry_vertical: string;
-    company_size: string;
-    decision_maker: string;
-    purchase_trigger: string;
-    tech_adoption: string;
-    buying_process: string;
-    budget_authority: string;
-    urgency_profile: string;
-  };
+  genes: B2BGenes | B2CGenes;
   fitness: {
     painIntensity: number;
     accessToDecisionMaker: number;
@@ -110,6 +140,12 @@ export interface DiscoveryContext {
   gtmConstraint: string;
   salesMotion: string;
   existingHypothesis?: string;
+  segmentationMode?: SegmentationMode;
+}
+
+export function detectSegmentationMode(offeringType: string): SegmentationMode {
+  const b2cTypes = ['b2c_software', 'physical_product', 'content_education'];
+  return b2cTypes.includes(offeringType) ? 'b2c' : 'b2b';
 }
 
 export class SegmentDiscoveryEngine {
@@ -119,8 +155,8 @@ export class SegmentDiscoveryEngine {
     this.anthropic = new Anthropic();
   }
 
-  async generateGeneLibrary(context: DiscoveryContext): Promise<GeneLibrary> {
-    const prompt = `You are a market segmentation expert specializing in discovering SURPRISING, NON-OBVIOUS customer segments. Your job is to surface segments that founders would never think of on their own.
+  private getB2BGeneLibraryPrompt(context: DiscoveryContext): string {
+    return `You are a market segmentation expert specializing in discovering SURPRISING, NON-OBVIOUS B2B customer segments. Your job is to surface segments that founders would never think of on their own.
 
 OFFERING CONTEXT:
 - Description: ${context.offeringDescription}
@@ -227,12 +263,6 @@ DIMENSIONS TO POPULATE (50+ alleles each):
 MUTATION REQUIREMENT:
 For each dimension, include 5-10 "MUTATION" options - roles, industries, or contexts that seem like UNLIKELY or COUNTERINTUITIVE fits at first glance but might have the underlying need. These are often where the best insights come from.
 
-Example mutations:
-- A D&D game master who needs project management tools to run campaigns
-- A farmer who needs analytics to track crop yields
-- A church group that needs team collaboration software
-- A hobbyist collector who needs inventory management
-
 REQUIREMENTS:
 - Generate 50+ alleles per dimension
 - Include obvious segments but PRIORITIZE non-obvious ones
@@ -253,6 +283,138 @@ Return ONLY valid JSON with this structure:
     "urgency_profile": ["Profile 1", "Profile 2", ... 50+ options]
   }
 }`;
+  }
+
+  private getB2CGeneLibraryPrompt(context: DiscoveryContext): string {
+    return `You are a consumer market segmentation expert specializing in discovering SURPRISING, NON-OBVIOUS B2C customer segments. Your job is to surface consumer segments that founders would never think of on their own.
+
+OFFERING CONTEXT:
+- Description: ${context.offeringDescription}
+- Type: ${context.offeringType}
+- Stage: ${context.stage}
+- GTM Constraint: ${context.gtmConstraint}
+- Sales Motion: ${context.salesMotion}
+${context.existingHypothesis ? `- Existing Hypothesis: ${context.existingHypothesis}` : ''}
+
+Generate a COMPREHENSIVE gene library with 50+ options per dimension. The goal is DIVERSITY and DISCOVERY - push beyond the obvious.
+
+KEY PRINCIPLE: "Who has this need but nobody's serving them well?"
+
+DIMENSIONS TO POPULATE (50+ alleles each):
+
+1. demographic_segment - WHO they are:
+   - Age groups (Gen Z, Millennials, Gen X, Boomers, Silent Gen)
+   - Life stages (students, new grads, young professionals, new parents, empty nesters, retirees)
+   - Family composition (singles, couples, young families, multi-generational households)
+   - Income levels (budget-conscious, middle-income, affluent, ultra-high-net-worth)
+   - Geographic (urban, suburban, rural, coastal, heartland)
+   - Cultural backgrounds (immigrants, expats, multicultural families)
+   - Education levels (high school, college, graduate, trade school)
+   - Occupation types (blue collar, white collar, gig workers, stay-at-home parents)
+   Include UNUSUAL demographics that might have the underlying need.
+
+2. psychographic_profile - HOW they think:
+   - Values-driven (eco-conscious, health-focused, family-first, career-driven)
+   - Risk tolerance (adventurous, cautious, moderate)
+   - Social orientation (introverts, extroverts, ambiverts)
+   - Decision style (impulsive, analytical, emotional, social proof seekers)
+   - Status orientation (aspirational, practical, luxury seekers, minimalists)
+   - Tech relationship (digital natives, tech-curious, tech-resistant)
+   - Health consciousness (wellness obsessed, health aware, health indifferent)
+   - Environmental stance (activists, concerned, indifferent, skeptics)
+
+3. lifestyle_context - HOW they live:
+   - Living situations (renters, homeowners, apartment dwellers, mobile living)
+   - Daily routines (9-5 workers, shift workers, remote workers, freelancers)
+   - Hobbies and interests (sports, gaming, crafts, travel, cooking, fitness)
+   - Social activities (social butterflies, homebodies, community volunteers)
+   - Pet owners (dogs, cats, exotic pets, multiple pets)
+   - Dietary preferences (vegan, keto, gluten-free, foodie, convenience eaters)
+   - Fitness levels (athletes, gym-goers, casual exercisers, sedentary)
+   - Entertainment preferences (streamers, readers, outdoor enthusiasts, gamers)
+
+4. purchase_occasion - WHEN they buy:
+   - Life events (weddings, babies, moving, graduation, retirement)
+   - Seasonal triggers (holidays, back-to-school, summer, New Year's resolutions)
+   - Emotional states (stress relief, celebration, self-care, boredom)
+   - Problem triggers (something broke, ran out, discovered need)
+   - Social triggers (gift giving, keeping up with friends, recommendations)
+   - Habitual purchases (routine replenishment, subscriptions)
+   - Impulse moments (browsing, waiting, commuting)
+   - Discovery moments (saw on social media, heard from friend, saw in store)
+
+5. channel_preference - WHERE they shop:
+   - E-commerce (Amazon, DTC brands, marketplaces)
+   - Social commerce (Instagram, TikTok Shop, Facebook Marketplace)
+   - Physical retail (big box, boutique, convenience stores)
+   - Subscription services (monthly boxes, auto-replenishment)
+   - Local/artisan (farmers markets, craft fairs, local shops)
+   - Discount/value (outlet stores, warehouse clubs, dollar stores)
+   - Specialty channels (niche online communities, enthusiast sites)
+   - Hybrid (BOPIS, curbside, showrooming)
+
+6. price_sensitivity - HOW they value money:
+   - Premium seekers (quality over price, status purchases)
+   - Value optimizers (best bang for buck, comparison shoppers)
+   - Deal hunters (coupon clippers, wait for sales, cashback obsessed)
+   - Budget constrained (paycheck-to-paycheck, student budgets)
+   - Situational spenders (splurge on passions, scrimp elsewhere)
+   - Subscription tolerant (willing to pay recurring for convenience)
+   - Free trial seekers (convert with experience, not price)
+   - Investment mindset (pay more for durability/longevity)
+
+7. brand_relationship - HOW they connect with brands:
+   - Brand loyal (stick with what works, resistant to change)
+   - Brand curious (open to trying new things, variety seekers)
+   - Brand agnostic (commodity buyers, private label fans)
+   - Brand advocates (influencers, reviewers, word-of-mouth drivers)
+   - Brand skeptics (anti-corporate, prefer indie/local)
+   - Community seekers (join brand communities, attend events)
+   - Cause-aligned (support brands matching their values)
+   - Convenience-driven (whatever is easiest, lowest friction)
+
+8. usage_frequency - HOW often they engage:
+   - Daily users (habitual, part of routine)
+   - Weekly users (regular but not daily)
+   - Occasional users (monthly, seasonal)
+   - One-time/rare users (major purchases, special occasions)
+   - Binge users (heavy use periods followed by breaks)
+   - Trial users (trying before committing)
+   - Power users (heavy usage, advanced features)
+   - Light users (minimal engagement, basic features only)
+
+MUTATION REQUIREMENT:
+For each dimension, include 5-10 "MUTATION" options - consumer types that seem like UNLIKELY or COUNTERINTUITIVE fits at first glance but might have the underlying need. These are often where the best insights come from.
+
+REQUIREMENTS:
+- Generate 50+ alleles per dimension
+- Include obvious consumer segments but PRIORITIZE non-obvious ones
+- Force diversity - no dimension should be dominated by one category
+- Include the mutation options explicitly
+- Think about underserved consumer segments that are overlooked
+
+Return ONLY valid JSON with this structure:
+{
+  "dimensions": {
+    "demographic_segment": ["Segment 1", "Segment 2", ... 50+ options],
+    "psychographic_profile": ["Profile 1", "Profile 2", ... 50+ options],
+    "lifestyle_context": ["Context 1", "Context 2", ... 50+ options],
+    "purchase_occasion": ["Occasion 1", "Occasion 2", ... 50+ options],
+    "channel_preference": ["Channel 1", "Channel 2", ... 50+ options],
+    "price_sensitivity": ["Sensitivity 1", "Sensitivity 2", ... 50+ options],
+    "brand_relationship": ["Relationship 1", "Relationship 2", ... 50+ options],
+    "usage_frequency": ["Frequency 1", "Frequency 2", ... 50+ options]
+  }
+}`;
+  }
+
+  async generateGeneLibrary(context: DiscoveryContext): Promise<GeneLibrary> {
+    const mode = context.segmentationMode || detectSegmentationMode(context.offeringType);
+    const prompt = mode === 'b2c' 
+      ? this.getB2CGeneLibraryPrompt(context) 
+      : this.getB2BGeneLibraryPrompt(context);
+    
+    console.log(`[SegmentDiscoveryEngine] Using ${mode.toUpperCase()} segmentation mode for: ${context.offeringType}`);
 
     return withRetry(async () => {
       const response = await withTimeout(
@@ -288,6 +450,8 @@ Return ONLY valid JSON with this structure:
   }
 
   async generateGenomes(geneLibrary: GeneLibrary, context: DiscoveryContext, count: number = 100): Promise<Genome[]> {
+    const mode = context.segmentationMode || detectSegmentationMode(context.offeringType);
+    
     // Split into 4 parallel batches for faster generation
     const batchSize = Math.ceil(count / 4);
     const batchCount = 4;
@@ -302,38 +466,48 @@ Return ONLY valid JSON with this structure:
     // Flatten and apply diversity constraints
     const allGenomes = batchResults.flat();
     const seen = new Set<string>();
-    const roleCounts = new Map<string, number>();
-    const MAX_GENOMES_PER_ROLE = 3;
+    const diversityCounts = new Map<string, number>();
+    const MAX_GENOMES_PER_KEY = 3;
     const uniqueGenomes: Genome[] = [];
     let duplicatesRemoved = 0;
-    let roleConstraintFiltered = 0;
+    let diversityFiltered = 0;
+    
+    // Determine diversity key based on mode
+    const diversityKey = mode === 'b2c' ? 'demographic_segment' : 'decision_maker';
     
     for (const genome of allGenomes) {
-      // Canonical hash with sorted keys for reliable deduplication
+      // Canonical hash for deduplication
       const hash = this.getCanonicalGenomeHash(genome.genes);
       if (seen.has(hash)) {
         duplicatesRemoved++;
         continue;
       }
       
-      // Diversity constraint: max 3 genomes per decision_maker role
-      const role = genome.genes.decision_maker;
-      const currentRoleCount = roleCounts.get(role) || 0;
-      if (currentRoleCount >= MAX_GENOMES_PER_ROLE) {
-        roleConstraintFiltered++;
+      // Diversity constraint: max 3 genomes per key dimension
+      const keyValue = (genome.genes as any)[diversityKey] as string | undefined;
+      
+      // Guard: skip genomes missing the diversity key (mode mismatch protection)
+      if (!keyValue) {
+        console.warn(`[SegmentDiscoveryEngine] Skipping genome with missing ${diversityKey} key`);
+        continue;
+      }
+      
+      const currentCount = diversityCounts.get(keyValue) || 0;
+      if (currentCount >= MAX_GENOMES_PER_KEY) {
+        diversityFiltered++;
         continue;
       }
       
       seen.add(hash);
-      roleCounts.set(role, currentRoleCount + 1);
+      diversityCounts.set(keyValue, currentCount + 1);
       uniqueGenomes.push({
         ...genome,
         id: `genome_${String(uniqueGenomes.length + 1).padStart(3, '0')}`,
       });
     }
 
-    console.log(`[SegmentDiscoveryEngine] Generated ${uniqueGenomes.length} unique genomes (${duplicatesRemoved} duplicates, ${roleConstraintFiltered} filtered by role constraint)`);
-    console.log(`[SegmentDiscoveryEngine] Role diversity: ${roleCounts.size} unique decision_maker roles`);
+    console.log(`[SegmentDiscoveryEngine] Generated ${uniqueGenomes.length} unique genomes (${duplicatesRemoved} duplicates, ${diversityFiltered} filtered by diversity constraint)`);
+    console.log(`[SegmentDiscoveryEngine] Diversity: ${diversityCounts.size} unique ${diversityKey} values`);
     
     // Ensure we have at least 'count' genomes (or as many as we could generate)
     if (uniqueGenomes.length < count) {
@@ -344,8 +518,26 @@ Return ONLY valid JSON with this structure:
   }
 
   private getCanonicalGenomeHash(genes: Genome['genes']): string {
-    // Create canonical hash with explicit key ordering
-    const orderedKeys: (keyof Genome['genes'])[] = [
+    // Create canonical hash with explicit key ordering per mode
+    // Check which mode by looking for dimension keys present
+    const isB2C = 'demographic_segment' in genes;
+    
+    if (isB2C) {
+      const b2cKeys: (keyof B2CGenes)[] = [
+        'demographic_segment',
+        'psychographic_profile',
+        'lifestyle_context',
+        'purchase_occasion',
+        'channel_preference',
+        'price_sensitivity',
+        'brand_relationship',
+        'usage_frequency'
+      ];
+      return b2cKeys.map(key => (genes as B2CGenes)[key]).join('|');
+    }
+    
+    // B2B mode
+    const b2bKeys: (keyof B2BGenes)[] = [
       'industry_vertical',
       'company_size', 
       'decision_maker',
@@ -355,46 +547,29 @@ Return ONLY valid JSON with this structure:
       'budget_authority',
       'urgency_profile'
     ];
-    return orderedKeys.map(key => genes[key]).join('|');
+    return b2bKeys.map(key => (genes as B2BGenes)[key]).join('|');
   }
 
-  private async generateGenomeBatch(
-    geneLibrary: GeneLibrary, 
-    context: DiscoveryContext, 
-    count: number, 
-    batchIndex: number
-  ): Promise<Genome[]> {
-    const focusAreas = [
-      'high-potential obvious segments that are most likely to succeed',
-      'non-obvious but promising niche segments with unique opportunities',
-      'edge cases and challenging segments to stress-test assumptions',
-      'diverse combinations exploring the full gene space'
-    ];
-
-    const prompt = `You are a market strategist creating segment combinations for discovery.
-
-OFFERING CONTEXT:
-- Description: ${context.offeringDescription}
-- Type: ${context.offeringType}
-- Stage: ${context.stage}
-- GTM Constraint: ${context.gtmConstraint}
-- Sales Motion: ${context.salesMotion}
-
-GENE LIBRARY (available alleles for each dimension):
-${JSON.stringify(geneLibrary.dimensions, null, 2)}
-
-YOUR FOCUS: Generate ${count} unique segment combinations focusing on ${focusAreas[batchIndex]}.
-
-BATCH ID: ${batchIndex + 1} of 4 - Use IDs starting with genome_${String(batchIndex * count + 1).padStart(3, '0')}.
-
-REQUIREMENTS:
-- Create STRATEGICALLY interesting combinations for your focus area
-- Each genome is a specific combination of one allele from each dimension
-- Consider which combinations make logical sense together
-- Ensure variety within your focus area
-
-Return ONLY valid JSON array with exactly ${count} genomes:
-[
+  private getGenomeExampleForMode(mode: SegmentationMode, batchIndex: number, count: number): string {
+    if (mode === 'b2c') {
+      return `[
+  {
+    "id": "genome_${String(batchIndex * count + 1).padStart(3, '0')}",
+    "genes": {
+      "demographic_segment": "one allele from the library",
+      "psychographic_profile": "one allele from the library",
+      "lifestyle_context": "one allele from the library",
+      "purchase_occasion": "one allele from the library",
+      "channel_preference": "one allele from the library",
+      "price_sensitivity": "one allele from the library",
+      "brand_relationship": "one allele from the library",
+      "usage_frequency": "one allele from the library"
+    }
+  },
+  ...
+]`;
+    }
+    return `[
   {
     "id": "genome_${String(batchIndex * count + 1).padStart(3, '0')}",
     "genes": {
@@ -410,6 +585,48 @@ Return ONLY valid JSON array with exactly ${count} genomes:
   },
   ...
 ]`;
+  }
+
+  private async generateGenomeBatch(
+    geneLibrary: GeneLibrary, 
+    context: DiscoveryContext, 
+    count: number, 
+    batchIndex: number
+  ): Promise<Genome[]> {
+    const mode = context.segmentationMode || detectSegmentationMode(context.offeringType);
+    const segmentType = mode === 'b2c' ? 'consumer' : 'business';
+    
+    const focusAreas = [
+      'high-potential obvious segments that are most likely to succeed',
+      'non-obvious but promising niche segments with unique opportunities',
+      'edge cases and challenging segments to stress-test assumptions',
+      'diverse combinations exploring the full gene space'
+    ];
+
+    const prompt = `You are a ${segmentType} market strategist creating segment combinations for discovery.
+
+OFFERING CONTEXT:
+- Description: ${context.offeringDescription}
+- Type: ${context.offeringType}
+- Stage: ${context.stage}
+- GTM Constraint: ${context.gtmConstraint}
+- Sales Motion: ${context.salesMotion}
+
+GENE LIBRARY (available alleles for each dimension):
+${JSON.stringify(geneLibrary.dimensions, null, 2)}
+
+YOUR FOCUS: Generate ${count} unique ${segmentType} segment combinations focusing on ${focusAreas[batchIndex]}.
+
+BATCH ID: ${batchIndex + 1} of 4 - Use IDs starting with genome_${String(batchIndex * count + 1).padStart(3, '0')}.
+
+REQUIREMENTS:
+- Create STRATEGICALLY interesting combinations for your focus area
+- Each genome is a specific combination of one allele from each dimension
+- Consider which combinations make logical sense together
+- Ensure variety within your focus area
+
+Return ONLY valid JSON array with exactly ${count} genomes:
+${this.getGenomeExampleForMode(mode, batchIndex, count)}`;
 
     return withRetry(async () => {
       const response = await withTimeout(
@@ -470,8 +687,36 @@ Return ONLY valid JSON array with exactly ${count} genomes:
     return scoredGenomes.sort((a, b) => b.fitness.totalScore - a.fitness.totalScore);
   }
 
+  private getScoringCriteriaForMode(mode: SegmentationMode): string {
+    if (mode === 'b2c') {
+      return `Score each consumer segment on these 8 criteria (1-5 scale each, 40 points max total):
+
+1. painIntensity (1-5): How intense is the need/desire this consumer segment experiences?
+2. accessToDecisionMaker (1-5): How easy is it to reach and acquire these consumers?
+3. purchasePowerMatch (1-5): Does their spending ability match your pricing?
+4. competitionSaturation (1-5): How uncrowded is this segment? (5 = very uncrowded/good)
+5. productFit (1-5): How well does your offering fit their needs and lifestyle?
+6. urgencyAlignment (1-5): How urgent is their purchase intent?
+7. scalePotential (1-5): Can you scale to reach more consumers in this segment?
+8. gtmEfficiency (1-5): Can you efficiently market to this segment given your constraints?`;
+    }
+    return `Score each business segment on these 8 criteria (1-5 scale each, 40 points max total):
+
+1. painIntensity (1-5): How intense is the pain this segment experiences?
+2. accessToDecisionMaker (1-5): How easy is it to reach the decision maker?
+3. purchasePowerMatch (1-5): Does their budget match your pricing?
+4. competitionSaturation (1-5): How uncrowded is this segment? (5 = very uncrowded/good)
+5. productFit (1-5): How well does your offering fit their needs?
+6. urgencyAlignment (1-5): How urgent is their need?
+7. scalePotential (1-5): Can you scale in this segment?
+8. gtmEfficiency (1-5): Can you efficiently reach this segment given your constraints?`;
+  }
+
   private async scoreBatch(genomes: Genome[], context: DiscoveryContext): Promise<Genome[]> {
-    const prompt = `You are a rigorous market analyst scoring segment viability.
+    const mode = context.segmentationMode || detectSegmentationMode(context.offeringType);
+    const segmentType = mode === 'b2c' ? 'consumer' : 'business';
+    
+    const prompt = `You are a rigorous ${segmentType} market analyst scoring segment viability.
 
 OFFERING CONTEXT:
 - Description: ${context.offeringDescription}
@@ -483,16 +728,7 @@ OFFERING CONTEXT:
 GENOMES TO SCORE:
 ${JSON.stringify(genomes.map(g => ({ id: g.id, genes: g.genes })), null, 2)}
 
-Score each genome on these 8 criteria (1-5 scale each, 40 points max total):
-
-1. painIntensity (1-5): How intense is the pain this segment experiences?
-2. accessToDecisionMaker (1-5): How easy is it to reach the decision maker?
-3. purchasePowerMatch (1-5): Does their budget match your pricing?
-4. competitionSaturation (1-5): How uncrowded is this segment? (5 = very uncrowded/good)
-5. productFit (1-5): How well does your offering fit their needs?
-6. urgencyAlignment (1-5): How urgent is their need?
-7. scalePotential (1-5): Can you scale in this segment?
-8. gtmEfficiency (1-5): Can you efficiently reach this segment given your constraints?
+${this.getScoringCriteriaForMode(mode)}
 
 SCORING RULES:
 - Be RIGOROUS and DIFFERENTIATED - don't give everything 3s and 4s
