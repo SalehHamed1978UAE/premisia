@@ -17,8 +17,18 @@ import {
   Library, 
   XCircle,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  Briefcase,
+  Building2
 } from "lucide-react";
+
+const formatLabel = (value: string | undefined): string => {
+  if (!value) return 'Unknown';
+  return value
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
 
 interface Genome {
   id: string;
@@ -77,6 +87,11 @@ interface DiscoveryResults {
   geneLibrary: GeneLibrary;
   genomes: Genome[];
   synthesis: SegmentSynthesis;
+  offeringDescription?: string;
+  offeringType?: string;
+  stage?: string;
+  gtmConstraint?: string;
+  salesMotion?: string;
 }
 
 interface ProgressEvent {
@@ -102,6 +117,13 @@ export default function SegmentDiscoveryPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const hasStartedRef = useRef(false);
+  const sseRetryCountRef = useRef(0);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const usePollingFallbackRef = useRef(false);
+  
+  const STORAGE_KEY = `segment-discovery-progress-${understandingId}`;
+  const MAX_SSE_RETRIES = 3;
+  const POLL_INTERVAL_MS = 5000;
 
   const { data: results, refetch: refetchResults } = useQuery<DiscoveryResults>({
     queryKey: ['/api/marketing-consultant/results', understandingId],
@@ -109,13 +131,43 @@ export default function SegmentDiscoveryPage() {
   });
 
   useEffect(() => {
-    // Skip discovery start if we're just viewing saved results
+    // Skip if viewing saved results
     if (isViewingResults) return;
     if (!understandingId || hasStartedRef.current) return;
     hasStartedRef.current = true;
 
-    const startDiscovery = async () => {
+    const checkAndResume = async () => {
       try {
+        const savedProgress = restoreProgress();
+        
+        const statusResponse = await fetch(`/api/marketing-consultant/discovery-status/${understandingId}`);
+        
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json();
+          
+          if (statusData.status === 'completed') {
+            console.log('[SegmentDiscovery] Discovery already completed');
+            clearProgress();
+            setPageState('results');
+            refetchResults();
+            return;
+          } else if (statusData.status === 'failed') {
+            console.log('[SegmentDiscovery] Discovery failed');
+            clearProgress();
+            setErrorMessage(statusData.error || 'Discovery failed');
+            setPageState('error');
+            return;
+          } else if (statusData.status === 'running' || statusData.status === 'pending') {
+            console.log('[SegmentDiscovery] Resuming in-flight discovery');
+            if (statusData.progressMessage) {
+              setCurrentStep(statusData.progressMessage);
+            }
+            setPageState('progress');
+            connectToSSE();
+            return;
+          }
+        }
+
         const response = await fetch(`/api/marketing-consultant/start-discovery/${understandingId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -140,17 +192,101 @@ export default function SegmentDiscoveryPage() {
       }
     };
 
-    startDiscovery();
+    checkAndResume();
 
     return () => {
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
       }
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
     };
   }, [understandingId, isViewingResults, toast]);
 
-  const connectToSSE = () => {
+  const saveProgress = (step: string, prog: number) => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ step, progress: prog, timestamp: Date.now() }));
+    } catch (e) {
+      console.warn('[SegmentDiscovery] Failed to save progress to localStorage');
+    }
+  };
+
+  const restoreProgress = () => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (Date.now() - data.timestamp < 600000) {
+          setCurrentStep(data.step);
+          setProgress(data.progress);
+          console.log('[SegmentDiscovery] Restored progress:', data);
+          return data;
+        }
+      }
+    } catch (e) {
+      console.warn('[SegmentDiscovery] Failed to restore progress');
+    }
+    return null;
+  };
+
+  const clearProgress = () => {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (e) {}
+  };
+
+  const startPollingFallback = () => {
+    if (pollingIntervalRef.current) return;
+    
+    console.log('[SegmentDiscovery] Switching to polling fallback');
+    usePollingFallbackRef.current = true;
+    
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/marketing-consultant/discovery-status/${understandingId}`);
+        if (!response.ok) {
+          throw new Error('Poll failed');
+        }
+        const data = await response.json();
+        
+        if (data.status === 'completed') {
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          clearProgress();
+          setPageState('results');
+          refetchResults();
+        } else if (data.status === 'failed') {
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          clearProgress();
+          setErrorMessage(data.error || 'Discovery failed');
+          setPageState('error');
+        } else if (data.progressMessage) {
+          setCurrentStep(data.progressMessage);
+        }
+      } catch (e) {
+        console.error('[SegmentDiscovery] Polling error:', e);
+      }
+    };
+
+    poll();
+    pollingIntervalRef.current = setInterval(poll, POLL_INTERVAL_MS);
+  };
+
+  const connectToSSE = (retryAttempt = 0) => {
     if (!understandingId) return;
+
+    restoreProgress();
+
+    if (usePollingFallbackRef.current) {
+      startPollingFallback();
+      return;
+    }
 
     const eventSource = new EventSource(`/api/marketing-consultant/discovery-stream/${understandingId}`);
     eventSourceRef.current = eventSource;
@@ -160,9 +296,12 @@ export default function SegmentDiscoveryPage() {
         const data: ProgressEvent = JSON.parse(event.data);
         setCurrentStep(data.step);
         setProgress(data.progress);
+        saveProgress(data.step, data.progress);
+        sseRetryCountRef.current = 0;
 
         if (data.step === 'complete' || data.progress >= 100) {
           eventSource.close();
+          clearProgress();
           setPageState('results');
           refetchResults();
         }
@@ -174,9 +313,24 @@ export default function SegmentDiscoveryPage() {
     eventSource.onerror = (error) => {
       console.error('[SegmentDiscovery] SSE error:', error);
       eventSource.close();
-      if (pageState === 'progress') {
-        setPageState('results');
-        refetchResults();
+      
+      sseRetryCountRef.current++;
+      
+      if (sseRetryCountRef.current < MAX_SSE_RETRIES) {
+        const backoffMs = Math.pow(2, sseRetryCountRef.current - 1) * 1000;
+        console.log(`[SegmentDiscovery] SSE retry ${sseRetryCountRef.current}/${MAX_SSE_RETRIES} in ${backoffMs}ms`);
+        toast({
+          title: "Connection interrupted",
+          description: `Reconnecting... (attempt ${sseRetryCountRef.current})`,
+        });
+        setTimeout(() => connectToSSE(sseRetryCountRef.current), backoffMs);
+      } else {
+        console.log('[SegmentDiscovery] SSE retries exhausted, switching to polling');
+        toast({
+          title: "Switching to polling mode",
+          description: "Monitoring progress via polling...",
+        });
+        startPollingFallback();
       }
     };
   };
@@ -408,6 +562,46 @@ export default function SegmentDiscoveryPage() {
                     We analyzed {genomes.length} potential segments and identified your beachhead market.
                   </p>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card data-testid="card-business-context">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-primary" />
+                <CardTitle className="text-base">Your Business</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {results.offeringDescription && (
+                <div>
+                  <h4 className="text-sm font-medium text-muted-foreground mb-1">Business Idea</h4>
+                  <p className="text-sm" data-testid="text-offering-description">{results.offeringDescription}</p>
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {results.offeringType && (
+                  <Badge variant="outline" className="flex items-center gap-1" data-testid="badge-offering-type">
+                    <Briefcase className="h-3 w-3" />
+                    {formatLabel(results.offeringType)}
+                  </Badge>
+                )}
+                {results.stage && (
+                  <Badge variant="outline" data-testid="badge-stage">
+                    {formatLabel(results.stage)}
+                  </Badge>
+                )}
+                {results.gtmConstraint && (
+                  <Badge variant="outline" data-testid="badge-gtm">
+                    {formatLabel(results.gtmConstraint)}
+                  </Badge>
+                )}
+                {results.salesMotion && (
+                  <Badge variant="outline" data-testid="badge-sales-motion">
+                    {formatLabel(results.salesMotion)}
+                  </Badge>
+                )}
               </div>
             </CardContent>
           </Card>

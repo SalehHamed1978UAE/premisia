@@ -711,6 +711,46 @@ router.get('/discovery-stream/:id', async (req: Request, res: Response) => {
   }
 });
 
+router.get('/discovery-status/:id', async (req: Request, res: Response) => {
+  try {
+    const user = req.user as any;
+    if (!user?.claims?.sub) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const userId = user.claims.sub;
+    const { id } = req.params;
+
+    const [record] = await db.select({
+      id: segmentDiscoveryResults.id,
+      status: segmentDiscoveryResults.status,
+      progressMessage: segmentDiscoveryResults.progressMessage,
+      errorMessage: segmentDiscoveryResults.errorMessage,
+      userId: segmentDiscoveryResults.userId,
+    })
+      .from(segmentDiscoveryResults)
+      .where(eq(segmentDiscoveryResults.id, id))
+      .limit(1);
+
+    if (!record) {
+      return res.status(404).json({ error: 'Discovery not found' });
+    }
+
+    if (record.userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    res.json({
+      status: record.status,
+      progressMessage: record.progressMessage,
+      error: record.errorMessage,
+    });
+  } catch (error: any) {
+    console.error('[Marketing Consultant] Error in discovery status:', error);
+    res.status(500).json({ error: error.message || 'Failed to get status' });
+  }
+});
+
 router.get('/results/:id', async (req: Request, res: Response) => {
   try {
     const user = req.user as any;
