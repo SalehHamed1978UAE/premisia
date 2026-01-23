@@ -1,18 +1,22 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, differenceInMinutes } from "date-fns";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import { 
   FolderOpen, 
   ChevronRight, 
   Target, 
   Calendar,
   Plus,
-  Loader2
+  Loader2,
+  Trash2,
+  AlertCircle
 } from "lucide-react";
 
 interface Discovery {
@@ -26,14 +30,40 @@ interface Discovery {
 
 export default function MyDiscoveriesPage() {
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: discoveriesData, isLoading } = useQuery<{ discoveries: Discovery[] }>({
     queryKey: ['/api/marketing-consultant/discoveries'],
   });
 
+  const deleteDiscovery = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest('DELETE', `/api/marketing-consultant/discovery/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/marketing-consultant/discoveries'] });
+      toast({
+        title: "Discovery cancelled",
+        description: "The stale discovery has been removed.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to cancel",
+        description: error.message || "Could not cancel the discovery",
+        variant: "destructive",
+      });
+    },
+  });
+
   const discoveries = discoveriesData?.discoveries || [];
   const completedDiscoveries = discoveries.filter(d => d.status === 'completed');
   const inProgressDiscoveries = discoveries.filter(d => d.status !== 'completed');
+  
+  const isStale = (createdAt: string) => {
+    return differenceInMinutes(new Date(), new Date(createdAt)) > 10;
+  };
 
   const formatOfferingType = (type: string) => {
     const labels: Record<string, string> = {
@@ -134,41 +164,66 @@ export default function MyDiscoveriesPage() {
                   In Progress
                 </h2>
                 <div className="space-y-3">
-                  {inProgressDiscoveries.map((discovery) => (
-                    <Card 
-                      key={discovery.id} 
-                      className="hover:bg-muted/30 transition-colors cursor-pointer"
-                      onClick={() => setLocation(`/marketing-consultant/segment-discovery/${discovery.id}`)}
-                      data-testid={`card-discovery-${discovery.id}`}
-                    >
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                              <Target className="h-5 w-5 text-blue-500" />
+                  {inProgressDiscoveries.map((discovery) => {
+                    const stale = isStale(discovery.createdAt);
+                    return (
+                      <Card 
+                        key={discovery.id} 
+                        className={`hover:bg-muted/30 transition-colors ${stale ? 'border-amber-500/50' : ''}`}
+                        data-testid={`card-discovery-${discovery.id}`}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div 
+                              className="flex items-center gap-4 flex-1 cursor-pointer"
+                              onClick={() => setLocation(`/marketing-consultant/segment-discovery/${discovery.id}`)}
+                            >
+                              <div className={`h-10 w-10 rounded-lg flex items-center justify-center ${stale ? 'bg-amber-500/10' : 'bg-blue-500/10'}`}>
+                                {stale ? (
+                                  <AlertCircle className="h-5 w-5 text-amber-500" />
+                                ) : (
+                                  <Target className="h-5 w-5 text-blue-500" />
+                                )}
+                              </div>
+                              <div>
+                                <div className="font-medium flex items-center gap-2">
+                                  {formatOfferingType(discovery.offeringType)}
+                                  {stale && <span className="text-xs text-amber-500">(Stale)</span>}
+                                </div>
+                                <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                  <span>{formatStage(discovery.stage)}</span>
+                                  <span>•</span>
+                                  <span className="flex items-center gap-1">
+                                    <Calendar className="h-3 w-3" />
+                                    Started {formatDistanceToNow(new Date(discovery.createdAt), { addSuffix: true })}
+                                  </span>
+                                </div>
+                              </div>
                             </div>
-                            <div>
-                              <div className="font-medium">
-                                {formatOfferingType(discovery.offeringType)}
-                              </div>
-                              <div className="text-sm text-muted-foreground flex items-center gap-2">
-                                <span>{formatStage(discovery.stage)}</span>
-                                <span>•</span>
-                                <span className="flex items-center gap-1">
-                                  <Calendar className="h-3 w-3" />
-                                  Started {formatDistanceToNow(new Date(discovery.createdAt), { addSuffix: true })}
-                                </span>
-                              </div>
+                            <div className="flex items-center gap-2">
+                              {getStatusBadge(discovery.status)}
+                              {stale && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteDiscovery.mutate(discovery.id);
+                                  }}
+                                  disabled={deleteDiscovery.isPending}
+                                  data-testid={`button-cancel-${discovery.id}`}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                              <ChevronRight className="h-5 w-5 text-muted-foreground" />
                             </div>
                           </div>
-                          <div className="flex items-center gap-3">
-                            {getStatusBadge(discovery.status)}
-                            <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               </div>
             )}

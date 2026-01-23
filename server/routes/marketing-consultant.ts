@@ -751,6 +751,44 @@ router.get('/discovery-status/:id', async (req: Request, res: Response) => {
   }
 });
 
+router.delete('/discovery/:id', async (req: Request, res: Response) => {
+  try {
+    const user = req.user as any;
+    if (!user?.claims?.sub) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const userId = user.claims.sub;
+    const { id } = req.params;
+
+    const [record] = await db.select({
+      id: segmentDiscoveryResults.id,
+      userId: segmentDiscoveryResults.userId,
+      status: segmentDiscoveryResults.status,
+    })
+      .from(segmentDiscoveryResults)
+      .where(eq(segmentDiscoveryResults.id, id))
+      .limit(1);
+
+    if (!record) {
+      return res.status(404).json({ error: 'Discovery not found' });
+    }
+
+    if (record.userId !== userId) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    await db.delete(segmentDiscoveryResults)
+      .where(eq(segmentDiscoveryResults.id, id));
+
+    console.log(`[Marketing Consultant] Deleted discovery ${id} for user ${userId}`);
+    res.json({ success: true, message: 'Discovery cancelled and deleted' });
+  } catch (error: any) {
+    console.error('[Marketing Consultant] Error deleting discovery:', error);
+    res.status(500).json({ error: error.message || 'Failed to delete discovery' });
+  }
+});
+
 router.get('/results/:id', async (req: Request, res: Response) => {
   try {
     const user = req.user as any;
