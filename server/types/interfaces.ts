@@ -260,4 +260,9 @@ export const ServiceKeys = {
   
   // Other services
   SSE_PROGRESS_MANAGER: 'service:sse-progress',
+  
+  // Repositories
+  EPM_REPOSITORY: 'repository:epm',
+  JOURNEY_REPOSITORY: 'repository:journey',
+  STRATEGY_REPOSITORY: 'repository:strategy',
 } as const;

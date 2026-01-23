@@ -135,7 +135,23 @@ export function registerServices(): void {
     return new SSEProgressManager();
   });
 
-  console.log('[Container] ✓ Services registered');
+  // Repositories
+  container.register(ServiceKeys.EPM_REPOSITORY, () => {
+    const { EPMRepository } = require('../repositories');
+    return new EPMRepository();
+  });
+
+  container.register(ServiceKeys.JOURNEY_REPOSITORY, () => {
+    const { JourneyRepository } = require('../repositories');
+    return new JourneyRepository();
+  });
+
+  container.register(ServiceKeys.STRATEGY_REPOSITORY, () => {
+    const { StrategyRepository } = require('../repositories');
+    return new StrategyRepository();
+  });
+
+  console.log('[Container] ✓ Services and repositories registered');
 }
 
 /**
