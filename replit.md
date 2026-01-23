@@ -70,6 +70,14 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tail
 - **Ambiguity Resolution & Clarifications**: AI-powered clarification workflows for strategic inputs.
 - **Geographic Disambiguation**: Location-aware journey intake with OpenStreetMap/Nominatim integration for automatic detection and clarification of place names.
 - **Journey Registry V2**: Centralized journey definitions with automatic summary generation, baseline reuse, intelligent readiness thresholds, and comprehensive test coverage. Includes an EPM Completion Hook to bridge old and new flows.
+- **Module Catalog & Journey Config System (January 2026)**: Treats analyzers/generators as modules and expresses journeys via YAML config for eventual GUI composition without touching code. Key components:
+  - `server/modules/manifest.ts`: Module manifest types (ModuleManifest, PortDefinition) defining inputs, outputs, and dependencies
+  - `server/modules/journey-config.ts`: Journey configuration schema with page sequences, transitions, and conditions
+  - `server/modules/registry.ts`: ModuleRegistry class storing manifests and journey configs with validation
+  - `server/modules/manifests/`: Individual manifest files for each analyzer (BMC, Porter's, PESTLE, Five Whys, EPM Generator, Input Processor)
+  - `server/modules/journeys/*.yaml`: YAML-based journey configurations (starting with business-model-innovation.yaml)
+  - API endpoints: `GET /api/module-registry/modules`, `GET /api/module-registry/journeys`, `GET /api/module-registry/journeys/:id`, `GET /api/module-registry/stats`
+  - Journey resolver updated to check config-based journeys first with hard-coded fallback for backward compatibility
 - **Golden Records Automation System**: Baseline regression testing for journey executions with versioned snapshots, CLI tools, and auto-capture hooks.
 - **BMC SSE Regression Test Suite**: Comprehensive test coverage for Business Model Canvas SSE streaming contract, validating all event types and payload structures.
 

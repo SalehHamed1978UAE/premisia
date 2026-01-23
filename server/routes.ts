@@ -19,12 +19,17 @@ import marketingConsultantRoutes from "./routes/marketing-consultant";
 import strategiesHubRoutes from "./routes/strategies-hub";
 import epmCrudRoutes from "./routes/epm-crud";
 import ontologyRoutes from "./routes/ontology";
+import { moduleRegistryRouter } from "./routes/module-registry";
+import { initializeModuleSystem } from "./modules/initialize";
 import { backgroundJobService } from "./services/background-job-service";
 import { decrypt } from "./utils/encryption";
 import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
 import { db } from "./db";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Initialize module catalog and journey config system
+  initializeModuleSystem();
+  
   // Setup auth middleware synchronously (session, passport)
   // This MUST happen before route registration for req.user to be populated
   setupAuthMiddleware(app);
@@ -299,6 +304,9 @@ Marketing and events: $3k/month`,
 
   // Ontology routes (protected with auth)
   app.use("/api/ontology", requireAuth, ontologyRoutes);
+
+  // Module Registry routes (public for GUI composability)
+  app.use("/api/module-registry", moduleRegistryRouter);
 
   // Middleware to check roles (updated for Replit Auth)
   const requireRole = (roles: string[]) => async (req: any, res: any, next: any) => {
