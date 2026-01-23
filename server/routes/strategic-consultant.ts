@@ -1878,6 +1878,9 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
   console.log('[BMC-RESEARCH-STREAM] GET endpoint called! sessionId:', req.params.sessionId);
   req.socket.setTimeout(600000);
   
+  // Declare keepalive outside try block so it's accessible in catch
+  let keepaliveInterval: NodeJS.Timeout | null = null;
+  
   try {
     const { sessionId } = req.params;
     
@@ -1947,6 +1950,26 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
     
     // Send debugInput for QA verification
     res.write(`data: ${JSON.stringify({ type: 'debug', debugInput: input.slice(0, 200) })}\n\n`);
+
+    // Start SSE keepalive to prevent connection timeout during long-running research
+    // Sends a heartbeat comment every 15 seconds to keep the connection alive
+    keepaliveInterval = setInterval(() => {
+      try {
+        // SSE comment format (colon prefix) - keeps connection alive without triggering event handlers
+        res.write(`: keepalive ${Date.now()}\n\n`);
+      } catch (e) {
+        // Connection closed, stop keepalive
+        if (keepaliveInterval) clearInterval(keepaliveInterval);
+      }
+    }, 15000);
+    
+    // Clean up keepalive if client disconnects
+    res.on('close', () => {
+      if (keepaliveInterval) {
+        clearInterval(keepaliveInterval);
+        keepaliveInterval = null;
+      }
+    });
 
     let result;
     let decisions;
@@ -2151,6 +2174,10 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
     }
     
     const finalVersionNumber = version?.versionNumber || targetVersionNumber;
+    
+    // Stop keepalive before ending stream
+    if (keepaliveInterval) clearInterval(keepaliveInterval);
+    
     res.write(`data: ${JSON.stringify({ 
       type: 'complete', 
       data: {
@@ -2165,6 +2192,9 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
     res.end();
     console.log('[BMC-RESEARCH-STREAM] Stream ended successfully, nextUrl: /strategy-workspace/decisions/' + sessionId + '/' + finalVersionNumber);
   } catch (error: any) {
+    // Stop keepalive on error
+    if (keepaliveInterval) clearInterval(keepaliveInterval);
+    
     console.error('Error in /bmc-research/stream:', error);
     // Ensure error has type field for frontend handling
     const errorMessage = error.message || 'BMC research failed';
