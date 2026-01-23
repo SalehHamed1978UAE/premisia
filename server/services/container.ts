@@ -2,10 +2,26 @@
  * Service Container - Dependency Injection for modular services
  * 
  * Provides lazy initialization and singleton instances for services.
+ * Uses eager imports for ES modules compatibility.
  */
 
 import { ServiceKeys } from '../types/interfaces';
 import { createOpenAIProvider } from '../../src/lib/intelligent-planning/llm-provider';
+
+import { generateFullPassExport } from './export';
+import { MarkdownExporter } from './export/markdown-exporter';
+import { HtmlExporter } from './export/html-exporter';
+import { PdfExporter } from './export/pdf-exporter';
+import { DocxExporter } from './export/docx-exporter';
+import { CsvExporter } from './export/csv-exporter';
+import { EPMSynthesizer } from '../intelligence/epm-synthesizer';
+import { ContextBuilder } from '../intelligence/epm/context-builder';
+import { WorkstreamGenerator } from '../intelligence/epm/workstream-generator';
+import { TimelineCalculator } from '../intelligence/epm/timeline-calculator';
+import { ResourceAllocator } from '../intelligence/epm/resource-allocator';
+import { EPMValidator } from '../intelligence/epm/validator';
+import { sseProgressManager } from './sse-progress-manager';
+import { EPMRepository, JourneyRepository, StrategyRepository } from '../repositories';
 
 /**
  * Create LLM provider for WBS Builder and intelligent planning
@@ -63,91 +79,69 @@ export const container = new ServiceContainer();
  * Called during application startup
  */
 export function registerServices(): void {
-  // Export services
   container.register(ServiceKeys.EXPORT_ORCHESTRATOR, () => {
-    const { generateFullPassExport } = require('./export');
     return { generateFullPassExport };
   });
 
   container.register(ServiceKeys.MARKDOWN_EXPORTER, () => {
-    const { MarkdownExporter } = require('./export/markdown-exporter');
     return new MarkdownExporter();
   });
 
   container.register(ServiceKeys.HTML_EXPORTER, () => {
-    const { HtmlExporter } = require('./export/html-exporter');
     return new HtmlExporter();
   });
 
   container.register(ServiceKeys.PDF_EXPORTER, () => {
-    const { PdfExporter } = require('./export/pdf-exporter');
     return new PdfExporter();
   });
 
   container.register(ServiceKeys.DOCX_EXPORTER, () => {
-    const { DocxExporter } = require('./export/docx-exporter');
     return new DocxExporter();
   });
 
   container.register(ServiceKeys.CSV_EXPORTER, () => {
-    const { CsvExporter } = require('./export/csv-exporter');
     return new CsvExporter();
   });
 
-  // EPM services - pass proper LLM provider for WBS Builder
   container.register(ServiceKeys.EPM_SYNTHESIZER, () => {
-    const { EPMSynthesizer } = require('../intelligence/epm-synthesizer');
     const llm = createLLMProvider();
     return new EPMSynthesizer(llm);
   });
 
-  // Note: ContextBuilder uses static methods (ContextBuilder.fromJourneyInsights)
-  // so we register the class itself, not an instance
   container.register(ServiceKeys.CONTEXT_BUILDER, () => {
-    const { ContextBuilder } = require('../intelligence/epm/context-builder');
-    return ContextBuilder; // Static class - use as ContextBuilder.fromJourneyInsights(...)
+    return ContextBuilder;
   });
 
   container.register(ServiceKeys.WORKSTREAM_GENERATOR, () => {
-    const { WorkstreamGenerator } = require('../intelligence/epm/workstream-generator');
     const llm = createLLMProvider();
     return new WorkstreamGenerator(llm);
   });
 
   container.register(ServiceKeys.TIMELINE_CALCULATOR, () => {
-    const { TimelineCalculator } = require('../intelligence/epm/timeline-calculator');
     return new TimelineCalculator();
   });
 
   container.register(ServiceKeys.RESOURCE_ALLOCATOR, () => {
-    const { ResourceAllocator } = require('../intelligence/epm/resource-allocator');
     return new ResourceAllocator();
   });
 
   container.register(ServiceKeys.EPM_VALIDATOR, () => {
-    const { EPMValidator } = require('../intelligence/epm/validator');
     return new EPMValidator();
   });
 
-  // SSE Progress Manager
   container.register(ServiceKeys.SSE_PROGRESS_MANAGER, () => {
-    const { SSEProgressManager } = require('./sse-progress-manager');
-    return new SSEProgressManager();
+    return sseProgressManager;
   });
 
-  // Repositories
   container.register(ServiceKeys.EPM_REPOSITORY, () => {
-    const { EPMRepository } = require('../repositories');
     return new EPMRepository();
   });
 
   container.register(ServiceKeys.JOURNEY_REPOSITORY, () => {
-    const { JourneyRepository } = require('../repositories');
     return new JourneyRepository();
   });
 
   container.register(ServiceKeys.STRATEGY_REPOSITORY, () => {
-    const { StrategyRepository } = require('../repositories');
     return new StrategyRepository();
   });
 
