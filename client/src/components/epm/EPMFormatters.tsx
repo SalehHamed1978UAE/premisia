@@ -938,45 +938,67 @@ export function GovernanceFormatter({ data }: { data: Governance }) {
 // ============================================================================
 
 export function QAPlanFormatter({ data }: { data: QAPlan }) {
+  const standards = data?.standards ?? [];
+  const processes = data?.processes ?? [];
+  const acceptanceCriteria = data?.acceptanceCriteria ?? [];
+
+  if (standards.length === 0 && processes.length === 0 && acceptanceCriteria.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8 text-center">
+        <FileCheck className="w-12 h-12 text-muted-foreground/50 mb-4" />
+        <h3 className="text-lg font-semibold mb-2">QA Plan Pending</h3>
+        <p className="text-sm text-muted-foreground max-w-md">
+          Quality standards and processes will be generated during program refinement.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <Section title="Quality Standards" icon={CheckCircle2}>
-        <div className="space-y-3">
-          {data.standards.map((standard, i) => (
-            <Card key={i}>
-              <CardHeader>
-                <CardTitle className="text-base">{standard.area}</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <KeyValue label="Standard" value={standard.standard} />
-                <div>
-                  <span className="text-sm font-medium">Acceptance Criteria:</span>
-                  <List items={standard.acceptanceCriteria} />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </Section>
+      {standards.length > 0 && (
+        <Section title="Quality Standards" icon={CheckCircle2}>
+          <div className="space-y-3">
+            {standards.map((standard, i) => (
+              <Card key={i}>
+                <CardHeader>
+                  <CardTitle className="text-base">{standard.area}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <KeyValue label="Standard" value={standard.standard} />
+                  <div>
+                    <span className="text-sm font-medium">Acceptance Criteria:</span>
+                    <List items={standard.acceptanceCriteria || []} />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </Section>
+      )}
 
-      <Section title="Quality Processes" icon={FileCheck}>
-        <div className="space-y-3">
-          {data.processes.map((process, i) => (
-            <Card key={i}>
-              <CardHeader>
-                <CardTitle className="text-base">{process.phase}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <List items={process.activities} />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </Section>
+      {processes.length > 0 && (
+        <Section title="Quality Processes" icon={FileCheck}>
+          <div className="space-y-3">
+            {processes.map((process, i) => (
+              <Card key={i}>
+                <CardHeader>
+                  <CardTitle className="text-base">{process.phase}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <List items={process.activities || []} />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </Section>
+      )}
 
-      <Section title="Overall Acceptance Criteria" icon={Target}>
-        <List items={data.acceptanceCriteria} />
-      </Section>
+      {acceptanceCriteria.length > 0 && (
+        <Section title="Overall Acceptance Criteria" icon={Target}>
+          <List items={acceptanceCriteria} />
+        </Section>
+      )}
     </div>
   );
 }
@@ -986,6 +1008,11 @@ export function QAPlanFormatter({ data }: { data: QAPlan }) {
 // ============================================================================
 
 export function ProcurementFormatter({ data }: { data: Procurement }) {
+  const items = data?.items ?? [];
+  const totalProcurementValue = data?.totalProcurementValue ?? 0;
+  const vendorManagement = data?.vendorManagement ?? [];
+  const policies = data?.policies ?? [];
+
   const getTypeColor = (type: string) => {
     switch (type) {
       case 'Software': return 'bg-blue-100 text-blue-800';
@@ -995,18 +1022,30 @@ export function ProcurementFormatter({ data }: { data: Procurement }) {
     }
   };
 
+  if (items.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8 text-center">
+        <ShoppingCart className="w-12 h-12 text-muted-foreground/50 mb-4" />
+        <h3 className="text-lg font-semibold mb-2">Procurement Plan Pending</h3>
+        <p className="text-sm text-muted-foreground max-w-md">
+          Procurement items and vendor management will be defined during program planning.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <Card>
         <CardContent className="pt-6">
           <div className="text-sm text-muted-foreground">Total Procurement Value</div>
-          <div className="text-3xl font-bold">${data.totalProcurementValue.toLocaleString()}</div>
+          <div className="text-3xl font-bold">${totalProcurementValue.toLocaleString()}</div>
         </CardContent>
       </Card>
 
       <Section title="Procurement Items" icon={ShoppingCart}>
         <div className="space-y-3">
-          {data.items.map((item) => (
+          {items.map((item) => (
             <Card key={item.id}>
               <CardContent className="pt-4">
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
@@ -1015,7 +1054,7 @@ export function ProcurementFormatter({ data }: { data: Procurement }) {
                     <Badge className={getTypeColor(item.type)}>{item.type}</Badge>
                   </div>
                   <div className="text-left sm:text-right flex-shrink-0">
-                    <div className="font-bold text-lg">${item.estimatedValue.toLocaleString()}</div>
+                    <div className="font-bold text-lg">${(item.estimatedValue ?? 0).toLocaleString()}</div>
                     <div className="text-xs text-muted-foreground">{item.timing}</div>
                   </div>
                 </div>
@@ -1030,15 +1069,15 @@ export function ProcurementFormatter({ data }: { data: Procurement }) {
         </div>
       </Section>
 
-      {data.vendorManagement && data.vendorManagement.length > 0 && (
+      {vendorManagement.length > 0 && (
         <Section title="Vendor Management" icon={Building2}>
-          <List items={data.vendorManagement} />
+          <List items={vendorManagement} />
         </Section>
       )}
 
-      {data.policies && data.policies.length > 0 && (
+      {policies.length > 0 && (
         <Section title="Procurement Policies" icon={FileCheck}>
-          <List items={data.policies} />
+          <List items={policies} />
         </Section>
       )}
     </div>
@@ -1050,6 +1089,11 @@ export function ProcurementFormatter({ data }: { data: Procurement }) {
 // ============================================================================
 
 export function ExitStrategyFormatter({ data }: { data: ExitStrategy }) {
+  const failureConditions = data?.failureConditions ?? [];
+  const rollbackProcedures = data?.rollbackProcedures ?? [];
+  const pivotOptions = data?.pivotOptions ?? [];
+  const lessonsLearned = data?.lessonsLearned ?? [];
+
   const getSeverityColor = (severity: string) => {
     switch (severity) {
       case 'Critical': return 'bg-red-100 text-red-800 border-red-300';
@@ -1059,64 +1103,59 @@ export function ExitStrategyFormatter({ data }: { data: ExitStrategy }) {
     }
   };
 
+  if (failureConditions.length === 0 && rollbackProcedures.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8 text-center">
+        <LogOut className="w-12 h-12 text-muted-foreground/50 mb-4" />
+        <h3 className="text-lg font-semibold mb-2">Exit Strategy Pending</h3>
+        <p className="text-sm text-muted-foreground max-w-md">
+          Exit conditions and rollback procedures will be defined during program planning.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <Section title="Failure Conditions" icon={AlertTriangle}>
-        <div className="space-y-2">
-          {data.failureConditions.map((condition, i) => (
-            <Card key={i} className={`border-2 ${getSeverityColor(condition.severity)}`}>
-              <CardContent className="pt-4">
-                <div className="flex items-start justify-between mb-2">
-                  <Badge className={getSeverityColor(condition.severity)}>
-                    {condition.severity}
-                  </Badge>
-                  <span className="text-sm text-muted-foreground">
-                    Response: {condition.responseTime}
-                  </span>
-                </div>
-                <p className="text-sm">{condition.trigger}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </Section>
+      {failureConditions.length > 0 && (
+        <Section title="Failure Conditions" icon={AlertTriangle}>
+          <div className="space-y-2">
+            {failureConditions.map((condition, i) => (
+              <Card key={i} className={`border-2 ${getSeverityColor(condition.severity)}`}>
+                <CardContent className="pt-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <Badge className={getSeverityColor(condition.severity)}>
+                      {condition.severity}
+                    </Badge>
+                    <span className="text-sm text-muted-foreground">
+                      Response: {condition.responseTime}
+                    </span>
+                  </div>
+                  <p className="text-sm">{condition.trigger}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </Section>
+      )}
 
-      <Section title="Rollback Procedures" icon={LogOut}>
-        <div className="space-y-3">
-          {data.rollbackProcedures.map((procedure, i) => (
-            <Card key={i}>
-              <CardHeader>
-                <CardTitle className="text-base flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <span className="break-words flex-1 min-w-0">{procedure.name}</span>
-                  <Badge variant="outline" className="w-fit">${procedure.estimatedCost.toLocaleString()}</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <KeyValue label="Trigger" value={procedure.trigger} />
-                <KeyValue label="Timeline" value={procedure.timeline} />
-                <div>
-                  <span className="text-sm font-medium">Actions:</span>
-                  <List items={procedure.actions} />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </Section>
-
-      {data.pivotOptions && data.pivotOptions.length > 0 && (
-        <Section title="Pivot Options" icon={TrendingUp}>
+      {rollbackProcedures.length > 0 && (
+        <Section title="Rollback Procedures" icon={LogOut}>
           <div className="space-y-3">
-            {data.pivotOptions.map((pivot, i) => (
+            {rollbackProcedures.map((procedure, i) => (
               <Card key={i}>
                 <CardHeader>
-                  <CardTitle className="text-base">{pivot.name}</CardTitle>
+                  <CardTitle className="text-base flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <span className="break-words flex-1 min-w-0">{procedure.name}</span>
+                    <Badge variant="outline" className="w-fit">${(procedure.estimatedCost ?? 0).toLocaleString()}</Badge>
+                  </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-2">
-                  <p className="text-sm break-words">{pivot.description}</p>
+                <CardContent className="space-y-3">
+                  <KeyValue label="Trigger" value={procedure.trigger} />
+                  <KeyValue label="Timeline" value={procedure.timeline} />
                   <div>
-                    <span className="text-sm font-medium">Conditions:</span>
-                    <List items={pivot.conditions} />
+                    <span className="text-sm font-medium">Actions:</span>
+                    <List items={procedure.actions ?? []} />
                   </div>
                 </CardContent>
               </Card>
@@ -1125,9 +1164,30 @@ export function ExitStrategyFormatter({ data }: { data: ExitStrategy }) {
         </Section>
       )}
 
-      {data.lessonsLearned && data.lessonsLearned.length > 0 && (
+      {pivotOptions.length > 0 && (
+        <Section title="Pivot Options" icon={TrendingUp}>
+          <div className="space-y-3">
+            {pivotOptions.map((pivot, i) => (
+              <Card key={i}>
+                <CardHeader>
+                  <CardTitle className="text-base">{pivot.name}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <p className="text-sm break-words">{pivot.description}</p>
+                  <div>
+                    <span className="text-sm font-medium">Conditions:</span>
+                    <List items={pivot.conditions ?? []} />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {lessonsLearned.length > 0 && (
         <Section title="Lessons Learned Framework" icon={FileCheck}>
-          <List items={data.lessonsLearned} />
+          <List items={lessonsLearned} />
         </Section>
       )}
     </div>

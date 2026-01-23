@@ -333,7 +333,12 @@ export interface EPMProgram {
     breakdown: { category: string; amount: number }[];
     contingency: number;
   };
-  riskRegister: EPMRisk[];
+  riskRegister: EPMRisk[] | {
+    risks: EPMRisk[];
+    topRisks?: EPMRisk[];
+    mitigationBudget?: number;
+    confidence?: number;
+  };
   benefitsRealization: {
     benefits: { name: string; description: string; timeline: string }[];
     kpis: { name: string; target: string; measure: string }[];
@@ -342,16 +347,71 @@ export interface EPMProgram {
     name: string;
     criteria: string[];
     phase: number;
-  }[];
+  }[] | {
+    gates: Array<{
+      gate: number;
+      name: string;
+      month: number;
+      goCriteria: string[];
+      noGoTriggers: string[];
+      deliverables: string[];
+      confidence: number;
+    }>;
+    confidence: number;
+  };
   stakeholderMap: {
     name: string;
     role: string;
     expectations: string[];
   }[];
   governance: {
-    decisionMakers: string[];
-    meetingCadence: string;
-    escalationPath: string;
+    decisionMakers?: string[];
+    meetingCadence?: string;
+    escalationPath?: string;
+    bodies?: Array<{
+      name: string;
+      level: string;
+      members: string[];
+      cadence: string;
+      responsibilities: string[];
+      escalationPath: string;
+    }>;
+    decisionRights?: Array<{
+      decision: string;
+      responsible: string;
+      accountable: string;
+      consulted: string;
+      informed: string;
+    }>;
+    confidence?: number;
+  };
+  qaPlan?: {
+    standards: Array<{
+      area: string;
+      standard: string;
+      acceptanceCriteria: string[];
+    }>;
+    processes: Array<{
+      phase: string;
+      activities: string[];
+    }>;
+    acceptanceCriteria: string[];
+    confidence: number;
+  };
+  kpis?: {
+    kpis: Array<{
+      id: string;
+      name: string;
+      category: string;
+      baseline: string;
+      target: string;
+      measurement: string;
+      frequency: string;
+      owner: string;
+      linkedBenefitIds: string[];
+      confidence: number;
+    }>;
+    confidence: number;
   };
   componentConfidence: Record<string, number>;
   overallConfidence: number;
