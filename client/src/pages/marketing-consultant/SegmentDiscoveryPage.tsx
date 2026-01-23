@@ -157,7 +157,7 @@ export default function SegmentDiscoveryPage() {
             setErrorMessage(statusData.error || 'Discovery failed');
             setPageState('error');
             return;
-          } else if (statusData.status === 'running' || statusData.status === 'pending') {
+          } else if (statusData.status === 'running') {
             console.log('[SegmentDiscovery] Resuming in-flight discovery');
             if (statusData.progressMessage) {
               setCurrentStep(statusData.progressMessage);
@@ -166,6 +166,7 @@ export default function SegmentDiscoveryPage() {
             connectToSSE();
             return;
           }
+          // If status is 'pending', fall through to call start-discovery
         }
 
         const response = await fetch(`/api/marketing-consultant/start-discovery/${understandingId}`, {
