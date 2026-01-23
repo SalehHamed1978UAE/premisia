@@ -18,7 +18,7 @@ interface ResearchExperienceProps {
 
 const SIMPLE_MODE_KEY = "research-simple-mode-preference";
 
-export function PortersResearchExperience({
+export function ResearchExperience({
   progress,
   currentMessage,
   elapsedSeconds,

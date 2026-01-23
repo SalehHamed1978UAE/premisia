@@ -20,7 +20,7 @@ export class BackgroundJobService {
    */
   async createJob(params: {
     userId: string | null;
-    jobType: 'epm_generation' | 'bmc_analysis' | 'five_whys_generation' | 'porters_analysis' | 'pestle_analysis' | 'web_research' | 'strategic_understanding' | 'document_enrichment' | 'decision_generation';
+    jobType: 'epm_generation' | 'bmc_analysis' | 'five_whys_generation' | 'porters_analysis' | 'pestle_analysis' | 'web_research' | 'strategic_understanding' | 'document_enrichment';
     inputData?: Record<string, any>;
     sessionId?: string;
     relatedEntityId?: string;
@@ -405,13 +405,6 @@ export class BackgroundJobService {
         const { processStrategicUnderstandingJob } = await import('./strategic-understanding-worker');
         console.log(`[Background Job Dispatcher] Calling worker for job: ${job.id}`);
         await processStrategicUnderstandingJob(job);
-        console.log(`[Background Job Dispatcher] ✓ Worker completed for job: ${job.id}`);
-      }
-      else if (job.jobType === 'decision_generation') {
-        console.log(`[Background Job Dispatcher] Importing decision generation worker...`);
-        const { processDecisionGenerationJob } = await import('./decision-generation-worker');
-        console.log(`[Background Job Dispatcher] Calling worker for job: ${job.id}`);
-        await processDecisionGenerationJob(job);
         console.log(`[Background Job Dispatcher] ✓ Worker completed for job: ${job.id}`);
       }
       // Add other job types here as needed

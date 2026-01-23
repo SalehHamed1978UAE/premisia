@@ -72,33 +72,20 @@ export function PlanningProgressTracker({
     (window as any).__updatePlanningProgress = (event: any) => {
       switch (event.type) {
         case 'step-start':
-          // Guard: Ensure progress NEVER goes backwards (monotonic)
-          setProgress(prev => Math.max(prev, event.progress || 0));
+          setProgress(event.progress || 0);
           setCurrentStep(event.description || '');
           // Only update elapsed time if event provides it AND it's valid (don't reset to 0)
           if (event.elapsedSeconds !== undefined && event.elapsedSeconds > 0) {
             setElapsedTime(event.elapsedSeconds);
           }
 
-          // Update step statuses - use completedSteps array if provided, else infer from event.step
-          if (event.completedSteps && Array.isArray(event.completedSteps)) {
-            setSteps(prev => prev.map(step => ({
-              ...step,
-              status: step.id === event.step 
-                ? 'in-progress' 
-                : event.completedSteps.includes(step.id) 
-                  ? 'complete' 
-                  : step.status
-            })));
-          } else {
-            setSteps(prev => prev.map(step =>
-              step.id === event.step
-                ? { ...step, status: 'in-progress' }
-                : step.status === 'in-progress'
-                ? { ...step, status: 'complete' }
-                : step
-            ));
-          }
+          setSteps(prev => prev.map(step =>
+            step.id === event.step
+              ? { ...step, status: 'in-progress' }
+              : step.status === 'in-progress'
+              ? { ...step, status: 'complete' }
+              : step
+          ));
           break;
 
         case 'step-complete':
@@ -107,30 +94,6 @@ export function PlanningProgressTracker({
               ? { ...step, status: 'complete', durationSeconds: event.durationSeconds }
               : step
           ));
-          // Guard: progress never goes backwards
-          setProgress(prev => Math.max(prev, event.progress || prev));
-          break;
-
-        case 'step-progress':
-          // Handle incremental progress updates from multi-agent generator
-          // Guard: Ensure progress NEVER goes backwards (monotonic)
-          setProgress(prev => Math.max(prev, event.progress || 0));
-          setCurrentStep(event.description || '');
-          break;
-
-        case 'fallback_start':
-          // Handle explicit fallback notification - continue from current progress
-          // Don't reset progress, just update description
-          setProgress(prev => Math.max(prev, event.progress || 0));
-          setCurrentStep(event.description || 'Switching to optimized generator...');
-          break;
-
-        case 'reset':
-          // Handle reset event - clear all step states when switching generators
-          // This prevents confusing mixed states (some complete, some in-progress)
-          setProgress(event.progress || 15);
-          setCurrentStep(event.description || 'Restarting...');
-          setSteps(prev => prev.map(step => ({ ...step, status: 'pending' })));
           break;
 
         case 'complete':

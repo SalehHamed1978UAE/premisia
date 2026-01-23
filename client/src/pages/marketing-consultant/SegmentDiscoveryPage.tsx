@@ -73,66 +73,19 @@ interface SegmentSynthesis {
   strategicInsights: string[];
 }
 
-interface SummaryGenome {
-  id: string;
-  score: number;
-  genes: Genome['genes'];
-  narrative?: string;
-}
-
-interface DiscoverySummary {
-  topGenomes: SummaryGenome[];
-  beachhead?: {
-    genome: Genome;
-    rationale: string;
-    validationPlan: string[];
-  };
-  backupSegments?: Genome[];
-  strategicInsights?: string[];
-  totalSegments?: number;
-  beachheadId?: string;
-}
-
 interface DiscoveryResults {
-  id?: string;
-  geneLibrary?: GeneLibrary;
-  genomes?: Genome[];
-  synthesis?: SegmentSynthesis;
-  summary?: DiscoverySummary;
+  geneLibrary: GeneLibrary;
+  genomes: Genome[];
+  synthesis: SegmentSynthesis;
 }
 
 interface ProgressEvent {
-  type?: string;
   step: string;
   progress: number;
-  message?: string;
-  ttfur?: number;
-  stageError?: string;
-  partialScores?: {
-    scoredCount: number;
-    topScore: number;
-    averageScore: number;
-  };
-  intermediateResults?: {
-    genomesCount: number;
-    topGenomes: Array<{
-      id: string;
-      score: number;
-      genes: Genome['genes'];
-    }>;
-  };
+  message: string;
 }
 
 type PageState = 'starting' | 'progress' | 'results' | 'error';
-
-interface StreamingState {
-  ttfur: number | null;
-  scoredCount: number;
-  topScore: number;
-  topGenomes: Array<{id: string; score: number; genes: Genome['genes']; narrative?: string}>;
-  stageErrors: string[];
-  earlyPreviewReady: boolean;
-}
 
 export default function SegmentDiscoveryPage() {
   // Support both /segment-discovery/:id and /results/:id routes
@@ -149,14 +102,6 @@ export default function SegmentDiscoveryPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const hasStartedRef = useRef(false);
-  const [streamingState, setStreamingState] = useState<StreamingState>({
-    ttfur: null,
-    scoredCount: 0,
-    topScore: 0,
-    topGenomes: [],
-    stageErrors: [],
-    earlyPreviewReady: false,
-  });
 
   const { data: results, refetch: refetchResults } = useQuery<DiscoveryResults>({
     queryKey: ['/api/marketing-consultant/results', understandingId],
@@ -210,99 +155,21 @@ export default function SegmentDiscoveryPage() {
     const eventSource = new EventSource(`/api/marketing-consultant/discovery-stream/${understandingId}`);
     eventSourceRef.current = eventSource;
 
-    // Handle default message events (progress updates)
     eventSource.onmessage = (event) => {
       try {
         const data: ProgressEvent = JSON.parse(event.data);
-        
-        // Update basic progress
         setCurrentStep(data.step);
         setProgress(data.progress);
 
-        // Handle completion
-        if (data.type === 'complete' || data.step === 'complete' || data.progress >= 100) {
+        if (data.step === 'complete' || data.progress >= 100) {
           eventSource.close();
           setPageState('results');
           refetchResults();
-        }
-
-        // Handle fatal error
-        if (data.type === 'error') {
-          eventSource.close();
-          setErrorMessage(data.message || 'Discovery failed');
-          setPageState('error');
         }
       } catch (error) {
         console.error('[SegmentDiscovery] SSE parse error:', error);
       }
     };
-
-    // Handle named events for streaming updates
-    eventSource.addEventListener('intermediate_results', (event: MessageEvent) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log('[SegmentDiscovery] Received intermediate_results:', data.genomesCount);
-        setStreamingState(prev => ({
-          ...prev,
-          topGenomes: data.topGenomes || [],
-        }));
-        if (data.ttfur !== undefined) {
-          console.log(`[SegmentDiscovery] TTFUR: ${data.ttfur}s`);
-          setStreamingState(prev => ({ ...prev, ttfur: data.ttfur }));
-        }
-      } catch (e) {
-        console.error('[SegmentDiscovery] Failed to parse intermediate_results:', e);
-      }
-    });
-
-    eventSource.addEventListener('partial_scores', (event: MessageEvent) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log('[SegmentDiscovery] Received partial_scores:', data.scored?.length, 'genomes');
-        
-        // Extract scored genomes from this batch
-        const newScoredGenomes = (data.scored || []).map((g: any) => ({
-          id: g.id,
-          score: g.score,
-          genes: g.genes,
-          narrative: g.narrative
-        }));
-        
-        setStreamingState(prev => {
-          // Merge new genomes with existing, keeping highest scores on top
-          const allGenomes = [...prev.topGenomes, ...newScoredGenomes];
-          const sortedGenomes = allGenomes.sort((a, b) => b.score - a.score).slice(0, 20);
-          const topScore = sortedGenomes[0]?.score || 0;
-          
-          return {
-            ...prev,
-            scoredCount: prev.scoredCount + newScoredGenomes.length,
-            topScore,
-            topGenomes: sortedGenomes,
-            earlyPreviewReady: sortedGenomes.length > 0,
-          };
-        });
-      } catch (e) {
-        console.error('[SegmentDiscovery] Failed to parse partial_scores:', e);
-      }
-    });
-
-    eventSource.addEventListener('stage_error', (event: MessageEvent) => {
-      try {
-        const data = JSON.parse(event.data);
-        setStreamingState(prev => ({
-          ...prev,
-          stageErrors: [...prev.stageErrors, data.error || data.message || 'Stage error'],
-        }));
-        toast({
-          title: "Warning",
-          description: data.error || data.message || 'A stage encountered an issue but discovery continues',
-          variant: "default",
-        });
-      } catch (e) {
-        console.error('[SegmentDiscovery] Failed to parse stage_error:', e);
-      }
-    });
 
     eventSource.onerror = (error) => {
       console.error('[SegmentDiscovery] SSE error:', error);
@@ -441,14 +308,12 @@ export default function SegmentDiscoveryPage() {
   }
 
   if (pageState === 'progress') {
-    const hasEarlyResults = streamingState.topGenomes.length > 0;
-    
     return (
       <AppLayout
         title="Segment Discovery"
         subtitle="Analyzing market segments..."
       >
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6" data-testid="state-progress">
+        <div className="flex items-center justify-center min-h-[60vh]" data-testid="state-progress">
           <div className="w-full max-w-md space-y-8">
             <div className="text-center space-y-4">
               <div className="relative inline-flex items-center justify-center">
@@ -488,11 +353,6 @@ export default function SegmentDiscoveryPage() {
                 <p className="text-sm text-muted-foreground">
                   Discovering your ideal customer segments...
                 </p>
-                {streamingState.scoredCount > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    Scored {streamingState.scoredCount}/100 segments • Top score: {streamingState.topScore}/40
-                  </p>
-                )}
               </div>
             </div>
 
@@ -502,78 +362,26 @@ export default function SegmentDiscoveryPage() {
               This may take a few minutes. Please don't close this page.
             </div>
           </div>
-
-          {/* Early results preview */}
-          {hasEarlyResults && (
-            <Card className="w-full max-w-2xl border-primary/20 bg-primary/5">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Target className="h-4 w-4 text-primary" />
-                  Early Results Preview
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Top segments identified so far (final results may differ)
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {streamingState.topGenomes.slice(0, 5).map((genome, idx) => (
-                    <div key={genome.id} className="flex items-center justify-between p-2 rounded bg-background/50 text-sm">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs">{idx + 1}</Badge>
-                        <span className="font-medium">{genome.genes.decision_maker}</span>
-                        <span className="text-muted-foreground">in</span>
-                        <span>{genome.genes.industry_vertical}</span>
-                      </div>
-                      <Badge variant={genome.score > 32 ? 'default' : 'secondary'}>
-                        {genome.score}/40
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </div>
       </AppLayout>
     );
   }
 
   if (pageState === 'results' && results) {
-    const { geneLibrary, summary } = results;
-    
-    // Use full genomes if available, otherwise use summary topGenomes
-    const genomes: Genome[] = Array.isArray(results.genomes) && results.genomes.length > 0 
-      ? results.genomes 
-      : [];
-    
-    // For display: use summary topGenomes when full genomes aren't available
-    const summaryTopGenomes = summary?.topGenomes || [];
-    const displayGenomesCount = genomes.length > 0 ? genomes.length : summaryTopGenomes.length;
-    const top20 = genomes.length > 0 ? genomes.slice(0, 20) : summaryTopGenomes;
-    
-    // Check if we have incomplete data (summary only, no full results)
-    const hasIncompleteData = genomes.length === 0 && summaryTopGenomes.length > 0;
+    const { geneLibrary } = results;
+    // Ensure genomes is an array (handles decryption edge cases)
+    const genomes: Genome[] = Array.isArray(results.genomes) ? results.genomes : [];
+    const top20 = genomes.slice(0, 20);
     
     // Ensure synthesis has valid structure (handles incomplete/corrupted data)
     const synthesis: SegmentSynthesis = results.synthesis && typeof results.synthesis === 'object' 
       ? results.synthesis as SegmentSynthesis
-      : summary?.beachhead
-        ? {
-            beachhead: summary.beachhead,
-            backupSegments: (summary.backupSegments || []) as Genome[],
-            neverList: [],
-            strategicInsights: summary.strategicInsights || []
-          }
-        : {
-            beachhead: { genome: genomes[0] || {} as Genome, rationale: 'No synthesis data available', validationPlan: [] },
-            backupSegments: [],
-            neverList: [],
-            strategicInsights: []
-          };
-    
-    // Use totalSegments from summary if available
-    const totalSegmentsCount = summary?.totalSegments || displayGenomesCount;
+      : {
+          beachhead: { genome: genomes[0] || {} as Genome, rationale: 'No synthesis data available', validationPlan: [] },
+          backupSegments: [],
+          neverList: [],
+          strategicInsights: []
+        };
     
     // Guard against missing beachhead
     const hasValidBeachhead = synthesis.beachhead && synthesis.beachhead.genome && synthesis.beachhead.genome.fitness;
@@ -597,7 +405,7 @@ export default function SegmentDiscoveryPage() {
                     Segment Discovery Complete!
                   </h3>
                   <p className="text-sm text-green-700 dark:text-green-300">
-                    We analyzed {totalSegmentsCount} potential segments and identified your beachhead market.
+                    We analyzed {genomes.length} potential segments and identified your beachhead market.
                   </p>
                 </div>
               </div>
@@ -738,53 +546,43 @@ export default function SegmentDiscoveryPage() {
 
             <TabsContent value="top20" className="mt-6">
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" data-testid="grid-top20">
-                {top20.map((genome, idx) => {
-                  // Handle both full Genome and SummaryGenome types
-                  const score = 'fitness' in genome ? genome.fitness.totalScore : genome.score;
-                  const hasFitness = 'fitness' in genome && genome.fitness;
-                  const narrative = 'narrativeReason' in genome ? genome.narrativeReason : 
-                                    'narrative' in genome ? (genome as SummaryGenome).narrative : '';
-                  
-                  return (
-                    <Card 
-                      key={genome.id} 
-                      className={`${getScoreColor(score)}`}
-                      data-testid={`card-segment-${idx}`}
-                    >
-                      <CardHeader className="pb-2">
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-base">#{idx + 1}</CardTitle>
-                          <Badge variant={getScoreBadgeVariant(score)}>
-                            {score}/40
-                          </Badge>
+                {top20.map((genome, idx) => (
+                  <Card 
+                    key={genome.id} 
+                    className={`${getScoreColor(genome.fitness.totalScore)}`}
+                    data-testid={`card-segment-${idx}`}
+                  >
+                    <CardHeader className="pb-2">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base">#{idx + 1}</CardTitle>
+                        <Badge variant={getScoreBadgeVariant(genome.fitness.totalScore)}>
+                          {genome.fitness.totalScore}/40
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <p className="text-sm">{genome.narrativeReason}</p>
+                      <div className="text-xs space-y-1">
+                        <div><span className="opacity-70">Industry:</span> {genome.genes.industry_vertical}</div>
+                        <div><span className="opacity-70">Size:</span> {genome.genes.company_size}</div>
+                        <div><span className="opacity-70">DM:</span> {genome.genes.decision_maker}</div>
+                        <div><span className="opacity-70">Trigger:</span> {genome.genes.purchase_trigger}</div>
+                      </div>
+                      <div className="pt-2 border-t">
+                        <div className="grid grid-cols-4 gap-1 text-xs">
+                          <div title="Pain">P:{genome.fitness.painIntensity}</div>
+                          <div title="Access">A:{genome.fitness.accessToDecisionMaker}</div>
+                          <div title="Budget">B:{genome.fitness.purchasePowerMatch}</div>
+                          <div title="Competition">C:{genome.fitness.competitionSaturation}</div>
+                          <div title="Fit">F:{genome.fitness.productFit}</div>
+                          <div title="Urgency">U:{genome.fitness.urgencyAlignment}</div>
+                          <div title="Scale">S:{genome.fitness.scalePotential}</div>
+                          <div title="GTM">G:{genome.fitness.gtmEfficiency}</div>
                         </div>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
-                        {narrative && <p className="text-sm">{narrative}</p>}
-                        <div className="text-xs space-y-1">
-                          <div><span className="opacity-70">Industry:</span> {genome.genes.industry_vertical}</div>
-                          <div><span className="opacity-70">Size:</span> {genome.genes.company_size}</div>
-                          <div><span className="opacity-70">DM:</span> {genome.genes.decision_maker}</div>
-                          <div><span className="opacity-70">Trigger:</span> {genome.genes.purchase_trigger}</div>
-                        </div>
-                        {hasFitness && (
-                          <div className="pt-2 border-t">
-                            <div className="grid grid-cols-4 gap-1 text-xs">
-                              <div title="Pain">P:{(genome as Genome).fitness.painIntensity}</div>
-                              <div title="Access">A:{(genome as Genome).fitness.accessToDecisionMaker}</div>
-                              <div title="Budget">B:{(genome as Genome).fitness.purchasePowerMatch}</div>
-                              <div title="Competition">C:{(genome as Genome).fitness.competitionSaturation}</div>
-                              <div title="Fit">F:{(genome as Genome).fitness.productFit}</div>
-                              <div title="Urgency">U:{(genome as Genome).fitness.urgencyAlignment}</div>
-                              <div title="Scale">S:{(genome as Genome).fitness.scalePotential}</div>
-                              <div title="GTM">G:{(genome as Genome).fitness.gtmEfficiency}</div>
-                            </div>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
             </TabsContent>
 

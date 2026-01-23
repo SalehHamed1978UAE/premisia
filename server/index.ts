@@ -10,21 +10,6 @@ import { registerFrameworkExecutors } from "./journey/register-frameworks";
 import { verifyConnection } from "./config/neo4j";
 import { initializeDatabaseExtensions } from "./db-init";
 import { authReadiness } from "./auth-readiness";
-import { startCrewAIService, isCrewAIHealthy } from "./services/crewai-service-manager";
-
-// Log buffer for debugging server restarts (temporary - remove after debugging)
-const LAST_EVENTS: string[] = [];
-function logEvent(msg: string) {
-  const line = `[${new Date().toISOString()}] ${msg}`;
-  LAST_EVENTS.push(line);
-  if (LAST_EVENTS.length > 20) LAST_EVENTS.shift();
-  console.log(msg);
-}
-
-process.on('SIGTERM', () => logEvent('[Server] Received SIGTERM - shutting down'));
-process.on('SIGINT', () => logEvent('[Server] Received SIGINT - shutting down'));
-process.on('uncaughtException', (error) => logEvent('[Server] Uncaught exception: ' + (error as Error).stack));
-process.on('unhandledRejection', (reason) => logEvent('[Server] Unhandled rejection: ' + reason));
 
 const app = express();
 
@@ -96,11 +81,6 @@ app.get('/health/auth', (_req: Request, res: Response) => {
   res.json({ ready: authReadiness.isReady() });
 });
 
-// Temporary endpoint to view last events after restart (remove after debugging)
-app.get('/system/events', (_req: Request, res: Response) => {
-  res.json({ events: LAST_EVENTS });
-});
-
 // Track if routes/static serving are ready
 let appReady = false;
 
@@ -136,37 +116,7 @@ app.use((req: Request, res: Response, next: Function) => {
   
   // Non-asset, non-API request (SPA navigation) - check appReady
   if (!appReady) {
-    // Prevent caching so browser always gets fresh loading page
-    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-    res.set('Pragma', 'no-cache');
-    res.set('Expires', '0');
-    return res.status(200).send(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Premisia - Starting...</title>
-  <style>
-    body { font-family: system-ui, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f5f5f5; }
-    .loader { text-align: center; }
-    .spinner { width: 40px; height: 40px; border: 3px solid #ddd; border-top-color: #333; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-  </style>
-</head>
-<body>
-  <div class="loader">
-    <div class="spinner"></div>
-    <p>Application starting...</p>
-  </div>
-  <script>
-    // Poll server health and reload when ready
-    (function checkServer() {
-      fetch('/api/auth/user', { cache: 'no-store' })
-        .then(r => { if (r.ok || r.status === 401) window.location.reload(); else setTimeout(checkServer, 1500); })
-        .catch(() => setTimeout(checkServer, 1500));
-    })();
-  </script>
-</body>
-</html>`);
+    return res.status(200).send('<!DOCTYPE html><html><body><p>Application starting…</p></body></html>');
   }
   
   next();
@@ -255,7 +205,6 @@ server.listen({
           // Route registration failed - likely missing secrets (REPLIT_DOMAINS, etc.)
           // Keep server running for health checks, but warn about limited functionality
           console.error('[Server] WARNING: Route registration failed:', error.message);
-          console.error('[Server] Full error stack:', error.stack);
           console.error('[Server] Health checks will work, but application routes are unavailable');
           console.error('[Server] Add required secrets in Replit deployment UI and redeploy');
           // DO NOT call process.exit() - let health checks pass
@@ -269,26 +218,6 @@ server.listen({
         });
       }, 15000);
       log('Background job dispatcher started (polling every 15s)');
-      
-      // Start CrewAI Python service for multi-agent EPM generation
-      if (process.env.USE_MULTI_AGENT_EPM === 'true') {
-        (async () => {
-          try {
-            log('[CrewAI] Starting multi-agent EPM service...');
-            const healthy = await startCrewAIService();
-            if (healthy) {
-              log('[CrewAI] ✅ Multi-agent EPM service is ready on port 8001');
-            } else {
-              console.warn('[CrewAI] ⚠️ Service not available, EPM will use legacy generator');
-            }
-          } catch (error: any) {
-            console.warn('[CrewAI] Failed to start service:', error.message);
-            console.warn('[CrewAI] EPM generation will fall back to legacy generator');
-          }
-        })();
-      } else {
-        log('[CrewAI] Multi-agent EPM disabled (USE_MULTI_AGENT_EPM != true)');
-      }
       
       // Verify database extensions
       (async () => {

@@ -19,8 +19,8 @@
  * 6. complete: { type, data: { findings, searchQueriesUsed, versionNumber, sourcesAnalyzed, timeElapsed, nextUrl } }
  * 7. error: { type, error }
  * 
- * Critical Field: nextUrl must match pattern "/bmc/results/{sessionId}/{versionNumber}"
- * This ensures frontend can navigate to the BMC results page after BMC research completes.
+ * Critical Field: nextUrl must match pattern "/strategy-workspace/decisions/{sessionId}/{versionNumber}"
+ * This ensures frontend can navigate to the correct decision page after BMC research completes.
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
@@ -398,9 +398,8 @@ describe('BMC SSE Regression - Stream Contract Stability', () => {
     expect(data).toHaveProperty('nextUrl');
     expect(typeof data.nextUrl).toBe('string');
     
-    // nextUrl must match pattern: /bmc/results/{sessionId}/{versionNumber}
-    // (BMC research should route to BMC results page, not directly to decisions)
-    const expectedPattern = new RegExp(`^/bmc/results/[^/]+/\\d+$`);
+    // nextUrl must match pattern: /strategy-workspace/decisions/{sessionId}/{versionNumber}
+    const expectedPattern = new RegExp(`^/strategy-workspace/decisions/[^/]+/\\d+$`);
     expect(data.nextUrl).toMatch(expectedPattern);
     
     // Verify it contains the session ID
@@ -410,7 +409,7 @@ describe('BMC SSE Regression - Stream Contract Stability', () => {
     expect(data.nextUrl).toContain(data.versionNumber.toString());
     
     // Exact format check
-    const expectedUrl = `/bmc/results/${testJourneySession.id}/${data.versionNumber}`;
+    const expectedUrl = `/strategy-workspace/decisions/${testJourneySession.id}/${data.versionNumber}`;
     expect(data.nextUrl).toBe(expectedUrl);
   }, 35000);
   

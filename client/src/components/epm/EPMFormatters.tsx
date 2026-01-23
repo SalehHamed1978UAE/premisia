@@ -33,19 +33,6 @@ import {
 } from "@/types/intelligence";
 
 // ============================================================================
-// Helper Functions
-// ============================================================================
-
-// Helper to format months with proper rounding (avoid floating point noise like 15.600000000000001)
-const formatMonths = (value: number | undefined | null): string => {
-  if (value === undefined || value === null) return '0';
-  // Round to 1 decimal place to avoid floating point noise
-  const rounded = Math.round(value * 10) / 10;
-  // If it's a whole number, show without decimals
-  return Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(1);
-};
-
-// ============================================================================
 // Helper Components
 // ============================================================================
 
@@ -207,7 +194,7 @@ export function WorkstreamsFormatter({ data }: { data: Workstream[] }) {
           <CardContent className="space-y-3">
             <KeyValue 
               label="Timeline" 
-              value={`Month ${formatMonths(ws.startMonth)} - ${formatMonths(ws.endMonth)} (${formatMonths((ws.endMonth || 0) - (ws.startMonth || 0) + 1)} months)`} 
+              value={`Month ${ws.startMonth} - ${ws.endMonth} (${ws.endMonth - ws.startMonth + 1} months)`} 
             />
             {ws.owner && <KeyValue label="Owner" value={ws.owner} />}
             
@@ -256,7 +243,7 @@ export function TimelineFormatter({ data }: { data: Timeline }) {
       <div className="flex items-center gap-4">
         <Badge variant="outline" className="text-base px-4 py-2">
           <Calendar className="h-4 w-4 mr-2" />
-          {formatMonths(data.totalMonths)} Months Total
+          {data.totalMonths} Months Total
         </Badge>
       </div>
 
@@ -269,7 +256,7 @@ export function TimelineFormatter({ data }: { data: Timeline }) {
                   <Badge>{phase.phase}</Badge>
                   {phase.name}
                   <span className="text-xs text-muted-foreground font-normal ml-auto">
-                    Months {formatMonths(phase.startMonth)}-{formatMonths(phase.endMonth)}
+                    Months {phase.startMonth}-{phase.endMonth}
                   </span>
                 </CardTitle>
                 <p className="text-sm text-muted-foreground">{phase.description}</p>
@@ -399,24 +386,22 @@ export function FinancialPlanFormatter({ data }: { data: FinancialPlan }) {
         </Card>
       </div>
 
-      {data.costBreakdown && data.costBreakdown.length > 0 && (
-        <Section title="Cost Breakdown" icon={DollarSign}>
-          <div className="space-y-2">
-            {data.costBreakdown.map((cost, i) => (
-              <div key={i} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 bg-muted rounded">
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium break-words">{cost.category}</div>
-                  <div className="text-sm text-muted-foreground break-words">{cost.description}</div>
-                </div>
-                <div className="text-left sm:text-right flex-shrink-0">
-                  <div className="font-bold">${cost.amount.toLocaleString()}</div>
-                  <div className="text-sm text-muted-foreground">{cost.percentage}%</div>
-                </div>
+      <Section title="Cost Breakdown" icon={DollarSign}>
+        <div className="space-y-2">
+          {data.costBreakdown.map((cost, i) => (
+            <div key={i} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 bg-muted rounded">
+              <div className="flex-1 min-w-0">
+                <div className="font-medium break-words">{cost.category}</div>
+                <div className="text-sm text-muted-foreground break-words">{cost.description}</div>
               </div>
-            ))}
-          </div>
-        </Section>
-      )}
+              <div className="text-left sm:text-right flex-shrink-0">
+                <div className="font-bold">${cost.amount.toLocaleString()}</div>
+                <div className="text-sm text-muted-foreground">{cost.percentage}%</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Section>
 
       {data.cashFlow && data.cashFlow.length > 0 && (
         <Section title="Cash Flow" icon={TrendingUp}>
@@ -512,7 +497,7 @@ export function BenefitsRealizationFormatter({ data }: { data: BenefitsRealizati
                   </Badge>
                   <div className="text-left sm:text-right">
                     <Badge variant="outline">
-                      {Math.round((benefit.confidence || 0) * 100)}% confidence
+                      {Math.round(benefit.confidence * 100)}% confidence
                     </Badge>
                     <div className="text-xs text-muted-foreground mt-1">
                       Realized: Month {benefit.realizationMonth}
@@ -653,7 +638,7 @@ export function StageGatesFormatter({ data }: { data: StageGates }) {
 
             <div className="pt-2 border-t">
               <Badge variant="outline">
-                {Math.round((gate.confidence || 0) * 100)}% confidence
+                {Math.round(gate.confidence * 100)}% confidence
               </Badge>
             </div>
           </CardContent>
@@ -678,21 +663,9 @@ export function KPIsFormatter({ data }: { data: KPIs }) {
     }
   };
 
-  // Handle undefined/null kpis array
-  const kpis = data?.kpis || [];
-  
-  if (kpis.length === 0) {
-    return (
-      <div className="text-center py-8 text-muted-foreground">
-        <p>No KPIs defined yet.</p>
-        <p className="text-sm">KPIs will be generated during program refinement.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-3">
-      {kpis.map((kpi) => (
+      {data.kpis.map((kpi) => (
         <Card key={kpi.id}>
           <CardContent className="pt-4">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
@@ -706,7 +679,7 @@ export function KPIsFormatter({ data }: { data: KPIs }) {
                 )}
               </div>
               <Badge variant="outline" className="w-fit">
-                {Math.round((kpi.confidence || 0) * 100)}% confidence
+                {Math.round(kpi.confidence * 100)}% confidence
               </Badge>
             </div>
 
@@ -839,26 +812,11 @@ export function GovernanceFormatter({ data }: { data: Governance }) {
     }
   };
 
-  const bodies = data?.bodies ?? [];
-  const decisionRights = data?.decisionRights ?? [];
-
-  if (bodies.length === 0 && decisionRights.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center p-8 text-center">
-        <Building2 className="w-12 h-12 text-muted-foreground/50 mb-4" />
-        <h3 className="text-lg font-semibold mb-2">Governance Structure Pending</h3>
-        <p className="text-sm text-muted-foreground max-w-md">
-          Governance bodies and decision rights will be generated during program refinement.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <Section title="Governance Bodies" icon={Building2}>
         <div className="space-y-3">
-          {bodies.map((body, i) => (
+          {data.bodies.map((body, i) => (
             <Card key={i}>
               <CardHeader>
                 <CardTitle className="flex flex-wrap items-center gap-2 text-base">
@@ -904,7 +862,7 @@ export function GovernanceFormatter({ data }: { data: Governance }) {
                 </tr>
               </thead>
               <tbody>
-                {decisionRights.map((right, i) => (
+                {data.decisionRights.map((right, i) => (
                   <tr key={i} className="border-b">
                     <td className="p-2 font-medium break-words">{right.decision}</td>
                     <td className="p-2 break-words">{right.responsible}</td>
@@ -938,67 +896,45 @@ export function GovernanceFormatter({ data }: { data: Governance }) {
 // ============================================================================
 
 export function QAPlanFormatter({ data }: { data: QAPlan }) {
-  const standards = data?.standards ?? [];
-  const processes = data?.processes ?? [];
-  const acceptanceCriteria = data?.acceptanceCriteria ?? [];
-
-  if (standards.length === 0 && processes.length === 0 && acceptanceCriteria.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center p-8 text-center">
-        <FileCheck className="w-12 h-12 text-muted-foreground/50 mb-4" />
-        <h3 className="text-lg font-semibold mb-2">QA Plan Pending</h3>
-        <p className="text-sm text-muted-foreground max-w-md">
-          Quality standards and processes will be generated during program refinement.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
-      {standards.length > 0 && (
-        <Section title="Quality Standards" icon={CheckCircle2}>
-          <div className="space-y-3">
-            {standards.map((standard, i) => (
-              <Card key={i}>
-                <CardHeader>
-                  <CardTitle className="text-base">{standard.area}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <KeyValue label="Standard" value={standard.standard} />
-                  <div>
-                    <span className="text-sm font-medium">Acceptance Criteria:</span>
-                    <List items={standard.acceptanceCriteria || []} />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </Section>
-      )}
+      <Section title="Quality Standards" icon={CheckCircle2}>
+        <div className="space-y-3">
+          {data.standards.map((standard, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <CardTitle className="text-base">{standard.area}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <KeyValue label="Standard" value={standard.standard} />
+                <div>
+                  <span className="text-sm font-medium">Acceptance Criteria:</span>
+                  <List items={standard.acceptanceCriteria} />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </Section>
 
-      {processes.length > 0 && (
-        <Section title="Quality Processes" icon={FileCheck}>
-          <div className="space-y-3">
-            {processes.map((process, i) => (
-              <Card key={i}>
-                <CardHeader>
-                  <CardTitle className="text-base">{process.phase}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <List items={process.activities || []} />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </Section>
-      )}
+      <Section title="Quality Processes" icon={FileCheck}>
+        <div className="space-y-3">
+          {data.processes.map((process, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <CardTitle className="text-base">{process.phase}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <List items={process.activities} />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </Section>
 
-      {acceptanceCriteria.length > 0 && (
-        <Section title="Overall Acceptance Criteria" icon={Target}>
-          <List items={acceptanceCriteria} />
-        </Section>
-      )}
+      <Section title="Overall Acceptance Criteria" icon={Target}>
+        <List items={data.acceptanceCriteria} />
+      </Section>
     </div>
   );
 }
@@ -1008,11 +944,6 @@ export function QAPlanFormatter({ data }: { data: QAPlan }) {
 // ============================================================================
 
 export function ProcurementFormatter({ data }: { data: Procurement }) {
-  const items = data?.items ?? [];
-  const totalProcurementValue = data?.totalProcurementValue ?? 0;
-  const vendorManagement = data?.vendorManagement ?? [];
-  const policies = data?.policies ?? [];
-
   const getTypeColor = (type: string) => {
     switch (type) {
       case 'Software': return 'bg-blue-100 text-blue-800';
@@ -1022,30 +953,18 @@ export function ProcurementFormatter({ data }: { data: Procurement }) {
     }
   };
 
-  if (items.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center p-8 text-center">
-        <ShoppingCart className="w-12 h-12 text-muted-foreground/50 mb-4" />
-        <h3 className="text-lg font-semibold mb-2">Procurement Plan Pending</h3>
-        <p className="text-sm text-muted-foreground max-w-md">
-          Procurement items and vendor management will be defined during program planning.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <Card>
         <CardContent className="pt-6">
           <div className="text-sm text-muted-foreground">Total Procurement Value</div>
-          <div className="text-3xl font-bold">${totalProcurementValue.toLocaleString()}</div>
+          <div className="text-3xl font-bold">${data.totalProcurementValue.toLocaleString()}</div>
         </CardContent>
       </Card>
 
       <Section title="Procurement Items" icon={ShoppingCart}>
         <div className="space-y-3">
-          {items.map((item) => (
+          {data.items.map((item) => (
             <Card key={item.id}>
               <CardContent className="pt-4">
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-3">
@@ -1054,7 +973,7 @@ export function ProcurementFormatter({ data }: { data: Procurement }) {
                     <Badge className={getTypeColor(item.type)}>{item.type}</Badge>
                   </div>
                   <div className="text-left sm:text-right flex-shrink-0">
-                    <div className="font-bold text-lg">${(item.estimatedValue ?? 0).toLocaleString()}</div>
+                    <div className="font-bold text-lg">${item.estimatedValue.toLocaleString()}</div>
                     <div className="text-xs text-muted-foreground">{item.timing}</div>
                   </div>
                 </div>
@@ -1069,15 +988,15 @@ export function ProcurementFormatter({ data }: { data: Procurement }) {
         </div>
       </Section>
 
-      {vendorManagement.length > 0 && (
+      {data.vendorManagement && data.vendorManagement.length > 0 && (
         <Section title="Vendor Management" icon={Building2}>
-          <List items={vendorManagement} />
+          <List items={data.vendorManagement} />
         </Section>
       )}
 
-      {policies.length > 0 && (
+      {data.policies && data.policies.length > 0 && (
         <Section title="Procurement Policies" icon={FileCheck}>
-          <List items={policies} />
+          <List items={data.policies} />
         </Section>
       )}
     </div>
@@ -1089,11 +1008,6 @@ export function ProcurementFormatter({ data }: { data: Procurement }) {
 // ============================================================================
 
 export function ExitStrategyFormatter({ data }: { data: ExitStrategy }) {
-  const failureConditions = data?.failureConditions ?? [];
-  const rollbackProcedures = data?.rollbackProcedures ?? [];
-  const pivotOptions = data?.pivotOptions ?? [];
-  const lessonsLearned = data?.lessonsLearned ?? [];
-
   const getSeverityColor = (severity: string) => {
     switch (severity) {
       case 'Critical': return 'bg-red-100 text-red-800 border-red-300';
@@ -1103,71 +1017,55 @@ export function ExitStrategyFormatter({ data }: { data: ExitStrategy }) {
     }
   };
 
-  if (failureConditions.length === 0 && rollbackProcedures.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center p-8 text-center">
-        <LogOut className="w-12 h-12 text-muted-foreground/50 mb-4" />
-        <h3 className="text-lg font-semibold mb-2">Exit Strategy Pending</h3>
-        <p className="text-sm text-muted-foreground max-w-md">
-          Exit conditions and rollback procedures will be defined during program planning.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
-      {failureConditions.length > 0 && (
-        <Section title="Failure Conditions" icon={AlertTriangle}>
-          <div className="space-y-2">
-            {failureConditions.map((condition, i) => (
-              <Card key={i} className={`border-2 ${getSeverityColor(condition.severity)}`}>
-                <CardContent className="pt-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <Badge className={getSeverityColor(condition.severity)}>
-                      {condition.severity}
-                    </Badge>
-                    <span className="text-sm text-muted-foreground">
-                      Response: {condition.responseTime}
-                    </span>
-                  </div>
-                  <p className="text-sm">{condition.trigger}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </Section>
-      )}
+      <Section title="Failure Conditions" icon={AlertTriangle}>
+        <div className="space-y-2">
+          {data.failureConditions.map((condition, i) => (
+            <Card key={i} className={`border-2 ${getSeverityColor(condition.severity)}`}>
+              <CardContent className="pt-4">
+                <div className="flex items-start justify-between mb-2">
+                  <Badge className={getSeverityColor(condition.severity)}>
+                    {condition.severity}
+                  </Badge>
+                  <span className="text-sm text-muted-foreground">
+                    Response: {condition.responseTime}
+                  </span>
+                </div>
+                <p className="text-sm">{condition.trigger}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </Section>
 
-      {rollbackProcedures.length > 0 && (
-        <Section title="Rollback Procedures" icon={LogOut}>
-          <div className="space-y-3">
-            {rollbackProcedures.map((procedure, i) => (
-              <Card key={i}>
-                <CardHeader>
-                  <CardTitle className="text-base flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <span className="break-words flex-1 min-w-0">{procedure.name}</span>
-                    <Badge variant="outline" className="w-fit">${(procedure.estimatedCost ?? 0).toLocaleString()}</Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <KeyValue label="Trigger" value={procedure.trigger} />
-                  <KeyValue label="Timeline" value={procedure.timeline} />
-                  <div>
-                    <span className="text-sm font-medium">Actions:</span>
-                    <List items={procedure.actions ?? []} />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </Section>
-      )}
+      <Section title="Rollback Procedures" icon={LogOut}>
+        <div className="space-y-3">
+          {data.rollbackProcedures.map((procedure, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <CardTitle className="text-base flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <span className="break-words flex-1 min-w-0">{procedure.name}</span>
+                  <Badge variant="outline" className="w-fit">${procedure.estimatedCost.toLocaleString()}</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <KeyValue label="Trigger" value={procedure.trigger} />
+                <KeyValue label="Timeline" value={procedure.timeline} />
+                <div>
+                  <span className="text-sm font-medium">Actions:</span>
+                  <List items={procedure.actions} />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </Section>
 
-      {pivotOptions.length > 0 && (
+      {data.pivotOptions && data.pivotOptions.length > 0 && (
         <Section title="Pivot Options" icon={TrendingUp}>
           <div className="space-y-3">
-            {pivotOptions.map((pivot, i) => (
+            {data.pivotOptions.map((pivot, i) => (
               <Card key={i}>
                 <CardHeader>
                   <CardTitle className="text-base">{pivot.name}</CardTitle>
@@ -1176,7 +1074,7 @@ export function ExitStrategyFormatter({ data }: { data: ExitStrategy }) {
                   <p className="text-sm break-words">{pivot.description}</p>
                   <div>
                     <span className="text-sm font-medium">Conditions:</span>
-                    <List items={pivot.conditions ?? []} />
+                    <List items={pivot.conditions} />
                   </div>
                 </CardContent>
               </Card>
@@ -1185,9 +1083,9 @@ export function ExitStrategyFormatter({ data }: { data: ExitStrategy }) {
         </Section>
       )}
 
-      {lessonsLearned.length > 0 && (
+      {data.lessonsLearned && data.lessonsLearned.length > 0 && (
         <Section title="Lessons Learned Framework" icon={FileCheck}>
-          <List items={lessonsLearned} />
+          <List items={data.lessonsLearned} />
         </Section>
       )}
     </div>

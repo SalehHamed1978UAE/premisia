@@ -4,7 +4,6 @@ import { segmentDiscoveryResults, betaUsageCounters, users } from '@shared/schem
 import { eq, sql, desc } from 'drizzle-orm';
 import Anthropic from '@anthropic-ai/sdk';
 import { encryptKMS, decryptKMS, encryptJSONKMS, decryptJSONKMS } from '../utils/kms-encryption';
-import { discoveryCacheService } from '../services/discovery-cache-service';
 
 const router = Router();
 
@@ -527,10 +526,6 @@ router.post('/start-discovery/:id', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Discovery already in progress' });
     }
 
-    // Decrypt sensitive fields before passing to discovery engine
-    const decryptedDescription = await decryptKMS(record.offeringDescription);
-    const decryptedHypothesis = record.existingHypothesis ? await decryptKMS(record.existingHypothesis) : undefined;
-
     // Update status to running
     await db.update(segmentDiscoveryResults)
       .set({ status: 'running', updatedAt: new Date() })
@@ -539,14 +534,14 @@ router.post('/start-discovery/:id', async (req: Request, res: Response) => {
     // Initialize progress tracking
     discoveryProgress.set(id, { step: 'Starting', progress: 0, message: 'Initializing segment discovery...' });
 
-    // Start discovery in background (pass userId for caching, use decrypted values)
-    runSegmentDiscovery(id, userId, {
-      offeringDescription: decryptedDescription || record.offeringDescription,
+    // Start discovery in background
+    runSegmentDiscovery(id, {
+      offeringDescription: record.offeringDescription,
       offeringType: record.offeringType || 'other',
       stage: record.stage || 'idea_stage',
       gtmConstraint: record.gtmConstraint || 'solo_founder',
       salesMotion: record.salesMotion || 'self_serve',
-      existingHypothesis: decryptedHypothesis,
+      existingHypothesis: record.existingHypothesis || undefined,
     });
 
     res.json({
@@ -560,37 +555,8 @@ router.post('/start-discovery/:id', async (req: Request, res: Response) => {
   }
 });
 
-async function runSegmentDiscovery(id: string, userId: string, context: any) {
+async function runSegmentDiscovery(id: string, context: any) {
   try {
-    // Check cache first for instant results on retry
-    const cached = discoveryCacheService.get(userId, context);
-    if (cached) {
-      console.log(`[Segment Discovery ${id}] Using cached result`);
-      discoveryProgress.set(id, { step: 'Using cached results', progress: 50, message: 'Loading cached results...' });
-      
-      // Encrypt cached result and save to database
-      const [encryptedGeneLibrary, encryptedGenomes, encryptedSynthesis] = await Promise.all([
-        encryptJSONKMS(cached.geneLibrary),
-        encryptJSONKMS(cached.genomes),
-        encryptJSONKMS(cached.synthesis),
-      ]);
-
-      await db.update(segmentDiscoveryResults)
-        .set({
-          geneLibrary: encryptedGeneLibrary || cached.geneLibrary,
-          genomes: encryptedGenomes || cached.genomes,
-          synthesis: encryptedSynthesis || cached.synthesis,
-          status: 'completed',
-          completedAt: new Date(),
-          updatedAt: new Date(),
-        })
-        .where(eq(segmentDiscoveryResults.id, id));
-
-      discoveryProgress.set(id, { step: 'Complete (cached)', progress: 100, message: 'Discovery complete!' });
-      console.log(`[Segment Discovery ${id}] Completed from cache`);
-      return;
-    }
-
     const { segmentDiscoveryEngine } = await import('../services/segment-discovery-engine');
     
     const result = await segmentDiscoveryEngine.runDiscovery(
@@ -601,73 +567,22 @@ async function runSegmentDiscovery(id: string, userId: string, context: any) {
       }
     );
 
-    // Cache the result for future requests (user-scoped)
-    discoveryCacheService.set(userId, context, result);
-
-    // Debug: Log result sizes before encryption
-    console.log(`[Segment Discovery ${id}] Result sizes - geneLibrary: ${result.geneLibrary ? Object.keys(result.geneLibrary.dimensions || {}).length : 'null'} dims, genomes: ${result.genomes?.length || 0}, synthesis: ${result.synthesis?.beachhead ? 'has beachhead' : 'null'}`);
-
-    // Encrypt and save results to database (parallel for speed)
-    const [encryptedGeneLibrary, encryptedGenomes, encryptedSynthesis] = await Promise.all([
-      encryptJSONKMS(result.geneLibrary),
-      encryptJSONKMS(result.genomes),
-      encryptJSONKMS(result.synthesis),
-    ]);
-
-    // Debug: Log encryption results
-    console.log(`[Segment Discovery ${id}] Encryption results - geneLibrary: ${encryptedGeneLibrary ? encryptedGeneLibrary.length + ' chars' : 'NULL'}, genomes: ${encryptedGenomes ? encryptedGenomes.length + ' chars' : 'NULL'}, synthesis: ${encryptedSynthesis ? encryptedSynthesis.length + ' chars' : 'NULL'}`);
-
-    if (!encryptedGeneLibrary || !encryptedGenomes || !encryptedSynthesis) {
-      console.error(`[Segment Discovery ${id}] ENCRYPTION FAILED - one or more fields returned null!`);
-    }
-
-    // Create lightweight summary for instant loading (NOT encrypted)
-    const uniqueRoles = new Set(result.genomes.map(g => g.genes.decision_maker)).size;
-    const beachheadGenome = result.synthesis.beachhead.genome;
-    const summary = {
-      topGenomes: result.genomes.slice(0, 20).map(g => ({
-        id: g.id,
-        genes: g.genes,
-        score: g.fitness.totalScore,
-        narrative: g.narrativeReason
-      })),
-      // Include full beachhead data for instant display
-      beachhead: {
-        genome: {
-          id: beachheadGenome.id,
-          genes: beachheadGenome.genes,
-          fitness: beachheadGenome.fitness,
-          narrativeReason: beachheadGenome.narrativeReason
-        },
-        rationale: result.synthesis.beachhead.rationale,
-        validationPlan: result.synthesis.beachhead.validationPlan
-      },
-      backupSegments: (result.synthesis.backupSegments || []).slice(0, 3).map(s => ({
-        id: s.id,
-        genes: s.genes,
-        fitness: s.fitness,
-        narrativeReason: s.narrativeReason
-      })),
-      strategicInsights: result.synthesis.strategicInsights || [],
-      beachheadId: result.synthesis.beachhead.genome.id,
-      totalSegments: result.genomes.length,
-      uniqueRoles,
-      completedAt: new Date().toISOString()
-    };
+    // Encrypt and save results to database
+    const encryptedGeneLibrary = await encryptJSONKMS(result.geneLibrary);
+    const encryptedGenomes = await encryptJSONKMS(result.genomes);
+    const encryptedSynthesis = await encryptJSONKMS(result.synthesis);
 
     await db.update(segmentDiscoveryResults)
       .set({
-        geneLibrary: encryptedGeneLibrary,
-        genomes: encryptedGenomes,
-        synthesis: encryptedSynthesis,
-        summary,
+        geneLibrary: encryptedGeneLibrary || result.geneLibrary,
+        genomes: encryptedGenomes || result.genomes,
+        synthesis: encryptedSynthesis || result.synthesis,
         status: 'completed',
         completedAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(segmentDiscoveryResults.id, id));
 
-    console.log(`[Segment Discovery ${id}] Database update completed`);
     discoveryProgress.set(id, { step: 'Complete', progress: 100, message: 'Discovery complete!' });
     console.log(`[Segment Discovery ${id}] Completed successfully`);
   } catch (error: any) {
@@ -738,32 +653,7 @@ router.get('/discovery-stream/:id', async (req: Request, res: Response) => {
             return;
           }
           
-          // Parse special event types encoded in step string
-          if (progress.step?.startsWith('intermediate_results:')) {
-            try {
-              const data = JSON.parse(progress.step.replace('intermediate_results:', ''));
-              res.write(`event: intermediate_results\ndata: ${JSON.stringify(data)}\n\n`);
-            } catch (e) {
-              console.error('[Discovery Stream] Failed to parse intermediate_results:', e);
-            }
-          } else if (progress.step?.startsWith('partial_scores:')) {
-            try {
-              const data = JSON.parse(progress.step.replace('partial_scores:', ''));
-              res.write(`event: partial_scores\ndata: ${JSON.stringify(data)}\n\n`);
-            } catch (e) {
-              console.error('[Discovery Stream] Failed to parse partial_scores:', e);
-            }
-          } else if (progress.step?.startsWith('stage_error:')) {
-            try {
-              const data = JSON.parse(progress.step.replace('stage_error:', ''));
-              res.write(`event: stage_error\ndata: ${JSON.stringify(data)}\n\n`);
-            } catch (e) {
-              console.error('[Discovery Stream] Failed to parse stage_error:', e);
-            }
-          } else {
-            // Standard progress event
-            res.write(`data: ${JSON.stringify({ type: 'progress', ...progress })}\n\n`);
-          }
+          res.write(`data: ${JSON.stringify({ type: 'progress', ...progress })}\n\n`);
         } else {
           // Check database for completed status
           const [current] = await db.select()
@@ -817,7 +707,6 @@ router.get('/results/:id', async (req: Request, res: Response) => {
 
     const userId = user.claims.sub;
     const { id } = req.params;
-    const expandFull = req.query.expand === 'full';
 
     const [record] = await db.select()
       .from(segmentDiscoveryResults)
@@ -827,32 +716,12 @@ router.get('/results/:id', async (req: Request, res: Response) => {
     if (!record) {
       return res.status(404).json({ error: 'Record not found' });
     }
-    
-    // Debug: log what fields Drizzle returns
-    console.log('[Results] Record keys:', Object.keys(record));
-    console.log('[Results] geneLibrary type:', typeof record.geneLibrary, 'truthy:', !!record.geneLibrary);
-    console.log('[Results] genomes type:', typeof record.genomes, 'truthy:', !!record.genomes);
-    console.log('[Results] synthesis type:', typeof record.synthesis, 'truthy:', !!record.synthesis);
 
     if (record.userId !== userId) {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    // If summary exists and expand=full is not requested, return lightweight summary
-    if (record.summary && !expandFull) {
-      console.log('[Results] Returning lightweight summary (no decryption)');
-      return res.json({
-        id: record.id,
-        summary: record.summary,
-        offeringType: record.offeringType,
-        stage: record.stage,
-        status: record.status,
-        createdAt: record.createdAt,
-        completedAt: record.completedAt,
-      });
-    }
-
-    // Full payload - decrypt all fields
+    // Decrypt sensitive fields
     const decryptedDescription = await decryptKMS(record.offeringDescription);
     const decryptedHypothesis = record.existingHypothesis ? await decryptKMS(record.existingHypothesis) : null;
     const decryptedClarifications = record.clarifications ? await decryptJSONKMS(record.clarifications as string) : null;
@@ -931,7 +800,6 @@ router.get('/results/:id', async (req: Request, res: Response) => {
       geneLibrary: decryptedGeneLibrary,
       genomes: decryptedGenomes,
       synthesis: decryptedSynthesis,
-      summary: record.summary,
       status: record.status,
       errorMessage: record.errorMessage,
       createdAt: record.createdAt,

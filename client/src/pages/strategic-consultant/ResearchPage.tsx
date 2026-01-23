@@ -1,28 +1,3 @@
-/**
- * ╔═══════════════════════════════════════════════════════════════════════════╗
- * ║  ⚠️  CRITICAL: MODULAR JOURNEY ARCHITECTURE  ⚠️                           ║
- * ║                                                                           ║
- * ║  This page serves MULTIPLE journey types (BMC, Porter's, PESTLE, etc.)   ║
- * ║                                                                           ║
- * ║  BEFORE MODIFYING:                                                        ║
- * ║  1. Read /docs/JOURNEY_ARCHITECTURE.md                                    ║
- * ║  2. Check server/journey/journey-registry.ts for journey definitions      ║
- * ║  3. Use getNextPage() instead of hardcoding URLs                          ║
- * ║  4. Render framework-specific UIs based on currentFramework               ║
- * ║                                                                           ║
- * ║  DO NOT:                                                                  ║
- * ║  - Hardcode category arrays (breaks other journeys)                       ║
- * ║  - Use a single component for all frameworks                              ║
- * ║  - Hardcode nextUrl values                                                ║
- * ║                                                                           ║
- * ║  Each framework needs its own UI component:                               ║
- * ║  - BMC (9 blocks) → BMCResearchExperience                                 ║
- * ║  - Porter's (5 forces) → PortersResearchExperience                        ║
- * ║                                                                           ║
- * ║  Run: npm run test:journeys before merging                                ║
- * ╚═══════════════════════════════════════════════════════════════════════════╝
- */
-
 import { useEffect, useState, useRef } from "react";
 import { useRoute, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -37,8 +12,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { PortersResearchExperience } from "@/components/research-experience/PortersResearchExperience";
-import { BMCResearchExperience } from "@/components/research-experience/BMCResearchExperience";
+import { ResearchExperience } from "@/components/research-experience/ResearchExperience";
 
 interface Finding {
   fact: string;
@@ -145,7 +119,6 @@ export default function ResearchPage() {
   }>>([]);
   const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [autoAdvance, setAutoAdvance] = useState<boolean>(true);
-  const [isBMCJourney, setIsBMCJourney] = useState<boolean>(false);
   
   // Use ref to prevent double execution in React Strict Mode
   const hasInitiatedResearch = useRef(false);
@@ -198,16 +171,15 @@ export default function ResearchPage() {
 
     // Only require Five-Whys data for journeys that use it (Porter's, etc.)
     // BMI/BMC journeys don't go through Five Whys, so skip this check for them
-    const isBMC = journeyType === 'business_model_innovation';
-    setIsBMCJourney(isBMC);
-    const requiresFiveWhys = !isBMC;
+    const isBMCJourney = journeyType === 'business_model_innovation';
+    const requiresFiveWhys = !isBMCJourney;
 
     if (requiresFiveWhys && (!rootCause || !whysPath.length || !input)) {
       setError('Missing required data from previous steps');
       return;
     }
 
-    if (!isBMC && !input) {
+    if (!isBMCJourney && !input) {
       setError('Missing required input from previous steps');
       return;
     }
@@ -217,7 +189,7 @@ export default function ResearchPage() {
     
     let eventSource: EventSource;
     
-    if (isBMC) {
+    if (isBMCJourney) {
       // For BMC journeys, use GET /bmc-research/stream with SSE
       // Note: Input is fetched from journey session on the backend, not passed as query param
       eventSource = new EventSource(`/api/strategic-consultant/bmc-research/stream/${sessionId}`);
@@ -371,17 +343,8 @@ export default function ResearchPage() {
   }
 
   if (isResearching) {
-    if (isBMCJourney) {
-      return (
-        <BMCResearchExperience
-          progress={progress}
-          currentMessage={currentQuery}
-          elapsedSeconds={elapsedSeconds}
-        />
-      );
-    }
     return (
-      <PortersResearchExperience
+      <ResearchExperience
         progress={progress}
         currentMessage={currentQuery}
         elapsedSeconds={elapsedSeconds}

@@ -1,41 +1,31 @@
-import { useRoute, useLocation } from "wouter";
+import { useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, AlertCircle, Download, FileJson, AlertTriangle, ArrowRight } from "lucide-react";
+import { Loader2, AlertCircle, Download, FileJson, AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-
-interface StrategicImplication {
-  priority?: string;
-  action: string;
-  rationale?: string;
-}
-
-type ImplicationItem = string | StrategicImplication;
 
 interface BMCBlock {
   blockName: string;
   description: string;
-  keyFindings: (string | { action?: string; rationale?: string })[];
+  keyFindings: string[];
   confidence: number;
-  strategicImplications: ImplicationItem[];
-  identifiedGaps: (string | { action?: string; rationale?: string })[];
+  strategicImplications: string[];
+  identifiedGaps: string[];
   researchQueries: string[];
 }
-
-type FlexibleItem = string | { priority?: string; action?: string; rationale?: string; [key: string]: any };
 
 interface BMCResult {
   blocks: BMCBlock[];
   overallConfidence: number;
   viability: string;
-  keyInsights: FlexibleItem[];
-  criticalGaps: FlexibleItem[];
-  consistencyChecks: FlexibleItem[];
-  recommendations: FlexibleItem[];
+  keyInsights: string[];
+  criticalGaps: string[];
+  consistencyChecks: string[];
+  recommendations: string[];
   contradictions?: any[];
 }
 
@@ -52,24 +42,12 @@ interface Version {
   program?: any;
 }
 
-const formatConfidence = (confidence: number | undefined | null): string => {
-  if (confidence === undefined || confidence === null || isNaN(confidence)) {
-    return 'N/A';
-  }
-  return `${Math.round(confidence * 100)}%`;
-};
-
 export default function BMCResultsPage() {
   const [, params] = useRoute("/bmc/results/:sessionId/:versionNumber");
-  const [, setLocation] = useLocation();
   const { toast } = useToast();
   
   const sessionId = params?.sessionId || '';
   const versionNumber = params?.versionNumber ? parseInt(params.versionNumber) : 1;
-
-  const handleProceedToDecisions = () => {
-    setLocation(`/strategic-consultant/decisions/${sessionId}/${versionNumber}`);
-  };
 
   const { data: response, isLoading, error } = useQuery<{ success: boolean; version: Version }>({
     queryKey: ['/api/strategic-consultant/versions', sessionId, versionNumber],
@@ -152,25 +130,14 @@ export default function BMCResultsPage() {
                 Session: {sessionId} • Version {versionNumber}
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                onClick={handleDownloadJSON}
-                data-testid="button-download-json"
-                variant="outline"
-                className="gap-2"
-              >
-                <Download className="h-4 w-4" />
-                Download JSON
-              </Button>
-              <Button
-                onClick={handleProceedToDecisions}
-                data-testid="button-proceed-decisions"
-                className="gap-2"
-              >
-                Proceed to Decisions
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </div>
+            <Button
+              onClick={handleDownloadJSON}
+              data-testid="button-download-json"
+              className="gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Download JSON
+            </Button>
           </div>
 
           {/* Overall Metrics */}
@@ -179,7 +146,7 @@ export default function BMCResultsPage() {
               <div className="flex items-center justify-between">
                 <CardTitle>Overall Assessment</CardTitle>
                 <Badge variant={bmcResult.overallConfidence > 0.7 ? "default" : "secondary"}>
-                  {formatConfidence(bmcResult.overallConfidence)} Confidence
+                  {Math.round(bmcResult.overallConfidence * 100)}% Confidence
                 </Badge>
               </div>
             </CardHeader>
@@ -203,7 +170,7 @@ export default function BMCResultsPage() {
         </div>
 
         {/* Key Insights */}
-        {Array.isArray(bmcResult.keyInsights) && bmcResult.keyInsights.length > 0 && (
+        {bmcResult.keyInsights && bmcResult.keyInsights.length > 0 && (
           <Card className="mb-6">
             <CardHeader>
               <CardTitle>Key Insights</CardTitle>
@@ -211,9 +178,7 @@ export default function BMCResultsPage() {
             <CardContent>
               <ul className="list-disc list-inside space-y-2">
                 {bmcResult.keyInsights.map((insight, idx) => (
-                  <li key={idx} className="text-sm">
-                    {typeof insight === 'string' ? insight : (insight?.action || insight?.rationale || JSON.stringify(insight))}
-                  </li>
+                  <li key={idx} className="text-sm">{insight}</li>
                 ))}
               </ul>
             </CardContent>
@@ -221,7 +186,7 @@ export default function BMCResultsPage() {
         )}
 
         {/* Recommendations */}
-        {Array.isArray(bmcResult.recommendations) && bmcResult.recommendations.length > 0 && (
+        {bmcResult.recommendations && bmcResult.recommendations.length > 0 && (
           <Card className="mb-6">
             <CardHeader>
               <CardTitle>Strategic Recommendations</CardTitle>
@@ -229,17 +194,7 @@ export default function BMCResultsPage() {
             <CardContent>
               <ul className="list-disc list-inside space-y-2">
                 {bmcResult.recommendations.map((rec, idx) => (
-                  <li key={idx} className="text-sm">
-                    {typeof rec === 'string' ? rec : (
-                      rec?.action ? (
-                        <span>
-                          {rec.priority && <Badge variant="outline" className="mr-2 text-xs">{rec.priority}</Badge>}
-                          <span className="font-medium">{rec.action}</span>
-                          {rec.rationale && <span className="text-muted-foreground ml-1">— {rec.rationale}</span>}
-                        </span>
-                      ) : JSON.stringify(rec)
-                    )}
-                  </li>
+                  <li key={idx} className="text-sm">{rec}</li>
                 ))}
               </ul>
             </CardContent>
@@ -257,53 +212,40 @@ export default function BMCResultsPage() {
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">{block.blockName}</CardTitle>
                     <Badge variant="outline">
-                      {formatConfidence(block.confidence)}
+                      {Math.round(block.confidence * 100)}%
                     </Badge>
                   </div>
                   <CardDescription className="mt-2">{block.description}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {Array.isArray(block.keyFindings) && block.keyFindings.length > 0 && (
+                  {block.keyFindings && block.keyFindings.length > 0 && (
                     <div>
                       <h4 className="font-semibold text-sm mb-2">Key Findings</h4>
                       <ul className="list-disc list-inside space-y-1">
                         {block.keyFindings.map((finding, fidx) => (
-                          <li key={fidx} className="text-sm text-muted-foreground">
-                            {typeof finding === 'string' ? finding : (finding?.action || finding?.rationale || JSON.stringify(finding))}
-                          </li>
+                          <li key={fidx} className="text-sm text-muted-foreground">{finding}</li>
                         ))}
                       </ul>
                     </div>
                   )}
 
-                  {Array.isArray(block.strategicImplications) && block.strategicImplications.length > 0 && (
+                  {block.strategicImplications && block.strategicImplications.length > 0 && (
                     <div>
                       <h4 className="font-semibold text-sm mb-2">Strategic Implications</h4>
                       <ul className="list-disc list-inside space-y-1">
                         {block.strategicImplications.map((impl, iidx) => (
-                          <li key={iidx} className="text-sm text-muted-foreground">
-                            {typeof impl === 'string' ? impl : (
-                              impl?.action ? (
-                                <span>
-                                  <span className="font-medium">{impl.action}</span>
-                                  {impl.rationale && <span className="text-xs text-muted-foreground/70 ml-1">— {impl.rationale}</span>}
-                                </span>
-                              ) : JSON.stringify(impl)
-                            )}
-                          </li>
+                          <li key={iidx} className="text-sm text-muted-foreground">{impl}</li>
                         ))}
                       </ul>
                     </div>
                   )}
 
-                  {Array.isArray(block.identifiedGaps) && block.identifiedGaps.length > 0 && (
+                  {block.identifiedGaps && block.identifiedGaps.length > 0 && (
                     <div>
                       <h4 className="font-semibold text-sm mb-2 text-amber-600">Identified Gaps</h4>
                       <ul className="list-disc list-inside space-y-1">
                         {block.identifiedGaps.map((gap, gidx) => (
-                          <li key={gidx} className="text-sm text-amber-600">
-                            {typeof gap === 'string' ? gap : (gap?.action || gap?.rationale || JSON.stringify(gap))}
-                          </li>
+                          <li key={gidx} className="text-sm text-amber-600">{gap}</li>
                         ))}
                       </ul>
                     </div>
@@ -315,7 +257,7 @@ export default function BMCResultsPage() {
         </div>
 
         {/* Critical Gaps */}
-        {Array.isArray(bmcResult.criticalGaps) && bmcResult.criticalGaps.length > 0 && (
+        {bmcResult.criticalGaps && bmcResult.criticalGaps.length > 0 && (
           <Card className="mt-6">
             <CardHeader>
               <CardTitle className="text-amber-600">Critical Gaps to Address</CardTitle>
@@ -323,9 +265,7 @@ export default function BMCResultsPage() {
             <CardContent>
               <ul className="list-disc list-inside space-y-2">
                 {bmcResult.criticalGaps.map((gap, idx) => (
-                  <li key={idx} className="text-sm text-amber-600">
-                    {typeof gap === 'string' ? gap : (gap?.action || gap?.rationale || JSON.stringify(gap))}
-                  </li>
+                  <li key={idx} className="text-sm text-amber-600">{gap}</li>
                 ))}
               </ul>
             </CardContent>

@@ -76,30 +76,9 @@ export default function DecisionPage() {
 
   const [selectedDecisions, setSelectedDecisions] = useState<Record<string, string>>({});
 
-  // Check if decisions are still being generated (queued but not yet ready)
-  const isDecisionsQueued = (data: DecisionsData | undefined): boolean => {
-    if (!data?.version?.decisions) return false;
-    const decisionsData = data.version.decisions as any;
-    return decisionsData?.decisionsQueued === true && 
-           !decisionsData?.decisionError &&
-           (!decisionsData?.decisions || decisionsData.decisions.length === 0);
-  };
-  
-  // Check if decision generation failed
-  const getDecisionError = (data: DecisionsData | undefined): string | null => {
-    if (!data?.version?.decisions) return null;
-    const decisionsData = data.version.decisions as any;
-    return decisionsData?.decisionError || null;
-  };
-
   const { data, isLoading, error } = useQuery<DecisionsData>({
     queryKey: ['/api/strategic-consultant/versions', sessionId, versionNumber],
     enabled: !!sessionIdParam,
-    // Poll every 3 seconds while decisions are being generated
-    refetchInterval: (query) => {
-      const queryData = query.state.data as DecisionsData | undefined;
-      return isDecisionsQueued(queryData) ? 3000 : false;
-    },
   });
 
   const selectDecisionsMutation = useMutation({
@@ -194,36 +173,6 @@ export default function DecisionPage() {
 
   // Extract decisions array using helper
   const decisions = getDecisions(data);
-  const decisionsBeingGenerated = isDecisionsQueued(data);
-  const decisionError = getDecisionError(data);
-
-  // Show generating state when decisions are queued but not yet ready
-  if (decisionsBeingGenerated) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-          <p className="text-muted-foreground">Generating strategic decisions...</p>
-          <p className="text-xs text-muted-foreground/60">This may take a minute</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show error if decision generation failed
-  if (decisionError) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-8">
-        <Alert variant="destructive" className="max-w-md">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Decision Generation Failed</AlertTitle>
-          <AlertDescription>
-            {decisionError}. Please try analyzing again.
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
 
   if (error || decisions.length === 0) {
     return (
@@ -246,6 +195,7 @@ export default function DecisionPage() {
     <AppLayout
       title="Strategic Decisions"
       subtitle="Select strategic options for your EPM program"
+      onViewChange={(view) => setLocation('/')}
     >
       <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6 p-4 sm:p-0">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">

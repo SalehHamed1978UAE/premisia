@@ -3,8 +3,6 @@ import { db } from '../db';
 import { strategyDecisions, epmPrograms, journeySessions, strategyVersions, strategicUnderstanding, taskAssignments, goldenRecords } from '@shared/schema';
 import { eq, desc, inArray, and } from 'drizzle-orm';
 import { BMCAnalyzer, PortersAnalyzer, PESTLEAnalyzer, EPMSynthesizer } from '../intelligence';
-import { getEPMRouter, type EPMGeneratorInput } from '../services/epm-generator';
-import { postProcessWithCPM } from '../services/epm-generator/cpm-processor';
 import type { BMCResults, PortersResults, PESTLEResults } from '../intelligence/types';
 import { storage } from '../storage';
 import { createOpenAIProvider } from '../../src/lib/intelligent-planning/llm-provider';
@@ -265,79 +263,6 @@ router.post('/decisions', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/strategy-workspace/epm/generate-from-session
-// Generate EPM program directly from a sessionId (finds latest strategy version)
-// Pass forceRegenerate: true to start fresh instead of resuming a failed/completed session
-router.post('/epm/generate-from-session', async (req: Request, res: Response) => {
-  const progressId = `progress-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-  
-  try {
-    const { sessionId, forceRegenerate } = req.body;
-    const userId = (req.user as any)?.claims?.sub;
-
-    if (!sessionId || typeof sessionId !== 'string') {
-      return res.status(400).json({ error: 'sessionId is required and must be a string' });
-    }
-    
-    // Find the latest strategy version for this session
-    const versions = await db
-      .select()
-      .from(strategyVersions)
-      .where(eq(strategyVersions.sessionId, sessionId))
-      .orderBy(desc(strategyVersions.versionNumber))
-      .limit(1);
-    
-    if (versions.length === 0) {
-      return res.status(404).json({ error: 'No strategy version found for this session' });
-    }
-    
-    const latestVersion = versions[0];
-    
-    // Security check: Verify the user owns this session
-    // Strategy versions should belong to the requesting user
-    // Deny access if:
-    // 1. The version has a different owner
-    // 2. The version has no owner (legacy data) - require explicit ownership
-    if (!latestVersion.userId) {
-      console.warn(`[EPM] Access denied: session ${sessionId} has no owner (legacy data)`);
-      return res.status(403).json({ error: 'This analysis has no owner assigned. Please contact support.' });
-    }
-    if (latestVersion.userId !== userId) {
-      console.warn(`[EPM] Unauthorized access attempt: user ${userId} tried to access session ${sessionId} owned by ${latestVersion.userId}`);
-      return res.status(403).json({ error: 'You do not have permission to generate EPM for this session' });
-    }
-    
-    // Return progress ID immediately so client can connect to SSE
-    res.json({
-      success: true,
-      progressId,
-      strategyVersionId: latestVersion.id,
-      message: 'EPM generation started. Connect to progress stream for updates.'
-    });
-
-    // Continue processing in background using existing function
-    // Pass forceRegenerate to create a new session instead of resuming old one
-    processEPMGeneration(latestVersion.id, undefined, undefined, progressId, req, !!forceRegenerate).catch(error => {
-      console.error('Background EPM generation error:', error);
-      sendSSEEvent(progressId, {
-        type: 'error',
-        message: error.message || 'EPM generation failed'
-      });
-      const stream = progressStreams.get(progressId);
-      if (stream) {
-        stream.res.end();
-        progressStreams.delete(progressId);
-      }
-    });
-  } catch (error: any) {
-    console.error('Error in POST /epm/generate-from-session:', error);
-    sendSSEEvent(progressId, {
-      type: 'error',
-      message: error.message || 'EPM generation failed'
-    });
-  }
-});
-
 // POST /api/strategy-workspace/epm/generate
 // Generate EPM program from framework results + user decisions
 router.post('/epm/generate', async (req: Request, res: Response) => {
@@ -387,12 +312,10 @@ async function processEPMGeneration(
   decisionId: string | undefined,
   prioritizedOrder: any,
   progressId: string,
-  req: Request,
-  forceRegenerate: boolean = false
+  req: Request
 ) {
   const startTime = Date.now(); // Track elapsed time
   const userId = (req.user as any)?.claims?.sub || null;
-  let jobId: string | null = null; // Declare at function level for catch block access
   
   try {
     // Send initial progress event
@@ -436,6 +359,7 @@ async function processEPMGeneration(
     }
 
     // Create background job record for tracking (after we have sessionId)
+    let jobId: string | null = null;
     try {
       jobId = await backgroundJobService.createJob({
         userId,
@@ -450,7 +374,7 @@ async function processEPMGeneration(
           sessionId: version.sessionId,
           versionNumber: version.versionNumber,
         },
-        sessionId: version.sessionId || undefined, // Store sessionId for session-based lookups
+        sessionId: version.sessionId, // Store sessionId for session-based lookups
         relatedEntityId: strategyVersionId,
         relatedEntityType: 'strategy_version',
       });
@@ -573,309 +497,27 @@ async function processEPMGeneration(
       sessionId: version.sessionId,  // Pass sessionId for initiative type lookup
     };
     
-    // Check if multi-agent EPM generation is enabled
-    const useMultiAgent = process.env.USE_MULTI_AGENT_EPM === 'true';
-    let epmProgram: any;
-    let generatorMetadata: any = null;
-    let conversationLog: any = null;
-    let knowledgeLedger: any = null;
-
-    if (useMultiAgent) {
-      // Use the new EPM Generator Router (routes to CrewAI multi-agent system)
-      console.log('[EPM Generation] 🤖 Using Multi-Agent EPM Generator (CrewAI)');
-      
-      sendSSEEvent(progressId, {
-        type: 'step-start',
-        step: 'multi-agent-init',
-        progress: 15,
-        description: 'Initializing multi-agent collaboration...'
-      });
-
-      // Build EPMGeneratorInput from available data
-      // Use inputSummary or a derived name, NOT bmcKeyInsights (which contains research content)
-      const businessName = version.inputSummary || version.marketContext?.split('.')[0] || 'Strategic Initiative';
-      
-      // When forceRegenerate is true, create a NEW session ID so we don't resume old data
-      // This allows users to regenerate from scratch instead of resuming a failed/stale session
-      const effectiveSessionId = forceRegenerate 
-        ? `session-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`
-        : (version.sessionId || '');
-      
-      if (forceRegenerate) {
-        console.log(`[EPM Generation] 🔄 Force regenerate enabled - creating new session: ${effectiveSessionId}`);
-      }
-      
-      const epmInput: EPMGeneratorInput = {
-        businessContext: {
-          name: businessName,
-          type: initiativeType || 'business_model_innovation',
-          scale: 'smb' as const,
-          description: version.inputSummary || version.marketContext || '',
-          industry: bmcAnalysis.keyInsights?.find((i: string) => i.toLowerCase().includes('industry')) || undefined,
-          keywords: bmcAnalysis.keyInsights?.slice(0, 5) || [],
-        },
-        bmcInsights: {
-          blocks: bmcAnalysis.blocks || [],
-          keyInsights: bmcAnalysis.keyInsights || [],
-          recommendations: bmcAnalysis.recommendations || [],
-          findings: blocks.flatMap((b: any) => b.findings || []),
-        },
-        strategyInsights: insights,
-        constraints: userDecisions?.investmentCapacityMax ? {
-          budget: userDecisions.investmentCapacityMax,
-          resourceLimits: userDecisions.teamSizeMax ? {
-            maxHeadcount: userDecisions.teamSizeMax,
-          } : undefined,
-        } : undefined,
-        userId,
-        sessionId: effectiveSessionId,
-        journeyType: initiativeType,
-      };
-
-      // STAGE_RANGES: Fixed percent boundaries per step (ensures monotonic progress)
-      // Progress MUST only go up, never down - each stage has fixed start/end range
-      const STAGE_RANGES: Record<number, { stepId: string; start: number; end: number }> = {
-        1: { stepId: 'wbs-generation', start: 15, end: 25 },       // WBS Definition
-        2: { stepId: 'extract-tasks', start: 25, end: 35 },        // Task Extraction  
-        3: { stepId: 'schedule', start: 35, end: 50 },             // Schedule Creation
-        4: { stepId: 'allocate-resources', start: 50, end: 60 },   // Resource Allocation
-        5: { stepId: 'level-resources', start: 60, end: 70 },      // Resource Optimization
-        6: { stepId: 'optimize', start: 70, end: 75 },             // AI Optimization
-        7: { stepId: 'validate', start: 75, end: 80 },             // Final Validation
-      };
-      
-      let lastRound = 0;
-      let lastEmittedPercent = 15; // Track to ensure monotonic progress
-      const completedSteps: string[] = []; // Track completed steps for activeStep/completedSteps
-      
-      try {
-        const router = getEPMRouter();
-        
-        // Progress callback for real-time SSE updates during multi-agent generation
-        const onProgress = (progress: { round: number; totalRounds: number; currentAgent: string; message: string; percentComplete: number }) => {
-          const stageConfig = STAGE_RANGES[progress.round] || { stepId: 'multi-agent-generation', start: 15, end: 80 };
-          const stepId = stageConfig.stepId;
+    // Run through EPM synthesizer with naming context and real-time progress
+    const epmProgram = await epmSynthesizer.synthesize(
+      insights,
+      decisionsWithPriority,
+      namingContext,
+      {
+        onProgress: (event) => {
+          // Forward intelligent planning events to SSE stream
+          sendSSEEvent(progressId, event);
           
-          // Calculate progress within this stage's fixed range (mid-stage)
-          const stageProgress = 0.5; // Within-stage progress indicator
-          const calculatedPercent = Math.round(stageConfig.start + (stageProgress * (stageConfig.end - stageConfig.start)));
-          
-          // Ensure progress NEVER goes backwards (monotonic)
-          const safePercent = Math.max(lastEmittedPercent, calculatedPercent);
-          lastEmittedPercent = safePercent;
-          
-          // When round changes, mark previous step complete and new step starting
-          if (progress.round !== lastRound) {
-            // Mark previous step complete (if not first round)
-            if (lastRound > 0) {
-              const prevStageConfig = STAGE_RANGES[lastRound];
-              if (prevStageConfig) {
-                completedSteps.push(prevStageConfig.stepId);
-                sendSSEEvent(progressId, {
-                  type: 'step-complete',
-                  step: prevStageConfig.stepId,
-                  progress: prevStageConfig.end, // Use stage end percent
-                  description: `Completed round ${lastRound}`,
-                  activeStep: progress.round,
-                  completedSteps: [...completedSteps],
-                });
-                lastEmittedPercent = Math.max(lastEmittedPercent, prevStageConfig.end);
-              }
-            }
-            
-            // Mark new step as starting
-            sendSSEEvent(progressId, {
-              type: 'step-start',
-              step: stepId,
-              progress: Math.max(lastEmittedPercent, stageConfig.start),
-              description: progress.message || `Round ${progress.round}/${progress.totalRounds}: ${progress.currentAgent} is analyzing...`,
-              activeStep: progress.round,
-              completedSteps: [...completedSteps],
-            });
-            
-            lastRound = progress.round;
-          } else {
-            // Same round - send incremental progress (use safe monotonic percent)
-            sendSSEEvent(progressId, {
-              type: 'step-progress',
-              step: stepId,
-              progress: safePercent,
-              description: progress.message || `Round ${progress.round}/${progress.totalRounds}: ${progress.currentAgent} is analyzing...`,
-              activeStep: progress.round,
-              completedSteps: [...completedSteps],
-            });
+          // Update background job progress (alongside SSE)
+          if (jobId && event.progress !== undefined) {
+            backgroundJobService.updateJob(jobId, {
+              progress: event.progress,
+              progressMessage: event.description || event.message
+            }).catch(err => console.error('[EPM Generation] Job progress update failed:', err));
           }
-        };
-        
-        const routerResult = await router.generate(epmInput, { onProgress });
-        
-        // Extract metadata from router output
-        generatorMetadata = routerResult.metadata;
-        conversationLog = routerResult.conversationLog;
-        knowledgeLedger = routerResult.knowledgeLedger;
-        
-        // Convert unified EPMProgram format to legacy format for DB storage
-        const unifiedProgram = routerResult.program;
-        
-        // Extract strategic imperatives from workstreams (top objectives/goals)
-        const strategicImperatives = (unifiedProgram.workstreams || [])
-          .slice(0, 5)
-          .map((ws: any) => ws.description || ws.name || 'Strategic initiative');
-        
-        // Extract key success factors from workstreams and deliverables
-        const keySuccessFactors = (unifiedProgram.workstreams || [])
-          .flatMap((ws: any) => (ws.deliverables || []).slice(0, 2))
-          .slice(0, 4)
-          .map((d: any) => d.name || d.description || 'Key deliverable');
-        
-        // Build risk summary from risk register
-        const riskCount = Array.isArray(unifiedProgram.riskRegister) 
-          ? unifiedProgram.riskRegister.length 
-          : (unifiedProgram.riskRegister?.risks?.length || 0);
-        const highRisks = Array.isArray(unifiedProgram.riskRegister)
-          ? unifiedProgram.riskRegister.filter((r: any) => r.impact === 'high' || r.probability === 'high').length
-          : 0;
-        const riskSummary = riskCount > 0 
-          ? `${riskCount} risks identified, ${highRisks} high-priority. Key mitigations in place.`
-          : 'Risk assessment pending';
-        
-        // Extract market opportunity from business context or description
-        const marketOpportunity = version.marketContext || version.inputSummary || 
-          `Strategic opportunity in ${initiativeType || 'business'} sector`;
-        
-        // Calculate investment from financial plan
-        const totalBudget = unifiedProgram.financialPlan?.totalBudget || 0;
-        const investmentRequired = totalBudget > 0 
-          ? `$${totalBudget.toLocaleString()}` 
-          : 'Investment to be determined';
-        
-        epmProgram = {
-          executiveSummary: {
-            title: unifiedProgram.title || businessName,
-            description: unifiedProgram.description || version.inputSummary || '',
-            confidence: unifiedProgram.overallConfidence || 0.75,
-            strategicImperatives,
-            keySuccessFactors,
-            riskSummary,
-            marketOpportunity,
-            investmentRequired,
-          },
-          workstreams: unifiedProgram.workstreams || [],
-          timeline: unifiedProgram.timeline || { phases: [], totalMonths: 12, criticalPath: [] },
-          resourcePlan: unifiedProgram.resourcePlan || { roles: [], totalHeadcount: 0, totalCost: 0 },
-          financialPlan: unifiedProgram.financialPlan || { capex: [], opex: [], totalBudget: 0, contingency: 0 },
-          riskRegister: unifiedProgram.riskRegister || { risks: [], overallRiskLevel: 'medium' },
-          benefitsRealization: (unifiedProgram as any).benefitsRealization || { benefits: [], confidence: 0.75 },
-          stageGates: { gates: (unifiedProgram as any).stageGates || unifiedProgram.timeline?.phases || [], confidence: 0.75 },
-          kpis: { metrics: (unifiedProgram as any).benefitsRealization?.kpis || [], confidence: 0.75 },
-          stakeholderMap: { stakeholders: (unifiedProgram as any).stakeholderMap || [], confidence: 0.75 },
-          governance: (unifiedProgram as any).governance || { structure: [], confidence: 0.75 },
-          qaPlan: { standards: [], confidence: 0.75 },
-          procurement: { items: [], confidence: 0.75 },
-          exitStrategy: { strategies: [], confidence: 0.75 },
-          overallConfidence: unifiedProgram.overallConfidence || 0.75,
-        };
-        
-        console.log(`[EPM Generation] ✅ Multi-agent generation complete: generator=${generatorMetadata?.generator}`);
-        if (generatorMetadata?.fallbackReason) {
-          console.log(`[EPM Generation] ⚠️ Fell back to legacy: ${generatorMetadata.fallbackReason}`);
-        }
-        
-        // Send appropriate SSE message based on whether multi-agent actually ran or fell back
-        if (generatorMetadata?.generator === 'multi-agent') {
-          sendSSEEvent(progressId, {
-            type: 'step-complete',
-            step: 'multi-agent-complete',
-            progress: 80,
-            description: `Multi-agent collaboration complete (${generatorMetadata.agentsParticipated || 7} agents, ${generatorMetadata.roundsCompleted || 7} rounds)`,
-          });
-        } else {
-          sendSSEEvent(progressId, {
-            type: 'step-complete',
-            step: 'legacy-fallback',
-            progress: 80,
-            description: `Using legacy generator (fallback: ${generatorMetadata?.fallbackReason || 'unknown'})`,
-          });
-        }
-      } catch (routerError: any) {
-        console.error('[EPM Generation] ❌ Router failed:', routerError.message);
-        console.log('[EPM Generation] Falling back to legacy synthesizer...');
-        
-        // Reset step states - multi-agent may have marked steps complete before failing
-        // Clear all to pending so legacy can track progress fresh
-        completedSteps.length = 0; // Clear completed steps array
-        lastEmittedPercent = 15; // Reset to start
-        
-        // Send reset event so frontend clears all step states
-        sendSSEEvent(progressId, {
-          type: 'reset',
-          step: 'fallback-reset',
-          progress: 15,
-          description: `Switching to optimized generator...`,
-          fallbackReason: routerError.message,
-          completedSteps: [],
-          activeStep: 0,
-        });
-        
-        // Fallback to legacy synthesizer (returns legacy format directly)
-        // Track legacy progress using lastEmittedPercent (reset to 15 above)
-        epmProgram = await epmSynthesizer.synthesize(
-          insights,
-          decisionsWithPriority,
-          namingContext,
-          {
-            onProgress: (event) => {
-              // Ensure monotonic progress - only go forward
-              const newProgress = event.progress !== undefined ? event.progress : lastEmittedPercent;
-              const adjustedProgress = Math.max(lastEmittedPercent, newProgress);
-              lastEmittedPercent = adjustedProgress;
-              
-              sendSSEEvent(progressId, {
-                ...event,
-                progress: adjustedProgress,
-              });
-              if (jobId) {
-                backgroundJobService.updateJob(jobId, {
-                  progress: adjustedProgress,
-                  progressMessage: event.description || event.message
-                }).catch(err => console.error('[EPM Generation] Job progress update failed:', err));
-              }
-            },
-            initiativeType: initiativeType
-          }
-        );
-        generatorMetadata = { generator: 'legacy', fallbackReason: routerError.message };
+        },
+        initiativeType: initiativeType  // EXPLICIT: Pass initiative type from database
       }
-    } else {
-      // Use legacy EPM synthesizer with SSE progress
-      console.log('[EPM Generation] Using Legacy EPM Synthesizer');
-      epmProgram = await epmSynthesizer.synthesize(
-        insights,
-        decisionsWithPriority,
-        namingContext,
-        {
-          onProgress: (event) => {
-            sendSSEEvent(progressId, event);
-            if (jobId && event.progress !== undefined) {
-              backgroundJobService.updateJob(jobId, {
-                progress: event.progress,
-                progressMessage: event.description || event.message
-              }).catch(err => console.error('[EPM Generation] Job progress update failed:', err));
-            }
-          },
-          initiativeType: initiativeType
-        }
-      );
-      generatorMetadata = { generator: 'legacy' };
-    }
-
-    // Apply CPM post-processing for legacy generator path
-    // This ensures workstreams get: earlyStart, lateStart, earlyFinish, lateFinish, slack, isCritical
-    // and timeline.criticalPath is properly populated
-    if (generatorMetadata?.generator === 'legacy') {
-      console.log('[EPM Generation] Applying CPM post-processing to legacy output...');
-      epmProgram = postProcessWithCPM(epmProgram);
-    }
+    );
 
     // Extract component-level confidence scores
     const componentConfidence = extractComponentConfidence(epmProgram);
@@ -883,7 +525,7 @@ async function processEPMGeneration(
     const overallConfidence = calculateOverallConfidence(finalConfidence);
 
     // Save EPM program to database
-    const insertResult = await db.insert(epmPrograms).values({
+    const [savedProgram] = await db.insert(epmPrograms).values({
       strategyVersionId,
       strategyDecisionId: decisionId || null,
       userId,
@@ -904,18 +546,13 @@ async function processEPMGeneration(
       exitStrategy: epmProgram.exitStrategy,
       componentConfidence: finalConfidence,
       overallConfidence: overallConfidence.toString(),
-      editTracking: {
-        generatorMetadata: generatorMetadata || { generator: 'legacy' },
-        ...(conversationLog && { conversationLog }),
-        ...(knowledgeLedger && { knowledgeLedger }),
-      },
+      editTracking: {},
       status: 'draft',
     }).returning();
-    const savedProgram = Array.isArray(insertResult) ? insertResult[0] : null;
 
     // Verify program was saved and ID exists
     if (!savedProgram || !savedProgram.id) {
-      console.error('[EPM Generation] ❌ Program save failed - no ID returned:', insertResult);
+      console.error('[EPM Generation] ❌ Program save failed - no ID returned:', savedProgram);
       throw new Error('Failed to save EPM program - no ID returned from database');
     }
 
@@ -1107,18 +744,19 @@ async function processEPMGeneration(
                     // Save to file system
                     const filePath = await saveGoldenRecordToFile(sanitizedData);
                     
-                    // Save to database using current schema columns
+                    // Save to database
                     await db.insert(goldenRecords).values({
                       journeyType: 'business_model_innovation',
                       version: nextVersion,
-                      createdBy: userId || 'system',
-                      steps: sanitizedData,
+                      filePath,
+                      capturedAt: new Date(),
+                      capturedBy: 'system',
+                      status: 'captured',
                       metadata: {
                         autoCapture: true,
                         source: 'epm_completion_hook',
                         sessionId: journeySession.id,
                         versionNumber: journeySession.versionNumber,
-                        filePath, // Store file path in metadata
                       },
                     });
                     

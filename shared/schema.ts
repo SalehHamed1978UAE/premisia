@@ -124,8 +124,7 @@ export const jobTypeEnum = pgEnum('job_type', [
   'document_enrichment',
   'journey_execution',
   'framework_execution',
-  'research_enrichment',
-  'decision_generation'
+  'research_enrichment'
 ]);
 
 // Research Batch enums
@@ -1002,20 +1001,6 @@ export const segmentDiscoveryResults = pgTable("segment_discovery_results", {
   geneLibrary: jsonb("gene_library"), // encrypted
   genomes: jsonb("genomes"), // encrypted - array of 100 genomes with scores
   synthesis: jsonb("synthesis"), // encrypted - beachhead, backup, validation plan
-  
-  // Lightweight summary for instant loading (NOT encrypted for fast access)
-  summary: jsonb("summary").$type<{
-    topGenomes: Array<{
-      id: string;
-      genes: Record<string, string>;
-      score: number;
-      narrative: string;
-    }>;
-    beachheadId: string;
-    totalSegments: number;
-    uniqueRoles: number;
-    completedAt: string;
-  }>(),
   
   // LLM-generated summary for Strategic Consultant handoff (encrypted)
   strategicSummary: text("strategic_summary"), // encrypted - cached summary for strategic analysis
@@ -1991,115 +1976,3 @@ export type SelectGoldenRecordCheck = typeof goldenRecordChecks.$inferSelect;
 export const insertClarificationSessionSchema = createInsertSchema(clarificationSessions).omit({ id: true, createdAt: true, updatedAt: true, completedAt: true });
 export type InsertClarificationSession = z.infer<typeof insertClarificationSessionSchema>;
 export type SelectClarificationSession = typeof clarificationSessions.$inferSelect;
-
-// ============================================================================
-// Multi-Agent EPM Generator Tables
-// ============================================================================
-
-// Multi-Agent session status enum
-export const multiAgentSessionStatusEnum = pgEnum('multi_agent_session_status', [
-  'initializing',
-  'in_progress',
-  'paused',
-  'completed',
-  'failed'
-]);
-
-// Multi-Agent turn type enum
-export const multiAgentTurnTypeEnum = pgEnum('multi_agent_turn_type', [
-  'agent_input',
-  'agent_output',
-  'synthesis',
-  'conflict_resolution'
-]);
-
-// Multi-Agent turn status enum
-export const multiAgentTurnStatusEnum = pgEnum('multi_agent_turn_status', [
-  'in_progress',
-  'complete',
-  'failed'
-]);
-
-// Multi-Agent Sessions - Tracks entire multi-agent planning runs
-export const multiAgentSessions = pgTable("multi_agent_sessions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  journeySessionId: varchar("journey_session_id").references(() => journeySessions.id, { onDelete: 'cascade' }),
-  userId: varchar("user_id").notNull().references(() => users.id),
-  
-  // Business context (stored as JSON for flexibility)
-  businessContext: jsonb("business_context").notNull(),
-  bmcInsights: jsonb("bmc_insights"),
-  
-  // Progress tracking
-  status: multiAgentSessionStatusEnum("status").notNull().default('initializing'),
-  currentRound: integer("current_round").notNull().default(1),
-  totalRounds: integer("total_rounds").notNull().default(7),
-  
-  // Resume capability
-  lastCompletedRound: integer("last_completed_round").default(0),
-  lastCompletedAgent: varchar("last_completed_agent"),
-  
-  // Accumulated outputs by round (computed summary for quick access)
-  roundSummaries: jsonb("round_summaries").default(sql`'{}'::jsonb`),
-  
-  // Final output
-  finalProgram: jsonb("final_program"),
-  
-  // Metadata
-  startedAt: timestamp("started_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-  completedAt: timestamp("completed_at"),
-  errorMessage: text("error_message"),
-}, (table) => ({
-  journeySessionIdx: index("idx_multi_agent_sessions_journey").on(table.journeySessionId),
-  userIdx: index("idx_multi_agent_sessions_user").on(table.userId),
-  statusIdx: index("idx_multi_agent_sessions_status").on(table.status),
-}));
-
-// Multi-Agent Turns - Every LLM interaction is stored for resume capability
-export const multiAgentTurns = pgTable("multi_agent_turns", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  sessionId: varchar("session_id").notNull().references(() => multiAgentSessions.id, { onDelete: 'cascade' }),
-  
-  // Round and agent tracking
-  round: integer("round").notNull(),
-  agentId: varchar("agent_id").notNull(), // e.g., 'program_coordinator', 'tech_architect'
-  turnType: multiAgentTurnTypeEnum("turn_type").notNull(),
-  
-  // LLM interaction
-  prompt: text("prompt").notNull(),
-  response: text("response"),
-  
-  // Status and metadata
-  status: multiAgentTurnStatusEnum("status").notNull().default('in_progress'),
-  tokensUsed: integer("tokens_used").default(0),
-  durationMs: integer("duration_ms"),
-  
-  // Parsed structured output (validated JSON)
-  parsedOutput: jsonb("parsed_output"),
-  
-  // Error handling
-  errorMessage: text("error_message"),
-  retryCount: integer("retry_count").default(0),
-  
-  // Timestamps
-  createdAt: timestamp("created_at").defaultNow(),
-  completedAt: timestamp("completed_at"),
-}, (table) => ({
-  sessionRoundIdx: index("idx_multi_agent_turns_session_round").on(table.sessionId, table.round),
-  statusIdx: index("idx_multi_agent_turns_status").on(table.sessionId, table.status),
-  agentIdx: index("idx_multi_agent_turns_agent").on(table.sessionId, table.agentId),
-}));
-
-// Insert Schemas for Multi-Agent
-export const insertMultiAgentSessionSchema = createInsertSchema(multiAgentSessions).omit({ 
-  id: true, startedAt: true, updatedAt: true, completedAt: true 
-});
-export type InsertMultiAgentSession = z.infer<typeof insertMultiAgentSessionSchema>;
-export type SelectMultiAgentSession = typeof multiAgentSessions.$inferSelect;
-
-export const insertMultiAgentTurnSchema = createInsertSchema(multiAgentTurns).omit({ 
-  id: true, createdAt: true, completedAt: true 
-});
-export type InsertMultiAgentTurn = z.infer<typeof insertMultiAgentTurnSchema>;
-export type SelectMultiAgentTurn = typeof multiAgentTurns.$inferSelect;

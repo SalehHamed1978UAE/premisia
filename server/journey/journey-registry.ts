@@ -20,7 +20,6 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
       '/strategic-consultant/input',
       '/strategic-consultant/whys-tree/:understandingId',
       '/strategic-consultant/research/:sessionId',
-      '/bmc/results/:sessionId/:versionNumber',
       '/strategy-workspace/decisions/:sessionId/:versionNumber',
       '/strategy-workspace/prioritization/:sessionId/:versionNumber',
     ],
@@ -189,45 +188,6 @@ export function isJourneyAvailable(type: JourneyType): boolean {
 }
 
 /**
- * Get the next page in a journey's page sequence
- * @param journeyType The journey type
- * @param currentPagePattern The current page pattern (e.g., '/strategic-consultant/research/:sessionId')
- * @param params Parameters to substitute into the next page URL
- * @returns The next page URL with parameters substituted, or null if at end
- */
-export function getNextPage(
-  journeyType: JourneyType,
-  currentPagePattern: string,
-  params: Record<string, string | number>
-): string | null {
-  const journey = JOURNEYS[journeyType];
-  if (!journey || !journey.pageSequence) {
-    return null;
-  }
-
-  const currentIndex = journey.pageSequence.findIndex(page => {
-    // Match patterns by comparing the base path structure
-    const pageBase = page.split('/').map(seg => seg.startsWith(':') ? ':param' : seg).join('/');
-    const currentBase = currentPagePattern.split('/').map(seg => seg.startsWith(':') ? ':param' : seg).join('/');
-    return pageBase === currentBase;
-  });
-
-  if (currentIndex === -1 || currentIndex >= journey.pageSequence.length - 1) {
-    return null;
-  }
-
-  const nextPagePattern = journey.pageSequence[currentIndex + 1];
-  
-  // Substitute parameters into the next page URL
-  let nextUrl = nextPagePattern;
-  for (const [key, value] of Object.entries(params)) {
-    nextUrl = nextUrl.replace(`:${key}`, String(value));
-  }
-
-  return nextUrl;
-}
-
-/**
  * Journey Registry object for convenient access to all journey functions
  */
 export const journeyRegistry = {
@@ -235,6 +195,5 @@ export const journeyRegistry = {
   getAvailableJourneys,
   getAllJourneys,
   isJourneyAvailable,
-  getNextPage,
   JOURNEYS,
 };

@@ -78,13 +78,6 @@ interface BMCCanvasProps {
   analysis: BMCAnalysis;
 }
 
-const safeConfidencePercent = (confidence: number | undefined | null): number => {
-  if (confidence === undefined || confidence === null || isNaN(confidence)) {
-    return 0;
-  }
-  return Math.round(confidence * 100);
-};
-
 const BLOCK_ICONS = {
   customer_segments: { icon: Users, color: "text-blue-600 dark:text-blue-400", bgColor: "bg-blue-50 dark:bg-blue-950" },
   value_propositions: { icon: Lightbulb, color: "text-purple-600 dark:text-purple-400", bgColor: "bg-purple-50 dark:bg-purple-950" },
@@ -143,9 +136,9 @@ export function BMCCanvas({ analysis }: BMCCanvasProps) {
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Overall Confidence</span>
-              <span className="font-medium" data-testid="overall-confidence">{safeConfidencePercent(overallConfidence)}%</span>
+              <span className="font-medium" data-testid="overall-confidence">{Math.round(overallConfidence * 100)}%</span>
             </div>
-            <Progress value={safeConfidencePercent(overallConfidence)} className="h-2" data-testid="overall-confidence-progress" />
+            <Progress value={overallConfidence * 100} className="h-2" data-testid="overall-confidence-progress" />
           </div>
 
           {keyInsights.length > 0 && (

@@ -3,13 +3,8 @@ import { aiClients } from '../ai-clients';
 import { parseAIJson } from '../utils/parse-ai-json';
 import type { RawReference } from '../intelligence/types';
 import { researchCaptureWrapper, type CaptureContext } from '../services/research-capture-wrapper.js';
-import pLimit from 'p-limit';
 
 const API_BASE = process.env.API_BASE_URL || 'http://localhost:5000';
-
-// Rate limiting for web search - prevent overwhelming the API
-const searchLimit = pLimit(3); // Max 3 concurrent searches
-const fetchLimit = pLimit(3);  // Max 3 concurrent content fetches
 
 export interface Finding {
   fact: string;
@@ -275,9 +270,7 @@ Example for "Arabic language differentiates our enterprise software in UAE":
   }
 
   private async performWebSearch(queries: ResearchQuery[], captureContext?: CaptureContext): Promise<any[]> {
-    console.log(`[MarketResearcher] Starting batched web search for ${queries.length} queries (max 3 concurrent)`);
-    
-    const searchPromises = queries.map((queryObj) => searchLimit(async () => {
+    const searchPromises = queries.map(async (queryObj) => {
       const searchFn = async () => {
         const response = await fetch(`${API_BASE}/api/web-search`, {
           method: 'POST',
@@ -333,16 +326,15 @@ Example for "Arabic language differentiates our enterprise software in UAE":
           return { query: queryObj.query, results: [] };
         }
       }
-    }));
+    });
 
     return Promise.all(searchPromises);
   }
 
   private async fetchSourceContent(sources: Source[], captureContext?: CaptureContext): Promise<Map<string, string>> {
     const contentMap = new Map<string, string>();
-    console.log(`[MarketResearcher] Starting batched content fetch for ${sources.length} sources (max 3 concurrent)`);
     
-    const fetchPromises = sources.map((source) => fetchLimit(async () => {
+    const fetchPromises = sources.map(async (source) => {
       const fetchFn = async () => {
         const response = await fetch(`${API_BASE}/api/web-fetch`, {
           method: 'POST',
@@ -391,7 +383,7 @@ Example for "Arabic language differentiates our enterprise software in UAE":
       } catch (error) {
         console.error(`Error fetching content from ${source.url}:`, error);
       }
-    }));
+    });
 
     await Promise.all(fetchPromises);
     return contentMap;

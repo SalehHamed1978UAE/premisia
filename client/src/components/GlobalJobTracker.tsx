@@ -38,10 +38,9 @@ export function GlobalJobTracker() {
     },
   });
 
-  // Don't show on pages that have their own detailed progress trackers
+  // Don't show on PrioritizationPage - it has its own detailed tracker
   const onPrioritizationPage = location.includes('/strategy-workspace/prioritization');
-  const onRepositoryPage = location.includes('/repository');
-  if (onPrioritizationPage || onRepositoryPage) return null;
+  if (onPrioritizationPage) return null;
 
   if (runningJobs.length === 0) return null;
 

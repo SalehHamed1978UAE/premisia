@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -7,14 +7,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Archive, Calendar, TrendingUp, FileText, AlertTriangle, Trash2, ArchiveIcon, Download, Eye, PlayCircle, Rocket, Loader2 } from 'lucide-react';
+import { Archive, Calendar, TrendingUp, FileText, AlertTriangle, Trash2, ArchiveIcon, Download, Eye } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { StatementSummary } from '@/types/repository';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { DeleteAnalysisDialog } from '@/components/DeleteAnalysisDialog';
 import { ExportFullReportButton } from '@/components/epm/ExportFullReportButton';
-import { PlanningProgressTracker } from '@/components/intelligent-planning/PlanningProgressTracker';
 
 export default function RepositoryBrowser() {
   const [, setLocation] = useLocation();
@@ -27,110 +26,10 @@ export default function RepositoryBrowser() {
   // Selection state for batch operations
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
-  
-  // EPM generation state
-  const [generatingSessionId, setGeneratingSessionId] = useState<string | null>(null);
-  const [showProgress, setShowProgress] = useState(false);
 
-  const { data: statements, isLoading, error, refetch } = useQuery<StatementSummary[]>({
+  const { data: statements, isLoading, error } = useQuery<StatementSummary[]>({
     queryKey: ['/api/repository/statements'],
   });
-  
-  // Cleanup EventSource on component unmount
-  useEffect(() => {
-    return () => {
-      if ((window as any).__currentEventSource) {
-        (window as any).__currentEventSource.close();
-        delete (window as any).__currentEventSource;
-      }
-    };
-  }, []);
-  
-  // Handle Generate EPM from analysis
-  const handleGenerateEPM = async (e: React.MouseEvent, sessionId: string) => {
-    e.stopPropagation();
-    setGeneratingSessionId(sessionId);
-    
-    try {
-      // Always force regenerate when user explicitly clicks "Generate EPM"
-      // This ensures a fresh generation instead of resuming old/failed sessions
-      const res = await apiRequest('POST', '/api/strategy-workspace/epm/generate-from-session', {
-        sessionId,
-        forceRegenerate: true,
-      });
-      
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || `Server error: ${res.status}`);
-      }
-      
-      const response = await res.json() as { success: boolean; progressId: string; message: string };
-      
-      if (response.progressId) {
-        setShowProgress(true);
-        
-        // Connect to SSE for progress updates
-        const eventSource = new EventSource(`/api/strategy-workspace/epm/progress/${response.progressId}`);
-        
-        // Store reference to close on cleanup
-        (window as any).__currentEventSource = eventSource;
-        
-        eventSource.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            
-            // Update progress tracker via window function
-            if ((window as any).__updatePlanningProgress) {
-              (window as any).__updatePlanningProgress(data);
-            }
-            
-            // Handle completion
-            if (data.type === 'complete') {
-              eventSource.close();
-              delete (window as any).__currentEventSource;
-              setShowProgress(false);
-              setGeneratingSessionId(null);
-              refetch();
-              toast({
-                title: 'EPM Program Generated',
-                description: 'Your program has been successfully generated.',
-              });
-            }
-            
-            // Handle error
-            if (data.type === 'error') {
-              eventSource.close();
-              delete (window as any).__currentEventSource;
-              setShowProgress(false);
-              setGeneratingSessionId(null);
-              toast({
-                title: 'Generation Failed',
-                description: data.message || 'Failed to generate EPM program',
-                variant: 'destructive',
-              });
-            }
-          } catch (err) {
-            console.error('Error parsing SSE data:', err);
-          }
-        };
-        
-        eventSource.onerror = () => {
-          eventSource.close();
-          delete (window as any).__currentEventSource;
-          setShowProgress(false);
-          setGeneratingSessionId(null);
-        };
-      }
-    } catch (error) {
-      console.error('Error generating EPM:', error);
-      setGeneratingSessionId(null);
-      toast({
-        title: 'Failed to Generate EPM',
-        description: error instanceof Error ? error.message : 'Could not generate EPM program',
-        variant: 'destructive',
-      });
-    }
-  };
 
   // Select/deselect all
   const toggleSelectAll = () => {
@@ -509,23 +408,6 @@ export default function RepositoryBrowser() {
                     </div>
                   )}
 
-                  {/* Continue Journey Button - only show for incomplete journeys */}
-                  {statement.journeyProgress?.status !== 'completed' && statement.journeyProgress?.nextUrl && (
-                    <div className="pt-2 border-t mb-2">
-                      <Button
-                        className="w-full gap-2"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setLocation(statement.journeyProgress!.nextUrl!);
-                        }}
-                        data-testid={`button-continue-journey-${statement.understandingId}`}
-                      >
-                        <PlayCircle className="h-4 w-4" />
-                        Continue Journey
-                      </Button>
-                    </div>
-                  )}
-
                   {/* Actions */}
                   <div className="flex items-center justify-center gap-1 pt-2 border-t">
                     <Button
@@ -540,20 +422,6 @@ export default function RepositoryBrowser() {
                       title="View Details"
                     >
                       <Eye className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={(e) => handleGenerateEPM(e, statement.sessionId)}
-                      disabled={generatingSessionId === statement.sessionId}
-                      data-testid={`button-generate-epm-${statement.understandingId}`}
-                      title="Generate EPM Program"
-                    >
-                      {generatingSessionId === statement.sessionId ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                      ) : (
-                        <Rocket className="h-4 w-4 text-green-600 hover:text-green-500" />
-                      )}
                     </Button>
                     <ExportFullReportButton
                       sessionId={statement.sessionId}
@@ -616,34 +484,6 @@ export default function RepositoryBrowser() {
           />
         )}
       </div>
-      
-      {/* Progress Tracker Overlay */}
-      {showProgress && (
-        <>
-          <div 
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
-            onClick={() => {}} 
-          />
-          <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-            <PlanningProgressTracker 
-              onComplete={() => {
-                setShowProgress(false);
-                setGeneratingSessionId(null);
-                refetch();
-              }}
-              onError={(error) => {
-                setShowProgress(false);
-                setGeneratingSessionId(null);
-                toast({
-                  title: 'Generation Failed',
-                  description: error,
-                  variant: 'destructive',
-                });
-              }}
-            />
-          </div>
-        </>
-      )}
     </AppLayout>
   );
 }

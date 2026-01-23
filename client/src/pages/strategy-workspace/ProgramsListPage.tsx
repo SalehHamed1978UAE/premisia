@@ -17,16 +17,13 @@ import {
   ArrowRight,
   Trash2,
   Archive,
-  Download,
-  RefreshCw,
-  Loader2
+  Download
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { ExportFullReportButton } from '@/components/epm/ExportFullReportButton';
-import { PlanningProgressTracker } from '@/components/intelligent-planning/PlanningProgressTracker';
 
 interface EPMProgram {
   id: string;
@@ -47,108 +44,10 @@ export function ProgramsListPage() {
   // Selection state for batch operations
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
-  
-  // Resume generation state
-  const [resumingProgramId, setResumingProgramId] = useState<string | null>(null);
-  const [showProgress, setShowProgress] = useState(false);
-  const [progressId, setProgressId] = useState<string | null>(null);
 
-  const { data, isLoading, refetch } = useQuery<{ programs: EPMProgram[] }>({
+  const { data, isLoading } = useQuery<{ programs: EPMProgram[] }>({
     queryKey: ['/api/strategy-workspace/epm'],
   });
-  
-  // Cleanup EventSource on component unmount
-  useEffect(() => {
-    return () => {
-      if ((window as any).__currentEventSource) {
-        (window as any).__currentEventSource.close();
-        delete (window as any).__currentEventSource;
-      }
-    };
-  }, []);
-  
-  // Handle resume generation for draft programs
-  const handleResumeGeneration = async (program: EPMProgram) => {
-    setResumingProgramId(program.id);
-    
-    try {
-      const res = await apiRequest('POST', '/api/strategy-workspace/epm/generate', {
-        strategyVersionId: program.strategyVersionId,
-      });
-      
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || `Server error: ${res.status}`);
-      }
-      
-      const response = await res.json() as { success: boolean; progressId: string; message: string };
-      
-      if (response.progressId) {
-        setProgressId(response.progressId);
-        setShowProgress(true);
-        
-        // Connect to SSE for progress updates
-        const eventSource = new EventSource(`/api/strategy-workspace/epm/progress/${response.progressId}`);
-        
-        // Store reference to close on cleanup
-        (window as any).__currentEventSource = eventSource;
-        
-        eventSource.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            
-            // Update progress tracker via window function
-            if ((window as any).__updatePlanningProgress) {
-              (window as any).__updatePlanningProgress(data);
-            }
-            
-            // Handle completion
-            if (data.type === 'complete') {
-              eventSource.close();
-              delete (window as any).__currentEventSource;
-              setShowProgress(false);
-              setResumingProgramId(null);
-              refetch();
-              toast({
-                title: 'EPM Program Generated',
-                description: 'Your program has been successfully generated.',
-              });
-            }
-            
-            // Handle error
-            if (data.type === 'error') {
-              eventSource.close();
-              delete (window as any).__currentEventSource;
-              setShowProgress(false);
-              setResumingProgramId(null);
-              toast({
-                title: 'Generation Failed',
-                description: data.message || 'Failed to generate EPM program',
-                variant: 'destructive',
-              });
-            }
-          } catch (e) {
-            console.error('Error parsing SSE data:', e);
-          }
-        };
-        
-        eventSource.onerror = () => {
-          eventSource.close();
-          delete (window as any).__currentEventSource;
-          setShowProgress(false);
-          setResumingProgramId(null);
-        };
-      }
-    } catch (error) {
-      console.error('Error resuming EPM generation:', error);
-      setResumingProgramId(null);
-      toast({
-        title: 'Failed to Resume',
-        description: error instanceof Error ? error.message : 'Could not resume EPM generation',
-        variant: 'destructive',
-      });
-    }
-  };
 
   const programs = data?.programs || [];
   
@@ -247,10 +146,9 @@ export function ProgramsListPage() {
 
     setIsBatchProcessing(true);
     try {
-      const res = await apiRequest('POST', '/api/strategy-workspace/epm/batch-export', {
+      const response = await apiRequest('POST', '/api/strategy-workspace/epm/batch-export', {
         ids: Array.from(selectedIds),
       });
-      const response = await res.json();
       
       // Download as JSON file
       const dataStr = JSON.stringify(response.data, null, 2);
@@ -458,32 +356,11 @@ export function ProgramsListPage() {
                         Updated {format(new Date(program.updatedAt), 'MMM d, yyyy')}
                       </div>
                     </div>
-                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                      <Button 
-                        variant="outline"
-                        onClick={() => handleResumeGeneration(program)}
-                        disabled={resumingProgramId === program.id}
-                        data-testid={`button-resume-${program.id}`}
-                        className="w-full sm:w-auto"
-                      >
-                        {resumingProgramId === program.id ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Resuming...
-                          </>
-                        ) : (
-                          <>
-                            <RefreshCw className="mr-2 h-4 w-4" />
-                            Resume Generation
-                          </>
-                        )}
-                      </Button>
-                      <Button asChild data-testid={`button-view-program-${program.id}`} className="w-full sm:w-auto">
-                        <Link href={`/strategy-workspace/epm/${program.id}`}>
-                          View Program <ArrowRight className="ml-2 h-4 w-4" />
-                        </Link>
-                      </Button>
-                    </div>
+                    <Button asChild data-testid={`button-view-program-${program.id}`} className="w-full sm:w-auto">
+                      <Link href={`/strategy-workspace/epm/${program.id}`}>
+                        View Program <ArrowRight className="ml-2 h-4 w-4" />
+                      </Link>
+                    </Button>
                   </div>
                   <div className="pt-2 border-t">
                     <ExportFullReportButton
@@ -563,34 +440,6 @@ export function ProgramsListPage() {
           </div>
         )}
       </div>
-      
-      {/* Progress Tracker Overlay */}
-      {showProgress && (
-        <>
-          <div 
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
-            onClick={() => {}} 
-          />
-          <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-            <PlanningProgressTracker 
-              onComplete={() => {
-                setShowProgress(false);
-                setResumingProgramId(null);
-                refetch();
-              }}
-              onError={(error) => {
-                setShowProgress(false);
-                setResumingProgramId(null);
-                toast({
-                  title: 'Generation Failed',
-                  description: error,
-                  variant: 'destructive',
-                });
-              }}
-            />
-          </div>
-        </>
-      )}
     </AppLayout>
   );
 }

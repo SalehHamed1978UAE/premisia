@@ -74,84 +74,60 @@ export function transformToGanttData(
 ): GanttChartData {
   const criticalPathSet = new Set(timeline.criticalPath || []);
   
-  // Transform workstreams to tasks - with defensive checks for missing data
-  const tasks: GanttTask[] = workstreams.map((ws, index) => {
-    // Ensure numeric values with fallbacks to prevent NaN
-    const startMonth = typeof ws.startMonth === 'number' ? ws.startMonth : index;
-    const endMonth = typeof ws.endMonth === 'number' ? ws.endMonth : (startMonth + 3);
-    const confidence = typeof ws.confidence === 'number' ? ws.confidence : 0.75;
-    
-    return {
-      id: ws.id || `ws-${index}`,
-      name: ws.name || `Workstream ${index + 1}`,
-      type: 'workstream' as const,
-      startMonth,
-      endMonth,
-      duration: Math.max(1, endMonth - startMonth + 1),
-      dependencies: ws.dependencies || [],
-      isCriticalPath: criticalPathSet.has(ws.id) || criticalPathSet.has(ws.name),
-      confidence,
-      owner: ws.owner,
-      description: ws.description,
-      assignedResourceIds: ws.assignedResourceIds || [],
-      assignedResourceNames: ws.assignedResourceNames || [],
-      deliverables: ws.deliverables?.map(d => {
-        // Safety check: Clamp deliverable to workstream timeline
-        // This handles legacy programs with invalid data
-        let dueMonth = d.dueMonth;
-        if (dueMonth < startMonth || dueMonth > endMonth) {
-          console.warn(
-            `[Gantt] Deliverable "${d.name}" (${d.id}) has dueMonth ${dueMonth} ` +
-            `outside workstream "${ws.name}" timeline (M${startMonth}-M${endMonth}). ` +
-            `Clamping to M${Math.max(startMonth, Math.min(dueMonth, endMonth))}.`
-          );
-          dueMonth = Math.max(startMonth, Math.min(dueMonth, endMonth));
-        }
-        
-        return {
-          id: d.id,
-          name: d.name,
-          dueMonth,
-          effort: d.effort,
-          description: d.description
-        };
-      }) || []
-    };
-  });
+  // Transform workstreams to tasks
+  const tasks: GanttTask[] = workstreams.map(ws => ({
+    id: ws.id,
+    name: ws.name,
+    type: 'workstream' as const,
+    startMonth: ws.startMonth,
+    endMonth: ws.endMonth,
+    duration: ws.endMonth - ws.startMonth + 1,
+    dependencies: ws.dependencies || [],
+    isCriticalPath: criticalPathSet.has(ws.id) || criticalPathSet.has(ws.name),
+    confidence: ws.confidence,
+    owner: ws.owner,
+    description: ws.description,
+    assignedResourceIds: ws.assignedResourceIds || [],
+    assignedResourceNames: ws.assignedResourceNames || [],
+    deliverables: ws.deliverables?.map(d => {
+      // Safety check: Clamp deliverable to workstream timeline
+      // This handles legacy programs with invalid data
+      let dueMonth = d.dueMonth;
+      if (dueMonth < ws.startMonth || dueMonth > ws.endMonth) {
+        console.warn(
+          `[Gantt] Deliverable "${d.name}" (${d.id}) has dueMonth ${dueMonth} ` +
+          `outside workstream "${ws.name}" timeline (M${ws.startMonth}-M${ws.endMonth}). ` +
+          `Clamping to M${Math.max(ws.startMonth, Math.min(dueMonth, ws.endMonth))}.`
+        );
+        dueMonth = Math.max(ws.startMonth, Math.min(dueMonth, ws.endMonth));
+      }
+      
+      return {
+        id: d.id,
+        name: d.name,
+        dueMonth,
+        effort: d.effort,
+        description: d.description
+      };
+    }) || []
+  }));
 
-  // Transform timeline phases - handle different data structures
-  const phases: GanttPhase[] = timeline.phases.map((p, index) => {
-    const phaseData = p as any;
-    const phaseNumber = typeof phaseData.phase === 'number' ? phaseData.phase : (index + 1);
-    return {
-      phase: phaseNumber,
-      name: phaseData.name || `Phase ${phaseNumber}`,
-      startMonth: typeof phaseData.startMonth === 'number' ? phaseData.startMonth : index,
-      endMonth: typeof phaseData.endMonth === 'number' ? phaseData.endMonth : (index + 1),
-      color: getPhaseColor(phaseNumber)
-    };
-  });
+  // Transform timeline phases
+  const phases: GanttPhase[] = timeline.phases.map(p => ({
+    phase: p.phase,
+    name: p.name,
+    startMonth: p.startMonth,
+    endMonth: p.endMonth,
+    color: getPhaseColor(p.phase)
+  }));
 
-  // Transform stage gates - handle different data structures
-  // Some gates have gate/month format, others have startMonth/endMonth (phase format)
-  const gates: GanttStageGate[] = stageGates.gates.map((g, index) => {
-    // Try to extract month - use endMonth for phase-style gates, or explicit month
-    // Cast to any because the StageGate type may not include all possible fields from different formats
-    const gateData = g as any;
-    const gateMonth = typeof gateData.month === 'number' ? gateData.month : 
-                      typeof gateData.endMonth === 'number' ? gateData.endMonth :
-                      typeof gateData.dueMonth === 'number' ? gateData.dueMonth :
-                      (index + 1); // Fallback to index+1 if no month found
-    
-    const gateNumber = typeof gateData.gate === 'number' ? gateData.gate : (index + 1);
-    
-    return {
-      gate: gateNumber,
-      name: gateData.name || `Gate ${gateNumber}`,
-      month: gateMonth,
-      color: getGateColor(gateNumber)
-    };
-  });
+  // Transform stage gates
+  const gates: GanttStageGate[] = stageGates.gates.map(g => ({
+    gate: g.gate,
+    name: g.name,
+    month: g.month,
+    color: getGateColor(g.gate)
+  }));
 
   // Build dependencies
   const dependencies: GanttDependency[] = [];

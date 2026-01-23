@@ -18,7 +18,6 @@ import knowledgeRoutes from "./routes/knowledge";
 import marketingConsultantRoutes from "./routes/marketing-consultant";
 import { backgroundJobService } from "./services/background-job-service";
 import { decrypt } from "./utils/encryption";
-import { getCrewAIStatus } from "./services/crewai-service-manager";
 import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
 import { db } from "./db";
 
@@ -41,25 +40,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
-    }
-  });
-
-  // CrewAI service status endpoint
-  app.get('/api/crewai/status', async (_req, res) => {
-    try {
-      const status = await getCrewAIStatus();
-      res.json({
-        success: true,
-        ...status,
-        multiAgentEnabled: process.env.USE_MULTI_AGENT_EPM === 'true',
-      });
-    } catch (error: any) {
-      res.status(500).json({
-        success: false,
-        error: error.message,
-        running: false,
-        healthy: false,
-      });
     }
   });
 

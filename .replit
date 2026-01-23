@@ -1,10 +1,10 @@
-modules = ["nodejs-20", "web", "python-3.11", "postgresql-16"]
+modules = ["nodejs-20", "web", "postgresql-16"]
 run = "npm run dev"
 hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
 [nix]
 channel = "stable-24_05"
-packages = ["alsa-lib", "at-spi2-core", "atk", "cairo", "chromium", "cups", "dbus", "expat", "glib", "gtk3", "libdrm", "libxcrypt", "libxkbcommon", "libyaml", "mesa", "nspr", "nss", "pango", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "xorg.libxcb"]
+packages = ["glib", "nss", "nspr", "atk", "at-spi2-core", "cups", "dbus", "libdrm", "gtk3", "pango", "cairo", "xorg.libxcb", "libxkbcommon", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "mesa", "expat", "alsa-lib", "chromium"]
 
 [deployment]
 deploymentTarget = "autoscale"
@@ -14,14 +14,6 @@ run = ["npm", "run", "start"]
 [[ports]]
 localPort = 5000
 externalPort = 80
-
-[[ports]]
-localPort = 8000
-externalPort = 8000
-
-[[ports]]
-localPort = 8001
-externalPort = 3000
 
 [env]
 PORT = "5000"
@@ -49,21 +41,3 @@ author = "agent"
 task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5000
-
-[[workflows.workflow]]
-name = " agent-planner"
-mode = "sequential"
-author = 47253622
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd services/agent-planner && python3 -m uvicorn main:app --host 0.0.0.0   --port 8001"
-
-[userenv]
-
-[userenv.shared]
-USE_MULTI_AGENT_EPM = "true"
-EPM_FALLBACK_ON_ERROR = "true"
-CF_INTEGRATION_ENABLED = "false"
-CF_INTEGRATION_MODE = "stub"
-CREWAI_SERVICE_URL = "http://localhost:8001"
