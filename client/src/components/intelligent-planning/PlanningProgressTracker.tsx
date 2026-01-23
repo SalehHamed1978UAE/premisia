@@ -24,13 +24,11 @@ export function PlanningProgressTracker({
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState<string>('Initializing...');
   const [steps, setSteps] = useState<PlanningStep[]>([
-    { id: 'wbs-generation', name: 'Generating Workstreams', description: 'Creating strategic workstreams from analysis', status: 'pending' },
-    { id: 'extract-tasks', name: 'Extracting Tasks', description: 'Breaking down workstreams into detailed tasks', status: 'pending' },
-    { id: 'schedule', name: 'Building Schedule', description: 'Creating timeline with Critical Path Method', status: 'pending' },
-    { id: 'allocate-resources', name: 'Allocating Resources', description: 'Matching skills to tasks', status: 'pending' },
-    { id: 'level-resources', name: 'Optimizing Resources', description: 'Resolving conflicts and leveling workload', status: 'pending' },
-    { id: 'optimize', name: 'AI Optimization', description: 'Optimizing timeline and efficiency', status: 'pending' },
-    { id: 'validate', name: 'Final Validation', description: 'Quality checks and confidence scoring', status: 'pending' }
+    { id: 'workstreams', name: 'Generating Workstreams', description: 'Creating strategic workstreams from analysis', status: 'pending' },
+    { id: 'planning', name: 'Building Schedule', description: 'Creating timeline with Critical Path Method', status: 'pending' },
+    { id: 'resources', name: 'Allocating Resources', description: 'Matching skills to tasks', status: 'pending' },
+    { id: 'components', name: 'Generating Components', description: 'Creating program components and summaries', status: 'pending' },
+    { id: 'validation', name: 'Final Validation', description: 'Quality checks and confidence scoring', status: 'pending' }
   ]);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
@@ -66,31 +64,92 @@ export function PlanningProgressTracker({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Map backend step IDs to frontend step IDs
+  // Backend steps: init, workstreams, wbs-generation, planning-context, intelligent-planning, 
+  //                program-name, timeline, resources, components, validation, financial
+  // Frontend steps: workstreams, planning, resources, components, validation
+  const mapStepId = (backendStepId: string): string => {
+    const stepMapping: Record<string, string> = {
+      'init': 'workstreams',
+      'wbs-generation': 'workstreams',
+      'planning-context': 'planning',
+      'intelligent-planning': 'planning',
+      'program-name': 'planning',
+      'timeline': 'planning',
+      'financial': 'validation',
+    };
+    return stepMapping[backendStepId] || backendStepId;
+  };
+
+  // Track which backend sub-step we're in for better progress calculation
+  const getSubStepProgress = (backendStepId: string, stepProgress: number): number => {
+    // For workstreams phase: init (0-10%), workstreams/wbs-generation (10-100%)
+    if (backendStepId === 'init') return 5;
+    if (backendStepId === 'wbs-generation' || backendStepId === 'workstreams') {
+      return 10 + (stepProgress * 0.9); // Scale wbs progress to 10-100%
+    }
+    // For planning phase: planning-context (0-20%), intelligent-planning (20-50%), program-name (50-70%), timeline (70-100%)
+    if (backendStepId === 'planning-context') return 10;
+    if (backendStepId === 'intelligent-planning') return 35 + (stepProgress * 0.35);
+    if (backendStepId === 'program-name') return 60;
+    if (backendStepId === 'timeline') return 85;
+    // For validation: financial (0-50%), validation (50-100%)
+    if (backendStepId === 'financial') return 25;
+    
+    return stepProgress || 50; // Default
+  };
+
+  // Calculate overall progress based on completed steps and current step progress
+  const calculateOverallProgress = (stepId: string, stepProgress: number, currentSteps: PlanningStep[]): number => {
+    const mappedStepId = mapStepId(stepId);
+    const stepIndex = currentSteps.findIndex(s => s.id === mappedStepId);
+    if (stepIndex === -1) return 0;
+    
+    const totalSteps = currentSteps.length;
+    const completedSteps = stepIndex;
+    const baseProgress = (completedSteps / totalSteps) * 100;
+    
+    // Get adjusted sub-step progress
+    const adjustedProgress = getSubStepProgress(stepId, stepProgress);
+    const stepContribution = (1 / totalSteps) * (adjustedProgress / 100) * 100;
+    
+    return Math.min(Math.round(baseProgress + stepContribution), 99);
+  };
+
   // Public method to update progress (called from parent)
   useEffect(() => {
     // Expose update function via ref if needed
     (window as any).__updatePlanningProgress = (event: any) => {
       switch (event.type) {
         case 'step-start':
-          setProgress(event.progress || 0);
           setCurrentStep(event.description || '');
           // Only update elapsed time if event provides it AND it's valid (don't reset to 0)
           if (event.elapsedSeconds !== undefined && event.elapsedSeconds > 0) {
             setElapsedTime(event.elapsedSeconds);
           }
 
-          setSteps(prev => prev.map(step =>
-            step.id === event.step
-              ? { ...step, status: 'in-progress' }
-              : step.status === 'in-progress'
-              ? { ...step, status: 'complete' }
-              : step
-          ));
+          setSteps(prev => {
+            const mappedStep = mapStepId(event.step);
+            const updatedSteps = prev.map(step =>
+              step.id === mappedStep
+                ? { ...step, status: 'in-progress' as const }
+                : step.status === 'in-progress' && step.id !== mappedStep
+                ? { ...step, status: 'complete' as const }
+                : step
+            );
+            
+            // Calculate overall progress based on which step we're on
+            const stepProgress = event.progress || 0;
+            const overallProgress = calculateOverallProgress(event.step, stepProgress, updatedSteps);
+            setProgress(overallProgress);
+            
+            return updatedSteps;
+          });
           break;
 
         case 'step-complete':
           setSteps(prev => prev.map(step =>
-            step.id === event.step
+            step.id === mapStepId(event.step)
               ? { ...step, status: 'complete', durationSeconds: event.durationSeconds }
               : step
           ));
