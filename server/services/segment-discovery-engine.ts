@@ -415,6 +415,8 @@ Return ONLY valid JSON with this structure:
       : this.getB2BGeneLibraryPrompt(context);
     
     console.log(`[SegmentDiscoveryEngine] Using ${mode.toUpperCase()} segmentation mode for: ${context.offeringType}`);
+    console.log(`[SegmentDiscoveryEngine] Prompt type: ${mode === 'b2c' ? 'B2C Consumer Segments' : 'B2B Business Segments'}`);
+    console.log(`[SegmentDiscoveryEngine] Prompt preview: ${prompt.substring(0, 150).replace(/\n/g, ' ')}...`);
 
     return withRetry(async () => {
       const response = await withTimeout(

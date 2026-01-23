@@ -62,11 +62,13 @@ Classify into these categories:
 OFFERING TYPE (pick one):
 - b2b_software: SaaS or software sold to businesses
 - b2c_software: Apps or software sold to consumers
-- professional_services: Consulting, agency, or service-based business
-- physical_product: Physical goods or products
+- professional_services: Consulting, agency, or service-based business (NOT restaurants)
+- physical_product: Physical goods, products, restaurants, food & beverage, retail stores, consumer goods
 - marketplace_platform: Two-sided marketplace connecting buyers/sellers
 - content_education: Courses, content, coaching, education
 - other: Doesn't fit above categories
+
+IMPORTANT: Restaurants, cafes, food trucks, and food/beverage businesses are ALWAYS "physical_product" (not professional_services or other).
 
 COMPANY STAGE (suggest based on context clues):
 - idea_stage: Just an idea, no product yet
@@ -127,6 +129,9 @@ Return JSON only:
     if (!SALES_MOTIONS.includes(result.suggestedSalesMotion)) {
       result.suggestedSalesMotion = 'self_serve';
     }
+    
+    console.log(`[Marketing Consultant] Classified offering as: ${result.offeringType} (confidence: ${result.confidence})`);
+    console.log(`[Marketing Consultant] Reasoning: ${result.reasoning}`);
     
     return result;
   } catch (error) {
