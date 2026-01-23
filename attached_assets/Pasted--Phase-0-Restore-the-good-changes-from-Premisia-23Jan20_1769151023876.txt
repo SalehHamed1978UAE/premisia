@@ -1,0 +1,101 @@
+### Phase 0 – Restore the “good” changes from Premisia_23Jan2026
+
+  1. Market Research throttling
+      - File: server/strategic-consultant/market-researcher.ts
+      - Add p-limit import and create two limiters:
+
+        import pLimit from 'p-limit';
+        const searchLimit = pLimit(3);
+        const fetchLimit = pLimit(3);
+      - Wrap both performWebSearch and fetchSourceContent loops so each query/
+        source runs inside the relevant limiter. Add the logging lines
+        console.log('[MarketResearcher] Starting batched …').
+  2. Add the EPM generator module
+      - Create directory server/services/epm-generator/ with these files:
+          - index.ts – exports getEPMRouter, type EPMGeneratorInput, etc.
+          - legacy-generator.ts – the old synthesizer wrapper that accepts an
+            LLM provider and emits SSE progress (the 23 Jan version; includes
+            CPM fallback logic).
+          - typescript-multi-agent-generator.ts – the multi-agent coordinator
+            that emits round-based progress callbacks.
+          - multi-agent-generator.ts – the adapter for the CrewAI (Python)
+            service.
+          - types.ts – shared types for EPM generator inputs/outputs.
+          - cf-integration.ts (if present) and cpm-processor.ts (used to add
+            slack/isCritical and timeline critical path).
+      - Copy content exactly from the 23 Jan repo.
+  3. Update strategy workspace routes
+      - File: server/routes/strategy-workspace.ts
+          - Import getEPMRouter and postProcessWithCPM.
+          - Add POST /api/strategy-workspace/epm/generate-from-session.
+          - Update processEPMGeneration to:
+              - Accept forceRegenerate.
+              - Use getEPMRouter() when USE_MULTI_AGENT_EPM=true.
+              - Emit richer SSE events (step-start, step-progress, multi-agent
+                complete/fallback).
+              - Save generatorMetadata, conversationLog, knowledgeLedger into
+                epmPrograms.editTracking.
+              - Call postProcessWithCPM whenever generatorMetadata.generator ===
+                'legacy'.
+              - Update Golden Records insert to use createdBy, steps, metadata
+                with filePath.
+  4. Add SSE infrastructure
+      - File: server/services/sse-progress-manager.ts (singleton manager that
+        registers SSE connections and sends events).
+      - File: server/routes/sse-progress.ts (Express route GET /api/epm/
+        progress/:sessionId that registers the connection).
+      - Ensure strategy-workspace.ts uses sendSSEEvent / progressStreams (or
+        adapt to the manager schema). If the current snapshot uses the older
+        progressStreams map, replace it with the new manager.
+  5. Add agent planner service & workflows
+      - Copy services/agent-planner/** (main.py, crates, requirements) and
+        start-agent-planner.sh from the 23 Jan repo.
+      - Update .replit to match 23 Jan:
+          - Add python-3.11 module, ports 8000/8001.
+          - Add workflow that runs cd services/agent-planner && python3 -m
+            uvicorn main:app --host 0.0.0.0 --port 8001.
+          - Set env vars: USE_MULTI_AGENT_EPM=true, EPM_FALLBACK_ON_ERROR=true,
+            CREWAI_SERVICE_URL=http://localhost:8001, etc.
+  6. Verify the restored features
+      - Start the CrewAI workflow and the Node app.
+      - Hit /api/strategy-workspace/epm/generate and /api/strategy-workspace/
+        epm/generate-from-session to confirm:
+          - SSE progress events fire.
+          - epmPrograms.editTracking.generatorMetadata.generator shows multi-
+            agent when CrewAI returns data; legacy fallback still works.
+          - Timeline data includes criticalPath, earlyStart/lateStart, etc.
+
+  ———
+
+  ### Phase 1 – Begin modularization per MODULARIZATION_SPEC.md
+
+  1. Create shared type files
+      - server/types/api-responses.ts
+      - server/types/epm.ts
+      - server/types/journey.ts
+      - Populate them exactly as defined in the spec (ApiResponse envelope,
+        EPMProgram interface, JourneyDefinition, etc.).
+  2. Add DI container
+      - File: server/services/container.ts
+
+        export class ServiceContainer { … }
+        export const container = new ServiceContainer();
+        export function registerServices() { … }
+      - Register currently existing services (epmSynthesizer,
+        epmGeneratorRouter, analyzers, repositories once Phase 4 arrives).
+  3. Centralize config
+      - File: server/config/index.ts
+
+        export const config = { api: { baseUrl… }, crewai: { serviceUrl… },
+  database: { … }, features: { useMultiAgentEPM: … } };
+      - Replace scattered process.env.* references with config.
+  4. Integrate the new foundation
+      - Ensure all route handlers/services import types from server/types/*.
+      - Replace direct instantiations with container.resolve('serviceName')
+        where applicable.
+
+  Once Phase 1 is implemented, they should run the legacy EPM scenario to
+  confirm nothing regressed. Then they can proceed with Phase 2 (route splits),
+  Phase 3 (service decomposition), etc., following the rest of
+  MODULARIZATION_SPEC.md.
+
