@@ -246,8 +246,12 @@ export class EPMSynthesizer {
       elapsedSeconds: Math.round((Date.now() - processStartTime) / 1000)
     });
     
+    // CRITICAL: Wrap workstreams in object structure expected by replaceTimelineGeneration
+    // The function expects an object with a .workstreams property, not a raw array
+    const epmProgramInput = { workstreams };
+    
     const planningResult = await replaceTimelineGeneration(
-      workstreams,
+      epmProgramInput,
       planningContext
     );
     
@@ -255,7 +259,8 @@ export class EPMSynthesizer {
       console.log('[EPM Synthesis] ✓ Intelligent planning successful');
       console.log(`[EPM Synthesis]   Confidence: ${(planningResult.confidence * 100).toFixed(1)}%`);
       
-      const scheduledWorkstreams = planningResult.workstreams || workstreams;
+      // CRITICAL: Extract workstreams from program object, not from non-existent planningResult.workstreams
+      const scheduledWorkstreams = planningResult.program?.workstreams || workstreams;
       
       return await this.buildFullProgram(
         insights,
