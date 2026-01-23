@@ -47,6 +47,7 @@ import {
   TimelineCalculator,
   WorkstreamGenerator,
   ResourceAllocator,
+  AssignmentGenerator,
   ExecutiveSummaryGenerator,
   FinancialPlanGenerator,
   BenefitsGenerator,
@@ -96,6 +97,7 @@ export class EPMSynthesizer {
   private procurementGenerator: ProcurementGenerator;
   private exitStrategyGenerator: ExitStrategyGenerator;
   private programNameGenerator: ProgramNameGenerator;
+  private assignmentGenerator: AssignmentGenerator;
 
   constructor(llm?: any) {
     // Note: llm should implement ILLMProvider with generateStructured method
@@ -120,6 +122,15 @@ export class EPMSynthesizer {
     this.procurementGenerator = new ProcurementGenerator();
     this.exitStrategyGenerator = new ExitStrategyGenerator();
     this.programNameGenerator = new ProgramNameGenerator();
+    this.assignmentGenerator = new AssignmentGenerator();
+  }
+
+  /**
+   * Generate task assignments from an EPM program
+   * Maps resources to deliverables across workstreams
+   */
+  async generateAssignments(epmProgram: EPMProgram, programId: string): Promise<any[]> {
+    return this.assignmentGenerator.generate(epmProgram, programId);
   }
 
   /**

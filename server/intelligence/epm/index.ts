@@ -15,6 +15,7 @@ export { EPMValidator, default as EPMValidatorDefault } from './validator';
 export { TimelineCalculator, default as TimelineCalculatorDefault } from './timeline-calculator';
 export { WorkstreamGenerator, default as WorkstreamGeneratorDefault } from './workstream-generator';
 export { ResourceAllocator, default as ResourceAllocatorDefault } from './resource-allocator';
+export { AssignmentGenerator, default as AssignmentGeneratorDefault } from './assignment-generator';
 
 export {
   ExecutiveSummaryGenerator,
