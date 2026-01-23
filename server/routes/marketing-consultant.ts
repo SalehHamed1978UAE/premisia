@@ -539,14 +539,18 @@ router.post('/start-discovery/:id', async (req: Request, res: Response) => {
     // Initialize progress tracking
     discoveryProgress.set(id, { step: 'Starting', progress: 0, message: 'Initializing segment discovery...' });
 
+    // Decrypt the offering description before using it
+    const decryptedDescription = await decryptKMS(record.offeringDescription);
+    const offeringDescription = decryptedDescription || record.offeringDescription;
+    
     // Determine segmentation mode based on offering type (using centralized function)
     const offeringType = record.offeringType || 'other';
     const { detectSegmentationMode, extractContextKeywords } = await import('../services/segment-discovery-engine');
     const segmentationMode = detectSegmentationMode(offeringType);
     
-    // Extract context keywords for B2C mode
+    // Extract context keywords for B2C mode (from decrypted description)
     const contextKeywords = segmentationMode === 'b2c' 
-      ? extractContextKeywords(record.offeringDescription || '')
+      ? extractContextKeywords(offeringDescription)
       : undefined;
     
     console.log(`[Marketing Consultant] Starting discovery with ${segmentationMode.toUpperCase()} mode for offering type: ${offeringType}`);
@@ -554,9 +558,9 @@ router.post('/start-discovery/:id', async (req: Request, res: Response) => {
       console.log(`[Marketing Consultant] Context keywords: ${contextKeywords.join(', ')}`);
     }
 
-    // Start discovery in background
+    // Start discovery in background (with decrypted description)
     runSegmentDiscovery(id, {
-      offeringDescription: record.offeringDescription,
+      offeringDescription,
       offeringType,
       stage: record.stage || 'idea_stage',
       gtmConstraint: record.gtmConstraint || 'solo_founder',
@@ -832,11 +836,20 @@ router.get('/results/:id', async (req: Request, res: Response) => {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    // Handle race condition: if status is 'completed' but data is missing, retry
+    // Handle race condition: if data is missing, retry multiple times
     let finalRecord = record;
-    if (record.status === 'completed' && (!record.geneLibrary || !record.genomes)) {
-      console.log('[Results] Data missing despite completed status, retrying after delay...');
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    const maxRetries = 3;
+    
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      // Check if data is complete
+      if (finalRecord.geneLibrary && finalRecord.genomes && finalRecord.synthesis) {
+        break;
+      }
+      
+      // Wait longer for each retry
+      const delay = (attempt + 1) * 500;
+      console.log(`[Results] Attempt ${attempt + 1}: Data incomplete, waiting ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
       
       const [retryRecord] = await db.select()
         .from(segmentDiscoveryResults)
@@ -845,8 +858,12 @@ router.get('/results/:id', async (req: Request, res: Response) => {
       
       if (retryRecord) {
         finalRecord = retryRecord;
-        console.log(`[Results] Retry successful, geneLibrary: ${finalRecord.geneLibrary ? 'has value' : 'null'}`);
+        console.log(`[Results] Retry ${attempt + 1}: geneLibrary=${!!finalRecord.geneLibrary}, genomes=${!!finalRecord.genomes}, synthesis=${!!finalRecord.synthesis}`);
       }
+    }
+    
+    if (!finalRecord.geneLibrary || !finalRecord.genomes) {
+      console.log('[Results] Warning: Data still incomplete after retries');
     }
 
     // Decrypt sensitive fields
