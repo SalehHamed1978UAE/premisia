@@ -237,7 +237,7 @@ export default function MarketingClassificationPage() {
                             <SelectValue placeholder="Select your offering type" />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent className="bg-popover border border-border">
+                        <SelectContent className="bg-slate-900 text-white border border-slate-700">
                           {OFFERING_TYPES.map((type) => (
                             <SelectItem 
                               key={type.value} 
@@ -271,7 +271,7 @@ export default function MarketingClassificationPage() {
                             <SelectValue placeholder="Select your company stage" />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent className="bg-popover border border-border">
+                        <SelectContent className="bg-slate-900 text-white border border-slate-700">
                           {COMPANY_STAGES.map((stage) => (
                             <SelectItem 
                               key={stage.value} 
@@ -305,7 +305,7 @@ export default function MarketingClassificationPage() {
                             <SelectValue placeholder="Select your GTM constraint" />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent className="bg-popover border border-border">
+                        <SelectContent className="bg-slate-900 text-white border border-slate-700">
                           {GTM_CONSTRAINTS.map((constraint) => (
                             <SelectItem 
                               key={constraint.value} 
@@ -339,7 +339,7 @@ export default function MarketingClassificationPage() {
                             <SelectValue placeholder="Select your sales motion" />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent className="bg-popover border border-border">
+                        <SelectContent className="bg-slate-900 text-white border border-slate-700">
                           {SALES_MOTIONS.map((motion) => (
                             <SelectItem 
                               key={motion.value} 
