@@ -11,6 +11,9 @@ import { journeySummaryService } from '../services/journey-summary-service';
 import { journeyRegistry } from '../journey/journey-registry';
 import { isJourneyRegistryV2Enabled } from '../config';
 import type { StrategicContext, JourneyType } from '@shared/journey-types';
+import { container, getService } from '../services/container';
+import { ServiceKeys } from '../types/interfaces';
+import type { EPMRepository, StrategyRepository } from '../repositories';
 
 const router = Router();
 
@@ -524,8 +527,9 @@ async function processEPMGeneration(
     const finalConfidence = boostConfidenceWithDecisions(componentConfidence, userDecisions);
     const overallConfidence = calculateOverallConfidence(finalConfidence);
 
-    // Save EPM program to database
-    const [savedProgram] = await db.insert(epmPrograms).values({
+    // Save EPM program to database using repository
+    const epmRepo = getService<EPMRepository>(ServiceKeys.EPM_REPOSITORY);
+    const savedProgram = await epmRepo.create({
       strategyVersionId,
       strategyDecisionId: decisionId || null,
       userId,
@@ -548,7 +552,7 @@ async function processEPMGeneration(
       overallConfidence: overallConfidence.toString(),
       editTracking: {},
       status: 'draft',
-    }).returning();
+    });
 
     // Verify program was saved and ID exists
     if (!savedProgram || !savedProgram.id) {
@@ -568,8 +572,8 @@ async function processEPMGeneration(
       const assignments = await epmSynthesizer.generateAssignments(epmProgram, programId);
       
       if (assignments && assignments.length > 0) {
-        // Bulk insert assignments into database
-        await db.insert(taskAssignments).values(assignments);
+        // Bulk insert assignments into database using repository
+        await epmRepo.createTaskAssignments(assignments);
         console.log(`[EPM Generation] ✅ Saved ${assignments.length} task assignments`);
       } else {
         console.log(`[EPM Generation] ℹ️  No assignments generated (program may lack resources or tasks)`);
