@@ -1,0 +1,67 @@
+## Marketing Consultant – Context-Aware B2C Segmentation Fix
+
+  Goal: Keep the B2C segmentation pipeline general but ensure every segment is
+  relevant to the user’s offering. We do this in three parts: dynamic context
+  extraction, context-aware gene prompts, and a post-scoring relevance filter.
+
+  ### 1. Extract context keywords from the offering description
+
+  - File: server/services/marketing-consultant.ts (or wherever
+    offeringDescription is handled before calling the discovery engine).
+  - Add a helper extractContextKeywords(description: string): string[] that:
+      - Normalizes text (lowercase, remove stopwords).
+      - Extracts key nouns/phrases (use a simple TF-IDF or noun-phrase
+        extraction via regex/NLP library).
+      - Returns top ~5 keywords (e.g., “restaurant”, “Chinese fusion”, “Abu
+        Dhabi”, “late-night dining”).
+  - Pass these keywords along with offeringDescription into the discovery
+    engine.
+
+  ### 2. Update the B2C gene prompt to reference the context keywords
+
+  - File: server/services/segment-discovery-engine.ts (or wherever the gene
+    prompt is built).
+  - When mode === 'b2c', include the keyword list at the top of the prompt,
+    e.g.:
+
+    CONTEXT_KEYWORDS: ["restaurant", "Chinese fusion", "late-night dining", "Abu
+  Dhabi", "affluent professionals"]
+  - In the prompt instructions, tell the LLM explicitly:
+      - “All generated segments must tie directly to the context keywords. If a
+        segment cannot be tied to the context, do not include it.”
+  - Remove the static B2C industry list (night shift workers, etc.) and instead
+    ask the LLM to derive segment tags (industry/offering) based on the context
+    keywords. Example prompt snippet:
+
+    Using the above context keywords, derive consumer segment dimensions
+  (demographics, psychographics, occasion, channel preference, willingness to
+  pay) that are relevant to this offering. Do NOT invent segments unrelated to
+  the keywords.
+  - Keep the rest of the B2C dimensions (psychographic profile, purchase
+    occasion, channel preference, etc.) as before.
+
+  ### 3. Add a relevance filter after scoring
+
+  - After genomes are scored (before beachhead selection), compute a relevance
+    score between each segment’s industry/description and the context keywords.
+      - A simple cosine similarity works: embed both the segment text and the
+        context (using your existing LLM embedding endpoint) and compute
+        similarity.
+      - Alternatively, use a quick lexical overlap: count how many keywords
+        appear in the segment text; require at least one match.
+  - Drop any genome below the relevance threshold (e.g., similarity < 0.25 or
+    zero keyword overlap).
+  - Log how many candidates were pruned so we can monitor effectiveness:
+
+    [SegmentDiscovery] Filtered 8 genomes for low relevance (threshold 0.25)
+
+  ### 4. Verification
+
+  - Run the Chinese fusion restaurant brief again:
+      - In the logs you should see Classification: physical_product, Mode: B2C,
+        and the context keywords printed.
+      - Ensure the top segments mention things like “affluent expat diners”,
+        “finance professionals doing late-night entertaining”, etc.
+  - Run a separate B2C scenario (e.g., kids’ educational toys) to confirm
+    context changes the segments appropriately.
+  - Run a B2B brief to confirm the original B2B prompt remains untouched.

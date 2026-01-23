@@ -141,11 +141,60 @@ export interface DiscoveryContext {
   salesMotion: string;
   existingHypothesis?: string;
   segmentationMode?: SegmentationMode;
+  contextKeywords?: string[];
 }
 
 export function detectSegmentationMode(offeringType: string): SegmentationMode {
   const b2cTypes = ['b2c_software', 'physical_product', 'content_education'];
   return b2cTypes.includes(offeringType) ? 'b2c' : 'b2b';
+}
+
+const STOPWORDS = new Set([
+  'a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with',
+  'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been', 'be', 'have', 'has', 'had',
+  'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must',
+  'shall', 'can', 'need', 'dare', 'ought', 'used', 'i', 'we', 'you', 'he', 'she',
+  'it', 'they', 'what', 'which', 'who', 'whom', 'this', 'that', 'these', 'those',
+  'am', 'my', 'your', 'our', 'their', 'its', 'his', 'her', 'about', 'into', 'through',
+  'during', 'before', 'after', 'above', 'below', 'between', 'under', 'again', 'further',
+  'then', 'once', 'here', 'there', 'when', 'where', 'why', 'how', 'all', 'each', 'few',
+  'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same',
+  'so', 'than', 'too', 'very', 'just', 'also', 'now', 'being', 'over', 'any', 'both'
+]);
+
+export function extractContextKeywords(description: string): string[] {
+  const text = description.toLowerCase();
+  
+  const nounPhrasePatterns = [
+    /(?:premium|luxury|affordable|innovative|traditional|modern|artisan|gourmet|authentic|organic|sustainable|local|global|digital|mobile|online|physical)\s+[a-z]+(?:\s+[a-z]+)?/gi,
+    /[a-z]+(?:\s+[a-z]+)?\s+(?:restaurant|cafe|shop|store|service|platform|app|software|product|solution|business|company|brand|agency)/gi,
+    /(?:chinese|italian|mexican|indian|japanese|french|thai|mediterranean|american|asian|european|middle eastern|african)\s+(?:food|cuisine|restaurant|fusion|cooking|dishes)/gi,
+  ];
+  
+  const extractedPhrases: string[] = [];
+  for (const pattern of nounPhrasePatterns) {
+    const matches = text.match(pattern) || [];
+    extractedPhrases.push(...matches.map(m => m.trim()));
+  }
+  
+  const words = text
+    .replace(/[^a-z\s-]/g, ' ')
+    .split(/\s+/)
+    .filter(word => word.length > 3 && !STOPWORDS.has(word));
+  
+  const wordFreq = new Map<string, number>();
+  for (const word of words) {
+    wordFreq.set(word, (wordFreq.get(word) || 0) + 1);
+  }
+  
+  const sortedWords = Array.from(wordFreq.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([word]) => word)
+    .slice(0, 10);
+  
+  const allKeywords = Array.from(new Set([...extractedPhrases, ...sortedWords]));
+  
+  return allKeywords.slice(0, 8);
 }
 
 export class SegmentDiscoveryEngine {
@@ -286,7 +335,13 @@ Return ONLY valid JSON with this structure:
   }
 
   private getB2CGeneLibraryPrompt(context: DiscoveryContext): string {
+    const keywords = context.contextKeywords || [];
+    const keywordsSection = keywords.length > 0 
+      ? `\nCONTEXT_KEYWORDS: ${JSON.stringify(keywords)}\n\nCRITICAL CONSTRAINT: ALL generated segments MUST directly tie to the context keywords above. Every dimension option should be relevant to "${keywords.join(', ')}". Do NOT include generic segments unrelated to this specific offering.`
+      : '';
+    
     return `You are a consumer market segmentation expert specializing in discovering SURPRISING, NON-OBVIOUS B2C customer segments. Your job is to surface consumer segments that founders would never think of on their own.
+${keywordsSection}
 
 OFFERING CONTEXT:
 - Description: ${context.offeringDescription}
@@ -296,7 +351,7 @@ OFFERING CONTEXT:
 - Sales Motion: ${context.salesMotion}
 ${context.existingHypothesis ? `- Existing Hypothesis: ${context.existingHypothesis}` : ''}
 
-Generate a COMPREHENSIVE gene library with 50+ options per dimension. The goal is DIVERSITY and DISCOVERY - push beyond the obvious.
+Generate a COMPREHENSIVE gene library with 50+ options per dimension. The goal is DIVERSITY and DISCOVERY - push beyond the obvious, BUT all options must be relevant to this specific offering.
 
 KEY PRINCIPLE: "Who has this need but nobody's serving them well?"
 
