@@ -839,11 +839,26 @@ export function GovernanceFormatter({ data }: { data: Governance }) {
     }
   };
 
+  const bodies = data?.bodies ?? [];
+  const decisionRights = data?.decisionRights ?? [];
+
+  if (bodies.length === 0 && decisionRights.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center p-8 text-center">
+        <Building2 className="w-12 h-12 text-muted-foreground/50 mb-4" />
+        <h3 className="text-lg font-semibold mb-2">Governance Structure Pending</h3>
+        <p className="text-sm text-muted-foreground max-w-md">
+          Governance bodies and decision rights will be generated during program refinement.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <Section title="Governance Bodies" icon={Building2}>
         <div className="space-y-3">
-          {data.bodies.map((body, i) => (
+          {bodies.map((body, i) => (
             <Card key={i}>
               <CardHeader>
                 <CardTitle className="flex flex-wrap items-center gap-2 text-base">
@@ -889,7 +904,7 @@ export function GovernanceFormatter({ data }: { data: Governance }) {
                 </tr>
               </thead>
               <tbody>
-                {data.decisionRights.map((right, i) => (
+                {decisionRights.map((right, i) => (
                   <tr key={i} className="border-b">
                     <td className="p-2 font-medium break-words">{right.decision}</td>
                     <td className="p-2 break-words">{right.responsible}</td>
