@@ -10,6 +10,13 @@ Preferred communication style: Simple, everyday language.
 - Take time to understand the proper data flow before implementing fixes
 - Clean separation of concerns - don't mix old and new system architectures
 
+**UI Styling Standards:**
+- All popups, dropdowns, and overlays MUST have solid opaque backgrounds - never transparent
+- Use CSS variables from index.css (e.g., `bg-popover`, `text-popover-foreground`) - never inline hardcoded colors
+- Dark mode popover color is `--popover: 222 47% 8%` (solid dark) - defined in `.dark` class in index.css
+- When fixing a styling issue, fix it at the root (CSS variables or component defaults) not per-page
+- Shadcn component defaults are the source of truth - don't override in individual pages unless necessary
+
 # System Architecture
 
 ## UI/UX Decisions
