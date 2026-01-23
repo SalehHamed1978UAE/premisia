@@ -5,6 +5,20 @@
  */
 
 import { ServiceKeys } from '../types/interfaces';
+import { createOpenAIProvider } from '../../src/lib/intelligent-planning/llm-provider';
+
+/**
+ * Create LLM provider for WBS Builder and intelligent planning
+ * Returns null if no API key is available
+ */
+function createLLMProvider() {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    console.warn('[Container] No OPENAI_API_KEY - WBS Builder will use fallback mode');
+    return null;
+  }
+  return createOpenAIProvider({ apiKey, model: 'gpt-5' });
+}
 
 export class ServiceContainer {
   private services: Map<string, unknown> = new Map();
@@ -80,10 +94,11 @@ export function registerServices(): void {
     return new CsvExporter();
   });
 
-  // EPM services
+  // EPM services - pass proper LLM provider for WBS Builder
   container.register(ServiceKeys.EPM_SYNTHESIZER, () => {
     const { EPMSynthesizer } = require('../intelligence/epm-synthesizer');
-    return new EPMSynthesizer();
+    const llm = createLLMProvider();
+    return new EPMSynthesizer(llm);
   });
 
   // Note: ContextBuilder uses static methods (ContextBuilder.fromJourneyInsights)
@@ -95,7 +110,8 @@ export function registerServices(): void {
 
   container.register(ServiceKeys.WORKSTREAM_GENERATOR, () => {
     const { WorkstreamGenerator } = require('../intelligence/epm/workstream-generator');
-    return new WorkstreamGenerator();
+    const llm = createLLMProvider();
+    return new WorkstreamGenerator(llm);
   });
 
   container.register(ServiceKeys.TIMELINE_CALCULATOR, () => {

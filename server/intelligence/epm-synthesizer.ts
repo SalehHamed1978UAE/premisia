@@ -98,7 +98,10 @@ export class EPMSynthesizer {
   private programNameGenerator: ProgramNameGenerator;
 
   constructor(llm?: any) {
-    this.llm = llm || aiClients;
+    // Note: llm should implement ILLMProvider with generateStructured method
+    // for WBS Builder. If null, WorkstreamGenerator will use fallback mode.
+    // aiClients is kept for other AI operations that don't need generateStructured.
+    this.llm = llm;
     
     this.workstreamGenerator = new WorkstreamGenerator(this.llm);
     this.timelineCalculator = new TimelineCalculator();
