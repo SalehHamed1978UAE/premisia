@@ -1,0 +1,173 @@
+ LLM Reliability Fix for EPM Generation                                        
+                                                                                
+  Problem: Dependency generation burns ~4 minutes on empty OpenAI responses     
+  (70-85s × 3 attempts) before falling back to legacy.                          
+                                                                                
+  Goal: Fail fast, retry smart, use cheaper models for simple tasks.            
+                                                                                
+  Fix 1: Add Explicit Timeouts with AbortController                             
+                                                                                
+  File: server/intelligence/epm-synthesizer.ts (or LLM wrapper)                 
+                                                                                
+  async function callLLMWithTimeout(                                            
+    model: string,                                                              
+    messages: any[],                                                            
+    timeoutMs = 30000                                                           
+  ): Promise<string> {                                                          
+    const controller = new AbortController();                                   
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);          
+                                                                                
+    try {                                                                       
+      const response = await openai.chat.completions.create({                   
+        model,                                                                  
+        messages,                                                               
+        signal: controller.signal,                                              
+      });                                                                       
+                                                                                
+      const content = response.choices[0]?.message?.content?.trim();            
+      if (!content) {                                                           
+        throw new Error('Empty response from LLM');                             
+      }                                                                         
+      return content;                                                           
+    } finally {                                                                 
+      clearTimeout(timeoutId);                                                  
+    }                                                                           
+  }                                                                             
+                                                                                
+  Fix 2: Use Cheaper Model for Dependency Linkage                               
+                                                                                
+  // Model selection by task complexity                                         
+  const MODEL_CONFIG = {                                                        
+    workstreamGeneration: 'gpt-5',           // Heavy reasoning - keep expensive
+   model                                                                        
+    dependencyLinkage: 'gpt-4o-mini',        // Deterministic - use fast/cheap  
+  model                                                                         
+    riskAssessment: 'gpt-4-turbo',           // Medium complexity               
+    fallback: 'gpt-4',                       // Last resort                     
+  };                                                                            
+                                                                                
+  async function generateDependencies(workstreams: Workstream[]) {              
+    try {                                                                       
+      // Try cheap model first                                                  
+      return await callLLMWithTimeout(MODEL_CONFIG.dependencyLinkage, messages, 
+  30000);                                                                       
+    } catch (error) {                                                           
+      console.warn('[EPM] Cheap model failed for dependencies, trying           
+  fallback');                                                                   
+      return await callLLMWithTimeout(MODEL_CONFIG.fallback, messages, 30000);  
+    }                                                                           
+  }                                                                             
+                                                                                
+  Fix 3: Exponential Backoff with Instrumentation                               
+                                                                                
+  async function callWithRetry<T>(                                              
+    fn: () => Promise<T>,                                                       
+    options: {                                                                  
+      maxRetries?: number;                                                      
+      baseDelayMs?: number;                                                     
+      maxTotalMs?: number;                                                      
+      operationName?: string;                                                   
+    } = {}                                                                      
+  ): Promise<T> {                                                               
+    const { maxRetries = 3, baseDelayMs = 2000, maxTotalMs = 30000,             
+  operationName = 'LLM call' } = options;                                       
+    const startTime = Date.now();                                               
+                                                                                
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {                   
+      try {                                                                     
+        const result = await fn();                                              
+        console.log(`[LLM] ${operationName} succeeded on attempt                
+  ${attempt}/${maxRetries}`);                                                   
+        return result;                                                          
+      } catch (error) {                                                         
+        const elapsed = Date.now() - startTime;                                 
+        const delay = Math.min(baseDelayMs * Math.pow(2, attempt - 1), 8000); //
+   2s, 4s, 8s cap                                                               
+                                                                                
+        console.warn(`[LLM] ${operationName} attempt ${attempt}/${maxRetries}   
+  failed after ${elapsed}ms: ${error.message}`);                                
+                                                                                
+        if (attempt === maxRetries || elapsed + delay > maxTotalMs) {           
+          throw new Error(`${operationName} failed after ${attempt} attempts    
+  (${elapsed}ms total)`);                                                       
+        }                                                                       
+                                                                                
+        await new Promise(r => setTimeout(r, delay));                           
+      }                                                                         
+    }                                                                           
+    throw new Error('Unreachable');                                             
+  }                                                                             
+                                                                                
+  Fix 4: Guard Against Cascading Failures                                       
+                                                                                
+  async function generateEPM(strategyVersion: StrategyVersion) {                
+    let workstreams: Workstream[];                                              
+    let dependencies: Dependency[];                                             
+    let usedFallback = false;                                                   
+                                                                                
+    // Step 1: Generate workstreams (keep if successful)                        
+    try {                                                                       
+      workstreams = await generateWorkstreams(strategyVersion);                 
+      console.log(`[EPM] Generated ${workstreams.length} workstreams`);         
+    } catch (error) {                                                           
+      console.error('[EPM] Workstream generation failed, using legacy');        
+      return await legacyEpmGenerator(strategyVersion);                         
+    }                                                                           
+                                                                                
+    // Step 2: Generate dependencies (don't lose workstreams if this fails)     
+    try {                                                                       
+      dependencies = await generateDependencies(workstreams);                   
+      console.log(`[EPM] Generated ${dependencies.length} dependencies`);       
+    } catch (error) {                                                           
+      console.warn('[EPM] Dependency generation failed, continuing with         
+  workstreams only');                                                           
+      dependencies = inferBasicDependencies(workstreams); // Simple sequential  
+  fallback                                                                      
+      usedFallback = true;                                                      
+    }                                                                           
+                                                                                
+    return {                                                                    
+      workstreams,                                                              
+      dependencies,                                                             
+      metadata: {                                                               
+        usedFallback,                                                           
+        fallbackReason: usedFallback ? 'Dependency generation failed' :         
+  undefined,                                                                    
+      },                                                                        
+    };                                                                          
+  }                                                                             
+                                                                                
+  // Simple fallback: assume sequential execution                               
+  function inferBasicDependencies(workstreams: Workstream[]): Dependency[] {    
+    return workstreams.slice(1).map((ws, i) => ({                               
+      from: workstreams[i].id,                                                  
+      to: ws.id,                                                                
+      type: 'finish_to_start',                                                  
+    }));                                                                        
+  }                                                                             
+                                                                                
+  Expected Behavior After Fix                                                   
+  Scenario: OpenAI returns empty 3x                                             
+  Before: ~4 minutes burn                                                       
+  After: ~40 seconds total                                                      
+  ────────────────────────────────────────                                      
+  Scenario: Dependency call hangs                                               
+  Before: 70-85s per attempt                                                    
+  After: 30s timeout, fail fast                                                 
+  ────────────────────────────────────────                                      
+  Scenario: gpt-5 unreliable                                                    
+  Before: Always burns tokens                                                   
+  After: Use gpt-4o-mini first                                                  
+  ────────────────────────────────────────                                      
+  Scenario: Dependency fails                                                    
+  Before: Re-runs everything                                                    
+  After: Keeps workstreams, infers deps                                         
+  ---                                                                           
+  Verification                                                                  
+                                                                                
+  After implementing, re-run the BMC → EPM flow for the same diner case:        
+  - Should complete in <3 minutes total                                         
+  - If dependency gen fails, should see: [EPM] Dependency generation failed,    
+  continuing with workstreams only                                              
+  - EPM payload should include metadata.usedFallback: true when fallback        
+  triggered   
