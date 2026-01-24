@@ -5,7 +5,8 @@ import { cn } from '@/lib/utils';
 import { 
   Box, Brain, Target, BarChart, Layout, Users, Zap, FileText, 
   Settings, Database, Search, Lightbulb, TrendingUp, Grid, 
-  Layers, Compass, Map, PieChart, Activity, LayoutGrid, MessageSquare
+  Layers, Compass, Map, PieChart, Activity, LayoutGrid, MessageSquare,
+  Loader2, CheckCircle2, XCircle
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -16,6 +17,9 @@ export interface ModuleNodeData {
   status: 'implemented' | 'stub';
   inputs: { id: string; name: string; type: string; required: boolean }[];
   outputs: { id: string; name: string; type: string }[];
+  isExecuting?: boolean;
+  executionStatus?: 'pending' | 'running' | 'completed' | 'error';
+  executionMessage?: string;
   [key: string]: unknown;
 }
 
@@ -50,13 +54,47 @@ function getIconComponent(iconName: string): LucideIcon {
 function ModuleNodeComponent({ data, selected }: NodeProps) {
   const nodeData = data as ModuleNodeData;
   const Icon = getIconComponent(nodeData.icon);
+  const { isExecuting, executionStatus, executionMessage } = nodeData;
+
+  const getExecutionStateClasses = () => {
+    if (!isExecuting) return '';
+    
+    switch (executionStatus) {
+      case 'running':
+        return 'ring-2 ring-blue-500 animate-pulse';
+      case 'completed':
+        return 'ring-2 ring-green-500';
+      case 'error':
+        return 'ring-2 ring-red-500';
+      case 'pending':
+        return 'opacity-60';
+      default:
+        return '';
+    }
+  };
+
+  const getStatusIcon = () => {
+    if (!isExecuting) return null;
+    
+    switch (executionStatus) {
+      case 'running':
+        return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
+      case 'completed':
+        return <CheckCircle2 className="h-4 w-4 text-green-500" />;
+      case 'error':
+        return <XCircle className="h-4 w-4 text-red-500" />;
+      default:
+        return null;
+    }
+  };
   
   return (
     <div
       className={cn(
         'bg-card border rounded-lg shadow-sm min-w-[180px] transition-all',
         selected ? 'ring-2 ring-primary border-primary' : 'border-border',
-        nodeData.status === 'stub' && 'opacity-80'
+        nodeData.status === 'stub' && 'opacity-80',
+        getExecutionStateClasses()
       )}
       data-testid={`node-module-${nodeData.moduleId}`}
     >
@@ -66,7 +104,8 @@ function ModuleNodeComponent({ data, selected }: NodeProps) {
       )}>
         <Icon className="h-4 w-4 text-muted-foreground" />
         <span className="text-sm font-medium truncate flex-1">{nodeData.label}</span>
-        {nodeData.status === 'stub' && (
+        {getStatusIcon()}
+        {nodeData.status === 'stub' && !isExecuting && (
           <Badge variant="secondary" className="text-[10px] px-1 py-0">
             Stub
           </Badge>
@@ -117,6 +156,17 @@ function ModuleNodeComponent({ data, selected }: NodeProps) {
             ))}
           </div>
         </div>
+
+        {isExecuting && executionStatus === 'running' && executionMessage && (
+          <div className="mt-1 text-[10px] text-blue-600 truncate">
+            {executionMessage}
+          </div>
+        )}
+        {isExecuting && executionStatus === 'error' && (
+          <div className="mt-1 text-[10px] text-red-600 truncate">
+            Error occurred
+          </div>
+        )}
       </div>
     </div>
   );

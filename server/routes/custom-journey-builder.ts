@@ -13,6 +13,7 @@ import { moduleRegistry } from '../modules/registry';
 import { isConnectionAllowed, detectCycle, getExecutionOrder } from '../modules/compatibility';
 import type { ModuleManifest } from '../modules/manifest';
 import { z } from 'zod';
+import { customJourneyExecutor } from '../services/custom-journey-executor';
 
 const router = Router();
 
@@ -621,6 +622,134 @@ router.post('/executions', async (req: Request, res: Response) => {
       success: false,
       error: 'Failed to create execution',
     });
+  }
+});
+
+router.post('/executions/:id/start', async (req: Request, res: Response) => {
+  try {
+    const userId = (req.user as any)?.claims?.sub;
+    const { id } = req.params;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+      });
+    }
+
+    const [execution] = await db
+      .select()
+      .from(customJourneyExecutions)
+      .where(eq(customJourneyExecutions.id, id));
+
+    if (!execution) {
+      return res.status(404).json({
+        success: false,
+        error: 'Execution not found',
+      });
+    }
+
+    if (execution.userId !== userId) {
+      return res.status(403).json({
+        success: false,
+        error: 'Not authorized to start this execution',
+      });
+    }
+
+    if (execution.status === 'running') {
+      return res.status(409).json({
+        success: false,
+        error: 'Execution is already running',
+      });
+    }
+
+    if (execution.status === 'completed') {
+      return res.status(409).json({
+        success: false,
+        error: 'Execution has already completed',
+      });
+    }
+
+    await db
+      .update(customJourneyExecutions)
+      .set({
+        status: 'running',
+        startedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(customJourneyExecutions.id, id));
+
+    console.log(`[Custom Journey Builder] Started execution: ${id}`);
+
+    res.json({
+      success: true,
+      executionId: id,
+      message: 'Execution started. Connect to the stream endpoint for progress updates.',
+      streamUrl: `/api/custom-journey-builder/executions/${id}/stream`,
+    });
+  } catch (error) {
+    console.error('[Custom Journey Builder] Error starting execution:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to start execution',
+    });
+  }
+});
+
+router.get('/executions/:id/stream', async (req: Request, res: Response) => {
+  const { id } = req.params;
+
+  console.log(`[Custom Journey Builder] SSE stream requested for execution: ${id}`);
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  try {
+    const [execution] = await db
+      .select()
+      .from(customJourneyExecutions)
+      .where(eq(customJourneyExecutions.id, id));
+
+    if (!execution) {
+      res.write(`data: ${JSON.stringify({ type: 'journey_error', error: 'Execution not found', timestamp: new Date().toISOString() })}\n\n`);
+      res.end();
+      return;
+    }
+
+    if (execution.status === 'completed') {
+      res.write(`data: ${JSON.stringify({ type: 'journey_complete', aggregatedOutputs: execution.aggregatedOutputs || {}, timestamp: new Date().toISOString() })}\n\n`);
+      res.end();
+      return;
+    }
+
+    if (execution.status === 'failed') {
+      res.write(`data: ${JSON.stringify({ type: 'journey_error', error: execution.errorMessage || 'Execution failed', timestamp: new Date().toISOString() })}\n\n`);
+      res.end();
+      return;
+    }
+
+    if (execution.status !== 'running') {
+      res.write(`data: ${JSON.stringify({ type: 'journey_error', error: 'Execution has not been started. Call POST /executions/:id/start first.', timestamp: new Date().toISOString() })}\n\n`);
+      res.end();
+      return;
+    }
+
+    await customJourneyExecutor.executeJourney(id, res);
+
+    if (!res.writableEnded) {
+      res.end();
+    }
+
+  } catch (error: any) {
+    console.error(`[Custom Journey Builder] Error in SSE stream for execution ${id}:`, error);
+    
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ type: 'journey_error', error: error.message || 'Stream error', timestamp: new Date().toISOString() })}\n\n`);
+      res.end();
+    }
   }
 });
 
