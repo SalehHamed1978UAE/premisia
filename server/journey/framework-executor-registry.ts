@@ -1,5 +1,15 @@
-import type { FrameworkName } from '@shared/journey-types';
-import type { StrategicContext, FrameworkResult } from './journey-types';
+import type { FrameworkName, StrategicContext } from '@shared/journey-types';
+
+/**
+ * Framework Result - Output from a single framework execution
+ */
+export interface FrameworkResult {
+  frameworkName: FrameworkName;
+  executedAt: Date;
+  duration: number;
+  data: any;
+  errors?: string[];
+}
 
 /**
  * Framework Executor Interface
