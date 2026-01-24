@@ -11,14 +11,19 @@ export const pestleAnalyzerManifest: ModuleManifest = {
   version: '1.0.0',
   description: 'Analyzes macro-environmental trends across Political, Economic, Social, Technological, Legal, and Environmental dimensions with evidence-first research.',
   type: 'analyzer',
+  category: 'analysis',
+  icon: 'globe',
+  status: 'stub',
   inputs: [
     {
+      id: 'strategic_context',
       name: 'strategicContext',
       type: 'StrategicContext',
       required: true,
       description: 'The accumulated strategic context including business description and industry',
     },
     {
+      id: 'geographic_scope',
       name: 'geographicScope',
       type: 'GeographicScope',
       required: false,
@@ -27,18 +32,21 @@ export const pestleAnalyzerManifest: ModuleManifest = {
   ],
   outputs: [
     {
+      id: 'pestle_results',
       name: 'pestleResults',
       type: 'PESTLEResults',
       required: true,
       description: 'Complete PESTLE analysis with factors, trends, and impact assessments',
     },
     {
+      id: 'external_forces',
       name: 'externalForces',
       type: 'ExternalForce[]',
       required: true,
       description: 'Identified external forces impacting strategic options',
     },
     {
+      id: 'strategy_insights',
       name: 'strategyInsights',
       type: 'StrategyInsights',
       required: true,

@@ -11,14 +11,19 @@ export const inputProcessorManifest: ModuleManifest = {
   version: '1.0.0',
   description: 'Processes user strategic input, performs entity extraction, geographic disambiguation, and creates the initial strategic understanding context for downstream frameworks.',
   type: 'processor',
+  category: 'input',
+  icon: 'edit',
+  status: 'implemented',
   inputs: [
     {
+      id: 'user_input',
       name: 'userInput',
       type: 'string',
       required: true,
       description: 'Raw strategic input from user describing their business challenge or opportunity',
     },
     {
+      id: 'clarifications',
       name: 'clarifications',
       type: 'Clarification[]',
       required: false,
@@ -27,18 +32,21 @@ export const inputProcessorManifest: ModuleManifest = {
   ],
   outputs: [
     {
+      id: 'strategic_understanding',
       name: 'strategicUnderstanding',
       type: 'StrategicUnderstanding',
       required: true,
       description: 'Structured understanding of the strategic context',
     },
     {
+      id: 'entities',
       name: 'entities',
       type: 'Entity[]',
       required: true,
       description: 'Extracted entities (companies, markets, products, locations)',
     },
     {
+      id: 'initial_context',
       name: 'initialContext',
       type: 'StrategicContext',
       required: true,

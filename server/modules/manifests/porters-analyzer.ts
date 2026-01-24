@@ -11,14 +11,19 @@ export const portersAnalyzerManifest: ModuleManifest = {
   version: '1.0.0',
   description: 'Analyzes competitive dynamics using Porter\'s Five Forces framework to identify threats, opportunities, and strategic positioning requirements.',
   type: 'analyzer',
+  category: 'analysis',
+  icon: 'shield',
+  status: 'stub',
   inputs: [
     {
+      id: 'strategic_context',
       name: 'strategicContext',
       type: 'StrategicContext',
       required: true,
       description: 'The accumulated strategic context including user input and market information',
     },
     {
+      id: 'industry_context',
       name: 'industryContext',
       type: 'IndustryContext',
       required: false,
@@ -27,18 +32,21 @@ export const portersAnalyzerManifest: ModuleManifest = {
   ],
   outputs: [
     {
+      id: 'porters_results',
       name: 'portersResults',
       type: 'PortersResults',
       required: true,
       description: 'Complete Five Forces analysis with scores, drivers, and strategic implications',
     },
     {
+      id: 'competitive_pressures',
       name: 'competitivePressures',
       type: 'CompetitivePressure[]',
       required: true,
       description: 'Identified competitive pressures requiring strategic response',
     },
     {
+      id: 'strategy_insights',
       name: 'strategyInsights',
       type: 'StrategyInsights',
       required: true,
