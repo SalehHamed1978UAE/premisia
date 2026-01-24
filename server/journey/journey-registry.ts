@@ -162,6 +162,36 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
       { from: 'pestle', to: 'ansoff' },
     ],
   },
+
+  /**
+   * Market Segmentation Discovery Journey (Marketing Consultant)
+   * For discovering and validating ideal customer segments
+   * AVAILABLE: Uses genetic algorithm-inspired exploration
+   */
+  market_segmentation: {
+    type: 'market_segmentation',
+    name: 'Market Segmentation Discovery',
+    description: 'Discover and validate your ideal customer segments using genetic algorithm-inspired exploration with 100 segment genomes',
+    frameworks: ['segment_discovery'],
+    pageSequence: [
+      '/marketing-consultant',
+      '/marketing-consultant/classification',
+      '/marketing-consultant/discovery',
+      '/marketing-consultant/results',
+    ],
+    estimatedDuration: '3-5 minutes',
+    available: true, // FULLY IMPLEMENTED via Marketing Consultant
+    summaryBuilder: 'segmentDiscovery',
+    defaultReadiness: {
+      minReferences: 0, // No external research needed
+      minEntities: 0,
+    },
+    insightsConfig: {
+      requiresFiveWhys: false,
+      requiresBmc: false,
+    },
+    dependencies: [], // No dependencies on other frameworks
+  },
 };
 
 /**

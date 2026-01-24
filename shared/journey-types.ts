@@ -69,6 +69,18 @@ export interface StrategicContext {
   // Baseline summary from previous journey (for follow-on runs)
   baselineSummary?: JourneySummary;
   
+  // Marketing Consultant context (for segment discovery)
+  marketingContext?: {
+    offeringType?: string;           // b2b_saas, physical_product, etc.
+    stage?: string;                  // idea_stage, launched, growth, etc.
+    gtmConstraint?: string;          // small_team, bootstrapped, etc.
+    salesMotion?: string;            // self_serve, sales_led, etc.
+    existingHypothesis?: string;     // Optional existing target segment idea
+  };
+  
+  // Progress callback for real-time updates
+  onProgress?: (step: string, progress: number) => void;
+  
   // Journey execution metadata
   createdAt: Date;
   updatedAt: Date;
@@ -86,7 +98,7 @@ export type JourneyStatus =
   | 'failed';           // Journey execution failed
 
 /**
- * Journey Types - The 6 pre-planned strategic journeys
+ * Journey Types - The 7 pre-planned strategic journeys
  */
 export type JourneyType =
   | 'market_entry'              // Market Entry Strategy
@@ -94,19 +106,43 @@ export type JourneyType =
   | 'competitive_strategy'      // Competitive Strategy
   | 'digital_transformation'    // Digital Transformation
   | 'crisis_recovery'           // Crisis Recovery
-  | 'growth_strategy';          // Growth Strategy
+  | 'growth_strategy'           // Growth Strategy
+  | 'market_segmentation';      // Market Segmentation Discovery (Marketing Consultant)
 
 /**
  * Framework Names - Individual strategic analysis frameworks
+ * Core (implemented): five_whys, bmc, segment_discovery
+ * Competitive & Market: porters, pestle, swot, competitive_positioning
+ * Growth & Innovation: ansoff, blue_ocean, ocean_strategy, bcg_matrix
+ * Internal Analysis: value_chain, vrio
+ * Future Planning: scenario_planning
+ * Customer & Product: jobs_to_be_done
+ * Execution: okr_generator
  */
 export type FrameworkName =
-  | 'five_whys'          // Root cause analysis
-  | 'bmc'                // Business Model Canvas
-  | 'porters'            // Porter's Five Forces
-  | 'pestle'             // PESTLE analysis
-  | 'swot'               // SWOT (not yet implemented)
-  | 'ansoff'             // Ansoff Matrix (not yet implemented)
-  | 'blue_ocean';        // Blue Ocean Strategy (not yet implemented)
+  // Core (implemented)
+  | 'five_whys'               // Root cause analysis
+  | 'bmc'                     // Business Model Canvas
+  | 'segment_discovery'       // Marketing Consultant segment discovery
+  // Competitive & Market Analysis
+  | 'porters'                 // Porter's Five Forces
+  | 'pestle'                  // PESTLE analysis
+  | 'swot'                    // SWOT analysis
+  | 'competitive_positioning' // Competitive positioning maps
+  // Growth & Innovation Strategy
+  | 'ansoff'                  // Ansoff Matrix
+  | 'blue_ocean'              // Blue Ocean Strategy
+  | 'ocean_strategy'          // Ocean Strategy Mapping (Red, Blue, Green, White)
+  | 'bcg_matrix'              // BCG Growth-Share Matrix
+  // Internal Analysis
+  | 'value_chain'             // Value Chain Analysis
+  | 'vrio'                    // VRIO Analysis
+  // Future Planning
+  | 'scenario_planning'       // Scenario Planning
+  // Customer & Product
+  | 'jobs_to_be_done'         // Jobs To Be Done framework
+  // Execution
+  | 'okr_generator';          // OKR Generator
 
 /**
  * Journey Definition - Defines which frameworks run in which order
