@@ -62,18 +62,23 @@ export interface TestReference {
 }
 
 /**
- * Create a test user
+ * Create or get a test user (upsert to handle re-runs)
  * @param overrides - Optional field overrides
- * @returns Created user record
+ * @returns Created or existing user record
  */
 export async function createTestUser(overrides: Partial<TestUser> = {}): Promise<TestUser> {
   const timestamp = Date.now();
+  const userId = overrides.id || `test-user-${timestamp}-${randomUUID().slice(0, 8)}`;
+  const email = overrides.email || `test-${timestamp}@example.com`;
+  const role = overrides.role || 'Viewer';
+  
+  // Use upsert to handle re-runs gracefully
   const [user] = await db
     .insert(users)
-    .values({
-      id: overrides.id || `test-user-${timestamp}-${randomUUID().slice(0, 8)}`,
-      email: overrides.email || `test-${timestamp}@example.com`,
-      role: overrides.role || 'Viewer',
+    .values({ id: userId, email, role })
+    .onConflictDoUpdate({
+      target: users.id,
+      set: { email, role }
     })
     .returning();
   
