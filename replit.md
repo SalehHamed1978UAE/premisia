@@ -67,7 +67,7 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tail
 - **Strategy Workspace**: Bridges AI analysis and EPM programs through a 4-page wizard and EPM Program View.
 - **EPM Display Formatters**: Enterprise-grade visual components for EPM data across 7 tabs with 14 specialized formatters.
 - **Intelligent Planning System**: AI-powered project planning library for schedule optimization, resource allocation, and validation.
-- **Journey Builder System**: Allows users to choose from 6 pre-defined journeys or create custom ones with AI validation.
+- **Journey Builder System**: Allows users to choose from 7 pre-defined journeys (including Market Segmentation) or create custom ones with AI validation.
 - **Universal Background Jobs System**: Hybrid system for tracking long-running operations with database persistence and real-time SSE streaming.
 - **Non-Blocking Progress UX**: Uses a fixed-position progress card (`MinimizedJobTracker`) and polling.
 - **Full-Pass Export System**: Generates ZIP bundles with strategic analysis and EPM program data in multiple formats.
@@ -85,6 +85,11 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tail
   - `server/modules/journeys/*.yaml`: YAML-based journey configurations (starting with business-model-innovation.yaml)
   - API endpoints: `GET /api/module-registry/modules`, `GET /api/module-registry/journeys`, `GET /api/module-registry/journeys/:id`, `GET /api/module-registry/stats`
   - Journey resolver updated to check config-based journeys first with hard-coded fallback for backward compatibility
+- **Journey Library Expansion (January 2026)**: Marketing Consultant integrated into journey/executor pattern. Framework registry expanded from 7 to 16 executors:
+  - **Core (implemented)**: five_whys, bmc, segment_discovery
+  - **Stubs (registered, awaiting implementation)**: porters, pestle, swot, competitive_positioning, ansoff, blue_ocean, ocean_strategy, bcg_matrix, value_chain, vrio, scenario_planning, jobs_to_be_done, okr_generator
+  - Key files: `server/journey/executors/segment-discovery-executor.ts`, `server/journey/executors/stub-executor-template.ts`, `server/journey/register-frameworks.ts`
+  - StrategicContext extended with `marketingContext` and `onProgress` callback
 - **Golden Records Automation System**: Baseline regression testing for journey executions with versioned snapshots, CLI tools, and auto-capture hooks.
 - **BMC SSE Regression Test Suite**: Comprehensive test coverage for Business Model Canvas SSE streaming contract, validating all event types and payload structures.
 
