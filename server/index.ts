@@ -12,6 +12,22 @@ import { initializeDatabaseExtensions } from "./db-init";
 import { authReadiness } from "./auth-readiness";
 import { registerServices } from "./services/container";
 
+// CRITICAL: Intercept process.exit to prevent Vite errors from killing the server
+// Vite's customLogger in vite.ts calls process.exit(1) on any error, which crashes
+// the entire server during AI operations (EPM generation, Five Whys, BMC research).
+// This wrapper blocks exit code 1 during development to keep the server stable.
+const originalExit = process.exit;
+process.exit = ((code?: number) => {
+  if (code === 1 && process.env.NODE_ENV !== 'production') {
+    console.error('[Server] process.exit(1) was called - blocking to keep server alive');
+    console.error('[Server] Stack trace:', new Error().stack);
+    // Don't actually exit - keep the server running
+    return undefined as never;
+  }
+  // Allow exit(0) and production exits
+  return originalExit(code);
+}) as typeof process.exit;
+
 // CRITICAL: Global error handlers to prevent process crashes
 // Unhandled promise rejections were crashing the server during EPM generation
 process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
