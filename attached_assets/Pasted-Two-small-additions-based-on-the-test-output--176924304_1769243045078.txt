@@ -1,0 +1,29 @@
+Two small additions based on the test output:   
+                                                                                
+  1. Cleanup should SKIP non-test users, not error:                             
+  async function cleanupTestData(userId: string) {                              
+    // Only clean up if it matches test patterns                                
+    const testPatterns = ['smoke-test-%', 'test-user-%', 'smoke-journeys-%',    
+  'security-test-%'];                                                           
+    const isTestUser = testPatterns.some(p => userId.startsWith(p.replace('%',  
+  '')));                                                                        
+                                                                                
+    if (!isTestUser) {                                                          
+      console.log(`Skipping cleanup for non-test user: ${userId}`);             
+      return; // Don't try to delete production users like 'XMp1ms'             
+    }                                                                           
+                                                                                
+    // ... proceed with deletion                                                
+  }                                                                             
+                                                                                
+  2. api-health.spec.ts must NOT poll or wait:                                  
+  // CORRECT - just check endpoint responds                                     
+  it('strategic-consultant/understanding accepts POST', async () => {           
+    const res = await fetch(url, { method: 'POST', ... });                      
+    expect(res.status).toBe(200); // DONE - don't read body, don't poll         
+  });                                                                           
+                                                                                
+  // WRONG - this is integration test territory                                 
+  it('should complete BMC research', async () => {                              
+    // ... polling for completion - NO, move to integration/                    
+  });           
