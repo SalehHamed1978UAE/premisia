@@ -53,6 +53,7 @@
     "@types/pdf-parse": "^1.1.5",
     "@types/supertest": "^6.0.3",
     "@vitest/ui": "^4.0.6",
+    "@xyflow/react": "^12.10.0",
     "archiver": "^7.0.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

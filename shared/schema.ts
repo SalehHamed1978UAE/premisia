@@ -1904,6 +1904,74 @@ export const clarificationSessions = pgTable("clarification_sessions", {
   statusIdx: index("idx_clarification_sessions_status").on(table.status),
 }));
 
+// Journey Builder enums for custom journeys
+export const customJourneyStatusEnum = pgEnum('custom_journey_status', [
+  'draft',
+  'published',
+  'archived'
+]);
+
+export const customJourneyExecutionStatusEnum = pgEnum('custom_journey_execution_status', [
+  'pending',
+  'running',
+  'paused',
+  'completed',
+  'failed'
+]);
+
+export const journeyNodeStatusEnum = pgEnum('journey_node_status', [
+  'pending',
+  'running',
+  'completed',
+  'failed',
+  'skipped'
+]);
+
+// Custom Journey Configs - User-created journey configurations from Journey Builder
+export const customJourneyConfigs = pgTable("custom_journey_configs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  createdBy: varchar("created_by").notNull().references(() => users.id),
+  status: customJourneyStatusEnum("status").notNull().default('draft'),
+  nodes: jsonb("nodes").notNull().default(sql`'[]'::jsonb`), // Array of {id, moduleId, position, config}
+  edges: jsonb("edges").notNull().default(sql`'[]'::jsonb`), // Array of {id, sourceNodeId, sourcePortId, targetNodeId, targetPortId}
+  metadata: jsonb("metadata"), // Optional UI state, tags, category
+  estimatedDurationMinutes: integer("estimated_duration_minutes"),
+  version: integer("version").notNull().default(1),
+  publishedAt: timestamp("published_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  createdByIdx: index("idx_custom_journey_configs_created_by").on(table.createdBy),
+  statusIdx: index("idx_custom_journey_configs_status").on(table.status),
+  nameIdx: index("idx_custom_journey_configs_name").on(table.name),
+}));
+
+// Custom Journey Executions - Running instances of custom journeys
+export const customJourneyExecutions = pgTable("custom_journey_executions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  configId: varchar("config_id").notNull().references(() => customJourneyConfigs.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  status: customJourneyExecutionStatusEnum("status").notNull().default('pending'),
+  currentNodeId: varchar("current_node_id"), // Currently executing node
+  nodeStates: jsonb("node_states").notNull().default(sql`'{}'::jsonb`), // Map of nodeId -> {status, startedAt, completedAt, output, error}
+  inputData: jsonb("input_data"), // Initial input provided by user
+  aggregatedOutputs: jsonb("aggregated_outputs").notNull().default(sql`'{}'::jsonb`), // Map of nodeId -> output for passing between modules
+  progress: integer("progress").notNull().default(0), // 0-100
+  progressMessage: text("progress_message"),
+  errorMessage: text("error_message"),
+  startedAt: timestamp("started_at"),
+  pausedAt: timestamp("paused_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  configIdx: index("idx_custom_journey_executions_config").on(table.configId),
+  userIdx: index("idx_custom_journey_executions_user").on(table.userId),
+  statusIdx: index("idx_custom_journey_executions_status").on(table.status),
+}));
+
 // Insert Schemas for Strategy Workspace
 export const insertSwProblemSchema = createInsertSchema(swProblems).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertSwProblem = z.infer<typeof insertSwProblemSchema>;
@@ -1976,3 +2044,12 @@ export type SelectGoldenRecordCheck = typeof goldenRecordChecks.$inferSelect;
 export const insertClarificationSessionSchema = createInsertSchema(clarificationSessions).omit({ id: true, createdAt: true, updatedAt: true, completedAt: true });
 export type InsertClarificationSession = z.infer<typeof insertClarificationSessionSchema>;
 export type SelectClarificationSession = typeof clarificationSessions.$inferSelect;
+
+// Insert Schemas for Custom Journey Builder
+export const insertCustomJourneyConfigSchema = createInsertSchema(customJourneyConfigs).omit({ id: true, createdAt: true, updatedAt: true, publishedAt: true });
+export type InsertCustomJourneyConfig = z.infer<typeof insertCustomJourneyConfigSchema>;
+export type SelectCustomJourneyConfig = typeof customJourneyConfigs.$inferSelect;
+
+export const insertCustomJourneyExecutionSchema = createInsertSchema(customJourneyExecutions).omit({ id: true, createdAt: true, updatedAt: true, startedAt: true, pausedAt: true, completedAt: true });
+export type InsertCustomJourneyExecution = z.infer<typeof insertCustomJourneyExecutionSchema>;
+export type SelectCustomJourneyExecution = typeof customJourneyExecutions.$inferSelect;

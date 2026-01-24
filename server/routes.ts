@@ -20,6 +20,7 @@ import strategiesHubRoutes from "./routes/strategies-hub";
 import epmCrudRoutes from "./routes/epm-crud";
 import ontologyRoutes from "./routes/ontology";
 import { moduleRegistryRouter } from "./routes/module-registry";
+import customJourneyBuilderRoutes from "./routes/custom-journey-builder";
 import { initializeModuleSystem } from "./modules/initialize";
 import { backgroundJobService } from "./services/background-job-service";
 import { decrypt } from "./utils/encryption";
@@ -307,6 +308,9 @@ Marketing and events: $3k/month`,
 
   // Module Registry routes (public for GUI composability)
   app.use("/api/module-registry", moduleRegistryRouter);
+
+  // Custom Journey Builder routes (visual journey config CRUD - protected with auth)
+  app.use("/api/custom-journey-builder", requireAuth, customJourneyBuilderRoutes);
 
   // Middleware to check roles (updated for Replit Auth)
   const requireRole = (roles: string[]) => async (req: any, res: any, next: any) => {
