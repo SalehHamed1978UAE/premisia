@@ -12,6 +12,22 @@ import { initializeDatabaseExtensions } from "./db-init";
 import { authReadiness } from "./auth-readiness";
 import { registerServices } from "./services/container";
 
+// CRITICAL: Global error handlers to prevent process crashes
+// Unhandled promise rejections were crashing the server during EPM generation
+process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
+  console.error('[Server] UNHANDLED PROMISE REJECTION:');
+  console.error('[Server] Reason:', reason?.message || reason);
+  console.error('[Server] Stack:', reason?.stack || 'No stack trace');
+  // DO NOT call process.exit() - keep server alive
+});
+
+process.on('uncaughtException', (error: Error) => {
+  console.error('[Server] UNCAUGHT EXCEPTION:');
+  console.error('[Server] Error:', error.message);
+  console.error('[Server] Stack:', error.stack);
+  // DO NOT call process.exit() - keep server alive for recovery
+});
+
 const app = express();
 
 // Register all services and repositories in the DI container
