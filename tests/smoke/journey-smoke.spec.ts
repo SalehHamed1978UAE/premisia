@@ -65,18 +65,23 @@ async function readSSEUntilComplete(response: Response): Promise<{sessionId: str
 
 describe('Journey Smoke Tests', () => {
   let testUser: TestUser;
+  const TEST_USER_ID = 'smoke-test-user-journeys';
 
   beforeAll(async () => {
+    // Clean up any leftover data from failed previous runs FIRST
     await cleanupTestData();
-    testUser = await createTestUser({ id: 'smoke-test-user-journeys' });
+    // Then create fresh test user
+    testUser = await createTestUser({ id: TEST_USER_ID });
   });
 
   afterAll(async () => {
+    // Always clean up, even if tests fail
     await cleanupTestData();
   });
 
   // Strategic Consultant tests run sequentially with shared state
-  describe('Strategic Consultant (EPM Generation)', () => {
+  // Using describe.sequential ensures tests run in order (Vitest 1.0+)
+  describe.sequential('Strategic Consultant (EPM Generation)', () => {
     let understandingId: string;
     let sessionId: string;
     let strategyVersionId: string;
@@ -92,12 +97,15 @@ describe('Journey Smoke Tests', () => {
       expect(response.status).toBe(200);
       const data = response.body;
       expect(data.understandingId).toBeDefined();
+      expect(data.sessionId).toBeDefined();
       understandingId = data.understandingId;
-      console.log(`✓ Strategic understanding created: ${understandingId}`);
+      sessionId = data.sessionId; // Capture sessionId from understanding response
+      console.log(`✓ Strategic understanding created: ${understandingId}, sessionId: ${sessionId}`);
     }, TIMEOUT_MS);
 
     it('should start BMC research and receive SSE stream', async () => {
       expect(understandingId).toBeDefined();
+      expect(sessionId).toBeDefined();
       
       // Use native fetch for SSE stream handling
       const response = await fetch(`${API_BASE}/api/strategic-consultant/bmc-research`, {
@@ -113,86 +121,58 @@ describe('Journey Smoke Tests', () => {
       expect(response.headers.get('content-type')).toContain('text/event-stream');
       console.log(`✓ BMC research SSE stream started`);
 
-      // Read SSE stream until we get completion payload
+      // Read SSE stream until we get completion payload with strategyVersionId
       try {
         const result = await readSSEUntilComplete(response);
-        sessionId = result.sessionId;
-        strategyVersionId = result.strategyVersionId;
-        console.log(`✓ BMC research completed - sessionId: ${sessionId}, strategyVersionId: ${strategyVersionId}`);
+        if (result.strategyVersionId) {
+          strategyVersionId = result.strategyVersionId;
+        }
+        console.log(`✓ BMC research completed via SSE - strategyVersionId: ${strategyVersionId}`);
       } catch (error: any) {
-        // If stream reading fails, try polling for status instead
-        console.log(`⚠ SSE stream ended, checking status via polling...`);
-        
-        // Try to get session from understanding
-        const statusRes = await request(API_BASE)
-          .get(`/api/strategic-consultant/understanding/${understandingId}`);
-        
-        if (statusRes.body?.sessionId) {
-          sessionId = statusRes.body.sessionId;
-        }
-        if (statusRes.body?.strategyVersionId) {
-          strategyVersionId = statusRes.body.strategyVersionId;
-        }
+        // SSE stream ended without completion event - will poll for status
+        console.log(`⚠ SSE stream ended without completion event, will poll for status...`);
       }
     }, TIMEOUT_MS);
 
-    it('should poll for BMC completion if needed', async () => {
+    it('should poll for BMC completion via /versions/:sessionId', async () => {
+      expect(sessionId).toBeDefined();
+      
       // Skip if we already have strategyVersionId from SSE
       if (strategyVersionId) {
-        console.log(`✓ Already have strategyVersionId: ${strategyVersionId}`);
+        console.log(`✓ Already have strategyVersionId from SSE: ${strategyVersionId}`);
         return;
       }
 
-      expect(understandingId).toBeDefined();
-      
-      // Poll for completion using journey status endpoint
+      // Poll the exact status endpoint: /api/strategic-consultant/versions/:sessionId
       const maxAttempts = 60; // 5 minutes with 5s intervals
       let completed = false;
 
       for (let i = 0; i < maxAttempts && !completed; i++) {
         await new Promise(resolve => setTimeout(resolve, 5000));
 
-        // Try multiple status endpoints
-        const endpoints = [
-          `/api/strategic-consultant/journey-status/${sessionId || understandingId}`,
-          `/api/strategic-consultant/understanding/${understandingId}`,
-          `/api/strategy-workspace/versions?understandingId=${understandingId}`
-        ];
-
-        for (const endpoint of endpoints) {
-          try {
-            const response = await request(API_BASE).get(endpoint);
-            
-            if (response.status === 200) {
-              const data = response.body;
-              
-              // Check for completed status
-              if (data?.status === 'completed' || data?.bmcComplete) {
-                completed = true;
-                strategyVersionId = data.strategyVersionId || data.latestVersionId;
-                sessionId = data.sessionId || sessionId;
-                break;
-              }
-              
-              // Check versions array
-              if (data?.versions?.length > 0) {
-                const latest = data.versions[0];
-                if (latest.status === 'completed') {
-                  completed = true;
-                  strategyVersionId = latest.id;
-                  break;
-                }
-              }
-            }
-          } catch { /* Try next endpoint */ }
+        const response = await request(API_BASE)
+          .get(`/api/strategic-consultant/versions/${sessionId}`);
+        
+        if (response.status === 200 && response.body?.versions?.length > 0) {
+          const versions = response.body.versions;
+          // Find a completed version
+          const completedVersion = versions.find((v: any) => v.status === 'completed' || v.status === 'finalized');
+          
+          if (completedVersion) {
+            completed = true;
+            // The version ID is the strategyVersionId
+            // Get it from the version record
+            strategyVersionId = completedVersion.id || `${sessionId}:${completedVersion.versionNumber}`;
+            console.log(`✓ BMC completed - found version: ${JSON.stringify(completedVersion).slice(0, 100)}`);
+            break;
+          }
         }
 
-        if (!completed) {
-          console.log(`  Polling... ${i + 1}/${maxAttempts}`);
-        }
+        console.log(`  Polling /versions/${sessionId}... ${i + 1}/${maxAttempts}`);
       }
 
-      expect(completed || strategyVersionId).toBeTruthy();
+      expect(completed).toBe(true);
+      expect(strategyVersionId).toBeDefined();
       console.log(`✓ BMC research completed - strategyVersionId: ${strategyVersionId}`);
     }, TIMEOUT_MS);
 

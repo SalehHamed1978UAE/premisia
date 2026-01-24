@@ -1,0 +1,49 @@
+Using unique IDs per test run is a band-aid, not a 
+  fix. The real issues are:                                                     
+                                                                                
+  Root Causes to Fix:                                                           
+                                                                                
+  1. Test cleanup not running - afterAll() or afterEach() hooks should delete   
+  test data, but either they're missing or failing silently                     
+  2. Jobs not terminating - If a background job is still running, it means:     
+    - The job completion handler isn't being called                             
+    - Or the job is stuck/hanging                                               
+    - Or there's no cleanup on test suite exit                                  
+  3. No transactional rollback - Tests should ideally run in a transaction that 
+  rolls back, leaving no trace                                                  
+                                                                                
+  What Replit Should Do Instead:                                                
+                                                                                
+  // Proper test cleanup pattern                                                
+  describe('Strategic Consultant', () => {                                      
+    let testUserId: string;                                                     
+    let createdSessionIds: string[] = [];                                       
+                                                                                
+    beforeAll(async () => {                                                     
+      // Create fresh test user                                                 
+      testUserId = 'test-user-smoke';                                           
+      // Clean up any leftover data from failed previous runs                   
+      await cleanupTestData(testUserId);                                        
+    });                                                                         
+                                                                                
+    afterAll(async () => {                                                      
+      // Always clean up, even if tests fail                                    
+      await cleanupTestData(testUserId);                                        
+      // Kill any hanging jobs                                                  
+      await killJobsForUser(testUserId);                                        
+    });                                                                         
+                                                                                
+    afterEach(async () => {                                                     
+      // Clean up after each test for isolation                                 
+    });                                                                         
+  });                                                                           
+                                                                                
+  async function cleanupTestData(userId: string) {                              
+    // Delete in correct order to respect FK constraints                        
+    await db.delete(epmDeliverables).where(eq(epmDeliverables.userId, userId)); 
+    await db.delete(strategyVersions).where(eq(strategyVersions.userId,         
+  userId));                                                                     
+    await db.delete(strategySessions).where(eq(strategySessions.userId,         
+  userId));                                                                     
+    // etc.                                                                     
+  }          
