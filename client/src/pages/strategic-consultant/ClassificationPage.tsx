@@ -46,20 +46,68 @@ const INITIATIVE_TYPE_DESCRIPTIONS: Record<string, string> = {
   other: 'General initiative that doesn\'t fit other categories',
 };
 
+// Map framework keys to their route paths
+function getFrameworkRoute(frameworkKey: string, understandingId: string, journeySessionId: string): string {
+  const frameworkRoutes: Record<string, string> = {
+    five_whys: `/strategic-consultant/whys-tree/${understandingId}?journeySession=${journeySessionId}`,
+    bmc: `/strategic-consultant/analysis/${journeySessionId}?framework=bmc`,
+    pestle: `/strategic-consultant/trend-analysis/${journeySessionId}/1`,
+    porters: `/strategic-consultant/analysis/${journeySessionId}?framework=porters`,
+    swot: `/strategic-consultant/analysis/${journeySessionId}?framework=swot`,
+    segment_discovery: `/marketing-consultant?journeySession=${journeySessionId}`,
+    competitive_positioning: `/strategic-consultant/analysis/${journeySessionId}?framework=competitive_positioning`,
+    ansoff: `/strategic-consultant/analysis/${journeySessionId}?framework=ansoff`,
+    blue_ocean: `/strategic-consultant/analysis/${journeySessionId}?framework=blue_ocean`,
+    ocean_strategy: `/strategic-consultant/analysis/${journeySessionId}?framework=ocean_strategy`,
+    bcg_matrix: `/strategic-consultant/analysis/${journeySessionId}?framework=bcg_matrix`,
+    value_chain: `/strategic-consultant/analysis/${journeySessionId}?framework=value_chain`,
+    vrio: `/strategic-consultant/analysis/${journeySessionId}?framework=vrio`,
+    scenario_planning: `/strategic-consultant/analysis/${journeySessionId}?framework=scenario_planning`,
+    jobs_to_be_done: `/strategic-consultant/analysis/${journeySessionId}?framework=jobs_to_be_done`,
+    okr_generator: `/strategic-consultant/analysis/${journeySessionId}?framework=okr_generator`,
+  };
+  
+  return frameworkRoutes[frameworkKey] || `/strategic-consultant/analysis/${journeySessionId}`;
+}
+
 export default function ClassificationPage() {
   const { understandingId } = useParams<{ understandingId: string }>();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+
+  // Check for templateId in URL (custom journey flow)
+  const urlParams = new URLSearchParams(window.location.search);
+  const templateId = urlParams.get('templateId');
 
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [classification, setClassification] = useState<ClassificationData | null>(null);
   const [selectedType, setSelectedType] = useState<string>('');
   const [hasChanged, setHasChanged] = useState(false);
+  const [templateData, setTemplateData] = useState<{ steps: Array<{ frameworkKey: string; name: string }> } | null>(null);
 
   useEffect(() => {
     loadClassification();
   }, [understandingId]);
+
+  // Load template data if templateId is present
+  useEffect(() => {
+    if (!templateId) return;
+    
+    const loadTemplate = async () => {
+      try {
+        const response = await fetch(`/api/journey-builder/templates/${templateId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setTemplateData(data.template);
+        }
+      } catch (error) {
+        console.error('Error loading template:', error);
+      }
+    };
+    
+    loadTemplate();
+  }, [templateId]);
 
   const loadClassification = async () => {
     try {
@@ -128,9 +176,39 @@ export default function ClassificationPage() {
           : 'Classification confirmed and saved.',
       });
       
-      // Navigate to journey selection
-      setTimeout(() => {
-        setLocation(`/strategic-consultant/journey-selection/${understandingId}`);
+      // If custom journey template is present, start the first framework directly
+      // Otherwise, navigate to journey selection for predefined journeys
+      setTimeout(async () => {
+        if (templateId && templateData && templateData.steps.length > 0) {
+          // Start custom journey execution with the first framework
+          try {
+            const startResponse = await fetch('/api/journey-builder/start-custom-journey', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                understandingId,
+                templateId,
+              }),
+            });
+            
+            if (startResponse.ok) {
+              const { journeySessionId, firstFramework } = await startResponse.json();
+              // Navigate to the first framework in the custom journey
+              const frameworkRoute = getFrameworkRoute(firstFramework, understandingId, journeySessionId);
+              setLocation(frameworkRoute);
+            } else {
+              // Fallback to journey selection if custom journey start fails
+              console.error('[ClassificationPage] Failed to start custom journey, falling back to selection');
+              setLocation(`/strategic-consultant/journey-selection/${understandingId}`);
+            }
+          } catch (error) {
+            console.error('[ClassificationPage] Error starting custom journey:', error);
+            setLocation(`/strategic-consultant/journey-selection/${understandingId}`);
+          }
+        } else {
+          // Standard flow: go to journey selection
+          setLocation(`/strategic-consultant/journey-selection/${understandingId}`);
+        }
       }, 500);
       
     } catch (error: any) {

@@ -332,6 +332,86 @@ export class JourneyBuilderService {
       }
     }
   }
+
+  /**
+   * Get a template by its ID
+   */
+  async getTemplateById(templateId: string): Promise<JourneyTemplate | null> {
+    const [template] = await db
+      .select()
+      .from(journeyTemplates)
+      .where(eq(journeyTemplates.id, templateId));
+
+    if (!template) {
+      return null;
+    }
+
+    return {
+      ...template,
+      steps: template.steps as JourneyStep[],
+      tags: template.tags as string[],
+    } as JourneyTemplate;
+  }
+
+  /**
+   * Start a custom journey execution from a template
+   * Creates a journey session and returns the first framework to execute
+   */
+  async startCustomJourneyExecution(params: {
+    userId: string;
+    understandingId: string;
+    templateId: string;
+  }): Promise<{ journeySessionId: string; firstFramework: string }> {
+    console.log('[Journey Builder] Starting custom journey execution for understanding:', params.understandingId);
+
+    // Get the template
+    const template = await this.getTemplateById(params.templateId);
+    if (!template) {
+      throw new Error('Template not found');
+    }
+
+    // Verify ownership for non-system templates
+    if (!template.isSystemTemplate && template.createdBy && template.createdBy !== params.userId) {
+      console.warn('[Journey Builder] Unauthorized access attempt to template:', params.templateId, 'by user:', params.userId);
+      throw new Error('Not authorized to use this template');
+    }
+
+    if (!template.steps || template.steps.length === 0) {
+      throw new Error('Template has no steps');
+    }
+
+    // Get the first framework key
+    const firstStep = template.steps[0];
+    const firstFramework = firstStep.frameworkKey;
+
+    // Start a journey using the template
+    const result = await this.startJourney({
+      userId: params.userId,
+      templateId: params.templateId,
+      name: template.name,
+    });
+
+    // Update the journey context to link it to the understanding (merge with existing context)
+    const existingJourney = await this.getJourney(result.sessionId);
+    const existingContext = existingJourney?.journeyContext || {};
+    await db
+      .update(userJourneys)
+      .set({
+        journeyContext: { ...existingContext, understandingId: params.understandingId } as any,
+      })
+      .where(eq(userJourneys.id, result.journeyId));
+
+    console.log('[Journey Builder] ✓ Custom journey started:', {
+      journeySessionId: result.sessionId,
+      firstFramework,
+      templateId: params.templateId,
+    });
+
+    return {
+      journeySessionId: result.sessionId,
+      firstFramework,
+    };
+  }
 }
 
 export const journeyBuilderService = new JourneyBuilderService();

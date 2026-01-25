@@ -126,6 +126,14 @@ export function JourneyHub() {
     setLocation(`/strategic-consultant${params}`);
   };
 
+  const startTemplateJourney = (templateId: string) => {
+    const params = new URLSearchParams();
+    if (discoveryId) params.set('discoveryId', discoveryId);
+    params.set('templateId', templateId);
+    const queryString = params.toString();
+    setLocation(`/strategic-consultant${queryString ? '?' + queryString : ''}`);
+  };
+
   const runCustomJourney = (journeyId: string) => {
     setLocation(`/journey-builder/${journeyId}/run`);
   };
@@ -337,7 +345,7 @@ export function JourneyHub() {
                     </div>
                   </div>
                   <Button 
-                    onClick={() => startJourney(template.id)}
+                    onClick={() => startTemplateJourney(template.id)}
                     className="w-full gap-2"
                     disabled={template.steps.length === 0}
                     data-testid={`button-start-template-${template.id}`}

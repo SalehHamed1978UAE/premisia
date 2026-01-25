@@ -44,6 +44,7 @@ export default function InputPage() {
   const prefilledText = urlParams.get('text') || '';
   const journeySessionId = urlParams.get('journeySession');
   const discoveryId = urlParams.get('discoveryId');
+  const templateId = urlParams.get('templateId');
   const [text, setText] = useState(prefilledText);
   const [isLoadingSummary, setIsLoadingSummary] = useState(false);
 
@@ -306,7 +307,8 @@ export default function InputPage() {
         body: JSON.stringify({ 
           input: input,
           clarifications: clarifications,
-          fileMetadata: fileMetadata // Pass file metadata for enrichment job creation
+          fileMetadata: fileMetadata, // Pass file metadata for enrichment job creation
+          templateId: templateId || undefined // Pass template ID if running a custom journey
         })
       });
       
@@ -324,8 +326,10 @@ export default function InputPage() {
       setProgress(100);
 
       // Navigate to Classification page for user confirmation
+      // Pass templateId if this is a custom journey
       setTimeout(() => {
-        setLocation(`/strategic-consultant/classification/${understandingId}`);
+        const classificationParams = templateId ? `?templateId=${templateId}` : '';
+        setLocation(`/strategic-consultant/classification/${understandingId}${classificationParams}`);
       }, 300);
 
     } catch (error: any) {

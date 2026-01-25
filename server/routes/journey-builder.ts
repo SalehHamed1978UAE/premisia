@@ -74,6 +74,89 @@ router.get('/my-templates', async (req, res) => {
 });
 
 // =============================================================================
+// GET /api/journeys/templates/:templateId
+// Get a specific template by ID
+// =============================================================================
+router.get('/templates/:templateId', async (req, res) => {
+  try {
+    const userId = (req.user as any)?.claims?.sub;
+    const { templateId } = req.params;
+    
+    const template = await journeyBuilderService.getTemplateById(templateId);
+    
+    if (!template) {
+      return res.status(404).json({
+        success: false,
+        error: 'Template not found',
+      });
+    }
+    
+    // Verify ownership for non-system templates
+    if (!template.isSystemTemplate && template.createdBy && template.createdBy !== userId) {
+      return res.status(403).json({
+        success: false,
+        error: 'Not authorized to access this template',
+      });
+    }
+    
+    res.json({
+      success: true,
+      template,
+    });
+  } catch (error) {
+    console.error('[Journey Builder API] Error fetching template:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch template',
+    });
+  }
+});
+
+// =============================================================================
+// POST /api/journeys/start-custom-journey
+// Start a custom journey execution from a template
+// Creates a journey session and returns the first framework to execute
+// =============================================================================
+router.post('/start-custom-journey', async (req, res) => {
+  try {
+    const userId = (req.user as any)?.claims?.sub;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+      });
+    }
+
+    const { understandingId, templateId } = req.body;
+
+    if (!understandingId || !templateId) {
+      return res.status(400).json({
+        success: false,
+        error: 'understandingId and templateId are required',
+      });
+    }
+
+    const result = await journeyBuilderService.startCustomJourneyExecution({
+      userId,
+      understandingId,
+      templateId,
+    });
+
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    console.error('[Journey Builder API] Error starting custom journey:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to start custom journey',
+    });
+  }
+});
+
+// =============================================================================
 // GET /api/journeys/frameworks
 // List all available frameworks (user-selectable)
 // =============================================================================
