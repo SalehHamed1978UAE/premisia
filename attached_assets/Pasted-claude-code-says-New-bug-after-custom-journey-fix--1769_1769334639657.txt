@@ -1,0 +1,35 @@
+claude code says: New bug after custom journey fix:                                             
+                                                                                
+  Custom journey now routes to /strategic-consultant/analysis/{journeyId}       
+  (correct!)                                                                    
+  But shows: Analysis Not Found - 404: {"error":"Version not found"}            
+                                                                                
+  The start-custom-journey API creates a journey session but the analysis page  
+  expects a "version" record that doesn't exist.                                
+                                                                                
+  Either:                                                                       
+  1. The start-custom-journey endpoint needs to also create a version record    
+  2. Or the analysis page route is wrong for custom journeys (should go to a    
+  different page)                                                               
+                                                                                
+  Check what data the analysis page expects vs what start-custom-journey        
+  creates.    
+
+  codex says:  Custom journey execution still breaks after clarifications: now you get a 404
+  “Version not found” when the system tries to open the first framework page.
+  That means the new flow isn’t waiting for the journey session + version to be
+  created before redirecting, so the frontend navigates to /strategic-
+  consultant/analysis/journey_<timestamp>... with a version id that hasn’t been
+  persisted yet. We need Replit to:
+
+  1. Update startCustomJourneyExecution so it either returns the actual
+     journeyVersionId generated after the frameworks run, or poll /
+     versions/:sessionId until the first module produces a version before
+     redirecting.
+  2. Ensure the backend stores the new journey version and returns a valid
+     journeyVersionId.
+  3. Add a regression test for launching a custom journey end-to-end (Five Whys)
+     to ensure the route resolves and no 404 occurs.
+
+  Without that, custom journeys will always hit the “Analysis Not Found” screen.
+

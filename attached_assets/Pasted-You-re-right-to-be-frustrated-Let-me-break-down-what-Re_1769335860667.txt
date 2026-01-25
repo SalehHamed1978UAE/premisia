@@ -1,0 +1,44 @@
+You're right to be frustrated. Let me break down what Replit is doing:        
+                                                                                
+  Replit's "Fix" Pattern                                                        
+  Problem: Routes to wrong page                                                 
+  Replit's Response: Skip strategic_understanding                               
+  Reality: Band-aid                                                             
+  ────────────────────────────────────────                                      
+  Problem: No version found                                                     
+  Replit's Response: Hide from wizard                                           
+  Reality: Band-aid                                                             
+  ────────────────────────────────────────                                      
+  Problem: Frameworks don't execute                                             
+  Replit's Response: Not addressed                                              
+  Reality: THE ACTUAL PROBLEM                                                   
+  The Real Issue Replit Keeps Avoiding                                          
+                                                                                
+  Even if you hide strategic_understanding from the wizard, your journey will   
+  STILL break when it tries to run SWOT because:                                
+                                                                                
+  1. There is NO execution engine for wizard-created journeys                   
+  2. The user_journeys table stores steps but nothing runs them                 
+  3. No code calls the SWOT analyzer                                            
+  4. No code accumulates the output                                             
+  5. No code passes SWOT output to Strategic Decisions                          
+                                                                                
+  Hiding strategic_understanding just moves the 404 error from step 1 to step 2.
+                                                                                
+  What Replit Needs to Hear                                                     
+                                                                                
+  Stop proposing workarounds.                                                   
+                                                                                
+  The wizard journey system (journey_templates + user_journeys) has NO execution
+   engine. You built tables to store journey definitions but never built the    
+  code to EXECUTE them.                                                         
+                                                                                
+  I've given you exact instructions in /Users/saleh/Downloads/Premisia_Claude/RE
+  PLIT_INSTRUCTIONS_WIZARD_JOURNEY_FIX.md                                       
+                                                                                
+  The fix is to wire wizard journeys to use JourneyOrchestrator - the executor  
+  that already works for Strategic Journeys. This is not optional. Without an   
+  executor, wizard journeys will never work regardless of what frameworks you   
+  hide.                                                                         
+                                                                                
+  Read the instructions file and implement it properly. 
