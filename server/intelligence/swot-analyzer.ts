@@ -5,6 +5,7 @@
  */
 
 import { aiClients } from '../ai-clients';
+import { extractJsonFromMarkdown, createAnalysisErrorResult } from '../utils/json-parser';
 
 export interface SWOTInput {
   businessContext: string;
@@ -123,12 +124,26 @@ Return as JSON matching this structure:
 
     try {
       const response = await aiClients.callWithFallback({
-        systemPrompt: 'You are a strategic analysis expert specializing in SWOT analysis. Return only valid JSON.',
+        systemPrompt: 'You are a strategic analysis expert specializing in SWOT analysis. Return only valid JSON without markdown code blocks.',
         userMessage: prompt,
         maxTokens: 4000,
       });
 
-      const result = JSON.parse(response.content);
+      // Use helper to extract JSON from potentially markdown-wrapped response
+      const parseResult = extractJsonFromMarkdown(response.content);
+      
+      if (!parseResult.success) {
+        // Return error structure instead of throwing - this gets saved to framework_insights
+        console.error('[SWOT Analyzer] Failed to parse AI response');
+        return createAnalysisErrorResult(
+          'swot',
+          'Failed to parse SWOT analysis response',
+          parseResult.rawOutput,
+          parseResult.error
+        ) as any;
+      }
+
+      const result = parseResult.data;
 
       console.log('[SWOT Analyzer] Analysis complete');
       console.log(`  Strengths: ${result.strengths?.length || 0}`);
@@ -145,9 +160,15 @@ Return as JSON matching this structure:
           generatedAt: new Date().toISOString(),
         },
       };
-    } catch (error) {
+    } catch (error: any) {
+      // Even for unexpected errors, return error structure instead of throwing
       console.error('[SWOT Analyzer] Analysis failed:', error);
-      throw error;
+      return createAnalysisErrorResult(
+        'swot',
+        `SWOT analysis failed: ${error.message}`,
+        '',
+        error.message
+      ) as any;
     }
   }
 
