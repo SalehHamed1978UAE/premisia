@@ -453,6 +453,49 @@ export function generateUiStyledHtml(pkg: FullExportPackage): string {
     }
 
     if (timeline) {
+      const totalMonths = timeline.totalDuration || 12;
+      const criticalPathSet = new Set((timeline.criticalPath || []).map((item: string) => item.toLowerCase()));
+      
+      const renderGanttChart = () => {
+        if (!workstreams || workstreams.length === 0) return '';
+        
+        const ganttRows = workstreams.map((ws: any) => {
+          const startMonth = ws.startMonth ?? 0;
+          const endMonth = ws.endMonth ?? totalMonths;
+          const leftPercent = (startMonth / totalMonths) * 100;
+          const widthPercent = ((endMonth - startMonth) / totalMonths) * 100;
+          const wsNameLower = (ws.name || '').toLowerCase();
+          const isCritical = ws.isCritical || criticalPathSet.has(wsNameLower);
+          
+          return `
+            <div class="gantt-row">
+              <div class="gantt-label" title="${escapeHtml(ws.name || 'Workstream')}">${escapeHtml(ws.name || 'Workstream')}</div>
+              <div class="gantt-bar-track">
+                <div class="gantt-bar${isCritical ? ' critical' : ''}" style="left: ${leftPercent}%; width: ${widthPercent}%;">
+                  <span class="gantt-bar-label">M${startMonth}-M${endMonth}</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+        
+        const axisTicks = [];
+        const tickCount = Math.min(totalMonths + 1, 13);
+        const tickInterval = Math.ceil(totalMonths / (tickCount - 1));
+        for (let i = 0; i <= totalMonths; i += tickInterval) {
+          axisTicks.push(`<div class="gantt-axis-tick">M${i}</div>`);
+        }
+        
+        return `
+          <div class="gantt-chart">
+            ${ganttRows}
+            <div class="gantt-axis">
+              ${axisTicks.join('')}
+            </div>
+          </div>
+        `;
+      };
+      
       contentParts.push(`
         <div class="card">
           <div class="card-header">
@@ -469,13 +512,14 @@ export function generateUiStyledHtml(pkg: FullExportPackage): string {
             </div>
             ` : ''}
             ${timeline.criticalPath && timeline.criticalPath.length > 0 ? `
-            <div>
+            <div class="mb-4">
               <strong>Critical Path:</strong>
               <ul>
                 ${timeline.criticalPath.map((item: string) => `<li>${escapeHtml(item)}</li>`).join('')}
               </ul>
             </div>
             ` : ''}
+            ${renderGanttChart()}
           </div>
         </div>
       `);

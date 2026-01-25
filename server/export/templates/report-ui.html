@@ -296,6 +296,85 @@
       color: hsl(var(--muted-foreground));
     }
     
+    /* Gantt Chart Styles */
+    .gantt-chart {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      background: hsl(var(--muted) / 0.3);
+      border-radius: var(--radius);
+    }
+    
+    .gantt-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+    
+    .gantt-label {
+      width: 180px;
+      flex-shrink: 0;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: hsl(var(--foreground));
+      padding-right: 1rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .gantt-bar-track {
+      flex: 1;
+      height: 28px;
+      background: hsl(var(--border));
+      border-radius: 4px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .gantt-bar {
+      position: absolute;
+      top: 4px;
+      height: 20px;
+      border-radius: 3px;
+      background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.8) 100%);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      transition: all 0.2s ease;
+    }
+    
+    .gantt-bar.critical {
+      background: linear-gradient(135deg, hsl(var(--destructive)) 0%, hsl(var(--destructive) / 0.8) 100%);
+    }
+    
+    .gantt-bar-label {
+      position: absolute;
+      left: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.75rem;
+      color: white;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    
+    .gantt-axis {
+      display: flex;
+      margin-top: 0.5rem;
+      padding-left: 180px;
+    }
+    
+    .gantt-axis-tick {
+      flex: 1;
+      text-align: center;
+      font-size: 0.75rem;
+      color: hsl(var(--muted-foreground));
+      border-left: 1px solid hsl(var(--border));
+      padding-top: 0.25rem;
+    }
+    
+    .gantt-axis-tick:last-child {
+      border-right: 1px solid hsl(var(--border));
+    }
+
     @media print {
       body {
         background: white;
@@ -309,6 +388,10 @@
       
       h2 {
         page-break-after: avoid;
+      }
+      
+      .gantt-chart {
+        page-break-inside: avoid;
       }
     }
   </style>
