@@ -1,0 +1,31 @@
+CONTEXT - READ CAREFULLY:                                                     
+                                                                                
+  I created a CUSTOM journey called "test 2" with these steps:                  
+  1. Strategic Understanding                                                    
+  2. SWOT Analysis                                                              
+  3. Strategic Decisions                                                        
+                                                                                
+  I clicked "Start Journey" on MY CUSTOM JOURNEY "test 2".                      
+                                                                                
+  I completed Strategic Understanding (entered business idea, answered          
+  clarifications).                                                              
+                                                                                
+  WHAT SHOULD HAPPEN:                                                           
+  After Strategic Understanding completes, it should automatically proceed to   
+  SWOT Analysis (step 2 of MY custom journey).                                  
+                                                                                
+  WHAT ACTUALLY HAPPENED:                                                       
+  It redirected me to "Select Your Journey" page showing predefined journeys    
+  (Business Model Innovation, Market Entry Strategy, etc.)                      
+                                                                                
+  THIS IS THE BUG WE'VE BEEN TRYING TO FIX FOR THE LAST HOUR.                   
+                                                                                
+  The custom journey execution you just implemented IS NOT WORKING. The         
+  ClassificationPage is not detecting that I started a custom journey with a    
+  templateId. It's falling back to the default flow.                            
+                                                                                
+  Please debug ClassificationPage.tsx:                                          
+  1. Add console.log to check if templateId exists in URL params                
+  2. Add console.log to check if start-custom-journey is being called           
+  3. Add console.log to check what firstFramework is returned                   
+  4. Find where it decides to go to journey-selection instead of SWOT   
