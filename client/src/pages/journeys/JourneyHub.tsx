@@ -43,6 +43,16 @@ interface CustomJourneyConfig {
   updatedAt: string;
 }
 
+interface JourneyTemplate {
+  id: string;
+  name: string;
+  description: string | null;
+  steps: Array<{ frameworkKey: string; name: string; estimatedDuration?: number }>;
+  tags: string[];
+  estimatedDuration: number | null;
+  createdAt: string;
+}
+
 export function JourneyHub() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
@@ -76,6 +86,16 @@ export function JourneyHub() {
     },
   });
 
+  const { data: myTemplatesData, isLoading: templatesLoading, refetch: refetchTemplates } = useQuery({
+    queryKey: ['my-journey-templates'],
+    queryFn: async () => {
+      const res = await fetch('/api/journey-builder/my-templates');
+      if (!res.ok) throw new Error('Failed to fetch my templates');
+      const json = await res.json();
+      return json.templates as JourneyTemplate[];
+    },
+  });
+
   const deleteJourneyMutation = useMutation({
     mutationFn: async (id: string) => {
       const res = await apiRequest('DELETE', `/api/custom-journey-builder/configs/${id}`);
@@ -95,6 +115,7 @@ export function JourneyHub() {
 
   const journeys = data || [];
   const customJourneys = customJourneysData || [];
+  const myTemplates = myTemplatesData || [];
 
   // Separate available from coming soon
   const availableJourneys = journeys.filter(j => j.available);
@@ -128,7 +149,7 @@ export function JourneyHub() {
     return `${Math.round(minutes / 60)} hr`;
   };
 
-  if (isLoading || customLoading) {
+  if (isLoading || customLoading || templatesLoading) {
     return (
       <AppLayout
         title="Strategic Journeys"
@@ -258,6 +279,73 @@ export function JourneyHub() {
                     <Trash2 className="w-4 h-4" />
                   </Button>
                 </CardFooter>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* My Templates (from Journey Builder Wizard) */}
+      {myTemplates.length > 0 && (
+        <section className="mb-12">
+          <h2 className="text-xl md:text-2xl font-semibold mb-4 flex items-center gap-2">
+            <Sparkles className="w-6 h-6 text-indigo-500" />
+            My Custom Journeys
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {myTemplates.map(template => (
+              <Card 
+                key={template.id} 
+                className="hover:shadow-lg transition-shadow border-2 hover:border-indigo-500"
+                data-testid={`card-template-${template.id}`}
+              >
+                <CardHeader>
+                  <div className="flex items-start justify-between mb-2">
+                    <CardTitle className="text-xl">{template.name}</CardTitle>
+                    <Badge className="bg-indigo-600 hover:bg-indigo-700">
+                      Custom
+                    </Badge>
+                  </div>
+                  <CardDescription className="mt-2 min-h-[3rem]">
+                    {template.description || 'Custom journey created by you'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
+                    <div className="flex items-center gap-1">
+                      <Clock className="w-4 h-4" />
+                      {formatDuration(template.estimatedDuration)}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Puzzle className="w-4 h-4" />
+                      {template.steps.length} steps
+                    </div>
+                  </div>
+                  <div className="mb-4 min-h-[4rem]">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Frameworks:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {template.steps.slice(0, 4).map((step, idx) => (
+                        <Badge key={idx} variant="outline" className="text-xs capitalize">
+                          {step.name || step.frameworkKey.replace(/_/g, ' ')}
+                        </Badge>
+                      ))}
+                      {template.steps.length > 4 && (
+                        <Badge variant="outline" className="text-xs">
+                          +{template.steps.length - 4} more
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <Button 
+                    onClick={() => startJourney(template.id)}
+                    className="w-full gap-2"
+                    disabled={template.steps.length === 0}
+                    data-testid={`button-start-template-${template.id}`}
+                  >
+                    <Play className="w-4 h-4" />
+                    Start Journey
+                  </Button>
+                </CardContent>
               </Card>
             ))}
           </div>
@@ -403,6 +491,7 @@ export function JourneyHub() {
               setShowBuilder(false);
               refetch();
               refetchCustom();
+              refetchTemplates();
             }}
           />
         )}

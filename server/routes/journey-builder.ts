@@ -43,6 +43,37 @@ router.get('/templates', async (req, res) => {
 });
 
 // =============================================================================
+// GET /api/journeys/my-templates
+// List custom journey templates created by the current user
+// =============================================================================
+router.get('/my-templates', async (req, res) => {
+  try {
+    const userId = (req.user as any)?.claims?.sub;
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required',
+      });
+    }
+
+    const templates = await journeyBuilderService.getUserTemplates(userId);
+    
+    res.json({
+      success: true,
+      templates,
+      count: templates.length,
+    });
+  } catch (error) {
+    console.error('[Journey Builder API] Error fetching user templates:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch user templates',
+    });
+  }
+});
+
+// =============================================================================
 // GET /api/journeys/frameworks
 // List all available frameworks (user-selectable)
 // =============================================================================
@@ -286,7 +317,7 @@ router.post('/journeys', async (req, res) => {
       description,
       steps,
       tags: tags || ['custom'],
-      userId,
+      createdBy: userId,
     });
 
     res.json({

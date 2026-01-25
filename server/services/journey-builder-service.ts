@@ -2,7 +2,7 @@ import { db } from "../db";
 import { journeyTemplates, userJourneys, frameworkRegistry } from "@shared/schema";
 import type { InsertJourneyTemplate, InsertUserJourney, InsertFrameworkRegistry } from "@shared/schema";
 import type { JourneyStep, JourneyTemplate, UserJourney, Framework } from "@shared/journey-types";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 
 /**
  * Journey Builder Service
@@ -263,6 +263,23 @@ export class JourneyBuilderService {
     userId?: string;
   }): Promise<JourneyTemplate[]> {
     const templates = await db.select().from(journeyTemplates);
+
+    return templates.map((t): JourneyTemplate => ({
+      ...t,
+      steps: t.steps as JourneyStep[],
+      tags: t.tags as string[],
+    } as JourneyTemplate));
+  }
+
+  /**
+   * Get templates created by a specific user (custom journeys from wizard)
+   */
+  async getUserTemplates(userId: string): Promise<JourneyTemplate[]> {
+    const templates = await db
+      .select()
+      .from(journeyTemplates)
+      .where(eq(journeyTemplates.createdBy, userId))
+      .orderBy(desc(journeyTemplates.createdAt));
 
     return templates.map((t): JourneyTemplate => ({
       ...t,
