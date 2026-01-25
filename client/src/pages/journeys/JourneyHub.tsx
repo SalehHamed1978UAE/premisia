@@ -1,13 +1,25 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import { useState } from 'react';
 import { useLocation } from 'wouter';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Clock, Star, Sparkles, ArrowRight } from 'lucide-react';
+import { Plus, Clock, Star, Sparkles, ArrowRight, Play, Edit2, Trash2, Puzzle, AlertCircle } from 'lucide-react';
 import { JourneyBuilderWizard } from './JourneyBuilderWizard';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/queryClient';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface Journey {
   type: string;
@@ -19,10 +31,26 @@ interface Journey {
   summaryBuilder?: string;
 }
 
+interface CustomJourneyConfig {
+  id: string;
+  name: string;
+  description: string | null;
+  status: 'draft' | 'published' | 'archived';
+  nodes: Array<{ id: string; moduleId: string; position: { x: number; y: number }; config?: Record<string, unknown> }>;
+  edges: Array<{ id: string; sourceNodeId: string; sourcePortId: string; targetNodeId: string; targetPortId: string }>;
+  estimatedDurationMinutes: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export function JourneyHub() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
   const [showBuilder, setShowBuilder] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [journeyToDelete, setJourneyToDelete] = useState<CustomJourneyConfig | null>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   // Check for discoveryId from Segment Discovery handoff
   const urlParams = new URLSearchParams(window.location.search);
@@ -38,20 +66,69 @@ export function JourneyHub() {
     },
   });
 
+  const { data: customJourneysData, isLoading: customLoading, refetch: refetchCustom } = useQuery({
+    queryKey: ['custom-journey-configs'],
+    queryFn: async () => {
+      const res = await fetch('/api/custom-journey-builder/configs');
+      if (!res.ok) throw new Error('Failed to fetch custom journeys');
+      const json = await res.json();
+      return json.configs as CustomJourneyConfig[];
+    },
+  });
+
+  const deleteJourneyMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest('DELETE', `/api/custom-journey-builder/configs/${id}`);
+      if (!res.ok) throw new Error('Failed to delete journey');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['custom-journey-configs'] });
+      toast({ title: 'Journey deleted', description: 'Your custom journey has been removed.' });
+      setDeleteDialogOpen(false);
+      setJourneyToDelete(null);
+    },
+    onError: () => {
+      toast({ title: 'Delete failed', description: 'Could not delete the journey. Please try again.', variant: 'destructive' });
+    },
+  });
+
   const journeys = data || [];
+  const customJourneys = customJourneysData || [];
 
   // Separate available from coming soon
   const availableJourneys = journeys.filter(j => j.available);
   const comingSoonJourneys = journeys.filter(j => !j.available);
 
   const startJourney = (journeyType: string) => {
-    // Navigate to strategic consultant page with discoveryId if available
-    // This enables pre-filling the input with segment discovery context
     const params = discoveryId ? `?discoveryId=${discoveryId}` : '';
     setLocation(`/strategic-consultant${params}`);
   };
 
-  if (isLoading) {
+  const runCustomJourney = (journeyId: string) => {
+    setLocation(`/journey-builder/${journeyId}/run`);
+  };
+
+  const editCustomJourney = (journeyId: string) => {
+    setLocation(`/journey-builder/${journeyId}`);
+  };
+
+  const confirmDeleteJourney = (journey: CustomJourneyConfig) => {
+    setJourneyToDelete(journey);
+    setDeleteDialogOpen(true);
+  };
+
+  const getModuleNames = (nodes: CustomJourneyConfig['nodes']) => {
+    return nodes.map(n => n.moduleId.replace(/-/g, ' ').replace(/analyzer|generator/gi, '').trim());
+  };
+
+  const formatDuration = (minutes: number | null) => {
+    if (!minutes) return 'Varies';
+    if (minutes < 60) return `${minutes} min`;
+    return `${Math.round(minutes / 60)} hr`;
+  };
+
+  if (isLoading || customLoading) {
     return (
       <AppLayout
         title="Strategic Journeys"
@@ -94,6 +171,98 @@ export function JourneyHub() {
           </Button>
         </div>
       </div>
+
+      {/* My Custom Journeys */}
+      {customJourneys.length > 0 && (
+        <section className="mb-12">
+          <h2 className="text-xl md:text-2xl font-semibold mb-4 flex items-center gap-2">
+            <Puzzle className="w-6 h-6 text-purple-500" />
+            My Custom Journeys
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {customJourneys.map(journey => (
+              <Card 
+                key={journey.id} 
+                className="hover:shadow-lg transition-shadow border-2 hover:border-purple-500"
+                data-testid={`card-custom-journey-${journey.id}`}
+              >
+                <CardHeader>
+                  <div className="flex items-start justify-between mb-2">
+                    <CardTitle className="text-xl">{journey.name}</CardTitle>
+                    <Badge 
+                      variant={journey.status === 'published' ? 'default' : 'outline'}
+                      className={journey.status === 'published' ? 'bg-purple-600 hover:bg-purple-700' : 'border-purple-300 text-purple-700 bg-purple-50'}
+                    >
+                      {journey.status === 'draft' ? 'Draft' : journey.status === 'published' ? 'Published' : 'Archived'}
+                    </Badge>
+                  </div>
+                  <CardDescription className="mt-2 min-h-[3rem]">
+                    {journey.description || 'No description provided'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
+                    <div className="flex items-center gap-1">
+                      <Clock className="w-4 h-4" />
+                      {formatDuration(journey.estimatedDurationMinutes)}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Puzzle className="w-4 h-4" />
+                      {journey.nodes.length} modules
+                    </div>
+                  </div>
+                  <div className="mb-4 min-h-[4rem]">
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Modules:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {getModuleNames(journey.nodes).slice(0, 4).map((name, idx) => (
+                        <Badge key={idx} variant="outline" className="text-xs capitalize">
+                          {name}
+                        </Badge>
+                      ))}
+                      {journey.nodes.length > 4 && (
+                        <Badge variant="outline" className="text-xs">
+                          +{journey.nodes.length - 4} more
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter className="flex gap-2 pt-0">
+                  <Button 
+                    onClick={() => runCustomJourney(journey.id)}
+                    className="flex-1 gap-1"
+                    size="sm"
+                    disabled={journey.nodes.length === 0}
+                    data-testid={`button-run-custom-${journey.id}`}
+                  >
+                    <Play className="w-4 h-4" />
+                    Run
+                  </Button>
+                  <Button 
+                    onClick={() => editCustomJourney(journey.id)}
+                    variant="outline"
+                    size="sm"
+                    className="gap-1"
+                    data-testid={`button-edit-custom-${journey.id}`}
+                  >
+                    <Edit2 className="w-4 h-4" />
+                    Edit
+                  </Button>
+                  <Button 
+                    onClick={() => confirmDeleteJourney(journey)}
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    data-testid={`button-delete-custom-${journey.id}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Available Journeys */}
       <section className="mb-12">
@@ -232,10 +401,36 @@ export function JourneyHub() {
             onClose={() => setShowBuilder(false)}
             onSave={() => {
               setShowBuilder(false);
-              refetch(); // Refresh templates to show new custom journey
+              refetch();
+              refetchCustom();
             }}
           />
         )}
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent data-testid="dialog-delete-journey">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 text-red-500" />
+                Delete Custom Journey?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete "{journeyToDelete?.name}"? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => journeyToDelete && deleteJourneyMutation.mutate(journeyToDelete.id)}
+                className="bg-red-600 hover:bg-red-700"
+                data-testid="button-confirm-delete"
+              >
+                {deleteJourneyMutation.isPending ? 'Deleting...' : 'Delete'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AppLayout>
   );
