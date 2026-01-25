@@ -92,17 +92,25 @@ export default function ClassificationPage() {
 
   // Load template data if templateId is present
   useEffect(() => {
-    if (!templateId) return;
+    if (!templateId) {
+      console.log('[ClassificationPage] No templateId in URL');
+      return;
+    }
+    
+    console.log('[ClassificationPage] Loading template data for templateId:', templateId);
     
     const loadTemplate = async () => {
       try {
         const response = await fetch(`/api/journey-builder/templates/${templateId}`);
         if (response.ok) {
           const data = await response.json();
+          console.log('[ClassificationPage] Template loaded:', data.template?.name, 'Steps:', data.template?.steps?.length);
           setTemplateData(data.template);
+        } else {
+          console.error('[ClassificationPage] Failed to load template, status:', response.status);
         }
       } catch (error) {
-        console.error('Error loading template:', error);
+        console.error('[ClassificationPage] Error loading template:', error);
       }
     };
     
@@ -178,8 +186,13 @@ export default function ClassificationPage() {
       
       // If custom journey template is present, start the first framework directly
       // Otherwise, navigate to journey selection for predefined journeys
+      console.log('[ClassificationPage] handleConfirm - templateId:', templateId, 'templateData:', templateData);
+      
       setTimeout(async () => {
-        if (templateId && templateData && templateData.steps.length > 0) {
+        // Check if this is a custom journey - we have templateId and either templateData 
+        // OR we can call the API directly which will handle the template lookup
+        if (templateId) {
+          console.log('[ClassificationPage] Custom journey detected, starting execution...');
           // Start custom journey execution with the first framework
           try {
             const startResponse = await fetch('/api/journey-builder/start-custom-journey', {
@@ -193,6 +206,7 @@ export default function ClassificationPage() {
             
             if (startResponse.ok) {
               const { journeySessionId, firstFramework } = await startResponse.json();
+              console.log('[ClassificationPage] Custom journey started - sessionId:', journeySessionId, 'firstFramework:', firstFramework);
               
               // Trigger journey execution in background
               console.log('[ClassificationPage] Triggering custom journey execution for session:', journeySessionId);
@@ -202,11 +216,13 @@ export default function ClassificationPage() {
               }).catch(err => console.error('[ClassificationPage] Execution trigger failed:', err));
               
               // Navigate to the first framework in the custom journey
-              const frameworkRoute = getFrameworkRoute(firstFramework, understandingId, journeySessionId);
+              const frameworkRoute = getFrameworkRoute(firstFramework, understandingId!, journeySessionId);
+              console.log('[ClassificationPage] Navigating to:', frameworkRoute);
               setLocation(frameworkRoute);
             } else {
+              const errorData = await startResponse.json().catch(() => ({}));
+              console.error('[ClassificationPage] Failed to start custom journey:', errorData);
               // Fallback to journey selection if custom journey start fails
-              console.error('[ClassificationPage] Failed to start custom journey, falling back to selection');
               setLocation(`/strategic-consultant/journey-selection/${understandingId}`);
             }
           } catch (error) {
@@ -215,6 +231,7 @@ export default function ClassificationPage() {
           }
         } else {
           // Standard flow: go to journey selection
+          console.log('[ClassificationPage] No templateId, going to journey selection');
           setLocation(`/strategic-consultant/journey-selection/${understandingId}`);
         }
       }, 500);
