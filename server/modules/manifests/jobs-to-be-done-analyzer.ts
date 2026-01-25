@@ -13,7 +13,7 @@ export const jobsToBeDoneAnalyzerManifest: ModuleManifest = {
   type: 'analyzer',
   category: 'customer',
   icon: 'target',
-  status: 'stub',
+  status: 'implemented',
   inputs: [
     {
       id: 'business_context',

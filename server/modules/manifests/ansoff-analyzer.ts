@@ -13,7 +13,7 @@ export const ansoffAnalyzerManifest: ModuleManifest = {
   type: 'analyzer',
   category: 'strategy',
   icon: 'grid',
-  status: 'stub',
+  status: 'implemented',
   inputs: [
     {
       id: 'business_context',

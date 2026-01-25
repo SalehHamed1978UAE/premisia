@@ -10,3 +10,6 @@ export { EPMSynthesizer } from './epm-synthesizer';
 export { BMCAnalyzer } from './bmc-analyzer';
 export { PortersAnalyzer } from './porters-analyzer';
 export { PESTLEAnalyzer } from './pestle-analyzer';
+export { SWOTAnalyzer, swotAnalyzer } from './swot-analyzer';
+export { AnsoffAnalyzer, ansoffAnalyzer } from './ansoff-analyzer';
+export { JTBDAnalyzer, jtbdAnalyzer } from './jtbd-analyzer';

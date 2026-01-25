@@ -13,7 +13,7 @@ export const swotAnalyzerManifest: ModuleManifest = {
   type: 'analyzer',
   category: 'analysis',
   icon: 'compass',
-  status: 'stub',
+  status: 'implemented',
   inputs: [
     {
       id: 'business_context',
