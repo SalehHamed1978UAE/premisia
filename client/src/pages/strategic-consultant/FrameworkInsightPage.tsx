@@ -305,6 +305,42 @@ export default function FrameworkInsightPage() {
       );
     }
     
+    // Check for error structure - analysis failed but was saved for debugging
+    if (insightData?.error === true) {
+      return (
+        <div className="space-y-4">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Analysis Failed</AlertTitle>
+            <AlertDescription>
+              {insightData.message || 'The analysis could not be completed.'}
+              {insightData.parseError && (
+                <span className="block mt-1 text-xs opacity-75">
+                  Technical: {insightData.parseError}
+                </span>
+              )}
+            </AlertDescription>
+          </Alert>
+          
+          {insightData.rawOutput && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Raw AI Output (for debugging)</CardTitle>
+                <CardDescription>
+                  This shows what the AI returned. Share this with support if the issue persists.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <pre className="text-xs bg-muted p-3 rounded overflow-auto max-h-96 whitespace-pre-wrap">
+                  {insightData.rawOutput}
+                </pre>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      );
+    }
+    
     switch (frameworkName) {
       case 'swot':
         // Validate that we have some SWOT-like structure
