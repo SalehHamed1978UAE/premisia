@@ -37,6 +37,12 @@ export class SWOTExecutor implements FrameworkExecutor {
 
       const swotOutput = await this.analyzer.analyze(swotInput);
 
+      // Check if analyzer returned an error structure (no longer throws)
+      if ((swotOutput as any).error === true) {
+        console.error('[SWOT Executor] Analysis returned error structure');
+        return swotOutput; // Return error structure directly for UI display
+      }
+
       console.log('[SWOT Executor] SWOT analysis complete');
       console.log(`  Strengths: ${swotOutput.strengths?.length || 0}`);
       console.log(`  Weaknesses: ${swotOutput.weaknesses?.length || 0}`);

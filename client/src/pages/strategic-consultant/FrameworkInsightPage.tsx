@@ -308,14 +308,14 @@ export default function FrameworkInsightPage() {
     // Check for error structure - analysis failed but was saved for debugging
     if (insightData?.error === true) {
       return (
-        <div className="space-y-4">
-          <Alert variant="destructive">
+        <div className="space-y-4" data-testid="analysis-error-container">
+          <Alert variant="destructive" data-testid="alert-analysis-failed">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Analysis Failed</AlertTitle>
-            <AlertDescription>
+            <AlertDescription data-testid="text-error-message">
               {insightData.message || 'The analysis could not be completed.'}
               {insightData.parseError && (
-                <span className="block mt-1 text-xs opacity-75">
+                <span className="block mt-1 text-xs opacity-75" data-testid="text-parse-error">
                   Technical: {insightData.parseError}
                 </span>
               )}
@@ -323,7 +323,7 @@ export default function FrameworkInsightPage() {
           </Alert>
           
           {insightData.rawOutput && (
-            <Card>
+            <Card data-testid="card-raw-output">
               <CardHeader>
                 <CardTitle className="text-sm">Raw AI Output (for debugging)</CardTitle>
                 <CardDescription>
@@ -331,7 +331,7 @@ export default function FrameworkInsightPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <pre className="text-xs bg-muted p-3 rounded overflow-auto max-h-96 whitespace-pre-wrap">
+                <pre className="text-xs bg-muted p-3 rounded overflow-auto max-h-96 whitespace-pre-wrap" data-testid="text-raw-output">
                   {insightData.rawOutput}
                 </pre>
               </CardContent>
