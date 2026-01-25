@@ -16,3 +16,4 @@ export { JTBDAnalyzer, jtbdAnalyzer } from './jtbd-analyzer';
 export { VRIOAnalyzer, vrioAnalyzer } from './vrio-analyzer';
 export { ScenarioPlanningAnalyzer, scenarioPlanningAnalyzer } from './scenario-planning-analyzer';
 export { OKRGenerator, okrGenerator } from './okr-generator';
+export { OceanStrategyAnalyzer, oceanStrategyAnalyzer } from './ocean-strategy-analyzer';

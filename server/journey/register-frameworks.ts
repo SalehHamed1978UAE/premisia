@@ -14,15 +14,15 @@ import { VRIOExecutor } from './executors/vrio-executor';
 import { ScenarioPlanningExecutor } from './executors/scenario-planning-executor';
 import { JTBDExecutor } from './executors/jtbd-executor';
 import { OKRGeneratorExecutor } from './executors/okr-generator-executor';
-import { createStubExecutor } from './executors/stub-executor-template';
+import { OceanStrategyExecutor } from './executors/ocean-strategy-executor';
 
 /**
  * Register all framework executors
  * Call this at application startup to initialize the framework plugin system
  * 
- * Framework Status (as of Phase 9.5):
+ * Framework Status (as of Phase 9.6):
  * - IMPLEMENTED: All 16 frameworks now have real AI-powered executors
- * - STUB: ocean_strategy only (rarely used variant of Blue Ocean)
+ * - No stubs remaining
  */
 export function registerFrameworkExecutors(): void {
   console.log('[Framework Registration] Initializing framework executor registry...');
@@ -47,7 +47,7 @@ export function registerFrameworkExecutors(): void {
   // ═══════════════════════════════════════════════════════════════════════════
   frameworkRegistry.register(new AnsoffExecutor());
   frameworkRegistry.register(new BlueOceanExecutor());
-  frameworkRegistry.register(createStubExecutor('ocean_strategy', 'Ocean Strategy Mapping'));
+  frameworkRegistry.register(new OceanStrategyExecutor());
   frameworkRegistry.register(new BCGMatrixExecutor());
   
   // ═══════════════════════════════════════════════════════════════════════════
@@ -72,20 +72,7 @@ export function registerFrameworkExecutors(): void {
   frameworkRegistry.register(new OKRGeneratorExecutor());
   
   const registered = frameworkRegistry.getRegisteredFrameworks();
-  const implemented = [
-    'five_whys', 'bmc', 'segment_discovery', 
-    'porters', 'pestle', 'swot', 'competitive_positioning',
-    'ansoff', 'blue_ocean', 'bcg_matrix',
-    'value_chain', 'vrio',
-    'scenario_planning',
-    'jobs_to_be_done',
-    'okr_generator'
-  ];
-  const stubs = registered.filter(f => !implemented.includes(f));
   
   console.log(`[Framework Registration] ✓ Registered ${registered.length} framework executor(s):`);
-  console.log(`  Implemented (${implemented.length}): ${implemented.join(', ')}`);
-  if (stubs.length > 0) {
-    console.log(`  Stubs (${stubs.length}): ${stubs.join(', ')}`);
-  }
+  console.log(`  All implemented: ${registered.join(', ')}`);
 }

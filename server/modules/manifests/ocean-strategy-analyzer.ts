@@ -13,7 +13,7 @@ export const oceanStrategyAnalyzerManifest: ModuleManifest = {
   type: 'analyzer',
   category: 'strategy',
   icon: 'navigation',
-  status: 'stub',
+  status: 'implemented',
   inputs: [
     {
       id: 'business_context',
