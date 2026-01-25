@@ -13,7 +13,7 @@ export const blueOceanAnalyzerManifest: ModuleManifest = {
   type: 'analyzer',
   category: 'strategy',
   icon: 'waves',
-  status: 'stub',
+  status: 'implemented',
   inputs: [
     {
       id: 'business_context',

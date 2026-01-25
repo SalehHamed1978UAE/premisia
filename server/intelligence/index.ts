@@ -13,3 +13,6 @@ export { PESTLEAnalyzer } from './pestle-analyzer';
 export { SWOTAnalyzer, swotAnalyzer } from './swot-analyzer';
 export { AnsoffAnalyzer, ansoffAnalyzer } from './ansoff-analyzer';
 export { JTBDAnalyzer, jtbdAnalyzer } from './jtbd-analyzer';
+export { VRIOAnalyzer, vrioAnalyzer } from './vrio-analyzer';
+export { ScenarioPlanningAnalyzer, scenarioPlanningAnalyzer } from './scenario-planning-analyzer';
+export { OKRGenerator, okrGenerator } from './okr-generator';

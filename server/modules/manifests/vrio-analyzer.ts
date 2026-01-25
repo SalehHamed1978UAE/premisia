@@ -13,7 +13,7 @@ export const vrioAnalyzerManifest: ModuleManifest = {
   type: 'analyzer',
   category: 'analysis',
   icon: 'gem',
-  status: 'stub',
+  status: 'implemented',
   inputs: [
     {
       id: 'business_context',

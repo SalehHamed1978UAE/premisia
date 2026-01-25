@@ -13,7 +13,7 @@ export const competitivePositioningAnalyzerManifest: ModuleManifest = {
   type: 'analyzer',
   category: 'strategy',
   icon: 'crosshair',
-  status: 'stub',
+  status: 'implemented',
   inputs: [
     {
       id: 'business_context',

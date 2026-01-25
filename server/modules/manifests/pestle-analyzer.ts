@@ -13,7 +13,7 @@ export const pestleAnalyzerManifest: ModuleManifest = {
   type: 'analyzer',
   category: 'analysis',
   icon: 'globe',
-  status: 'stub',
+  status: 'implemented',
   inputs: [
     {
       id: 'strategic_context',

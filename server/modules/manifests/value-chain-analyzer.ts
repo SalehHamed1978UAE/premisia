@@ -13,7 +13,7 @@ export const valueChainAnalyzerManifest: ModuleManifest = {
   type: 'analyzer',
   category: 'analysis',
   icon: 'link',
-  status: 'stub',
+  status: 'implemented',
   inputs: [
     {
       id: 'business_context',

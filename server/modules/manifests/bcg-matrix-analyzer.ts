@@ -13,7 +13,7 @@ export const bcgMatrixAnalyzerManifest: ModuleManifest = {
   type: 'analyzer',
   category: 'strategy',
   icon: 'pie-chart',
-  status: 'stub',
+  status: 'implemented',
   inputs: [
     {
       id: 'business_context',

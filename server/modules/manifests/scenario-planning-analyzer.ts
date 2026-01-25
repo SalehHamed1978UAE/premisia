@@ -13,7 +13,7 @@ export const scenarioPlanningAnalyzerManifest: ModuleManifest = {
   type: 'analyzer',
   category: 'strategy',
   icon: 'git-branch',
-  status: 'stub',
+  status: 'implemented',
   inputs: [
     {
       id: 'business_context',

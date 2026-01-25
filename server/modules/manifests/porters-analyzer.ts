@@ -13,7 +13,7 @@ export const portersAnalyzerManifest: ModuleManifest = {
   type: 'analyzer',
   category: 'analysis',
   icon: 'shield',
-  status: 'stub',
+  status: 'implemented',
   inputs: [
     {
       id: 'strategic_context',

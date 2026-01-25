@@ -13,7 +13,7 @@ export const okrGeneratorManifest: ModuleManifest = {
   type: 'generator',
   category: 'execution',
   icon: 'flag',
-  status: 'stub',
+  status: 'implemented',
   inputs: [
     {
       id: 'strategic_analysis',

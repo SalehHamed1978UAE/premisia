@@ -2,15 +2,27 @@ import { frameworkRegistry } from './framework-executor-registry';
 import { FiveWhysExecutor } from './executors/five-whys-executor';
 import { BMCExecutor } from './executors/bmc-executor';
 import { SegmentDiscoveryExecutor } from './executors/segment-discovery-executor';
+import { PortersExecutor } from './executors/porters-executor';
+import { PESTLEExecutor } from './executors/pestle-executor';
+import { SWOTExecutor } from './executors/swot-executor';
+import { CompetitivePositioningExecutor } from './executors/competitive-positioning-executor';
+import { AnsoffExecutor } from './executors/ansoff-executor';
+import { BlueOceanExecutor } from './executors/blue-ocean-executor';
+import { BCGMatrixExecutor } from './executors/bcg-matrix-executor';
+import { ValueChainExecutor } from './executors/value-chain-executor';
+import { VRIOExecutor } from './executors/vrio-executor';
+import { ScenarioPlanningExecutor } from './executors/scenario-planning-executor';
+import { JTBDExecutor } from './executors/jtbd-executor';
+import { OKRGeneratorExecutor } from './executors/okr-generator-executor';
 import { createStubExecutor } from './executors/stub-executor-template';
 
 /**
  * Register all framework executors
  * Call this at application startup to initialize the framework plugin system
  * 
- * Framework Status:
- * - IMPLEMENTED: five_whys, bmc, segment_discovery
- * - STUB: All others (throw "not yet implemented" on execute)
+ * Framework Status (as of Phase 9.5):
+ * - IMPLEMENTED: All 16 frameworks now have real AI-powered executors
+ * - STUB: ocean_strategy only (rarely used variant of Blue Ocean)
  */
 export function registerFrameworkExecutors(): void {
   console.log('[Framework Registration] Initializing framework executor registry...');
@@ -23,44 +35,57 @@ export function registerFrameworkExecutors(): void {
   frameworkRegistry.register(new SegmentDiscoveryExecutor());
   
   // ═══════════════════════════════════════════════════════════════════════════
-  // COMPETITIVE & MARKET ANALYSIS (stubs)
+  // COMPETITIVE & MARKET ANALYSIS (implemented)
   // ═══════════════════════════════════════════════════════════════════════════
-  frameworkRegistry.register(createStubExecutor('porters', "Porter's Five Forces"));
-  frameworkRegistry.register(createStubExecutor('pestle', 'PESTLE Analysis'));
-  frameworkRegistry.register(createStubExecutor('swot', 'SWOT Analysis'));
-  frameworkRegistry.register(createStubExecutor('competitive_positioning', 'Competitive Positioning'));
+  frameworkRegistry.register(new PortersExecutor());
+  frameworkRegistry.register(new PESTLEExecutor());
+  frameworkRegistry.register(new SWOTExecutor());
+  frameworkRegistry.register(new CompetitivePositioningExecutor());
   
   // ═══════════════════════════════════════════════════════════════════════════
-  // GROWTH & INNOVATION STRATEGY (stubs)
+  // GROWTH & INNOVATION STRATEGY (implemented)
   // ═══════════════════════════════════════════════════════════════════════════
-  frameworkRegistry.register(createStubExecutor('ansoff', 'Ansoff Matrix'));
-  frameworkRegistry.register(createStubExecutor('blue_ocean', 'Blue Ocean Strategy'));
+  frameworkRegistry.register(new AnsoffExecutor());
+  frameworkRegistry.register(new BlueOceanExecutor());
   frameworkRegistry.register(createStubExecutor('ocean_strategy', 'Ocean Strategy Mapping'));
-  frameworkRegistry.register(createStubExecutor('bcg_matrix', 'BCG Matrix'));
+  frameworkRegistry.register(new BCGMatrixExecutor());
   
   // ═══════════════════════════════════════════════════════════════════════════
-  // INTERNAL ANALYSIS (stubs)
+  // INTERNAL ANALYSIS (implemented)
   // ═══════════════════════════════════════════════════════════════════════════
-  frameworkRegistry.register(createStubExecutor('value_chain', 'Value Chain Analysis'));
-  frameworkRegistry.register(createStubExecutor('vrio', 'VRIO Analysis'));
+  frameworkRegistry.register(new ValueChainExecutor());
+  frameworkRegistry.register(new VRIOExecutor());
   
   // ═══════════════════════════════════════════════════════════════════════════
-  // FUTURE PLANNING (stubs)
+  // FUTURE PLANNING (implemented)
   // ═══════════════════════════════════════════════════════════════════════════
-  frameworkRegistry.register(createStubExecutor('scenario_planning', 'Scenario Planning'));
+  frameworkRegistry.register(new ScenarioPlanningExecutor());
   
   // ═══════════════════════════════════════════════════════════════════════════
-  // CUSTOMER & PRODUCT (stubs)
+  // CUSTOMER & PRODUCT (implemented)
   // ═══════════════════════════════════════════════════════════════════════════
-  frameworkRegistry.register(createStubExecutor('jobs_to_be_done', 'Jobs To Be Done'));
+  frameworkRegistry.register(new JTBDExecutor());
   
   // ═══════════════════════════════════════════════════════════════════════════
-  // EXECUTION (stubs)
+  // EXECUTION (implemented)
   // ═══════════════════════════════════════════════════════════════════════════
-  frameworkRegistry.register(createStubExecutor('okr_generator', 'OKR Generator'));
+  frameworkRegistry.register(new OKRGeneratorExecutor());
   
   const registered = frameworkRegistry.getRegisteredFrameworks();
+  const implemented = [
+    'five_whys', 'bmc', 'segment_discovery', 
+    'porters', 'pestle', 'swot', 'competitive_positioning',
+    'ansoff', 'blue_ocean', 'bcg_matrix',
+    'value_chain', 'vrio',
+    'scenario_planning',
+    'jobs_to_be_done',
+    'okr_generator'
+  ];
+  const stubs = registered.filter(f => !implemented.includes(f));
+  
   console.log(`[Framework Registration] ✓ Registered ${registered.length} framework executor(s):`);
-  console.log(`  Core (implemented): five_whys, bmc, segment_discovery`);
-  console.log(`  Stubs: ${registered.filter(f => !['five_whys', 'bmc', 'segment_discovery'].includes(f)).join(', ')}`);
+  console.log(`  Implemented (${implemented.length}): ${implemented.join(', ')}`);
+  if (stubs.length > 0) {
+    console.log(`  Stubs (${stubs.length}): ${stubs.join(', ')}`);
+  }
 }
