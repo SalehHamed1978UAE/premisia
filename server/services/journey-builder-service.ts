@@ -381,11 +381,20 @@ export class JourneyBuilderService {
       throw new Error('Template has no steps');
     }
 
+    // Map template framework keys to executor registry keys
+    // Templates may use longer names like 'business_model_canvas' but executors use 'bmc'
+    const frameworkKeyMap: Record<string, string> = {
+      'business_model_canvas': 'bmc',
+      'porters_five_forces': 'porters',
+      'strategic_decisions': 'strategic_decisions', // Pass through (not executed)
+    };
+
     // Convert template steps to framework names
-    // Filter out 'strategic_understanding' as it's already done during intake
+    // Filter out 'strategic_understanding' and 'strategic_decisions' as they're not executable frameworks
+    const nonExecutableSteps = ['strategic_understanding', 'strategic_decisions'];
     const frameworks = template.steps
-      .map(step => step.frameworkKey)
-      .filter(key => key !== 'strategic_understanding');
+      .map(step => frameworkKeyMap[step.frameworkKey] || step.frameworkKey)
+      .filter(key => !nonExecutableSteps.includes(key));
 
     if (frameworks.length === 0) {
       throw new Error('Template has no executable frameworks after filtering');
