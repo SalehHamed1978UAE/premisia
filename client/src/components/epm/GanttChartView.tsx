@@ -46,45 +46,188 @@ export default function GanttChartView({ workstreams, timeline, stageGates }: Ga
   }, [workstreams, timeline, stageGates]);
 
   // Handle export to image
-  const handleExportImage = () => {
-    // Find the SVG element
-    const svg = document.querySelector('svg');
-    if (!svg) return;
+  const handleExportImage = async () => {
+    console.log('[Export] Starting Gantt chart export...');
+    try {
+      // Find the specific Gantt chart SVG by ID
+      const svg = document.getElementById('epm-gantt-chart') as SVGSVGElement | null;
+      if (!svg) {
+        console.error('[Export] Gantt chart SVG not found');
+        alert('Unable to export: Gantt chart not found');
+        return;
+      }
 
-    // Create a canvas
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+      console.log('[Export] Found SVG element');
+      
+      // Get dimensions from the original SVG with fallback to bounding rect
+      let width = parseInt(svg.getAttribute('width') || '0');
+      let height = parseInt(svg.getAttribute('height') || '0');
+      
+      // Fallback to bounding rect if attributes are missing or invalid
+      if (!width || !height || width < 100 || height < 100) {
+        const bbox = svg.getBoundingClientRect();
+        width = Math.max(width, Math.round(bbox.width)) || 1200;
+        height = Math.max(height, Math.round(bbox.height)) || 600;
+        console.log(`[Export] Using fallback dimensions: ${width}x${height}`);
+      }
+      
+      // First, inline styles on the original (in-DOM) SVG elements
+      // Store original styles to restore later
+      const styleBackups = new Map<Element, string>();
+      inlineStylesOnOriginal(svg, styleBackups);
+      
+      // Now clone the SVG (styles are already inlined)
+      const clonedSvg = svg.cloneNode(true) as SVGSVGElement;
+      
+      // Restore original SVG to remove inline styles we added
+      restoreOriginalStyles(svg, styleBackups);
+      
+      // Set required SVG attributes for standalone rendering
+      clonedSvg.setAttribute('width', String(width));
+      clonedSvg.setAttribute('height', String(height));
+      clonedSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      clonedSvg.removeAttribute('class'); // Remove cursor classes
+      
+      console.log('[Export] Creating canvas...');
 
-    // Get SVG dimensions
-    const bbox = svg.getBoundingClientRect();
-    canvas.width = bbox.width;
-    canvas.height = bbox.height;
+      // Create a canvas with higher resolution for better quality
+      const scale = 2;
+      const canvas = document.createElement('canvas');
+      canvas.width = width * scale;
+      canvas.height = height * scale;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        alert('Unable to export: Canvas context unavailable');
+        return;
+      }
 
-    // Convert SVG to data URL
-    const data = new XMLSerializer().serializeToString(svg);
-    const blob = new Blob([data], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob);
+      // Scale for higher resolution
+      ctx.scale(scale, scale);
+      
+      // Fill background with white
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, width, height);
 
-    // Create image
-    const img = new Image();
-    img.onload = () => {
-      ctx.drawImage(img, 0, 0);
-      URL.revokeObjectURL(url);
+      // Serialize the cloned SVG
+      const svgData = new XMLSerializer().serializeToString(clonedSvg);
+      
+      // Create a data URL with error handling for Unicode content
+      let dataUrl: string;
+      try {
+        const base64Data = btoa(unescape(encodeURIComponent(svgData)));
+        dataUrl = `data:image/svg+xml;base64,${base64Data}`;
+      } catch (encodeError) {
+        console.error('[Export] Base64 encoding failed, using blob fallback:', encodeError);
+        // Fallback to blob URL if base64 encoding fails
+        const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+        dataUrl = URL.createObjectURL(svgBlob);
+      }
+      
+      console.log('[Export] Loading SVG as image...');
 
-      // Download
-      canvas.toBlob((blob) => {
-        if (!blob) return;
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'epm-gantt-chart.png';
-        a.click();
-        URL.revokeObjectURL(url);
-      });
-    };
-    img.src = url;
+      // Load and draw the image
+      const img = new Image();
+      img.onload = () => {
+        console.log('[Export] Image loaded, drawing to canvas...');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Download as PNG
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            console.error('[Export] Failed to create blob');
+            alert('Unable to export: Failed to generate image');
+            return;
+          }
+          console.log('[Export] Blob created, triggering download...');
+          const downloadUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = downloadUrl;
+          a.download = `epm-gantt-chart-${new Date().toISOString().split('T')[0]}.png`;
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          
+          // Cleanup
+          setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(downloadUrl);
+            console.log('[Export] Download complete');
+          }, 100);
+        }, 'image/png', 1.0);
+      };
+      
+      img.onerror = (e) => {
+        console.error('[Export] Image loading failed:', e);
+        alert('Unable to export: Failed to load chart image');
+      };
+      
+      img.src = dataUrl;
+    } catch (error) {
+      console.error('[Export] Failed to export Gantt chart:', error);
+      alert('Export failed. Please try again.');
+    }
   };
+
+  // Helper function to inline computed styles on the ORIGINAL (in-DOM) SVG elements
+  // Stores original style attribute values for restoration
+  function inlineStylesOnOriginal(element: Element, backups: Map<Element, string>) {
+    // Backup current style attribute
+    backups.set(element, element.getAttribute('style') || '');
+    
+    const computedStyle = window.getComputedStyle(element);
+    
+    // Key style properties to inline for SVG export
+    const stylesToInline = [
+      'fill', 'stroke', 'stroke-width', 'stroke-dasharray', 'opacity',
+      'font-family', 'font-size', 'font-weight', 'text-anchor'
+    ];
+    
+    let inlineStyle = element.getAttribute('style') || '';
+    for (const prop of stylesToInline) {
+      const value = computedStyle.getPropertyValue(prop);
+      if (value && value !== 'none' && value !== '' && value !== 'rgb(0, 0, 0)') {
+        // Only add if not already in the style attribute
+        if (!inlineStyle.includes(prop + ':')) {
+          inlineStyle += `${prop}: ${value}; `;
+        }
+      }
+    }
+    
+    // Handle Tailwind fill classes explicitly
+    const classList = element.classList;
+    if (classList.contains('fill-gray-600')) {
+      inlineStyle += 'fill: #4b5563; ';
+    } else if (classList.contains('fill-gray-700')) {
+      inlineStyle += 'fill: #374151; ';
+    } else if (classList.contains('fill-gray-500')) {
+      inlineStyle += 'fill: #6b7280; ';
+    }
+    
+    if (inlineStyle) {
+      element.setAttribute('style', inlineStyle);
+    }
+    
+    // Recursively process children
+    for (const child of Array.from(element.children)) {
+      inlineStylesOnOriginal(child, backups);
+    }
+  }
+  
+  // Restore original style attributes
+  function restoreOriginalStyles(element: Element, backups: Map<Element, string>) {
+    const originalStyle = backups.get(element);
+    if (originalStyle !== undefined) {
+      if (originalStyle) {
+        element.setAttribute('style', originalStyle);
+      } else {
+        element.removeAttribute('style');
+      }
+    }
+    
+    for (const child of Array.from(element.children)) {
+      restoreOriginalStyles(child, backups);
+    }
+  }
 
   if (!ganttData) {
     return (

@@ -639,6 +639,7 @@ export default function GanttChart({
             <div className="border rounded">
               <svg
                 ref={svgRef}
+                id="epm-gantt-chart"
                 width={dimensions.width}
                 height={dimensions.height}
                 className={isPanning ? 'cursor-grabbing' : 'cursor-grab'}
