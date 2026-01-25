@@ -192,6 +192,27 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
     },
     dependencies: [], // No dependencies on other frameworks
   },
+
+  /**
+   * Custom Journey (Wizard-Created)
+   * Dynamic journey with custom framework sequence stored in session metadata
+   */
+  custom: {
+    type: 'custom',
+    name: 'Custom Journey',
+    description: 'User-created journey with custom framework sequence',
+    frameworks: [], // Frameworks are loaded from session metadata at runtime
+    pageSequence: [], // Dynamic based on frameworks
+    estimatedDuration: 'Varies',
+    available: true,
+    summaryBuilder: 'custom',
+    defaultReadiness: {
+      minReferences: 0,
+      minEntities: 0,
+    },
+    insightsConfig: {},
+    dependencies: [],
+  },
 };
 
 /**

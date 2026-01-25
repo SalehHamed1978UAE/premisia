@@ -1,5 +1,5 @@
 # Overview
-Premisia is an AI-enhanced, full-stack web application for comprehensive enterprise program management. It supports the entire program lifecycle, from program and task management to tracking resources, risks, benefits, KPIs, and financials via an intuitive dashboard. The project aims to provide a holistic solution for strategic decision-making and EPM integration, featuring real-time AI intelligence, a multi-agent architecture, and a formal ontology for expert guidance. Key capabilities include multi-modal input analysis, anti-bias research, document intelligence enrichment, and the conversion of strategic decisions into actionable EPM program structures.
+Premisia is an AI-enhanced, full-stack web application for comprehensive enterprise program management. It supports the entire program lifecycle, from program and task management to tracking resources, risks, benefits, KPIs, and financials via an intuitive dashboard. The project aims to provide a holistic solution for strategic decision-making and EPM integration, featuring real-time AI intelligence, a multi-agent architecture, and a formal ontology for expert guidance. Key capabilities include multi-modal input analysis, anti-bias research, document intelligence enrichment, and the conversion of strategic decisions into actionable EPM program structures, improving strategic decision-making and EPM integration.
 
 # User Preferences
 Preferred communication style: Simple, everyday language.
@@ -20,41 +20,19 @@ Preferred communication style: Simple, everyday language.
 # System Architecture
 
 ## UI/UX Decisions
-The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tailwind CSS) for a themeable "New York" style UI. It features a single-page application with mobile-first responsive design, including a breakpoint system, adaptive layouts, responsive typography, skeleton loading, and toast notifications. The "Five Whys" page is interactive and responsive, featuring a progressive breadcrumb, carousel wheel picker for mobile, and a 2x2 grid for desktop. The sidebar uses a compact, three-zone layout optimized for visibility on all devices.
+The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tailwind CSS) for a themeable "New York" style UI. It features a single-page application with mobile-first responsive design, including a breakpoint system, adaptive layouts, responsive typography, skeleton loading, and toast notifications. The sidebar uses a compact, three-zone layout optimized for visibility on all devices.
 
 ## Technical Implementations
 - **Frontend**: React, TypeScript, Vite, TanStack Query, Wouter.
 - **Backend**: Node.js with Express.js (ES modules), Passport.js for session-based authentication, Express sessions, and a RESTful API with role-based middleware.
 - **Data Storage**: PostgreSQL with Neon serverless driver and Drizzle ORM for type-safe schema and Zod validation. `DBConnectionManager` handles database connections.
-- **Authentication/Authorization**: Session-based authentication via Passport.js with Replit OIDC, HTTP-only cookies, and a three-tier role system (Admin, Editor, Viewer). Includes a two-phase auth initialization for robust deployment health checks and lazy route loading to prevent module-load crashes when production secrets are missing.
-  - **Instant Health Check Response (November 2025)**: Root endpoint (`/`) provides unconditional instant JSON responses for Replit autoscale health probes (~3-5ms). Readiness gate middleware (registered synchronously before server.listen) shows loading page to browsers during initialization while allowing assets and API requests through. All heavy tasks (route registration, auth, DB verification) deferred inside setImmediate to ensure server binds immediately, preventing deployment timeouts.
-  - **Process Keep-Alive (November 2025)**: Multi-handle strategy prevents premature process exit during autoscale deployment: (1) process.stdin.resume() keeps stdin active, (2) referenced setInterval (10s) provides watchdog logging, (3) beforeExit handler creates fresh referenced timeout for recovery. All process.exit() calls removed from server startup code (server/index.ts, server/db-init.ts) to keep process alive for health checks even if initialization steps fail.
+- **Authentication/Authorization**: Session-based authentication via Passport.js with Replit OIDC, HTTP-only cookies, and a three-tier role system (Admin, Editor, Viewer). Includes a two-phase auth initialization for robust deployment health checks and lazy route loading to prevent module-load crashes when production secrets are missing. Health probes are handled by a root endpoint providing unconditional instant JSON responses, and a readiness gate middleware ensures proper server initialization. Process keep-alive strategies prevent premature process exit during autoscale deployments.
 - **Background Jobs**: A hybrid system with database persistence and real-time tracking, dispatching jobs every 15 seconds. A `Modular Framework Executor Registry` supports a plugin system for strategic analysis frameworks.
-- **Enterprise Data Encryption**: AWS KMS envelope encryption with AES-256-GCM for sensitive business data at rest, covering all sensitive fields in `strategy_versions`, `strategic_understanding`, `journey_sessions`, and `epm_programs` tables.
-- **Journey Navigation Architecture**: Uses two orchestrator-driven entry points ("Strategic Consultant Journey" and "Strategies Hub Run Now") with a `pageSequence` array for navigation. Follow-on journeys create new, isolated journey sessions.
-- **BMI Workflow Resilience (November 2025)**: BMC SSE stream handler uses resilient version creation with 'system' user fallback when auth context is missing, ensuring AI-generated strategic decisions are always persisted to `strategy_versions` table. Comprehensive warning/error logging prevents silent failures and improves diagnostics for missing decision data.
-- **BMC Knowledge Security Tests (November 2025)**: Comprehensive automated test suite (`tests/bmc-knowledge-security.spec.ts`) with 11 tests validates cross-user data isolation, authorization, and decryption for the `/bmc-knowledge/:programId` endpoint. Tests expose and prevent regression of critical security vulnerabilities, including multi-program ownership edge cases. Fixed production bug where contradiction evidence fields were encrypted but not decrypted.
-- **Context Foundry Integration (December 2025)**: Grounded analysis capability that queries verified organizational facts from Context Foundry before AI analysis. Constrains LLM responses to use verified data with proper source citations. Integrated into StrategyAnalyzer for Five Whys and Porter's analysis. Status endpoint at `/api/strategic-consultant/context-foundry/status`.
-  - **Configuration (December 15, 2025)**: Connected to live Context Foundry instance at `https://1ccacfa5-76d6-4bc8-b11c-e8a59e39c1f1-00-i16a1ywb4a3m.riker.replit.dev`. Uses `X-CF-API-Key` header for authentication with key stored in `CONTEXT_FOUNDRY_API_KEY` secret. V1 API endpoint `/api/v1/query` handles entity resolution internally—Premisia sends raw user text, CF extracts and resolves entities from its knowledge graph.
-  - **Future Integration Points (January 2026)**:
-    - **BMC (Business Model Canvas) 9-Block Analysis**: Each block should query CF for organizational grounding:
-      1. Customer Segments: Query customer/market entities from CF knowledge graph
-      2. Value Propositions: Ground in verified product/service offerings
-      3. Channels: Validate against known distribution channels
-      4. Customer Relationships: Check CRM/engagement patterns
-      5. Revenue Streams: Ground in financial/pricing entities
-      6. Key Resources: Query infrastructure/asset entities
-      7. Key Activities: Validate against operational processes
-      8. Key Partnerships: Ground in verified partner/vendor relationships
-      9. Cost Structure: Check financial/cost center entities
-      - Integration point: `server/strategic-consultant/bmc-analyzer.ts` - wrap each block's analysis with `queryContext()` before LLM generation
-    - **Segment Discovery Synthesis Phase**: The beachhead recommendation synthesis should query CF for:
-      - Customer entity verification: Check if target segments exist in CF knowledge graph
-      - Market position grounding: Validate competitive positioning claims against CF data
-      - Resource capability validation: Ground capability scores in verified organizational assets
-      - Integration point: `server/services/segment-discovery-engine.ts` in `synthesizeResults()` method - query CF before generating final beachhead recommendations
-
-## Feature Specifications
+- **Enterprise Data Encryption**: AWS KMS envelope encryption with AES-256-GCM for sensitive business data at rest across critical tables.
+- **Journey Navigation Architecture**: Uses orchestrator-driven entry points with `pageSequence` for navigation.
+- **BMI Workflow Resilience**: BMC SSE stream handler uses resilient version creation with 'system' user fallback when auth context is missing, ensuring AI-generated strategic decisions are always persisted.
+- **BMC Knowledge Security Tests**: Comprehensive automated test suite validates cross-user data isolation, authorization, and decryption for the `/bmc-knowledge/:programId` endpoint.
+- **Context Foundry Integration**: Grounded analysis capability that queries verified organizational facts from Context Foundry before AI analysis, constraining LLM responses to use verified data with proper source citations. Integrated into StrategyAnalyzer for Five Whys and Porter's analysis. Future integration points include BMC 9-Block Analysis and Segment Discovery Synthesis Phase to query Context Foundry for entity verification and grounding.
 - **AI Multi-Agent System**: Ontology-based architecture with Executive, Builder, QA Specialist Agents, and a Multi-Agent Orchestrator.
 - **Strategic Consultant & EPM Integration**: Converts executive input into AI-analyzed strategic decisions and EPM program structures, including Five Whys AI-coaching, Anti-Confirmation Bias Research, Version Management, and Intelligent Framework Selection.
 - **Business Model Canvas (BMC) Analysis**: Full 9-block implementation with query generation, parallel research, and cross-block consistency validation.
@@ -67,7 +45,7 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tail
 - **Strategy Workspace**: Bridges AI analysis and EPM programs through a 4-page wizard and EPM Program View.
 - **EPM Display Formatters**: Enterprise-grade visual components for EPM data across 7 tabs with 14 specialized formatters.
 - **Intelligent Planning System**: AI-powered project planning library for schedule optimization, resource allocation, and validation.
-- **Journey Builder System**: Allows users to choose from 7 pre-defined journeys (including Market Segmentation) or create custom ones with AI validation.
+- **Journey Builder System**: Allows users to choose from 7 pre-defined journeys or create custom ones with AI validation. Custom journeys now execute actual framework analyzers via JourneyOrchestrator.
 - **Universal Background Jobs System**: Hybrid system for tracking long-running operations with database persistence and real-time SSE streaming.
 - **Non-Blocking Progress UX**: Uses a fixed-position progress card (`MinimizedJobTracker`) and polling.
 - **Full-Pass Export System**: Generates ZIP bundles with strategic analysis and EPM program data in multiple formats.
@@ -75,23 +53,12 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tail
 - **Strategies Hub**: Unified view for all strategic initiatives, providing artifact hierarchy and research provenance.
 - **Journey Launcher Modal**: Intelligent modal for initiating additional strategic analysis, with two modes (Full Journey, Single Framework) and journey-aware readiness checks.
 - **Ambiguity Resolution & Clarifications**: AI-powered clarification workflows for strategic inputs.
-- **Geographic Disambiguation**: Location-aware journey intake with OpenStreetMap/Nominatim integration for automatic detection and clarification of place names.
-- **Journey Registry V2**: Centralized journey definitions with automatic summary generation, baseline reuse, intelligent readiness thresholds, and comprehensive test coverage. Includes an EPM Completion Hook to bridge old and new flows.
-- **Module Catalog & Journey Config System (January 2026)**: Treats analyzers/generators as modules and expresses journeys via YAML config for eventual GUI composition without touching code. Key components:
-  - `server/modules/manifest.ts`: Module manifest types (ModuleManifest, PortDefinition) defining inputs, outputs, and dependencies
-  - `server/modules/journey-config.ts`: Journey configuration schema with page sequences, transitions, and conditions
-  - `server/modules/registry.ts`: ModuleRegistry class storing manifests and journey configs with validation
-  - `server/modules/manifests/`: Individual manifest files for each analyzer (BMC, Porter's, PESTLE, Five Whys, EPM Generator, Input Processor)
-  - `server/modules/journeys/*.yaml`: YAML-based journey configurations (starting with business-model-innovation.yaml)
-  - API endpoints: `GET /api/module-registry/modules`, `GET /api/module-registry/journeys`, `GET /api/module-registry/journeys/:id`, `GET /api/module-registry/stats`
-  - Journey resolver updated to check config-based journeys first with hard-coded fallback for backward compatibility
-- **Journey Library Expansion (January 2026)**: Marketing Consultant integrated into journey/executor pattern. Framework registry expanded from 7 to 16 executors:
-  - **Core (implemented)**: five_whys, bmc, segment_discovery
-  - **Stubs (registered, awaiting implementation)**: porters, pestle, swot, competitive_positioning, ansoff, blue_ocean, ocean_strategy, bcg_matrix, value_chain, vrio, scenario_planning, jobs_to_be_done, okr_generator
-  - Key files: `server/journey/executors/segment-discovery-executor.ts`, `server/journey/executors/stub-executor-template.ts`, `server/journey/register-frameworks.ts`
-  - StrategicContext extended with `marketingContext` and `onProgress` callback
-- **Golden Records Automation System**: Baseline regression testing for journey executions with versioned snapshots, CLI tools, and auto-capture hooks.
-- **BMC SSE Regression Test Suite**: Comprehensive test coverage for Business Model Canvas SSE streaming contract, validating all event types and payload structures.
+- **Geographic Disambiguation**: Location-aware journey intake with OpenStreetMap/Nominatim integration.
+- **Journey Registry V2**: Centralized journey definitions with automatic summary generation, baseline reuse, intelligent readiness thresholds, and comprehensive test coverage.
+- **Module Catalog & Journey Config System**: Treats analyzers/generators as modules and expresses journeys via YAML configuration for eventual GUI composition. Key components include a module manifest, journey configuration schema, and a registry.
+- **Journey Library Expansion**: Framework registry expanded to include 16 executors, including Marketing Consultant.
+- **Golden Records Automation System**: Baseline regression testing for journey executions with versioned snapshots.
+- **BMC SSE Regression Test Suite**: Comprehensive test coverage for Business Model Canvas SSE streaming contract.
 
 # External Dependencies
 - **Database Service**: Neon serverless PostgreSQL
@@ -105,4 +72,4 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tail
 - **Authentication**: Passport.js with Replit OIDC
 - **Encryption**: AWS KMS (for AES-256-GCM)
 - **Geographic Data**: OpenStreetMap/Nominatim
-- **Knowledge Graph**: Context Foundry (for grounded organizational facts)
+- **Knowledge Graph**: Context Foundry

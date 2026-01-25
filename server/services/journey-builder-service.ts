@@ -3,6 +3,7 @@ import { journeyTemplates, userJourneys, frameworkRegistry } from "@shared/schem
 import type { InsertJourneyTemplate, InsertUserJourney, InsertFrameworkRegistry } from "@shared/schema";
 import type { JourneyStep, JourneyTemplate, UserJourney, Framework } from "@shared/journey-types";
 import { eq, desc } from "drizzle-orm";
+import { JourneyOrchestrator } from "../journey/journey-orchestrator";
 
 /**
  * Journey Builder Service
@@ -355,13 +356,13 @@ export class JourneyBuilderService {
 
   /**
    * Start a custom journey execution from a template
-   * Creates a journey session and returns the first framework to execute
+   * Uses JourneyOrchestrator to create a proper journey session with framework sequence
    */
   async startCustomJourneyExecution(params: {
     userId: string;
     understandingId: string;
     templateId: string;
-  }): Promise<{ journeySessionId: string; firstFramework: string }> {
+  }): Promise<{ journeySessionId: string; firstFramework: string; versionNumber: number }> {
     console.log('[Journey Builder] Starting custom journey execution for understanding:', params.understandingId);
 
     // Get the template
@@ -380,36 +381,47 @@ export class JourneyBuilderService {
       throw new Error('Template has no steps');
     }
 
-    // Get the first framework key
-    const firstStep = template.steps[0];
-    const firstFramework = firstStep.frameworkKey;
+    // Convert template steps to framework names
+    // Filter out 'strategic_understanding' as it's already done during intake
+    const frameworks = template.steps
+      .map(step => step.frameworkKey)
+      .filter(key => key !== 'strategic_understanding');
 
-    // Start a journey using the template
-    const result = await this.startJourney({
+    if (frameworks.length === 0) {
+      throw new Error('Template has no executable frameworks after filtering');
+    }
+
+    const firstFramework = frameworks[0];
+
+    console.log('[Journey Builder] Frameworks to execute:', frameworks.join(', '));
+
+    // Use JourneyOrchestrator to create a proper journey session
+    const orchestrator = new JourneyOrchestrator();
+    const { journeySessionId, versionNumber } = await orchestrator.startCustomJourney({
+      understandingId: params.understandingId,
+      userId: params.userId,
+      frameworks,
+      templateId: params.templateId,
+    });
+
+    // Also track in user_journeys for the wizard UI (backward compatibility)
+    await this.startJourney({
       userId: params.userId,
       templateId: params.templateId,
       name: template.name,
     });
 
-    // Update the journey context to link it to the understanding (merge with existing context)
-    const existingJourney = await this.getJourney(result.sessionId);
-    const existingContext = existingJourney?.journeyContext || {};
-    await db
-      .update(userJourneys)
-      .set({
-        journeyContext: { ...existingContext, understandingId: params.understandingId } as any,
-      })
-      .where(eq(userJourneys.id, result.journeyId));
-
-    console.log('[Journey Builder] ✓ Custom journey started:', {
-      journeySessionId: result.sessionId,
+    console.log('[Journey Builder] ✓ Custom journey started via orchestrator:', {
+      journeySessionId,
+      versionNumber,
       firstFramework,
       templateId: params.templateId,
     });
 
     return {
-      journeySessionId: result.sessionId,
+      journeySessionId,
       firstFramework,
+      versionNumber,
     };
   }
 }

@@ -628,6 +628,46 @@ router.post('/journeys/execute', async (req: Request, res: Response) => {
   }
 });
 
+// Execute a specific journey session (for custom/wizard journeys)
+router.post('/journeys/:sessionId/execute', async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.params;
+
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Session ID is required' });
+    }
+
+    // Fetch journey session to verify it exists
+    const journeySession = await getJourneySession(sessionId);
+
+    if (!journeySession) {
+      return res.status(404).json({ error: 'Journey session not found' });
+    }
+
+    // Execute the journey in background (don't block the response)
+    console.log(`[Journey API] Triggering execution for session: ${sessionId}`);
+    
+    // Execute asynchronously
+    journeyOrchestrator.executeJourney(sessionId, (progress) => {
+      console.log(`[Journey Progress] ${sessionId}: ${progress.status} (${progress.percentComplete}%)`);
+    }).then(() => {
+      console.log(`[Journey API] ✓ Journey ${sessionId} completed successfully`);
+    }).catch((error) => {
+      console.error(`[Journey API] ✗ Journey ${sessionId} failed:`, error.message);
+    });
+
+    res.json({
+      success: true,
+      message: 'Journey execution started',
+      sessionId,
+      status: 'in_progress',
+    });
+  } catch (error: any) {
+    console.error('Error in /journeys/:sessionId/execute:', error);
+    res.status(500).json({ error: error.message || 'Journey execution failed' });
+  }
+});
+
 router.get('/journeys/:sessionId/results', async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params;
@@ -650,6 +690,7 @@ router.get('/journeys/:sessionId/results', async (req: Request, res: Response) =
       completedFrameworks: journeySession.completedFrameworks,
       context: journeySession.accumulatedContext, // Already decrypted by secure service
       completedAt: journeySession.completedAt,
+      metadata: journeySession.metadata, // Custom journey metadata (frameworks, templateId)
     });
   } catch (error: any) {
     console.error('Error in /journeys/:sessionId/results:', error);

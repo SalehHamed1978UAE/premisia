@@ -193,6 +193,14 @@ export default function ClassificationPage() {
             
             if (startResponse.ok) {
               const { journeySessionId, firstFramework } = await startResponse.json();
+              
+              // Trigger journey execution in background
+              console.log('[ClassificationPage] Triggering custom journey execution for session:', journeySessionId);
+              fetch(`/api/strategic-consultant/journeys/${journeySessionId}/execute`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+              }).catch(err => console.error('[ClassificationPage] Execution trigger failed:', err));
+              
               // Navigate to the first framework in the custom journey
               const frameworkRoute = getFrameworkRoute(firstFramework, understandingId, journeySessionId);
               setLocation(frameworkRoute);

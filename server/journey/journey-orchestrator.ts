@@ -116,6 +116,89 @@ export class JourneyOrchestrator {
   }
 
   /**
+   * Start a custom journey with user-defined framework sequence
+   * Used for wizard-created journeys from journey_templates
+   */
+  async startCustomJourney(params: {
+    understandingId: string;
+    userId: string;
+    frameworks: string[];
+    templateId?: string;
+  }): Promise<{ journeySessionId: string; versionNumber: number }> {
+    const { understandingId, userId, frameworks, templateId } = params;
+
+    console.log(`[JourneyOrchestrator] Starting custom journey for understanding ${understandingId}`);
+    console.log(`[JourneyOrchestrator] Custom frameworks: ${frameworks.join(', ')}`);
+
+    // Load understanding using secure service
+    const understanding = await getStrategicUnderstanding(understandingId);
+
+    if (!understanding) {
+      throw new Error(`Understanding ${understandingId} not found`);
+    }
+
+    // Initialize context with 'custom' journey type
+    const context = initializeContext(understanding as any, 'custom' as JourneyType);
+
+    // Use a database transaction with advisory lock to serialize version allocation
+    const lockId = this.hashStringToInt64(understandingId);
+    
+    return await db.transaction(async (tx) => {
+      // Acquire advisory lock (blocks if another transaction holds it)
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${lockId})`);
+      console.log(`[JourneyOrchestrator] Acquired transaction advisory lock for understanding ${understandingId}`);
+
+      // Query max version on the SAME connection
+      const existingSessions = await tx
+        .select({ versionNumber: journeySessions.versionNumber })
+        .from(journeySessions)
+        .where(eq(journeySessions.understandingId, understandingId))
+        .orderBy(journeySessions.versionNumber);
+
+      const maxVersion = existingSessions.length > 0 
+        ? Math.max(...existingSessions.map(s => s.versionNumber || 1))
+        : 0;
+      const nextVersion = maxVersion + 1;
+
+      console.log(`[JourneyOrchestrator] Creating custom journey session version ${nextVersion}`);
+
+      // Encrypt accumulated context before inserting
+      const encryptedContext = await encryptJSONKMS(context);
+
+      // Store custom framework sequence in metadata
+      const metadata = {
+        frameworks,
+        templateId,
+        isCustomJourney: true,
+      };
+
+      // Insert new session with custom journey type and metadata
+      const [newSession] = await tx
+        .insert(journeySessions)
+        .values({
+          understandingId,
+          userId,
+          journeyType: 'custom' as any,
+          status: 'initializing' as any,
+          currentFrameworkIndex: 0,
+          completedFrameworks: [],
+          accumulatedContext: encryptedContext as any,
+          versionNumber: nextVersion,
+          startedAt: new Date(),
+          metadata: metadata as any,
+        })
+        .returning();
+
+      console.log(`[JourneyOrchestrator] ✓ Custom journey session saved (Version ${nextVersion})`);
+      
+      return {
+        journeySessionId: newSession.id,
+        versionNumber: nextVersion
+      };
+    });
+  }
+
+  /**
    * Hash a UUID string to a 64-bit integer for PostgreSQL advisory locks
    */
   private hashStringToInt64(str: string): number {
@@ -144,8 +227,29 @@ export class JourneyOrchestrator {
       throw new Error(`Journey session ${journeySessionId} not found`);
     }
 
-    // Get journey definition
-    const journey = getJourney(session.journeyType! as JourneyType);
+    // Get framework sequence - either from custom metadata OR from predefined journey
+    let frameworks: string[];
+    let journey: any;
+
+    if (session.journeyType === 'custom' && session.metadata) {
+      // Custom journey: read frameworks from session metadata
+      const metadata = typeof session.metadata === 'string' 
+        ? JSON.parse(session.metadata) 
+        : session.metadata;
+      frameworks = metadata.frameworks || [];
+      console.log(`[JourneyOrchestrator] Executing custom journey with frameworks: ${frameworks.join(', ')}`);
+      
+      // Create a minimal journey definition for custom journeys
+      journey = {
+        type: 'custom',
+        frameworks,
+        dependencies: [],
+      };
+    } else {
+      // Predefined journey: get from registry
+      journey = getJourney(session.journeyType! as JourneyType);
+      frameworks = journey.frameworks;
+    }
 
     // Load context from database (already decrypted by secure service)
     let context: StrategicContext = session.accumulatedContext as StrategicContext;
@@ -155,16 +259,16 @@ export class JourneyOrchestrator {
 
     try {
       // Execute each framework in sequence
-      for (let i = context.currentFrameworkIndex; i < journey.frameworks.length; i++) {
-        const frameworkName = journey.frameworks[i];
+      for (let i = context.currentFrameworkIndex; i < frameworks.length; i++) {
+        const frameworkName = frameworks[i] as import('@shared/journey-types').FrameworkName;
 
         // Report progress
         if (progressCallback) {
           progressCallback({
             currentFramework: frameworkName,
             frameworkIndex: i,
-            totalFrameworks: journey.frameworks.length,
-            percentComplete: Math.round((i / journey.frameworks.length) * 100),
+            totalFrameworks: frameworks.length,
+            percentComplete: Math.round((i / frameworks.length) * 100),
             status: `Executing ${frameworkName}...`,
           });
         }
@@ -176,7 +280,7 @@ export class JourneyOrchestrator {
         context = addFrameworkResult(context, result);
 
         // Apply bridge if needed (between frameworks)
-        if (frameworkName === 'five_whys' && journey.frameworks[i + 1] === 'bmc') {
+        if (frameworkName === 'five_whys' && frameworks[i + 1] === 'bmc') {
           const { context: bridgedContext } = applyWhysToBMCBridge(context);
           context = bridgedContext;
         }
@@ -218,8 +322,8 @@ export class JourneyOrchestrator {
       await this.updateSessionStatus(journeySessionId, 'completed');
       context.status = 'completed';
 
-      // Build and save journey summary (only if Journey Registry V2 is enabled)
-      if (isJourneyRegistryV2Enabled()) {
+      // Build and save journey summary (only if Journey Registry V2 is enabled and not custom journey)
+      if (isJourneyRegistryV2Enabled() && session.journeyType !== 'custom') {
         const journeyDef = getJourney(session.journeyType! as JourneyType);
         const summary = journeySummaryService.buildSummary(
           journeyDef.summaryBuilder,
@@ -231,6 +335,8 @@ export class JourneyOrchestrator {
         );
         await journeySummaryService.saveSummary(journeySessionId, summary);
         console.log(`[JourneyOrchestrator] ✓ Journey summary saved for version ${session.versionNumber}`);
+      } else if (session.journeyType === 'custom') {
+        console.log('[JourneyOrchestrator] Custom journey - skipping summary builder (no predefined summary format)');
       } else {
         console.log('[JourneyOrchestrator] Journey Registry V2 disabled, skipping summary save');
       }
@@ -241,9 +347,9 @@ export class JourneyOrchestrator {
       // Final progress callback
       if (progressCallback) {
         progressCallback({
-          currentFramework: journey.frameworks[journey.frameworks.length - 1],
-          frameworkIndex: journey.frameworks.length,
-          totalFrameworks: journey.frameworks.length,
+          currentFramework: frameworks[frameworks.length - 1] as import('@shared/journey-types').FrameworkName,
+          frameworkIndex: frameworks.length,
+          totalFrameworks: frameworks.length,
           percentComplete: 100,
           status: 'Journey complete!',
         });

@@ -107,7 +107,8 @@ export type JourneyType =
   | 'digital_transformation'    // Digital Transformation
   | 'crisis_recovery'           // Crisis Recovery
   | 'growth_strategy'           // Growth Strategy
-  | 'market_segmentation';      // Market Segmentation Discovery (Marketing Consultant)
+  | 'market_segmentation'       // Market Segmentation Discovery (Marketing Consultant)
+  | 'custom';                   // Custom wizard-created journeys
 
 /**
  * Framework Names - Individual strategic analysis frameworks

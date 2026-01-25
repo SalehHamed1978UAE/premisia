@@ -141,6 +141,7 @@ export interface SecureJourneySession {
   completedAt?: Date | null;
   createdAt?: Date;
   updatedAt?: Date;
+  metadata?: any; // Custom journey metadata (frameworks, templateId, etc.)
 }
 
 export async function saveJourneySession(data: SecureJourneySession) {
@@ -203,6 +204,7 @@ async function decryptJourneySession(record: any): Promise<SecureJourneySession>
   return {
     ...record,
     accumulatedContext: record.accumulatedContext ? await decryptJSONKMS(record.accumulatedContext) || record.accumulatedContext : null,
+    metadata: record.metadata, // Pass through metadata (not encrypted)
   };
 }
 

@@ -81,7 +81,8 @@ export const journeyTypeEnum = pgEnum('journey_type', [
   'competitive_strategy',
   'digital_transformation',
   'crisis_recovery',
-  'growth_strategy'
+  'growth_strategy',
+  'custom'
 ]);
 export const journeyStatusEnum = pgEnum('journey_status', [
   'queued',
@@ -631,6 +632,9 @@ export const journeySessions = pgTable("journey_sessions", {
   versionNumber: integer("version_number").notNull().default(1),
   startedAt: timestamp("started_at").defaultNow(),
   background: boolean("background").notNull().default(false),
+  
+  // Custom journey metadata (stores framework sequence, templateId for custom journeys)
+  metadata: jsonb("metadata"),
   
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
