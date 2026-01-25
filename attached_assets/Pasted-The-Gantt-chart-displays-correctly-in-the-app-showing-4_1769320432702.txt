@@ -1,0 +1,37 @@
+The Gantt chart displays correctly in the app (showing 4 
+  workstreams over 12 months with phases and gates), but the export produces a  
+  broken/blank image.                                                           
+                                                                                
+  Tell Replit:                                                                  
+                                                                                
+  The EPM Gantt chart export is broken. The chart renders fine in the browser   
+  but exports as blank/broken.                                                  
+                                                                                
+  Likely causes:                                                                
+                                                                                
+  1. Puppeteer/screenshot timing - Not waiting for chart to fully render before 
+  capturing                                                                     
+  2. Canvas/SVG export issue - Chart library may use canvas that doesn't export 
+  properly                                                                      
+  3. Server-side rendering missing chart library - Export runs in different     
+  context than browser                                                          
+                                                                                
+  Questions to diagnose:                                                        
+                                                                                
+  1. What library renders the Gantt chart? (Recharts, Chart.js, custom SVG?)    
+  2. Is the export using Puppeteer screenshot or server-side PDF generation?    
+  3. Does the export work for other charts/visualizations, or just Gantt?       
+                                                                                
+  Potential fix:                                                                
+                                                                                
+  // If using Puppeteer, add wait for chart render                              
+  await page.waitForSelector('.gantt-chart-container svg', { timeout: 10000 }); 
+  await page.waitForTimeout(1000); // Extra buffer for animations               
+  const screenshot = await page.screenshot();                                   
+                                                                                
+  Or use a dedicated chart-to-image export (like html2canvas or chart library's 
+  built-in export).                                                             
+                                                                                
+  ---                                                                           
+  This is a P2 bug - doesn't block core functionality but should be fixed. Add  
+  it to the backlog and we can address it before or during Phase 9. 
