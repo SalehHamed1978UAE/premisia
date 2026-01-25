@@ -1,0 +1,37 @@
+That's a clear bug. The flow should be:                                       
+                                                                                
+  Custom Journey Created (PESTLE → Porter's → SWOT → Strategic Decisions)       
+       ↓                                                                        
+  Click custom journey → Strategic Consultant starts                            
+       ↓                                                                        
+  Enter "Open Chinese restaurant in Dubai"                                      
+       ↓                                                                        
+  Answer ambiguities                                                            
+       ↓                                                                        
+  ✗ WRONG: Goes to "Select Your Journey" (pre-built journeys)                   
+  ✓ SHOULD: Go to PESTLE (first module in YOUR custom journey)                  
+                                                                                
+  The Problem:                                                                  
+  After the input processor (Strategic Consultant) completes, the system doesn't
+   know it's running a custom journey. It defaults to the standard flow which   
+  shows the journey selection page.                                             
+                                                                                
+  Tell Replit:                                                                  
+                                                                                
+  Bug: Custom journey execution doesn't continue to next module                 
+                                                                                
+  Steps to reproduce:                                                           
+  1. Create custom journey in Journey Builder (e.g., PESTLE → Porter's → SWOT)  
+  2. Go to journeys list, click on custom journey                               
+  3. Strategic Consultant starts correctly                                      
+  4. Enter business idea, answer ambiguities                                    
+  5. Bug: Redirects to "Select Your Journey" instead of continuing to PESTLE    
+                                                                                
+  Expected: After input processing, continue to the next module defined in the  
+  custom journey (PESTLE), not the journey selection page.                      
+                                                                                
+  The journey session needs to track which custom journey config it belongs to  
+  and route to the next module in that config.                                  
+                                                                                
+  This is a routing/state issue - the session loses track of which custom       
+  journey it's executing.       
