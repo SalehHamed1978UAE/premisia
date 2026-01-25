@@ -218,12 +218,34 @@ export async function encryptKMS(text: string | null | undefined): Promise<strin
   }
 }
 
-export async function decryptKMS(encryptedData: string | null | undefined): Promise<string | null> {
+export async function decryptKMS(encryptedData: string | object | null | undefined): Promise<string | null> {
   if (!encryptedData) return null;
 
-  if (isKMSEncryptedFormat(encryptedData)) {
+  // Handle case where JSONB column returns the data as a JavaScript string (the encrypted JSON)
+  // or as an already-parsed object
+  let dataToCheck: string;
+  
+  if (typeof encryptedData === 'object') {
+    // Already parsed as object - check if it's KMS encrypted format directly
+    const obj = encryptedData as any;
+    if ('dataKeyCiphertext' in obj && 'iv' in obj && 'authTag' in obj && 'ciphertext' in obj) {
+      try {
+        return await decryptWithKMS(obj as EncryptedPayload);
+      } catch (error) {
+        console.error('❌ KMS decryption failed:', error);
+        throw error;
+      }
+    }
+    // Not KMS format, return as-is stringified
+    console.warn('⚠️  Unencrypted object data detected, returning as-is');
+    return JSON.stringify(encryptedData);
+  }
+  
+  dataToCheck = encryptedData;
+
+  if (isKMSEncryptedFormat(dataToCheck)) {
     try {
-      const payload: EncryptedPayload = JSON.parse(encryptedData);
+      const payload: EncryptedPayload = JSON.parse(dataToCheck);
       return await decryptWithKMS(payload);
     } catch (error) {
       console.error('❌ KMS decryption failed:', error);
@@ -231,14 +253,14 @@ export async function decryptKMS(encryptedData: string | null | undefined): Prom
     }
   }
 
-  if (isLegacyEncryptedFormat(encryptedData)) {
+  if (isLegacyEncryptedFormat(dataToCheck)) {
     console.warn('⚠️  Legacy encryption format detected. This data should be re-encrypted with KMS.');
     const { decrypt } = await import('./encryption.js');
-    return decrypt(encryptedData);
+    return decrypt(dataToCheck);
   }
 
   console.warn('⚠️  Unencrypted data detected, returning as-is');
-  return encryptedData;
+  return dataToCheck;
 }
 
 export async function encryptJSONKMS(obj: any): Promise<string | null> {

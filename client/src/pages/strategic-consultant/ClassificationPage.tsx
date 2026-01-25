@@ -46,28 +46,21 @@ const INITIATIVE_TYPE_DESCRIPTIONS: Record<string, string> = {
   other: 'General initiative that doesn\'t fit other categories',
 };
 
-// Map framework keys to their route paths
+// Map framework keys to their route paths for custom journeys
+// Some frameworks have dedicated pages, others use the generic FrameworkInsightPage
 function getFrameworkRoute(frameworkKey: string, understandingId: string, journeySessionId: string): string {
-  const frameworkRoutes: Record<string, string> = {
-    five_whys: `/strategic-consultant/whys-tree/${understandingId}?journeySession=${journeySessionId}`,
-    bmc: `/strategic-consultant/analysis/${journeySessionId}?framework=bmc`,
-    pestle: `/strategic-consultant/trend-analysis/${journeySessionId}/1`,
-    porters: `/strategic-consultant/analysis/${journeySessionId}?framework=porters`,
-    swot: `/strategic-consultant/analysis/${journeySessionId}?framework=swot`,
-    segment_discovery: `/marketing-consultant?journeySession=${journeySessionId}`,
-    competitive_positioning: `/strategic-consultant/analysis/${journeySessionId}?framework=competitive_positioning`,
-    ansoff: `/strategic-consultant/analysis/${journeySessionId}?framework=ansoff`,
-    blue_ocean: `/strategic-consultant/analysis/${journeySessionId}?framework=blue_ocean`,
-    ocean_strategy: `/strategic-consultant/analysis/${journeySessionId}?framework=ocean_strategy`,
-    bcg_matrix: `/strategic-consultant/analysis/${journeySessionId}?framework=bcg_matrix`,
-    value_chain: `/strategic-consultant/analysis/${journeySessionId}?framework=value_chain`,
-    vrio: `/strategic-consultant/analysis/${journeySessionId}?framework=vrio`,
-    scenario_planning: `/strategic-consultant/analysis/${journeySessionId}?framework=scenario_planning`,
-    jobs_to_be_done: `/strategic-consultant/analysis/${journeySessionId}?framework=jobs_to_be_done`,
-    okr_generator: `/strategic-consultant/analysis/${journeySessionId}?framework=okr_generator`,
-  };
-  
-  return frameworkRoutes[frameworkKey] || `/strategic-consultant/analysis/${journeySessionId}`;
+  // Special handling for frameworks with dedicated pages
+  switch (frameworkKey) {
+    case 'five_whys':
+      return `/strategic-consultant/whys-tree/${understandingId}?journeySession=${journeySessionId}`;
+    case 'pestle':
+      return `/strategic-consultant/trend-analysis/${journeySessionId}/1`;
+    case 'segment_discovery':
+      return `/marketing-consultant?journeySession=${journeySessionId}`;
+    default:
+      // For other frameworks, use the FrameworkInsightPage which reads from framework_insights
+      return `/strategic-consultant/framework-insight/${journeySessionId}?framework=${frameworkKey}`;
+  }
 }
 
 export default function ClassificationPage() {

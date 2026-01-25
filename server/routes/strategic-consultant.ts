@@ -14,7 +14,7 @@ import { BMCResearcher } from '../strategic-consultant/bmc-researcher';
 import { storage } from '../storage';
 import { unlink } from 'fs/promises';
 import { db } from '../db';
-import { strategicUnderstanding, journeySessions, strategyVersions, epmPrograms, bmcAnalyses, strategicEntities, strategicRelationships } from '@shared/schema';
+import { strategicUnderstanding, journeySessions, strategyVersions, epmPrograms, bmcAnalyses, strategicEntities, strategicRelationships, frameworkInsights } from '@shared/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { strategicUnderstandingService } from '../strategic-understanding-service';
 import { JourneyOrchestrator } from '../journey/journey-orchestrator';
@@ -2856,6 +2856,98 @@ router.get('/health', (req: Request, res: Response) => {
     message: 'Strategic Consultant API is healthy',
     timestamp: new Date().toISOString(),
   });
+});
+
+// GET /api/strategic-consultant/framework-insights/:sessionId/:frameworkName
+// Fetch framework insights for a journey session
+router.get('/framework-insights/:sessionId/:frameworkName', async (req: Request, res: Response) => {
+  try {
+    const { sessionId, frameworkName } = req.params;
+    
+    console.log(`[Framework Insights] Fetching ${frameworkName} insights for session ${sessionId}`);
+    
+    // First get the journey session to get the understanding ID
+    const session = await db.query.journeySessions.findFirst({
+      where: eq(journeySessions.id, sessionId),
+    });
+    
+    if (!session) {
+      return res.status(404).json({ error: 'Journey session not found' });
+    }
+    
+    // Fetch the framework insight for this session
+    const insight = await db.query.frameworkInsights.findFirst({
+      where: and(
+        eq(frameworkInsights.sessionId, sessionId),
+        eq(frameworkInsights.frameworkName, frameworkName)
+      ),
+    });
+    
+    if (!insight) {
+      // Check if the framework hasn't run yet
+      console.log(`[Framework Insights] No insight found for ${frameworkName} in session ${sessionId}`);
+      return res.status(404).json({ 
+        error: 'Framework insight not found', 
+        message: `The ${frameworkName} analysis hasn't been completed yet for this session` 
+      });
+    }
+    
+    console.log(`[Framework Insights] ✓ Found ${frameworkName} insight for session ${sessionId}`);
+    
+    res.json({
+      success: true,
+      insight: {
+        id: insight.id,
+        sessionId: insight.sessionId,
+        frameworkName: insight.frameworkName,
+        frameworkVersion: insight.frameworkVersion,
+        insights: insight.insights,
+        telemetry: insight.telemetry,
+        createdAt: insight.createdAt,
+      },
+      session: {
+        id: session.id,
+        journeyType: session.journeyType,
+        status: session.status,
+        currentFrameworkIndex: session.currentFrameworkIndex,
+        completedFrameworks: session.completedFrameworks,
+        metadata: session.metadata,
+      }
+    });
+  } catch (error: any) {
+    console.error('[Framework Insights] Error fetching framework insights:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch framework insights' });
+  }
+});
+
+// GET /api/strategic-consultant/framework-insights/:sessionId
+// Fetch all framework insights for a journey session
+router.get('/framework-insights/:sessionId', async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.params;
+    
+    console.log(`[Framework Insights] Fetching all insights for session ${sessionId}`);
+    
+    const insights = await db.query.frameworkInsights.findMany({
+      where: eq(frameworkInsights.sessionId, sessionId),
+      orderBy: (fi, { asc }) => [asc(fi.createdAt)],
+    });
+    
+    res.json({
+      success: true,
+      insights: insights.map(i => ({
+        id: i.id,
+        frameworkName: i.frameworkName,
+        frameworkVersion: i.frameworkVersion,
+        insights: i.insights,
+        telemetry: i.telemetry,
+        createdAt: i.createdAt,
+      })),
+    });
+  } catch (error: any) {
+    console.error('[Framework Insights] Error fetching all insights:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch framework insights' });
+  }
 });
 
 export default router;

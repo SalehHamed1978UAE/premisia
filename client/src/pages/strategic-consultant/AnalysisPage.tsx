@@ -112,6 +112,8 @@ export default function AnalysisPage() {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [enhancedAnalysis, setEnhancedAnalysis] = useState<EnhancedAnalysisResult | null>(null);
 
+  // Fetch from strategy_versions (standard journey flow)
+  // Custom journeys should use FrameworkInsightPage instead
   const { data, isLoading, error } = useQuery<{ version: { analysis: AnalysisData; versionNumber: number } }>({
     queryKey: ['/api/strategic-consultant/versions', sessionId, 1],
     enabled: !!sessionId,

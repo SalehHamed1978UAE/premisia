@@ -49,6 +49,7 @@ import GoldenRecordTimelinePage from "@/pages/admin/GoldenRecordTimelinePage";
 import GoldenRecordDetailPage from "@/pages/admin/GoldenRecordDetailPage";
 import GoldenRecordComparePage from "@/pages/admin/GoldenRecordComparePage";
 import JourneyBuilderPage from "@/pages/journey-builder/JourneyBuilderPage";
+import FrameworkInsightPage from "@/pages/strategic-consultant/FrameworkInsightPage";
 import { ProtectedRoute } from "./lib/protected-route";
 import { Loader2 } from "lucide-react";
 
@@ -71,6 +72,7 @@ function Router() {
         <ProtectedRoute path="/strategic-consultant/journey-results/:sessionId" component={JourneyResultsPage} />
         <ProtectedRoute path="/strategic-consultant/results/:sessionId/:versionNumber" component={StrategyResultsPage} />
         <ProtectedRoute path="/strategic-consultant/analysis/:sessionId" component={AnalysisPage} />
+        <ProtectedRoute path="/strategic-consultant/framework-insight/:sessionId" component={FrameworkInsightPage} />
         <ProtectedRoute path="/strategic-consultant/trend-analysis/:sessionId/:versionNumber" component={TrendAnalysisPage} />
         <ProtectedRoute path="/strategic-consultant/decisions/:sessionId/:versionNumber" component={DecisionPage} />
         <ProtectedRoute path="/strategic-consultant/whys-tree/:understandingId" component={WhysTreePage} />
