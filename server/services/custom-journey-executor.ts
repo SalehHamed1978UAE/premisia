@@ -16,7 +16,8 @@ import { moduleRegistry } from '../modules/registry';
 import { v4 as uuidv4 } from 'uuid';
 
 // Import real analyzers - singletons
-import { swotAnalyzer } from '../intelligence/swot-analyzer';
+import { swotAnalyzer, SWOTOutput } from '../intelligence/swot-analyzer';
+import { DecisionGenerator } from '../strategic-consultant/decision-generator';
 import { ansoffAnalyzer } from '../intelligence/ansoff-analyzer';
 import { jtbdAnalyzer } from '../intelligence/jtbd-analyzer';
 import { vrioAnalyzer } from '../intelligence/vrio-analyzer';
@@ -267,22 +268,97 @@ export class CustomJourneyExecutor {
                 .where(eq(strategyVersions.sessionId, sessionId));
               
               if (existingVersions.length === 0) {
-                // Create a version with placeholder decisions based on prior analysis
+                // Create a version with AI-generated decisions based on prior analysis
                 versionNumber = 1;
                 const analysisData = aggregatedOutputs || {};
                 
-                // Generate placeholder decisions structure
-                const placeholderDecisions = this.generatePlaceholderDecisions(aggregatedOutputs);
+                // Extract SWOT output if available for AI decision generation
+                // Handle: direct keys ('swot', 'swot-analyzer'), nodeIds containing 'swot', or scan for SWOT shape
+                const inputData = execution.inputData as Record<string, any> || {};
+                const businessContext = inputData.businessContext || inputData.userInput || '';
+                
+                // Function to check if an object is a valid SWOTOutput
+                const isValidSwotOutput = (obj: any): obj is SWOTOutput => {
+                  if (!obj) return false;
+                  // Check for nested output
+                  const candidate = obj.output || obj;
+                  return candidate && Array.isArray(candidate.strengths) && Array.isArray(candidate.weaknesses);
+                };
+                
+                // Function to extract normalized SWOT from an object
+                const extractSwot = (obj: any): SWOTOutput | null => {
+                  if (!obj) return null;
+                  const candidate = obj.output || obj;
+                  if (candidate && Array.isArray(candidate.strengths) && Array.isArray(candidate.weaknesses)) {
+                    return candidate as SWOTOutput;
+                  }
+                  return null;
+                };
+                
+                // Try multiple lookup strategies
+                let normalizedSwot: SWOTOutput | null = null;
+                
+                // Strategy 1: Direct keys
+                normalizedSwot = extractSwot(aggregatedOutputs['swot']) || extractSwot(aggregatedOutputs['swot-analyzer']);
+                
+                // Strategy 2: Scan nodeIds containing 'swot'
+                if (!normalizedSwot) {
+                  for (const [key, value] of Object.entries(aggregatedOutputs)) {
+                    if (key.toLowerCase().includes('swot') && isValidSwotOutput(value)) {
+                      normalizedSwot = extractSwot(value);
+                      console.log(`[CustomJourneyExecutor] Found SWOT output via nodeId: ${key}`);
+                      break;
+                    }
+                  }
+                }
+                
+                // Strategy 3: Scan all outputs for SWOT shape
+                if (!normalizedSwot) {
+                  for (const [key, value] of Object.entries(aggregatedOutputs)) {
+                    if (isValidSwotOutput(value)) {
+                      normalizedSwot = extractSwot(value);
+                      console.log(`[CustomJourneyExecutor] Found SWOT output by shape detection in: ${key}`);
+                      break;
+                    }
+                  }
+                }
+                
+                if (normalizedSwot) {
+                  console.log(`[CustomJourneyExecutor] Valid SWOT output found with ${normalizedSwot.strengths.length} strengths, ${normalizedSwot.weaknesses.length} weaknesses`);
+                }
+                
+                let decisionsData: any;
+                
+                if (normalizedSwot) {
+                  // Use AI to generate contextual decisions from SWOT analysis
+                  console.log(`[CustomJourneyExecutor] Generating AI decisions from SWOT output`);
+                  try {
+                    const decisionGenerator = new DecisionGenerator();
+                    const generatedDecisions = await decisionGenerator.generateDecisionsFromSWOT(
+                      normalizedSwot,
+                      businessContext
+                    );
+                    decisionsData = generatedDecisions;
+                    console.log(`[CustomJourneyExecutor] AI generated ${generatedDecisions.decisions?.length || 0} decision points`);
+                  } catch (decisionError: any) {
+                    console.error(`[CustomJourneyExecutor] AI decision generation failed, using fallback:`, decisionError.message);
+                    decisionsData = this.generatePlaceholderDecisions(aggregatedOutputs);
+                  }
+                } else {
+                  // Fallback to placeholder if no valid SWOT available
+                  console.log(`[CustomJourneyExecutor] No valid SWOT output available, using placeholder decisions`);
+                  decisionsData = this.generatePlaceholderDecisions(aggregatedOutputs);
+                }
                 
                 console.log(`[CustomJourneyExecutor] Creating version ${versionNumber} for session: ${sessionId}`);
                 await db.insert(strategyVersions).values({
                   sessionId: sessionId,
                   versionNumber: versionNumber,
                   analysisData: analysisData,
-                  decisionsData: placeholderDecisions,
+                  decisionsData: decisionsData,
                   status: 'draft',
-                  createdBy: execution.createdBy || null,
-                  userId: execution.createdBy || null,
+                  createdBy: execution.userId || null,
+                  userId: execution.userId || null,
                 });
               } else {
                 versionNumber = existingVersions.length + 1;

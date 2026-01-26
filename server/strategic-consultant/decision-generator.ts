@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { strategyOntologyService } from '../ontology/strategy-ontology-service';
 import type { StrategyAnalysis, PortersFiveForcesAnalysis } from './strategy-analyzer';
 import type { ResearchFindings } from './market-researcher';
+import type { SWOTOutput } from '../intelligence/swot-analyzer';
 
 export interface DecisionOption {
   id: string;
@@ -566,6 +567,152 @@ Return ONLY valid JSON (no markdown, no explanation):
       console.warn('BMC decision validation warnings:', validation.issues);
     }
 
+    return generated;
+  }
+
+  async generateDecisionsFromSWOT(
+    swotOutput: SWOTOutput,
+    businessContext: string
+  ): Promise<GeneratedDecisions> {
+    console.log('[DecisionGenerator] Generating decisions from SWOT analysis...');
+    
+    // Validate SWOT output has required data
+    if (!swotOutput || !Array.isArray(swotOutput.strengths) || !Array.isArray(swotOutput.weaknesses)) {
+      throw new Error('Invalid SWOT output: missing required strengths/weaknesses arrays');
+    }
+    
+    // Default empty arrays if opportunities/threats are missing
+    const strengths = swotOutput.strengths || [];
+    const weaknesses = swotOutput.weaknesses || [];
+    const opportunities = swotOutput.opportunities || [];
+    const threats = swotOutput.threats || [];
+    const strategicOptions = swotOutput.strategicOptions || { soStrategies: [], woStrategies: [], stStrategies: [], wtStrategies: [] };
+    const priorityActions = swotOutput.priorityActions || [];
+    
+    console.log(`[DecisionGenerator] SWOT data: ${strengths.length} strengths, ${weaknesses.length} weaknesses, ${opportunities.length} opportunities, ${threats.length} threats`);
+    
+    const strengthsSummary = strengths
+      .map(s => `- ${s.factor} (${s.importance}): ${s.description}${s.evidence ? ` [Evidence: ${s.evidence}]` : ''}`)
+      .join('\n');
+    
+    const weaknessesSummary = weaknesses
+      .map(w => `- ${w.factor} (${w.importance}): ${w.description}${w.evidence ? ` [Evidence: ${w.evidence}]` : ''}`)
+      .join('\n');
+    
+    const opportunitiesSummary = opportunities
+      .map(o => `- ${o.factor} (${o.importance}): ${o.description}${o.evidence ? ` [Evidence: ${o.evidence}]` : ''}`)
+      .join('\n');
+    
+    const threatsSummary = threats
+      .map(t => `- ${t.factor} (${t.importance}): ${t.description}${t.evidence ? ` [Evidence: ${t.evidence}]` : ''}`)
+      .join('\n');
+    
+    const strategicOptionsSummary = `
+SO Strategies (Leverage Strengths for Opportunities): ${strategicOptions.soStrategies.join('; ')}
+WO Strategies (Address Weaknesses via Opportunities): ${strategicOptions.woStrategies.join('; ')}
+ST Strategies (Use Strengths to Counter Threats): ${strategicOptions.stStrategies.join('; ')}
+WT Strategies (Minimize Weaknesses, Avoid Threats): ${strategicOptions.wtStrategies.join('; ')}
+`;
+
+    const priorityActionsSummary = priorityActions.length > 0
+      ? `\nPRIORITY ACTIONS:\n${priorityActions.map((a, i) => `${i + 1}. ${a}`).join('\n')}`
+      : '';
+
+    const response = await this.anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 8000,
+      temperature: 0.4,
+      messages: [
+        {
+          role: 'user',
+          content: `You are a strategic consultant creating decision points based on a comprehensive SWOT analysis.
+
+BUSINESS CONTEXT:
+${businessContext.substring(0, 1500)}
+
+SWOT ANALYSIS RESULTS:
+
+STRENGTHS:
+${strengthsSummary || 'None identified'}
+
+WEAKNESSES:
+${weaknessesSummary || 'None identified'}
+
+OPPORTUNITIES:
+${opportunitiesSummary || 'None identified'}
+
+THREATS:
+${threatsSummary || 'None identified'}
+
+STRATEGIC OPTIONS IDENTIFIED:
+${strategicOptionsSummary}
+${priorityActionsSummary}
+
+Create 2-4 strategic decision points that an executive must choose between based on this SWOT analysis. Each decision should:
+1. Have 2-4 options to choose from
+2. Include cost estimates where relevant (in dollars)
+3. Include timeline estimates where relevant (in months)
+4. Show pros and cons that directly reference the SWOT findings
+5. Mark one option as recommended based on the analysis
+6. Leverage identified strengths and opportunities while addressing weaknesses and threats
+
+Decision points should address:
+- Which strategic direction to pursue (SO, WO, ST, or WT focus)
+- Resource allocation priorities
+- Risk mitigation approach
+- Growth vs consolidation trade-offs
+
+Return ONLY valid JSON (no markdown, no explanation):
+
+{
+  "decisions": [
+    {
+      "id": "decision_1",
+      "title": "Strategic Direction",
+      "question": "Based on the SWOT analysis, which strategic direction should we prioritize?",
+      "context": "Why this decision matters based on SWOT analysis (2-3 sentences referencing specific findings)",
+      "options": [
+        {
+          "id": "option_1",
+          "label": "Option Label",
+          "description": "Detailed description referencing specific SWOT findings",
+          "estimated_cost": { "min": 100000, "max": 250000 },
+          "estimated_timeline_months": 6,
+          "pros": ["Leverages [specific strength]", "Addresses [specific opportunity]"],
+          "cons": ["Exposed to [specific threat]", "Limited by [specific weakness]"],
+          "recommended": true,
+          "reasoning": "Why this option is recommended based on SWOT alignment"
+        }
+      ],
+      "impact_areas": ["Market Position", "Operations", "Risk Profile"]
+    }
+  ],
+  "decision_flow": "How these decisions connect to the SWOT strategic options",
+  "estimated_completion_time_minutes": 5
+}`,
+        },
+      ],
+    });
+
+    const textContent = response.content
+      .filter((block) => block.type === 'text')
+      .map((block) => (block as Anthropic.TextBlock).text)
+      .join('\n');
+
+    const jsonMatch = textContent.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.error('[DecisionGenerator] Failed to extract JSON from SWOT decision generation');
+      throw new Error('Failed to extract JSON from SWOT decision generation response');
+    }
+
+    const generated = JSON.parse(jsonMatch[0]) as GeneratedDecisions;
+    
+    const validation = await this.validateDecisions(generated);
+    if (!validation.valid) {
+      console.warn('[DecisionGenerator] SWOT decision validation issues:', validation.issues);
+    }
+
+    console.log(`[DecisionGenerator] Generated ${generated.decisions.length} decision points from SWOT`);
     return generated;
   }
 
