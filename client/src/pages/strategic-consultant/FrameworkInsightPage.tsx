@@ -296,7 +296,7 @@ export default function FrameworkInsightPage() {
                 <Loader2 className="h-12 w-12 animate-spin text-primary" data-testid="spinner-analysis" />
               </div>
               <CardTitle data-testid="text-analysis-title">
-                {frameworkDisplayNames[frameworkName] || frameworkName.toUpperCase()} Analysis in Progress
+                {frameworkDisplayNames[frameworkName] || frameworkName.toUpperCase()} in Progress
               </CardTitle>
               <CardDescription data-testid="text-analysis-description">
                 Our AI is analyzing your strategic context. This typically takes 30-60 seconds.
