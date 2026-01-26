@@ -1,0 +1,70 @@
+STOP. Read this completely before doing anything else.                        
+                                                                                
+  You keep declaring tasks "complete" but the user flow is still broken. This is
+   not acceptable.                                                              
+                                                                                
+  The Definition of Done is NOT:                                                
+  - Code compiles ❌                                                            
+  - Unit test passes ❌                                                         
+  - Module validation passes ❌                                                 
+                                                                                
+  The Definition of Done IS:                                                    
+  - A real user can complete the entire journey without errors ✅               
+                                                                                
+  ---                                                                           
+  MANDATORY: End-to-End Test Protocol                                           
+                                                                                
+  Before declaring ANY work complete, you MUST personally test this flow:       
+                                                                                
+  Test Flow: SWOT → Strategic Decisions → EPM                                   
+                                                                                
+  1. Start fresh - Create a new custom journey with these steps:                
+    - Strategic Understanding                                                   
+    - SWOT                                                                      
+    - Strategic Decisions                                                       
+    - EPM Generator                                                             
+  2. Run Strategic Understanding - Enter business context, submit               
+  3. Run SWOT - Verify it completes, check DB:                                  
+  SELECT framework_name, created_at FROM framework_insights                     
+  WHERE session_id = '[YOUR_SESSION_ID]';                                       
+  4. Arrive at Strategic Decisions page - Should load WITHOUT errors:           
+    - No 404                                                                    
+    - No "Version not found"                                                    
+    - Should show AI-generated decision options based on SWOT                   
+  5. Complete Strategic Decisions - Make selections, submit                     
+  6. EPM generates - Should complete WITHOUT "No BMC analysis found"            
+  7. View EPM output - Should show real workstreams, timeline, etc.             
+                                                                                
+  ---                                                                           
+  Current Bug: "Version not found"                                              
+                                                                                
+  The Strategic Decisions page expects data in strategy_versions table. Custom  
+  journeys store data in framework_insights table. This is a data flow mismatch.
+                                                                                
+  Before you fix it, TRACE THE FLOW:                                            
+                                                                                
+  1. Where does CustomJourneyExecutor store SWOT results?                       
+  2. What URL does it redirect to for Strategic Decisions?                      
+  3. What API endpoint does that page call?                                     
+  4. What table does that API query?                                            
+  5. Is there data in that table?                                               
+                                                                                
+  Fix the actual mismatch, don't patch symptoms.                                
+                                                                                
+  ---                                                                           
+  Rules Going Forward                                                           
+                                                                                
+  1. No task is complete until the user flow works                              
+  2. Test with real data, not mocks                                             
+  3. Check database state at each step                                          
+  4. If you hit an error, trace the full data flow before fixing                
+  5. Do not declare done until YOU have completed the entire journey            
+  successfully                                                                  
+                                                                                
+  ---                                                                           
+  What is the current state of:                                                 
+  - strategy_versions table for this session?                                   
+  - framework_insights table for this session?                                  
+  - custom_journey_executions table for this session?                           
+                                                                                
+  Show me the SQL results.    

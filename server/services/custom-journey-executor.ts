@@ -234,8 +234,24 @@ export class CustomJourneyExecutor {
             let redirectUrl = `/strategies/${sessionId}`;
             
             if (node.moduleId.includes('decision') || node.moduleId.includes('strategic_decisions')) {
-              // Get or create a session ID for the Decision Page
-              sessionId = sessionId || executionId;
+              // For strategy_versions, we MUST use understandingId as sessionId
+              // The DecisionPage queries by understandingId, so we need consistency
+              if (!sessionId) {
+                // Try to extract understandingId from the journey session metadata
+                const journeySession = await db.select()
+                  .from(journeySessions)
+                  .where(eq(journeySessions.id, executionId))
+                  .limit(1);
+                
+                if (journeySession.length > 0 && journeySession[0].understandingId) {
+                  sessionId = journeySession[0].understandingId;
+                  console.log(`[CustomJourneyExecutor] Retrieved understandingId from journey session: ${sessionId}`);
+                } else {
+                  // Last resort fallback to executionId
+                  sessionId = executionId;
+                  console.warn(`[CustomJourneyExecutor] WARNING: Could not find understandingId, falling back to executionId: ${sessionId}`);
+                }
+              }
               
               // Check if an understanding record exists for this session
               const existingUnderstanding = await db.select()
@@ -366,10 +382,11 @@ export class CustomJourneyExecutor {
                 await db.insert(strategyVersions).values({
                   sessionId: sessionId,
                   versionNumber: versionNumber,
+                  versionLabel: `Strategic Decisions v${versionNumber}`,
                   analysisData: analysisData,
                   decisionsData: decisionsData,
                   status: 'draft',
-                  createdBy: execution.userId || null,
+                  createdBy: execution.userId || 'system',
                   userId: execution.userId || null,
                 });
               } else {

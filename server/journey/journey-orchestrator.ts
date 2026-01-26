@@ -561,9 +561,9 @@ export class JourneyOrchestrator {
       await db.insert(strategyVersions).values({
         sessionId: understandingId,
         versionNumber: 1,
-        content: `Strategic Decisions v1`,
+        versionLabel: `Strategic Decisions v1`,
         decisionsData,
-        createdBy: null,
+        createdBy: 'system',
         userId: null,
       });
       
