@@ -188,3 +188,21 @@ export function getRegistryKeyByManifestId(manifestId: string): string | undefin
 }
 
 export { allManifests };
+
+/**
+ * Validate module system at startup - fail fast if misconfigured
+ */
+export async function validateOnStartup(): Promise<void> {
+  console.log('[Server] Validating module system...');
+  const validation = validateModuleSystem();
+  logValidationResults(validation);
+  
+  if (!validation.valid) {
+    console.error('[Server] ❌ Module system validation FAILED');
+    console.error('[Server] Fix the errors above before continuing');
+    // In production, you may want to throw here to prevent startup
+    // throw new Error('Module system validation failed');
+  } else {
+    console.log('[Server] ✅ Module system validation passed');
+  }
+}

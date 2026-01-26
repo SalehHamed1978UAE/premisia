@@ -313,7 +313,7 @@ export interface ExitStrategy {
 
 export interface EPMProgram {
   // Metadata
-  frameworkType: 'bmc' | 'porters' | 'pestle';
+  frameworkType: 'bmc' | 'porters' | 'pestle' | 'swot';
   frameworkRunId: string;
   generatedAt: Date;
   overallConfidence: number;
@@ -350,7 +350,7 @@ export interface StrategyInsight {
 }
 
 export interface StrategyInsights {
-  frameworkType: 'bmc' | 'porters' | 'pestle';
+  frameworkType: 'bmc' | 'porters' | 'pestle' | 'swot';
   frameworkRunId: string;
   insights: StrategyInsight[];
   references: RawReference[];

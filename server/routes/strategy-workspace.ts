@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db } from '../db';
 import { strategyDecisions, epmPrograms, journeySessions, strategyVersions, strategicUnderstanding, taskAssignments, goldenRecords } from '@shared/schema';
 import { eq, desc, inArray, and } from 'drizzle-orm';
-import { BMCAnalyzer, PortersAnalyzer, PESTLEAnalyzer, EPMSynthesizer } from '../intelligence';
+import { BMCAnalyzer, PortersAnalyzer, PESTLEAnalyzer, EPMSynthesizer, getAggregatedAnalysis } from '../intelligence';
 import type { BMCResults, PortersResults, PESTLEResults } from '../intelligence/types';
 import { storage } from '../storage';
 import { createOpenAIProvider } from '../../src/lib/intelligent-planning/llm-provider';
@@ -396,20 +396,29 @@ async function processEPMGeneration(
       // Continue without job tracking if it fails
     }
 
+    // Use aggregator to get normalized insights from ANY framework (SWOT, BMC, Porters, PESTLE)
+    const { insights: aggregatedInsights, availableFrameworks, primaryFramework } = 
+      version.sessionId 
+        ? await getAggregatedAnalysis(version.sessionId)
+        : { insights: null, availableFrameworks: [], primaryFramework: null };
+
+    // Fallback: Check for BMC in analysisData if aggregator returns nothing
     const analysisData = version.analysisData as any;
     const bmcAnalysis = analysisData?.bmc_research;
 
-    if (!bmcAnalysis) {
-      throw new Error('No BMC analysis found for this version');
+    if (!aggregatedInsights && !bmcAnalysis) {
+      throw new Error('No strategic analysis available. Run at least one framework (SWOT, BMC, Porters, or PESTLE) before generating EPM.');
     }
+
+    console.log(`[EPM Generation] Using ${primaryFramework || 'bmc'} as primary framework, ${availableFrameworks.length} total frameworks available`);
 
     // Prepare context for intelligent program naming
     const namingContext = {
-      bmcKeyInsights: bmcAnalysis.keyInsights || [],
-      bmcRecommendations: bmcAnalysis.recommendations || [],
+      bmcKeyInsights: bmcAnalysis?.keyInsights || [],
+      bmcRecommendations: bmcAnalysis?.recommendations || [],
       selectedDecisions: version.selectedDecisions || null,
       decisionsData: version.decisionsData || null,
-      framework: 'bmc',
+      framework: primaryFramework || 'bmc',
     };
 
     // Fetch user decisions if provided
@@ -461,34 +470,43 @@ async function processEPMGeneration(
       }
     }
 
-    // Convert BMC blocks to BMCResults format
-    const blocks = bmcAnalysis.blocks || [];
-    const findBlock = (name: string) => blocks.find((b: any) => b.blockName === name)?.description || '';
-    
-    const bmcResults: BMCResults = {
-      customerSegments: findBlock('Customer Segments'),
-      valuePropositions: findBlock('Value Propositions'),
-      channels: findBlock('Channels'),
-      customerRelationships: findBlock('Customer Relationships'),
-      revenueStreams: findBlock('Revenue Streams'),
-      keyActivities: findBlock('Key Activities'),
-      keyResources: findBlock('Key Resources'),
-      keyPartnerships: findBlock('Key Partnerships'),
-      costStructure: findBlock('Cost Structure'),
-      contradictions: [],
-      recommendations: bmcAnalysis.recommendations || [],
-      executiveSummary: (bmcAnalysis.keyInsights || []).join('. '),
-    };
-
-    // Run through BMC analyzer
+    // Run through framework analyzer - use aggregated insights if available
     sendSSEEvent(progressId, {
       type: 'step-start',
       step: 'analyze',
       progress: 10,
-      description: 'Analyzing strategic framework...'
+      description: `Analyzing ${primaryFramework || 'strategic'} framework...`
     });
     
-    const insights = await bmcAnalyzer.analyze(bmcResults);
+    // Use aggregated insights if available, otherwise fall back to BMC analyzer
+    let insights;
+    if (aggregatedInsights) {
+      insights = aggregatedInsights;
+      console.log(`[EPM Generation] Using aggregated insights from ${availableFrameworks.join(', ')}`);
+    } else if (bmcAnalysis) {
+      // Fallback: Convert BMC blocks to BMCResults format
+      const blocks = bmcAnalysis.blocks || [];
+      const findBlock = (name: string) => blocks.find((b: any) => b.blockName === name)?.description || '';
+      
+      const bmcResults: BMCResults = {
+        customerSegments: findBlock('Customer Segments'),
+        valuePropositions: findBlock('Value Propositions'),
+        channels: findBlock('Channels'),
+        customerRelationships: findBlock('Customer Relationships'),
+        revenueStreams: findBlock('Revenue Streams'),
+        keyActivities: findBlock('Key Activities'),
+        keyResources: findBlock('Key Resources'),
+        keyPartnerships: findBlock('Key Partnerships'),
+        costStructure: findBlock('Cost Structure'),
+        contradictions: [],
+        recommendations: bmcAnalysis.recommendations || [],
+        executiveSummary: (bmcAnalysis.keyInsights || []).join('. '),
+      };
+      insights = await bmcAnalyzer.analyze(bmcResults);
+      console.log('[EPM Generation] Using BMC analyzer fallback');
+    } else {
+      throw new Error('No strategic analysis available');
+    }
     
     // Include prioritized order and sessionId in user decisions context
     const decisionsWithPriority = userDecisions ? {
@@ -533,7 +551,7 @@ async function processEPMGeneration(
       strategyVersionId,
       strategyDecisionId: decisionId || null,
       userId,
-      frameworkType: 'bmc',
+      frameworkType: primaryFramework || 'bmc',
       executiveSummary: epmProgram.executiveSummary,
       workstreams: epmProgram.workstreams,
       timeline: epmProgram.timeline,

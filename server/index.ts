@@ -11,6 +11,7 @@ import { verifyConnection } from "./config/neo4j";
 import { initializeDatabaseExtensions } from "./db-init";
 import { authReadiness } from "./auth-readiness";
 import { registerServices } from "./services/container";
+import { validateOnStartup } from "./modules/validate-modules";
 
 // CRITICAL: Intercept process.exit to prevent Vite errors from killing the server
 // Vite's customLogger in vite.ts calls process.exit(1) on any error, which crashes
@@ -219,6 +220,9 @@ server.listen({
           log('[Server] Registering application routes...');
           await registerRoutes(app);
           log('[Server] Route registration complete (including auth)');
+          
+          // Validate module system - fail fast if misconfigured
+          await validateOnStartup();
           
           // Setup error handler AFTER routes are registered
           app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
