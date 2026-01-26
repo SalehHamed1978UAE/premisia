@@ -123,12 +123,16 @@ export class JourneyOrchestrator {
     understandingId: string;
     userId: string;
     frameworks: string[];
+    allSteps?: string[]; // All journey steps including non-executable ones (for navigation)
     templateId?: string;
   }): Promise<{ journeySessionId: string; versionNumber: number }> {
-    const { understandingId, userId, frameworks, templateId } = params;
+    const { understandingId, userId, frameworks, allSteps, templateId } = params;
 
     console.log(`[JourneyOrchestrator] Starting custom journey for understanding ${understandingId}`);
     console.log(`[JourneyOrchestrator] Custom frameworks: ${frameworks.join(', ')}`);
+    if (allSteps) {
+      console.log(`[JourneyOrchestrator] All journey steps: ${allSteps.join(', ')}`);
+    }
 
     // Load understanding using secure service
     const understanding = await getStrategicUnderstanding(understandingId);
@@ -166,8 +170,10 @@ export class JourneyOrchestrator {
       const encryptedContext = await encryptJSONKMS(context);
 
       // Store custom framework sequence in metadata
+      // allSteps includes all journey steps (for navigation), frameworks are only executable ones
       const metadata = {
-        frameworks,
+        frameworks: allSteps || frameworks, // Use allSteps for navigation if provided
+        executableFrameworks: frameworks, // Keep track of which are actually executable
         templateId,
         isCustomJourney: true,
       };

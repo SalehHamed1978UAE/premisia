@@ -86,7 +86,9 @@ function StrategyCard({ strategy, selectionMode, isSelected, onToggleSelect, onN
   // Get readiness info from metadata
   const metadata = strategy.strategyMetadata || {};
   const confidence = metadata.confidence || 0;
-  const availableFrameworks = (metadata.completedFrameworks || []).length;
+  // Use frameworkInsightsCount (from framework_insights table) if available, 
+  // otherwise fall back to completedFrameworks from metadata
+  const availableFrameworks = metadata.frameworkInsightsCount || (metadata.completedFrameworks || []).length;
   const availableReferences = metadata.availableReferences || 0;
   
   const statusColor = {

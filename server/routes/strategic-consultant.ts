@@ -2911,6 +2911,7 @@ router.get('/framework-insights/:sessionId/:frameworkName', async (req: Request,
         status: session.status,
         currentFrameworkIndex: session.currentFrameworkIndex,
         completedFrameworks: session.completedFrameworks,
+        understandingId: session.understandingId,
         metadata: session.metadata,
       }
     });

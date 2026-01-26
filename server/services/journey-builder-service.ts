@@ -389,27 +389,31 @@ export class JourneyBuilderService {
       'strategic_decisions': 'strategic_decisions', // Pass through (not executed)
     };
 
-    // Convert template steps to framework names
-    // Filter out 'strategic_understanding' and 'strategic_decisions' as they're not executable frameworks
-    const nonExecutableSteps = ['strategic_understanding', 'strategic_decisions'];
-    const frameworks = template.steps
-      .map(step => frameworkKeyMap[step.frameworkKey] || step.frameworkKey)
-      .filter(key => !nonExecutableSteps.includes(key));
+    // Convert ALL template steps to normalized framework names (for navigation tracking)
+    const allSteps = template.steps
+      .filter(step => step.frameworkKey !== 'strategic_understanding') // Only filter out intake step
+      .map(step => frameworkKeyMap[step.frameworkKey] || step.frameworkKey);
 
-    if (frameworks.length === 0) {
+    // Filter to only executable frameworks (for AI analysis)
+    const nonExecutableSteps = ['strategic_decisions'];
+    const executableFrameworks = allSteps.filter(key => !nonExecutableSteps.includes(key));
+
+    if (executableFrameworks.length === 0) {
       throw new Error('Template has no executable frameworks after filtering');
     }
 
-    const firstFramework = frameworks[0];
+    const firstFramework = executableFrameworks[0];
 
-    console.log('[Journey Builder] Frameworks to execute:', frameworks.join(', '));
+    console.log('[Journey Builder] All journey steps:', allSteps.join(', '));
+    console.log('[Journey Builder] Executable frameworks:', executableFrameworks.join(', '));
 
     // Use JourneyOrchestrator to create a proper journey session
     const orchestrator = new JourneyOrchestrator();
     const { journeySessionId, versionNumber } = await orchestrator.startCustomJourney({
       understandingId: params.understandingId,
       userId: params.userId,
-      frameworks,
+      frameworks: executableFrameworks,
+      allSteps, // Pass ALL steps including non-executable ones for navigation
       templateId: params.templateId,
     });
 

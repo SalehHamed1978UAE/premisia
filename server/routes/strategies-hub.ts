@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db';
-import { journeySessions, strategicUnderstanding, epmPrograms, strategyVersions, references } from '@shared/schema';
+import { journeySessions, strategicUnderstanding, epmPrograms, strategyVersions, references, frameworkInsights } from '@shared/schema';
 import { eq, and, or, desc, sql, inArray } from 'drizzle-orm';
 
 const router = Router();
@@ -9,6 +9,7 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.claims.sub;
     
+    // First get the basic strategy list with journey counts
     const strategies = await db
       .select({
         id: strategicUnderstanding.id,
@@ -21,6 +22,12 @@ router.get('/', async (req: Request, res: Response) => {
         journeyCount: sql<number>`COUNT(DISTINCT ${journeySessions.id})`,
         latestJourneyStatus: sql<string>`MAX(${journeySessions.status})`,
         latestJourneyUpdated: sql<Date>`MAX(${journeySessions.updatedAt})`,
+        latestSessionId: sql<string>`(
+          SELECT id FROM journey_sessions 
+          WHERE understanding_id = ${strategicUnderstanding.id} 
+          AND user_id = ${userId}
+          ORDER BY updated_at DESC LIMIT 1
+        )`,
       })
       .from(strategicUnderstanding)
       .innerJoin(
@@ -34,12 +41,45 @@ router.get('/', async (req: Request, res: Response) => {
       .groupBy(strategicUnderstanding.id)
       .orderBy(desc(strategicUnderstanding.updatedAt));
 
-    const serializedStrategies = strategies.map(s => ({
-      ...s,
-      createdAt: s.createdAt instanceof Date ? s.createdAt.toISOString() : s.createdAt,
-      updatedAt: s.updatedAt instanceof Date ? s.updatedAt.toISOString() : s.updatedAt,
-      latestJourneyUpdated: s.latestJourneyUpdated instanceof Date ? s.latestJourneyUpdated.toISOString() : s.latestJourneyUpdated,
-    }));
+    // Get framework insights counts for each understanding
+    const understandingIds = strategies.map(s => s.id);
+    
+    let frameworkCounts: Record<string, number> = {};
+    if (understandingIds.length > 0) {
+      const counts = await db
+        .select({
+          understandingId: frameworkInsights.understandingId,
+          count: sql<number>`COUNT(DISTINCT ${frameworkInsights.frameworkName})`,
+        })
+        .from(frameworkInsights)
+        .where(inArray(frameworkInsights.understandingId, understandingIds))
+        .groupBy(frameworkInsights.understandingId);
+      
+      frameworkCounts = Object.fromEntries(
+        counts.map(c => [c.understandingId, c.count])
+      );
+    }
+
+    const serializedStrategies = strategies.map(s => {
+      // Get framework count from framework_insights, falling back to strategyMetadata
+      const metadata = s.strategyMetadata as any || {};
+      const insightFrameworkCount = frameworkCounts[s.id] || 0;
+      const metadataFrameworkCount = (metadata.completedFrameworks || []).length;
+      
+      return {
+        ...s,
+        // Merge framework count into strategyMetadata for backward compatibility
+        strategyMetadata: {
+          ...metadata,
+          completedFrameworks: metadata.completedFrameworks || [],
+          // Use the higher of the two counts (framework_insights or strategyMetadata)
+          frameworkInsightsCount: insightFrameworkCount,
+        },
+        createdAt: s.createdAt instanceof Date ? s.createdAt.toISOString() : s.createdAt,
+        updatedAt: s.updatedAt instanceof Date ? s.updatedAt.toISOString() : s.updatedAt,
+        latestJourneyUpdated: s.latestJourneyUpdated instanceof Date ? s.latestJourneyUpdated.toISOString() : s.latestJourneyUpdated,
+      };
+    });
 
     res.json(serializedStrategies);
   } catch (error) {

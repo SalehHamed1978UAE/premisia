@@ -26,8 +26,10 @@ interface FrameworkInsightData {
     status: string;
     currentFrameworkIndex: number;
     completedFrameworks: string[];
+    understandingId?: string;
     metadata: {
-      frameworks: string[];
+      frameworks: string[]; // All journey steps including non-executable (for navigation)
+      executableFrameworks?: string[]; // Only AI-analyzable frameworks
       templateId?: string;
       isCustomJourney: boolean;
     };
@@ -232,13 +234,26 @@ export default function FrameworkInsightPage() {
     }
   }, [data, pollCount, refetch]);
 
+  // Non-executable steps that should navigate to the strategy page instead of framework-insight
+  const nonExecutableSteps = ['strategic_decisions'];
+  
   const handleContinue = () => {
     // Get frameworks from metadata or completedFrameworks as fallback
     const frameworks = data?.session?.metadata?.frameworks || data?.session?.completedFrameworks || [];
+    const understandingId = data?.session?.understandingId;
+    
+    // Helper to navigate to strategy page
+    const navigateToStrategy = () => {
+      if (understandingId) {
+        setLocation(`/strategies/${understandingId}`);
+      } else {
+        setLocation('/strategies');
+      }
+    };
     
     if (frameworks.length === 0) {
-      // No framework list available, return to journeys
-      setLocation('/journeys');
+      // No framework list available, return to strategies
+      navigateToStrategy();
       return;
     }
     
@@ -246,15 +261,31 @@ export default function FrameworkInsightPage() {
     
     if (currentIndex >= 0 && currentIndex < frameworks.length - 1) {
       const nextFramework = frameworks[currentIndex + 1];
-      setLocation(`/strategic-consultant/framework-insight/${sessionId}?framework=${nextFramework}`);
+      
+      // Check if next step is a non-executable step (should navigate to strategy page)
+      if (nonExecutableSteps.includes(nextFramework)) {
+        // Navigate to strategy detail page for non-executable steps
+        navigateToStrategy();
+      } else {
+        // Navigate to the next framework insight page
+        setLocation(`/strategic-consultant/framework-insight/${sessionId}?framework=${nextFramework}`);
+      }
     } else {
       // Either current framework not found or it's the last one
-      setLocation('/journeys');
+      navigateToStrategy();
     }
   };
 
   const handleBack = () => {
-    setLocation('/journeys');
+    // For custom journeys, go back to strategies; otherwise go to journeys
+    const isCustomJourney = data?.session?.metadata?.isCustomJourney;
+    const understandingId = data?.session?.understandingId;
+    
+    if (isCustomJourney && understandingId) {
+      setLocation(`/strategies/${understandingId}`);
+    } else {
+      setLocation('/strategies');
+    }
   };
 
   if (!sessionId || !frameworkName) {
@@ -280,6 +311,7 @@ export default function FrameworkInsightPage() {
     bcg_matrix: 'BCG Matrix',
     value_chain: 'Value Chain Analysis',
     vrio: 'VRIO Analysis',
+    strategic_decisions: 'Strategic Decisions',
   };
 
   // Show loading state on initial load or while waiting for analysis
@@ -441,9 +473,9 @@ export default function FrameworkInsightPage() {
         {renderFrameworkContent()}
 
         <div className="flex justify-between pt-4 border-t">
-          <Button onClick={handleBack} variant="outline" data-testid="button-back-journeys">
+          <Button onClick={handleBack} variant="outline" data-testid="button-back-strategy">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Journeys
+            Back to Strategy
           </Button>
           
           {hasNextFramework ? (
@@ -452,9 +484,9 @@ export default function FrameworkInsightPage() {
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           ) : (
-            <Button onClick={handleBack} data-testid="button-complete">
+            <Button onClick={handleContinue} data-testid="button-complete">
               <CheckCircle2 className="mr-2 h-4 w-4" />
-              Journey Complete
+              View Strategy
             </Button>
           )}
         </div>

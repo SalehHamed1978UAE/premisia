@@ -305,9 +305,18 @@ function JourneyTimelineTab({ sessions }: { sessions: JourneySession[] }) {
                       <span className="text-sm text-muted-foreground">None yet</span>
                     ) : (
                       session.completedFrameworks.map((framework, idx) => (
-                        <Badge key={idx} variant="secondary" className="capitalize" data-testid={`badge-framework-${idx}`}>
-                          {framework.replace(/_/g, ' ')}
-                        </Badge>
+                        <Link 
+                          key={idx}
+                          href={`/strategic-consultant/framework-insight/${session.id}?framework=${framework}`}
+                        >
+                          <Badge 
+                            variant="secondary" 
+                            className="capitalize cursor-pointer hover:bg-secondary/80 transition-colors" 
+                            data-testid={`badge-framework-${idx}`}
+                          >
+                            {framework.replace(/_/g, ' ')}
+                          </Badge>
+                        </Link>
                       ))
                     )}
                   </div>
