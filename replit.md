@@ -45,7 +45,7 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tail
 - **Strategy Workspace**: Bridges AI analysis and EPM programs through a 4-page wizard and EPM Program View.
 - **EPM Display Formatters**: Enterprise-grade visual components for EPM data across 7 tabs with 14 specialized formatters.
 - **Intelligent Planning System**: AI-powered project planning library for schedule optimization, resource allocation, and validation.
-- **Journey Builder System**: Allows users to choose from 7 pre-defined journeys or create custom ones with AI validation. Custom journeys now execute actual framework analyzers via JourneyOrchestrator.
+- **Journey Builder System**: Allows users to choose from 7 pre-defined journeys or create custom ones with AI validation. Custom journeys execute actual framework analyzers via JourneyOrchestrator with consistent session ID handling - all strategy_versions records use `understandingId` (not executionId) to ensure DecisionPage queries work correctly.
 - **Universal Background Jobs System**: Hybrid system for tracking long-running operations with database persistence and real-time SSE streaming.
 - **Non-Blocking Progress UX**: Uses a fixed-position progress card (`MinimizedJobTracker`) and polling.
 - **Full-Pass Export System**: Generates ZIP bundles with strategic analysis and EPM program data in multiple formats.
