@@ -4,7 +4,7 @@
  * that can be composed into journeys via configuration
  */
 
-export type ModuleType = 'analyzer' | 'generator' | 'processor' | 'exporter';
+export type ModuleType = 'analyzer' | 'generator' | 'processor' | 'exporter' | 'user-input';
 
 export type ModuleCategory = 'input' | 'analysis' | 'strategy' | 'customer' | 'execution' | 'output';
 
@@ -30,7 +30,7 @@ export interface ModuleManifest {
   inputs: PortDefinition[];
   outputs: PortDefinition[];
   requires: string[];
-  serviceClass: string;
+  serviceClass: string | null;
   uiComponent?: string;
   tags?: string[];
   estimatedDuration?: number;
@@ -57,8 +57,8 @@ export function validateManifest(manifest: Partial<ModuleManifest>): { valid: bo
     errors.push('Module manifest must have a valid version');
   }
   
-  if (!manifest.type || !['analyzer', 'generator', 'processor', 'exporter'].includes(manifest.type)) {
-    errors.push('Module manifest must have a valid type (analyzer, generator, processor, exporter)');
+  if (!manifest.type || !['analyzer', 'generator', 'processor', 'exporter', 'user-input'].includes(manifest.type)) {
+    errors.push('Module manifest must have a valid type (analyzer, generator, processor, exporter, user-input)');
   }
   
   if (!manifest.category || !['input', 'analysis', 'strategy', 'customer', 'execution', 'output'].includes(manifest.category)) {
@@ -73,8 +73,8 @@ export function validateManifest(manifest: Partial<ModuleManifest>): { valid: bo
     errors.push('Module manifest must have a valid status (implemented, stub)');
   }
   
-  if (!manifest.serviceClass || typeof manifest.serviceClass !== 'string') {
-    errors.push('Module manifest must have a valid serviceClass');
+  if (manifest.type !== 'user-input' && (!manifest.serviceClass || typeof manifest.serviceClass !== 'string')) {
+    errors.push('Module manifest must have a valid serviceClass (except for user-input types)');
   }
   
   if (!Array.isArray(manifest.inputs)) {

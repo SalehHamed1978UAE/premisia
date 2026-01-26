@@ -9,10 +9,11 @@
 
 import { Response } from 'express';
 import { db } from '../db';
-import { customJourneyConfigs, customJourneyExecutions, frameworkInsights } from '@shared/schema';
-import { eq } from 'drizzle-orm';
+import { customJourneyConfigs, customJourneyExecutions, frameworkInsights, strategyVersions, strategicUnderstanding } from '@shared/schema';
+import { eq, and } from 'drizzle-orm';
 import { getExecutionOrder } from '../modules/compatibility';
 import { moduleRegistry } from '../modules/registry';
+import { v4 as uuidv4 } from 'uuid';
 
 // Import real analyzers - singletons
 import { swotAnalyzer } from '../intelligence/swot-analyzer';
@@ -214,14 +215,70 @@ export class CustomJourneyExecutor {
           if (this.isUserInputStep(node.moduleId)) {
             console.log(`[CustomJourneyExecutor] User input step detected: ${node.moduleId}`);
             
-            // Build redirect URL - for strategic decisions, go to Decision Page
-            const understandingId = (execution.inputData as Record<string, any>)?.understandingId || '';
-            const versionNumber = 1; // Default version
-            let redirectUrl = `/strategies/${understandingId}`;
+            // For strategic decisions, we need to create a version record
+            let sessionId = (execution.inputData as Record<string, any>)?.understandingId || '';
+            let versionNumber = 1;
+            let redirectUrl = `/strategies/${sessionId}`;
             
-            if (node.moduleId.includes('decision')) {
-              // Get session ID for Decision Page - use journey session if available
-              const sessionId = (execution.inputData as Record<string, any>)?.journeySessionId || executionId;
+            if (node.moduleId.includes('decision') || node.moduleId.includes('strategic_decisions')) {
+              // Get or create a session ID for the Decision Page
+              sessionId = sessionId || executionId;
+              
+              // Check if an understanding record exists for this session
+              const existingUnderstanding = await db.select()
+                .from(strategicUnderstanding)
+                .where(eq(strategicUnderstanding.sessionId, sessionId))
+                .limit(1);
+              
+              if (existingUnderstanding.length === 0) {
+                // Create a placeholder strategic understanding record
+                // Use 'software_development' as default since custom journeys could be any type
+                console.log(`[CustomJourneyExecutor] Creating placeholder understanding for session: ${sessionId}`);
+                
+                // Build user input from journey context
+                const journeyName = execution.configId ? 'Custom Journey Analysis' : 'Strategic Analysis';
+                const completedFrameworks = Object.keys(aggregatedOutputs);
+                const userInputText = `Custom journey analysis with frameworks: ${completedFrameworks.join(', ') || 'pending'}`;
+                
+                await db.insert(strategicUnderstanding).values({
+                  sessionId: sessionId,
+                  userInput: userInputText,
+                  title: journeyName,
+                  initiativeType: 'software_development',
+                  strategyMetadata: {
+                    completedFrameworks: completedFrameworks,
+                    lastUpdated: new Date().toISOString(),
+                  },
+                });
+              }
+              
+              // Check if a version already exists
+              const existingVersions = await db.select()
+                .from(strategyVersions)
+                .where(eq(strategyVersions.sessionId, sessionId));
+              
+              if (existingVersions.length === 0) {
+                // Create a version with placeholder decisions based on prior analysis
+                versionNumber = 1;
+                const analysisData = aggregatedOutputs || {};
+                
+                // Generate placeholder decisions structure
+                const placeholderDecisions = this.generatePlaceholderDecisions(aggregatedOutputs);
+                
+                console.log(`[CustomJourneyExecutor] Creating version ${versionNumber} for session: ${sessionId}`);
+                await db.insert(strategyVersions).values({
+                  sessionId: sessionId,
+                  versionNumber: versionNumber,
+                  analysisData: analysisData,
+                  decisionsData: placeholderDecisions,
+                  status: 'draft',
+                  createdBy: execution.createdBy || null,
+                  userId: execution.createdBy || null,
+                });
+              } else {
+                versionNumber = existingVersions.length + 1;
+              }
+              
               redirectUrl = `/strategic-consultant/decisions/${sessionId}/${versionNumber}`;
             }
             
@@ -633,6 +690,90 @@ export class CustomJourneyExecutor {
       normalized === step.replace(/_/g, '-') ||
       moduleId.includes('strategic') && moduleId.includes('decision')
     );
+  }
+  
+  /**
+   * Generate placeholder decisions structure based on prior analysis
+   */
+  private generatePlaceholderDecisions(aggregatedOutputs: Record<string, any>): any {
+    // Create a decisions structure that the Decision Page can work with
+    const decisions: any[] = [];
+    
+    // If we have SWOT analysis, generate decisions based on it
+    const swotOutput = aggregatedOutputs['swot'] || aggregatedOutputs['swot-analyzer'] || null;
+    
+    if (swotOutput) {
+      decisions.push({
+        id: 'strategic_direction',
+        title: 'Strategic Direction',
+        question: 'Based on the analysis, what strategic direction should we pursue?',
+        context: 'Consider the strengths, weaknesses, opportunities, and threats identified.',
+        options: [
+          {
+            id: 'growth',
+            label: 'Growth Strategy',
+            description: 'Focus on expanding market share and capabilities',
+            pros: ['Increased revenue potential', 'Market leadership'],
+            cons: ['Higher investment required', 'Increased risk'],
+          },
+          {
+            id: 'consolidation',
+            label: 'Consolidation Strategy',
+            description: 'Focus on optimizing current operations and market position',
+            pros: ['Lower risk', 'Improved efficiency'],
+            cons: ['Limited growth', 'Potential market share loss'],
+          },
+          {
+            id: 'transformation',
+            label: 'Transformation Strategy',
+            description: 'Pursue significant changes to business model or offerings',
+            pros: ['Innovation potential', 'New market opportunities'],
+            cons: ['High disruption', 'Significant investment'],
+          },
+        ],
+        impact_areas: ['Market Position', 'Revenue', 'Operations'],
+      });
+    }
+    
+    // Add a default decision if no analysis outputs yet
+    if (decisions.length === 0) {
+      decisions.push({
+        id: 'initial_focus',
+        title: 'Initial Focus Area',
+        question: 'What should be the initial focus area for this initiative?',
+        context: 'Select the primary area to focus strategic efforts.',
+        options: [
+          {
+            id: 'market_expansion',
+            label: 'Market Expansion',
+            description: 'Focus on entering new markets or segments',
+            pros: ['Growth opportunities', 'Diversification'],
+            cons: ['Market research needed', 'Competitive challenges'],
+          },
+          {
+            id: 'product_innovation',
+            label: 'Product Innovation',
+            description: 'Focus on developing new products or services',
+            pros: ['Differentiation', 'Premium pricing potential'],
+            cons: ['R&D investment', 'Time to market'],
+          },
+          {
+            id: 'operational_excellence',
+            label: 'Operational Excellence',
+            description: 'Focus on improving efficiency and reducing costs',
+            pros: ['Quick wins', 'Improved margins'],
+            cons: ['Limited growth impact', 'Employee concerns'],
+          },
+        ],
+        impact_areas: ['Operations', 'Strategy', 'Resources'],
+      });
+    }
+    
+    return {
+      decisions,
+      decision_flow: 'sequential',
+      estimated_completion_time_minutes: 10,
+    };
   }
   
   /**

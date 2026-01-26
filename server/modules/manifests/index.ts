@@ -21,6 +21,7 @@ export { vrioAnalyzerManifest } from './vrio-analyzer';
 export { scenarioPlanningAnalyzerManifest } from './scenario-planning-analyzer';
 export { jobsToBeDoneAnalyzerManifest } from './jobs-to-be-done-analyzer';
 export { okrGeneratorManifest } from './okr-generator';
+export { strategicDecisionsManifest } from './strategic-decisions';
 
 import { bmcAnalyzerManifest } from './bmc-analyzer';
 import { portersAnalyzerManifest } from './porters-analyzer';
@@ -40,6 +41,7 @@ import { vrioAnalyzerManifest } from './vrio-analyzer';
 import { scenarioPlanningAnalyzerManifest } from './scenario-planning-analyzer';
 import { jobsToBeDoneAnalyzerManifest } from './jobs-to-be-done-analyzer';
 import { okrGeneratorManifest } from './okr-generator';
+import { strategicDecisionsManifest } from './strategic-decisions';
 import type { ModuleManifest } from '../manifest';
 
 export const allManifests: ModuleManifest[] = [
@@ -61,4 +63,5 @@ export const allManifests: ModuleManifest[] = [
   jobsToBeDoneAnalyzerManifest,
   okrGeneratorManifest,
   epmGeneratorManifest,
+  strategicDecisionsManifest,
 ];
