@@ -3,6 +3,12 @@
  *
  * Registry uses keys like 'swot', manifests use IDs like 'swot-analyzer'.
  * This file is the single source of truth for this mapping.
+ *
+ * Design Notes:
+ * - Some frameworks have aliases (e.g., 'bmc' and 'business_model_canvas' both map to 'bmc-analyzer')
+ * - The reverse mapping (MODULE_ID_TO_FRAMEWORK_KEY) uses the LAST key for aliased modules
+ * - This is acceptable since we only need one canonical key per module ID for reverse lookups
+ * - When adding new aliases, place the canonical/preferred key AFTER aliases in the list
  */
 
 export const FRAMEWORK_KEY_TO_MODULE_ID: Record<string, string> = {

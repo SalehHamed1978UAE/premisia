@@ -47,6 +47,15 @@ async function main() {
   const basePath = path.resolve(__dirname, '..');
   const frameworkKey = toSnakeCase(moduleId.replace(/-analyzer$/, '').replace(/-generator$/, ''));
 
+  // Map moduleType (execution type) to type (manifest type)
+  const typeMap: Record<string, string> = {
+    'ai_analyzer': 'analyzer',
+    'user_input': 'user-input',
+    'generator': 'generator',
+    'internal': 'processor',
+  };
+  const manifestType = typeMap[moduleType] || 'analyzer';
+
   // 1. Create manifest
   const manifestContent = `/**
  * ${displayName} Manifest
@@ -64,7 +73,7 @@ export const ${toCamelCase(moduleId)}Manifest: ModuleManifest = {
   category: '${category}',
   icon: 'chart-bar',
   status: 'implemented',
-  type: '${moduleType}',
+  type: '${manifestType}',
   inputs: [
     {
       id: 'context',
