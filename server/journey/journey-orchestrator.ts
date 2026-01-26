@@ -533,11 +533,17 @@ export class JourneyOrchestrator {
         console.log('[JourneyOrchestrator] No insights field found in SWOT record');
       }
       
-      if (swotData && Array.isArray(swotData.strengths) && Array.isArray(swotData.weaknesses)) {
+      // SWOT data is nested: { output: { strengths, weaknesses, ... }, summary, framework }
+      // Need to access swotData.output for the actual SWOT arrays
+      const swotOutput = swotData?.output || swotData;
+      console.log(`[JourneyOrchestrator] SWOT output keys: ${Object.keys(swotOutput || {}).join(', ')}`);
+      
+      if (swotOutput && Array.isArray(swotOutput.strengths) && Array.isArray(swotOutput.weaknesses)) {
         try {
           console.log('[JourneyOrchestrator] Generating AI decisions from SWOT analysis');
+          console.log(`[JourneyOrchestrator] SWOT has ${swotOutput.strengths.length} strengths, ${swotOutput.weaknesses.length} weaknesses`);
           decisionsData = await generator.generateDecisionsFromSWOT(
-            swotData,
+            swotOutput,
             context.userInput || ''
           );
           console.log(`[JourneyOrchestrator] AI generated ${decisionsData?.decisions?.length || 0} decisions`);
@@ -547,6 +553,7 @@ export class JourneyOrchestrator {
         }
       } else {
         console.log('[JourneyOrchestrator] No valid SWOT data available, using placeholder decisions');
+        console.log(`[JourneyOrchestrator] swotOutput exists: ${!!swotOutput}, strengths is array: ${Array.isArray(swotOutput?.strengths)}, weaknesses is array: ${Array.isArray(swotOutput?.weaknesses)}`);
         decisionsData = this.generatePlaceholderDecisions(context);
       }
       
