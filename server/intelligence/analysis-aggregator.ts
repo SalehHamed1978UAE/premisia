@@ -28,11 +28,13 @@ export interface AggregatedAnalysis {
  * Get all available analyses for a session and normalize to StrategyInsights
  */
 export async function getAggregatedAnalysis(sessionId: string): Promise<AggregatedAnalysis> {
-  console.log(`[AnalysisAggregator] Fetching insights for session: ${sessionId}`);
+  console.log(`[AnalysisAggregator] Fetching insights for understandingId: ${sessionId}`);
 
+  // Query by understandingId since that's the consistent identifier across the system
+  // The sessionId column references journey_sessions.id which is different from understandingId
   const insights = await db.select()
     .from(frameworkInsights)
-    .where(eq(frameworkInsights.sessionId, sessionId));
+    .where(eq(frameworkInsights.understandingId, sessionId));
 
   if (!insights || insights.length === 0) {
     console.log('[AnalysisAggregator] No framework insights found');
