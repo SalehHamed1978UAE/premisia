@@ -1,10 +1,12 @@
 import { useRoute, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, ArrowRight, AlertCircle, CheckCircle2, ArrowLeft, TrendingUp, TrendingDown, Target, Shield } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
 import { AppLayout } from "@/components/layout/AppLayout";
 
 interface FrameworkInsightData {
@@ -193,15 +195,42 @@ function GenericRenderer({ data, frameworkName }: { data: any; frameworkName: st
 export default function FrameworkInsightPage() {
   const [, params] = useRoute("/strategic-consultant/framework-insight/:sessionId");
   const [, setLocation] = useLocation();
+  const [pollCount, setPollCount] = useState(0);
+  const [isWaitingForAnalysis, setIsWaitingForAnalysis] = useState(true);
   
   const sessionId = params?.sessionId;
   const searchParams = new URLSearchParams(window.location.search);
   const frameworkName = searchParams.get('framework') || '';
 
-  const { data, isLoading, error } = useQuery<FrameworkInsightData>({
+  const { data, isLoading, error, refetch } = useQuery<FrameworkInsightData>({
     queryKey: ['/api/strategic-consultant/framework-insights', sessionId, frameworkName],
     enabled: !!sessionId && !!frameworkName,
+    retry: false,
   });
+
+  // Poll for results every 3 seconds while analysis is in progress
+  useEffect(() => {
+    // If we have data and it's successful, stop polling
+    if (data?.success && data?.insight) {
+      setIsWaitingForAnalysis(false);
+      return;
+    }
+
+    // If we've polled more than 60 times (3 mins), give up
+    if (pollCount > 60) {
+      setIsWaitingForAnalysis(false);
+      return;
+    }
+
+    // Continue polling if we don't have results yet
+    if (!data?.success || !data?.insight) {
+      const timer = setTimeout(() => {
+        setPollCount(prev => prev + 1);
+        refetch();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [data, pollCount, refetch]);
 
   const handleContinue = () => {
     // Get frameworks from metadata or completedFrameworks as fallback
@@ -240,42 +269,6 @@ export default function FrameworkInsightPage() {
     );
   }
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-          <p className="text-muted-foreground">Loading {frameworkName.toUpperCase()} analysis...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !data?.success || !data.insight) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-8">
-        <Alert variant="destructive" className="max-w-md">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Analysis Not Found</AlertTitle>
-          <AlertDescription>
-            {(error as any)?.message || `The ${frameworkName} analysis hasn't been completed yet or couldn't be found.`}
-          </AlertDescription>
-          <Button onClick={handleBack} className="mt-4" variant="outline">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Journeys
-          </Button>
-        </Alert>
-      </div>
-    );
-  }
-
-  const insight = data.insight;
-  const session = data.session;
-  // Use metadata frameworks or completedFrameworks as fallback
-  const frameworks = session?.metadata?.frameworks || session?.completedFrameworks || [];
-  const currentIndex = frameworks.length > 0 ? frameworks.indexOf(frameworkName) : -1;
-  const hasNextFramework = currentIndex >= 0 && currentIndex < frameworks.length - 1;
-
   const frameworkDisplayNames: Record<string, string> = {
     swot: 'SWOT Analysis',
     bmc: 'Business Model Canvas',
@@ -288,6 +281,70 @@ export default function FrameworkInsightPage() {
     value_chain: 'Value Chain Analysis',
     vrio: 'VRIO Analysis',
   };
+
+  // Show loading state on initial load or while waiting for analysis
+  if (isLoading || (isWaitingForAnalysis && (!data?.success || !data?.insight))) {
+    // Calculate approximate progress (SWOT typically takes 30-45 seconds)
+    const estimatedProgress = Math.min(95, pollCount * 5);
+    
+    return (
+      <AppLayout title={frameworkDisplayNames[frameworkName] || frameworkName.toUpperCase()}>
+        <div className="container mx-auto p-6 max-w-2xl">
+          <Card className="border-primary/20" data-testid="card-analysis-progress">
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-4">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" data-testid="spinner-analysis" />
+              </div>
+              <CardTitle data-testid="text-analysis-title">
+                {frameworkDisplayNames[frameworkName] || frameworkName.toUpperCase()} Analysis in Progress
+              </CardTitle>
+              <CardDescription data-testid="text-analysis-description">
+                Our AI is analyzing your strategic context. This typically takes 30-60 seconds.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Progress value={estimatedProgress} className="h-2" data-testid="progress-analysis" />
+              <p className="text-sm text-center text-muted-foreground" data-testid="text-poll-status">
+                {pollCount === 0 
+                  ? 'Starting analysis...' 
+                  : `Checking for results... (${pollCount * 3}s elapsed)`}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  // Only show error if we've stopped polling and still have no data
+  if (!isWaitingForAnalysis && (error || !data?.success || !data?.insight)) {
+    return (
+      <AppLayout title="Analysis Error">
+        <div className="container mx-auto p-6 max-w-md">
+          <Alert variant="destructive" data-testid="alert-analysis-timeout">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Analysis Not Ready</AlertTitle>
+            <AlertDescription data-testid="text-timeout-message">
+              {pollCount > 60 
+                ? 'The analysis is taking longer than expected. Please try again later.'
+                : (error as any)?.message || `The ${frameworkName} analysis couldn't be found.`}
+            </AlertDescription>
+            <Button onClick={handleBack} className="mt-4" variant="outline" data-testid="button-back-error">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Journeys
+            </Button>
+          </Alert>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  const insight = data!.insight;
+  const session = data!.session;
+  // Use metadata frameworks or completedFrameworks as fallback
+  const frameworks = session?.metadata?.frameworks || session?.completedFrameworks || [];
+  const currentIndex = frameworks.length > 0 ? frameworks.indexOf(frameworkName) : -1;
+  const hasNextFramework = currentIndex >= 0 && currentIndex < frameworks.length - 1;
 
   const renderFrameworkContent = () => {
     const insightData = insight?.insights;
