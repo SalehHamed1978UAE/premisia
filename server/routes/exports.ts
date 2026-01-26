@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { generateFullPassExport } from '../services/export-service';
 import { db } from '../db';
 import { strategicUnderstanding, epmPrograms, strategyVersions } from '@shared/schema';
-import { eq } from 'drizzle-orm';
+import { eq, or } from 'drizzle-orm';
 
 const router = Router();
 
@@ -83,10 +83,15 @@ router.get('/full-pass', async (req, res) => {
     }
 
     // Ownership verification - Check if user owns the strategic understanding via strategy version
+    // Custom journeys use understandingId (strategic_understanding.id) as sessionId,
+    // while standard journeys use strategic_understanding.session_id
     console.log('[Export] Checking strategic understanding for sessionId:', sessionId);
     const [understanding] = await db.select()
       .from(strategicUnderstanding)
-      .where(eq(strategicUnderstanding.sessionId, sessionId))
+      .where(or(
+        eq(strategicUnderstanding.id, sessionId),
+        eq(strategicUnderstanding.sessionId, sessionId)
+      ))
       .limit(1);
 
     if (!understanding) {
@@ -96,10 +101,14 @@ router.get('/full-pass', async (req, res) => {
     }
 
     // Verify ownership through strategy version userId
+    // Use the understanding.id for lookup since custom journeys use understandingId as sessionId
     console.log('[Export] Verifying ownership for sessionId:', sessionId);
     const ownershipCheck = await db.select({ userId: strategyVersions.userId })
       .from(strategyVersions)
-      .where(eq(strategyVersions.sessionId, sessionId))
+      .where(or(
+        eq(strategyVersions.sessionId, sessionId),
+        eq(strategyVersions.sessionId, understanding.id)
+      ))
       .limit(1);
 
     if (!ownershipCheck || ownershipCheck.length === 0) {
