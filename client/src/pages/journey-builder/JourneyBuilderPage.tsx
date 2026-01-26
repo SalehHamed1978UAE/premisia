@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { useLocation } from 'wouter';
 import {
   ReactFlow,
   Controls,
@@ -54,6 +55,7 @@ const nodeTypes: NodeTypes = {
 
 export default function JourneyBuilderPage() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -352,13 +354,31 @@ export default function JourneyBuilderPage() {
           });
           break;
 
+        case 'user_input_required':
+          // Execution paused for user input (e.g., Strategic Decisions)
+          setIsExecuting(false);
+          setCurrentExecutingNode(null);
+          if (eventSourceRef.current) {
+            eventSourceRef.current.close();
+            eventSourceRef.current = null;
+          }
+          toast({
+            title: 'User Input Required',
+            description: data.message || 'Please complete the next step',
+          });
+          // Navigate to the redirect URL (e.g., Decision Page)
+          if (data.redirectUrl) {
+            setLocation(data.redirectUrl);
+          }
+          break;
+
         default:
           console.log('[Journey Builder] Unknown SSE event type:', data.type);
       }
     } catch (error) {
       console.error('[Journey Builder] Error parsing SSE event:', error);
     }
-  }, [nodes, toast]);
+  }, [nodes, toast, setLocation]);
 
   const handleRun = useCallback(async () => {
     if (nodes.length === 0) {
