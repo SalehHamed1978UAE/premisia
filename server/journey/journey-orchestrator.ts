@@ -19,7 +19,7 @@ import { WhysTreeGenerator } from '../strategic-consultant/whys-tree-generator';
 import { BMCResearcher } from '../strategic-consultant/bmc-researcher';
 import { dbConnectionManager } from '../db-connection-manager';
 import { getStrategicUnderstanding, saveJourneySession, getJourneySession, updateJourneySession } from '../services/secure-data-service';
-import { encryptJSONKMS } from '../utils/kms-encryption';
+import { encryptJSONKMS, decryptJSONKMS } from '../utils/kms-encryption';
 import { journeySummaryService } from '../services/journey-summary-service';
 import { isJourneyRegistryV2Enabled } from '../config';
 import { moduleRegistry } from '../modules/registry';
@@ -492,13 +492,46 @@ export class JourneyOrchestrator {
       let decisionsData: any;
       
       // Query for SWOT insight from this journey session
+      console.log(`[JourneyOrchestrator] Looking for SWOT insights in session: ${journeySessionId}`);
       const swotInsights = await db
         .select()
         .from(frameworkInsights)
         .where(sql`${frameworkInsights.sessionId} = ${journeySessionId} AND ${frameworkInsights.frameworkName} = 'swot'`)
         .limit(1);
       
-      const swotData = swotInsights[0]?.insights as any;
+      console.log(`[JourneyOrchestrator] Found ${swotInsights.length} SWOT insight records`);
+      if (swotInsights.length > 0) {
+        console.log(`[JourneyOrchestrator] SWOT insight ID: ${swotInsights[0].id}, sessionId: ${swotInsights[0].sessionId}`);
+      }
+      
+      // Decrypt the insights (they are encrypted in the database)
+      let swotData: any = null;
+      if (swotInsights[0]?.insights) {
+        const rawInsights = swotInsights[0].insights;
+        console.log(`[JourneyOrchestrator] SWOT insights raw type: ${typeof rawInsights}`);
+        if (typeof rawInsights === 'string') {
+          console.log(`[JourneyOrchestrator] SWOT insights string length: ${rawInsights.length}, starts with: ${rawInsights.substring(0, 50)}...`);
+        }
+        
+        try {
+          // Check if it's a string (encrypted) or already an object
+          if (typeof rawInsights === 'string') {
+            swotData = await decryptJSONKMS(rawInsights);
+            console.log('[JourneyOrchestrator] Decrypted SWOT insights successfully');
+            if (swotData) {
+              console.log(`[JourneyOrchestrator] Decrypted data keys: ${Object.keys(swotData).join(', ')}`);
+            }
+          } else if (typeof rawInsights === 'object') {
+            // Already an object (maybe not encrypted or pre-decrypted)
+            swotData = rawInsights;
+            console.log(`[JourneyOrchestrator] SWOT insights already an object with keys: ${Object.keys(swotData || {}).join(', ')}`);
+          }
+        } catch (decryptError) {
+          console.warn('[JourneyOrchestrator] Failed to decrypt SWOT insights:', decryptError);
+        }
+      } else {
+        console.log('[JourneyOrchestrator] No insights field found in SWOT record');
+      }
       
       if (swotData && Array.isArray(swotData.strengths) && Array.isArray(swotData.weaknesses)) {
         try {
