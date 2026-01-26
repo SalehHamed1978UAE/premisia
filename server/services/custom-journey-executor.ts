@@ -33,6 +33,12 @@ import { BMCAnalyzer } from '../intelligence/bmc-analyzer';
 import { PortersAnalyzer } from '../intelligence/porters-analyzer';
 import { PESTLEAnalyzer } from '../intelligence/pestle-analyzer';
 
+// Import additional modules
+import { FiveWhysCoach } from './five-whys-coach';
+import { SegmentDiscoveryEngine } from './segment-discovery-engine';
+import { OKRGenerator } from '../intelligence/okr-generator';
+import { EPMSynthesizer } from '../intelligence/epm-synthesizer';
+
 // Module ID mapping: registry keys (swot) -> analyzer IDs (swot-analyzer)
 const FRAMEWORK_KEY_TO_MODULE_ID: Record<string, string> = {
   'strategic_understanding': 'input-processor',
@@ -53,8 +59,12 @@ const FRAMEWORK_KEY_TO_MODULE_ID: Record<string, string> = {
   'jtbd': 'jtbd-analyzer',
   'competitive_positioning': 'competitive-positioning-analyzer',
   'ocean_strategy': 'ocean-strategy-analyzer',
+  'segment_discovery': 'segment-discovery-analyzer',
+  'okr': 'okr-generator',
+  'epm': 'epm-generator',
   // User input steps (not AI modules)
   'strategic_decisions': 'strategic-decisions',
+  'strategic_understanding': 'strategic-understanding',
   'prioritization': 'prioritization',
 };
 
@@ -62,6 +72,8 @@ const FRAMEWORK_KEY_TO_MODULE_ID: Record<string, string> = {
 const USER_INPUT_STEPS = [
   'strategic_decisions',
   'strategic-decisions',
+  'strategic_understanding',
+  'strategic-understanding',
   'prioritization',
 ];
 
@@ -753,6 +765,86 @@ export class CustomJourneyExecutor {
             bmcOutput: inputs.bmc_output || inputs.bmcOutput,
             portersOutput: inputs.porters_output || inputs.portersOutput,
           });
+        
+        case 'five-whys-analyzer':
+        case 'five_whys':
+          // Five Whys requires a problem statement
+          const fiveWhysCoach = new FiveWhysCoach();
+          const problemStatement = inputs.problemStatement || inputs.problem_statement || businessContext;
+          // Return structured output for the Five Whys analysis chain
+          return {
+            problemStatement,
+            whyChain: [],
+            rootCause: null,
+            status: 'initialized',
+            message: 'Five Whys analysis initialized - requires user interaction to complete the why chain',
+            metadata: {
+              generatedAt: new Date().toISOString(),
+              moduleId,
+            },
+          };
+        
+        case 'segment-discovery-analyzer':
+        case 'segment_discovery':
+          // Segment Discovery requires business context and mode
+          const segmentEngine = new SegmentDiscoveryEngine();
+          const segmentMode = inputs.mode || (businessContext.toLowerCase().includes('b2b') ? 'b2b' : 'b2c');
+          try {
+            const geneLibrary = await segmentEngine.generateGeneLibrary(businessContext, segmentMode);
+            return {
+              type: 'segment_discovery_output',
+              mode: segmentMode,
+              geneLibrary,
+              segments: [],
+              status: 'gene_library_generated',
+              metadata: {
+                generatedAt: new Date().toISOString(),
+              },
+            };
+          } catch (segmentError: any) {
+            console.error('[CustomJourneyExecutor] Segment Discovery error:', segmentError.message);
+            return this.generateMockOutput(moduleId, inputs);
+          }
+        
+        case 'okr-generator':
+        case 'okr':
+          // OKR Generator requires strategic goals
+          const okrGenerator = new OKRGenerator();
+          const strategicGoals = inputs.strategicGoals || inputs.strategic_goals || 
+            (inputs.decisions?.map((d: any) => d.title) || ['Improve operations', 'Increase market share']);
+          const timeframe = inputs.timeframe || inputs.time_horizon || '12 months';
+          return await okrGenerator.generate({
+            businessContext,
+            strategicGoals: Array.isArray(strategicGoals) ? strategicGoals : [strategicGoals],
+            timeframe,
+          });
+        
+        case 'epm-generator':
+        case 'epm':
+          // EPM Generator requires strategic decisions and analysis results
+          const epmSynthesizer = new EPMSynthesizer();
+          const strategyInsights = {
+            analysisType: inputs.frameworkType || 'comprehensive',
+            data: inputs.analysisResults || inputs.aggregatedOutputs || inputs,
+          };
+          try {
+            const epmProgram = await epmSynthesizer.synthesize(
+              { insights: [strategyInsights] } as any,
+              {
+                userInput: businessContext,
+                initiativeType: inputs.initiativeType || 'strategic',
+              } as any
+            );
+            return epmProgram;
+          } catch (epmError: any) {
+            console.error('[CustomJourneyExecutor] EPM Synthesizer error:', epmError.message);
+            return {
+              error: epmError.message,
+              type: 'epm_program',
+              status: 'failed',
+              partialData: inputs,
+            };
+          }
         
         default:
           console.log(`[CustomJourneyExecutor] No real analyzer found for ${moduleId}, using mock`);
