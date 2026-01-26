@@ -34,6 +34,7 @@ interface FrameworkInsightData {
       isCustomJourney: boolean;
     };
   };
+  nextStepRedirectUrl?: string | null;
 }
 
 interface SWOTFactor {
@@ -257,14 +258,25 @@ export default function FrameworkInsightPage() {
       return;
     }
     
+    // Use nextStepRedirectUrl from API if available (for strategic_decisions with correct version)
+    if (data?.nextStepRedirectUrl) {
+      setLocation(data.nextStepRedirectUrl);
+      return;
+    }
+    
     const currentIndex = frameworks.indexOf(frameworkName);
     
     if (currentIndex >= 0 && currentIndex < frameworks.length - 1) {
       const nextFramework = frameworks[currentIndex + 1];
       
-      // Check if next step is a non-executable step (should navigate to strategy page)
-      if (nonExecutableSteps.includes(nextFramework)) {
-        // Navigate to strategy detail page for non-executable steps
+      // Check if next step is a non-executable step (should navigate to decision page)
+      // Normalize framework name for comparison
+      const normalizedNext = nextFramework.toLowerCase().replace(/_/g, '-');
+      if (normalizedNext === 'strategic-decisions') {
+        // For strategic_decisions, navigate to the Decision Page
+        // Fallback to version 1 if API didn't provide redirectUrl (version should exist by now)
+        setLocation(`/strategic-consultant/decisions/${understandingId}/1`);
+      } else if (nonExecutableSteps.map(s => s.toLowerCase().replace(/_/g, '-')).includes(normalizedNext)) {
         navigateToStrategy();
       } else {
         // Navigate to the next framework insight page

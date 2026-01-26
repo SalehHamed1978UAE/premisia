@@ -22,6 +22,15 @@ import { getStrategicUnderstanding, saveJourneySession, getJourneySession, updat
 import { encryptJSONKMS } from '../utils/kms-encryption';
 import { journeySummaryService } from '../services/journey-summary-service';
 import { isJourneyRegistryV2Enabled } from '../config';
+import { moduleRegistry } from '../modules/registry';
+import { strategyVersions } from '@shared/schema';
+
+// User input steps that pause execution and redirect to a page
+const USER_INPUT_FRAMEWORKS = [
+  'strategic_decisions',
+  'strategic-decisions',
+  'prioritization',
+];
 
 export class JourneyOrchestrator {
   /**
@@ -279,6 +288,61 @@ export class JourneyOrchestrator {
           });
         }
 
+        // STEP 1.5: Check if this is a user-input step that requires pausing
+        if (this.isUserInputStep(frameworkName)) {
+          console.log(`[JourneyOrchestrator] User input step detected: ${frameworkName}`);
+          
+          // Create decision version and get redirect URL
+          const redirectUrl = await this.prepareUserInputStep(
+            journeySessionId,
+            context.understandingId,
+            session.versionNumber || 1,
+            context
+          );
+          
+          // Update session status to paused and store redirect URL in metadata
+          await updateJourneySession(journeySessionId, {
+            status: 'paused' as any,
+            accumulatedContext: {
+              ...context,
+              status: 'paused',
+            },
+          });
+          
+          // Store redirectUrl in session metadata for frontend access
+          const currentMetadata = session.metadata as Record<string, any> || {};
+          await db.update(journeySessions)
+            .set({
+              status: 'paused',
+              metadata: {
+                ...currentMetadata,
+                nextStepRedirectUrl: redirectUrl,
+              },
+              updatedAt: new Date(),
+            })
+            .where(eq(journeySessions.id, journeySessionId));
+          
+          console.log(`[JourneyOrchestrator] Stored redirectUrl in session metadata: ${redirectUrl}`);
+          
+          // Emit user_input_required progress event
+          if (progressCallback) {
+            progressCallback({
+              currentFramework: frameworkName,
+              frameworkIndex: i,
+              totalFrameworks: frameworks.length,
+              percentComplete: Math.round((i / frameworks.length) * 100),
+              status: 'Awaiting user input for strategic decisions',
+              userInputRequired: true,
+              redirectUrl,
+            });
+          }
+          
+          console.log(`[JourneyOrchestrator] Paused journey for user input. Redirect: ${redirectUrl}`);
+          
+          // Return context - journey will be resumed after user completes input
+          return context;
+        }
+
         // STEP 2: Execute the framework (NO DB connection held during AI operations)
         const result = await this.executeFramework(frameworkName, context);
 
@@ -378,6 +442,125 @@ export class JourneyOrchestrator {
   ): Promise<FrameworkResult> {
     const { frameworkRegistry } = await import('./framework-executor-registry');
     return frameworkRegistry.execute(frameworkName, context);
+  }
+
+  /**
+   * Check if a framework/step is a user-input type that requires pausing
+   */
+  private isUserInputStep(frameworkName: string): boolean {
+    // Check against known user-input framework names
+    if (USER_INPUT_FRAMEWORKS.includes(frameworkName)) {
+      return true;
+    }
+    
+    // Also check module registry for type='user-input'
+    const normalizedName = frameworkName.replace(/_/g, '-');
+    const module = moduleRegistry.getModule(normalizedName);
+    if (module && module.type === 'user-input') {
+      return true;
+    }
+    
+    // Check if name contains strategic and decision
+    if (frameworkName.includes('strategic') && frameworkName.includes('decision')) {
+      return true;
+    }
+    
+    return false;
+  }
+
+  /**
+   * Prepare for user input step by creating decision version and returning redirect URL
+   */
+  private async prepareUserInputStep(
+    journeySessionId: string,
+    understandingId: string,
+    versionNumber: number,
+    context: StrategicContext
+  ): Promise<string> {
+    // Check if a decision version already exists using understandingId as sessionId
+    const existingVersions = await db.select()
+      .from(strategyVersions)
+      .where(eq(strategyVersions.sessionId, understandingId))
+      .orderBy(strategyVersions.versionNumber);
+    
+    if (existingVersions.length === 0) {
+      // No versions exist: create version 1 with AI-generated decisions based on SWOT
+      const { DecisionGenerator } = await import('../strategic-consultant/decision-generator');
+      const generator = new DecisionGenerator();
+      
+      // Try to extract SWOT output from framework_insights table
+      let decisionsData: any;
+      
+      // Query for SWOT insight from this journey session
+      const swotInsights = await db
+        .select()
+        .from(frameworkInsights)
+        .where(sql`${frameworkInsights.sessionId} = ${journeySessionId} AND ${frameworkInsights.frameworkName} = 'swot'`)
+        .limit(1);
+      
+      const swotData = swotInsights[0]?.insights as any;
+      
+      if (swotData && Array.isArray(swotData.strengths) && Array.isArray(swotData.weaknesses)) {
+        try {
+          console.log('[JourneyOrchestrator] Generating AI decisions from SWOT analysis');
+          decisionsData = await generator.generateDecisionsFromSWOT(
+            swotData,
+            context.userInput || ''
+          );
+          console.log(`[JourneyOrchestrator] AI generated ${decisionsData?.decisions?.length || 0} decisions`);
+        } catch (error) {
+          console.warn('[JourneyOrchestrator] AI decision generation failed, using placeholders:', error);
+          decisionsData = this.generatePlaceholderDecisions(context);
+        }
+      } else {
+        console.log('[JourneyOrchestrator] No valid SWOT data available, using placeholder decisions');
+        decisionsData = this.generatePlaceholderDecisions(context);
+      }
+      
+      // Create version 1 (always use 1 for the first version)
+      await db.insert(strategyVersions).values({
+        sessionId: understandingId,
+        versionNumber: 1,
+        content: `Strategic Decisions v1`,
+        decisionsData,
+        createdBy: null,
+        userId: null,
+      });
+      
+      console.log(`[JourneyOrchestrator] Created decision version 1 for session ${understandingId}`);
+      
+      // Return redirect URL to version 1
+      return `/strategic-consultant/decisions/${understandingId}/1`;
+    } else {
+      // Versions exist: reuse the latest existing version (do NOT increment or create new one)
+      const latestVersion = existingVersions[existingVersions.length - 1];
+      console.log(`[JourneyOrchestrator] Found existing decision version ${latestVersion.versionNumber}, reusing it`);
+      
+      // Return redirect URL to the latest existing version
+      return `/strategic-consultant/decisions/${understandingId}/${latestVersion.versionNumber}`;
+    }
+  }
+
+  /**
+   * Generate placeholder decisions structure when AI generation is not available
+   */
+  private generatePlaceholderDecisions(context: StrategicContext): any {
+    return {
+      decisions: [
+        {
+          id: 'decision-1',
+          title: 'Strategic Direction',
+          description: 'Define the primary strategic direction based on analysis',
+          options: [
+            { id: 'opt-1', title: 'Growth Focus', description: 'Prioritize expansion and market growth' },
+            { id: 'opt-2', title: 'Efficiency Focus', description: 'Optimize operations and reduce costs' },
+            { id: 'opt-3', title: 'Innovation Focus', description: 'Invest in new products and capabilities' },
+          ],
+          selectedOptionId: null,
+        }
+      ],
+      priorities: [],
+    };
   }
 
   /**

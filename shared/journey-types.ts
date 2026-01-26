@@ -192,6 +192,8 @@ export interface JourneyProgress {
   percentComplete: number;
   status: string;
   estimatedTimeRemaining?: string;
+  userInputRequired?: boolean;
+  redirectUrl?: string;
 }
 
 /**

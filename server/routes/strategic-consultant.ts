@@ -2894,6 +2894,42 @@ router.get('/framework-insights/:sessionId/:frameworkName', async (req: Request,
     
     console.log(`[Framework Insights] ✓ Found ${frameworkName} insight for session ${sessionId}`);
     
+    // Get next step redirect URL from session metadata (persisted by JourneyOrchestrator)
+    const metadata = session.metadata as { frameworks?: string[]; nextStepRedirectUrl?: string } | null;
+    let nextStepRedirectUrl: string | null = metadata?.nextStepRedirectUrl || null;
+    
+    // If not in metadata, try to compute it
+    if (!nextStepRedirectUrl) {
+      const frameworks = metadata?.frameworks || [];
+      
+      // Normalize framework names for comparison (underscore <-> hyphen)
+      const normalizeFrameworkName = (name: string) => name.toLowerCase().replace(/_/g, '-');
+      const normalizedFrameworkName = normalizeFrameworkName(frameworkName);
+      
+      // Find current index using normalized comparison
+      const currentIndex = frameworks.findIndex(f => normalizeFrameworkName(f) === normalizedFrameworkName);
+      
+      if (currentIndex >= 0 && currentIndex < frameworks.length - 1) {
+        const nextFramework = frameworks[currentIndex + 1];
+        const normalizedNext = normalizeFrameworkName(nextFramework);
+        
+        // Check if next step is strategic_decisions (user-input type)
+        if (normalizedNext === 'strategic-decisions') {
+          // Query for the latest strategy version
+          const versions = await db.query.strategyVersions.findMany({
+            where: eq(strategyVersions.sessionId, session.understandingId || ''),
+            orderBy: (sv, { desc }) => [desc(sv.versionNumber)],
+            limit: 1,
+          });
+          
+          // Only provide redirect URL if a version actually exists
+          if (versions.length > 0) {
+            nextStepRedirectUrl = `/strategic-consultant/decisions/${session.understandingId}/${versions[0].versionNumber}`;
+          }
+        }
+      }
+    }
+    
     res.json({
       success: true,
       insight: {
@@ -2913,7 +2949,8 @@ router.get('/framework-insights/:sessionId/:frameworkName', async (req: Request,
         completedFrameworks: session.completedFrameworks,
         understandingId: session.understandingId,
         metadata: session.metadata,
-      }
+      },
+      nextStepRedirectUrl,
     });
   } catch (error: any) {
     console.error('[Framework Insights] Error fetching framework insights:', error);
