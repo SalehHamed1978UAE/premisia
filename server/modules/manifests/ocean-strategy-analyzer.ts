@@ -11,6 +11,7 @@ export const oceanStrategyAnalyzerManifest: ModuleManifest = {
   version: '1.0.0',
   description: 'Analyzes the competitive landscape to determine whether to compete in red ocean (existing market) or create blue ocean (new market space) strategies.',
   type: 'analyzer',
+  moduleType: 'ai_analyzer',
   category: 'strategy',
   icon: 'navigation',
   status: 'implemented',

@@ -11,6 +11,7 @@ export const fiveWhysAnalyzerManifest: ModuleManifest = {
   version: '1.0.0',
   description: 'Interactive root cause analysis using the Five Whys technique with AI-coaching to uncover strategic problems and generate design constraints for downstream frameworks.',
   type: 'analyzer',
+  moduleType: 'ai_analyzer',
   category: 'analysis',
   icon: 'help-circle',
   status: 'implemented',

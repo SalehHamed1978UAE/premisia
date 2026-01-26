@@ -11,6 +11,7 @@ export const okrGeneratorManifest: ModuleManifest = {
   version: '1.0.0',
   description: 'Generates Objectives and Key Results (OKRs) from strategic analysis outputs, creating measurable goals aligned with strategic priorities.',
   type: 'generator',
+  moduleType: 'generator',
   category: 'execution',
   icon: 'flag',
   status: 'implemented',

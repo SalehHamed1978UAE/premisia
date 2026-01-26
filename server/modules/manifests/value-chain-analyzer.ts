@@ -11,6 +11,7 @@ export const valueChainAnalyzerManifest: ModuleManifest = {
   version: '1.0.0',
   description: 'Analyzes primary and support activities in the value chain to identify sources of competitive advantage and optimization opportunities.',
   type: 'analyzer',
+  moduleType: 'ai_analyzer',
   category: 'analysis',
   icon: 'link',
   status: 'implemented',

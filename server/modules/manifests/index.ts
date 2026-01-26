@@ -22,6 +22,7 @@ export { scenarioPlanningAnalyzerManifest } from './scenario-planning-analyzer';
 export { jobsToBeDoneAnalyzerManifest } from './jobs-to-be-done-analyzer';
 export { okrGeneratorManifest } from './okr-generator';
 export { strategicDecisionsManifest } from './strategic-decisions';
+export { strategicUnderstandingManifest } from './strategic-understanding';
 
 import { bmcAnalyzerManifest } from './bmc-analyzer';
 import { portersAnalyzerManifest } from './porters-analyzer';
@@ -42,10 +43,12 @@ import { scenarioPlanningAnalyzerManifest } from './scenario-planning-analyzer';
 import { jobsToBeDoneAnalyzerManifest } from './jobs-to-be-done-analyzer';
 import { okrGeneratorManifest } from './okr-generator';
 import { strategicDecisionsManifest } from './strategic-decisions';
+import { strategicUnderstandingManifest } from './strategic-understanding';
 import type { ModuleManifest } from '../manifest';
 
 export const allManifests: ModuleManifest[] = [
   inputProcessorManifest,
+  strategicUnderstandingManifest,
   fiveWhysAnalyzerManifest,
   bmcAnalyzerManifest,
   portersAnalyzerManifest,

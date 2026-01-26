@@ -11,6 +11,7 @@ export const competitivePositioningAnalyzerManifest: ModuleManifest = {
   version: '1.0.0',
   description: 'Analyzes competitive positioning to identify differentiation opportunities and strategic positioning options in the market.',
   type: 'analyzer',
+  moduleType: 'ai_analyzer',
   category: 'strategy',
   icon: 'crosshair',
   status: 'implemented',

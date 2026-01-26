@@ -11,6 +11,7 @@ export const segmentDiscoveryAnalyzerManifest: ModuleManifest = {
   version: '1.0.0',
   description: 'Identifies and analyzes customer segments to find beachhead and backup segments for market entry and expansion strategies.',
   type: 'analyzer',
+  moduleType: 'ai_analyzer',
   category: 'customer',
   icon: 'users',
   status: 'implemented',

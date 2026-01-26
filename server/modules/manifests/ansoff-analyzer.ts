@@ -11,6 +11,7 @@ export const ansoffAnalyzerManifest: ModuleManifest = {
   version: '1.0.0',
   description: 'Analyzes growth opportunities using the Ansoff Matrix framework: market penetration, market development, product development, and diversification strategies.',
   type: 'analyzer',
+  moduleType: 'ai_analyzer',
   category: 'strategy',
   icon: 'grid',
   status: 'implemented',

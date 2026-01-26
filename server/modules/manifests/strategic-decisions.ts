@@ -11,6 +11,7 @@ export const strategicDecisionsManifest: ModuleManifest = {
   version: '1.0.0',
   description: 'Pauses journey execution for user to input strategic decisions, priorities, and key choices. Captures executive decisions that drive downstream analysis and EPM program generation.',
   type: 'user-input',
+  moduleType: 'user_input',
   category: 'input',
   icon: 'lightbulb',
   status: 'implemented',

@@ -11,6 +11,7 @@ export const blueOceanAnalyzerManifest: ModuleManifest = {
   version: '1.0.0',
   description: 'Applies Blue Ocean Strategy framework to identify uncontested market spaces and create new demand through value innovation.',
   type: 'analyzer',
+  moduleType: 'ai_analyzer',
   category: 'strategy',
   icon: 'waves',
   status: 'implemented',

@@ -11,6 +11,7 @@ export const scenarioPlanningAnalyzerManifest: ModuleManifest = {
   version: '1.0.0',
   description: 'Develops multiple future scenarios based on key uncertainties and macro-environmental factors to prepare strategic responses and build organizational resilience.',
   type: 'analyzer',
+  moduleType: 'ai_analyzer',
   category: 'strategy',
   icon: 'git-branch',
   status: 'implemented',

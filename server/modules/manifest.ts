@@ -10,6 +10,8 @@ export type ModuleCategory = 'input' | 'analysis' | 'strategy' | 'customer' | 'e
 
 export type ModuleStatus = 'implemented' | 'stub';
 
+export type ModuleExecutionType = 'ai_analyzer' | 'user_input' | 'generator' | 'internal';
+
 export interface PortDefinition {
   id: string;
   name: string;
@@ -24,6 +26,7 @@ export interface ModuleManifest {
   version: string;
   description: string;
   type: ModuleType;
+  moduleType: ModuleExecutionType;
   category: ModuleCategory;
   icon: string;
   status: ModuleStatus;

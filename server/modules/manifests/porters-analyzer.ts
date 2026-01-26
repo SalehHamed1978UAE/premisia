@@ -11,6 +11,7 @@ export const portersAnalyzerManifest: ModuleManifest = {
   version: '1.0.0',
   description: 'Analyzes competitive dynamics using Porter\'s Five Forces framework to identify threats, opportunities, and strategic positioning requirements.',
   type: 'analyzer',
+  moduleType: 'ai_analyzer',
   category: 'analysis',
   icon: 'shield',
   status: 'implemented',

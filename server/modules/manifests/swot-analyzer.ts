@@ -11,6 +11,7 @@ export const swotAnalyzerManifest: ModuleManifest = {
   version: '1.0.0',
   description: 'Analyzes internal strengths and weaknesses alongside external opportunities and threats to provide a comprehensive strategic position assessment.',
   type: 'analyzer',
+  moduleType: 'ai_analyzer',
   category: 'analysis',
   icon: 'compass',
   status: 'implemented',

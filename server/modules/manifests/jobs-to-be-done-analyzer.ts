@@ -11,6 +11,7 @@ export const jobsToBeDoneAnalyzerManifest: ModuleManifest = {
   version: '1.0.0',
   description: 'Identifies and analyzes customer jobs, pains, and gains using the Jobs-to-be-Done framework to uncover innovation opportunities and improve product-market fit.',
   type: 'analyzer',
+  moduleType: 'ai_analyzer',
   category: 'customer',
   icon: 'target',
   status: 'implemented',

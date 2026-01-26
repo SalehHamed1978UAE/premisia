@@ -11,6 +11,7 @@ export const epmGeneratorManifest: ModuleManifest = {
   version: '1.0.0',
   description: 'Synthesizes strategic framework results into executable Enterprise Program Management structures including workstreams, tasks, resources, risks, and timelines.',
   type: 'generator',
+  moduleType: 'generator',
   category: 'execution',
   icon: 'calendar',
   status: 'implemented',

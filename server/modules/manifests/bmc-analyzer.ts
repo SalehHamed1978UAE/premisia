@@ -11,6 +11,7 @@ export const bmcAnalyzerManifest: ModuleManifest = {
   version: '1.0.0',
   description: 'Analyzes business model using the 9-block BMC framework with research-backed insights, cross-block consistency validation, and contradiction detection.',
   type: 'analyzer',
+  moduleType: 'ai_analyzer',
   category: 'analysis',
   icon: 'layout-grid',
   status: 'implemented',

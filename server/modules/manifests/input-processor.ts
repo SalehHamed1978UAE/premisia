@@ -11,6 +11,7 @@ export const inputProcessorManifest: ModuleManifest = {
   version: '1.0.0',
   description: 'Processes user strategic input, performs entity extraction, geographic disambiguation, and creates the initial strategic understanding context for downstream frameworks.',
   type: 'processor',
+  moduleType: 'internal',
   category: 'input',
   icon: 'edit',
   status: 'implemented',

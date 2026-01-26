@@ -11,6 +11,7 @@ export const vrioAnalyzerManifest: ModuleManifest = {
   version: '1.0.0',
   description: 'Evaluates resources and capabilities using the VRIO framework (Valuable, Rare, Inimitable, Organized) to identify sources of sustainable competitive advantage.',
   type: 'analyzer',
+  moduleType: 'ai_analyzer',
   category: 'analysis',
   icon: 'gem',
   status: 'implemented',

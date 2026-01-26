@@ -11,6 +11,7 @@ export const pestleAnalyzerManifest: ModuleManifest = {
   version: '1.0.0',
   description: 'Analyzes macro-environmental trends across Political, Economic, Social, Technological, Legal, and Environmental dimensions with evidence-first research.',
   type: 'analyzer',
+  moduleType: 'ai_analyzer',
   category: 'analysis',
   icon: 'globe',
   status: 'implemented',

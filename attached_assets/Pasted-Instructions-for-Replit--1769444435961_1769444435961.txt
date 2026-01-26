@@ -1,0 +1,28 @@
+Instructions for Replit:                                                      
+                                                                                
+  We're done with reactive debugging. Build the Module Factory system properly. 
+                                                                                
+  Read these docs in order:                                                     
+  1. AUDIT_MODULE_FRAMEWORK_MISMATCH.md - Current state (75% broken)            
+  2. PROPOSAL_MODULE_FACTORY.md - What to build                                 
+                                                                                
+  Implementation order:                                                         
+  1. Create shared/module-types.ts - Type Registry with Zod schemas for all     
+  input/output types                                                            
+  2. Create server/modules/base-module.ts - BaseModule class with run() wrapper 
+  3. Create server/modules/validate-modules.ts - Validation that runs at        
+  startup, fails fast if misconfigured                                          
+  4. Create scripts/create-module.ts - CLI: npm run create-module scaffolds     
+  everything                                                                    
+  5. Add moduleType: 'ai_analyzer' | 'user_input' | 'generator' | 'internal' to 
+  all manifests                                                                 
+  6. Update orchestrator/executor to check moduleType before executing          
+  7. Run ALL 19 modules through the factory - recreate/validate each one        
+                                                                                
+  Success criteria:                                                             
+  - Server fails to start if any module is misconfigured                        
+  - All 19 modules visible in Journey Builder                                   
+  - Any journey combination works (SWOT→EPM, BMC→EPM, SWOT→BMC→EPM, etc.)       
+  - npm run create-module generates all required files for a new module         
+                                                                                
+  No quick fixes. Build it right.  

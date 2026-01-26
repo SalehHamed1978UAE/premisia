@@ -11,6 +11,7 @@ export const bcgMatrixAnalyzerManifest: ModuleManifest = {
   version: '1.0.0',
   description: 'Analyzes product/business unit portfolio using the BCG Matrix framework to classify as Stars, Cash Cows, Question Marks, or Dogs for optimal resource allocation.',
   type: 'analyzer',
+  moduleType: 'ai_analyzer',
   category: 'strategy',
   icon: 'pie-chart',
   status: 'implemented',
