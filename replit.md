@@ -56,6 +56,12 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tail
 - **Geographic Disambiguation**: Location-aware journey intake with OpenStreetMap/Nominatim integration.
 - **Journey Registry V2**: Centralized journey definitions with automatic summary generation, baseline reuse, intelligent readiness thresholds, and comprehensive test coverage.
 - **Module Catalog & Journey Config System**: Treats analyzers/generators as modules and expresses journeys via YAML configuration for eventual GUI composition. Key components include a module manifest, journey configuration schema, and a registry.
+- **Module Factory System**: Unified module architecture with 20 registered modules (SWOT, BMC, Porter's, PESTLE, Five Whys, Ansoff, Blue Ocean, Ocean Strategy, BCG Matrix, Value Chain, VRIO, Scenario Planning, Jobs-to-be-Done, Competitive Positioning, Segment Discovery, Strategic Understanding, Strategic Decisions, OKR Generator, EPM Generator, Input Processor). Features include:
+  - Type Registry (`shared/module-types.ts`): Zod schemas for all input/output types ensuring type-safe data flow
+  - BaseModule class (`server/modules/base-module.ts`): Abstract class with validation and error handling
+  - Module validation (`server/modules/validate-modules.ts`): Startup validation ensuring all modules properly configured
+  - ModuleType classification: `ai_analyzer`, `user_input`, `generator`, `internal` for execution routing
+  - ID mapping: Consistent translation between manifest IDs (hyphen-case) and registry keys (snake_case)
 - **Journey Library Expansion**: Framework registry expanded to include 16 executors, including Marketing Consultant.
 - **Golden Records Automation System**: Baseline regression testing for journey executions with versioned snapshots.
 - **BMC SSE Regression Test Suite**: Comprehensive test coverage for Business Model Canvas SSE streaming contract.
