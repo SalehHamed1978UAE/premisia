@@ -235,21 +235,30 @@ export class CustomJourneyExecutor {
                 // Use 'software_development' as default since custom journeys could be any type
                 console.log(`[CustomJourneyExecutor] Creating placeholder understanding for session: ${sessionId}`);
                 
-                // Build user input from journey context
+                // Build user input from journey context with defensive defaults
                 const journeyName = execution.configId ? 'Custom Journey Analysis' : 'Strategic Analysis';
-                const completedFrameworks = Object.keys(aggregatedOutputs);
-                const userInputText = `Custom journey analysis with frameworks: ${completedFrameworks.join(', ') || 'pending'}`;
+                const completedFrameworks = aggregatedOutputs ? Object.keys(aggregatedOutputs) : [];
+                // Always provide a non-empty userInput to satisfy NOT NULL constraint
+                const userInputText = completedFrameworks.length > 0
+                  ? `Custom journey analysis with frameworks: ${completedFrameworks.join(', ')}`
+                  : 'Custom strategic journey - awaiting user input';
                 
-                await db.insert(strategicUnderstanding).values({
-                  sessionId: sessionId,
-                  userInput: userInputText,
-                  title: journeyName,
-                  initiativeType: 'software_development',
-                  strategyMetadata: {
-                    completedFrameworks: completedFrameworks,
-                    lastUpdated: new Date().toISOString(),
-                  },
-                });
+                try {
+                  await db.insert(strategicUnderstanding).values({
+                    sessionId: sessionId,
+                    userInput: userInputText || 'Strategic analysis pending user input',
+                    title: journeyName || 'Strategic Analysis',
+                    initiativeType: 'software_development',
+                    strategyMetadata: {
+                      completedFrameworks: completedFrameworks,
+                      lastUpdated: new Date().toISOString(),
+                    },
+                  });
+                  console.log(`[CustomJourneyExecutor] Created understanding record for session: ${sessionId}`);
+                } catch (insertError: any) {
+                  console.error(`[CustomJourneyExecutor] Failed to create understanding:`, insertError.message);
+                  throw new Error(`Cannot proceed with user input step: failed to create strategic understanding record - ${insertError.message}`);
+                }
               }
               
               // Check if a version already exists
