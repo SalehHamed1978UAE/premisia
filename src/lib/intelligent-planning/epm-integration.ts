@@ -72,34 +72,28 @@ export async function replaceTimelineGeneration(
       onProgress
     );
     
-    if (!planningResult.success) {
-      console.warn('Planning failed validation, but FORCING SUCCESS for testing');
+    // If planning failed, report details and return failure - caller will use WBS workstreams as-is
+    if (!planningResult.success || !planningResult.schedule) {
+      console.warn('[Intelligent Planning] ❌ Planning failed or no schedule generated');
       console.log('=== PLANNING FAILURE DETAILS ===');
       console.log('Success:', planningResult.success);
       console.log('Confidence Score:', planningResult.metadata?.score);
-      console.log('Warnings:', JSON.stringify(planningResult.recommendations, null, 2));
-      console.log('Adjustments Needed:', JSON.stringify(planningResult.strategyAdjustments, null, 2));
       console.log('Schedule Data:', planningResult.schedule ? 'Present' : 'Missing');
-      if (planningResult.schedule) {
-        console.log('Schedule Tasks Count:', planningResult.schedule.tasks?.length || 0);
-        console.log('Schedule Total Months:', planningResult.schedule.totalDuration);
+      if (planningResult.recommendations?.length) {
+        console.log('Warnings:', planningResult.recommendations.length);
+      }
+      if (planningResult.strategyAdjustments?.length) {
+        console.log('Adjustments Needed:', planningResult.strategyAdjustments.length);
       }
       console.log('=== END PLANNING FAILURE DETAILS ===');
       
-      // TEMPORARY: Force success to use the intelligent planning result
-      console.log('⚠️ FORCING SUCCESS - Using intelligent planning result despite validation failure');
-      // Fall through to use the schedule below
-    }
-    
-    // If we get here either planning succeeded OR we forced it (validation failed but we want to see the result)
-    if (!planningResult.schedule) {
-      console.error('No schedule data available, cannot proceed');
+      // Return failure - EPM Synthesizer will use WBS Builder workstreams as-is
       return {
         success: false,
         program: epmProgram,
-        warnings: ['No schedule generated'],
-        adjustments: [],
-        confidence: 0
+        warnings: planningResult.recommendations || ['Planning validation failed or timed out'],
+        adjustments: planningResult.strategyAdjustments || [],
+        confidence: planningResult.metadata?.score || 0
       };
     }
     

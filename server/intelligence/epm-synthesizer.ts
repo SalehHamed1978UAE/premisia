@@ -276,7 +276,10 @@ export class EPMSynthesizer {
         processStartTime
       );
     } else {
-      console.warn('[EPM Synthesis] ⚠️ Intelligent planning unsuccessful, falling back to old system');
+      // CRITICAL FIX: Intelligent planning failed (timeout, validation, etc.)
+      // BUT we already have good workstreams from WBS Builder - USE THEM!
+      // Do NOT fall back to legacy system which regenerates garbage workstreams
+      console.warn('[EPM Synthesis] ⚠️ Intelligent planning unsuccessful');
       console.log('[EPM Synthesis] Planning result details:');
       console.log('  - Success:', planningResult.success);
       console.log('  - Confidence:', planningResult.confidence);
@@ -290,7 +293,22 @@ export class EPMSynthesizer {
         });
       }
       
-      return await this.buildWithOldSystem(insights, userContext, namingContext);
+      // PRESERVE WBS BUILDER WORKSTREAMS - Use them as-is without timeline optimization
+      console.log('[EPM Synthesis] 📦 Using WBS Builder workstreams as-is (skipping timeline optimization)');
+      console.log(`[EPM Synthesis]   Workstreams preserved: ${workstreams.length}`);
+      workstreams.forEach((ws, i) => {
+        console.log(`[EPM Synthesis]     ${i + 1}. ${ws.name} (${ws.deliverables?.length || 0} deliverables)`);
+      });
+      
+      return await this.buildFullProgram(
+        insights,
+        workstreams, // Use WBS Builder workstreams directly
+        planningContext,
+        userContext,
+        namingContext,
+        onProgress,
+        processStartTime
+      );
     }
   }
 
