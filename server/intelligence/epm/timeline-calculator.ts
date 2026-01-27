@@ -33,12 +33,15 @@ export class TimelineCalculator implements ITimelineCalculator {
       deadlineMonths = earliestDeadline;
     }
 
-    let maxWorkstreamEnd = baseMonths;
+    let maxWorkstreamEnd = 0;
     if (workstreams.length > 0) {
       maxWorkstreamEnd = Math.max(...workstreams.map(w => w.endMonth));
     }
 
-    const totalMonths = Math.max(baseMonths, maxWorkstreamEnd);
+    // Use actual workstream duration if available, otherwise fall back to baseMonths
+    // Add buffer for stabilization phase (at least 1 month after last workstream)
+    const effectiveDuration = maxWorkstreamEnd > 0 ? maxWorkstreamEnd + 1 : baseMonths;
+    const totalMonths = Math.max(effectiveDuration, 3); // Minimum 3 months for meaningful phases
     
     if (deadlineMonths < totalMonths && userContext?.hardDeadlines) {
       console.warn(
