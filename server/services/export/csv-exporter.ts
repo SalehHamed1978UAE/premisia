@@ -121,10 +121,15 @@ export function generateAssignmentsCsv(assignments: any[]): string {
 }
 
 export function generateWorkstreamsCsv(workstreams: any[]): string {
-  const headers = ['Workstream ID', 'Name', 'Description', 'Owner', 'Start Date', 'End Date', 'Status', 'Task Count', 'Progress'];
+  const headers = ['Workstream ID', 'Name', 'Description', 'Owner', 'Start Date', 'End Date', 'Status', 'Deliverables Count', 'Deliverables'];
   const rows = [headers.join(',')];
 
   workstreams.forEach((ws: any, idx: number) => {
+    const deliverables = ws.deliverables || [];
+    const deliverableNames = deliverables.map((d: any) => 
+      typeof d === 'string' ? d : (d.name || d.title || d.description || 'Deliverable')
+    );
+    
     const row = [
       ws.id || `WS-${idx + 1}`,
       escapeCsvField(ws.name || `Workstream ${idx + 1}`),
@@ -133,8 +138,8 @@ export function generateWorkstreamsCsv(workstreams: any[]): string {
       ws.startMonth !== undefined ? `Month ${ws.startMonth}` : '-',
       ws.endMonth !== undefined ? `Month ${ws.endMonth}` : '-',
       escapeCsvField(ws.status || 'Pending'),
-      ws.tasks?.length?.toString() || '0',
-      ws.progress !== undefined ? `${ws.progress}%` : '-'
+      deliverables.length.toString(),
+      escapeCsvField(deliverableNames.join('; ') || '-')
     ];
     rows.push(row.join(','));
   });
