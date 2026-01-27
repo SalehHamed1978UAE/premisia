@@ -36,6 +36,9 @@ router.get('/full-pass', async (req, res) => {
       return;
     }
 
+    // Track if ownership was already verified via program
+    let ownershipVerifiedViaProgram = false;
+
     // If no sessionId but we have programId, derive sessionId from program
     if (!sessionId && programId) {
       console.log('[Export] Deriving sessionId from programId:', programId);
@@ -57,6 +60,10 @@ router.get('/full-pass', async (req, res) => {
         res.status(403).json({ error: 'You do not have permission to access this program' });
         return;
       }
+
+      // Ownership verified via program - no need to check again via strategy_versions
+      ownershipVerifiedViaProgram = true;
+      console.log('[Export] Ownership verified via program');
 
       // Get strategy version to find sessionId
       const [version] = await db.select()
@@ -100,30 +107,32 @@ router.get('/full-pass', async (req, res) => {
       return;
     }
 
-    // Verify ownership through strategy version userId
-    // Use the understanding.id for lookup since custom journeys use understandingId as sessionId
-    console.log('[Export] Verifying ownership for sessionId:', sessionId);
-    const ownershipCheck = await db.select({ userId: strategyVersions.userId })
-      .from(strategyVersions)
-      .where(or(
-        eq(strategyVersions.sessionId, sessionId),
-        eq(strategyVersions.sessionId, understanding.id)
-      ))
-      .limit(1);
+    // Verify ownership through strategy version userId (skip if already verified via program)
+    if (!ownershipVerifiedViaProgram) {
+      // Use the understanding.id for lookup since custom journeys use understandingId as sessionId
+      console.log('[Export] Verifying ownership for sessionId:', sessionId);
+      const ownershipCheck = await db.select({ userId: strategyVersions.userId })
+        .from(strategyVersions)
+        .where(or(
+          eq(strategyVersions.sessionId, sessionId),
+          eq(strategyVersions.sessionId, understanding.id)
+        ))
+        .limit(1);
 
-    if (!ownershipCheck || ownershipCheck.length === 0) {
-      console.log('[Export] No strategy versions found for sessionId:', sessionId);
-      res.status(404).json({ error: 'No strategy versions found for this session' });
-      return;
+      if (!ownershipCheck || ownershipCheck.length === 0) {
+        console.log('[Export] No strategy versions found for sessionId:', sessionId);
+        res.status(404).json({ error: 'No strategy versions found for this session' });
+        return;
+      }
+
+      if (ownershipCheck[0].userId !== userId) {
+        console.log('[Export] Ownership check failed:', { versionUserId: ownershipCheck[0].userId, requestUserId: userId });
+        res.status(403).json({ error: 'You do not have permission to access this strategic session' });
+        return;
+      }
+
+      console.log('[Export] Ownership verified for user:', userId);
     }
-
-    if (ownershipCheck[0].userId !== userId) {
-      console.log('[Export] Ownership check failed:', { versionUserId: ownershipCheck[0].userId, requestUserId: userId });
-      res.status(403).json({ error: 'You do not have permission to access this strategic session' });
-      return;
-    }
-
-    console.log('[Export] Ownership verified for user:', userId);
     
     // If programId is provided and wasn't already checked, verify ownership
     if (programId && sessionId === req.query.sessionId) {
