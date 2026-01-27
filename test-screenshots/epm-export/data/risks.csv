@@ -1,0 +1,11 @@
+Risk ID,Risk Description,Probability,Impact,Severity,Mitigation Strategy,Owner
+RISK-1,Internal weakness: High Initial Capital Investment,15,High,-,Monitor and implement controls to reduce high impact,-
+RISK-2,Internal weakness: Premium Mall Rental Costs,15,Low,-,Monitor and implement controls to reduce low impact,-
+RISK-3,Internal weakness: Dependency on Tourism Fluctuations,15,Low,-,Monitor and implement controls to reduce low impact,-
+RISK-4,Internal weakness: Complex Staff Management Requirements,15,Low,-,Monitor and implement controls to reduce low impact,-
+RISK-5,Internal weakness: Rapid Technology Obsolescence,15,Low,-,Monitor and implement controls to reduce low impact,-
+RISK-6,External threat: Economic Recession Impact,15,Low,-,Monitor and implement controls to reduce low impact,-
+RISK-7,External threat: Increasing Market Competition,15,Low,-,Monitor and implement controls to reduce low impact,-
+RISK-8,External threat: Regulatory Changes and Licensing,15,Low,-,Monitor and implement controls to reduce low impact,-
+RISK-9,External threat: Rising Real Estate and Operational Costs,15,Low,-,Monitor and implement controls to reduce low impact,-
+RISK-10,External threat: Shift to Cloud Gaming and Home Setups,15,Low,-,Monitor and implement controls to reduce low impact,-

@@ -732,8 +732,9 @@ export function generateMarkdownReport(pkg: FullExportPackage): string {
       if (benefits.benefits && benefits.benefits.length > 0) {
         lines.push('\n### Expected Benefits\n');
         benefits.benefits.forEach((b: any, idx: number) => {
-          lines.push(`${idx + 1}. **${b.name || b.benefit}**`);
-          if (b.description) lines.push(`   - ${b.description}`);
+          const benefitName = b.name || b.benefit || b.description || b.category || 'Benefit';
+          lines.push(`${idx + 1}. **${benefitName}**`);
+          if (b.description && b.description !== benefitName) lines.push(`   - ${b.description}`);
           if (b.metric) lines.push(`   - **Metric:** ${b.metric}`);
           if (b.target) lines.push(`   - **Target:** ${b.target}`);
           if (b.timeframe) lines.push(`   - **Timeframe:** ${b.timeframe}`);
@@ -842,7 +843,20 @@ export function generateMarkdownReport(pkg: FullExportPackage): string {
       if (qaPlan.approach) lines.push(`**QA Approach:** ${qaPlan.approach}\n`);
       if (qaPlan.standards && qaPlan.standards.length > 0) {
         lines.push('\n**Quality Standards:**\n');
-        qaPlan.standards.forEach((std: string) => lines.push(`- ${std}`));
+        qaPlan.standards.forEach((std: any) => {
+          if (typeof std === 'string') {
+            lines.push(`- ${std}`);
+          } else if (std && typeof std === 'object') {
+            const area = std.area || 'General';
+            const standard = std.standard || std.name || std.description || 'Quality standard';
+            lines.push(`- **${area}:** ${standard}`);
+            if (std.acceptanceCriteria && Array.isArray(std.acceptanceCriteria)) {
+              std.acceptanceCriteria.forEach((criteria: string) => {
+                lines.push(`  - ${criteria}`);
+              });
+            }
+          }
+        });
         lines.push('');
       }
       if (qaPlan.reviews && qaPlan.reviews.length > 0) {
