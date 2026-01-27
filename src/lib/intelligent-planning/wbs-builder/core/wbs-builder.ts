@@ -28,9 +28,16 @@ export class WBSBuilder implements IWBSBuilder {
     console.log('[WBS Builder] Starting WBS generation...');
     console.log(`[WBS Builder] Business: ${context.business.name}`);
     console.log(`[WBS Builder] Scale: ${context.business.scale}`);
+    console.log(`[WBS Builder] Input insights count: ${insights?.insights?.length || 0}`);
+    
+    let currentStep = 'initialization';
+    let partialWorkstreams: any[] = [];
+    let intent: any = null;
+    let pattern: any = null;
     
     try {
       // Step 0: Extract strategy signals from BMC insights (with fallback)
+      currentStep = 'strategy-extraction';
       let strategyProfile: any = undefined;
       
       try {
@@ -50,14 +57,21 @@ export class WBSBuilder implements IWBSBuilder {
       }
       
       // Step 1: Analyze business intent (with strategy awareness)
+      currentStep = 'business-analysis';
+      console.log('[WBS Builder] Step 1: Analyzing business intent...');
       const analysisInput: AnalysisInput = { insights, context, strategyProfile };
-      const intent = await this.analyzer.process(analysisInput);
+      intent = await this.analyzer.process(analysisInput);
+      console.log(`[WBS Builder] Step 1 complete: initiativeType=${intent.initiativeType}, confidence=${intent.confidence}`);
       
       // Step 2: Select work breakdown pattern
-      let pattern = await this.patternProvider.process(intent);
+      currentStep = 'pattern-selection';
+      console.log('[WBS Builder] Step 2: Selecting work breakdown pattern...');
+      pattern = await this.patternProvider.process(intent);
+      console.log(`[WBS Builder] Step 2 complete: patternId=${pattern.patternId}, streams=${pattern.streams?.length || 0}`);
       
       // Step 2.5: Apply strategy-based adjustments to pattern (if available)
       if (strategyProfile) {
+        currentStep = 'pattern-adjustment';
         const { AdaptivePatternWeighter } = await import('../providers/adaptive-pattern-weighter');
         pattern = AdaptivePatternWeighter.adjustPattern(pattern, strategyProfile);
       } else {
@@ -65,23 +79,36 @@ export class WBSBuilder implements IWBSBuilder {
       }
       
       // Step 3: Optimize pattern into concrete workstreams
+      currentStep = 'stream-optimization';
+      console.log('[WBS Builder] Step 3: Optimizing pattern into workstreams...');
       const optimizationInput: OptimizationInput = { pattern, context, insights };
       const workstreams = await this.optimizer.process(optimizationInput);
+      partialWorkstreams = workstreams;
+      console.log(`[WBS Builder] Step 3 complete: generated ${workstreams.length} workstreams`);
+      workstreams.forEach((ws, i) => {
+        console.log(`  [${i+1}] ${ws.name} (${ws.id}) - ${ws.deliverables?.length || 0} deliverables`);
+      });
       
       // Step 4: Validate semantic coherence
+      currentStep = 'semantic-validation';
+      console.log('[WBS Builder] Step 4: Validating semantic coherence...');
       const validationInput: ValidationInput = {
         objective: context.business.description,
         context,
         workstreams
       };
       const validationReport = await this.validator.process(validationInput);
+      console.log(`[WBS Builder] Step 4 complete: isValid=${validationReport.isValid}, coherenceScore=${validationReport.coherenceScore}`);
       
       // Calculate overall confidence
+      currentStep = 'confidence-calculation';
+      console.log('[WBS Builder] Step 5: Calculating confidence...');
       const confidence = this.calculateConfidence(
         intent.confidence,
         validationReport.coherenceScore,
         workstreams
       );
+      console.log(`[WBS Builder] Step 5 complete: confidence=${confidence}`);
       
       const wbs: WBS = {
         intent,
@@ -106,8 +133,19 @@ export class WBSBuilder implements IWBSBuilder {
       
       return wbs;
       
-    } catch (error) {
-      console.error('[WBS Builder] Error during WBS generation:', error);
+    } catch (error: any) {
+      console.error('╔════════════════════════════════════════════════════════════════════════════════╗');
+      console.error('║ [WBS Builder] ❌ CRITICAL FAILURE - FULL DIAGNOSTIC                            ║');
+      console.error('╠════════════════════════════════════════════════════════════════════════════════╣');
+      console.error(`║ Failed at step: ${currentStep}`);
+      console.error(`║ Error message: ${error?.message || 'Unknown error'}`);
+      console.error(`║ Partial workstreams generated: ${partialWorkstreams.length}`);
+      console.error(`║ Intent captured: ${intent ? 'Yes - ' + intent.initiativeType : 'No'}`);
+      console.error(`║ Pattern captured: ${pattern ? 'Yes - ' + pattern.patternId : 'No'}`);
+      console.error('╠════════════════════════════════════════════════════════════════════════════════╣');
+      console.error('║ FULL STACK TRACE:');
+      console.error('╚════════════════════════════════════════════════════════════════════════════════╝');
+      console.error(error?.stack || error);
       throw error;
     }
   }

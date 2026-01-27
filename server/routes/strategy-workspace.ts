@@ -37,9 +37,13 @@ function sendSSEEvent(progressId: string, data: any) {
 }
 
 // Create LLM provider for intelligent planning
+// CRITICAL: API key validation and correct model selection
+if (!process.env.OPENAI_API_KEY) {
+  console.warn('[strategy-workspace] OPENAI_API_KEY not set - EPM synthesis will fail if attempted');
+}
 const llm = createOpenAIProvider({
   apiKey: process.env.OPENAI_API_KEY || '',
-  model: 'gpt-5'
+  model: process.env.OPENAI_MODEL || 'gpt-4o'
 });
 
 const epmSynthesizer = new EPMSynthesizer(llm);

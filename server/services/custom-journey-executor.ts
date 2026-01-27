@@ -38,6 +38,7 @@ import { FiveWhysCoach } from './five-whys-coach';
 import { SegmentDiscoveryEngine } from './segment-discovery-engine';
 import { OKRGenerator } from '../intelligence/okr-generator';
 import { EPMSynthesizer } from '../intelligence/epm-synthesizer';
+import { createOpenAIProvider } from '../../src/lib/intelligent-planning/llm-provider';
 
 // Module ID mapping: registry keys (swot) -> analyzer IDs (swot-analyzer)
 const FRAMEWORK_KEY_TO_MODULE_ID: Record<string, string> = {
@@ -839,7 +840,16 @@ export class CustomJourneyExecutor {
         case 'epm-generator':
         case 'epm':
           // EPM Generator requires strategic decisions and analysis results
-          const epmSynthesizer = new EPMSynthesizer();
+          // CRITICAL: Must pass LLM provider for WBS Builder to work
+          if (!process.env.OPENAI_API_KEY) {
+            console.error('[CustomJourneyExecutor] OPENAI_API_KEY not set, EPM synthesis will fail');
+            throw new Error('EPM synthesis requires OPENAI_API_KEY environment variable');
+          }
+          const epmLlm = createOpenAIProvider({
+            apiKey: process.env.OPENAI_API_KEY,
+            model: process.env.OPENAI_MODEL || 'gpt-4o'
+          });
+          const epmSynthesizer = new EPMSynthesizer(epmLlm);
           const strategyInsights = {
             analysisType: inputs.frameworkType || 'comprehensive',
             data: inputs.analysisResults || inputs.aggregatedOutputs || inputs,

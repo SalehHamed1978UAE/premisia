@@ -100,9 +100,9 @@ export class EPMSynthesizer {
   private assignmentGenerator: AssignmentGenerator;
 
   constructor(llm?: any) {
-    // Note: llm should implement ILLMProvider with generateStructured method
-    // for WBS Builder. If null, WorkstreamGenerator will use fallback mode.
-    // aiClients is kept for other AI operations that don't need generateStructured.
+    // Note: llm MUST implement ILLMProvider with generateStructured method for WBS Builder.
+    // If llm is null/undefined, WBS Builder will FAIL (no silent fallback).
+    // Always pass a valid LLM provider for proper workstream generation.
     this.llm = llm;
     
     this.workstreamGenerator = new WorkstreamGenerator(this.llm);
@@ -174,9 +174,13 @@ export class EPMSynthesizer {
       const elapsedSeconds = Math.round((Date.now() - startTime) / 1000);
       console.log(`[EPM Synthesis] ✅ Complete in ${elapsedSeconds}s`);
       
+      // NOTE: Do NOT send 'complete' event here - the route handler sends it WITH programId
+      // Sending complete here would cause frontend to receive a complete event without programId
+      // The route at strategy-workspace.ts line 607-615 sends the proper complete event after DB save
       onProgress?.({
-        type: 'complete',
-        description: 'EPM synthesis complete',
+        type: 'step-complete',
+        step: 'synthesis',
+        description: 'EPM synthesis finished, preparing to save...',
         elapsedSeconds
       });
       

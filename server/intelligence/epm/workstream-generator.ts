@@ -131,31 +131,22 @@ export class WorkstreamGenerator implements IWorkstreamGenerator {
       
       return workstreams;
       
-    } catch (error) {
-      console.error('[WorkstreamGenerator] WBS Builder failed, falling back to legacy generation:', error);
+    } catch (error: any) {
+      // NO FALLBACK - failing silently with garbage data is worse than failing loudly
+      console.error('╔════════════════════════════════════════════════════════════════════════════════╗');
+      console.error('║ [WorkstreamGenerator] ❌ CRITICAL FAILURE - WBS BUILDER FAILED                 ║');
+      console.error('╠════════════════════════════════════════════════════════════════════════════════╣');
+      console.error(`║ Session ID: ${userContext?.sessionId || 'N/A'}`);
+      console.error(`║ Insights count: ${insights?.insights?.length || 0}`);
+      console.error(`║ Framework type: ${insights?.frameworkType || 'N/A'}`);
+      console.error(`║ Error: ${error?.message || 'Unknown error'}`);
+      console.error('╠════════════════════════════════════════════════════════════════════════════════╣');
+      console.error('║ FULL STACK TRACE:');
+      console.error('╚════════════════════════════════════════════════════════════════════════════════╝');
+      console.error(error?.stack || error);
       
-      const workstreamInsights = insights.insights.filter(i => i.type === 'workstream');
-      
-      const workstreams: Workstream[] = workstreamInsights.map((insight, index) => {
-        const deliverables = this.generateDeliverables(insight, index);
-        
-        return {
-          id: `WS${String(index + 1).padStart(3, '0')}`,
-          name: insight.content.split('\n')[0] || `Workstream ${index + 1}`,
-          description: insight.content,
-          deliverables,
-          startMonth: Math.floor(index / 2) + 1,
-          endMonth: Math.min(Math.floor(index / 2) + 1 + deliverables.length, 12),
-          dependencies: index > 0 ? [`WS${String(index).padStart(3, '0')}`] : [],
-          confidence: insight.confidence,
-        };
-      });
-
-      if (workstreams.length < 3) {
-        workstreams.push(...this.generateDefaultWorkstreams(3 - workstreams.length));
-      }
-
-      return workstreams;
+      // Propagate the error - do NOT fall back to garbage data
+      throw new Error(`WBS Builder failed: ${error?.message || 'Unknown error'}. Session: ${userContext?.sessionId || 'N/A'}`);
     }
   }
 
