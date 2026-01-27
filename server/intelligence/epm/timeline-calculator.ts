@@ -43,6 +43,13 @@ export class TimelineCalculator implements ITimelineCalculator {
     const effectiveDuration = maxWorkstreamEnd > 0 ? maxWorkstreamEnd + 1 : baseMonths;
     const totalMonths = Math.max(effectiveDuration, 3); // Minimum 3 months for meaningful phases
     
+    console.log(`[TimelineCalculator] 📊 Timeline calculation:`);
+    console.log(`  - Workstream count: ${workstreams.length}`);
+    console.log(`  - Max workstream end: M${maxWorkstreamEnd}`);
+    console.log(`  - Base months (from urgency): ${baseMonths}`);
+    console.log(`  - Effective duration: ${effectiveDuration}`);
+    console.log(`  - Total months: ${totalMonths}`);
+    
     if (deadlineMonths < totalMonths && userContext?.hardDeadlines) {
       console.warn(
         `[TimelineCalculator] Hard deadline at M${deadlineMonths} exceeded by corrected schedule (M${totalMonths}). ` +

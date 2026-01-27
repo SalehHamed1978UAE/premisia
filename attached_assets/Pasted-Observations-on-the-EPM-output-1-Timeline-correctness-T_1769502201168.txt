@@ -1,0 +1,60 @@
+Observations on the EPM output:
+
+  1. Timeline correctness – The regenerated plan now has eight proper
+     workstreams with overlaps, deliverables, and confidence variation (mostly
+     85%). This is a big improvement over the linear “Capitalize on…” ladder we
+     were seeing before.
+  2. Naming mismatch – The exported ZIP uses the correct title (“Premium Sneaker
+     Store Launch Abu Dhabi”), but the EPM program record inside the app still
+     shows the old session label. That suggests the program name is being
+     populated from a default template instead of the strategy title when the
+     record is created. Replit needs to ensure the same naming field (probably
+     the strategy title) is used for both the DB record and the export.
+
+  Once they normalize the naming source, the UI should match the ZIP filename.
+  Let them know the timeline looks good now; the remaining bug is the
+  inconsistent program name.
+
+  these issues weren’t resolved:
+
+  1. EPM Title bug – The screenshot clearly shows an AI-generated generic title
+     (“Premium Sneaker Store Launch Abu Dhabi”), but the UI still labels it with
+     an old session name (“Retail Outlet Construction & Setup”). We need Replit
+     to trace where the EPM program name is set (likely during epm_programs
+     insert) and ensure it pulls from the journey/strategy title instead of an
+     AI placeholder.
+  2. Wrong workstream content – Even though WBS Builder now preserves its
+     output, it’s generating food-service workstreams (“Food Safety Legal
+     Compliance,” etc.) for a sneaker store. That means the inputs the builder
+     is consuming are still tied to a previous journey (likely the café
+     session). Ask Replit to verify:
+      - Which framework_insights rows are being fed into WBS Builder for this
+        new session?
+      - Are they actually coming from the sneaker journey, or did the builder
+        reuse cached data? They need to log the context passed to WBS Builder to
+        ensure it contains the new business description.
+  3. Timeline still 12 months – The code change in timeline-calculator.ts won’t
+     help existing records, but this program was generated after the fix and
+     still shows phases through M12. That means the calculator isn’t actually
+     using the workstream duration when creating phases. Have Replit:
+      - Log the computed totalMonths during timeline calculation for this run.
+      - Confirm whether the program’s phases field in the DB was updated with
+        the new logic or still hard-coded.
+
+        The main problems are:                                                        
+                                                                                
+  1. EPM Title Bug: The program title is AI-generated and doesn't use the       
+  journey/strategy name. Need to find where the title is generated and use the  
+  actual business name.                                                         
+  2. WBS Builder Not Using Business Context: The workstreams describe food      
+  service, not a sneaker store. The WBS Builder isn't receiving or using the    
+  actual business context.                                                      
+  3. Timeline fix didn't work: Phases still show 0-12 when workstreams only go  
+  to Month 3.                                                                   
+                                                                                
+  Tell Replit to investigate:                                                   
+  - Where does the EPM program title come from? (Should use journey name, not AI
+   generation)                                                                  
+  - Why is WBS Builder generating food service workstreams for a sneaker store? 
+  - Why is the timeline still showing 12 months when the fix was applied?       
+                                                                           

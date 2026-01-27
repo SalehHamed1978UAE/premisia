@@ -341,29 +341,41 @@ async function processEPMGeneration(
       throw new Error('Strategy version not found');
     }
 
-    // Fetch initiative type from strategic_understanding table
+    // Fetch initiative type and journey title from strategic_understanding table
     // This is the SINGLE SOURCE OF TRUTH - fetched once and passed explicitly
+    // NOTE: version.sessionId is actually the understanding_id (strategic_understanding.id)
     let initiativeType: string | undefined = undefined;
+    let journeyTitle: string | undefined = undefined;
     if (version.sessionId) {
       try {
+        // Query by strategic_understanding.id (not sessionId) because version.sessionId
+        // is actually the understanding_id (UUID format)
         const [understanding] = await db
-          .select({ initiativeType: strategicUnderstanding.initiativeType })
+          .select({ 
+            initiativeType: strategicUnderstanding.initiativeType,
+            title: strategicUnderstanding.title,
+          })
           .from(strategicUnderstanding)
-          .where(eq(strategicUnderstanding.sessionId, version.sessionId))
+          .where(eq(strategicUnderstanding.id, version.sessionId))
           .limit(1);
         
         if (understanding?.initiativeType) {
           initiativeType = understanding.initiativeType;
-          console.log(`[EPM Generation] ✅ Initiative type fetched: "${initiativeType}" for session: ${version.sessionId}`);
-        } else {
-          console.warn(`[EPM Generation] ⚠️ No initiative type found for session: ${version.sessionId}`);
+          console.log(`[EPM Generation] ✅ Initiative type fetched: "${initiativeType}"`);
+        }
+        if (understanding?.title) {
+          journeyTitle = understanding.title;
+          console.log(`[EPM Generation] ✅ Journey title fetched: "${journeyTitle}"`);
+        }
+        if (!understanding) {
+          console.warn(`[EPM Generation] ⚠️ No strategic understanding found for id: ${version.sessionId}`);
         }
       } catch (error) {
-        console.error('[EPM Generation] ❌ Error fetching initiative type:', error);
+        console.error('[EPM Generation] ❌ Error fetching strategic understanding:', error);
         // Continue without initiative type - will use fallback
       }
     } else {
-      console.warn('[EPM Generation] ⚠️ No sessionId available - cannot fetch initiative type');
+      console.warn('[EPM Generation] ⚠️ No sessionId available - cannot fetch strategic context');
     }
 
     // Create background job record for tracking (after we have sessionId)
@@ -417,7 +429,9 @@ async function processEPMGeneration(
     console.log(`[EPM Generation] Using ${primaryFramework || 'bmc'} as primary framework, ${availableFrameworks.length} total frameworks available`);
 
     // Prepare context for intelligent program naming
+    // journeyTitle takes priority - use it directly instead of AI generation
     const namingContext = {
+      journeyTitle: journeyTitle, // From strategic_understanding.title - USE THIS!
       bmcKeyInsights: bmcAnalysis?.keyInsights || [],
       bmcRecommendations: bmcAnalysis?.recommendations || [],
       selectedDecisions: version.selectedDecisions || null,

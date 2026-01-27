@@ -24,37 +24,56 @@ export class ContextBuilder {
     const budgetRange = this.inferBudgetRange(scale, insights);
     
     let initiativeType: string | undefined = undefined;
+    let businessName: string = 'Unnamed Business';
+    let businessDescription: string = '';
+    
     if (sessionId) {
       try {
         const { db } = await import('../../db');
         const { strategicUnderstanding } = await import('@shared/schema');
         const { eq } = await import('drizzle-orm');
         
+        // The sessionId passed is actually the understanding_id (UUID format)
+        // which equals strategic_understanding.id, NOT strategic_understanding.session_id
         const understanding = await db
-          .select({ initiativeType: strategicUnderstanding.initiativeType })
+          .select({ 
+            initiativeType: strategicUnderstanding.initiativeType,
+            title: strategicUnderstanding.title,
+            initiativeDescription: strategicUnderstanding.initiativeDescription,
+          })
           .from(strategicUnderstanding)
-          .where(eq(strategicUnderstanding.sessionId, sessionId))
+          .where(eq(strategicUnderstanding.id, sessionId))
           .limit(1);
         
-        if (understanding.length > 0 && understanding[0].initiativeType) {
-          initiativeType = understanding[0].initiativeType;
-          console.log(`[ContextBuilder] 🎯 Retrieved initiative type from DB: ${initiativeType}`);
+        if (understanding.length > 0) {
+          if (understanding[0].initiativeType) {
+            initiativeType = understanding[0].initiativeType;
+            console.log(`[ContextBuilder] 🎯 Retrieved initiative type from DB: ${initiativeType}`);
+          }
+          if (understanding[0].title) {
+            businessName = understanding[0].title;
+            console.log(`[ContextBuilder] 🏢 Retrieved business name from DB: "${businessName}"`);
+          }
+          if (understanding[0].initiativeDescription) {
+            businessDescription = understanding[0].initiativeDescription;
+            console.log(`[ContextBuilder] 📝 Retrieved business description from DB`);
+          }
         } else {
-          console.log('[ContextBuilder] ⚠️ No initiative type found in DB for session:', sessionId);
+          console.log('[ContextBuilder] ⚠️ No strategic understanding found for id:', sessionId);
         }
       } catch (error) {
-        console.error('[ContextBuilder] Error fetching initiative type:', error);
+        console.error('[ContextBuilder] Error fetching strategic understanding:', error);
       }
     } else {
-      console.log('[ContextBuilder] ⚠️ No sessionId provided, cannot fetch initiative type');
+      console.log('[ContextBuilder] ⚠️ No sessionId provided, cannot fetch strategic context');
     }
     
     return {
       business: {
-        name: 'Unnamed Business',
+        name: businessName,
         type: this.inferBusinessType(insights),
         industry: insights.marketContext?.industry || 'general',
-        description: '',
+        description: businessDescription,
         scale,
         initiativeType
       },

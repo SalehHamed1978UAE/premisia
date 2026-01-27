@@ -576,6 +576,13 @@ export class ProgramNameGenerator {
     namingContext?: any
   ): Promise<string> {
     try {
+      // PRIORITY: Use journey title if available (from strategic_understanding)
+      // This is the user-facing name they see in the journey, so use it directly
+      if (namingContext?.journeyTitle) {
+        console.log(`[ProgramNameGenerator] 🎯 Using journey title: "${namingContext.journeyTitle}"`);
+        return namingContext.journeyTitle;
+      }
+      
       const keyInsights = namingContext?.bmcKeyInsights || [];
       const recommendations = namingContext?.bmcRecommendations || [];
       const selectedDecisions = namingContext?.selectedDecisions || {};

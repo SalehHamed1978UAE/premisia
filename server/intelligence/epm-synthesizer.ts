@@ -298,13 +298,17 @@ export class EPMSynthesizer {
       // PRESERVE WBS BUILDER WORKSTREAMS - Use them as-is without timeline optimization
       console.log('[EPM Synthesis] 📦 Using WBS Builder workstreams as-is (skipping timeline optimization)');
       console.log(`[EPM Synthesis]   Workstreams preserved: ${workstreams.length}`);
-      workstreams.forEach((ws, i) => {
-        console.log(`[EPM Synthesis]     ${i + 1}. ${ws.name} (${ws.deliverables?.length || 0} deliverables)`);
+      
+      // Assign default timings based on workstream position when intelligent planning fails
+      // This ensures timeline calculator gets proper duration data
+      const timedWorkstreams = this.assignDefaultTimings(workstreams, planningContext);
+      timedWorkstreams.forEach((ws, i) => {
+        console.log(`[EPM Synthesis]     ${i + 1}. ${ws.name} (M${ws.startMonth}-M${ws.endMonth}, ${ws.deliverables?.length || 0} deliverables)`);
       });
       
       return await this.buildFullProgram(
         insights,
-        workstreams, // Use WBS Builder workstreams directly
+        timedWorkstreams, // Use WBS Builder workstreams with default timings
         planningContext,
         userContext,
         namingContext,
@@ -312,6 +316,44 @@ export class EPMSynthesizer {
         processStartTime
       );
     }
+  }
+  
+  /**
+   * Assign default timings to workstreams when intelligent planning fails
+   * Uses business scale and workstream count to create COMPACT durations (not enterprise-sized)
+   */
+  private assignDefaultTimings(workstreams: Workstream[], planningContext: PlanningContext): Workstream[] {
+    const scale = planningContext.business.scale || 'mid_market';
+    
+    // Base duration per workstream based on scale - this is what we actually use
+    const baseDurationMonths = scale === 'smb' ? 1 : scale === 'mid_market' ? 1 : 2;
+    
+    const wsCount = workstreams.length || 1;
+    
+    // Calculate total program duration: number of workstreams with overlap
+    // For SMB: short, compact timelines. Each workstream ~1 month, some overlap
+    const overlapFactor = 0.5; // Each workstream overlaps 50% with the next
+    const totalDuration = Math.ceil(baseDurationMonths + (wsCount - 1) * baseDurationMonths * overlapFactor);
+    
+    console.log(`[EPM Synthesis] 📅 Assigning default timings: Scale=${scale}, ${wsCount} workstreams, ${baseDurationMonths}mo each, total=${totalDuration}mo`);
+    
+    return workstreams.map((ws, index) => {
+      // Staggered start with overlap between workstreams
+      const startMonth = Math.floor(index * baseDurationMonths * overlapFactor);
+      const endMonth = startMonth + baseDurationMonths;
+      
+      console.log(`[EPM Synthesis]   ${index + 1}. ${ws.name}: M${startMonth}-M${endMonth}`);
+      
+      return {
+        ...ws,
+        startMonth,
+        endMonth,
+        deliverables: ws.deliverables.map((d, di) => ({
+          ...d,
+          dueMonth: endMonth, // Deliverables due at end of workstream
+        })),
+      };
+    });
   }
 
   /**
