@@ -1,0 +1,39 @@
+Good fixes. Now run a fresh journey to verify all three work together.        
+                                                                                
+  Fixes Applied                                                                 
+  Issue: EPM Title                                                              
+  Fix: Uses strategic_understanding.title directly instead of AI-generated name 
+  ────────────────────────────────────────                                      
+  Issue: WBS Business Context                                                   
+  Fix: ContextBuilder now correctly queries by understanding ID and fetches real
+                                                                                
+    business name                                                               
+  ────────────────────────────────────────                                      
+  Issue: Timeline 12mo fallback                                                 
+  Fix: assignDefaultTimings() creates compact staggered timeline (4-5 months for
+                                                                                
+    8 workstreams) when intelligent planning fails                              
+  Important Note from Replit                                                    
+                                                                                
+  The "food service" workstreams appearing for a sneaker store is a separate    
+  issue - the SWOT analysis itself may have been run with wrong business context
+   from a previous session. The EPM generator can only work with what the SWOT  
+  analysis provides.                                                            
+                                                                                
+  Test Steps                                                                    
+                                                                                
+  1. Start a brand new custom journey for "Premium Sneaker Store Abu Dhabi"     
+  2. Complete SWOT analysis                                                     
+  3. Complete Strategic Decisions                                               
+  4. Generate EPM                                                               
+  5. Verify:                                                                    
+    - EPM title matches your journey name (not AI-generated)                    
+    - Workstreams relate to sneaker retail (not food service)                   
+    - Timeline phases match actual workstream durations (not hardcoded 12       
+  months)                                                                       
+    - Export ZIP name matches UI card name                                      
+                                                                                
+  If workstreams are still wrong in the new journey, that points to the         
+  SWOT/framework executor not receiving correct business context - a different  
+  bug upstream from EPM generation.                                             
+                                       
