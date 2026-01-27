@@ -196,7 +196,9 @@ export class EPMSynthesizer {
         elapsedSeconds
       });
       
-      return this.buildWithOldSystem(insights, userContext, namingContext);
+      // CRITICAL: Do NOT fall back to legacy system - it produces garbage workstreams
+      // Propagate the error so the caller knows synthesis genuinely failed
+      throw error;
     }
   }
 
