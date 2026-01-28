@@ -167,6 +167,11 @@ export class EPMConverter {
       this.generateResourceRequirements(workstreams, costEstimate),
     ]);
 
+    // Note: Standard path uses integer headcounts (count), not FTE allocations.
+    // FTE normalization is handled in the custom path (resource-allocator.ts)
+    // where LLM returns percentage allocations that need conversion to decimals.
+    console.log('[EPM Converter] Standard path conversion complete - headcount-based resources');
+
     return {
       title: programTitle,
       description: programDescription,

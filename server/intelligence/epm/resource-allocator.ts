@@ -7,6 +7,7 @@
 import type { StrategyInsights, StrategyInsight, Workstream, ResourcePlan, ResourceAllocation, ExternalResource } from '../types';
 import type { UserContext } from '../types';
 import { aiClients } from '../../ai-clients';
+import { normalizeResourceFTEs } from '../normalizers/fte-normalizer';
 
 export class ResourceAllocator {
   /**
@@ -143,7 +144,28 @@ Return ONLY valid JSON array of role objects. NO markdown, NO code blocks, ONLY 
       const roles = JSON.parse(content);
       if (Array.isArray(roles) && roles.length > 0) {
         console.log(`[ResourceAllocator] ✅ Successfully generated ${roles.length} context-appropriate roles`);
-        return roles;
+        
+        // Normalize FTE allocation values from percentages (50-100) to decimals (0.5-1.0)
+        const mappedForNormalization = roles.map((r: any) => ({
+          role: r.role,
+          fteAllocation: r.allocation,
+          ...r
+        }));
+        const { normalized, fixes } = normalizeResourceFTEs(mappedForNormalization);
+        if (fixes.length > 0) {
+          console.log('[ResourceAllocator] FTE normalization fixes:', fixes);
+        }
+        
+        // Map back to original structure with normalized allocation
+        const normalizedRoles = normalized.map((r: any) => ({
+          role: r.role,
+          allocation: r.fteAllocation,
+          months: r.months,
+          skills: r.skills,
+          justification: r.justification
+        }));
+        
+        return normalizedRoles;
       }
     } catch (parseError) {
       console.error('[ResourceAllocator] Failed to parse LLM response:', parseError);
