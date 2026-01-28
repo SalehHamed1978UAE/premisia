@@ -102,26 +102,21 @@ Priority: ${category.priority}
 
 Business Context:
 - Name: ${context.business.name}
+- Industry: ${context.business.industry || context.business.type}
 - Type: ${context.business.type}
 - Scale: ${context.business.scale}
 - Description: ${context.business.description}
 
+CRITICAL: Generate content SPECIFICALLY for the "${context.business.industry || context.business.type}" industry.
+Do NOT use generic examples or copy from other industries.
+All deliverables must be relevant to ${context.business.name} in the ${context.business.industry || context.business.type} sector.
+
 Generate:
 1. A clear, actionable name (e.g., "Location Scouting & Lease Negotiation" not just "Physical Infrastructure")
-2. A detailed description of what this workstream entails
-3. 3-5 key deliverables (concrete outputs)
+2. A detailed description of what this workstream entails for THIS specific business
+3. 3-5 key deliverables (concrete outputs specific to ${context.business.industry || context.business.type})
 
-The deliverables should be specific and measurable.
-
-Example for "physical_infrastructure" in a coffee shop:
-Name: "Location Scouting & Buildout"
-Description: "Secure commercial location, negotiate lease, complete buildout and equipment installation"
-Deliverables:
-- Signed commercial lease agreement
-- Completed buildout and renovations
-- Equipment installed and operational
-- Health department inspection passed
-- Insurance policies in place
+The deliverables should be specific, measurable, and industry-appropriate.
 
 Return as JSON object with name, description, and deliverables array.
     `.trim();
@@ -148,6 +143,18 @@ Return as JSON object with name, description, and deliverables array.
       }
     });
     
+    // Calculate confidence based on priority and effort allocation
+    const priorityConfidence: Record<string, number> = {
+      'critical': 0.95,
+      'high': 0.90,
+      'medium': 0.85,
+      'low': 0.80
+    };
+    const baseConfidence = priorityConfidence[category.priority] || 0.85;
+    // Adjust confidence based on effort weight (higher effort = more certain about need)
+    const effortBonus = Math.min(category.weight / 100 * 0.05, 0.05);
+    const confidence = Math.min(baseConfidence + effortBonus, 0.98);
+    
     return {
       id: `WS${String(index + 1).padStart(3, '0')}`,
       name: result.name,
@@ -157,7 +164,7 @@ Return as JSON object with name, description, and deliverables array.
       priority: category.priority,
       deliverables: result.deliverables,
       dependencies: [],  // Will be filled by generateDependencies
-      confidence: 0.85
+      confidence: parseFloat(confidence.toFixed(2))
     };
   }
   
