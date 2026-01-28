@@ -13,6 +13,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ResearchExperience } from "@/components/research-experience/ResearchExperience";
+import { BMCCanvas, type BMCAnalysis } from "@/components/strategic-consultant/BMCCanvas";
 
 interface Finding {
   fact: string;
@@ -119,6 +120,7 @@ export default function ResearchPage() {
   }>>([]);
   const [nextUrl, setNextUrl] = useState<string | null>(null);
   const [autoAdvance, setAutoAdvance] = useState<boolean>(true);
+  const [bmcAnalysis, setBmcAnalysis] = useState<BMCAnalysis | null>(null);
   
   // Use ref to prevent double execution in React Strict Mode
   const hasInitiatedResearch = useRef(false);
@@ -145,6 +147,8 @@ export default function ResearchPage() {
     setResearchData(null);
     setError(null);
     setProgress(0);
+    setBmcAnalysis(null);
+    setAutoAdvance(true);
     hasInitiatedResearch.current = false;
     
     // Clear stale localStorage entries for this session
@@ -240,6 +244,13 @@ export default function ResearchPage() {
           // Capture nextUrl from complete event
           if (data.data.nextUrl) {
             setNextUrl(data.data.nextUrl);
+          }
+          
+          // Capture BMC analysis for 9-block canvas display
+          if (data.data.bmcAnalysis) {
+            setBmcAnalysis(data.data.bmcAnalysis);
+            // Disable auto-advance when we have BMC analysis so user can review the 9-block
+            setAutoAdvance(false);
           }
           
           localStorage.setItem(`strategic-versionNumber-${sessionId}`, data.data.versionNumber.toString());
@@ -436,6 +447,14 @@ export default function ResearchPage() {
             </div>
           </div>
         </div>
+
+        {/* BMC 9-Block Canvas Display */}
+        {bmcAnalysis && bmcAnalysis.blocks && bmcAnalysis.blocks.length > 0 && (
+          <div className="mt-6" data-testid="bmc-canvas-section">
+            <h3 className="text-lg font-semibold mb-4">Business Model Canvas</h3>
+            <BMCCanvas analysis={bmcAnalysis} />
+          </div>
+        )}
 
         {findings && findings.sources && findings.sources.length > 0 && (
           <Card>

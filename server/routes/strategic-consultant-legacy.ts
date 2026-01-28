@@ -2271,6 +2271,8 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
         sourcesAnalyzed: findings.sources.length || 9,
         timeElapsed: '~2 minutes',
         nextUrl: `/strategy-workspace/decisions/${sessionId}/${finalVersionNumber}`,
+        // Include full BMC analysis for 9-block canvas display
+        bmcAnalysis: result,
       }
     })}\n\n`);
     res.end();
