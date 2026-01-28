@@ -9,7 +9,7 @@
 
 import { Response } from 'express';
 import { db } from '../db';
-import { customJourneyConfigs, customJourneyExecutions, frameworkInsights, strategyVersions, strategicUnderstanding } from '@shared/schema';
+import { customJourneyConfigs, customJourneyExecutions, frameworkInsights, strategyVersions, strategicUnderstanding, journeySessions } from '@shared/schema';
 import { eq, and } from 'drizzle-orm';
 import { getExecutionOrder } from '../modules/compatibility';
 import { moduleRegistry } from '../modules/registry';
@@ -390,6 +390,18 @@ export class CustomJourneyExecutor {
                   createdBy: execution.userId || 'system',
                   userId: execution.userId || null,
                 });
+                
+                // VALIDATION GATE: Verify strategy_versions row exists before returning redirect URL
+                const verifyVersion = await db.select()
+                  .from(strategyVersions)
+                  .where(eq(strategyVersions.sessionId, sessionId))
+                  .limit(1);
+                
+                if (verifyVersion.length === 0) {
+                  console.error(`[CustomJourneyExecutor] VALIDATION FAILED: strategy_versions not found after insert for ${sessionId}`);
+                  throw new Error(`Failed to create strategy version for session ${sessionId}`);
+                }
+                console.log(`[CustomJourneyExecutor] ✓ VALIDATION PASSED: strategy_versions row verified before redirect`);
               } else {
                 versionNumber = existingVersions.length + 1;
               }

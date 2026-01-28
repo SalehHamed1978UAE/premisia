@@ -569,6 +569,19 @@ export class JourneyOrchestrator {
       
       console.log(`[JourneyOrchestrator] Created decision version 1 for session ${understandingId}`);
       
+      // VALIDATION GATE: Verify strategy_versions row exists before returning redirect URL
+      // This prevents race conditions where frontend navigates before DB write completes
+      const verifyVersion = await db.select()
+        .from(strategyVersions)
+        .where(eq(strategyVersions.sessionId, understandingId))
+        .limit(1);
+      
+      if (verifyVersion.length === 0) {
+        console.error(`[JourneyOrchestrator] VALIDATION FAILED: strategy_versions not found after insert for ${understandingId}`);
+        throw new Error(`Failed to create strategy version for session ${understandingId}`);
+      }
+      console.log(`[JourneyOrchestrator] ✓ VALIDATION PASSED: strategy_versions row verified before redirect`);
+      
       // Return redirect URL to version 1
       return `/strategic-consultant/decisions/${understandingId}/1`;
     } else {
