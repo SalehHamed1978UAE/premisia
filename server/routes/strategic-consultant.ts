@@ -2158,6 +2158,13 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
           createdBy: userId,
           inputSummary,
         });
+        
+        // VALIDATION GATE: Verify the strategy_versions row was created before proceeding
+        if (!version || !version.id) {
+          console.error(`[BMC-RESEARCH-STREAM] VALIDATION FAILED: strategy_versions not created for session=${sessionId}, version=${targetVersionNumber}`);
+          throw new Error(`Failed to create strategy version ${targetVersionNumber} for session ${sessionId}`);
+        }
+        console.log(`[BMC-RESEARCH-STREAM] ✓ VALIDATION PASSED: strategy_versions row (id=${version.id}, session=${sessionId}, version=${targetVersionNumber}) verified`);
         console.log(`[BMC-RESEARCH-STREAM] Created new version ${targetVersionNumber}`);
       } else {
         // Update existing version
