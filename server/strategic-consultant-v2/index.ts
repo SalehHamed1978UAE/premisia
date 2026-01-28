@@ -10,6 +10,7 @@ import { JourneySelector } from './journey-selector';
 import { templateRegistry, type JourneyTemplate } from '../journey/templates';
 import { JourneyOrchestrator } from '../journey/journey-orchestrator';
 import type { StrategicContext, JourneyInput, V2RunResult } from './types';
+import type { JourneyType } from '@shared/journey-types';
 
 export class StrategicConsultantV2 {
   private contextGatherer: ContextGatherer;
@@ -20,21 +21,21 @@ export class StrategicConsultantV2 {
     this.journeySelector = new JourneySelector();
   }
 
-  async gatherContext(userInput: string, sessionId: string): Promise<StrategicContext> {
+  async gatherContext(userInput: string, sessionId: string, userId: string): Promise<StrategicContext> {
     console.log('[SC-V2] Phase 1: Gathering strategic context...');
     
     const clarifications = await this.contextGatherer.askClarifications(userInput);
     
     const analysis = await this.contextGatherer.runAnalysis(userInput, {});
     
-    await this.contextGatherer.saveContext(sessionId, {
+    const understandingId = await this.contextGatherer.saveContext(sessionId, {
       userInput,
       clarifications: {},
       analysis,
-    });
+    }, userId);
 
     return {
-      sessionId,
+      sessionId: understandingId,
       userInput,
       clarifications: {},
       analysis,
@@ -45,6 +46,7 @@ export class StrategicConsultantV2 {
 
   async executeJourney(
     context: StrategicContext,
+    userId: string,
     templateId?: string
   ): Promise<V2RunResult> {
     console.log('[SC-V2] Phase 2: Executing journey...');
@@ -64,16 +66,16 @@ export class StrategicConsultantV2 {
       
       console.log(`[SC-V2] Starting journey type: ${journeyType}`);
       const journeySession = await orchestrator.startJourney(
-        journeyType,
         context.sessionId,
-        context.userInput
+        journeyType as JourneyType,
+        userId
       );
 
       return {
         success: true,
         sessionId: context.sessionId,
         templateUsed: template.id,
-        epmProgramId: journeySession.id,
+        epmProgramId: journeySession.journeySessionId,
       };
     } catch (error) {
       console.error('[SC-V2] Journey execution failed:', error);
@@ -86,14 +88,14 @@ export class StrategicConsultantV2 {
     }
   }
 
-  async run(userInput: string, sessionId: string, templateId?: string): Promise<V2RunResult> {
+  async run(userInput: string, sessionId: string, userId: string, templateId?: string): Promise<V2RunResult> {
     console.log('[SC-V2] Starting full flow...');
     console.log(`[SC-V2] Session: ${sessionId}`);
     console.log(`[SC-V2] Input: ${userInput.substring(0, 100)}...`);
 
-    const context = await this.gatherContext(userInput, sessionId);
+    const context = await this.gatherContext(userInput, sessionId, userId);
     
-    return this.executeJourney(context, templateId);
+    return this.executeJourney(context, userId, templateId);
   }
 
   private mapTemplateToJourneyType(template: JourneyTemplate): string {

@@ -10,7 +10,7 @@ import { strategicUnderstanding } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 import type { StrategicContext, AnalysisResult, ClarificationQuestion } from './types';
 import { strategicUnderstandingService } from '../strategic-understanding-service';
-import { getStrategicUnderstanding, updateStrategicUnderstanding } from '../services/secure-data-service';
+import { getStrategicUnderstanding, updateStrategicUnderstanding, saveStrategicUnderstanding } from '../services/secure-data-service';
 
 export class ContextGatherer {
   async askClarifications(userInput: string): Promise<ClarificationQuestion[]> {
@@ -75,19 +75,63 @@ export class ContextGatherer {
     userInput: string;
     clarifications: Record<string, string>;
     analysis: AnalysisResult;
-  }): Promise<void> {
+  }, userId: string): Promise<string> {
     console.log(`[ContextGatherer] Saving context for session: ${sessionId}`);
     
+    const initiativeType = this.mapToInitiativeType(context.userInput, context.analysis.detectedIndustry);
     const existing = await getStrategicUnderstanding(sessionId);
     
     if (existing) {
       await updateStrategicUnderstanding(sessionId, {
         userInput: context.userInput,
-        industry: context.analysis.detectedIndustry,
-        businessType: context.analysis.detectedBusinessType,
-        v2Context: context,
+        initiativeType,
+        initiativeDescription: `${context.analysis.detectedBusinessType}: ${context.analysis.strategicChallenge}`,
       });
+      return sessionId;
+    } else {
+      console.log(`[ContextGatherer] Creating new Strategic Understanding record`);
+      const saved = await saveStrategicUnderstanding({
+        sessionId,
+        userInput: context.userInput,
+        initiativeType,
+        initiativeDescription: `${context.analysis.detectedBusinessType}: ${context.analysis.strategicChallenge}`,
+        title: context.analysis.strategicChallenge.substring(0, 100),
+        companyContext: {
+          industry: context.analysis.detectedIndustry,
+          businessType: context.analysis.detectedBusinessType,
+          v2Analysis: context.analysis,
+          clarifications: context.clarifications,
+        },
+      });
+      return saved.sessionId;
     }
+  }
+
+  private mapToInitiativeType(userInput: string, detectedIndustry: string): string {
+    const lowerInput = userInput.toLowerCase();
+    
+    if (lowerInput.includes('store') || lowerInput.includes('shop') || lowerInput.includes('restaurant') || 
+        lowerInput.includes('cafe') || lowerInput.includes('open') || lowerInput.includes('launch') && 
+        (lowerInput.includes('physical') || lowerInput.includes('location'))) {
+      return 'physical_business_launch';
+    }
+    if (lowerInput.includes('app') || lowerInput.includes('software') || lowerInput.includes('saas') || 
+        lowerInput.includes('platform') || lowerInput.includes('build')) {
+      return 'software_development';
+    }
+    if (lowerInput.includes('digital') || lowerInput.includes('transform') || lowerInput.includes('modernize') ||
+        lowerInput.includes('automate')) {
+      return 'digital_transformation';
+    }
+    if (lowerInput.includes('expand') || lowerInput.includes('new market') || lowerInput.includes('geographic') ||
+        lowerInput.includes('international')) {
+      return 'market_expansion';
+    }
+    if (lowerInput.includes('product') || lowerInput.includes('launch') || lowerInput.includes('new line')) {
+      return 'product_launch';
+    }
+    
+    return 'physical_business_launch';
   }
 
   private detectIndustry(userInput: string): string {

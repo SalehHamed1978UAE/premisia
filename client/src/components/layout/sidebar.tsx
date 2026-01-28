@@ -135,7 +135,7 @@ export function Sidebar({ isOpen = false, onToggle = () => {} }: SidebarProps) {
               data-testid="nav-strategic-consultant"
             >
               <Sparkles className="h-5 w-5 mr-3 flex-shrink-0" />
-              <span className="font-medium">Strategic Consultant</span>
+              <span className="font-medium">Strategic Consultant (Legacy)</span>
             </Button>
 
             {/* Marketing Consultant */}

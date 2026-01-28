@@ -48,6 +48,7 @@ router.get('/templates', (req: Request, res: Response) => {
 router.post('/start', async (req: Request, res: Response) => {
   try {
     const { userInput, sessionId } = req.body;
+    const userId = (req as any).user?.claims?.sub || 'system';
 
     if (!userInput) {
       res.status(400).json({
@@ -61,11 +62,11 @@ router.post('/start', async (req: Request, res: Response) => {
     
     console.log(`[SC-V2 Routes] Starting context gathering for session: ${actualSessionId}`);
     
-    const context = await strategicConsultantV2.gatherContext(userInput, actualSessionId);
+    const context = await strategicConsultantV2.gatherContext(userInput, actualSessionId, userId);
 
     res.json({
       success: true,
-      sessionId: actualSessionId,
+      sessionId: context.sessionId,
       context: {
         industry: context.industry,
         businessType: context.businessType,
@@ -84,6 +85,7 @@ router.post('/start', async (req: Request, res: Response) => {
 router.post('/execute', async (req: Request, res: Response) => {
   try {
     const { sessionId, templateId, context } = req.body;
+    const userId = (req as any).user?.claims?.sub || 'system';
 
     if (!sessionId) {
       res.status(400).json({
@@ -97,6 +99,7 @@ router.post('/execute', async (req: Request, res: Response) => {
     
     const result = await strategicConsultantV2.executeJourney(
       context || { sessionId, userInput: '' },
+      userId,
       templateId
     );
 
@@ -113,6 +116,7 @@ router.post('/execute', async (req: Request, res: Response) => {
 router.post('/run', async (req: Request, res: Response) => {
   try {
     const { userInput, sessionId, templateId } = req.body;
+    const userId = (req as any).user?.claims?.sub || 'system';
 
     if (!userInput) {
       res.status(400).json({
@@ -127,7 +131,7 @@ router.post('/run', async (req: Request, res: Response) => {
     console.log(`[SC-V2 Routes] Full flow for session: ${actualSessionId}`);
     console.log(`[SC-V2 Routes] Input: ${userInput.substring(0, 100)}...`);
     
-    const result = await strategicConsultantV2.run(userInput, actualSessionId, templateId);
+    const result = await strategicConsultantV2.run(userInput, actualSessionId, userId, templateId);
 
     res.json(result);
   } catch (error) {
