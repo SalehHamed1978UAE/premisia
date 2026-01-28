@@ -1,0 +1,25 @@
+Replit tested the wrong flow. The original 404 was on Custom Journey → SWOT → 
+  Decisions, not Five Whys → BMC Research.                                      
+                                                                                
+  Ask Replit to test this exact flow:                                           
+                                                                                
+  1. Custom Journey Builder                                                     
+  2. Create journey: SWOT → Decisions → EPM                                     
+  3. Start journey, complete SWOT                                               
+  4. Does Decisions page load without 404?                                      
+                                                                                
+  The BMC Research flow is a different code path. We need evidence that the     
+  Custom Journey Executor path works - that's where the original bug was.       
+                                                                                
+  If Replit can't test this flow directly, ask them to show:                    
+                                                                                
+  -- After a custom journey completes SWOT, is strategy_versions created?       
+  SELECT sv.id, sv.session_id, sv.version_number, je.journey_type               
+  FROM strategy_versions sv                                                     
+  JOIN journey_sessions js ON js.understanding_id = sv.session_id               
+  JOIN custom_journey_executions cje ON cje.journey_session_id = js.id          
+  WHERE js.journey_type = 'custom'                                              
+  ORDER BY sv.created_at DESC                                                   
+  LIMIT 5;                                                                      
+                                                                                
+  This would show if custom journeys are actually creating the bridge record.
