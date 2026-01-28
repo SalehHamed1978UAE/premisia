@@ -6,6 +6,7 @@ import { HtmlExporter, generateHtmlFromMarkdown, generateUiStyledHtml } from './
 import { PdfExporter, findChromiumExecutable, generatePdfFromHtml, generatePdfFromUiHtml } from './pdf-exporter';
 import { DocxExporter, generateDocxReport, generateDocxFromHtml } from './docx-exporter';
 import { CsvExporter, generateAssignmentsCsv, generateWorkstreamsCsv, generateResourcesCsv, generateRisksCsv, generateBenefitsCsv } from './csv-exporter';
+import { ExcelExporter, generateExcelWorkbook } from './excel-exporter';
 import { escapeCsvField } from './base-exporter';
 
 export { loadExportData, escapeCsvField };
@@ -16,6 +17,7 @@ export { HtmlExporter, generateHtmlFromMarkdown, generateUiStyledHtml };
 export { PdfExporter, findChromiumExecutable, generatePdfFromHtml, generatePdfFromUiHtml };
 export { DocxExporter, generateDocxReport, generateDocxFromHtml };
 export { CsvExporter, generateAssignmentsCsv, generateWorkstreamsCsv, generateResourcesCsv, generateRisksCsv, generateBenefitsCsv };
+export { ExcelExporter, generateExcelWorkbook };
 
 export async function generateFullPassExport(
   request: ExportRequest,
@@ -107,6 +109,16 @@ export async function generateFullPassExport(
   console.log('[Export Service] Generating UI-styled DOCX...');
   const uiDocx = await generateDocxFromHtml(uiHtml);
 
+  console.log('[Export Service] Generating Excel workbook...');
+  let excelBuffer: Buffer | null = null;
+  try {
+    excelBuffer = await generateExcelWorkbook(exportPackage);
+    console.log('[Export Service] Excel workbook generated successfully');
+  } catch (error) {
+    console.warn('[Export Service] Excel generation failed:', error instanceof Error ? error.message : error);
+    skippedFiles.push('epm-program.xlsx (generation failed)');
+  }
+
   console.log('[Export Service] Creating ZIP archive...');
   const archive = archiver('zip', {
     zlib: { level: 9 }
@@ -181,6 +193,11 @@ export async function generateFullPassExport(
     archive.append(benefitsCsv, { name: 'data/benefits.csv' });
     includedFiles.push('data/benefits.csv');
   }
+  
+  if (excelBuffer) {
+    archive.append(excelBuffer, { name: 'data/epm-program.xlsx' });
+    includedFiles.push('data/epm-program.xlsx');
+  }
 
   const readmeContent = `# Export Package Contents
 
@@ -209,6 +226,7 @@ PDF files require Puppeteer (headless Chrome) which may not be available on mobi
 - **report-ui.pdf** - Styled PDF version (if available)
 - **data/strategy.json** - Strategic analysis data in JSON
 - **data/epm.json** - EPM program data (if generated)
+- **data/epm-program.xlsx** - Excel workbook with 8 sheets (Summary, WBS, Schedule, Resources, Budget, RACI, Risks, Assumptions)
 - **data/*.csv** - Detailed data exports for assignments, workstreams, resources, risks, and benefits
 
 Generated on: ${new Date(exportPackage.metadata.exportedAt).toLocaleString()}

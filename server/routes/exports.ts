@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { generateFullPassExport } from '../services/export-service';
+import { generateFullPassExport, loadExportData, generateExcelWorkbook, generatePdfFromHtml, generateUiStyledHtml, findChromiumExecutable } from '../services/export-service';
 import { db } from '../db';
 import { strategicUnderstanding, epmPrograms, strategyVersions } from '@shared/schema';
 import { eq, or } from 'drizzle-orm';
@@ -215,5 +215,145 @@ router.get('/full-pass', async (req, res) => {
     }
   }
 });
+
+/**
+ * GET /api/exports/excel
+ * Download Excel workbook with 8 sheets (Summary, WBS, Schedule, Resources, Budget, RACI, Risks, Assumptions)
+ */
+router.get('/excel', async (req, res) => {
+  try {
+    const { sessionId, programId } = req.query;
+    const userId = (req.user as any)?.claims?.sub;
+
+    if (!userId) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    if (!sessionId && !programId) {
+      res.status(400).json({ error: 'sessionId or programId is required' });
+      return;
+    }
+
+    const resolvedSessionId = await resolveSessionId(sessionId as string, programId as string, userId, res);
+    if (!resolvedSessionId) return;
+
+    const exportPackage = await loadExportData(resolvedSessionId, undefined, programId as string, userId);
+    const excelBuffer = await generateExcelWorkbook(exportPackage);
+
+    const filename = `epm-program-${resolvedSessionId.substring(0, 8)}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(excelBuffer);
+  } catch (error) {
+    console.error('[Export] Excel export error:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Excel export failed' });
+  }
+});
+
+/**
+ * GET /api/exports/pdf
+ * Download PDF report with executive summary
+ */
+router.get('/pdf', async (req, res) => {
+  try {
+    const { sessionId, programId } = req.query;
+    const userId = (req.user as any)?.claims?.sub;
+
+    if (!userId) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    if (!sessionId && !programId) {
+      res.status(400).json({ error: 'sessionId or programId is required' });
+      return;
+    }
+
+    const chromiumPath = findChromiumExecutable();
+    if (!chromiumPath) {
+      res.status(503).json({ error: 'PDF generation unavailable - Chromium not installed' });
+      return;
+    }
+
+    const resolvedSessionId = await resolveSessionId(sessionId as string, programId as string, userId, res);
+    if (!resolvedSessionId) return;
+
+    const exportPackage = await loadExportData(resolvedSessionId, undefined, programId as string, userId);
+    const html = generateUiStyledHtml(exportPackage);
+    const pdfBuffer = await generatePdfFromHtml(html);
+
+    const filename = `strategic-report-${resolvedSessionId.substring(0, 8)}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error('[Export] PDF export error:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'PDF export failed' });
+  }
+});
+
+async function resolveSessionId(
+  sessionId: string | undefined,
+  programId: string | undefined,
+  userId: string,
+  res: any
+): Promise<string | null> {
+  if (sessionId) {
+    const [understanding] = await db.select()
+      .from(strategicUnderstanding)
+      .where(or(
+        eq(strategicUnderstanding.id, sessionId),
+        eq(strategicUnderstanding.sessionId, sessionId)
+      ))
+      .limit(1);
+
+    if (!understanding) {
+      res.status(404).json({ error: 'Strategic session not found' });
+      return null;
+    }
+
+    const [ownership] = await db.select({ userId: strategyVersions.userId })
+      .from(strategyVersions)
+      .where(or(
+        eq(strategyVersions.sessionId, sessionId),
+        eq(strategyVersions.sessionId, understanding.id)
+      ))
+      .limit(1);
+
+    if (!ownership || ownership.userId !== userId) {
+      res.status(403).json({ error: 'Access denied' });
+      return null;
+    }
+
+    return sessionId;
+  }
+
+  if (programId) {
+    const [program] = await db.select()
+      .from(epmPrograms)
+      .where(eq(epmPrograms.id, programId))
+      .limit(1);
+
+    if (!program) {
+      res.status(404).json({ error: 'EPM program not found' });
+      return null;
+    }
+
+    if (program.userId !== userId) {
+      res.status(403).json({ error: 'Access denied' });
+      return null;
+    }
+
+    const [version] = await db.select()
+      .from(strategyVersions)
+      .where(eq(strategyVersions.id, program.strategyVersionId))
+      .limit(1);
+
+    return version?.sessionId || null;
+  }
+
+  return null;
+}
 
 export default router;
