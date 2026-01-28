@@ -1,0 +1,139 @@
+ ## Strategic Consultant V2 – Final Spec (Aligned with Current Journey List)
+
+  ### Overview
+
+  1. BMI (Business Model Innovation) is the only journey that must run today,
+     end-to-end, using the modular Journey Builder engine.
+  2. At least one additional template from your placeholder list (I recommend
+     Market Entry Strategy, since it’s the next highest priority and uses PESTLE
+     + Porters + SWOT) should also be created so everyone sees how templates
+     work.
+  3. Strategic Consultant continues to be the same entry wizard (ambiguity
+     detection, journey recommendation) but dispatches to whichever template is
+     selected.
+  4. No new UI pages, no template pickers. Just templates defined in the
+     backend, with SC calling the selected one.
+
+  ———
+
+  ### Part I – Template Infrastructure (Backend)
+
+  1. Template Registry
+      - File: server/journey/templates/registry.ts
+      - Exports an array or map of template definitions.
+      - Each template includes:
+          - id (e.g., bmi, market-entry)
+          - name
+          - description
+          - frameworkSequence: ordered list of modules (by ID). Example module
+            IDs: five_whys, strategic_research, bmc_summary, bmc_detail,
+            strategic_decisions, strategic_priorities, epm.
+          - Optional metadata (default timeline, budget, industry hints).
+  2. Template A – Business Model Innovation (BMI)
+      - Modules:
+          1. five_whys
+          2. strategic_research
+          3. bmc_summary (9-box grid)
+          4. bmc_detail
+          5. strategic_decisions
+          6. strategic_priorities
+          7. epm
+      - Frameworks used: Five Whys, strategic research, Business Model Canvas,
+        decisions/priorities, then EPM.
+  3. Template B – Market Entry Strategy (so everyone sees how multiple templates
+     work; uses your “Market Entry Strategy” placeholder)
+      - Modules (example):
+          1. strategic_research
+          2. pestle_analysis
+          3. porters_analysis
+          4. swot_summary
+          5. strategic_decisions
+          6. strategic_priorities
+          7. epm
+      - Make sure the module IDs map to actual Journey Builder nodes. If some
+        modules don’t exist yet (e.g., pestle_analysis), stub them with
+        placeholders or limited functionality for now, but define the template
+        structure so we don’t hardwire BMI.
+  4. Template Execution Helper
+      - Method: executeTemplate(templateId: string, context: StrategicContext)
+      - Loads the template from the registry
+      - Builds a journey graph with the specified modules
+      - Injects strategic context (industry, location, goals) into each module
+      - Runs the journey via the existing Journey Builder executor
+      - Returns outputs in the same shape the frontend expects (Five Whys data,
+        BMC data, decisions, etc.)
+
+  ———
+
+  ### Part II – Strategic Consultant V2 Controller
+
+  1. UI Must Stay Identical
+      - Steps: strategic input → ambiguity detection → business type
+        identification → journey recommendation → user chooses journey → module
+        outputs render
+      - Important: The BMC “9-box” summary grid must reappear exactly as before
+  2. Flow
+      1. User completes the legacy SC flow up through journey selection.
+      2. When the journey is chosen (e.g., BMI), SC calls /api/strategic-
+         consultant-v2/journeys/:templateId with the session/context ID.
+      3. Controller:
+          - Fetches the strategic context from DB (same as legacy)
+          - Calls executeTemplate(templateId, context)
+          - Returns module outputs in the same JSON structure as legacy routes
+            so the UI renders Five Whys, BMC, etc. without change.
+  3. No Hard Wiring
+      - The controller must not mention bmi explicitly beyond chosenTemplateId.
+        If market-entry is chosen (or any future template), it must pass that ID
+        to the executor as-is.
+
+  ———
+
+  ### Part III – Quality Requirements
+
+  1. Outputs must match legacy UI but use improved data (no food contamination,
+     decimal FTE, named benefits, quality gate logs). This comes “for free” by
+     using Journey Builder modules with the fixed prompts/validators.
+  2. EPM Output (from both BMI and Market Entry templates) must:
+      - Have industry-appropriate workstreams
+      - Show decimal FTEs
+      - Include benefits with names and measurable targets
+      - Log quality gate results before export
+
+  ———
+
+  ### Evidence Checkpoints for Replit
+
+  1. Template Registry
+      - Provide registry.ts showing BMI + Market Entry template entries.
+  2. Template Executor Logs
+      - Attach server log showing executeTemplate('bmi', …) and
+        executeTemplate('market-entry', …) runs.
+  3. UI Proof
+      - Video or screenshots showing:
+          - Strategic input + ambiguity
+          - Business identification
+          - Journey recommendation dropdown with at least BMI + Market Entry
+          - Five Whys tree rendering
+          - BMC 9-box grid
+          - BMC detailed view
+          - Decisions/priorities pages
+  4. Sneaker Store Journey Run (BMI)
+      - workstreams.csv: no food keywords
+      - resources.csv: decimal allocations (1.0, 0.8, etc.)
+      - benefits.csv: names + targets
+      - epm.json: varied confidence values
+      - Console log: [QualityGate] passed …
+  5. Secondary Journey Run (Market Entry)
+      - Show module outputs (PESTLE, Porters, SWOT, etc.) rendering in UI
+      - Provide exported files to prove the second template works end-to-end
+
+  ———
+
+  This keeps Strategic Consultant tightly focused on only two tasks:
+
+  1. Gather context and recommend a journey
+  2. Dispatch to whatever template was chosen (currently BMI and Market Entry)
+
+  …and everything else (module execution, validation, exports) happens in the
+  Journey Builder pipeline. Give Replit this spec and require proof at each
+  checkpoint before moving on.
