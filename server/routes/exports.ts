@@ -239,6 +239,12 @@ router.get('/excel', async (req, res) => {
     if (!resolvedSessionId) return;
 
     const exportPackage = await loadExportData(resolvedSessionId, undefined, programId as string, userId);
+    
+    if (!exportPackage.epm?.program) {
+      res.status(404).json({ error: 'No EPM program found for this session. Generate an EPM program first.' });
+      return;
+    }
+    
     const excelBuffer = await generateExcelWorkbook(exportPackage);
 
     const filename = `epm-program-${resolvedSessionId.substring(0, 8)}.xlsx`;
@@ -326,7 +332,7 @@ async function resolveSessionId(
       return null;
     }
 
-    return sessionId;
+    return understanding.id;
   }
 
   if (programId) {
