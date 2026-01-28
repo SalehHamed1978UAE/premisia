@@ -7,6 +7,7 @@ import { DecisionGenerator } from '../strategic-consultant-legacy/decision-gener
 import { VersionManager } from '../strategic-consultant-legacy/version-manager';
 import { EPMConverter } from '../strategic-consultant-legacy/epm-converter';
 import { EPMIntegrator } from '../strategic-consultant-legacy/epm-integrator';
+import { epmAdapter } from '../strategic-consultant-v2/epm-adapter';
 import { WhysTreeGenerator } from '../strategic-consultant-legacy/whys-tree-generator';
 import { MarketResearcher } from '../strategic-consultant-legacy/market-researcher';
 import { FrameworkSelector } from '../strategic-consultant-legacy/framework-selector';
@@ -769,7 +770,8 @@ router.post('/decisions/select', async (req: Request, res: Response) => {
 
 router.post('/convert-to-epm', async (req: Request, res: Response) => {
   try {
-    const { sessionId, versionNumber } = req.body;
+    const { sessionId, versionNumber, useLegacyEngine } = req.body;
+    const userId = (req as any).user?.claims?.sub;
 
     if (!sessionId || !versionNumber) {
       return res.status(400).json({ error: 'sessionId and versionNumber are required' });
@@ -784,11 +786,44 @@ router.post('/convert-to-epm', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Version must have selected decisions' });
     }
 
-    const program = await epmConverter.convertToEPM(
-      version.analysisData as any,
-      version.decisionsData as any,
-      version.selectedDecisions as Record<string, string>
-    );
+    let program: any;
+    let engineUsed: 'v2' | 'legacy';
+
+    const useV2Engine = !useLegacyEngine && process.env.USE_EPM_V2_ENGINE !== 'false';
+    
+    if (useV2Engine) {
+      console.log('[convert-to-epm] Using V2 EPM engine (EPMSynthesizer via Journey Builder)');
+      engineUsed = 'v2';
+      
+      try {
+        program = await epmAdapter.convertToEPM({
+          analysisData: version.analysisData as any,
+          decisionsData: version.decisionsData as any,
+          selectedDecisions: version.selectedDecisions as Record<string, string>,
+          sessionId,
+          versionNumber,
+          userId,
+        });
+      } catch (v2Error: any) {
+        console.error('[convert-to-epm] V2 engine failed, falling back to legacy:', v2Error.message);
+        console.error('[convert-to-epm] V2 error details:', v2Error.stack);
+        engineUsed = 'legacy';
+        program = await epmConverter.convertToEPM(
+          version.analysisData as any,
+          version.decisionsData as any,
+          version.selectedDecisions as Record<string, string>
+        );
+        (program as any)._v2FallbackReason = v2Error.message;
+      }
+    } else {
+      console.log('[convert-to-epm] Using legacy EPM engine (EPMConverter)');
+      engineUsed = 'legacy';
+      program = await epmConverter.convertToEPM(
+        version.analysisData as any,
+        version.decisionsData as any,
+        version.selectedDecisions as Record<string, string>
+      );
+    }
 
     const structureValidation = await epmConverter.validateEPMStructure(program);
     if (!structureValidation.valid) {
@@ -806,6 +841,7 @@ router.post('/convert-to-epm', async (req: Request, res: Response) => {
     res.json({
       success: true,
       program,
+      engineUsed,
       validation: {
         structure: structureValidation,
         ontology: ontologyValidation,
