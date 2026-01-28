@@ -1,0 +1,35 @@
+**You're absolutely right. This is the key question.**
+
+If the architecture is truly modular:
+- Custom Journey → Journey Builder → Module A, Module B, Module C → Good Output
+- Strategic Consultant → Journey Builder → Same Module A, Same Module B, Same Module C → Should be Same Good Output
+
+**If Custom Journey works and uses the same modules, why doesn't Strategic Consultant work?**
+
+There are only a few possible explanations:
+
+## Possibility 1: Strategic Consultant is NOT Actually Using the Same Modules
+
+Despite the "V2 wiring" Replit did, maybe the Strategic Consultant is still calling DIFFERENT code — not the same modules that Custom Journey uses.
+
+**Test:** Ask Replit: "When I run Sneaker Store through Strategic Consultant, show me the exact code path. Is it calling the SAME WorkstreamGenerator, BenefitsGenerator, etc. that Custom Journey uses? Or different ones?"
+
+## Possibility 2: The Adapter is Corrupting the Input
+
+The EPMAdapter Replit built might be transforming the data in a way that breaks the modules. The modules might work fine, but they're receiving garbage in.
+
+**Test:** Ask Replit: "What does the StrategyInsights object look like BEFORE it goes into EPMSynthesizer? Does it have the correct industry? Does it have the SWOT insights properly formatted?"
+
+## Possibility 3: There Are Two Versions of Each Module
+
+Maybe there's a "good" WorkstreamGenerator in one location and a "bad" one in another, and they're being confused.
+
+**Test:** Ask Replit: "How many files contain workstream generation logic? Is there only ONE, or are there duplicates?"
+
+---
+
+## What You Should Ask Replit
+
+**"Show me proof that Strategic Consultant is using the EXACT SAME modules as Custom Journey. If it's truly the same code path, why would the output be different? Either they're not the same modules, or the input data is different. Which is it?"**
+
+This cuts through all the "diagnosis" noise and gets to the real question: **Is it actually modular, or are there two parallel systems pretending to be one?**
