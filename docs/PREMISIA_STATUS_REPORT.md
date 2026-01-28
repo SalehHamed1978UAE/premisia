@@ -36,7 +36,8 @@ Exports (Excel, PDF, ZIP bundles)
 | **Framework Analyzers** | 16 AI-powered modules (SWOT, BMC, Porter's, PESTLE, Five Whys, Ansoff, Blue Ocean, BCG Matrix, Value Chain, VRIO, Scenario Planning, JTBD, Competitive Positioning, Segment Discovery, Marketing Consultant, OKR Generator) |
 | **Strategic Decisions** | AI synthesizes framework results into actionable decisions |
 | **EPM Synthesizer** | Converts decisions into 14-component program structure |
-| **Export Service** | Generates downloadable program documents |
+| **Validation System** | Quality gates with modular validators (Dependency, Industry, Completeness) |
+| **Export Service** | Generates downloadable program documents (Excel, PDF, ZIP) |
 
 ---
 
@@ -73,6 +74,47 @@ Exports (Excel, PDF, ZIP bundles)
 
 ---
 
+## Recent Enhancements (January 28, 2026)
+
+### Phase 0: EPM Quality Bug Fixes - COMPLETED
+
+| Bug | Fix Applied | File |
+|-----|-------------|------|
+| **Generic Risk Mitigations** | Keyword-based specific mitigations using `generateMitigation()` method | `generators.ts` |
+| **Unmeasurable KPIs** | `generateMeasurableTarget()` produces numeric targets based on benefit type | `generators.ts` |
+| **FTE as Percentages** | Converted 100→1.0, 75→0.75, 50→0.5 across all allocations | `resource-allocator.ts` |
+| **Template Contamination** | Industry detection with 10 keyword dictionaries (food_service, healthcare, finance, etc.) | `validator.ts` |
+| **Invalid Dependencies** | Existing `EPMValidator.validateDependencies()` + new modular DependencyValidator | `validators/` |
+
+### Phase 1: Validation Architecture - COMPLETED
+
+New modular validator system at `server/intelligence/epm/validators/`:
+
+| Component | Purpose |
+|-----------|---------|
+| `base-validator.ts` | Abstract BaseValidator class with ValidatorContext, ValidatorIssue, ValidatorResult |
+| `validator-registry.ts` | ValidatorRegistry for managing validators with runAll/runSelected methods |
+| `dependency-validator.ts` | Circular dependency detection, timing validation, auto-correction |
+| `industry-validator.ts` | Cross-industry contamination detection (10 industry keyword sets) |
+| `completeness-validator.ts` | Required field validation for workstreams, timeline, stage gates |
+| `quality-gate-runner.ts` | Orchestrator producing QualityReport with issue counts and corrections |
+
+### Phase 2: Export Services - COMPLETED
+
+**Excel Exporter** (`server/services/export/excel-exporter.ts`):
+- 8 professional sheets: Summary, WBS, Schedule, Resources, Budget, RACI, Risks, Assumptions
+- Proper JSONB parsing and column width formatting
+- Currency formatting and FTE calculations
+
+**Export API Endpoints** (`server/routes/exports.ts`):
+- `GET /api/exports/full-pass` - ZIP bundle with all formats
+- `GET /api/exports/excel` - Individual Excel workbook download
+- `GET /api/exports/pdf` - Individual PDF report download
+- Consistent `resolveSessionId()` returning `understanding.id` for understandingId consistency
+- Clear 404 error when no EPM program exists
+
+---
+
 ## Challenges Faced & Resolved
 
 | Challenge | Resolution |
@@ -82,52 +124,8 @@ Exports (Excel, PDF, ZIP bundles)
 | **Module Load Crashes** | Two-phase auth initialization with lazy route loading prevents crashes when secrets missing |
 | **BMC SSE Resilience** | 'system' user fallback when auth context missing for AI-generated decisions |
 | **Journey Title vs AI-Generated Names** | EPM programs now use journey titles correctly |
-
----
-
-## Current Challenges (EPM Quality Issues)
-
-These are the bugs we're about to fix:
-
-| Bug | Current State | Impact |
-|-----|---------------|--------|
-| **Generic Risk Mitigations** | All say "Monitor and implement controls..." | Useless advice |
-| **Unmeasurable KPIs** | Target = "Improvement" | Can't track progress |
-| **FTE as Percentages** | Shows `100` instead of `1.0` | Confusing resource allocation |
-| **Template Contamination** | Sneaker store gets "Food Safety" workstreams | Wrong industry content |
-| **Invalid Dependencies** | WS002 depends on WS001 but both start Month 1 | Illogical schedule |
-| **Benefits = SWOT Copy** | Just copies opportunities verbatim | No transformation |
-
----
-
-## Development Roadmap
-
-### Phase 0: Quick Bug Fixes (Current Priority)
-- [ ] Task 0.1: Fix generic risk mitigations → specific keyword-based mitigations
-- [ ] Task 0.2: Fix "Improvement" KPIs → measurable numeric targets
-- [ ] Task 0.3: Fix FTE 100 → 1.0 normalization
-- [ ] Task 0.4: Add dependency timing validation
-- [ ] Task 0.5: Add industry contamination detection
-
-### Phase 1: Validation Layer
-- Reusable validator modules (Dependency, Industry, Completeness, FTE)
-- Quality Gate Runner integrating all validators
-
-### Phase 2: Enhanced Prompts
-- Industry-specific workstream prompts
-- Concrete risk mitigation prompts
-- Measurable KPI prompts
-
-### Phase 3-5: Export Enhancements
-- Professional Excel export (8 sheets: Summary, WBS, Schedule, Resources, Budget, RACI, Risks, Assumptions)
-- PDF Executive Summary
-- Export Controller API
-
-### Future Enhancements
-- Real-time collaboration
-- Integration with external EPM tools (Jira, MS Project, Monday.com)
-- Advanced scenario planning with Monte Carlo simulation
-- Portfolio-level program management
+| **Generic Risk Mitigations** | Keyword-based specific mitigations replace template strings |
+| **Unmeasurable KPIs** | Numeric targets generated based on benefit type patterns |
 
 ---
 
@@ -141,6 +139,7 @@ These are the bugs we're about to fix:
 | AI | OpenAI, Anthropic, Gemini (multi-provider fallback) |
 | Security | AWS KMS, AES-256-GCM, Replit OIDC |
 | Build | Vite, esbuild |
+| Exports | xlsx (Excel), Puppeteer (PDF), archiver (ZIP) |
 
 ---
 
@@ -150,8 +149,22 @@ These are the bugs we're about to fix:
 |---------|-----------|
 | EPM Generation | `server/intelligence/epm/generators.ts` |
 | Resource Allocation | `server/intelligence/epm/resource-allocator.ts` |
+| EPM Validation | `server/intelligence/epm/validator.ts` |
+| Modular Validators | `server/intelligence/epm/validators/` |
+| Excel Export | `server/services/export/excel-exporter.ts` |
+| Export Routes | `server/routes/exports.ts` |
 | Journey Orchestration | `server/journey/journey-orchestrator.ts` |
 | Framework Analyzers | `server/intelligence/*.ts` |
 | Frontend Pages | `client/src/pages/strategic-consultant/` |
 | Schema | `shared/schema.ts` |
 | Project Docs | `replit.md` |
+
+---
+
+## Future Enhancements
+
+- Wire QualityGateRunner into EPM synthesis pipeline
+- Real-time collaboration
+- Integration with external EPM tools (Jira, MS Project, Monday.com)
+- Advanced scenario planning with Monte Carlo simulation
+- Portfolio-level program management
