@@ -7,7 +7,7 @@
 import { db } from '../db';
 import { journeySessions, strategicUnderstanding, frameworkInsights, goldenRecords } from '@shared/schema';
 import { StrategicContext, JourneyType, FrameworkResult, JourneyProgress } from '@shared/journey-types';
-import { eq, sql, desc } from 'drizzle-orm';
+import { eq, sql, desc, and } from 'drizzle-orm';
 import {
   initializeContext,
   addFrameworkResult,
@@ -557,30 +557,26 @@ export class JourneyOrchestrator {
         decisionsData = this.generatePlaceholderDecisions(context);
       }
       
-      // Create version 1 (always use 1 for the first version)
-      await db.insert(strategyVersions).values({
+      // Create version 1 with atomic verification via .returning()
+      const [insertedVersion] = await db.insert(strategyVersions).values({
         sessionId: understandingId,
         versionNumber: 1,
         versionLabel: `Strategic Decisions v1`,
         decisionsData,
         createdBy: 'system',
         userId: null,
+      }).returning({
+        id: strategyVersions.id,
+        sessionId: strategyVersions.sessionId,
+        versionNumber: strategyVersions.versionNumber,
       });
       
-      console.log(`[JourneyOrchestrator] Created decision version 1 for session ${understandingId}`);
-      
-      // VALIDATION GATE: Verify strategy_versions row exists before returning redirect URL
-      // This prevents race conditions where frontend navigates before DB write completes
-      const verifyVersion = await db.select()
-        .from(strategyVersions)
-        .where(eq(strategyVersions.sessionId, understandingId))
-        .limit(1);
-      
-      if (verifyVersion.length === 0) {
-        console.error(`[JourneyOrchestrator] VALIDATION FAILED: strategy_versions not found after insert for ${understandingId}`);
-        throw new Error(`Failed to create strategy version for session ${understandingId}`);
+      // VALIDATION GATE: Verify the insert returned the exact row we expect
+      if (!insertedVersion || insertedVersion.sessionId !== understandingId || insertedVersion.versionNumber !== 1) {
+        console.error(`[JourneyOrchestrator] VALIDATION FAILED: Insert did not return expected row for session=${understandingId}, version=1`);
+        throw new Error(`Failed to create strategy version 1 for session ${understandingId}`);
       }
-      console.log(`[JourneyOrchestrator] ✓ VALIDATION PASSED: strategy_versions row verified before redirect`);
+      console.log(`[JourneyOrchestrator] ✓ VALIDATION PASSED: strategy_versions row (id=${insertedVersion.id}, session=${understandingId}, version=1) atomically verified`);
       
       // Return redirect URL to version 1
       return `/strategic-consultant/decisions/${understandingId}/1`;

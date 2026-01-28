@@ -21,6 +21,7 @@ interface TransitionTest {
   fromModule: string;
   toModule: string;
   bridgeTable: string;
+  expectedFail?: boolean; // If true, failure is expected and doesn't count against pass rate
   setup: (testSessionId: string) => Promise<void>;
   validate: (testSessionId: string) => Promise<{ passed: boolean; error?: string }>;
   cleanup: (testSessionId: string) => Promise<void>;
@@ -131,16 +132,17 @@ const tests: TransitionTest[] = [
   
   // T002-async: DOCUMENTATION TEST - Expected to fail
   // This test documents what happens WITHOUT the validation gate.
-  // The actual fix (validation gate) is in:
+  // The actual fix (validation gate with .returning()) is in:
   //   - server/journey/journey-orchestrator.ts: prepareUserInputStep()
   //   - server/services/custom-journey-executor.ts: executeNode()
-  // These verify strategy_versions exists BEFORE returning redirectUrl.
+  // These atomically verify strategy_versions row via .returning() BEFORE returning redirectUrl.
   {
     id: 'T002-async',
     name: 'swot → decisions (RACE CONDITION DOCUMENTATION - EXPECTED FAIL)',
     fromModule: 'swot-analyzer',
     toModule: 'strategic-decisions',
     bridgeTable: 'strategy_versions (simulates frontend navigation)',
+    expectedFail: true, // This test intentionally fails to document the failure case
     setup: async (testSessionId: string) => {
       // This test documents the failure case when strategy_versions is missing.
       // In production, the validation gates prevent this by ensuring the row
@@ -264,9 +266,14 @@ async function runTests(): Promise<void> {
       
       // Validate
       const result = await test.validate(testSessionId);
-      results.push({ id: test.id, name: test.name, ...result });
+      results.push({ id: test.id, name: test.name, expectedFail: test.expectedFail, ...result });
       
-      console.log(`       Status: ${result.passed ? '✅ PASS' : '❌ FAIL'}`);
+      // Display status - expected failures are shown differently
+      if (test.expectedFail && !result.passed) {
+        console.log(`       Status: ⚠️ EXPECTED FAIL (documentation test)`);
+      } else {
+        console.log(`       Status: ${result.passed ? '✅ PASS' : '❌ FAIL'}`);
+      }
       if (result.error) {
         console.log(`       Error: ${result.error}`);
       }
@@ -285,27 +292,30 @@ async function runTests(): Promise<void> {
     console.log('');
   }
   
-  // Summary
+  // Summary - exclude expected failures from failure count
   const passed = results.filter(r => r.passed).length;
-  const failed = results.filter(r => !r.passed).length;
+  const expectedFails = results.filter(r => !r.passed && r.expectedFail).length;
+  const unexpectedFails = results.filter(r => !r.passed && !r.expectedFail).length;
   
   console.log('┌──────────────────────────────────────────────────────────────┐');
   console.log('│                        SUMMARY                               │');
   console.log('├──────────────────────────────────────────────────────────────┤');
-  console.log(`│  Passed: ${passed}/${results.length}                                                  │`);
-  console.log(`│  Failed: ${failed}                                                     │`);
+  console.log(`│  Passed: ${passed}/${results.length - expectedFails} (excluding ${expectedFails} documentation test(s))       │`);
+  console.log(`│  Unexpected Failures: ${unexpectedFails}                                       │`);
+  console.log(`│  Expected Failures (documentation): ${expectedFails}                           │`);
   
-  if (failed > 0) {
+  if (unexpectedFails > 0) {
     console.log('├──────────────────────────────────────────────────────────────┤');
-    console.log('│  Failed Tests:                                               │');
-    for (const r of results.filter(r => !r.passed)) {
+    console.log('│  Unexpected Failed Tests:                                    │');
+    for (const r of results.filter(r => !r.passed && !r.expectedFail)) {
       console.log(`│    ${r.id}: ${r.name.substring(0, 40).padEnd(40)}│`);
     }
   }
   
   console.log('└──────────────────────────────────────────────────────────────┘');
   
-  process.exit(failed > 0 ? 1 : 0);
+  // Exit code 0 if only expected failures, 1 if unexpected failures
+  process.exit(unexpectedFails > 0 ? 1 : 0);
 }
 
 // Run if executed directly

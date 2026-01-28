@@ -380,7 +380,9 @@ export class CustomJourneyExecutor {
                 }
                 
                 console.log(`[CustomJourneyExecutor] Creating version ${versionNumber} for session: ${sessionId}`);
-                await db.insert(strategyVersions).values({
+                
+                // Create version with atomic verification via .returning()
+                const [insertedVersion] = await db.insert(strategyVersions).values({
                   sessionId: sessionId,
                   versionNumber: versionNumber,
                   versionLabel: `Strategic Decisions v${versionNumber}`,
@@ -389,19 +391,18 @@ export class CustomJourneyExecutor {
                   status: 'draft',
                   createdBy: execution.userId || 'system',
                   userId: execution.userId || null,
+                }).returning({
+                  id: strategyVersions.id,
+                  sessionId: strategyVersions.sessionId,
+                  versionNumber: strategyVersions.versionNumber,
                 });
                 
-                // VALIDATION GATE: Verify strategy_versions row exists before returning redirect URL
-                const verifyVersion = await db.select()
-                  .from(strategyVersions)
-                  .where(eq(strategyVersions.sessionId, sessionId))
-                  .limit(1);
-                
-                if (verifyVersion.length === 0) {
-                  console.error(`[CustomJourneyExecutor] VALIDATION FAILED: strategy_versions not found after insert for ${sessionId}`);
-                  throw new Error(`Failed to create strategy version for session ${sessionId}`);
+                // VALIDATION GATE: Verify the insert returned the exact row we expect
+                if (!insertedVersion || insertedVersion.sessionId !== sessionId || insertedVersion.versionNumber !== versionNumber) {
+                  console.error(`[CustomJourneyExecutor] VALIDATION FAILED: Insert did not return expected row for session=${sessionId}, version=${versionNumber}`);
+                  throw new Error(`Failed to create strategy version ${versionNumber} for session ${sessionId}`);
                 }
-                console.log(`[CustomJourneyExecutor] ✓ VALIDATION PASSED: strategy_versions row verified before redirect`);
+                console.log(`[CustomJourneyExecutor] ✓ VALIDATION PASSED: strategy_versions row (id=${insertedVersion.id}, session=${sessionId}, version=${versionNumber}) atomically verified`);
               } else {
                 versionNumber = existingVersions.length + 1;
               }
