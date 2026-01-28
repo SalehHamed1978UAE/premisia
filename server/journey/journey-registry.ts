@@ -47,22 +47,31 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
   /**
    * Market Entry Strategy Journey
    * For entering new markets or launching new products
-   * NOT YET IMPLEMENTED: Placeholder only
+   * AVAILABLE: Strategic Research → PESTLE → Porter's → SWOT → Strategic Decisions → Prioritization → EPM
    */
   market_entry: {
     type: 'market_entry',
     name: 'Market Entry Strategy',
     description: 'Analyze market dynamics, competitive forces, and trends to craft a successful market entry plan',
     frameworks: ['pestle', 'porters', 'swot'],
+    pageSequence: [
+      '/strategic-consultant/input',
+      '/strategic-consultant/research/:sessionId',
+      '/strategy-workspace/decisions/:sessionId/:versionNumber',
+      '/strategy-workspace/prioritization/:sessionId/:versionNumber',
+    ],
     estimatedDuration: '15-20 minutes',
-    available: false, // Placeholder - not implemented
+    available: true, // FULLY IMPLEMENTED - PESTLE, Porter's, SWOT workflow
     summaryBuilder: 'pestlePorters',
     defaultReadiness: {
-      minReferences: 3,
-      minEntities: 5,
+      minReferences: 0,
+      minEntities: 0,
     },
     insightsConfig: {},
-    dependencies: [],
+    dependencies: [
+      { from: 'pestle', to: 'porters' },
+      { from: 'porters', to: 'swot' },
+    ],
   },
 
   /**

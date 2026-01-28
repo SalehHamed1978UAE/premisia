@@ -12,7 +12,7 @@ export const marketExpansionTemplate: JourneyTemplate = {
   name: 'Market Expansion Journey',
   description: 'Strategic analysis for market or geographic expansion',
 
-  analysisFrameworks: ['pestle', 'porters', 'ansoff'],
+  analysisFrameworks: ['pestle', 'porters', 'swot'],
 
   epmModules: [
     { moduleId: 'executive-summary', required: true },
