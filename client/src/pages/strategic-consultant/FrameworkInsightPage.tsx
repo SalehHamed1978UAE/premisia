@@ -200,6 +200,8 @@ export default function FrameworkInsightPage() {
   const [, setLocation] = useLocation();
   const [pollCount, setPollCount] = useState(0);
   const [isWaitingForAnalysis, setIsWaitingForAnalysis] = useState(true);
+  const [isWaitingForDecisions, setIsWaitingForDecisions] = useState(false);
+  const [decisionsPollCount, setDecisionsPollCount] = useState(0);
   
   const sessionId = params?.sessionId;
   const searchParams = new URLSearchParams(window.location.search);
@@ -234,6 +236,33 @@ export default function FrameworkInsightPage() {
       return () => clearTimeout(timer);
     }
   }, [data, pollCount, refetch]);
+
+  // Poll for decisions redirect URL while waiting for DecisionGenerator
+  useEffect(() => {
+    if (!isWaitingForDecisions) return;
+    
+    // If we have the redirect URL now, navigate
+    if (data?.nextStepRedirectUrl) {
+      console.log('[FrameworkInsightPage] Got redirect URL, navigating:', data.nextStepRedirectUrl);
+      setIsWaitingForDecisions(false);
+      setLocation(data.nextStepRedirectUrl);
+      return;
+    }
+    
+    // If we've polled more than 40 times (2 mins), show error
+    if (decisionsPollCount > 40) {
+      console.error('[FrameworkInsightPage] Timeout waiting for decisions to be generated');
+      setIsWaitingForDecisions(false);
+      return;
+    }
+    
+    // Continue polling for the redirect URL
+    const timer = setTimeout(() => {
+      setDecisionsPollCount(prev => prev + 1);
+      refetch();
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [isWaitingForDecisions, data?.nextStepRedirectUrl, decisionsPollCount, refetch, setLocation]);
 
   // Non-executable steps that should navigate to the strategy page instead of framework-insight
   const nonExecutableSteps = ['strategic_decisions'];
@@ -273,9 +302,12 @@ export default function FrameworkInsightPage() {
       // Normalize framework name for comparison
       const normalizedNext = nextFramework.toLowerCase().replace(/_/g, '-');
       if (normalizedNext === 'strategic-decisions') {
-        // For strategic_decisions, navigate to the Decision Page
-        // Fallback to version 1 if API didn't provide redirectUrl (version should exist by now)
-        setLocation(`/strategic-consultant/decisions/${understandingId}/1`);
+        // For strategic_decisions, we must wait for the backend to generate decisions
+        // and provide the redirect URL - do NOT navigate immediately as the row may not exist yet
+        console.log('[FrameworkInsightPage] Next step is strategic-decisions, starting to poll for redirect URL');
+        setIsWaitingForDecisions(true);
+        setDecisionsPollCount(0);
+        return; // Don't navigate yet - the useEffect will handle it when ready
       } else if (nonExecutableSteps.map(s => s.toLowerCase().replace(/_/g, '-')).includes(normalizedNext)) {
         navigateToStrategy();
       } else {
@@ -352,6 +384,39 @@ export default function FrameworkInsightPage() {
                 {pollCount === 0 
                   ? 'Starting analysis...' 
                   : `Checking for results... (${pollCount * 3}s elapsed)`}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  // Show loading state while waiting for DecisionGenerator to create the strategy_versions row
+  if (isWaitingForDecisions) {
+    const estimatedProgress = Math.min(95, 30 + decisionsPollCount * 3);
+    
+    return (
+      <AppLayout title="Generating Strategic Decisions">
+        <div className="container mx-auto p-6 max-w-2xl">
+          <Card className="border-primary/20" data-testid="card-decisions-progress">
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-4">
+                <Loader2 className="h-12 w-12 animate-spin text-primary" data-testid="spinner-decisions" />
+              </div>
+              <CardTitle data-testid="text-decisions-title">
+                Generating Strategic Decisions
+              </CardTitle>
+              <CardDescription data-testid="text-decisions-description">
+                Our AI is transforming your analysis into actionable strategic decisions. This typically takes 20-30 seconds.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Progress value={estimatedProgress} className="h-2" data-testid="progress-decisions" />
+              <p className="text-sm text-center text-muted-foreground" data-testid="text-decisions-poll-status">
+                {decisionsPollCount === 0 
+                  ? 'Starting decision generation...' 
+                  : `Preparing decisions... (${decisionsPollCount * 3}s elapsed)`}
               </p>
             </CardContent>
           </Card>
