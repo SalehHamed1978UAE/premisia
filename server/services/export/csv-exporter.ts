@@ -219,14 +219,15 @@ export function generateBenefitsCsv(benefitsRealization: any): string {
   const benefitArray = benefits.benefits || [];
   if (Array.isArray(benefitArray)) {
     benefitArray.forEach((b: any, idx: number) => {
+      // Support both standard path field names and custom path field names
       const row = [
         `BEN-${idx + 1}`,
         escapeCsvField(b.name || b.benefit || 'Unnamed benefit'),
         escapeCsvField(b.description || '-'),
         escapeCsvField(b.category || b.type || '-'),
-        escapeCsvField(b.metric || '-'),
-        escapeCsvField(b.target || b.goal || '-'),
-        escapeCsvField(b.timeframe || b.timeline || '-'),
+        escapeCsvField(b.metric || b.quantified_value || '-'),
+        escapeCsvField(b.target || b.goal || b.measurable_target || '-'),
+        escapeCsvField(b.timeframe || b.timeline || b.realization_timeline || '-'),
         escapeCsvField(b.owner || b.responsible || '-')
       ];
       rows.push(row.join(','));

@@ -12,6 +12,33 @@ import type {
   Deliverable as ValidatorDeliverable 
 } from '../intelligence/types';
 
+/**
+ * Resource plan structure expected by exporters
+ * Transforms headcount-based resources to FTE-based allocations
+ */
+export interface ResourcePlan {
+  internalTeam: InternalTeamMember[];
+  externalResources: ExternalResource[];
+  summary: {
+    totalFte: number;
+    totalHeadcount: number;
+  };
+}
+
+export interface InternalTeamMember {
+  role: string;
+  fte: number;
+  responsibilities: string;
+  durationMonths: number;
+}
+
+export interface ExternalResource {
+  type: string;
+  quantity: number;
+  skills: string;
+  estimatedCost: number;
+}
+
 export interface EPMProgram {
   title: string;
   description: string;
@@ -34,9 +61,19 @@ export interface EPMProgram {
   stage_gates: StageGate[];
   kpis: KPI[];
   benefits: Benefit[];
+  benefitsRealization?: BenefitsRealization; // For export compatibility - wrapped benefits
   risks: Risk[];
   funding: FundingPlan;
   resources: ResourceRequirement[];
+  resourcePlan?: ResourcePlan; // For export compatibility - FTE-based allocations
+}
+
+export interface BenefitsRealization {
+  benefits: Benefit[];
+  summary?: {
+    totalBenefits: number;
+    categories: string[];
+  };
 }
 
 export interface StageGate {
@@ -178,10 +215,13 @@ export class EPMConverter {
       this.generateResourceRequirements(workstreams, costEstimate),
     ]);
 
-    // Note: Standard path uses integer headcounts (count), not FTE allocations.
-    // FTE normalization is handled in the custom path (resource-allocator.ts)
-    // where LLM returns percentage allocations that need conversion to decimals.
-    console.log('[EPM Converter] Standard path conversion complete - headcount-based resources');
+    // Transform headcount-based resources to FTE-based resourcePlan for export compatibility
+    const resourcePlan = this.transformResourcesToResourcePlan(resources);
+    console.log('[EPM Converter] Standard path conversion complete - generated resourcePlan with', resourcePlan.summary.totalFte, 'total FTEs');
+
+    // Create benefitsRealization wrapper for export compatibility
+    const benefitsRealization = this.transformBenefitsToBenefitsRealization(benefits);
+    console.log('[EPM Converter] Generated benefitsRealization with', benefitsRealization.summary?.totalBenefits, 'benefits');
 
     const program = {
       title: programTitle,
@@ -203,9 +243,11 @@ export class EPMConverter {
       stage_gates: stageGates,
       kpis,
       benefits,
+      benefitsRealization, // Wrapped benefits for export compatibility
       risks,
       funding,
       resources,
+      resourcePlan, // FTE-based allocation for export compatibility
     };
 
     // Run quality gate validation
@@ -1085,6 +1127,88 @@ Return ONLY valid JSON:
     });
 
     return resources;
+  }
+
+  /**
+   * Transform headcount-based resources to resourcePlan format for export compatibility.
+   * Uses normalization rule per implementation orders:
+   * - count <= 10: treat as headcount, keep as-is (1 headcount = 1.0 FTE)
+   * - count > 10: treat as percentage from LLM, convert to decimal (75 → 0.75)
+   * This ensures exports show proper decimal FTEs (1.0, 2.0, 0.75) instead of raw percentages.
+   */
+  transformResourcesToResourcePlan(resources: ResourceRequirement[]): ResourcePlan {
+    const fixes: string[] = [];
+    let totalFte = 0;
+    let totalHeadcount = 0;
+
+    const internalTeam: InternalTeamMember[] = resources.map(resource => {
+      const rawValue = resource.count;
+      let fteValue: number;
+      let isHeadcount = false;
+      
+      if (rawValue > 10) {
+        // Rule: count > 10 means LLM returned percentage, convert to decimal
+        fteValue = Math.round((rawValue / 100) * 100) / 100; // e.g., 75 → 0.75
+        fixes.push(`${resource.role}: ${rawValue}% → ${fteValue} FTE`);
+        // Not a headcount - was a percentage value
+      } else {
+        // Rule: count <= 10 means actual headcount, keep as-is (1 headcount = 1.0 FTE)
+        fteValue = rawValue;
+        isHeadcount = true;
+        // No fix needed - headcount values are already valid FTEs
+      }
+
+      totalFte += fteValue;
+      // Only count actual headcounts, not percentages that were converted
+      if (isHeadcount) {
+        totalHeadcount += rawValue;
+      }
+
+      return {
+        role: resource.role,
+        fte: fteValue,
+        responsibilities: resource.skillset.join(', '),
+        durationMonths: resource.duration_months,
+      };
+    });
+
+    // Log normalization results
+    if (fixes.length > 0) {
+      console.log(`[EPM Converter] FTE normalization fixes: ${fixes.join('; ')}`);
+    } else {
+      console.log('[EPM Converter] FTE normalization: no fixes needed, all values valid');
+    }
+
+    return {
+      internalTeam,
+      externalResources: [], // Standard path doesn't generate external resources
+      summary: {
+        totalFte,
+        totalHeadcount,
+      },
+    };
+  }
+
+  /**
+   * Transform benefits array to benefitsRealization structure for export compatibility.
+   * The export system expects benefitsRealization.benefits, not just benefits array.
+   */
+  transformBenefitsToBenefitsRealization(benefits: Benefit[]): BenefitsRealization {
+    const categories = Array.from(new Set(benefits.map(b => b.category)));
+    
+    return {
+      benefits: benefits.map(b => ({
+        ...b,
+        // Ensure fields are available for CSV export with correct names
+        metric: b.quantified_value,
+        target: b.measurable_target,
+        timeframe: b.realization_timeline,
+      })),
+      summary: {
+        totalBenefits: benefits.length,
+        categories,
+      },
+    };
   }
 
   async validateEPMStructure(program: EPMProgram): Promise<{
