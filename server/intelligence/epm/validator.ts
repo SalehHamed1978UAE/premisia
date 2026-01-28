@@ -9,6 +9,19 @@ import type { Workstream, Timeline, StageGates } from '../types';
 import type { IEPMValidator, ValidationResult } from '../../types/interfaces';
 
 export class EPMValidator implements IEPMValidator {
+  private industryKeywords: Record<string, string[]> = {
+    food_service: ['food safety', 'kitchen', 'restaurant', 'menu', 'chef', 'dining', 'catering', 'culinary', 'food handling', 'haccp'],
+    healthcare: ['hipaa', 'patient', 'clinical', 'medical', 'healthcare', 'pharmacy', 'hospital', 'diagnosis', 'treatment'],
+    finance: ['banking', 'trading', 'securities', 'investment', 'loan', 'credit', 'forex', 'asset management'],
+    manufacturing: ['assembly line', 'production floor', 'quality control', 'lean manufacturing', 'six sigma', 'warehouse'],
+    retail: ['inventory', 'point of sale', 'merchandising', 'storefront', 'e-commerce', 'fulfillment'],
+    technology: ['software development', 'devops', 'api', 'database', 'cloud', 'agile', 'sprint'],
+    education: ['curriculum', 'enrollment', 'student', 'faculty', 'academic', 'campus'],
+    construction: ['site safety', 'building permit', 'contractor', 'blueprints', 'construction site'],
+    hospitality: ['hotel', 'guest services', 'booking', 'concierge', 'housekeeping'],
+    transportation: ['logistics', 'fleet management', 'route optimization', 'cargo', 'freight'],
+  };
+
   /**
    * Comprehensive data validation and auto-correction
    * Validates all logical constraints: deliverables, dependencies, phases, gates
@@ -16,7 +29,8 @@ export class EPMValidator implements IEPMValidator {
   validate(
     workstreams: Workstream[],
     timeline: Timeline,
-    stageGates: StageGates
+    stageGates: StageGates,
+    businessContext?: string
   ): ValidationResult {
     const errors: string[] = [];
     const corrections: string[] = [];
@@ -27,6 +41,7 @@ export class EPMValidator implements IEPMValidator {
     this.revalidateDeliverablesAfterAdjustment(workstreams, corrections);
     this.validatePhases(timeline, errors, corrections);
     this.validateStageGates(stageGates, timeline, errors, corrections);
+    this.validateIndustryAlignment(workstreams, businessContext, warnings);
 
     return {
       valid: errors.length === 0,
@@ -34,6 +49,39 @@ export class EPMValidator implements IEPMValidator {
       warnings,
       corrections
     };
+  }
+
+  private validateIndustryAlignment(
+    workstreams: Workstream[],
+    businessContext: string | undefined,
+    warnings: string[]
+  ): void {
+    if (!businessContext) return;
+    
+    const contextLower = businessContext.toLowerCase();
+    const detectedIndustries: string[] = [];
+    
+    for (const [industry, keywords] of Object.entries(this.industryKeywords)) {
+      if (keywords.some(kw => contextLower.includes(kw))) {
+        detectedIndustries.push(industry);
+      }
+    }
+    
+    for (const workstream of workstreams) {
+      const wsContent = `${workstream.name} ${workstream.description || ''}`.toLowerCase();
+      
+      for (const [industry, keywords] of Object.entries(this.industryKeywords)) {
+        if (detectedIndustries.includes(industry)) continue;
+        
+        const matchedKeyword = keywords.find(kw => wsContent.includes(kw));
+        if (matchedKeyword) {
+          warnings.push(
+            `Industry mismatch: Workstream "${workstream.name}" contains "${matchedKeyword}" ` +
+            `(${industry} industry term) which may not match your business context`
+          );
+        }
+      }
+    }
   }
 
   private validateDeliverables(

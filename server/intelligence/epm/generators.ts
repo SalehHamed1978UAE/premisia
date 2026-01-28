@@ -222,15 +222,16 @@ export class RiskGenerator {
     const risks: Risk[] = riskInsights.map((insight, idx) => {
       const probability = this.estimateRiskProbability(insight);
       const impact = this.estimateRiskImpact(insight);
+      const category = this.categorizeRisk(insight);
       
       return {
         id: `R${String(idx + 1).padStart(3, '0')}`,
         description: insight.content,
-        category: this.categorizeRisk(insight),
+        category,
         probability,
         impact,
         severity: probability * (impact === 'Critical' ? 4 : impact === 'High' ? 3 : impact === 'Medium' ? 2 : 1),
-        mitigation: `Monitor and implement controls to reduce ${impact.toLowerCase()} impact`,
+        mitigation: this.generateMitigation(insight, category),
         contingency: `Escalate to governance if probability exceeds ${probability + 20}%`,
         confidence: insight.confidence,
       };
@@ -265,6 +266,60 @@ export class RiskGenerator {
     if (lower.includes('high') || lower.includes('significant')) return 'High';
     if (lower.includes('medium') || lower.includes('moderate')) return 'Medium';
     return 'Low';
+  }
+
+  private generateMitigation(insight: StrategyInsight, category: string): string {
+    const lower = insight.content.toLowerCase();
+    
+    if (lower.includes('competition') || lower.includes('competitor')) {
+      return 'Develop competitive differentiation strategy and monitor competitor movements weekly';
+    }
+    if (lower.includes('supply chain') || lower.includes('supplier')) {
+      return 'Diversify supplier base and maintain 30-day inventory buffer for critical materials';
+    }
+    if (lower.includes('talent') || lower.includes('hiring') || lower.includes('recruitment')) {
+      return 'Implement retention bonuses, accelerate hiring pipeline, and cross-train existing staff';
+    }
+    if (lower.includes('technology') || lower.includes('system') || lower.includes('integration')) {
+      return 'Conduct technical proof-of-concept, establish rollback procedures, and schedule vendor support';
+    }
+    if (lower.includes('regulatory') || lower.includes('compliance') || lower.includes('legal')) {
+      return 'Engage legal counsel, implement compliance monitoring, and establish regulatory liaison';
+    }
+    if (lower.includes('budget') || lower.includes('cost') || lower.includes('financial')) {
+      return 'Establish contingency reserve (15% of budget), implement monthly cost reviews, and identify cost reduction levers';
+    }
+    if (lower.includes('timeline') || lower.includes('delay') || lower.includes('schedule')) {
+      return 'Build 2-week buffer into critical path, identify fast-track options, and escalate blockers within 48 hours';
+    }
+    if (lower.includes('customer') || lower.includes('user') || lower.includes('adoption')) {
+      return 'Conduct user research, implement feedback loops, and develop change management communication plan';
+    }
+    if (lower.includes('market') || lower.includes('demand') || lower.includes('economic')) {
+      return 'Monitor market indicators monthly, develop scenario-based contingency plans, and maintain pricing flexibility';
+    }
+    if (lower.includes('quality') || lower.includes('defect') || lower.includes('performance')) {
+      return 'Implement quality gates at each phase, establish acceptance criteria, and conduct regular testing';
+    }
+    if (lower.includes('security') || lower.includes('breach') || lower.includes('data')) {
+      return 'Conduct security audit, implement access controls, and establish incident response procedures';
+    }
+    if (lower.includes('stakeholder') || lower.includes('sponsor') || lower.includes('executive')) {
+      return 'Schedule bi-weekly stakeholder updates, document decisions formally, and maintain RACI clarity';
+    }
+    if (lower.includes('resource') || lower.includes('capacity') || lower.includes('bandwidth')) {
+      return 'Prioritize workload, identify backup resources, and establish resource escalation path';
+    }
+    
+    const categoryMitigations: Record<string, string> = {
+      'Technical': 'Conduct technical review, establish fallback architecture, and maintain vendor support agreements',
+      'Market': 'Monitor market trends quarterly, develop pivot scenarios, and maintain customer feedback channels',
+      'Resource': 'Cross-train team members, maintain contractor relationships, and document key processes',
+      'Regulatory': 'Engage compliance experts, monitor regulatory changes, and maintain audit documentation',
+      'Strategic': 'Review strategy quarterly with leadership, maintain scenario plans, and track leading indicators',
+    };
+    
+    return categoryMitigations[category] || 'Establish monitoring process, define escalation triggers, and review mitigation effectiveness monthly';
   }
 }
 
@@ -315,7 +370,7 @@ export class KPIGenerator {
         name: this.generateKPIName(benefit.description),
         category: kpiCategory,
         baseline: 'Current state',
-        target: benefit.estimatedValue ? `+${benefit.estimatedValue.toLocaleString()}` : 'Improvement',
+        target: benefit.estimatedValue ? `+${benefit.estimatedValue.toLocaleString()}` : this.generateMeasurableTarget(benefit),
         measurement: benefit.measurement,
         frequency: benefit.category === 'Financial' ? 'Monthly' as const : 'Quarterly' as const,
         linkedBenefitIds: [benefit.id],
@@ -344,6 +399,60 @@ export class KPIGenerator {
   private generateKPIName(description: string): string {
     const words = description.split(' ').slice(0, 4).join(' ');
     return words.length > 40 ? words.substring(0, 37) + '...' : words;
+  }
+
+  private generateMeasurableTarget(benefit: { description: string; category: string; measurement?: string }): string {
+    const lower = benefit.description.toLowerCase();
+    const measurement = benefit.measurement?.toLowerCase() || '';
+    
+    if (lower.includes('revenue') || lower.includes('sales')) {
+      return '+15% year-over-year';
+    }
+    if (lower.includes('cost') || lower.includes('expense') || lower.includes('savings')) {
+      return '-20% reduction from baseline';
+    }
+    if (lower.includes('efficiency') || lower.includes('productivity')) {
+      return '+25% improvement in throughput';
+    }
+    if (lower.includes('time') || lower.includes('speed') || lower.includes('faster')) {
+      return '-30% reduction in cycle time';
+    }
+    if (lower.includes('customer') || lower.includes('satisfaction') || lower.includes('nps')) {
+      return '+10 points NPS improvement';
+    }
+    if (lower.includes('quality') || lower.includes('defect') || lower.includes('error')) {
+      return '-50% reduction in defect rate';
+    }
+    if (lower.includes('market') || lower.includes('share')) {
+      return '+5% market share gain';
+    }
+    if (lower.includes('retention') || lower.includes('churn')) {
+      return '+10% improvement in retention rate';
+    }
+    if (lower.includes('conversion') || lower.includes('lead')) {
+      return '+20% conversion rate improvement';
+    }
+    if (lower.includes('engagement') || lower.includes('adoption')) {
+      return '+30% increase in active users';
+    }
+    if (lower.includes('compliance') || lower.includes('audit')) {
+      return '100% compliance score';
+    }
+    if (lower.includes('risk') || lower.includes('incident')) {
+      return '-40% reduction in incidents';
+    }
+    
+    if (benefit.category === 'Financial') {
+      return '+10% improvement vs baseline';
+    }
+    if (benefit.category === 'Operational') {
+      return '+15% operational improvement';
+    }
+    if (benefit.category === 'Customer') {
+      return '+20% customer metric improvement';
+    }
+    
+    return '+15% improvement vs current state';
   }
 }
 

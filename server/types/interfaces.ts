@@ -194,7 +194,8 @@ export interface IEPMValidator {
   validate(
     workstreams: any[],
     timeline: any,
-    stageGates: any
+    stageGates: any,
+    businessContext?: string
   ): ValidationResult;
 }
 

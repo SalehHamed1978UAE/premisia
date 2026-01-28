@@ -434,10 +434,15 @@ export class EPMSynthesizer {
       elapsedSeconds: Math.round((Date.now() - processStartTime) / 1000)
     });
     
-    const validationResult = this.validator.validate(workstreams, timeline, stageGates);
+    const businessContext = insights.marketContext?.industry || '';
+    const validationResult = this.validator.validate(workstreams, timeline, stageGates, businessContext);
     if (validationResult.errors.length > 0) {
       console.log(`[EPM Synthesis] ⚠️ Validation found ${validationResult.errors.length} errors, auto-corrected`);
       validationResult.corrections.forEach(c => console.log(`    - ${c}`));
+    }
+    if (validationResult.warnings.length > 0) {
+      console.log(`[EPM Synthesis] ⚠️ Validation warnings: ${validationResult.warnings.length}`);
+      validationResult.warnings.forEach(w => console.log(`    - ${w}`));
     }
     
     const planningGrid = this.validator.analyzePlanningGrid(workstreams, timeline);
@@ -578,8 +583,14 @@ export class EPMSynthesizer {
     
     const stageGates = await this.stageGateGenerator.generate(timeline, riskRegister);
     
-    const validationResult = this.validator.validate(workstreams, timeline, stageGates);
+    const businessContext = insights.marketContext?.industry || '';
+    const validationResult = this.validator.validate(workstreams, timeline, stageGates, businessContext);
     const planningGrid = this.validator.analyzePlanningGrid(workstreams, timeline);
+    
+    if (validationResult.warnings.length > 0) {
+      console.log(`[EPM Synthesis] ⚠️ Validation warnings: ${validationResult.warnings.length}`);
+      validationResult.warnings.forEach(w => console.log(`    - ${w}`));
+    }
     
     const [
       financialPlan,
