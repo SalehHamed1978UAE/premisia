@@ -3,7 +3,7 @@
  * Example: "PM software" vs "PM discipline" should NOT be a contradiction
  */
 
-import { BMCResearcher } from "./strategic-consultant/bmc-researcher";
+import { BMCResearcher } from "./strategic-consultant-legacy/bmc-researcher";
 
 async function testSemanticValidation() {
   console.log("=== TESTING SEMANTIC VALIDATION ===\n");

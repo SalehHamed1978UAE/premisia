@@ -17,7 +17,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 // Import real analyzers - singletons
 import { swotAnalyzer, SWOTOutput } from '../intelligence/swot-analyzer';
-import { DecisionGenerator } from '../strategic-consultant/decision-generator';
+import { DecisionGenerator } from '../strategic-consultant-legacy/decision-generator';
 import { ansoffAnalyzer } from '../intelligence/ansoff-analyzer';
 import { jtbdAnalyzer } from '../intelligence/jtbd-analyzer';
 import { vrioAnalyzer } from '../intelligence/vrio-analyzer';

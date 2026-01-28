@@ -3,7 +3,7 @@
  * Ensures that mixed evidence (some valid, some invalid) is rejected
  */
 
-import { BMCResearcher } from "./strategic-consultant/bmc-researcher";
+import { BMCResearcher } from "./strategic-consultant-legacy/bmc-researcher";
 
 async function testMultiEvidenceValidation() {
   console.log("=== TESTING MULTI-EVIDENCE SEMANTIC VALIDATION ===\n");

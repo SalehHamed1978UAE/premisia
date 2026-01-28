@@ -1,6 +1,6 @@
 import type { FrameworkExecutor } from '../framework-executor-registry';
 import type { StrategicContext } from '@shared/journey-types';
-import { BMCResearcher } from '../../strategic-consultant/bmc-researcher';
+import { BMCResearcher } from '../../strategic-consultant-legacy/bmc-researcher';
 import { ReferenceService } from '../../services/reference-service';
 import { db } from '../../db';
 import { journeySessions } from '@shared/schema';

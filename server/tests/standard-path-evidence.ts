@@ -9,7 +9,7 @@
  * 5. Resource plan structure for export
  */
 
-import { EPMConverter, ResourceRequirement, ResourcePlan, Benefit, BenefitsRealization } from '../strategic-consultant/epm-converter';
+import { EPMConverter, ResourceRequirement, ResourcePlan, Benefit, BenefitsRealization } from '../strategic-consultant-legacy/epm-converter';
 import { generateResourcesCsv, generateBenefitsCsv } from '../services/export/csv-exporter';
 
 console.log('='.repeat(70));

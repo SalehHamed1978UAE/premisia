@@ -10,7 +10,7 @@
  */
 
 import { StrategicUnderstandingService } from './strategic-understanding-service';
-import { BMCQueryGenerator } from './strategic-consultant/bmc-query-generator';
+import { BMCQueryGenerator } from './strategic-consultant-legacy/bmc-query-generator';
 
 async function testAsanaStrategy() {
   console.log('\n=== End-to-End Test: Asana Implementation Strategy ===\n');

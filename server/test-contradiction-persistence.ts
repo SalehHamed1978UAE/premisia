@@ -8,7 +8,7 @@
  */
 
 import { StrategicUnderstandingService } from './strategic-understanding-service';
-import { BMCResearcher } from './strategic-consultant/bmc-researcher';
+import { BMCResearcher } from './strategic-consultant-legacy/bmc-researcher';
 import { db } from './db';
 import { sql } from 'drizzle-orm';
 

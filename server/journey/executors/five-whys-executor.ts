@@ -1,6 +1,6 @@
 import type { FrameworkExecutor } from '../framework-executor-registry';
 import type { StrategicContext } from '@shared/journey-types';
-import { WhysTreeGenerator } from '../../strategic-consultant/whys-tree-generator';
+import { WhysTreeGenerator } from '../../strategic-consultant-legacy/whys-tree-generator';
 
 /**
  * Five Whys Framework Executor

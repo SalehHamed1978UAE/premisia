@@ -10,7 +10,7 @@
  * - NOT: Generic "software implementation timelines"
  */
 
-import { BMCQueryGenerator } from './strategic-consultant/bmc-query-generator';
+import { BMCQueryGenerator } from './strategic-consultant-legacy/bmc-query-generator';
 
 async function testContextPreservation() {
   console.log('\n=== Testing Context Preservation in Query Generation ===\n');

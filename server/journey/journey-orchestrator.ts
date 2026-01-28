@@ -15,8 +15,8 @@ import {
 } from './strategic-context-accumulator';
 import { getJourney, isJourneyAvailable } from './journey-registry';
 import { applyWhysToBMCBridge } from './bridges/whys-to-bmc-bridge';
-import { WhysTreeGenerator } from '../strategic-consultant/whys-tree-generator';
-import { BMCResearcher } from '../strategic-consultant/bmc-researcher';
+import { WhysTreeGenerator } from '../strategic-consultant-legacy/whys-tree-generator';
+import { BMCResearcher } from '../strategic-consultant-legacy/bmc-researcher';
 import { dbConnectionManager } from '../db-connection-manager';
 import { getStrategicUnderstanding, saveJourneySession, getJourneySession, updateJourneySession } from '../services/secure-data-service';
 import { encryptJSONKMS, decryptJSONKMS } from '../utils/kms-encryption';
@@ -485,7 +485,7 @@ export class JourneyOrchestrator {
     
     if (existingVersions.length === 0) {
       // No versions exist: create version 1 with AI-generated decisions based on SWOT
-      const { DecisionGenerator } = await import('../strategic-consultant/decision-generator');
+      const { DecisionGenerator } = await import('../strategic-consultant-legacy/decision-generator');
       const generator = new DecisionGenerator();
       
       // Try to extract SWOT output from framework_insights table

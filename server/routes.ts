@@ -6,7 +6,8 @@ import { insertProgramSchema, insertWorkstreamSchema, insertStageGateSchema, ins
 import { ontologyService } from "./ontology-service";
 import { assessmentService } from "./assessment-service";
 import { Orchestrator } from "./orchestrator";
-import strategicConsultantRoutes from "./routes/strategic-consultant";
+import strategicConsultantLegacyRoutes from "./routes/strategic-consultant-legacy";
+import strategicConsultantV2Routes from "./routes/strategic-consultant-v2";
 import documentEnrichmentRoutes from "./routes/document-enrichment";
 import trendAnalysisRoutes from "./routes/trend-analysis";
 import statementRepositoryRoutes from "./routes/statement-repository.routes";
@@ -270,7 +271,12 @@ Marketing and events: $3k/month`,
   const requireAuth = isAuthenticated;
 
   // Strategic Consultant routes (protected with auth)
-  app.use("/api/strategic-consultant", requireAuth, strategicConsultantRoutes);
+  // V2 routes - unified pipeline using Journey Builder
+  app.use("/api/strategic-consultant-v2", requireAuth, strategicConsultantV2Routes);
+  // Legacy routes kept at original path for backward compatibility
+  app.use("/api/strategic-consultant", requireAuth, strategicConsultantLegacyRoutes);
+  // Also expose at legacy-specific path
+  app.use("/api/strategic-consultant-legacy", requireAuth, strategicConsultantLegacyRoutes);
   app.use("/api/document-enrichment", documentEnrichmentRoutes);
   
   // Trend Analysis routes (protected with auth)

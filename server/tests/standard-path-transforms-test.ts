@@ -5,7 +5,7 @@
  * between standard path output and export system requirements.
  */
 
-import { EPMConverter, ResourceRequirement, Benefit } from '../strategic-consultant/epm-converter';
+import { EPMConverter, ResourceRequirement, Benefit } from '../strategic-consultant-legacy/epm-converter';
 import { generateResourcesCsv, generateBenefitsCsv } from '../services/export/csv-exporter';
 
 console.log('='.repeat(70));
