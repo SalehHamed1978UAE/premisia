@@ -47,16 +47,24 @@ export class ContextBuilder {
           .where(eq(strategicUnderstanding.id, sessionId))
           .limit(1);
         
+        console.log('[ContextBuilder] INPUT:', {
+          sessionId,
+          understandingFound: understanding.length > 0,
+          title: understanding[0]?.title?.substring(0, 50),
+          userInput: understanding[0]?.userInput?.substring(0, 100),
+          initiativeType: understanding[0]?.initiativeType
+        });
+        
         if (understanding.length > 0) {
           if (understanding[0].initiativeType) {
             initiativeType = understanding[0].initiativeType;
             console.log(`[ContextBuilder] 🎯 Retrieved initiative type from DB: ${initiativeType}`);
           }
-          if (understanding[0].title) {
+          if (understanding[0].title && understanding[0].title !== 'Untitled' && understanding[0].title.length > 3) {
             businessName = understanding[0].title;
-            console.log(`[ContextBuilder] 🏢 Retrieved business name from DB: "${businessName}"`);
+            console.log(`[ContextBuilder] 🏢 Retrieved business name from title: "${businessName}"`);
           } else if (understanding[0].userInput) {
-            // If no title, try to extract business name from userInput
+            // If no title or title is 'Untitled', extract business name from userInput
             businessName = this.extractBusinessNameFromInput(understanding[0].userInput);
             console.log(`[ContextBuilder] 🏢 Extracted business name from userInput: "${businessName}"`);
           }
@@ -81,7 +89,11 @@ export class ContextBuilder {
     const businessType = this.inferBusinessType(insights);
     const industry = insights.marketContext?.industry || this.inferIndustryFromType(businessType);
     
-    console.log(`[ContextBuilder] 🏭 Business type: ${businessType}, Industry: ${industry}`);
+    console.log('[ContextBuilder] OUTPUT:', {
+      businessName,
+      businessType,
+      industry
+    });
     
     return {
       business: {
@@ -282,42 +294,82 @@ export class ContextBuilder {
 
   /**
    * Extract business name from user input if title is not set
-   * Looks for common patterns like "a sneaker store called X" or "my business X"
+   * Looks for common patterns like "Basketball Sneaker Store" or "a sneaker store called X"
    */
   private static extractBusinessNameFromInput(userInput: string): string {
+    console.log('[extractBusinessName] Input:', userInput?.substring(0, 100));
+    
+    if (!userInput || userInput.trim().length === 0) {
+      return 'the business';
+    }
+    
+    // Clean input - remove common sentence starters
+    let cleanInput = userInput.trim();
+    const sentenceStarters = [
+      /^i\s+(?:want\s+to|am\s+planning\s+to|plan\s+to|would\s+like\s+to|need\s+to)\s+(?:open|start|build|launch|create)\s+(?:a\s+)?/i,
+      /^we\s+(?:want\s+to|are\s+planning\s+to|plan\s+to|would\s+like\s+to|need\s+to)\s+(?:open|start|build|launch|create)\s+(?:a\s+)?/i,
+      /^(?:opening|starting|launching|building|creating)\s+(?:a\s+)?/i,
+      /^(?:open|start|build|launch|create)\s+(?:a\s+)?/i,
+      /^(?:a\s+|an\s+|the\s+)/i,
+    ];
+    
+    for (const starter of sentenceStarters) {
+      cleanInput = cleanInput.replace(starter, '');
+    }
+    
     // Try to extract quoted names first
     const quotedMatch = userInput.match(/["']([^"']+)["']/);
     if (quotedMatch && quotedMatch[1].length <= 60) {
+      console.log('[extractBusinessName] Found quoted name:', quotedMatch[1]);
       return quotedMatch[1];
     }
     
-    // Try patterns like "called X", "named X", "my X store/shop/business"
-    const patterns = [
-      /called\s+([A-Z][A-Za-z0-9\s&'-]+?)(?:\s+in|\s+at|\s+to|\s+for|\s*,|\s*\.)/i,
-      /named\s+([A-Z][A-Za-z0-9\s&'-]+?)(?:\s+in|\s+at|\s+to|\s+for|\s*,|\s*\.)/i,
-      /opening\s+(?:a\s+)?([A-Z][A-Za-z0-9\s&'-]+?\s+(?:store|shop|boutique|cafe|restaurant|business))(?:\s+in|\s+at|\s*,|\s*\.)/i,
-      /launch(?:ing)?\s+(?:a\s+)?([A-Z][A-Za-z0-9\s&'-]+?\s+(?:store|shop|boutique|cafe|restaurant|business))(?:\s+in|\s+at|\s*,|\s*\.)/i,
-      /starting\s+(?:a\s+)?([A-Z][A-Za-z0-9\s&'-]+?\s+(?:store|shop|boutique|cafe|restaurant|business))(?:\s+in|\s+at|\s*,|\s*\.)/i,
-    ];
-    
-    for (const pattern of patterns) {
-      const match = userInput.match(pattern);
-      if (match && match[1].trim().length > 0 && match[1].trim().length <= 60) {
-        return match[1].trim();
+    // Pattern: Look for "X store/shop/business in Location" - extract X store/shop/business
+    const storePattern = cleanInput.match(/^(.+?(?:store|shop|boutique|cafe|restaurant|business))/i);
+    if (storePattern && storePattern[1]) {
+      const extracted = storePattern[1].trim();
+      if (extracted.length > 3 && extracted.length <= 60) {
+        console.log('[extractBusinessName] Store pattern matched:', extracted);
+        return extracted;
       }
     }
     
-    // Fallback: Extract first capitalized phrase as potential business name
-    const capitalizedMatch = userInput.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3})\b/);
-    if (capitalizedMatch && capitalizedMatch[1].length > 2 && capitalizedMatch[1].length <= 40) {
-      // Exclude common words that start sentences
-      const commonWords = ['The', 'This', 'Our', 'My', 'We', 'I', 'It', 'They', 'He', 'She'];
-      if (!commonWords.includes(capitalizedMatch[1])) {
-        return capitalizedMatch[1];
+    // Pattern: Extract everything before location markers (in, at, for, located)
+    const locationPattern = cleanInput.match(/^(.+?)\s+(?:in|at|for|located\s+in)\s+/i);
+    if (locationPattern && locationPattern[1]) {
+      const extracted = locationPattern[1].trim();
+      if (extracted.length > 3 && extracted.length <= 60) {
+        console.log('[extractBusinessName] Location pattern matched:', extracted);
+        return extracted;
       }
     }
     
-    return 'Unnamed Business';
+    // Pattern: "called X" or "named X"
+    const namedPattern = userInput.match(/(?:called|named)\s+["']?([^"']+?)["']?(?:\s+in|\s+at|\s*$)/i);
+    if (namedPattern && namedPattern[1]) {
+      const extracted = namedPattern[1].trim();
+      if (extracted.length > 2 && extracted.length <= 60) {
+        console.log('[extractBusinessName] Named pattern matched:', extracted);
+        return extracted;
+      }
+    }
+    
+    // Fallback: Use cleaned input if short enough, otherwise first 5 meaningful words
+    if (cleanInput.length > 3 && cleanInput.length <= 60) {
+      console.log('[extractBusinessName] Using cleaned input:', cleanInput);
+      return cleanInput;
+    }
+    
+    // Get first 5 words from clean input, filter out articles
+    const words = cleanInput.split(/\s+/).filter(w => !['a', 'an', 'the', 'i', 'we'].includes(w.toLowerCase()));
+    const result = words.slice(0, 5).join(' ');
+    if (result.length > 3) {
+      console.log('[extractBusinessName] Fallback words:', result);
+      return result;
+    }
+    
+    console.log('[extractBusinessName] Final fallback to cleaned input');
+    return cleanInput || 'the business';
   }
 
   /**

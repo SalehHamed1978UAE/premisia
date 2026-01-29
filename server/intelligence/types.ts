@@ -134,6 +134,7 @@ export interface Benefit {
   realizationMonth: number;
   estimatedValue?: number; // For financial benefits
   measurement: string;
+  responsibleParty?: string; // Role responsible for realizing this benefit
   confidence: number;
 }
 

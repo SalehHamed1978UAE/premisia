@@ -464,13 +464,24 @@ export class EPMSynthesizer {
     
     const [
       financialPlan,
-      benefitsRealization,
+      benefitsRealizationRaw,
       governance,
     ] = await Promise.all([
       this.financialPlanGenerator.generate(insights, resourcePlan, userContext),
       this.benefitsGenerator.generate(insights, timeline),
       this.governanceGenerator.generate(insights, stakeholderMap),
     ]);
+    
+    // Assign responsible parties to benefits based on resources
+    const benefitsWithOwners = this.benefitsGenerator.assignBenefitOwners(
+      benefitsRealizationRaw.benefits,
+      resourcePlan.internalTeam
+    );
+    const benefitsRealization = {
+      ...benefitsRealizationRaw,
+      benefits: benefitsWithOwners
+    };
+    console.log('[EPM Synthesis] ✓ Assigned benefit owners (buildV2Program):', benefitsWithOwners.map(b => ({ name: b.name, owner: b.responsibleParty })));
     
     const [
       kpis,
@@ -599,13 +610,24 @@ export class EPMSynthesizer {
     
     const [
       financialPlan,
-      benefitsRealization,
+      benefitsRealizationRaw2,
       governance,
     ] = await Promise.all([
       this.financialPlanGenerator.generate(insights, resourcePlan, userContext),
       this.benefitsGenerator.generate(insights, timeline),
       this.governanceGenerator.generate(insights, stakeholderMap),
     ]);
+    
+    // Assign responsible parties to benefits based on resources (legacy path)
+    const benefitsWithOwners2 = this.benefitsGenerator.assignBenefitOwners(
+      benefitsRealizationRaw2.benefits,
+      resourcePlan.internalTeam
+    );
+    const benefitsRealization = {
+      ...benefitsRealizationRaw2,
+      benefits: benefitsWithOwners2
+    };
+    console.log('[EPM Synthesis] ✓ Assigned benefit owners (legacy):', benefitsWithOwners2.map(b => ({ name: b.name, owner: b.responsibleParty })));
     
     const [
       kpis,

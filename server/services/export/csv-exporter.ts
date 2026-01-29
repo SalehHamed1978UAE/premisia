@@ -265,7 +265,7 @@ export function generateBenefitsCsv(benefitsRealization: any): string {
         escapeCsvField(b.metric || b.quantified_value || b.measurement || '-'),
         escapeCsvField(target),
         escapeCsvField(timeframe),
-        escapeCsvField(b.owner || b.responsible || '-')
+        escapeCsvField(b.responsibleParty || b.owner || b.responsible || '-')
       ];
       rows.push(row.join(','));
     });

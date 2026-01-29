@@ -20,6 +20,7 @@ import type {
   StrategyInsight,
   UserContext,
   ResourcePlan,
+  ResourceAllocation,
   Timeline,
   RiskRegister,
   StageGates,
@@ -268,6 +269,94 @@ export class BenefitsGenerator {
     if (lower.includes('risk')) return '-40% risk exposure reduction';
     
     return '+10% performance improvement';
+  }
+
+  /**
+   * Assign responsible parties to benefits based on their category and content
+   * Matches benefits to resources using role-based logic similar to workstream owners
+   */
+  assignBenefitOwners(benefits: Benefit[], resources: ResourceAllocation[]): Benefit[] {
+    if (!resources || resources.length === 0) {
+      console.log('[BenefitsGenerator] No resources available, using default owner');
+      return benefits.map(b => ({ ...b, responsibleParty: 'Program Director' }));
+    }
+    
+    return benefits.map(benefit => {
+      let owner = '';
+      const lowerContent = benefit.description.toLowerCase();
+      // Normalize category for matching - handle variants like "Risk Mitigation (Compliance)"
+      const categoryLower = (benefit.category || '').toLowerCase();
+      
+      // Match by category first (case-insensitive with variants)
+      if (categoryLower.includes('financial') || categoryLower.includes('finance')) {
+        const match = resources.find(r => 
+          r.role.toLowerCase().includes('financial') || 
+          r.role.toLowerCase().includes('finance') ||
+          r.role.toLowerCase().includes('performance')
+        );
+        owner = match?.role || '';
+      } 
+      else if (categoryLower.includes('strategic') || categoryLower.includes('strategy')) {
+        const match = resources.find(r => 
+          r.role.toLowerCase().includes('strategy') || 
+          r.role.toLowerCase().includes('lead') ||
+          r.role.toLowerCase().includes('director')
+        );
+        owner = match?.role || '';
+      }
+      else if (categoryLower.includes('operational') || categoryLower.includes('operations') || categoryLower.includes('ops')) {
+        const match = resources.find(r => 
+          r.role.toLowerCase().includes('operations') || 
+          r.role.toLowerCase().includes('supply chain') ||
+          r.role.toLowerCase().includes('manager')
+        );
+        owner = match?.role || '';
+      }
+      else if (categoryLower.includes('risk') || categoryLower.includes('compliance') || categoryLower.includes('mitigation')) {
+        const match = resources.find(r => 
+          r.role.toLowerCase().includes('risk') || 
+          r.role.toLowerCase().includes('compliance') ||
+          r.role.toLowerCase().includes('legal')
+        );
+        owner = match?.role || '';
+      }
+      
+      // If no category match, try content-based matching
+      if (!owner) {
+        if (lowerContent.includes('customer') || lowerContent.includes('experience')) {
+          const match = resources.find(r => 
+            r.role.toLowerCase().includes('customer') || 
+            r.role.toLowerCase().includes('experience')
+          );
+          owner = match?.role || '';
+        }
+        else if (lowerContent.includes('data') || lowerContent.includes('technology')) {
+          const match = resources.find(r => 
+            r.role.toLowerCase().includes('data') || 
+            r.role.toLowerCase().includes('technology') ||
+            r.role.toLowerCase().includes('digital')
+          );
+          owner = match?.role || '';
+        }
+        else if (lowerContent.includes('supply') || lowerContent.includes('inventory')) {
+          const match = resources.find(r => 
+            r.role.toLowerCase().includes('supply') || 
+            r.role.toLowerCase().includes('operations')
+          );
+          owner = match?.role || '';
+        }
+      }
+      
+      // Final fallback: use first resource (usually the lead/director)
+      if (!owner) {
+        owner = resources[0]?.role || 'Program Director';
+      }
+      
+      return {
+        ...benefit,
+        responsibleParty: owner
+      };
+    });
   }
 }
 
