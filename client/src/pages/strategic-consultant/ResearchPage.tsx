@@ -164,28 +164,32 @@ export default function ResearchPage() {
   useEffect(() => {
     if (!sessionId || loadingJourney || hasInitiatedResearch.current) return;
 
-    const rootCause = localStorage.getItem(`strategic-rootCause-${sessionId}`) || '';
-    const whysPathStr = localStorage.getItem(`strategic-whysPath-${sessionId}`) || '[]';
-    const whysPath = JSON.parse(whysPathStr);
-    const input = localStorage.getItem(`strategic-input-${sessionId}`) || '';
-    
     // Use backend journey type if available, fallback to localStorage
     const journeyType = journeySession?.journeyType || localStorage.getItem(`journey-type-${sessionId}`) || 'business_model_innovation';
     console.log(`[ResearchPage] Journey type: ${journeyType} (from ${journeySession?.journeyType ? 'backend' : 'localStorage or default'})`);
 
-    // Only require Five-Whys data for journeys that use it (Porter's, etc.)
-    // BMI/BMC journeys don't go through Five Whys, so skip this check for them
+    // Determine which endpoint to use based on journey type
+    // BMI uses BMC research endpoint
+    // Market Entry uses Market Entry research endpoint (PESTLE→Porter's→SWOT)
+    // Other journeys with Five Whys would use the standard research stream
     const isBMCJourney = journeyType === 'business_model_innovation';
-    const requiresFiveWhys = !isBMCJourney;
-
-    if (requiresFiveWhys && (!rootCause || !whysPath.length || !input)) {
-      setError('Missing required data from previous steps');
-      return;
-    }
-
-    if (!isBMCJourney && !input) {
-      setError('Missing required input from previous steps');
-      return;
+    const isMarketEntryJourney = journeyType === 'market_entry';
+    
+    // Five Whys data is only needed for journeys that actually use Five Whys framework
+    // BMI uses Five Whys + BMC, Market Entry uses PESTLE + Porter's + SWOT (no Five Whys)
+    const requiresFiveWhys = !isBMCJourney && !isMarketEntryJourney;
+    
+    // Only require Five Whys data for journeys that need it
+    if (requiresFiveWhys) {
+      const rootCause = localStorage.getItem(`strategic-rootCause-${sessionId}`) || '';
+      const whysPathStr = localStorage.getItem(`strategic-whysPath-${sessionId}`) || '[]';
+      const whysPath = JSON.parse(whysPathStr);
+      const input = localStorage.getItem(`strategic-input-${sessionId}`) || '';
+      
+      if (!rootCause || !whysPath.length || !input) {
+        setError('Missing required data from previous steps');
+        return;
+      }
     }
 
     setIsResearching(true);
@@ -194,19 +198,28 @@ export default function ResearchPage() {
     let eventSource: EventSource;
     
     if (isBMCJourney) {
-      // For BMC journeys, use GET /bmc-research/stream with SSE
-      // Note: Input is fetched from journey session on the backend, not passed as query param
+      // For BMI journeys, use BMC research stream
+      // Input is fetched from journey session on the backend
       eventSource = new EventSource(`/api/strategic-consultant/bmc-research/stream/${sessionId}`);
       console.log('[ResearchPage] Using BMC research endpoint for BMI journey');
+    } else if (isMarketEntryJourney) {
+      // For Market Entry journeys, use dedicated PESTLE→Porter's→SWOT stream
+      // Input is fetched from journey session on the backend
+      eventSource = new EventSource(`/api/strategic-consultant/market-entry-research/stream/${sessionId}`);
+      console.log('[ResearchPage] Using Market Entry research endpoint (PESTLE→Porter\'s→SWOT)');
     } else {
-      // For Porter's-based journeys, use the standard research stream
+      // For other journeys with Five Whys, use the standard research stream
+      const rootCause = localStorage.getItem(`strategic-rootCause-${sessionId}`) || '';
+      const whysPathStr = localStorage.getItem(`strategic-whysPath-${sessionId}`) || '[]';
+      const whysPath = JSON.parse(whysPathStr);
+      const input = localStorage.getItem(`strategic-input-${sessionId}`) || '';
       const params = new URLSearchParams({
         rootCause,
         whysPath: JSON.stringify(whysPath),
         input,
       });
       eventSource = new EventSource(`/api/strategic-consultant/research/stream/${sessionId}?${params.toString()}`);
-      console.log('[ResearchPage] Using Porter\'s research endpoint');
+      console.log('[ResearchPage] Using standard research endpoint');
     }
 
     console.log('[ResearchPage] Connecting to research stream:', eventSource.url);

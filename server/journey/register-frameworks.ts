@@ -15,6 +15,7 @@ import { ScenarioPlanningExecutor } from './executors/scenario-planning-executor
 import { JTBDExecutor } from './executors/jtbd-executor';
 import { OKRGeneratorExecutor } from './executors/okr-generator-executor';
 import { OceanStrategyExecutor } from './executors/ocean-strategy-executor';
+import { getAvailableJourneys } from './journey-registry';
 
 /**
  * Register all framework executors
@@ -75,4 +76,42 @@ export function registerFrameworkExecutors(): void {
   
   console.log(`[Framework Registration] ✓ Registered ${registered.length} framework executor(s):`);
   console.log(`  All implemented: ${registered.join(', ')}`);
+  
+  // Validate journey integrity - ensure all available journeys have registered executors
+  validateJourneyIntegrity();
+}
+
+/**
+ * Validate that all available journeys have their required framework executors registered.
+ * This prevents shipping broken journeys that would fail at runtime.
+ * Should be called after registerFrameworkExecutors() during server startup.
+ */
+export function validateJourneyIntegrity(): void {
+  console.log('[Journey Validation] Checking journey executor integrity...');
+  
+  const availableJourneys = getAvailableJourneys();
+  const registeredFrameworks = new Set(frameworkRegistry.getRegisteredFrameworks());
+  const errors: string[] = [];
+  
+  for (const journey of availableJourneys) {
+    for (const framework of journey.frameworks) {
+      if (!registeredFrameworks.has(framework)) {
+        errors.push(
+          `Journey "${journey.name}" (${journey.type}) requires framework "${framework}" but no executor is registered. ` +
+          `Either register the executor or set available: false in journey-registry.ts`
+        );
+      }
+    }
+  }
+  
+  if (errors.length > 0) {
+    console.error('[Journey Validation] ❌ STARTUP ERROR: Journey integrity check failed!');
+    errors.forEach(err => console.error(`  - ${err}`));
+    throw new Error(
+      `STARTUP ERROR: ${errors.length} journey(s) have missing framework executors. ` +
+      `See logs above for details.`
+    );
+  }
+  
+  console.log(`[Journey Validation] ✓ All ${availableJourneys.length} available journey(s) have registered executors`);
 }

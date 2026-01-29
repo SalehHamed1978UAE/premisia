@@ -2299,6 +2299,299 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
   }
 });
 
+// Market Entry research stream - runs PESTLE → Porter's → SWOT analysis
+// Similar to BMC research stream but for market_entry journey type
+router.get('/market-entry-research/stream/:sessionId', async (req: Request, res: Response) => {
+  console.log('[MARKET-ENTRY-RESEARCH] GET endpoint called! sessionId:', req.params.sessionId);
+  req.socket.setTimeout(600000);
+  
+  let keepaliveInterval: NodeJS.Timeout | null = null;
+  
+  try {
+    // Proactively refresh token before long-running operation
+    const tokenValid = await refreshTokenProactively(req, 600);
+    if (!tokenValid) {
+      return res.status(401).json({ 
+        error: 'Session expired', 
+        message: 'Please log in again to continue' 
+      });
+    }
+    
+    const { sessionId } = req.params;
+    
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Session ID is required' });
+    }
+    
+    console.log('[MARKET-ENTRY-RESEARCH] Starting SSE stream for session:', sessionId);
+
+    // Set up Server-Sent Events
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+    
+    // Get journey session to find understandingId
+    let understanding;
+    const journeySession = await getJourneySession(sessionId);
+    
+    if (journeySession && journeySession.understandingId) {
+      console.log('[MARKET-ENTRY-RESEARCH] Found journey session, fetching understanding via understandingId:', journeySession.understandingId);
+      understanding = await getStrategicUnderstanding(journeySession.understandingId);
+    } else {
+      console.log('[MARKET-ENTRY-RESEARCH] No journey session found, trying as base session ID');
+      understanding = await getStrategicUnderstandingBySession(sessionId);
+    }
+    
+    if (!understanding || !understanding.userInput) {
+      res.write(`data: ${JSON.stringify({ type: 'error', error: 'Strategic understanding not found for this session' })}\n\n`);
+      res.end();
+      return;
+    }
+    
+    const input = understanding.userInput;
+    console.log('[MARKET-ENTRY-RESEARCH] Input fetched from understanding, length:', input.length);
+
+    // Send initial message
+    res.write(`data: ${JSON.stringify({ type: 'progress', message: '🚀 Starting Market Entry analysis...', progress: 0 })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: 'debug', debugInput: input.slice(0, 200) })}\n\n`);
+
+    // Start SSE keepalive
+    keepaliveInterval = setInterval(() => {
+      try {
+        res.write(`: keepalive ${Date.now()}\n\n`);
+      } catch (e) {
+        if (keepaliveInterval) clearInterval(keepaliveInterval);
+      }
+    }, 15000);
+    
+    res.on('close', () => {
+      if (keepaliveInterval) clearInterval(keepaliveInterval);
+    });
+
+    // Import framework executors
+    const { frameworkRegistry } = await import('../journey/framework-executor-registry');
+    
+    // Build strategic context for executors
+    const strategicContext: any = {
+      userInput: input,
+      understandingId: understanding.id,
+      sessionId,
+    };
+    
+    // Execute PESTLE analysis
+    res.write(`data: ${JSON.stringify({ type: 'progress', message: '📊 Running PESTLE analysis (macro-environmental factors)...', progress: 10 })}\n\n`);
+    console.log('[MARKET-ENTRY-RESEARCH] Executing PESTLE analysis...');
+    
+    let pestleResult;
+    try {
+      pestleResult = await frameworkRegistry.execute('pestle', strategicContext);
+      console.log('[MARKET-ENTRY-RESEARCH] ✓ PESTLE analysis complete');
+      res.write(`data: ${JSON.stringify({ type: 'progress', message: '✓ PESTLE analysis complete', progress: 30 })}\n\n`);
+    } catch (error: any) {
+      console.error('[MARKET-ENTRY-RESEARCH] PESTLE analysis failed:', error.message);
+      res.write(`data: ${JSON.stringify({ type: 'progress', message: '⚠️ PESTLE analysis had issues, continuing...', progress: 30 })}\n\n`);
+      pestleResult = { error: error.message };
+    }
+    
+    // Execute Porter's Five Forces analysis
+    res.write(`data: ${JSON.stringify({ type: 'progress', message: '🏢 Running Porter\'s Five Forces analysis (competitive forces)...', progress: 35 })}\n\n`);
+    console.log('[MARKET-ENTRY-RESEARCH] Executing Porter\'s analysis...');
+    
+    let portersResult;
+    try {
+      portersResult = await frameworkRegistry.execute('porters', strategicContext);
+      console.log('[MARKET-ENTRY-RESEARCH] ✓ Porter\'s analysis complete');
+      res.write(`data: ${JSON.stringify({ type: 'progress', message: '✓ Porter\'s Five Forces complete', progress: 55 })}\n\n`);
+    } catch (error: any) {
+      console.error('[MARKET-ENTRY-RESEARCH] Porter\'s analysis failed:', error.message);
+      res.write(`data: ${JSON.stringify({ type: 'progress', message: '⚠️ Porter\'s analysis had issues, continuing...', progress: 55 })}\n\n`);
+      portersResult = { error: error.message };
+    }
+    
+    // Execute SWOT analysis (synthesizes PESTLE and Porter's)
+    res.write(`data: ${JSON.stringify({ type: 'progress', message: '📋 Running SWOT analysis (synthesizing insights)...', progress: 60 })}\n\n`);
+    console.log('[MARKET-ENTRY-RESEARCH] Executing SWOT analysis...');
+    
+    // Enhance context with previous framework results for SWOT
+    const swotContext = {
+      ...strategicContext,
+      previousResults: {
+        pestle: pestleResult,
+        porters: portersResult,
+      },
+    };
+    
+    let swotResult;
+    try {
+      swotResult = await frameworkRegistry.execute('swot', swotContext);
+      console.log('[MARKET-ENTRY-RESEARCH] ✓ SWOT analysis complete');
+      res.write(`data: ${JSON.stringify({ type: 'progress', message: '✓ SWOT analysis complete', progress: 80 })}\n\n`);
+    } catch (error: any) {
+      console.error('[MARKET-ENTRY-RESEARCH] SWOT analysis failed:', error.message);
+      res.write(`data: ${JSON.stringify({ type: 'progress', message: '⚠️ SWOT analysis had issues', progress: 80 })}\n\n`);
+      swotResult = { error: error.message };
+    }
+
+    res.write(`data: ${JSON.stringify({ type: 'progress', message: '💾 Generating strategic decisions...', progress: 85 })}\n\n`);
+
+    // Generate decisions from SWOT analysis
+    const generator = new DecisionGenerator();
+    let decisions: any;
+    try {
+      // Extract SWOT data from framework result
+      const swotDataForDecisions = (swotResult as any)?.data || swotResult;
+      decisions = await generator.generateDecisionsFromSWOT(
+        swotDataForDecisions,
+        input
+      );
+      console.log(`[MARKET-ENTRY-RESEARCH] Generated ${decisions?.decisions?.length || 0} decisions`);
+    } catch (error: any) {
+      console.error('[MARKET-ENTRY-RESEARCH] Decision generation failed:', error.message);
+      decisions = { decisions: [], decision_flow: {}, estimated_completion_time_minutes: 30 };
+    }
+
+    res.write(`data: ${JSON.stringify({ type: 'progress', message: '💾 Saving analysis results...', progress: 90 })}\n\n`);
+
+    // Save results to strategy_versions
+    const userId = (req.user as any)?.claims?.sub || 'system';
+    let targetVersionNumber = journeySession?.versionNumber || 1;
+    let version;
+    
+    try {
+      const versions = await storage.getStrategyVersionsBySession(sessionId);
+      
+      if (versions.length === 0) {
+        // Create new version
+        version = await storage.createStrategyVersion({
+          sessionId,
+          versionNumber: targetVersionNumber,
+          status: 'draft',
+          analysisData: { 
+            pestle: pestleResult,
+            porters: portersResult,
+            swot: swotResult,
+            market_entry_research: true,
+          },
+          decisionsData: decisions,
+          userId,
+          createdBy: userId,
+          inputSummary: input.slice(0, 200),
+        });
+        console.log(`[MARKET-ENTRY-RESEARCH] Created new version ${targetVersionNumber}`);
+      } else {
+        // Update existing version
+        version = versions[versions.length - 1];
+        targetVersionNumber = version.versionNumber;
+        const existingAnalysisData = version.analysisData as any || {};
+        await storage.updateStrategyVersion(version.id, {
+          analysisData: {
+            ...existingAnalysisData,
+            pestle: pestleResult,
+            porters: portersResult,
+            swot: swotResult,
+            market_entry_research: true,
+          },
+          decisionsData: decisions,
+        });
+        console.log(`[MARKET-ENTRY-RESEARCH] Updated existing version ${targetVersionNumber}`);
+      }
+    } catch (error: any) {
+      console.error('[MARKET-ENTRY-RESEARCH] Database save failed:', error.message);
+    }
+
+    // Build findings object for frontend compatibility
+    const findings: any = {
+      market_dynamics: [],
+      competitive_landscape: [],
+      language_preferences: [],
+      buyer_behavior: [],
+      regulatory_factors: [],
+      sources: [],
+    };
+    
+    // Cast to any for safe property access on framework results
+    const pestleData = (pestleResult as any)?.data || pestleResult;
+    const portersData = (portersResult as any)?.data || portersResult;
+    const swotData = (swotResult as any)?.data || swotResult;
+    
+    // Extract findings from framework results
+    if (pestleData && !(pestleData as any).errors) {
+      // Map PESTLE factors to findings
+      if (pestleData?.political?.trends) {
+        findings.regulatory_factors = pestleData.political.trends.map((t: any) => ({
+          fact: t.description || t,
+          citation: 'PESTLE Analysis',
+          confidence: 'high',
+        }));
+      }
+      if (pestleData?.economic?.trends) {
+        findings.market_dynamics = [...findings.market_dynamics, ...pestleData.economic.trends.map((t: any) => ({
+          fact: t.description || t,
+          citation: 'PESTLE Analysis',
+          confidence: 'high',
+        }))];
+      }
+    }
+    
+    if (portersData && !(portersData as any).errors) {
+      // Map Porter's forces to competitive landscape
+      const forces = ['new_entrants', 'supplier_power', 'buyer_power', 'substitutes', 'rivalry'];
+      forces.forEach((force: string) => {
+        if (portersData?.[force]) {
+          findings.competitive_landscape.push({
+            fact: `${force.replace('_', ' ')}: ${portersData[force]?.summary || portersData[force]?.description || ''}`,
+            citation: 'Porter\'s Five Forces Analysis',
+            confidence: 'high',
+          });
+        }
+      });
+    }
+    
+    if (swotData && !(swotData as any).errors) {
+      // Map SWOT to buyer behavior
+      if (swotData?.opportunities) {
+        findings.buyer_behavior = swotData.opportunities.slice(0, 3).map((o: any) => ({
+          fact: o.description || o,
+          citation: 'SWOT Analysis',
+          confidence: 'high',
+        }));
+      }
+    }
+
+    const finalVersionNumber = version?.versionNumber || targetVersionNumber;
+    
+    // Stop keepalive before ending stream
+    if (keepaliveInterval) clearInterval(keepaliveInterval);
+    
+    res.write(`data: ${JSON.stringify({ 
+      type: 'complete', 
+      data: {
+        findings,
+        searchQueriesUsed: [],
+        versionNumber: finalVersionNumber,
+        sourcesAnalyzed: 3,
+        timeElapsed: '~2 minutes',
+        nextUrl: `/strategy-workspace/decisions/${sessionId}/${finalVersionNumber}`,
+        // Include framework analysis results
+        marketEntryAnalysis: {
+          pestle: pestleResult,
+          porters: portersResult,
+          swot: swotResult,
+        },
+      }
+    })}\n\n`);
+    res.end();
+    console.log('[MARKET-ENTRY-RESEARCH] Stream ended successfully, nextUrl: /strategy-workspace/decisions/' + sessionId + '/' + finalVersionNumber);
+  } catch (error: any) {
+    if (keepaliveInterval) clearInterval(keepaliveInterval);
+    console.error('Error in /market-entry-research/stream:', error);
+    res.write(`data: ${JSON.stringify({ type: 'error', error: error.message || 'Market Entry research failed' })}\n\n`);
+    res.end();
+  }
+});
+
 // Get understanding ID by session ID
 router.get('/understanding/:sessionId', async (req: Request, res: Response) => {
   try {
