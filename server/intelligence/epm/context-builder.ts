@@ -34,8 +34,8 @@ export class ContextBuilder {
         const { strategicUnderstanding } = await import('@shared/schema');
         const { eq } = await import('drizzle-orm');
         
-        // The sessionId passed is actually the understanding_id (UUID format)
-        // which equals strategic_understanding.id, NOT strategic_understanding.session_id
+        // The sessionId passed is the session_id string (e.g., 'session-1769673087437-tyhg4e')
+        // NOT the UUID primary key - we need to query by sessionId column
         const understanding = await db
           .select({ 
             initiativeType: strategicUnderstanding.initiativeType,
@@ -44,7 +44,7 @@ export class ContextBuilder {
             userInput: strategicUnderstanding.userInput,
           })
           .from(strategicUnderstanding)
-          .where(eq(strategicUnderstanding.id, sessionId))
+          .where(eq(strategicUnderstanding.sessionId, sessionId))
           .limit(1);
         
         console.log('[ContextBuilder] INPUT:', {
