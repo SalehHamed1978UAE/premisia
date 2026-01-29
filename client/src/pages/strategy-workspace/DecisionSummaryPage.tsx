@@ -228,37 +228,31 @@ export default function DecisionSummaryPage() {
   });
 
   // Save decision mutation (for legacy 4-step wizard flow)
+  // Now navigates to prioritization page instead of directly generating EPM
   const saveDecisionMutation = useMutation({
     mutationFn: async (decision: Partial<StrategyDecision>) => {
       if (!strategyVersionId) {
         throw new Error('Strategy version ID not available');
       }
       
-      // First, save the decision
+      // Save the decision
       const decisionResponse = await apiRequest('POST', '/api/strategy-workspace/decisions', {
         strategyVersionId,
         ...decision,
       });
-      const decisionData = await decisionResponse.json();
-      
-      // Then, generate EPM program
-      const epmResponse = await apiRequest('POST', '/api/strategy-workspace/epm/generate', {
-        strategyVersionId,
-        decisionId: decisionData.decisionId,
-      });
-      return epmResponse.json();
+      return decisionResponse.json();
     },
     onSuccess: (data) => {
       toast({
-        title: "EPM Program Generated",
-        description: `Created with ${Math.round(parseFloat(data.overallConfidence) * 100)}% confidence`,
+        title: "Decisions saved",
+        description: "Proceeding to prioritization...",
       });
-      // Navigate to EPM view
-      setLocation(`/strategy-workspace/epm/${data.epmProgramId}`);
+      // Navigate to prioritization page (which handles EPM generation)
+      setLocation(`/strategy-workspace/prioritization/${sessionId}/${versionNumber}`);
     },
     onError: (error: any) => {
       toast({
-        title: "Failed to generate EPM",
+        title: "Failed to save decisions",
         description: error.message || "Please try again",
         variant: "destructive",
       });

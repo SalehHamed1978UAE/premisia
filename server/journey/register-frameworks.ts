@@ -16,6 +16,7 @@ import { JTBDExecutor } from './executors/jtbd-executor';
 import { OKRGeneratorExecutor } from './executors/okr-generator-executor';
 import { OceanStrategyExecutor } from './executors/ocean-strategy-executor';
 import { getAvailableJourneys } from './journey-registry';
+import { registerAllBridges, validateJourneySystem } from './startup-validator';
 
 /**
  * Register all framework executors
@@ -76,6 +77,20 @@ export function registerFrameworkExecutors(): void {
   
   console.log(`[Framework Registration] ✓ Registered ${registered.length} framework executor(s):`);
   console.log(`  All implemented: ${registered.join(', ')}`);
+  
+  // ═══════════════════════════════════════════════════════════════════════════
+  // REGISTER BRIDGES (cognitive transformations between modules)
+  // ═══════════════════════════════════════════════════════════════════════════
+  registerAllBridges();
+  
+  // Validate complete journey system
+  // This checks both executors AND bridges
+  try {
+    validateJourneySystem({ throwOnError: false, logOutput: true });
+  } catch (error) {
+    // Log but don't fail - let validateJourneyIntegrity handle critical errors
+    console.warn('[Framework Registration] Journey system validation warnings:', error);
+  }
   
   // Validate journey integrity - ensure all available journeys have registered executors
   validateJourneyIntegrity();
