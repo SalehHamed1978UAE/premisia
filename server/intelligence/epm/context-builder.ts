@@ -199,15 +199,58 @@ export class ContextBuilder {
 
   /**
    * Infer business type from insights
+   * Uses a more intelligent approach: check for specific industry context BEFORE generic patterns
    */
   private static inferBusinessType(insights: StrategyInsights): string {
     const contextText = insights.insights.map(i => i.content).join(' ').toLowerCase();
     
-    if (contextText.match(/\b(coffee|cafe|shop|store|restaurant|bakery)\b/)) return 'retail_food_service';
-    if (contextText.match(/\b(saas|software|platform|app|tech)\b/)) return 'saas_platform';
-    if (contextText.match(/\b(consulting|service|agency)\b/)) return 'professional_services';
-    if (contextText.match(/\b(manufacturing|factory|production)\b/)) return 'manufacturing';
-    if (contextText.match(/\b(ecommerce|online|marketplace)\b/)) return 'ecommerce';
+    // SPECIFIC RETAIL TYPES - must check BEFORE generic "store/shop" patterns
+    // Footwear/Athletic retail
+    if (contextText.match(/\b(sneaker|shoe|footwear|athletic|sportswear|nike|adidas|apparel|clothing|fashion)\b/)) {
+      return 'retail_specialty';
+    }
+    
+    // Electronics retail
+    if (contextText.match(/\b(electronics|phone|computer|laptop|gadget|tech.*store|tech.*shop)\b/)) {
+      return 'retail_electronics';
+    }
+    
+    // Home/Furniture retail
+    if (contextText.match(/\b(furniture|home.*store|home.*shop|decor|interior)\b/)) {
+      return 'retail_home_goods';
+    }
+    
+    // General merchandise retail (non-food)
+    if (contextText.match(/\b(retail|merchandise|department|boutique)\b/) && 
+        !contextText.match(/\b(food|cafe|coffee|restaurant|bakery|grocery|kitchen|perishable)\b/)) {
+      return 'retail_general';
+    }
+    
+    // FOOD-SPECIFIC patterns - only match when food context is explicit
+    if (contextText.match(/\b(coffee|cafe|restaurant|bakery|food.*service|grocery|kitchen|dining|cuisine|menu)\b/)) {
+      return 'retail_food_service';
+    }
+    
+    // Technology/Software
+    if (contextText.match(/\b(saas|software|platform|app(?:lication)?|tech(?:nology)?)\b/) &&
+        !contextText.match(/\b(store|shop|retail)\b/)) {
+      return 'saas_platform';
+    }
+    
+    // Professional services
+    if (contextText.match(/\b(consulting|service|agency|advisory)\b/)) return 'professional_services';
+    
+    // Manufacturing
+    if (contextText.match(/\b(manufacturing|factory|production|assembly)\b/)) return 'manufacturing';
+    
+    // E-commerce
+    if (contextText.match(/\b(ecommerce|e-commerce|online.*store|marketplace)\b/)) return 'ecommerce';
+    
+    // Generic store/shop WITHOUT food context = general retail
+    if (contextText.match(/\b(store|shop)\b/) && 
+        !contextText.match(/\b(food|cafe|coffee|restaurant|bakery|grocery)\b/)) {
+      return 'retail_general';
+    }
     
     return 'general_business';
   }

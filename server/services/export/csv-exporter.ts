@@ -220,14 +220,26 @@ export function generateBenefitsCsv(benefitsRealization: any): string {
   if (Array.isArray(benefitArray)) {
     benefitArray.forEach((b: any, idx: number) => {
       // Support both standard path field names and custom path field names
+      // Extract a short name from description if name isn't present
+      const benefitName = b.name || b.benefit || 
+        (b.description ? b.description.split('.')[0].substring(0, 80) : 'Benefit ' + (idx + 1));
+      
+      // Build target from available fields
+      const target = b.target || b.goal || b.measurable_target || 
+        (b.estimatedValue ? `$${b.estimatedValue.toLocaleString()}` : b.measurement || '-');
+      
+      // Build timeframe from month or timeline
+      const timeframe = b.timeframe || b.timeline || b.realization_timeline ||
+        (b.realizationMonth ? `Month ${b.realizationMonth}` : '-');
+      
       const row = [
         `BEN-${idx + 1}`,
-        escapeCsvField(b.name || b.benefit || 'Unnamed benefit'),
+        escapeCsvField(benefitName),
         escapeCsvField(b.description || '-'),
         escapeCsvField(b.category || b.type || '-'),
-        escapeCsvField(b.metric || b.quantified_value || '-'),
-        escapeCsvField(b.target || b.goal || b.measurable_target || '-'),
-        escapeCsvField(b.timeframe || b.timeline || b.realization_timeline || '-'),
+        escapeCsvField(b.metric || b.quantified_value || b.measurement || '-'),
+        escapeCsvField(target),
+        escapeCsvField(timeframe),
         escapeCsvField(b.owner || b.responsible || '-')
       ];
       rows.push(row.join(','));
