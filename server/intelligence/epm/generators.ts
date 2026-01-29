@@ -223,17 +223,20 @@ export class BenefitsGenerator {
     // Extract a short, descriptive name from the benefit content
     const lower = content.toLowerCase();
     
-    // Look for common benefit patterns
+    // Look for common benefit patterns - order from most specific to most general
     if (lower.includes('revenue') || lower.includes('sales')) return 'Revenue Growth';
     if (lower.includes('cost reduction') || lower.includes('cost savings')) return 'Cost Reduction';
-    if (lower.includes('efficiency')) return 'Operational Efficiency';
-    if (lower.includes('customer satisfaction') || lower.includes('nps')) return 'Customer Satisfaction';
-    if (lower.includes('market share')) return 'Market Share Expansion';
+    if (lower.includes('cost') || lower.includes('efficiency')) return 'Cost Optimization';
+    if (lower.includes('customer satisfaction') || lower.includes('nps')) return 'Customer Experience';
+    if (lower.includes('expansion') || lower.includes('segment')) return 'Market Expansion';
+    if (lower.includes('market share')) return 'Market Position';
+    if (lower.includes('market') || lower.includes('share')) return 'Market Position';
+    if (lower.includes('customer')) return 'Customer Experience';
     if (lower.includes('brand') || lower.includes('awareness')) return 'Brand Awareness';
     if (lower.includes('employee') || lower.includes('productivity')) return 'Team Productivity';
     if (lower.includes('quality')) return 'Quality Improvement';
-    if (lower.includes('time to market') || lower.includes('speed')) return 'Time-to-Market';
-    if (lower.includes('risk')) return 'Risk Mitigation';
+    if (lower.includes('time to market') || lower.includes('speed') || lower.includes('time')) return 'Time-to-Value';
+    if (lower.includes('risk')) return 'Risk Reduction';
     if (lower.includes('compliance')) return 'Compliance Achievement';
     if (lower.includes('innovation')) return 'Innovation Capability';
     
@@ -255,18 +258,20 @@ export class BenefitsGenerator {
       return `$${estimatedValue.toLocaleString()} expected value`;
     }
     
-    // Generate measurable targets based on content
+    // Generate measurable targets based on content - order from most specific to most general
     if (lower.includes('revenue') || lower.includes('sales')) return '+15% revenue increase';
-    if (lower.includes('cost')) return '-20% cost reduction';
-    if (lower.includes('efficiency') || lower.includes('productivity')) return '+25% efficiency gain';
-    if (lower.includes('customer satisfaction') || lower.includes('nps')) return '+10 NPS improvement';
-    if (lower.includes('market share')) return '+5% market share growth';
+    if (lower.includes('cost')) return '-15% cost reduction';
+    if (lower.includes('efficiency') || lower.includes('productivity')) return '+20% efficiency gain';
+    if (lower.includes('customer satisfaction') || lower.includes('nps')) return '+10 NPS points';
+    if (lower.includes('expansion') || lower.includes('segment')) return '+15% market expansion';
+    if (lower.includes('market') || lower.includes('share')) return '+10% market share';
+    if (lower.includes('customer')) return '+10 NPS points';
+    if (lower.includes('brand') || lower.includes('awareness')) return '+20% brand awareness';
     if (lower.includes('time') || lower.includes('speed')) return '-30% cycle time reduction';
     if (lower.includes('quality') || lower.includes('defect')) return '-50% defect rate';
     if (lower.includes('employee') || lower.includes('retention')) return '+15% retention improvement';
-    if (lower.includes('brand') || lower.includes('awareness')) return '+20% brand awareness';
     if (lower.includes('compliance')) return '100% compliance achievement';
-    if (lower.includes('risk')) return '-40% risk exposure reduction';
+    if (lower.includes('risk')) return '-25% risk exposure';
     
     return '+10% performance improvement';
   }
