@@ -153,21 +153,28 @@ export class BenefitsGenerator {
   ): Promise<BenefitsRealization> {
     const benefitInsights = insights.insights.filter(i => i.type === 'benefit');
     
-    const benefits: Benefit[] = benefitInsights.map((insight, idx) => ({
-      id: `B${String(idx + 1).padStart(3, '0')}`,
-      category: this.categorizeBenefit(insight.content) as any,
-      description: insight.content,
-      realizationMonth: Math.min(timeline.totalMonths - 2 + idx, timeline.totalMonths + 6),
-      estimatedValue: this.estimateBenefitValue(insight),
-      measurement: this.generateMeasurement(insight.content),
-      confidence: insight.confidence,
-    }));
+    const benefits: Benefit[] = benefitInsights.map((insight, idx) => {
+      const estimatedValue = this.estimateBenefitValue(insight);
+      return {
+        id: `B${String(idx + 1).padStart(3, '0')}`,
+        name: this.generateBenefitName(insight.content),
+        category: this.categorizeBenefit(insight.content) as any,
+        description: insight.content,
+        target: this.generateBenefitTarget(insight.content, estimatedValue),
+        realizationMonth: Math.min(timeline.totalMonths - 2 + idx, timeline.totalMonths + 6),
+        estimatedValue,
+        measurement: this.generateMeasurement(insight.content),
+        confidence: insight.confidence,
+      };
+    });
 
     if (benefits.length < 3) {
       benefits.push({
         id: `B${String(benefits.length + 1).padStart(3, '0')}`,
+        name: 'Strategic Positioning',
         category: 'Strategic',
         description: 'Enhanced strategic positioning and market competitiveness',
+        target: '+10% market position improvement',
         realizationMonth: timeline.totalMonths,
         estimatedValue: undefined,
         measurement: 'Strategic metrics (annual)',
@@ -209,6 +216,58 @@ export class BenefitsGenerator {
     if (lower.includes('customer')) return 'Customer surveys (quarterly)';
     if (lower.includes('market')) return 'Market analysis (semi-annual)';
     return 'Performance metrics (quarterly)';
+  }
+
+  private generateBenefitName(content: string): string {
+    // Extract a short, descriptive name from the benefit content
+    const lower = content.toLowerCase();
+    
+    // Look for common benefit patterns
+    if (lower.includes('revenue') || lower.includes('sales')) return 'Revenue Growth';
+    if (lower.includes('cost reduction') || lower.includes('cost savings')) return 'Cost Reduction';
+    if (lower.includes('efficiency')) return 'Operational Efficiency';
+    if (lower.includes('customer satisfaction') || lower.includes('nps')) return 'Customer Satisfaction';
+    if (lower.includes('market share')) return 'Market Share Expansion';
+    if (lower.includes('brand') || lower.includes('awareness')) return 'Brand Awareness';
+    if (lower.includes('employee') || lower.includes('productivity')) return 'Team Productivity';
+    if (lower.includes('quality')) return 'Quality Improvement';
+    if (lower.includes('time to market') || lower.includes('speed')) return 'Time-to-Market';
+    if (lower.includes('risk')) return 'Risk Mitigation';
+    if (lower.includes('compliance')) return 'Compliance Achievement';
+    if (lower.includes('innovation')) return 'Innovation Capability';
+    
+    // Fallback: extract first meaningful phrase (up to 40 chars)
+    const firstSentence = content.split(/[.!?]/)[0].trim();
+    if (firstSentence.length <= 40) return firstSentence;
+    
+    // Truncate at word boundary
+    const truncated = firstSentence.substring(0, 40);
+    const lastSpace = truncated.lastIndexOf(' ');
+    return lastSpace > 20 ? truncated.substring(0, lastSpace) : truncated;
+  }
+
+  private generateBenefitTarget(content: string, estimatedValue?: number): string {
+    const lower = content.toLowerCase();
+    
+    // If we have an estimated value, use it
+    if (estimatedValue) {
+      return `$${estimatedValue.toLocaleString()} expected value`;
+    }
+    
+    // Generate measurable targets based on content
+    if (lower.includes('revenue') || lower.includes('sales')) return '+15% revenue increase';
+    if (lower.includes('cost')) return '-20% cost reduction';
+    if (lower.includes('efficiency') || lower.includes('productivity')) return '+25% efficiency gain';
+    if (lower.includes('customer satisfaction') || lower.includes('nps')) return '+10 NPS improvement';
+    if (lower.includes('market share')) return '+5% market share growth';
+    if (lower.includes('time') || lower.includes('speed')) return '-30% cycle time reduction';
+    if (lower.includes('quality') || lower.includes('defect')) return '-50% defect rate';
+    if (lower.includes('employee') || lower.includes('retention')) return '+15% retention improvement';
+    if (lower.includes('brand') || lower.includes('awareness')) return '+20% brand awareness';
+    if (lower.includes('compliance')) return '100% compliance achievement';
+    if (lower.includes('risk')) return '-40% risk exposure reduction';
+    
+    return '+10% performance improvement';
   }
 }
 

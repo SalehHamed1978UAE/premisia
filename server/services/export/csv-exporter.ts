@@ -156,11 +156,24 @@ export function generateResourcesCsv(resourcePlan: any): string {
 
   if (plan.internalTeam && plan.internalTeam.length > 0) {
     plan.internalTeam.forEach((r: any) => {
+      // Skills can be an array or string - format appropriately
+      let skillsText = '-';
+      if (Array.isArray(r.skills) && r.skills.length > 0) {
+        skillsText = r.skills.join(', ');
+      } else if (r.skills && typeof r.skills === 'string') {
+        skillsText = r.skills;
+      } else if (r.responsibilities) {
+        skillsText = r.responsibilities;
+      } else if (r.justification) {
+        // Fallback to justification which often describes the role
+        skillsText = r.justification;
+      }
+      
       const row = [
         'Internal',
         escapeCsvField(r.role || r.title || 'Not specified'),
-        r.fte || r.allocation || 'TBD',
-        escapeCsvField(r.responsibilities || r.description || '-'),
+        r.allocation || r.fte || 'TBD',
+        escapeCsvField(skillsText),
         'Internal Team'
       ];
       rows.push(row.join(','));
@@ -169,11 +182,23 @@ export function generateResourcesCsv(resourcePlan: any): string {
 
   if (plan.externalResources && plan.externalResources.length > 0) {
     plan.externalResources.forEach((r: any) => {
+      // Handle skills array for external resources too
+      let skillsText = '-';
+      if (Array.isArray(r.skills) && r.skills.length > 0) {
+        skillsText = r.skills.join(', ');
+      } else if (r.skills && typeof r.skills === 'string') {
+        skillsText = r.skills;
+      } else if (r.requirements) {
+        skillsText = r.requirements;
+      } else if (r.description) {
+        skillsText = r.description;
+      }
+      
       const row = [
         'External',
         escapeCsvField(r.type || r.role || 'Contractor'),
         r.quantity || r.count || '1',
-        escapeCsvField(r.skills || r.requirements || '-'),
+        escapeCsvField(skillsText),
         'External/Vendor'
       ];
       rows.push(row.join(','));

@@ -26,6 +26,7 @@ export class ContextBuilder {
     let initiativeType: string | undefined = undefined;
     let businessName: string = 'Unnamed Business';
     let businessDescription: string = '';
+    let userInput: string = '';
     
     if (sessionId) {
       try {
@@ -40,6 +41,7 @@ export class ContextBuilder {
             initiativeType: strategicUnderstanding.initiativeType,
             title: strategicUnderstanding.title,
             initiativeDescription: strategicUnderstanding.initiativeDescription,
+            userInput: strategicUnderstanding.userInput,
           })
           .from(strategicUnderstanding)
           .where(eq(strategicUnderstanding.id, sessionId))
@@ -53,10 +55,17 @@ export class ContextBuilder {
           if (understanding[0].title) {
             businessName = understanding[0].title;
             console.log(`[ContextBuilder] 🏢 Retrieved business name from DB: "${businessName}"`);
+          } else if (understanding[0].userInput) {
+            // If no title, try to extract business name from userInput
+            businessName = this.extractBusinessNameFromInput(understanding[0].userInput);
+            console.log(`[ContextBuilder] 🏢 Extracted business name from userInput: "${businessName}"`);
           }
           if (understanding[0].initiativeDescription) {
             businessDescription = understanding[0].initiativeDescription;
             console.log(`[ContextBuilder] 📝 Retrieved business description from DB`);
+          }
+          if (understanding[0].userInput) {
+            userInput = understanding[0].userInput;
           }
         } else {
           console.log('[ContextBuilder] ⚠️ No strategic understanding found for id:', sessionId);
@@ -68,12 +77,18 @@ export class ContextBuilder {
       console.log('[ContextBuilder] ⚠️ No sessionId provided, cannot fetch strategic context');
     }
     
+    // Infer business type first, then use it for industry if not explicitly set
+    const businessType = this.inferBusinessType(insights);
+    const industry = insights.marketContext?.industry || this.inferIndustryFromType(businessType);
+    
+    console.log(`[ContextBuilder] 🏭 Business type: ${businessType}, Industry: ${industry}`);
+    
     return {
       business: {
         name: businessName,
-        type: this.inferBusinessType(insights),
-        industry: insights.marketContext?.industry || 'general',
-        description: businessDescription,
+        type: businessType,
+        industry: industry,
+        description: businessDescription || userInput,
         scale,
         initiativeType
       },
@@ -263,6 +278,66 @@ export class ContextBuilder {
       .filter(i => i.type === 'workstream' || i.source?.includes('objective'))
       .slice(0, 5)
       .map(i => i.content.split('\n')[0]);
+  }
+
+  /**
+   * Extract business name from user input if title is not set
+   * Looks for common patterns like "a sneaker store called X" or "my business X"
+   */
+  private static extractBusinessNameFromInput(userInput: string): string {
+    // Try to extract quoted names first
+    const quotedMatch = userInput.match(/["']([^"']+)["']/);
+    if (quotedMatch && quotedMatch[1].length <= 60) {
+      return quotedMatch[1];
+    }
+    
+    // Try patterns like "called X", "named X", "my X store/shop/business"
+    const patterns = [
+      /called\s+([A-Z][A-Za-z0-9\s&'-]+?)(?:\s+in|\s+at|\s+to|\s+for|\s*,|\s*\.)/i,
+      /named\s+([A-Z][A-Za-z0-9\s&'-]+?)(?:\s+in|\s+at|\s+to|\s+for|\s*,|\s*\.)/i,
+      /opening\s+(?:a\s+)?([A-Z][A-Za-z0-9\s&'-]+?\s+(?:store|shop|boutique|cafe|restaurant|business))(?:\s+in|\s+at|\s*,|\s*\.)/i,
+      /launch(?:ing)?\s+(?:a\s+)?([A-Z][A-Za-z0-9\s&'-]+?\s+(?:store|shop|boutique|cafe|restaurant|business))(?:\s+in|\s+at|\s*,|\s*\.)/i,
+      /starting\s+(?:a\s+)?([A-Z][A-Za-z0-9\s&'-]+?\s+(?:store|shop|boutique|cafe|restaurant|business))(?:\s+in|\s+at|\s*,|\s*\.)/i,
+    ];
+    
+    for (const pattern of patterns) {
+      const match = userInput.match(pattern);
+      if (match && match[1].trim().length > 0 && match[1].trim().length <= 60) {
+        return match[1].trim();
+      }
+    }
+    
+    // Fallback: Extract first capitalized phrase as potential business name
+    const capitalizedMatch = userInput.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3})\b/);
+    if (capitalizedMatch && capitalizedMatch[1].length > 2 && capitalizedMatch[1].length <= 40) {
+      // Exclude common words that start sentences
+      const commonWords = ['The', 'This', 'Our', 'My', 'We', 'I', 'It', 'They', 'He', 'She'];
+      if (!commonWords.includes(capitalizedMatch[1])) {
+        return capitalizedMatch[1];
+      }
+    }
+    
+    return 'Unnamed Business';
+  }
+
+  /**
+   * Infer human-readable industry from business type
+   */
+  private static inferIndustryFromType(businessType: string): string {
+    const industryMap: Record<string, string> = {
+      'retail_specialty': 'Specialty Retail',
+      'retail_electronics': 'Electronics Retail',
+      'retail_home_goods': 'Home Goods Retail',
+      'retail_general': 'General Retail',
+      'retail_food_service': 'Food & Beverage',
+      'saas_platform': 'Technology / SaaS',
+      'professional_services': 'Professional Services',
+      'manufacturing': 'Manufacturing',
+      'ecommerce': 'E-Commerce',
+      'general_business': 'General Business',
+    };
+    
+    return industryMap[businessType] || 'General Business';
   }
 }
 

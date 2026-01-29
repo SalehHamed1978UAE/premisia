@@ -26,6 +26,7 @@ import type {
   Workstream,
   Timeline,
   ResourcePlan,
+  ResourceAllocation,
   FinancialPlan,
   BenefitsRealization,
   RiskRegister,
@@ -406,6 +407,10 @@ export class EPMSynthesizer {
     );
     console.log(`[EPM Synthesis] ✓ Resources: ${resourcePlan.totalFTEs} FTEs, ${resourcePlan.internalTeam.length} roles`);
     
+    // Assign owners to workstreams based on resource roles (Fix 5b)
+    this.assignWorkstreamOwners(workstreams, resourcePlan);
+    console.log(`[EPM Synthesis] ✓ Workstream owners assigned`);
+    
     onProgress?.({
       type: 'step-start',
       step: 'components',
@@ -686,6 +691,95 @@ export class EPMSynthesizer {
         totalTasks: planningGrid.totalTasks,
       },
     };
+  }
+
+  /**
+   * Assign owners to workstreams based on resource roles (Fix 5b)
+   * Matches workstream category/content to appropriate resource role
+   */
+  private assignWorkstreamOwners(workstreams: Workstream[], resourcePlan: ResourcePlan): void {
+    if (!resourcePlan.internalTeam || resourcePlan.internalTeam.length === 0) {
+      // No resources to assign - use default
+      workstreams.forEach(ws => {
+        ws.owner = 'Program Manager';
+      });
+      return;
+    }
+
+    // Build role lookup from internal team
+    const roleNames = resourcePlan.internalTeam.map(r => r.role.toLowerCase());
+    
+    // Find default/fallback owner (prefer Program Manager, then first role)
+    const defaultOwner = resourcePlan.internalTeam.find(r => 
+      r.role.toLowerCase().includes('program') || 
+      r.role.toLowerCase().includes('director') ||
+      r.role.toLowerCase().includes('manager')
+    )?.role || resourcePlan.internalTeam[0]?.role || 'Program Manager';
+
+    workstreams.forEach(ws => {
+      const wsName = ws.name.toLowerCase();
+      const wsDesc = ws.description.toLowerCase();
+      const combined = `${wsName} ${wsDesc}`;
+      
+      // Match workstream to resource based on category keywords
+      let assignedOwner = defaultOwner;
+      
+      // Supply Chain / Operations workstreams
+      if (combined.includes('supply chain') || combined.includes('logistics') || 
+          combined.includes('inventory') || combined.includes('vendor') || combined.includes('sourcing')) {
+        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam, 
+          ['supply chain', 'operations', 'logistics', 'procurement']) || defaultOwner;
+      }
+      // Financial workstreams
+      else if (combined.includes('financial') || combined.includes('budget') || 
+               combined.includes('cost') || combined.includes('revenue') || combined.includes('pricing')) {
+        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam, 
+          ['financial', 'finance', 'controller', 'accountant']) || defaultOwner;
+      }
+      // Customer / Marketing workstreams
+      else if (combined.includes('customer') || combined.includes('marketing') || 
+               combined.includes('brand') || combined.includes('sales') || combined.includes('experience')) {
+        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam, 
+          ['customer', 'marketing', 'sales', 'experience', 'brand']) || defaultOwner;
+      }
+      // Technology / Data workstreams
+      else if (combined.includes('technology') || combined.includes('data') || 
+               combined.includes('system') || combined.includes('digital') || combined.includes('integration')) {
+        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam, 
+          ['technology', 'data', 'tech', 'digital', 'engineer', 'architect']) || defaultOwner;
+      }
+      // Talent / HR workstreams
+      else if (combined.includes('talent') || combined.includes('hr') || 
+               combined.includes('hiring') || combined.includes('training') || combined.includes('staff')) {
+        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam, 
+          ['hr', 'human resource', 'talent', 'people', 'training']) || defaultOwner;
+      }
+      // Quality / Compliance workstreams
+      else if (combined.includes('quality') || combined.includes('compliance') || 
+               combined.includes('audit') || combined.includes('standard')) {
+        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam, 
+          ['quality', 'compliance', 'qa', 'audit']) || defaultOwner;
+      }
+      // Store / Location / Retail workstreams
+      else if (combined.includes('store') || combined.includes('location') || 
+               combined.includes('retail') || combined.includes('launch') || combined.includes('setup')) {
+        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam, 
+          ['store', 'retail', 'operations', 'location']) || defaultOwner;
+      }
+      
+      ws.owner = assignedOwner;
+    });
+  }
+
+  /**
+   * Find a matching role from the team based on keywords
+   */
+  private findMatchingRole(team: ResourceAllocation[], keywords: string[]): string | null {
+    for (const keyword of keywords) {
+      const match = team.find(r => r.role.toLowerCase().includes(keyword));
+      if (match) return match.role;
+    }
+    return null;
   }
 
   /**

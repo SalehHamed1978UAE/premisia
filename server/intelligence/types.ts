@@ -127,8 +127,10 @@ export interface FinancialPlan {
 
 export interface Benefit {
   id: string;
+  name: string; // Short, descriptive name for the benefit
   category: 'Financial' | 'Strategic' | 'Operational' | 'Risk Mitigation';
   description: string;
+  target?: string; // Measurable target (e.g., "+15% revenue", "$50K savings")
   realizationMonth: number;
   estimatedValue?: number; // For financial benefits
   measurement: string;
