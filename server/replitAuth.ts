@@ -52,8 +52,74 @@ function updateUserSession(
 ) {
   user.claims = tokens.claims();
   user.access_token = tokens.access_token;
-  user.refresh_token = tokens.refresh_token;
+  // Only replace refresh_token if a new one was provided (refresh grants may not include new refresh token)
+  if (tokens.refresh_token) {
+    user.refresh_token = tokens.refresh_token;
+  }
   user.expires_at = user.claims?.exp;
+}
+
+/**
+ * Proactively refresh the user's OIDC token if it will expire soon.
+ * Call this at the start of long-running operations to prevent auth failures mid-operation.
+ * 
+ * @param req - Express request with authenticated user
+ * @param thresholdSeconds - Refresh if token expires within this many seconds (default: 5 minutes)
+ * @returns true if token is valid or was refreshed, false if refresh failed
+ */
+export async function refreshTokenProactively(
+  req: any,
+  thresholdSeconds: number = 300
+): Promise<boolean> {
+  const user = req.user as any;
+  
+  if (!req.isAuthenticated() || !user?.expires_at) {
+    console.log('[ProactiveRefresh] User not authenticated or no expiry info');
+    return false;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const expiresIn = user.expires_at - now;
+  
+  // Token still has plenty of time
+  if (expiresIn > thresholdSeconds) {
+    console.log(`[ProactiveRefresh] Token valid for ${expiresIn}s, no refresh needed`);
+    return true;
+  }
+
+  // Token will expire soon or already expired - try to refresh
+  console.log(`[ProactiveRefresh] Token expires in ${expiresIn}s, refreshing proactively...`);
+  
+  const refreshToken = user.refresh_token;
+  if (!refreshToken) {
+    console.error('[ProactiveRefresh] No refresh token available');
+    return false;
+  }
+
+  try {
+    const config = await getOidcConfig();
+    const tokenResponse = await client.refreshTokenGrant(config, refreshToken);
+    updateUserSession(user, tokenResponse);
+    
+    // Persist the updated session to the store
+    await new Promise<void>((resolve, reject) => {
+      req.session.save((err: any) => {
+        if (err) {
+          console.error('[ProactiveRefresh] Failed to save session:', err);
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    });
+    
+    const newExpiresIn = user.expires_at - Math.floor(Date.now() / 1000);
+    console.log(`[ProactiveRefresh] ✓ Token refreshed and session saved, valid for ${newExpiresIn}s`);
+    return true;
+  } catch (error) {
+    console.error('[ProactiveRefresh] ✗ Token refresh failed:', error);
+    return false;
+  }
 }
 
 async function upsertUser(
@@ -237,6 +303,14 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
     const config = await getOidcConfig();
     const tokenResponse = await client.refreshTokenGrant(config, refreshToken);
     updateUserSession(user, tokenResponse);
+    
+    // Persist the updated session to the store
+    req.session.save((err: any) => {
+      if (err) {
+        console.error('[Auth] Failed to save refreshed session:', err);
+      }
+    });
+    
     return next();
   } catch (error) {
     res.status(401).json({ message: "Unauthorized" });
