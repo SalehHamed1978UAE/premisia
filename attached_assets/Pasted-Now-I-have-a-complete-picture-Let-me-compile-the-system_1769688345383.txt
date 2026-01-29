@@ -1,0 +1,239 @@
+Now I have a complete picture. Let me compile the systematic audit.           
+                                                                                
+⏺ Journey Builder Systematic Audit Report                                       
+                                                                                
+  MODULE INVENTORY                                                              
+  Module Type: Executor                                                         
+  Name: FiveWhys                                                                
+  Status: ✅ Built                                                              
+  Interface: ✅ Uses FrameworkExecutor                                          
+  Input Contract: ❌ None                                                       
+  Output Contract: ❌ Returns any                                               
+  Validation: ❌ None                                                           
+  Unit Test: ❌ None                                                            
+  ────────────────────────────────────────                                      
+  Module Type: Executor                                                         
+  Name: BMC                                                                     
+  Status: ✅ Built                                                              
+  Interface: ✅ Uses FrameworkExecutor                                          
+  Input Contract: ❌ None                                                       
+  Output Contract: ❌ Returns any                                               
+  Validation: ❌ None                                                           
+  Unit Test: ❌ None                                                            
+  ────────────────────────────────────────                                      
+  Module Type: Executor                                                         
+  Name: Porters                                                                 
+  Status: ❌ Not built                                                          
+  Interface: Type only                                                          
+  Input Contract: -                                                             
+  Output Contract: -                                                            
+  Validation: -                                                                 
+  Unit Test: -                                                                  
+  ────────────────────────────────────────                                      
+  Module Type: Executor                                                         
+  Name: PESTLE                                                                  
+  Status: ❌ Not built                                                          
+  Interface: Type only                                                          
+  Input Contract: -                                                             
+  Output Contract: -                                                            
+  Validation: -                                                                 
+  Unit Test: -                                                                  
+  ────────────────────────────────────────                                      
+  Module Type: Executor                                                         
+  Name: SWOT                                                                    
+  Status: ❌ Not built                                                          
+  Interface: Type only                                                          
+  Input Contract: -                                                             
+  Output Contract: -                                                            
+  Validation: -                                                                 
+  Unit Test: -                                                                  
+  ────────────────────────────────────────                                      
+  Module Type: Executor                                                         
+  Name: Ansoff                                                                  
+  Status: ❌ Not built                                                          
+  Interface: Type only                                                          
+  Input Contract: -                                                             
+  Output Contract: -                                                            
+  Validation: -                                                                 
+  Unit Test: -                                                                  
+  ────────────────────────────────────────                                      
+  Module Type: Executor                                                         
+  Name: Blue Ocean                                                              
+  Status: ❌ Not built                                                          
+  Interface: Type only                                                          
+  Input Contract: -                                                             
+  Output Contract: -                                                            
+  Validation: -                                                                 
+  Unit Test: -                                                                  
+  ────────────────────────────────────────                                      
+  Module Type: Bridge                                                           
+  Name: WhysToBMC                                                               
+  Status: ✅ Built                                                              
+  Interface: ✅ Has interfaces                                                  
+  Input Contract: ✅ WhysToBMCBridgeInput                                       
+  Output Contract: ✅ BMCDesignConstraints                                      
+  Validation: ❌ None                                                           
+  Unit Test: ❌ None                                                            
+  ────────────────────────────────────────                                      
+  Module Type: Bridge                                                           
+  Name: PortersToBMC                                                            
+  Status: ❌ Not built                                                          
+  Interface: -                                                                  
+  Input Contract: -                                                             
+  Output Contract: -                                                            
+  Validation: -                                                                 
+  Unit Test: -                                                                  
+  ────────────────────────────────────────                                      
+  Module Type: Bridge                                                           
+  Name: PESTLEToPorters                                                         
+  Status: ❌ Not built                                                          
+  Interface: -                                                                  
+  Input Contract: -                                                             
+  Output Contract: -                                                            
+  Validation: -                                                                 
+  Unit Test: -                                                                  
+  ---                                                                           
+  INTERFACE CONTRACTS                                                           
+  Contract: FrameworkExecutor                                                   
+  Exists?: ✅ Yes                                                               
+  Problem: execute() returns Promise<any> - no type safety                      
+  ────────────────────────────────────────                                      
+  Contract: StrategicContext                                                    
+  Exists?: ✅ Yes                                                               
+  Problem: All insight fields are optional (?) - no required fields enforced    
+  ────────────────────────────────────────                                      
+  Contract: JourneyDefinition                                                   
+  Exists?: ✅ Yes                                                               
+  Problem: Has insightsConfig.requiresFiveWhys but orchestrator doesn't use it  
+  ────────────────────────────────────────                                      
+  Contract: JourneyDefinition.dependencies                                      
+  Exists?: ✅ Yes                                                               
+  Problem: Has {from, to} array but orchestrator doesn't enforce it             
+  ────────────────────────────────────────                                      
+  Contract: Framework Result Types                                              
+  Exists?: ✅ Yes                                                               
+  Problem: BMCFrameworkResult, etc. defined but executors don't use them        
+  ────────────────────────────────────────                                      
+  Contract: Error Contract                                                      
+  Exists?: ❌ No                                                                
+  Problem: No standardized error types for framework failures                   
+  ────────────────────────────────────────                                      
+  Contract: Validation Result Contract                                          
+  Exists?: ❌ No                                                                
+  Problem: No standard interface for validation results                         
+  ---                                                                           
+  ORCHESTRATOR GAPS                                                             
+                                                                                
+  What the orchestrator DOES check:                                             
+  // journey-orchestrator.ts:36                                                 
+  if (!isJourneyAvailable(journeyType)) {                                       
+    throw new Error(`Journey "${journeyType}" is not yet implemented`);         
+  }                                                                             
+                                                                                
+  // framework-executor-registry.ts:54                                          
+  if (!executor) {                                                              
+    throw new Error(`No executor registered for framework: ${frameworkName}`);  
+  }                                                                             
+                                                                                
+  What the orchestrator DOESN'T check:                                          
+  1. ❌ All journey frameworks are registered - No startup validation           
+  2. ❌ Prerequisites are satisfied - Doesn't check journey.dependencies        
+  3. ❌ Context has required inputs - Doesn't check journey.insightsConfig      
+  4. ❌ Framework outputs are valid - Doesn't validate against result types     
+  5. ❌ Bridge prerequisites exist - Hardcoded if (frameworkName === 'five_whys'
+   && journey.frameworks[i + 1] === 'bmc')                                      
+                                                                                
+  ---                                                                           
+  TESTING GAPS                                                                  
+  ┌───────────────────────────┬─────────┬────────────────────────────────┐      
+  │       Test Category       │ Exists? │             Files              │      
+  ├───────────────────────────┼─────────┼────────────────────────────────┤      
+  │ Architecture guards       │ ✅ Yes  │ journey-architecture.spec.ts   │      
+  ├───────────────────────────┼─────────┼────────────────────────────────┤      
+  │ Smoke tests               │ ✅ Yes  │ journey-registry.smoke.spec.ts │      
+  ├───────────────────────────┼─────────┼────────────────────────────────┤      
+  │ FiveWhys unit tests       │ ❌ No   │ -                              │      
+  ├───────────────────────────┼─────────┼────────────────────────────────┤      
+  │ BMC unit tests            │ ❌ No   │ -                              │      
+  ├───────────────────────────┼─────────┼────────────────────────────────┤      
+  │ Bridge unit tests         │ ❌ No   │ -                              │      
+  ├───────────────────────────┼─────────┼────────────────────────────────┤      
+  │ Input validation tests    │ ❌ No   │ -                              │      
+  ├───────────────────────────┼─────────┼────────────────────────────────┤      
+  │ Output contract tests     │ ❌ No   │ -                              │      
+  ├───────────────────────────┼─────────┼────────────────────────────────┤      
+  │ Journey integration tests │ ❌ No   │ -                              │      
+  └───────────────────────────┴─────────┴────────────────────────────────┘      
+  ---                                                                           
+  THE FUNDAMENTAL PROBLEM                                                       
+                                                                                
+  The Journey Builder has interfaces but no enforcement:                        
+                                                                                
+  Types say:          FiveWhysFrameworkResult has specific shape                
+  Executors return:   Promise<any>                                              
+  Orchestrator:       Accepts anything, doesn't validate                        
+                                                                                
+  Types say:          journey.dependencies = [{from: 'five_whys', to: 'bmc'}]   
+  Orchestrator does:  Ignores this completely                                   
+                                                                                
+  Types say:          journey.insightsConfig.requiresFiveWhys = true            
+  Frontend does:      Hardcodes logic instead of reading this                   
+                                                                                
+  ---                                                                           
+  WHAT MUST BE BUILT                                                            
+                                                                                
+  1. Module Specification Template - For each module:                           
+  # Module: [Name]                                                              
+  ## Required Inputs (from context)                                             
+  ## Required Outputs (to context)                                              
+  ## Dependencies (prior modules)                                               
+  ## Error Conditions                                                           
+  ## Test Cases                                                                 
+                                                                                
+  2. Startup Validation - On server start:                                      
+  for (const journey of getAvailableJourneys()) {                               
+    for (const framework of journey.frameworks) {                               
+      if (!frameworkRegistry.has(framework)) {                                  
+        throw new Error(`Journey ${journey.name} requires ${framework} but it's 
+  not registered`);                                                             
+      }                                                                         
+    }                                                                           
+  }                                                                             
+                                                                                
+  3. Runtime Input Validation - Before each module:                             
+  // In orchestrator, before executing each framework:                          
+  const requiredInputs = getModuleSpec(frameworkName).requiredInputs;           
+  for (const input of requiredInputs) {                                         
+    if (!context.insights[input]) {                                             
+      throw new Error(`${frameworkName} requires ${input} but it's missing`);   
+    }                                                                           
+  }                                                                             
+                                                                                
+  4. Output Validation - After each module:                                     
+  const result = await executor.execute(context);                               
+  const outputSchema = getModuleSpec(frameworkName).outputSchema;               
+  const validation = validateOutput(result, outputSchema);                      
+  if (!validation.valid) {                                                      
+    throw new Error(`${frameworkName} produced invalid output:                  
+  ${validation.errors}`);                                                       
+  }                                                                             
+                                                                                
+  5. Unit Tests - For each module:                                              
+  - Test with valid inputs → verify correct outputs                             
+  - Test with missing inputs → verify clear error                               
+  - Test with invalid inputs → verify rejection                                 
+                                                                                
+  ---                                                                           
+  PRIORITY ORDER                                                                
+                                                                                
+  1. Document what exists - Write specs for FiveWhys, BMC, WhysToBMC bridge     
+  2. Add startup validation - Fail fast if journeys reference unregistered      
+  frameworks                                                                    
+  3. Add typed returns - Change executors from Promise<any> to                  
+  Promise<FiveWhysResult>                                                       
+  4. Add input validation - Check prerequisites before running each module      
+  5. Add unit tests - Test each module in isolation                             
+  6. Build new modules properly - Spec → Implement → Test → Register            
+                                                                                
+  Should I create these specification documents and the startup validation      
+  module?                   

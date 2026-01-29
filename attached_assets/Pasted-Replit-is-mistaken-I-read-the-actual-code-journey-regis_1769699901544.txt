@@ -1,0 +1,66 @@
+Replit is mistaken. I read the actual code - journey-registry.ts:53 shows:    
+                                                                                
+  market_entry: {                                                               
+    available: false, // Placeholder - not implemented                          
+                                                                                
+  Market Entry is already marked unavailable. The problem is the system isn't   
+  enforcing this.                                                               
+                                                                                
+  Tell Replit:                                                                  
+                                                                                
+  ---                                                                           
+  Correction: Market Entry is already available: false in                       
+  server/journey/journey-registry.ts:53. The registry is correct - the          
+  enforcement is broken.                                                        
+                                                                                
+  Priority order:                                                               
+                                                                                
+  1. Fix the orchestrator to validate at startup (Option 3)                     
+    - On server start, loop through all journeys where available: true          
+    - Verify every framework in journey.frameworks is registered in             
+  frameworkRegistry                                                             
+    - Throw error and halt startup if mismatch found                            
+    - This prevents shipping broken journeys ever again                         
+  2. Fix the frontend to respect available flag                                 
+    - Journey selection UI should filter getAvailableJourneys() not             
+  getAllJourneys()                                                              
+    - ResearchPage should check journey availability before proceeding          
+  3. Don't build new executors yet                                              
+    - First we need module specs, input/output contracts, and tests for existing
+   modules (FiveWhys, BMC)                                                      
+    - Building PESTLE/Porters/SWOT without contracts will create more technical 
+  debt                                                                          
+                                                                                
+  The startup validation should look like:                                      
+                                                                                
+  // In server startup (e.g., index.ts or register-frameworks.ts)               
+  export function validateJourneyIntegrity(): void {                            
+    const availableJourneys = getAvailableJourneys();                           
+                                                                                
+    for (const journey of availableJourneys) {                                  
+      for (const framework of journey.frameworks) {                             
+        if (!frameworkRegistry.has(framework)) {                                
+          throw new Error(                                                      
+            `STARTUP ERROR: Journey "${journey.name}" requires framework        
+  "${framework}" but no executor is registered. ` +                             
+            `Either register the executor or set available: false in            
+  journey-registry.ts`                                                          
+          );                                                                    
+        }                                                                       
+      }                                                                         
+    }                                                                           
+                                                                                
+    console.log(`[Journey Validation] ✓ All ${availableJourneys.length}         
+  available journeys have registered executors`);                               
+  }                                                                             
+                                                                                
+  Call this after registerFrameworkExecutors() in server startup.               
+                                                                                
+  ---                                                                           
+                                                                                
+  5 tasks (1 done, 4 open) · ctrl+t to hide tasks                               
+  ◻ Audit Journey Builder orchestrator contract enforcement                     
+  ◻ Audit Journey Builder template validation                                   
+  ◻ Create module contract specifications                                       
+  ◻ Implement startup validation for Journey Builder                            
+  ✔ Audit Journey Builder module registry and contracts    
