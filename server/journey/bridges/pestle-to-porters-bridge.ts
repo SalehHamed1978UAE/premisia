@@ -1,8 +1,8 @@
 /**
- * PESTLE → Porter's Bridge
+ * PESTLE → Porter's Five Forces Bridge
  * 
- * Transforms PESTLE analysis into context for Porter's Five Forces.
- * This is a COGNITIVE bridge, not just data mapping.
+ * Cognitive transformation of PESTLE macro-environmental factors
+ * into context that shapes Porter's Five Forces analysis.
  * 
  * Key transformations:
  * - Legal/regulatory factors → Entry barriers
@@ -11,499 +11,221 @@
  * - Political/trade factors → Supplier power context
  */
 
-import { z } from 'zod';
-import type { BridgeContract, BridgeContext, InterpretationRule, BridgeValidationResult } from '@shared/contracts/bridge.contract';
-import { PESTLEOutputSchema, type PESTLEOutput, type PESTLEFactor } from '@shared/contracts/pestle.schema';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// OUTPUT SCHEMA (What we pass to Porter's)
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const PESTLEToPortersEnhancementSchema = z.object({
-  // Raw PESTLE output for reference
-  pestleOutput: PESTLEOutputSchema,
-  
-  // Interpreted context for each force
-  forceContext: z.object({
-    threatOfNewEntrants: z.object({
-      regulatoryBarriers: z.array(z.object({
-        barrier: z.string(),
-        severity: z.enum(['high', 'medium', 'low']),
-        interpretation: z.string(),
-        sourceFactor: z.string(),
-      })),
-      capitalIntensity: z.object({
-        level: z.enum(['high', 'medium', 'low']).optional(),
-        interpretation: z.string().optional(),
-      }).optional(),
-      growthSignal: z.object({
-        hasGrowth: z.boolean(),
-        growthRate: z.string().optional(),
-        interpretation: z.string(),
-        sources: z.array(z.string()),
-      }).optional(),
-    }),
-    
-    supplierPower: z.object({
-      tradeRestrictions: z.array(z.object({
-        restriction: z.string(),
-        impact: z.string(),
-        sourceFactor: z.string(),
-      })),
-      supplierConcentration: z.object({
-        level: z.enum(['high', 'medium', 'low']).optional(),
-        interpretation: z.string().optional(),
-      }).optional(),
-    }),
-    
-    buyerPower: z.object({
-      economicConditions: z.array(z.object({
-        condition: z.string(),
-        impactOnPriceSensitivity: z.enum(['increases', 'decreases', 'neutral']),
-        interpretation: z.string(),
-        sourceFactor: z.string(),
-      })),
-      demographicTrends: z.array(z.object({
-        trend: z.string(),
-        implication: z.string(),
-        sourceFactor: z.string(),
-      })),
-    }),
-    
-    threatOfSubstitutes: z.object({
-      techEnablers: z.array(z.object({
-        enabler: z.string(),
-        substituteType: z.string(),
-        interpretation: z.string(),
-        sourceFactor: z.string(),
-      })),
-      socialTrends: z.array(z.object({
-        trend: z.string(),
-        substituteImplication: z.string(),
-        sourceFactor: z.string(),
-      })),
-    }),
-    
-    competitiveRivalry: z.object({
-      marketGrowthContext: z.object({
-        growth: z.enum(['growing', 'stable', 'declining']).optional(),
-        interpretation: z.string().optional(),
-      }).optional(),
-      regulatoryImpact: z.object({
-        impact: z.string().optional(),
-        interpretation: z.string().optional(),
-      }).optional(),
-    }),
-  }),
-  
-  // Summary of transformations for traceability
-  transformationSummary: z.array(z.object({
-    pestleFactorId: z.string(),
-    pestleFactor: z.string(),
-    affectedForce: z.string(),
-    transformation: z.string(),
-  })),
-});
-
-export type PESTLEToPortersEnhancement = z.infer<typeof PESTLEToPortersEnhancementSchema>;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// INTERPRETATION RULES
-// ─────────────────────────────────────────────────────────────────────────────
-
-const interpretationRules: InterpretationRule[] = [
-  {
-    id: 'legal_to_entry_barriers',
-    description: 'Legal/regulatory factors become entry barriers',
-    sourceField: 'factors.legal',
-    targetField: 'forceContext.threatOfNewEntrants.regulatoryBarriers',
-    
-    transform: (value: unknown, ctx: BridgeContext): unknown => {
-      const legalFactors = value as PESTLEFactor[];
-      return legalFactors
-        .filter(f => f.magnitude === 'high' || f.magnitude === 'medium')
-        .map(f => ({
-          barrier: f.factor,
-          severity: f.magnitude,
-          interpretation: `PESTLE Legal factor "${f.factor}" creates regulatory barrier to entry`,
-          sourceFactor: f.id,
-        }));
-    },
-    
-    interpretation: 'High-impact legal requirements become barriers that deter new entrants',
-    
-    example: {
-      source: { id: 'L-1', factor: 'UAE requires DED retail license', magnitude: 'high' },
-      target: { barrier: 'DED retail license requirement', severity: 'high' },
-      explanation: 'Licensing requirement becomes high-severity entry barrier',
-    },
-  },
-  
-  {
-    id: 'economic_growth_to_entrants',
-    description: 'Market growth increases threat of new entrants',
-    sourceField: 'factors.economic',
-    targetField: 'forceContext.threatOfNewEntrants.growthSignal',
-    
-    transform: (value: unknown, ctx: BridgeContext): unknown => {
-      const economicFactors = value as PESTLEFactor[];
-      const growthFactors = economicFactors.filter(f => 
-        f.factor.toLowerCase().includes('growth') && f.impact === 'opportunity'
-      );
-      
-      if (growthFactors.length === 0) return null;
-      
-      // Try to extract growth rate
-      let growthRate: string | undefined;
-      for (const f of growthFactors) {
-        const match = f.evidence?.match(/(\d+(?:\.\d+)?%)/);
-        if (match) {
-          growthRate = match[1];
-          break;
-        }
-      }
-      
-      return {
-        hasGrowth: true,
-        growthRate,
-        interpretation: 'Growing market attracts new entrants - INCREASES threat',
-        sources: growthFactors.map(f => f.factor),
-      };
-    },
-    
-    interpretation: 'Market growth signals attract competition, increasing new entrant threat',
-    
-    example: {
-      source: { factor: 'UAE sneaker market grew 8.3% YoY', impact: 'opportunity' },
-      target: { hasGrowth: true, interpretation: 'Growing market attracts entrants' },
-      explanation: 'PESTLE opportunity becomes Porter threat signal',
-    },
-  },
-  
-  {
-    id: 'political_to_supplier_power',
-    description: 'Trade policies affect supplier landscape',
-    sourceField: 'factors.political',
-    targetField: 'forceContext.supplierPower.tradeRestrictions',
-    
-    transform: (value: unknown, ctx: BridgeContext): unknown => {
-      const politicalFactors = value as PESTLEFactor[];
-      return politicalFactors
-        .filter(f => 
-          f.factor.toLowerCase().includes('trade') ||
-          f.factor.toLowerCase().includes('import') ||
-          f.factor.toLowerCase().includes('tariff')
-        )
-        .map(f => ({
-          restriction: f.factor,
-          impact: f.impact === 'threat' 
-            ? 'Increases supplier power by limiting alternatives' 
-            : 'Decreases supplier power by enabling more options',
-          sourceFactor: f.id,
-        }));
-    },
-    
-    interpretation: 'Trade policies affect supplier landscape. Import restrictions = higher supplier power',
-    
-    example: {
-      source: { factor: 'Import restrictions on footwear', impact: 'threat' },
-      target: { restriction: 'Import restrictions', impact: 'Increases supplier power' },
-      explanation: 'Trade barrier limits supplier alternatives, increasing their power',
-    },
-  },
-  
-  {
-    id: 'economic_to_buyer_power',
-    description: 'Economic conditions affect buyer price sensitivity',
-    sourceField: 'factors.economic',
-    targetField: 'forceContext.buyerPower.economicConditions',
-    
-    transform: (value: unknown, ctx: BridgeContext): unknown => {
-      const economicFactors = value as PESTLEFactor[];
-      return economicFactors
-        .filter(f => 
-          f.factor.toLowerCase().includes('income') ||
-          f.factor.toLowerCase().includes('spending') ||
-          f.factor.toLowerCase().includes('disposable') ||
-          f.factor.toLowerCase().includes('inflation')
-        )
-        .map(f => {
-          // Determine impact on price sensitivity
-          let impactOnPriceSensitivity: 'increases' | 'decreases' | 'neutral';
-          if (f.factor.toLowerCase().includes('high income') || 
-              f.factor.toLowerCase().includes('disposable income') ||
-              (f.impact === 'opportunity' && f.factor.toLowerCase().includes('spending'))) {
-            impactOnPriceSensitivity = 'decreases'; // High income = less price sensitive
-          } else if (f.factor.toLowerCase().includes('inflation') ||
-                     f.impact === 'threat') {
-            impactOnPriceSensitivity = 'increases'; // Inflation = more price sensitive
-          } else {
-            impactOnPriceSensitivity = 'neutral';
-          }
-          
-          return {
-            condition: f.factor,
-            impactOnPriceSensitivity,
-            interpretation: impactOnPriceSensitivity === 'increases' 
-              ? 'Economic condition increases buyer price sensitivity → higher buyer power'
-              : impactOnPriceSensitivity === 'decreases'
-              ? 'Economic condition decreases buyer price sensitivity → lower buyer power'
-              : 'Economic condition has neutral impact on buyer power',
-            sourceFactor: f.id,
-          };
-        });
-    },
-    
-    interpretation: 'Economic conditions affect buyer price sensitivity. High income = lower buyer power',
-    
-    example: {
-      source: { factor: 'High disposable income in UAE', impact: 'opportunity' },
-      target: { impactOnPriceSensitivity: 'decreases' },
-      explanation: 'Affluent buyers are less price sensitive, reducing their power',
-    },
-  },
-  
-  {
-    id: 'social_to_buyer_trends',
-    description: 'Social trends affect buyer behavior',
-    sourceField: 'factors.social',
-    targetField: 'forceContext.buyerPower.demographicTrends',
-    
-    transform: (value: unknown, ctx: BridgeContext): unknown => {
-      const socialFactors = value as PESTLEFactor[];
-      return socialFactors.map(f => ({
-        trend: f.factor,
-        implication: f.implication,
-        sourceFactor: f.id,
-      }));
-    },
-    
-    interpretation: 'Social/demographic trends shape buyer preferences and power',
-    
-    example: {
-      source: { factor: 'Growing sneakerhead culture in Gulf' },
-      target: { trend: 'Growing sneakerhead culture', implication: 'Creates premium willingness to pay' },
-      explanation: 'Cultural trend reduces buyer price sensitivity for authentic products',
-    },
-  },
-  
-  {
-    id: 'tech_to_substitutes',
-    description: 'Technology trends enable substitute threats',
-    sourceField: 'factors.technological',
-    targetField: 'forceContext.threatOfSubstitutes.techEnablers',
-    
-    transform: (value: unknown, ctx: BridgeContext): unknown => {
-      const techFactors = value as PESTLEFactor[];
-      return techFactors
-        .filter(f => 
-          f.factor.toLowerCase().includes('platform') ||
-          f.factor.toLowerCase().includes('online') ||
-          f.factor.toLowerCase().includes('digital') ||
-          f.factor.toLowerCase().includes('app') ||
-          f.factor.toLowerCase().includes('e-commerce')
-        )
-        .map(f => {
-          // Infer substitute type
-          let substituteType = 'alternative channel';
-          if (f.factor.toLowerCase().includes('platform')) {
-            substituteType = 'platform competitor';
-          } else if (f.factor.toLowerCase().includes('app')) {
-            substituteType = 'mobile-first competitor';
-          }
-          
-          return {
-            enabler: f.factor,
-            substituteType,
-            interpretation: `Technology "${f.factor}" enables alternative channels/substitutes`,
-            sourceFactor: f.id,
-          };
-        });
-    },
-    
-    interpretation: 'Digital/platform technologies enable substitute products and channels',
-    
-    example: {
-      source: { factor: 'Online resale platforms growing (StockX, GOAT)' },
-      target: { enabler: 'Online resale platforms', substituteType: 'platform competitor' },
-      explanation: 'Platform tech becomes substitute threat',
-    },
-  },
-];
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TRANSFORM FUNCTION
-// ─────────────────────────────────────────────────────────────────────────────
-
-async function transform(
-  from: PESTLEOutput,
-  context: BridgeContext
-): Promise<PESTLEToPortersEnhancement> {
-  const transformationSummary: PESTLEToPortersEnhancement['transformationSummary'] = [];
-  
-  // Apply legal → entry barriers
-  const regulatoryBarriers = interpretationRules[0].transform(from.factors.legal, context) as any[] || [];
-  for (const barrier of regulatoryBarriers) {
-    transformationSummary.push({
-      pestleFactorId: barrier.sourceFactor,
-      pestleFactor: barrier.barrier,
-      affectedForce: 'threatOfNewEntrants',
-      transformation: 'Legal factor → entry barrier',
-    });
-  }
-  
-  // Apply economic growth → entrants
-  const growthSignal = interpretationRules[1].transform(from.factors.economic, context) as any;
-  if (growthSignal) {
-    for (const source of growthSignal.sources || []) {
-      transformationSummary.push({
-        pestleFactorId: 'economic',
-        pestleFactor: source,
-        affectedForce: 'threatOfNewEntrants',
-        transformation: 'Market growth → attracts entrants',
-      });
-    }
-  }
-  
-  // Apply political → supplier power
-  const tradeRestrictions = interpretationRules[2].transform(from.factors.political, context) as any[] || [];
-  for (const restriction of tradeRestrictions) {
-    transformationSummary.push({
-      pestleFactorId: restriction.sourceFactor,
-      pestleFactor: restriction.restriction,
-      affectedForce: 'supplierPower',
-      transformation: 'Trade policy → supplier power context',
-    });
-  }
-  
-  // Apply economic → buyer power
-  const economicConditions = interpretationRules[3].transform(from.factors.economic, context) as any[] || [];
-  for (const condition of economicConditions) {
-    transformationSummary.push({
-      pestleFactorId: condition.sourceFactor,
-      pestleFactor: condition.condition,
-      affectedForce: 'buyerPower',
-      transformation: `Economic condition → ${condition.impactOnPriceSensitivity} price sensitivity`,
-    });
-  }
-  
-  // Apply social → buyer trends
-  const demographicTrends = interpretationRules[4].transform(from.factors.social, context) as any[] || [];
-  for (const trend of demographicTrends) {
-    transformationSummary.push({
-      pestleFactorId: trend.sourceFactor,
-      pestleFactor: trend.trend,
-      affectedForce: 'buyerPower',
-      transformation: 'Social trend → buyer preference',
-    });
-  }
-  
-  // Apply tech → substitutes
-  const techEnablers = interpretationRules[5].transform(from.factors.technological, context) as any[] || [];
-  for (const enabler of techEnablers) {
-    transformationSummary.push({
-      pestleFactorId: enabler.sourceFactor,
-      pestleFactor: enabler.enabler,
-      affectedForce: 'threatOfSubstitutes',
-      transformation: `Technology → enables ${enabler.substituteType}`,
-    });
-  }
-  
-  return {
-    pestleOutput: from,
-    forceContext: {
-      threatOfNewEntrants: {
-        regulatoryBarriers,
-        growthSignal: growthSignal || undefined,
-      },
-      supplierPower: {
-        tradeRestrictions,
-      },
-      buyerPower: {
-        economicConditions,
-        demographicTrends,
-      },
-      threatOfSubstitutes: {
-        techEnablers,
-        socialTrends: [],
-      },
-      competitiveRivalry: {},
-    },
-    transformationSummary,
-  };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// VALIDATE FUNCTION
-// ─────────────────────────────────────────────────────────────────────────────
-
-function validate(from: PESTLEOutput, to: PESTLEToPortersEnhancement): BridgeValidationResult {
-  const errors: string[] = [];
-  const warnings: string[] = [];
-  
-  // Check that PESTLE had content
-  const totalFactors = 
-    from.factors.political.length +
-    from.factors.economic.length +
-    from.factors.social.length +
-    from.factors.technological.length +
-    from.factors.legal.length +
-    from.factors.environmental.length;
-  
-  if (totalFactors === 0) {
-    errors.push('PESTLE output has no factors to transform');
-  }
-  
-  // Check that we produced some transformations
-  if (to.transformationSummary.length === 0) {
-    warnings.push('No transformations were applied - Porter\'s analysis may lack PESTLE context');
-  }
-  
-  // Check each force got some context
-  const forces = ['threatOfNewEntrants', 'supplierPower', 'buyerPower', 'threatOfSubstitutes'];
-  for (const force of forces) {
-    const hasContext = to.transformationSummary.some(t => t.affectedForce === force);
-    if (!hasContext) {
-      warnings.push(`No PESTLE context mapped to ${force}`);
-    }
-  }
-  
-  return {
-    valid: errors.length === 0,
-    errors,
-    warnings,
-    transformationCount: to.transformationSummary.length,
-  };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// EXPORT BRIDGE
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const PESTLEToPortersBridge: BridgeContract<PESTLEOutput, PESTLEToPortersEnhancement> = {
-  id: 'pestle_to_porters',
-  fromModule: 'pestle',
-  toModule: 'porters',
-  description: 'Transforms PESTLE macro-environmental factors into Porter\'s Five Forces context',
-  
-  fromSchema: PESTLEOutputSchema,
-  toSchema: PESTLEToPortersEnhancementSchema,
-  
-  transform,
-  interpretationRules,
-  validate,
-};
+import type { StrategicContext } from '@shared/journey-types';
 
 /**
- * Apply the PESTLE to Porter's bridge
- * Convenience function for use in journey orchestrator
+ * Enhanced context for Porter's analysis based on PESTLE findings
+ */
+export interface PESTLEToPortersEnhancement {
+  // Regulatory barriers from Legal factors
+  regulatoryBarriers: Array<{
+    factor: string;
+    severity: 'high' | 'medium' | 'low';
+    interpretation: string;
+    source: string;
+  }>;
+  
+  // Economic indicators for buyer power
+  buyerPowerIndicators: Array<{
+    factor: string;
+    direction: 'increases' | 'decreases';
+    interpretation: string;
+  }>;
+  
+  // Technology factors enabling substitutes
+  substituteEnablers: Array<{
+    factor: string;
+    substituteType: string;
+    interpretation: string;
+  }>;
+  
+  // Trade/political factors for supplier power
+  supplierPowerFactors: Array<{
+    factor: string;
+    direction: 'increases' | 'decreases';
+    interpretation: string;
+  }>;
+  
+  // Market growth signals affecting rivalry
+  growthSignals: Array<{
+    factor: string;
+    growthRate: string | null;
+    implication: string;
+  }>;
+  
+  // Raw PESTLE reference
+  pestleScope: string;
+  pestleConfidence: string;
+}
+
+/**
+ * Transform PESTLE output into Porter's context
+ */
+function transformPESTLEToPorters(pestleOutput: any): PESTLEToPortersEnhancement {
+  const result: PESTLEToPortersEnhancement = {
+    regulatoryBarriers: [],
+    buyerPowerIndicators: [],
+    substituteEnablers: [],
+    supplierPowerFactors: [],
+    growthSignals: [],
+    pestleScope: pestleOutput?.scope || '',
+    pestleConfidence: pestleOutput?.confidenceLevel || 'medium',
+  };
+  
+  if (!pestleOutput?.factors) return result;
+  
+  const factors = pestleOutput.factors;
+  
+  // Legal factors → Entry barriers
+  if (factors.legal && Array.isArray(factors.legal)) {
+    for (const f of factors.legal) {
+      const lower = (f.factor || '').toLowerCase();
+      if (lower.includes('license') || lower.includes('regulation') || lower.includes('permit') || lower.includes('compliance')) {
+        result.regulatoryBarriers.push({
+          factor: f.factor,
+          severity: f.magnitude || 'medium',
+          interpretation: `Legal requirement "${f.factor}" creates regulatory barrier to entry`,
+          source: 'PESTLE Legal',
+        });
+      }
+    }
+  }
+  
+  // Economic factors → Buyer power & growth signals
+  if (factors.economic && Array.isArray(factors.economic)) {
+    for (const f of factors.economic) {
+      const lower = (f.factor || '').toLowerCase();
+      
+      // Spending/income affects buyer power
+      if (lower.includes('income') || lower.includes('spending') || lower.includes('disposable') || lower.includes('purchasing')) {
+        result.buyerPowerIndicators.push({
+          factor: f.factor,
+          direction: f.impact === 'opportunity' ? 'decreases' : 'increases',
+          interpretation: `Economic factor "${f.factor}" affects buyer price sensitivity`,
+        });
+      }
+      
+      // Growth signals
+      if (lower.includes('growth') || lower.includes('market size') || lower.includes('expansion')) {
+        const growthMatch = (f.evidence || '').match(/(\d+(?:\.\d+)?)\s*%/);
+        result.growthSignals.push({
+          factor: f.factor,
+          growthRate: growthMatch ? growthMatch[1] + '%' : null,
+          implication: f.impact === 'opportunity' 
+            ? 'Growing market attracts new entrants, may reduce rivalry intensity'
+            : 'Stagnant market intensifies rivalry for market share',
+        });
+      }
+    }
+  }
+  
+  // Social factors → Buyer power
+  if (factors.social && Array.isArray(factors.social)) {
+    for (const f of factors.social) {
+      const lower = (f.factor || '').toLowerCase();
+      if (lower.includes('trend') || lower.includes('culture') || lower.includes('community') || lower.includes('lifestyle')) {
+        result.buyerPowerIndicators.push({
+          factor: f.factor,
+          direction: f.impact === 'opportunity' ? 'decreases' : 'increases',
+          interpretation: `Social trend "${f.factor}" affects buyer preferences and loyalty`,
+        });
+      }
+    }
+  }
+  
+  // Technological factors → Substitutes
+  if (factors.technological && Array.isArray(factors.technological)) {
+    for (const f of factors.technological) {
+      const lower = (f.factor || '').toLowerCase();
+      if (lower.includes('platform') || lower.includes('online') || lower.includes('digital') || lower.includes('app') || lower.includes('e-commerce')) {
+        result.substituteEnablers.push({
+          factor: f.factor,
+          substituteType: 'digital_channel',
+          interpretation: `Technology "${f.factor}" enables alternative channels and substitutes`,
+        });
+      }
+    }
+  }
+  
+  // Political factors → Supplier power
+  if (factors.political && Array.isArray(factors.political)) {
+    for (const f of factors.political) {
+      const lower = (f.factor || '').toLowerCase();
+      if (lower.includes('trade') || lower.includes('import') || lower.includes('tariff') || lower.includes('agreement')) {
+        result.supplierPowerFactors.push({
+          factor: f.factor,
+          direction: f.impact === 'opportunity' ? 'decreases' : 'increases',
+          interpretation: `Trade policy "${f.factor}" affects supplier access and options`,
+        });
+      }
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Apply the PESTLE → Porter's bridge to a strategic context
+ * Returns enhanced context with bridge output stored for Porter's executor
  */
 export function applyPESTLEToPortersBridge(
-  pestleOutput: PESTLEOutput,
+  pestleOutput: any,
   positioning: any
 ): Promise<PESTLEToPortersEnhancement> {
-  return PESTLEToPortersBridge.transform(pestleOutput, {
-    positioning,
-    allPriorOutputs: { pestle: pestleOutput },
+  const enhancement = transformPESTLEToPorters(pestleOutput);
+  
+  console.log('[PESTLE→Porter\'s Bridge] Transformation complete:', {
+    regulatoryBarriers: enhancement.regulatoryBarriers.length,
+    buyerPowerIndicators: enhancement.buyerPowerIndicators.length,
+    substituteEnablers: enhancement.substituteEnablers.length,
+    supplierPowerFactors: enhancement.supplierPowerFactors.length,
+    growthSignals: enhancement.growthSignals.length,
   });
+  
+  return Promise.resolve(enhancement);
+}
+
+/**
+ * Format PESTLE context as text for inclusion in Porter's prompt
+ */
+export function formatPESTLEContextForPorters(enhancement: PESTLEToPortersEnhancement): string {
+  const sections: string[] = [];
+  
+  if (enhancement.regulatoryBarriers.length > 0) {
+    sections.push('**Regulatory Barriers (from PESTLE Legal):**');
+    for (const rb of enhancement.regulatoryBarriers) {
+      sections.push(`- ${rb.factor} [${rb.severity}]: ${rb.interpretation}`);
+    }
+  }
+  
+  if (enhancement.buyerPowerIndicators.length > 0) {
+    sections.push('\n**Buyer Power Indicators (from PESTLE Economic/Social):**');
+    for (const bp of enhancement.buyerPowerIndicators) {
+      sections.push(`- ${bp.factor} → ${bp.direction} buyer power: ${bp.interpretation}`);
+    }
+  }
+  
+  if (enhancement.substituteEnablers.length > 0) {
+    sections.push('\n**Substitute Enablers (from PESTLE Technological):**');
+    for (const se of enhancement.substituteEnablers) {
+      sections.push(`- ${se.factor} [${se.substituteType}]: ${se.interpretation}`);
+    }
+  }
+  
+  if (enhancement.supplierPowerFactors.length > 0) {
+    sections.push('\n**Supplier Power Factors (from PESTLE Political):**');
+    for (const sp of enhancement.supplierPowerFactors) {
+      sections.push(`- ${sp.factor} → ${sp.direction} supplier power: ${sp.interpretation}`);
+    }
+  }
+  
+  if (enhancement.growthSignals.length > 0) {
+    sections.push('\n**Market Growth Signals (from PESTLE Economic):**');
+    for (const gs of enhancement.growthSignals) {
+      const rate = gs.growthRate ? ` (${gs.growthRate})` : '';
+      sections.push(`- ${gs.factor}${rate}: ${gs.implication}`);
+    }
+  }
+  
+  return sections.join('\n');
 }

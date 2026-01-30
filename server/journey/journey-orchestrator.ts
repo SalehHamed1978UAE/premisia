@@ -15,6 +15,8 @@ import {
 } from './strategic-context-accumulator';
 import { getJourney, isJourneyAvailable } from './journey-registry';
 import { applyWhysToBMCBridge } from './bridges/whys-to-bmc-bridge';
+import { applyPESTLEToPortersBridge } from './bridges/pestle-to-porters-bridge';
+import { applyPortersToSWOTBridge } from './bridges/porters-to-swot-bridge';
 import { WhysTreeGenerator } from '../strategic-consultant-legacy/whys-tree-generator';
 import { BMCResearcher } from '../strategic-consultant-legacy/bmc-researcher';
 import { dbConnectionManager } from '../db-connection-manager';
@@ -350,9 +352,58 @@ export class JourneyOrchestrator {
         context = addFrameworkResult(context, result);
 
         // Apply bridge if needed (between frameworks)
+        // These bridges perform COGNITIVE transformation, not just data mapping
         if (frameworkName === 'five_whys' && frameworks[i + 1] === 'bmc') {
+          console.log('[JourneyOrchestrator] Applying Five Whys → BMC bridge');
           const { context: bridgedContext } = applyWhysToBMCBridge(context);
           context = bridgedContext;
+        }
+        
+        // PESTLE → Porter's bridge: Transform macro factors into competitive force context
+        if (frameworkName === 'pestle' && frameworks[i + 1] === 'porters') {
+          console.log('[JourneyOrchestrator] Applying PESTLE → Porter\'s bridge');
+          try {
+            const pestleOutput = result.data;
+            const positioning = {};
+            const portersContext = await applyPESTLEToPortersBridge(pestleOutput, positioning);
+            
+            // Store bridge output in context for Porter's executor to use
+            // Use trendFactors which is the existing field for PESTLE data
+            context.insights = {
+              ...context.insights,
+              trendFactors: pestleOutput,
+            };
+            // Store bridge context in marketResearch (cast to any to bypass strict typing)
+            (context as any).pestleToPortersBridge = portersContext;
+            console.log('[JourneyOrchestrator] ✓ PESTLE → Porter\'s bridge applied');
+          } catch (bridgeError) {
+            console.error('[JourneyOrchestrator] PESTLE → Porter\'s bridge error:', bridgeError);
+            // Continue without bridge - Porter's can still run with raw PESTLE output
+          }
+        }
+        
+        // Porter's → SWOT bridge: Transform competitive analysis into O/T derivation
+        if (frameworkName === 'porters' && frameworks[i + 1] === 'swot') {
+          console.log('[JourneyOrchestrator] Applying Porter\'s → SWOT bridge');
+          try {
+            const portersOutput = result.data;
+            const pestleOutput = context.insights?.trendFactors;
+            const positioning = {};
+            const swotContext = await applyPortersToSWOTBridge(portersOutput, pestleOutput, positioning);
+            
+            // Store bridge output in context for SWOT executor to use
+            // Use portersForces which is the existing field for Porter's data
+            context.insights = {
+              ...context.insights,
+              portersForces: portersOutput,
+            };
+            // Store bridge context (cast to any to bypass strict typing)
+            (context as any).portersToSWOTBridge = swotContext;
+            console.log('[JourneyOrchestrator] ✓ Porter\'s → SWOT bridge applied');
+          } catch (bridgeError) {
+            console.error('[JourneyOrchestrator] Porter\'s → SWOT bridge error:', bridgeError);
+            // Continue without bridge - SWOT can still run with raw Porter's output
+          }
         }
 
         // STEP 3a: Save framework insights linked to this journey session

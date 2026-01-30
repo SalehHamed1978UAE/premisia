@@ -1,465 +1,365 @@
 /**
- * Porter's + PESTLE → SWOT Bridge
+ * Porter's Five Forces → SWOT Bridge
  * 
- * Transforms Porter's Five Forces (with PESTLE context) into SWOT Opportunities and Threats.
- * This bridge implements the cognitive mapping table from the spec:
+ * Transforms Porter's competitive analysis + PESTLE context into
+ * derived Opportunities and Threats for SWOT analysis.
  * 
- * - Low forces → Opportunities
- * - High forces → Threats
- * - Combined with PESTLE factors for complete O/T derivation
+ * Key transformations:
+ * - Low forces = Opportunities (favorable competitive conditions)
+ * - High forces = Threats (competitive pressure)
+ * - PESTLE context strengthens O/T derivation
  */
 
-import { z } from 'zod';
-import type { BridgeContract, BridgeContext, InterpretationRule, BridgeValidationResult } from '@shared/contracts/bridge.contract';
-import { PortersOutputSchema, type PortersOutput } from '@shared/contracts/porters.schema';
-import { type PESTLEOutput } from '@shared/contracts/pestle.schema';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// OUTPUT SCHEMA (What we pass to SWOT)
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const PortersToSWOTEnhancementSchema = z.object({
-  // Raw outputs for reference
-  portersOutput: PortersOutputSchema,
-  pestleOutput: z.unknown().optional(), // Will be included if available
-  
-  // Derived opportunities (from weak forces + favorable PESTLE)
-  derivedOpportunities: z.array(z.object({
-    id: z.string(),
-    description: z.string(),
-    source: z.enum(['porters_force', 'pestle_factor', 'combined']),
-    sourceDetails: z.object({
-      portersForce: z.string().optional(),
-      portersLevel: z.string().optional(),
-      pestleFactorId: z.string().optional(),
-      pestleFactor: z.string().optional(),
-    }),
-    magnitude: z.enum(['high', 'medium', 'low']),
-    rationale: z.string(),
-  })),
-  
-  // Derived threats (from strong forces + unfavorable PESTLE)
-  derivedThreats: z.array(z.object({
-    id: z.string(),
-    description: z.string(),
-    source: z.enum(['porters_force', 'pestle_factor', 'combined']),
-    sourceDetails: z.object({
-      portersForce: z.string().optional(),
-      portersLevel: z.string().optional(),
-      pestleFactorId: z.string().optional(),
-      pestleFactor: z.string().optional(),
-    }),
-    magnitude: z.enum(['high', 'medium', 'low']),
-    likelihood: z.enum(['high', 'medium', 'low']).optional(),
-    rationale: z.string(),
-  })),
-  
-  // Competitor insights for S/W context
-  competitorInsights: z.object({
-    weaknesses: z.array(z.object({
-      competitor: z.string(),
-      weakness: z.string(),
-      opportunityImplication: z.string(),
-    })),
-    strengths: z.array(z.object({
-      competitor: z.string(),
-      strength: z.string(),
-      threatImplication: z.string(),
-    })),
-  }),
-  
-  // Transformation summary
-  transformationSummary: z.array(z.object({
-    sourceType: z.string(),
-    sourceItem: z.string(),
-    targetType: z.enum(['opportunity', 'threat']),
-    transformation: z.string(),
-  })),
-});
-
-export type PortersToSWOTEnhancement = z.infer<typeof PortersToSWOTEnhancementSchema>;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// INTERPRETATION RULES
-// ─────────────────────────────────────────────────────────────────────────────
-
-const interpretationRules: InterpretationRule[] = [
-  {
-    id: 'low_force_to_opportunity',
-    description: 'Low competitive forces become opportunities',
-    sourceField: 'forces',
-    targetField: 'derivedOpportunities',
-    
-    transform: (value: unknown, ctx: BridgeContext): unknown => {
-      const forces = value as PortersOutput['forces'];
-      const opportunities: any[] = [];
-      let idCounter = 1;
-      
-      const forceMapping = [
-        { key: 'threatOfNewEntrants', name: 'Threat of New Entrants', lowOpportunity: 'Protected market position - high barriers deter new competitors' },
-        { key: 'supplierPower', name: 'Supplier Power', lowOpportunity: 'Favorable supplier negotiations possible - multiple supplier options' },
-        { key: 'buyerPower', name: 'Buyer Power', lowOpportunity: 'Premium pricing sustainable - buyers have limited alternatives or low price sensitivity' },
-        { key: 'threatOfSubstitutes', name: 'Threat of Substitutes', lowOpportunity: 'Unique value proposition - limited alternatives strengthen position' },
-        { key: 'competitiveRivalry', name: 'Competitive Rivalry', lowOpportunity: 'Market share available - less competitive pressure enables growth' },
-      ];
-      
-      for (const mapping of forceMapping) {
-        const force = forces[mapping.key as keyof typeof forces];
-        if (force.level === 'low' || force.level === 'very_low') {
-          opportunities.push({
-            id: `O-P-${idCounter++}`,
-            description: mapping.lowOpportunity,
-            source: 'porters_force',
-            sourceDetails: {
-              portersForce: mapping.name,
-              portersLevel: force.level,
-            },
-            magnitude: force.level === 'very_low' ? 'high' : 'medium',
-            rationale: `${mapping.name} is ${force.level}, creating favorable competitive conditions`,
-          });
-        }
-      }
-      
-      return opportunities;
-    },
-    
-    interpretation: 'Weak competitive forces = opportunities. Low buyer power means easier pricing.',
-    
-    example: {
-      source: { threatOfNewEntrants: { level: 'low' } },
-      target: { description: 'Protected market position', magnitude: 'medium' },
-      explanation: 'Low entry threat becomes protected market opportunity',
-    },
-  },
-  
-  {
-    id: 'high_force_to_threat',
-    description: 'High competitive forces become threats',
-    sourceField: 'forces',
-    targetField: 'derivedThreats',
-    
-    transform: (value: unknown, ctx: BridgeContext): unknown => {
-      const forces = value as PortersOutput['forces'];
-      const threats: any[] = [];
-      let idCounter = 1;
-      
-      const forceMapping = [
-        { key: 'threatOfNewEntrants', name: 'Threat of New Entrants', highThreat: 'Vulnerable to new competitors - low barriers enable market entry' },
-        { key: 'supplierPower', name: 'Supplier Power', highThreat: 'Supplier dependency risk - limited options constrain negotiating power' },
-        { key: 'buyerPower', name: 'Buyer Power', highThreat: 'Margin compression risk - buyers can demand lower prices or switch' },
-        { key: 'threatOfSubstitutes', name: 'Threat of Substitutes', highThreat: 'Customer defection risk - alternatives compete for same customers' },
-        { key: 'competitiveRivalry', name: 'Competitive Rivalry', highThreat: 'Competitive pressure on margins - price wars and marketing battles likely' },
-      ];
-      
-      for (const mapping of forceMapping) {
-        const force = forces[mapping.key as keyof typeof forces];
-        if (force.level === 'high' || force.level === 'very_high') {
-          threats.push({
-            id: `T-P-${idCounter++}`,
-            description: mapping.highThreat,
-            source: 'porters_force',
-            sourceDetails: {
-              portersForce: mapping.name,
-              portersLevel: force.level,
-            },
-            magnitude: force.level === 'very_high' ? 'high' : 'medium',
-            likelihood: 'medium',
-            rationale: `${mapping.name} is ${force.level}, creating challenging competitive conditions`,
-          });
-        }
-      }
-      
-      return threats;
-    },
-    
-    interpretation: 'Strong competitive forces = threats. High rivalry means margin pressure.',
-    
-    example: {
-      source: { competitiveRivalry: { level: 'high' } },
-      target: { description: 'Competitive pressure on margins', magnitude: 'medium' },
-      explanation: 'High rivalry becomes margin pressure threat',
-    },
-  },
-  
-  {
-    id: 'competitor_weakness_to_opportunity',
-    description: 'Competitor weaknesses become opportunities',
-    sourceField: 'competitorsIdentified',
-    targetField: 'competitorInsights.weaknesses',
-    
-    transform: (value: unknown, ctx: BridgeContext): unknown => {
-      const competitors = value as PortersOutput['competitorsIdentified'];
-      const weaknesses: any[] = [];
-      
-      for (const competitor of competitors) {
-        if (competitor.weaknesses && competitor.weaknesses.length > 0) {
-          for (const weakness of competitor.weaknesses) {
-            weaknesses.push({
-              competitor: competitor.name,
-              weakness,
-              opportunityImplication: `${competitor.name}'s weakness in "${weakness}" creates opportunity to differentiate`,
-            });
-          }
-        }
-      }
-      
-      return weaknesses;
-    },
-    
-    interpretation: 'Competitor weaknesses = market opportunities to exploit',
-    
-    example: {
-      source: { name: 'Competitor X', weaknesses: ['Poor customer service'] },
-      target: { opportunityImplication: 'Differentiate through superior service' },
-      explanation: 'Competitor gap becomes differentiation opportunity',
-    },
-  },
-  
-  {
-    id: 'competitor_strength_to_threat',
-    description: 'Competitor strengths become threats',
-    sourceField: 'competitorsIdentified',
-    targetField: 'competitorInsights.strengths',
-    
-    transform: (value: unknown, ctx: BridgeContext): unknown => {
-      const competitors = value as PortersOutput['competitorsIdentified'];
-      const strengths: any[] = [];
-      
-      for (const competitor of competitors) {
-        if (competitor.strengths && competitor.strengths.length > 0) {
-          for (const strength of competitor.strengths) {
-            strengths.push({
-              competitor: competitor.name,
-              strength,
-              threatImplication: `${competitor.name}'s strength in "${strength}" poses competitive threat`,
-            });
-          }
-        }
-      }
-      
-      return strengths;
-    },
-    
-    interpretation: 'Competitor strengths = threats to our position',
-    
-    example: {
-      source: { name: 'Competitor X', strengths: ['Brand recognition'] },
-      target: { threatImplication: 'Brand recognition poses competitive threat' },
-      explanation: 'Competitor advantage becomes positional threat',
-    },
-  },
-];
-
-// ─────────────────────────────────────────────────────────────────────────────
-// PESTLE TO O/T (Additional function for PESTLE integration)
-// ─────────────────────────────────────────────────────────────────────────────
-
-function derivePESTLEOpportunitiesAndThreats(pestleOutput: PESTLEOutput | undefined): {
-  opportunities: PortersToSWOTEnhancement['derivedOpportunities'];
-  threats: PortersToSWOTEnhancement['derivedThreats'];
-} {
-  if (!pestleOutput) {
-    return { opportunities: [], threats: [] };
-  }
-  
-  const opportunities: PortersToSWOTEnhancement['derivedOpportunities'] = [];
-  const threats: PortersToSWOTEnhancement['derivedThreats'] = [];
-  
-  let oppCounter = 1;
-  let threatCounter = 1;
-  
-  // Use prioritized factors and explicit O/T from PESTLE
-  for (const opp of pestleOutput.opportunities || []) {
-    opportunities.push({
-      id: `O-PESTLE-${oppCounter++}`,
-      description: opp.description,
-      source: 'pestle_factor',
-      sourceDetails: {
-        pestleFactorId: opp.sourceFactors[0],
-        pestleFactor: opp.description,
-      },
-      magnitude: opp.magnitude,
-      rationale: `PESTLE identified favorable macro-environmental condition`,
-    });
-  }
-  
-  for (const threat of pestleOutput.threats || []) {
-    threats.push({
-      id: `T-PESTLE-${threatCounter++}`,
-      description: threat.description,
-      source: 'pestle_factor',
-      sourceDetails: {
-        pestleFactorId: threat.sourceFactors[0],
-        pestleFactor: threat.description,
-      },
-      magnitude: threat.magnitude,
-      likelihood: threat.likelihood || 'medium',
-      rationale: `PESTLE identified unfavorable macro-environmental condition`,
-    });
-  }
-  
-  return { opportunities, threats };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// TRANSFORM FUNCTION
-// ─────────────────────────────────────────────────────────────────────────────
-
-async function transform(
-  from: PortersOutput,
-  context: BridgeContext
-): Promise<PortersToSWOTEnhancement> {
-  const transformationSummary: PortersToSWOTEnhancement['transformationSummary'] = [];
-  
-  // Get PESTLE output from context if available
-  const pestleOutput = context.allPriorOutputs.pestle as PESTLEOutput | undefined;
-  
-  // Apply Porter's forces → Opportunities (low forces)
-  const portersOpportunities = interpretationRules[0].transform(from.forces, context) as any[];
-  for (const opp of portersOpportunities) {
-    transformationSummary.push({
-      sourceType: 'Porter\'s Force',
-      sourceItem: `${opp.sourceDetails.portersForce} (${opp.sourceDetails.portersLevel})`,
-      targetType: 'opportunity',
-      transformation: opp.description,
-    });
-  }
-  
-  // Apply Porter's forces → Threats (high forces)
-  const portersThreats = interpretationRules[1].transform(from.forces, context) as any[];
-  for (const threat of portersThreats) {
-    transformationSummary.push({
-      sourceType: 'Porter\'s Force',
-      sourceItem: `${threat.sourceDetails.portersForce} (${threat.sourceDetails.portersLevel})`,
-      targetType: 'threat',
-      transformation: threat.description,
-    });
-  }
-  
-  // Apply competitor insights
-  const competitorWeaknesses = interpretationRules[2].transform(from.competitorsIdentified, context) as any[];
-  const competitorStrengths = interpretationRules[3].transform(from.competitorsIdentified, context) as any[];
-  
-  for (const weakness of competitorWeaknesses) {
-    transformationSummary.push({
-      sourceType: 'Competitor Weakness',
-      sourceItem: `${weakness.competitor}: ${weakness.weakness}`,
-      targetType: 'opportunity',
-      transformation: weakness.opportunityImplication,
-    });
-  }
-  
-  for (const strength of competitorStrengths) {
-    transformationSummary.push({
-      sourceType: 'Competitor Strength',
-      sourceItem: `${strength.competitor}: ${strength.strength}`,
-      targetType: 'threat',
-      transformation: strength.threatImplication,
-    });
-  }
-  
-  // Get PESTLE-derived O/T
-  const { opportunities: pestleOpportunities, threats: pestleThreats } = 
-    derivePESTLEOpportunitiesAndThreats(pestleOutput);
-  
-  for (const opp of pestleOpportunities) {
-    transformationSummary.push({
-      sourceType: 'PESTLE Factor',
-      sourceItem: opp.sourceDetails.pestleFactor || 'Unknown',
-      targetType: 'opportunity',
-      transformation: opp.description,
-    });
-  }
-  
-  for (const threat of pestleThreats) {
-    transformationSummary.push({
-      sourceType: 'PESTLE Factor',
-      sourceItem: threat.sourceDetails.pestleFactor || 'Unknown',
-      targetType: 'threat',
-      transformation: threat.description,
-    });
-  }
-  
-  return {
-    portersOutput: from,
-    pestleOutput: pestleOutput,
-    derivedOpportunities: [...portersOpportunities, ...pestleOpportunities],
-    derivedThreats: [...portersThreats, ...pestleThreats],
-    competitorInsights: {
-      weaknesses: competitorWeaknesses,
-      strengths: competitorStrengths,
-    },
-    transformationSummary,
-  };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// VALIDATE FUNCTION
-// ─────────────────────────────────────────────────────────────────────────────
-
-function validate(from: PortersOutput, to: PortersToSWOTEnhancement): BridgeValidationResult {
-  const errors: string[] = [];
-  const warnings: string[] = [];
-  
-  // Check that we produced some O/T
-  if (to.derivedOpportunities.length === 0) {
-    warnings.push('No opportunities derived - all forces may be neutral or high');
-  }
-  
-  if (to.derivedThreats.length === 0) {
-    warnings.push('No threats derived - all forces may be neutral or low');
-  }
-  
-  // Check that O/T have proper source attribution
-  const missingSource = [
-    ...to.derivedOpportunities.filter(o => !o.sourceDetails.portersForce && !o.sourceDetails.pestleFactorId),
-    ...to.derivedThreats.filter(t => !t.sourceDetails.portersForce && !t.sourceDetails.pestleFactorId),
-  ];
-  
-  if (missingSource.length > 0) {
-    warnings.push(`${missingSource.length} O/T items missing source attribution`);
-  }
-  
-  return {
-    valid: errors.length === 0,
-    errors,
-    warnings,
-    transformationCount: to.transformationSummary.length,
-  };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// EXPORT BRIDGE
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const PortersToSWOTBridge: BridgeContract<PortersOutput, PortersToSWOTEnhancement> = {
-  id: 'porters_to_swot',
-  fromModule: 'porters',
-  toModule: 'swot',
-  description: 'Transforms Porter\'s Five Forces (with PESTLE context) into SWOT Opportunities and Threats',
-  
-  fromSchema: PortersOutputSchema,
-  toSchema: PortersToSWOTEnhancementSchema,
-  
-  transform,
-  interpretationRules,
-  validate,
-};
+import type { StrategicContext } from '@shared/journey-types';
 
 /**
- * Apply the Porter's to SWOT bridge
- * Convenience function for use in journey orchestrator
+ * Derived O/T item for SWOT
+ */
+interface DerivedItem {
+  item: string;
+  description: string;
+  magnitude: 'high' | 'medium' | 'low';
+  sourceAnalysis: 'pestle' | 'porters' | 'combined';
+  sourceReference: string;
+  priority: number;
+  priorityRationale: string;
+}
+
+/**
+ * Enhanced context for SWOT analysis based on Porter's findings
+ */
+export interface PortersToSWOTEnhancement {
+  // Opportunities derived from low forces
+  derivedOpportunities: DerivedItem[];
+  
+  // Threats derived from high forces
+  derivedThreats: DerivedItem[];
+  
+  // PESTLE factors used
+  pestleFactorsUsed: string[];
+  
+  // Porter forces used
+  porterForcesUsed: string[];
+  
+  // Competitor insights
+  competitorInsights: {
+    namedCompetitors: string[];
+    competitorStrengths: string[];
+    competitorWeaknesses: string[];
+  };
+  
+  // Market attractiveness context
+  marketContext: {
+    attractivenessScore: number;
+    assessment: string;
+    rationale: string;
+  };
+}
+
+/**
+ * Map force level to magnitude
+ */
+function getLevelMagnitude(level: string): 'high' | 'medium' | 'low' {
+  if (level === 'very_low' || level === 'low') return 'high'; // Low threat = high opportunity
+  if (level === 'very_high' || level === 'high') return 'high'; // High threat = high threat
+  return 'medium';
+}
+
+/**
+ * Get force score from output (handles various formats)
+ */
+function getForceScore(force: any): number {
+  if (typeof force === 'number') return force;
+  if (force?.score) return force.score;
+  return 5;
+}
+
+/**
+ * Get force level from output
+ */
+function getForceLevel(force: any): string {
+  if (force?.level) return force.level;
+  const score = getForceScore(force);
+  if (score <= 2) return 'very_low';
+  if (score <= 4) return 'low';
+  if (score <= 6) return 'medium';
+  if (score <= 8) return 'high';
+  return 'very_high';
+}
+
+/**
+ * Transform Porter's output into SWOT context
+ */
+function transformPortersToSWOT(
+  portersOutput: any,
+  pestleOutput: any | undefined
+): PortersToSWOTEnhancement {
+  const opportunities: DerivedItem[] = [];
+  const threats: DerivedItem[] = [];
+  const porterForcesUsed: string[] = [];
+  const pestleFactorsUsed: string[] = [];
+  
+  const forces = portersOutput?.forces || portersOutput?.portersResults;
+  
+  if (forces) {
+    // Threat of New Entrants
+    const newEntrants = forces.threatOfNewEntrants;
+    if (newEntrants) {
+      const level = getForceLevel(newEntrants);
+      const score = getForceScore(newEntrants);
+      
+      if (level === 'very_low' || level === 'low') {
+        opportunities.push({
+          item: 'Protected market position',
+          description: `Low threat of new entrants (${score}/10) means high barriers protect market position once established. First-mover advantage is defensible.`,
+          magnitude: getLevelMagnitude(level),
+          sourceAnalysis: 'porters',
+          sourceReference: `Porter's Threat of New Entrants: ${score}/10 (${level})`,
+          priority: level === 'very_low' ? 1 : 2,
+          priorityRationale: 'High barriers create sustainable competitive advantage',
+        });
+        porterForcesUsed.push('threatOfNewEntrants');
+      } else if (level === 'very_high' || level === 'high') {
+        threats.push({
+          item: 'Vulnerable to new competitors',
+          description: `High threat of new entrants (${score}/10) means low barriers allow competitors to easily enter. Market position vulnerable to disruption.`,
+          magnitude: getLevelMagnitude(level),
+          sourceAnalysis: 'porters',
+          sourceReference: `Porter's Threat of New Entrants: ${score}/10 (${level})`,
+          priority: level === 'very_high' ? 1 : 2,
+          priorityRationale: 'Low barriers require rapid differentiation',
+        });
+        porterForcesUsed.push('threatOfNewEntrants');
+      }
+    }
+    
+    // Supplier Power
+    const supplierPower = forces.supplierPower || forces.bargainingPowerOfSuppliers;
+    if (supplierPower) {
+      const level = getForceLevel(supplierPower);
+      const score = getForceScore(supplierPower);
+      
+      if (level === 'very_low' || level === 'low') {
+        opportunities.push({
+          item: 'Favorable supplier negotiations',
+          description: `Low supplier power (${score}/10) means multiple options available. Favorable negotiating position for cost optimization.`,
+          magnitude: getLevelMagnitude(level),
+          sourceAnalysis: 'porters',
+          sourceReference: `Porter's Supplier Power: ${score}/10 (${level})`,
+          priority: 3,
+          priorityRationale: 'Cost advantages from supplier competition',
+        });
+        porterForcesUsed.push('supplierPower');
+      } else if (level === 'very_high' || level === 'high') {
+        threats.push({
+          item: 'Supplier dependency risk',
+          description: `High supplier power (${score}/10) means limited options. Vulnerable to price increases and supply constraints.`,
+          magnitude: getLevelMagnitude(level),
+          sourceAnalysis: 'porters',
+          sourceReference: `Porter's Supplier Power: ${score}/10 (${level})`,
+          priority: 2,
+          priorityRationale: 'Supply chain vulnerability requires mitigation',
+        });
+        porterForcesUsed.push('supplierPower');
+      }
+    }
+    
+    // Buyer Power
+    const buyerPower = forces.buyerPower || forces.bargainingPowerOfBuyers;
+    if (buyerPower) {
+      const level = getForceLevel(buyerPower);
+      const score = getForceScore(buyerPower);
+      
+      if (level === 'very_low' || level === 'low') {
+        opportunities.push({
+          item: 'Premium pricing sustainable',
+          description: `Low buyer power (${score}/10) means customers have limited alternatives. Premium pricing sustainable without significant pushback.`,
+          magnitude: getLevelMagnitude(level),
+          sourceAnalysis: 'porters',
+          sourceReference: `Porter's Buyer Power: ${score}/10 (${level})`,
+          priority: 2,
+          priorityRationale: 'Pricing flexibility enables margin expansion',
+        });
+        porterForcesUsed.push('buyerPower');
+      } else if (level === 'very_high' || level === 'high') {
+        threats.push({
+          item: 'Price pressure from buyers',
+          description: `High buyer power (${score}/10) means customers have many alternatives. Price pressure and commoditization risk.`,
+          magnitude: getLevelMagnitude(level),
+          sourceAnalysis: 'porters',
+          sourceReference: `Porter's Buyer Power: ${score}/10 (${level})`,
+          priority: 2,
+          priorityRationale: 'Margin pressure requires differentiation',
+        });
+        porterForcesUsed.push('buyerPower');
+      }
+    }
+    
+    // Threat of Substitutes
+    const substitutes = forces.threatOfSubstitutes;
+    if (substitutes) {
+      const level = getForceLevel(substitutes);
+      const score = getForceScore(substitutes);
+      
+      if (level === 'very_low' || level === 'low') {
+        opportunities.push({
+          item: 'Unique value proposition',
+          description: `Low substitute threat (${score}/10) means few alternatives solve the same problem. Value proposition is defensible.`,
+          magnitude: getLevelMagnitude(level),
+          sourceAnalysis: 'porters',
+          sourceReference: `Porter's Threat of Substitutes: ${score}/10 (${level})`,
+          priority: 2,
+          priorityRationale: 'Limited alternatives strengthen market position',
+        });
+        porterForcesUsed.push('threatOfSubstitutes');
+      } else if (level === 'very_high' || level === 'high') {
+        threats.push({
+          item: 'Strong substitute competition',
+          description: `High substitute threat (${score}/10) means alternative solutions compete for same customers. Must clearly differentiate.`,
+          magnitude: getLevelMagnitude(level),
+          sourceAnalysis: 'porters',
+          sourceReference: `Porter's Threat of Substitutes: ${score}/10 (${level})`,
+          priority: 2,
+          priorityRationale: 'Substitutes require clear differentiation strategy',
+        });
+        porterForcesUsed.push('threatOfSubstitutes');
+      }
+    }
+    
+    // Competitive Rivalry
+    const rivalry = forces.competitiveRivalry;
+    if (rivalry) {
+      const level = getForceLevel(rivalry);
+      const score = getForceScore(rivalry);
+      
+      if (level === 'very_low' || level === 'low') {
+        opportunities.push({
+          item: 'First-mover opportunity',
+          description: `Low rivalry (${score}/10) means limited direct competition. Market share available for capture without aggressive price wars.`,
+          magnitude: getLevelMagnitude(level),
+          sourceAnalysis: 'porters',
+          sourceReference: `Porter's Competitive Rivalry: ${score}/10 (${level})`,
+          priority: 1,
+          priorityRationale: 'Low competition enables rapid market capture',
+        });
+        porterForcesUsed.push('competitiveRivalry');
+      } else if (level === 'very_high' || level === 'high') {
+        threats.push({
+          item: 'Intense competitive pressure',
+          description: `High rivalry (${score}/10) means many competitors fighting for same customers. Margin pressure from price wars.`,
+          magnitude: getLevelMagnitude(level),
+          sourceAnalysis: 'porters',
+          sourceReference: `Porter's Competitive Rivalry: ${score}/10 (${level})`,
+          priority: 1,
+          priorityRationale: 'Competition requires strategic positioning',
+        });
+        porterForcesUsed.push('competitiveRivalry');
+      }
+    }
+  }
+  
+  // Add PESTLE-derived O/T if available
+  if (pestleOutput?.opportunities && Array.isArray(pestleOutput.opportunities)) {
+    for (const o of pestleOutput.opportunities.slice(0, 3)) {
+      opportunities.push({
+        item: o.opportunity || o.item,
+        description: o.description || '',
+        magnitude: o.magnitude || 'medium',
+        sourceAnalysis: 'pestle',
+        sourceReference: 'PESTLE Analysis',
+        priority: 3,
+        priorityRationale: 'Macro-environmental opportunity',
+      });
+    }
+    pestleFactorsUsed.push(...pestleOutput.opportunities.map((o: any) => o.opportunity || o.item));
+  }
+  
+  if (pestleOutput?.threats && Array.isArray(pestleOutput.threats)) {
+    for (const t of pestleOutput.threats.slice(0, 3)) {
+      threats.push({
+        item: t.threat || t.item,
+        description: t.description || '',
+        magnitude: t.magnitude || 'medium',
+        sourceAnalysis: 'pestle',
+        sourceReference: 'PESTLE Analysis',
+        priority: 3,
+        priorityRationale: 'Macro-environmental threat',
+      });
+    }
+    pestleFactorsUsed.push(...pestleOutput.threats.map((t: any) => t.threat || t.item));
+  }
+  
+  // Sort by priority
+  opportunities.sort((a, b) => a.priority - b.priority);
+  threats.sort((a, b) => a.priority - b.priority);
+  
+  return {
+    derivedOpportunities: opportunities.slice(0, 5),
+    derivedThreats: threats.slice(0, 5),
+    pestleFactorsUsed: Array.from(new Set(pestleFactorsUsed)),
+    porterForcesUsed: Array.from(new Set(porterForcesUsed)),
+    competitorInsights: {
+      namedCompetitors: portersOutput?.competitorsIdentified || [],
+      competitorStrengths: [],
+      competitorWeaknesses: [],
+    },
+    marketContext: {
+      attractivenessScore: portersOutput?.overallAttractiveness?.score || 5,
+      assessment: portersOutput?.overallAttractiveness?.assessment || 'moderate',
+      rationale: portersOutput?.overallAttractiveness?.rationale || '',
+    },
+  };
+}
+
+/**
+ * Apply the Porter's → SWOT bridge
  */
 export function applyPortersToSWOTBridge(
-  portersOutput: PortersOutput,
-  pestleOutput: PESTLEOutput | undefined,
+  portersOutput: any,
+  pestleOutput: any | undefined,
   positioning: any
 ): Promise<PortersToSWOTEnhancement> {
-  return PortersToSWOTBridge.transform(portersOutput, {
-    positioning,
-    allPriorOutputs: { 
-      porters: portersOutput,
-      pestle: pestleOutput,
-    },
+  const enhancement = transformPortersToSWOT(portersOutput, pestleOutput);
+  
+  console.log('[Porter\'s→SWOT Bridge] Transformation complete:', {
+    derivedOpportunities: enhancement.derivedOpportunities.length,
+    derivedThreats: enhancement.derivedThreats.length,
+    pestleFactorsUsed: enhancement.pestleFactorsUsed.length,
+    porterForcesUsed: enhancement.porterForcesUsed.length,
+    competitors: enhancement.competitorInsights.namedCompetitors.length,
   });
+  
+  return Promise.resolve(enhancement);
+}
+
+/**
+ * Format derived O/T as text for SWOT prompt
+ */
+export function formatPortersContextForSWOT(enhancement: PortersToSWOTEnhancement): string {
+  const sections: string[] = [];
+  
+  if (enhancement.derivedOpportunities.length > 0) {
+    sections.push('**Derived Opportunities (from Porter\'s + PESTLE):**');
+    for (const o of enhancement.derivedOpportunities) {
+      sections.push(`- [${o.sourceAnalysis.toUpperCase()}] ${o.item} (${o.magnitude})`);
+      sections.push(`  Source: ${o.sourceReference}`);
+    }
+  }
+  
+  if (enhancement.derivedThreats.length > 0) {
+    sections.push('\n**Derived Threats (from Porter\'s + PESTLE):**');
+    for (const t of enhancement.derivedThreats) {
+      sections.push(`- [${t.sourceAnalysis.toUpperCase()}] ${t.item} (${t.magnitude})`);
+      sections.push(`  Source: ${t.sourceReference}`);
+    }
+  }
+  
+  if (enhancement.competitorInsights.namedCompetitors.length > 0) {
+    sections.push('\n**Competitors Identified:**');
+    sections.push(enhancement.competitorInsights.namedCompetitors.join(', '));
+  }
+  
+  sections.push(`\n**Market Attractiveness:** ${enhancement.marketContext.attractivenessScore}/10 (${enhancement.marketContext.assessment})`);
+  
+  return sections.join('\n');
 }
