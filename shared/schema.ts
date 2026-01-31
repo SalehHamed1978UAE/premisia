@@ -769,20 +769,27 @@ export const epmPrograms = pgTable("epm_programs", {
 }));
 
 // Task Assignments table - Links resources to tasks within EPM programs
+// Architecture Spec Section 20: Assignment Persistence Contract
 export const taskAssignments = pgTable("task_assignments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   epmProgramId: varchar("epm_program_id").notNull().references(() => epmPrograms.id, { onDelete: 'cascade' }),
   taskId: varchar("task_id").notNull(),
+  taskName: varchar("task_name", { length: 255 }),           // Deliverable name for display
   resourceId: varchar("resource_id").notNull(),
+  resourceName: varchar("resource_name", { length: 100 }),   // Resource display name
+  resourceRole: varchar("resource_role", { length: 100 }),   // Role title
   resourceType: assignmentResourceTypeEnum("resource_type").notNull(),
-  
+
   assignedAt: timestamp("assigned_at").defaultNow(),
+  assignedFrom: date("assigned_from"),                       // Assignment start date
+  assignedTo: date("assigned_to"),                           // Assignment end date
+  allocationPercent: integer("allocation_percent").default(100), // Percentage allocation (0-100)
   estimatedHours: integer("estimated_hours"),
   actualHours: integer("actual_hours"),
   status: varchar("status", { length: 20 }).notNull().default('assigned'), // 'assigned' | 'in_progress' | 'completed'
   assignmentSource: assignmentSourceEnum("assignment_source").notNull().default('ai_generated'),
   notes: text("notes"),
-  
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
