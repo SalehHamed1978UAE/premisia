@@ -38,6 +38,36 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tail
 - **Full-Pass Export System**: Generates ZIP bundles containing strategic analysis and EPM program data in multiple formats.
 - **Robustness**: Features multi-provider AI fallback, extended socket timeouts, and request throttling.
 
+# Recent Bug Fixes
+
+## SWOT → Decisions Bridge Fix (Jan 31, 2026)
+- **Problem**: Market Entry journey shows empty "Strategic Choices" form instead of AI-generated decision cards
+- **Root Cause**: `frameworkRegistry.execute()` wraps results in `{data: executorOutput}`, but code extracted `swotResult?.output` which doesn't exist. Actual SWOT data is at `swotResult.data.output`
+- **Fix**: Updated data extraction in `strategic-consultant-legacy.ts` (lines 2454, 3576) to use `swotResult?.data?.output` first
+- **Validation**: Added checks for error-shaped output and array validation before calling DecisionGenerator
+- **Files**: `server/routes/strategic-consultant-legacy.ts`
+
+## Porter's & SWOT "Data Error" Bug (Jan 31, 2026)
+- **Problem**: Porter's and SWOT results pages showed "Data Error" despite backend completing successfully
+- **Root Cause**: Both pages used `apiRequest()` which returns raw Response object without calling `.json()`
+- **Fix**: Changed to `fetch().json()` like PESTLE, plus robust data extraction
+- **Files**: `client/src/pages/strategic-consultant/PortersResultsPage.tsx`, `client/src/pages/strategic-consultant/SWOTResultsPage.tsx`
+
+# Journey Architecture
+
+All journeys share: **Input → Disambiguation → Business Type → [Frameworks] → Strategic Decisions → Priorities → EPM**
+
+| Journey | Frameworks | Status |
+|---------|------------|--------|
+| Market Entry Strategy | PESTLE → Porter's → SWOT | ✅ Implemented |
+| Business Model Innovation | Five Whys → BMC | ✅ Implemented |
+| Market Segmentation Discovery | Segment Discovery | ✅ Implemented |
+| Custom Journey | User-selected | ✅ Implemented |
+| Competitive Strategy | Porter's → BMC → Blue Ocean | 🚧 Placeholder |
+| Digital Transformation | PESTLE → BMC → Ansoff | 🚧 Placeholder |
+| Crisis Recovery | Five Whys → SWOT → BMC | 🚧 Placeholder |
+| Growth Strategy | PESTLE → Ansoff → BMC | 🚧 Placeholder |
+
 # External Dependencies
 - **Database Service**: Neon serverless PostgreSQL
 - **Session Store**: `connect-pg-simple`

@@ -2446,12 +2446,36 @@ router.get('/market-entry-research/stream/:sessionId', async (req: Request, res:
     let decisions: any;
     try {
       // Extract SWOT data from framework result
-      // SWOT executor returns { framework: 'swot', output: swotOutput, summary: {...} }
-      const swotDataForDecisions = (swotResult as any)?.output || (swotResult as any)?.data || swotResult;
-      decisions = await generator.generateDecisionsFromSWOT(
-        swotDataForDecisions,
-        input
-      );
+      // frameworkRegistry.execute() returns { data: { framework: 'swot', output: swotOutput, summary: {...} } }
+      // So the actual SWOT data is at swotResult.data.output
+      const swotDataForDecisions = (swotResult as any)?.data?.output || 
+                                    (swotResult as any)?.output || 
+                                    (swotResult as any)?.data || 
+                                    swotResult;
+      
+      // Validate SWOT data before calling DecisionGenerator
+      const hasValidSwot = swotDataForDecisions && 
+                           !swotDataForDecisions.error &&
+                           Array.isArray(swotDataForDecisions.strengths) && 
+                           Array.isArray(swotDataForDecisions.weaknesses);
+      
+      console.log('[MARKET-ENTRY-RESEARCH] SWOT data for decisions:', {
+        hasData: !!swotDataForDecisions,
+        isError: swotDataForDecisions?.error,
+        hasStrengths: Array.isArray(swotDataForDecisions?.strengths),
+        hasWeaknesses: Array.isArray(swotDataForDecisions?.weaknesses),
+        valid: hasValidSwot,
+      });
+      
+      if (!hasValidSwot) {
+        console.warn('[MARKET-ENTRY-RESEARCH] Invalid SWOT data, using placeholder decisions');
+        decisions = { decisions: [], decision_flow: 'SWOT data unavailable', estimated_completion_time_minutes: 30 };
+      } else {
+        decisions = await generator.generateDecisionsFromSWOT(
+          swotDataForDecisions,
+          input
+        );
+      }
       console.log(`[MARKET-ENTRY-RESEARCH] Generated ${decisions?.decisions?.length || 0} decisions`);
     } catch (error: any) {
       console.error('[MARKET-ENTRY-RESEARCH] Decision generation failed:', error.message);
@@ -3544,9 +3568,33 @@ router.post('/frameworks/swot/execute/:sessionId', async (req: Request, res: Res
     const generator = new DecisionGenerator();
     let decisions;
     try {
-      // SWOT executor returns { framework: 'swot', output: swotOutput, summary: {...} }
-      const swotData = swotResult?.output || swotResult;
-      decisions = await generator.generateDecisionsFromSWOT(swotData, understanding.userInput);
+      // frameworkRegistry.execute() returns { data: { framework: 'swot', output: swotOutput, summary: {...} } }
+      // So the actual SWOT data is at swotResult.data.output
+      const swotData = (swotResult as any)?.data?.output || 
+                       (swotResult as any)?.output || 
+                       (swotResult as any)?.data || 
+                       swotResult;
+      
+      // Validate SWOT data before calling DecisionGenerator
+      const hasValidSwot = swotData && 
+                           !swotData.error &&
+                           Array.isArray(swotData.strengths) && 
+                           Array.isArray(swotData.weaknesses);
+      
+      console.log('[SWOT Execute] SWOT data for decisions:', {
+        hasData: !!swotData,
+        isError: swotData?.error,
+        hasStrengths: Array.isArray(swotData?.strengths),
+        hasWeaknesses: Array.isArray(swotData?.weaknesses),
+        valid: hasValidSwot,
+      });
+      
+      if (!hasValidSwot) {
+        console.warn('[SWOT Execute] Invalid SWOT data, using placeholder decisions');
+        decisions = { decisions: [], decision_flow: 'SWOT data unavailable', estimated_completion_time_minutes: 30 };
+      } else {
+        decisions = await generator.generateDecisionsFromSWOT(swotData, understanding.userInput);
+      }
       console.log(`[SWOT Execute] Generated ${decisions?.decisions?.length || 0} decisions`);
     } catch (decisionError: any) {
       console.error('[SWOT Execute] Decision generation failed:', decisionError.message);
