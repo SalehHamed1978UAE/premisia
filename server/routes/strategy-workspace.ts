@@ -353,20 +353,21 @@ async function processEPMGeneration(
 
     // Fetch initiative type and journey title from strategic_understanding table
     // This is the SINGLE SOURCE OF TRUTH - fetched once and passed explicitly
-    // NOTE: version.sessionId is actually the understanding_id (strategic_understanding.id)
+    // NOTE: version.sessionId is the session string (e.g., "session-1769898649296-uocxqo")
+    // which matches strategic_understanding.sessionId (not id)
     let initiativeType: string | undefined = undefined;
     let journeyTitle: string | undefined = undefined;
     if (version.sessionId) {
       try {
-        // Query by strategic_understanding.id (not sessionId) because version.sessionId
-        // is actually the understanding_id (UUID format)
+        // Query by strategic_understanding.sessionId because version.sessionId
+        // is the session string format (e.g., "session-1769898649296-uocxqo")
         const [understanding] = await db
           .select({ 
             initiativeType: strategicUnderstanding.initiativeType,
             title: strategicUnderstanding.title,
           })
           .from(strategicUnderstanding)
-          .where(eq(strategicUnderstanding.id, version.sessionId))
+          .where(eq(strategicUnderstanding.sessionId, version.sessionId))
           .limit(1);
         
         if (understanding?.initiativeType) {
