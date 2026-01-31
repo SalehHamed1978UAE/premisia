@@ -278,85 +278,116 @@ export class BenefitsGenerator {
 
   /**
    * Assign responsible parties to benefits based on their category and content
-   * Matches benefits to resources using role-based logic similar to workstream owners
+   * Matches benefits to resources using role-based logic - improved for retail roles
    */
   assignBenefitOwners(benefits: Benefit[], resources: ResourceAllocation[]): Benefit[] {
     if (!resources || resources.length === 0) {
       console.log('[BenefitsGenerator] No resources available, using default owner');
       return benefits.map(b => ({ ...b, responsibleParty: 'Program Director' }));
     }
-    
-    return benefits.map(benefit => {
+
+    // Track assigned owners to distribute evenly when possible
+    const ownerCounts: Record<string, number> = {};
+    resources.forEach(r => ownerCounts[r.role] = 0);
+
+    return benefits.map((benefit, idx) => {
       let owner = '';
       const lowerContent = benefit.description.toLowerCase();
-      // Normalize category for matching - handle variants like "Risk Mitigation (Compliance)"
+      const lowerName = (benefit.name || '').toLowerCase();
       const categoryLower = (benefit.category || '').toLowerCase();
-      
-      // Match by category first (case-insensitive with variants)
-      if (categoryLower.includes('financial') || categoryLower.includes('finance')) {
-        const match = resources.find(r => 
-          r.role.toLowerCase().includes('financial') || 
-          r.role.toLowerCase().includes('finance') ||
-          r.role.toLowerCase().includes('performance')
-        );
-        owner = match?.role || '';
-      } 
-      else if (categoryLower.includes('strategic') || categoryLower.includes('strategy')) {
-        const match = resources.find(r => 
-          r.role.toLowerCase().includes('strategy') || 
-          r.role.toLowerCase().includes('lead') ||
-          r.role.toLowerCase().includes('director')
+
+      // Try content-based matching FIRST (more specific than category)
+      if (lowerContent.includes('marketing') || lowerContent.includes('brand') ||
+          lowerContent.includes('campaign') || lowerName.includes('marketing')) {
+        const match = resources.find(r =>
+          r.role.toLowerCase().includes('marketing') ||
+          r.role.toLowerCase().includes('brand')
         );
         owner = match?.role || '';
       }
-      else if (categoryLower.includes('operational') || categoryLower.includes('operations') || categoryLower.includes('ops')) {
-        const match = resources.find(r => 
-          r.role.toLowerCase().includes('operations') || 
-          r.role.toLowerCase().includes('supply chain') ||
-          r.role.toLowerCase().includes('manager')
+      else if (lowerContent.includes('partnership') || lowerContent.includes('corporate') ||
+               lowerContent.includes('sponsor') || lowerName.includes('partnership')) {
+        const match = resources.find(r =>
+          r.role.toLowerCase().includes('partnership') ||
+          r.role.toLowerCase().includes('business development')
         );
         owner = match?.role || '';
       }
-      else if (categoryLower.includes('risk') || categoryLower.includes('compliance') || categoryLower.includes('mitigation')) {
-        const match = resources.find(r => 
-          r.role.toLowerCase().includes('risk') || 
-          r.role.toLowerCase().includes('compliance') ||
-          r.role.toLowerCase().includes('legal')
+      else if (lowerContent.includes('digital') || lowerContent.includes('technology') ||
+               lowerContent.includes('integration') || lowerName.includes('digital')) {
+        const match = resources.find(r =>
+          r.role.toLowerCase().includes('technology') ||
+          r.role.toLowerCase().includes('digital') ||
+          r.role.toLowerCase().includes('tech')
         );
         owner = match?.role || '';
       }
-      
-      // If no category match, try content-based matching
+      else if (lowerContent.includes('product') || lowerContent.includes('merchandise') ||
+               lowerContent.includes('inventory') || lowerName.includes('product')) {
+        const match = resources.find(r =>
+          r.role.toLowerCase().includes('merchandis') ||
+          r.role.toLowerCase().includes('product') ||
+          r.role.toLowerCase().includes('inventory')
+        );
+        owner = match?.role || '';
+      }
+      else if (lowerContent.includes('store') || lowerContent.includes('operations') ||
+               lowerContent.includes('retail') || lowerName.includes('store')) {
+        const match = resources.find(r =>
+          r.role.toLowerCase().includes('operations') ||
+          r.role.toLowerCase().includes('store')
+        );
+        owner = match?.role || '';
+      }
+      else if (lowerContent.includes('customer') || lowerContent.includes('experience') ||
+               lowerContent.includes('culture') || lowerName.includes('customer')) {
+        const match = resources.find(r =>
+          r.role.toLowerCase().includes('customer') ||
+          r.role.toLowerCase().includes('experience') ||
+          r.role.toLowerCase().includes('marketing')
+        );
+        owner = match?.role || '';
+      }
+      else if (lowerContent.includes('expansion') || lowerContent.includes('growth') ||
+               lowerContent.includes('market') || lowerName.includes('expansion')) {
+        const match = resources.find(r =>
+          r.role.toLowerCase().includes('partnership') ||
+          r.role.toLowerCase().includes('business') ||
+          r.role.toLowerCase().includes('development')
+        );
+        owner = match?.role || '';
+      }
+
+      // Category-based fallback
       if (!owner) {
-        if (lowerContent.includes('customer') || lowerContent.includes('experience')) {
-          const match = resources.find(r => 
-            r.role.toLowerCase().includes('customer') || 
-            r.role.toLowerCase().includes('experience')
-          );
-          owner = match?.role || '';
-        }
-        else if (lowerContent.includes('data') || lowerContent.includes('technology')) {
-          const match = resources.find(r => 
-            r.role.toLowerCase().includes('data') || 
-            r.role.toLowerCase().includes('technology') ||
-            r.role.toLowerCase().includes('digital')
-          );
-          owner = match?.role || '';
-        }
-        else if (lowerContent.includes('supply') || lowerContent.includes('inventory')) {
-          const match = resources.find(r => 
-            r.role.toLowerCase().includes('supply') || 
+        if (categoryLower.includes('financial')) {
+          const match = resources.find(r =>
+            r.role.toLowerCase().includes('financial') ||
             r.role.toLowerCase().includes('operations')
           );
           owner = match?.role || '';
         }
+        else if (categoryLower.includes('operational')) {
+          const match = resources.find(r =>
+            r.role.toLowerCase().includes('operations') ||
+            r.role.toLowerCase().includes('store')
+          );
+          owner = match?.role || '';
+        }
       }
-      
-      // Final fallback: use first resource (usually the lead/director)
+
+      // Round-robin fallback: distribute evenly among resources
       if (!owner) {
-        owner = resources[0]?.role || 'Program Director';
+        // Find resource with least assignments
+        const sortedByCount = [...resources].sort((a, b) =>
+          (ownerCounts[a.role] || 0) - (ownerCounts[b.role] || 0)
+        );
+        owner = sortedByCount[0]?.role || 'Program Director';
       }
-      
+
+      // Track assignment
+      ownerCounts[owner] = (ownerCounts[owner] || 0) + 1;
+
       return {
         ...benefit,
         responsibleParty: owner
@@ -371,21 +402,22 @@ export class BenefitsGenerator {
 export class RiskGenerator {
   async generate(insights: StrategyInsights): Promise<RiskRegister> {
     const riskInsights = insights.insights.filter(i => i.type === 'risk');
-    
+
     const risks: Risk[] = riskInsights.map((insight, idx) => {
-      const probability = this.estimateRiskProbability(insight);
-      const impact = this.estimateRiskImpact(insight);
       const category = this.categorizeRisk(insight);
-      
+      const probability = this.estimateRiskProbability(insight, idx); // Pass idx for variation
+      const impact = this.estimateRiskImpact(insight);
+      const impactMultiplier = impact === 'Critical' ? 4 : impact === 'High' ? 3 : impact === 'Medium' ? 2 : 1;
+
       return {
         id: `R${String(idx + 1).padStart(3, '0')}`,
         description: insight.content,
         category,
         probability,
         impact,
-        severity: probability * (impact === 'Critical' ? 4 : impact === 'High' ? 3 : impact === 'Medium' ? 2 : 1),
+        severity: Math.round(probability * impactMultiplier / 10), // Normalized severity score
         mitigation: this.generateMitigation(insight, category),
-        contingency: `Escalate to governance if probability exceeds ${probability + 20}%`,
+        contingency: `Escalate to governance if probability exceeds ${Math.min(probability + 20, 90)}%`,
         confidence: insight.confidence,
       };
     });
@@ -402,15 +434,53 @@ export class RiskGenerator {
 
   private categorizeRisk(insight: StrategyInsight): string {
     const lower = insight.content.toLowerCase();
-    if (lower.includes('technology') || lower.includes('technical')) return 'Technical';
-    if (lower.includes('market') || lower.includes('competitive')) return 'Market';
-    if (lower.includes('resource') || lower.includes('team')) return 'Resource';
-    if (lower.includes('regulatory') || lower.includes('compliance')) return 'Regulatory';
+    if (lower.includes('technology') || lower.includes('technical') || lower.includes('system') || lower.includes('integration')) return 'Technical';
+    if (lower.includes('market') || lower.includes('competitive') || lower.includes('competition') || lower.includes('demand')) return 'Market';
+    if (lower.includes('resource') || lower.includes('team') || lower.includes('talent') || lower.includes('hiring')) return 'Resource';
+    if (lower.includes('regulatory') || lower.includes('compliance') || lower.includes('legal') || lower.includes('license')) return 'Regulatory';
+    if (lower.includes('cost') || lower.includes('budget') || lower.includes('financial') || lower.includes('economic')) return 'Financial';
+    if (lower.includes('operations') || lower.includes('supply') || lower.includes('inventory') || lower.includes('logistics')) return 'Operational';
     return 'Strategic';
   }
 
-  private estimateRiskProbability(insight: StrategyInsight): number {
-    return Math.round((1 - insight.confidence) * 100);
+  /**
+   * Estimate risk probability using multiple signals for variation:
+   * - Base from confidence (inverted)
+   * - Category adjustment (some risks inherently more likely)
+   * - Content keywords (explicit indicators)
+   * - Index-based variation (prevents all same value)
+   */
+  private estimateRiskProbability(insight: StrategyInsight, idx?: number): number {
+    // Base probability: 25-45% range from confidence
+    const baseProbability = 25 + Math.round((1 - insight.confidence) * 20);
+
+    const lower = insight.content.toLowerCase();
+    let adjustment = 0;
+
+    // Category-based adjustments
+    if (lower.includes('competition') || lower.includes('competitive')) adjustment += 15;
+    else if (lower.includes('economic') || lower.includes('currency')) adjustment += 12;
+    else if (lower.includes('market') || lower.includes('demand')) adjustment += 10;
+    else if (lower.includes('technology') || lower.includes('system')) adjustment += 8;
+    else if (lower.includes('cost') || lower.includes('budget')) adjustment += 5;
+    else if (lower.includes('regulatory') || lower.includes('compliance')) adjustment += 3;
+    else if (lower.includes('talent') || lower.includes('resource')) adjustment += 5;
+
+    // Severity indicators
+    if (lower.includes('high') || lower.includes('significant') || lower.includes('major')) adjustment += 10;
+    if (lower.includes('limited') || lower.includes('single') || lower.includes('dependency')) adjustment += 8;
+    if (lower.includes('changing') || lower.includes('volatile') || lower.includes('uncertain')) adjustment += 6;
+    if (lower.includes('intense') || lower.includes('increasing')) adjustment += 5;
+
+    // Mitigation indicators (reduce probability)
+    if (lower.includes('manageable') || lower.includes('controllable')) adjustment -= 8;
+    if (lower.includes('established') || lower.includes('proven')) adjustment -= 5;
+
+    // Add small variation based on index to prevent identical values
+    const indexVariation = idx !== undefined ? (idx % 5) * 3 - 6 : 0; // -6 to +6
+
+    // Clamp to 20-75% range
+    return Math.max(20, Math.min(75, baseProbability + adjustment + indexVariation));
   }
 
   private estimateRiskImpact(insight: StrategyInsight): 'Low' | 'Medium' | 'High' | 'Critical' {
@@ -477,93 +547,110 @@ export class RiskGenerator {
 
   /**
    * Assign owners to risks based on their category and content
-   * Matches risks to resources using role-based logic similar to workstream owners
+   * Improved for retail roles with round-robin fallback for even distribution
    */
   assignRiskOwners(risks: Risk[], resources: ResourceAllocation[]): Risk[] {
     if (!resources || resources.length === 0) {
       console.log('[RiskGenerator] No resources available, using default owner');
       return risks.map(r => ({ ...r, owner: 'Risk Manager' }));
     }
-    
-    return risks.map(risk => {
+
+    // Track assigned owners to distribute evenly
+    const ownerCounts: Record<string, number> = {};
+    resources.forEach(r => ownerCounts[r.role] = 0);
+
+    return risks.map((risk, idx) => {
       let owner = '';
       const lowerContent = risk.description.toLowerCase();
       const category = risk.category.toLowerCase();
-      
-      // Match by category first
-      if (category.includes('technical') || category.includes('technology')) {
-        const match = resources.find(r => 
-          r.role.toLowerCase().includes('technical') || 
-          r.role.toLowerCase().includes('technology') ||
-          r.role.toLowerCase().includes('it') ||
-          r.role.toLowerCase().includes('engineer')
-        );
-        owner = match?.role || '';
-      } 
-      else if (category.includes('market') || category.includes('competitive')) {
-        const match = resources.find(r => 
-          r.role.toLowerCase().includes('marketing') || 
-          r.role.toLowerCase().includes('sales') ||
-          r.role.toLowerCase().includes('business')
-        );
-        owner = match?.role || '';
-      }
-      else if (category.includes('resource') || category.includes('team')) {
-        const match = resources.find(r => 
-          r.role.toLowerCase().includes('hr') || 
-          r.role.toLowerCase().includes('human') ||
+
+      // Content-based matching FIRST (more specific)
+      if (lowerContent.includes('cost') || lowerContent.includes('budget') || lowerContent.includes('financial')) {
+        const match = resources.find(r =>
+          r.role.toLowerCase().includes('financial') ||
           r.role.toLowerCase().includes('operations')
         );
         owner = match?.role || '';
       }
-      else if (category.includes('regulatory') || category.includes('compliance')) {
-        const match = resources.find(r => 
-          r.role.toLowerCase().includes('compliance') || 
-          r.role.toLowerCase().includes('legal') ||
-          r.role.toLowerCase().includes('regulatory')
+      else if (lowerContent.includes('competition') || lowerContent.includes('competitive') || lowerContent.includes('online')) {
+        const match = resources.find(r =>
+          r.role.toLowerCase().includes('marketing') ||
+          r.role.toLowerCase().includes('partnership')
         );
         owner = match?.role || '';
       }
-      else if (category.includes('strategic')) {
-        const match = resources.find(r => 
-          r.role.toLowerCase().includes('strategy') || 
-          r.role.toLowerCase().includes('director') ||
-          r.role.toLowerCase().includes('manager')
+      else if (lowerContent.includes('inventory') || lowerContent.includes('supply') || lowerContent.includes('brand relationship')) {
+        const match = resources.find(r =>
+          r.role.toLowerCase().includes('merchandis') ||
+          r.role.toLowerCase().includes('partnership') ||
+          r.role.toLowerCase().includes('operations')
         );
         owner = match?.role || '';
       }
-      
-      // If no category match, try content-based matching
+      else if (lowerContent.includes('market') || lowerContent.includes('understanding') || lowerContent.includes('consumer')) {
+        const match = resources.find(r =>
+          r.role.toLowerCase().includes('marketing') ||
+          r.role.toLowerCase().includes('merchandis')
+        );
+        owner = match?.role || '';
+      }
+      else if (lowerContent.includes('location') || lowerContent.includes('store') || lowerContent.includes('retail')) {
+        const match = resources.find(r =>
+          r.role.toLowerCase().includes('store') ||
+          r.role.toLowerCase().includes('operations') ||
+          r.role.toLowerCase().includes('design')
+        );
+        owner = match?.role || '';
+      }
+      else if (lowerContent.includes('economic') || lowerContent.includes('currency') || lowerContent.includes('sensitivity')) {
+        const match = resources.find(r =>
+          r.role.toLowerCase().includes('partnership') ||
+          r.role.toLowerCase().includes('operations')
+        );
+        owner = match?.role || '';
+      }
+      else if (lowerContent.includes('technology') || lowerContent.includes('digital') || lowerContent.includes('system')) {
+        const match = resources.find(r =>
+          r.role.toLowerCase().includes('technology') ||
+          r.role.toLowerCase().includes('tech')
+        );
+        owner = match?.role || '';
+      }
+
+      // Category-based fallback
       if (!owner) {
-        if (lowerContent.includes('supply') || lowerContent.includes('vendor')) {
-          const match = resources.find(r => 
-            r.role.toLowerCase().includes('procurement') || 
-            r.role.toLowerCase().includes('supply')
+        if (category === 'technical') {
+          const match = resources.find(r =>
+            r.role.toLowerCase().includes('technology') ||
+            r.role.toLowerCase().includes('tech')
           );
           owner = match?.role || '';
         }
-        else if (lowerContent.includes('customer') || lowerContent.includes('experience')) {
-          const match = resources.find(r => 
-            r.role.toLowerCase().includes('customer') || 
-            r.role.toLowerCase().includes('experience')
+        else if (category === 'market') {
+          const match = resources.find(r =>
+            r.role.toLowerCase().includes('marketing')
           );
           owner = match?.role || '';
         }
-        else if (lowerContent.includes('financial') || lowerContent.includes('budget')) {
-          const match = resources.find(r => 
-            r.role.toLowerCase().includes('financial') || 
-            r.role.toLowerCase().includes('finance')
+        else if (category === 'operational') {
+          const match = resources.find(r =>
+            r.role.toLowerCase().includes('operations')
           );
           owner = match?.role || '';
         }
       }
-      
-      // Final fallback: use first resource with 'manager' in role, or first resource
+
+      // Round-robin fallback: distribute evenly among resources
       if (!owner) {
-        const managerMatch = resources.find(r => r.role.toLowerCase().includes('manager'));
-        owner = managerMatch?.role || resources[0]?.role || 'Risk Manager';
+        const sortedByCount = [...resources].sort((a, b) =>
+          (ownerCounts[a.role] || 0) - (ownerCounts[b.role] || 0)
+        );
+        owner = sortedByCount[0]?.role || 'Risk Manager';
       }
-      
+
+      // Track assignment
+      ownerCounts[owner] = (ownerCounts[owner] || 0) + 1;
+
       return {
         ...risk,
         owner
