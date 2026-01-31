@@ -1,0 +1,54 @@
+Three branches created and pushed.                                      
+                                                                                
+  Instructions for Each Agent                                                   
+                                                                                
+  📋 For Codex (feature/assignment-persistence)                                 
+                                                                                
+  git checkout feature/assignment-persistence                                   
+                                                                                
+  TASK: Implement Section 20 - Assignment Persistence Contract                  
+  FILE: server/intelligence/epm/assignment-generator.ts                         
+                                                                                
+  Fix assignments.csv to include:                                               
+  - taskName: Derive from deliverable.name (not empty)                          
+  - resourceId: Map to actual resource IDs (not "unknown")                      
+  - allocationPercent: Calculate based on deliverable effort & resource         
+  availability (not all 100%)                                                   
+  - assignedFrom/assignedTo: Calculate from workstream start/end months         
+                                                                                
+  Reference: /Users/saleh/Downloads/PREMISIA_ARCHITECTURE_FINAL.md Section 20   
+                                                                                
+  📋 For Replit (feature/epm-data-source)                                       
+                                                                                
+  git checkout feature/epm-data-source                                          
+                                                                                
+  TASK: Fix EPM to read from correct data source                                
+  FILES: server/routes/strategy-workspace.ts,                                   
+  server/intelligence/epm-synthesizer.ts                                        
+                                                                                
+  Change processEPMGeneration to:                                               
+  1. Read from journey_sessions.analysisData (primary)                          
+  2. Fallback to framework_insights (legacy)                                    
+  3. Ensure convertedProgramId is populated                                     
+  4. Fix /epm/undefined issue                                                   
+                                                                                
+  Reference: Codex's diagnostic from earlier                                    
+                                                                                
+  📋 For Claude Code / Me (feature/benefits-generator)                          
+                                                                                
+  git checkout feature/benefits-generator                                       
+                                                                                
+  TASK: Implement Section 18 - Benefits Generator Contract                      
+  FILE: server/intelligence/epm/generators.ts (BenefitsGenerator class)         
+                                                                                
+  Make benefits derive from:                                                    
+  - SWOT opportunities (not generic placeholders)                               
+  - Selected decisions with real targets                                        
+  - Measurable outcomes specific to the business                                
+                                                                                
+  ---                                                                           
+  Merge Order                                                                   
+                                                                                
+  1. feature/epm-data-source    → main  (fixes data flow first)                 
+  2. feature/benefits-generator → main  (needs correct data)                    
+  3. feature/assignment-persistence → main (needs correct data)     
