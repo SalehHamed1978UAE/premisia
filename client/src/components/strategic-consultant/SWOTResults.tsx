@@ -111,7 +111,7 @@ function QuadrantSection({
 function StrategySection({ 
   title, 
   strategies, 
-  colorClass 
+  colorClass
 }: { 
   title: string;
   strategies: string[];
@@ -120,12 +120,12 @@ function StrategySection({
   if (strategies.length === 0) return null;
   
   return (
-    <div className={`p-4 rounded-lg border ${colorClass}`}>
-      <h5 className="font-semibold text-sm mb-3">{title}</h5>
+    <div className={`p-4 rounded-lg border ${colorClass} text-gray-800 dark:text-gray-800`}>
+      <h5 className="font-semibold text-sm mb-3 text-gray-900 dark:text-gray-900">{title}</h5>
       <ul className="space-y-2">
         {strategies.map((strategy, idx) => (
-          <li key={idx} className="flex items-start gap-2 text-sm">
-            <ArrowRight className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
+          <li key={idx} className="flex items-start gap-2 text-sm" data-testid={`strategy-item-${idx}`}>
+            <ArrowRight className="h-4 w-4 shrink-0 mt-0.5 text-gray-500 dark:text-gray-500" />
             <span>{strategy}</span>
           </li>
         ))}
