@@ -5,8 +5,8 @@
  */
 
 import { db } from '../db';
-import { frameworkInsights } from '@shared/schema';
-import { eq } from 'drizzle-orm';
+import { frameworkInsights, journeySessions } from '@shared/schema';
+import { eq, desc } from 'drizzle-orm';
 import { decryptJSONKMS } from '../utils/kms-encryption';
 import { BMCAnalyzer } from './bmc-analyzer';
 import { PortersAnalyzer } from './porters-analyzer';
@@ -26,41 +26,107 @@ export interface AggregatedAnalysis {
 
 /**
  * Get all available analyses for a session and normalize to StrategyInsights
+ *
+ * ARCHITECTURE FIX: Now checks BOTH sources:
+ * 1. framework_insights table (legacy framework runs)
+ * 2. journey_sessions table (journey-based analysis)
  */
 export async function getAggregatedAnalysis(sessionId: string): Promise<AggregatedAnalysis> {
   console.log(`[AnalysisAggregator] Fetching insights for understandingId: ${sessionId}`);
 
-  // Query by understandingId since that's the consistent identifier across the system
-  // The sessionId column references journey_sessions.id which is different from understandingId
-  const insights = await db.select()
-    .from(frameworkInsights)
-    .where(eq(frameworkInsights.understandingId, sessionId));
-
-  if (!insights || insights.length === 0) {
-    console.log('[AnalysisAggregator] No framework insights found');
-    return { insights: null, availableFrameworks: [], primaryFramework: null };
-  }
-
   const analyses: Record<string, any> = {};
   const availableFrameworks: string[] = [];
 
-  for (const insight of insights) {
-    try {
-      const decrypted = await decryptJSONKMS(insight.insights as string);
-      const data = (decrypted as any)?.output || decrypted;
-      const frameworkName = insight.frameworkName.toLowerCase();
+  // SOURCE 1: Query framework_insights table (legacy)
+  const frameworkInsightsData = await db.select()
+    .from(frameworkInsights)
+    .where(eq(frameworkInsights.understandingId, sessionId));
 
-      analyses[frameworkName] = data;
-      availableFrameworks.push(frameworkName);
-      console.log(`[AnalysisAggregator] Found ${frameworkName} analysis`);
-    } catch (err) {
-      console.error(`[AnalysisAggregator] Failed to decrypt ${insight.frameworkName}:`, err);
+  if (frameworkInsightsData && frameworkInsightsData.length > 0) {
+    console.log(`[AnalysisAggregator] Found ${frameworkInsightsData.length} framework insights`);
+    for (const insight of frameworkInsightsData) {
+      try {
+        const decrypted = await decryptJSONKMS(insight.insights as string);
+        const data = (decrypted as any)?.output || decrypted;
+        const frameworkName = insight.frameworkName.toLowerCase();
+        analyses[frameworkName] = data;
+        availableFrameworks.push(frameworkName);
+        console.log(`[AnalysisAggregator] Found ${frameworkName} from framework_insights`);
+      } catch (err) {
+        console.error(`[AnalysisAggregator] Failed to decrypt ${insight.frameworkName}:`, err);
+      }
+    }
+  }
+
+  // SOURCE 2: Query journey_sessions table (journey-based analysis)
+  // This is where Market Entry and other journey analysis data is stored
+  const journeyData = await db.select()
+    .from(journeySessions)
+    .where(eq(journeySessions.understandingId, sessionId))
+    .orderBy(desc(journeySessions.updatedAt))
+    .limit(1);
+
+  if (journeyData && journeyData.length > 0 && journeyData[0].analysisData) {
+    console.log(`[AnalysisAggregator] Found journey session analysis data`);
+    const analysisData = journeyData[0].analysisData as any;
+
+    // Extract SWOT from journey
+    const swotData = analysisData?.swot?.data?.output ||
+                     analysisData?.swot?.output ||
+                     analysisData?.swot;
+    if (swotData?.strengths && !analyses.swot) {
+      analyses.swot = swotData;
+      if (!availableFrameworks.includes('swot')) availableFrameworks.push('swot');
+      console.log(`[AnalysisAggregator] Found swot from journey_sessions`);
+    }
+
+    // Extract PESTLE from journey
+    const pestleData = analysisData?.pestle?.data?.pestleResults ||
+                       analysisData?.pestle?.pestleResults ||
+                       analysisData?.pestle;
+    if (pestleData && !analyses.pestle) {
+      analyses.pestle = pestleData;
+      if (!availableFrameworks.includes('pestle')) availableFrameworks.push('pestle');
+      console.log(`[AnalysisAggregator] Found pestle from journey_sessions`);
+    }
+
+    // Extract Porter's from journey
+    const portersData = analysisData?.porters?.data?.portersResults ||
+                        analysisData?.porters?.portersResults ||
+                        analysisData?.porters;
+    if (portersData && !analyses.porters) {
+      analyses.porters = portersData;
+      if (!availableFrameworks.includes('porters')) availableFrameworks.push('porters');
+      console.log(`[AnalysisAggregator] Found porters from journey_sessions`);
+    }
+
+    // Extract BMC from journey
+    const bmcData = analysisData?.bmc?.data?.output ||
+                    analysisData?.bmc?.output ||
+                    analysisData?.bmc;
+    if (bmcData && !analyses.bmc) {
+      analyses.bmc = bmcData;
+      if (!availableFrameworks.includes('bmc')) availableFrameworks.push('bmc');
+      console.log(`[AnalysisAggregator] Found bmc from journey_sessions`);
+    }
+
+    // Extract Five Whys from journey
+    const fiveWhysData = analysisData?.five_whys?.data?.output ||
+                         analysisData?.five_whys?.output ||
+                         analysisData?.five_whys;
+    if (fiveWhysData && !analyses.five_whys) {
+      analyses.five_whys = fiveWhysData;
+      if (!availableFrameworks.includes('five_whys')) availableFrameworks.push('five_whys');
+      console.log(`[AnalysisAggregator] Found five_whys from journey_sessions`);
     }
   }
 
   if (availableFrameworks.length === 0) {
+    console.log('[AnalysisAggregator] No analysis found in either framework_insights or journey_sessions');
     return { insights: null, availableFrameworks: [], primaryFramework: null };
   }
+
+  console.log(`[AnalysisAggregator] Total frameworks available: ${availableFrameworks.join(', ')}`);
 
   let normalizedInsights: StrategyInsights | null = null;
   let primaryFramework: string | null = null;
