@@ -6,6 +6,7 @@ import {
   epmPrograms,
   taskAssignments,
   frameworkInsights,
+  strategyDecisions,
 } from '@shared/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import type { IExporter, ExportResult, FullExportPackage, ExportRequest } from '../../types/interfaces';
@@ -174,6 +175,36 @@ export async function loadExportData(
     }
   }
 
+  // Fetch strategic decisions from strategy_decisions table
+  console.log('[Export Service] loadExportData - Fetching strategic decisions...');
+  let decisions: any[] = [];
+  if (strategyVersion?.id) {
+    const decisionRows = await db.select()
+      .from(strategyDecisions)
+      .where(eq(strategyDecisions.strategyVersionId, strategyVersion.id))
+      .orderBy(desc(strategyDecisions.createdAt));
+    
+    decisions = decisionRows.map(d => ({
+      id: d.id,
+      primaryCustomerSegment: d.primaryCustomerSegment,
+      revenueModel: d.revenueModel,
+      channelPriorities: d.channelPriorities,
+      partnershipStrategy: d.partnershipStrategy,
+      riskTolerance: d.riskTolerance,
+      investmentCapacityMin: d.investmentCapacityMin,
+      investmentCapacityMax: d.investmentCapacityMax,
+      timelinePreference: d.timelinePreference,
+      successMetricsPriority: d.successMetricsPriority,
+      validatedAssumptions: d.validatedAssumptions,
+      concerns: d.concerns,
+      topPriorities: d.topPriorities,
+      goDecision: d.goDecision,
+      decisionRationale: d.decisionRationale,
+      createdAt: d.createdAt,
+    }));
+    console.log('[Export Service] Strategic decisions loaded:', decisions.length);
+  }
+
   return {
     metadata: {
       exportedAt: new Date().toISOString(),
@@ -186,7 +217,7 @@ export async function loadExportData(
       understanding,
       journeySession,
       strategyVersion,
-      decisions: strategyVersion?.decisions as any[] ?? [],
+      decisions,
       fiveWhysTree,
       whysPath,
       clarifications,

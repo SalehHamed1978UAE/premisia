@@ -474,6 +474,102 @@ export class RiskGenerator {
     
     return categoryMitigations[category] || 'Establish monitoring process, define escalation triggers, and review mitigation effectiveness monthly';
   }
+
+  /**
+   * Assign owners to risks based on their category and content
+   * Matches risks to resources using role-based logic similar to workstream owners
+   */
+  assignRiskOwners(risks: Risk[], resources: ResourceAllocation[]): Risk[] {
+    if (!resources || resources.length === 0) {
+      console.log('[RiskGenerator] No resources available, using default owner');
+      return risks.map(r => ({ ...r, owner: 'Risk Manager' }));
+    }
+    
+    return risks.map(risk => {
+      let owner = '';
+      const lowerContent = risk.description.toLowerCase();
+      const category = risk.category.toLowerCase();
+      
+      // Match by category first
+      if (category.includes('technical') || category.includes('technology')) {
+        const match = resources.find(r => 
+          r.role.toLowerCase().includes('technical') || 
+          r.role.toLowerCase().includes('technology') ||
+          r.role.toLowerCase().includes('it') ||
+          r.role.toLowerCase().includes('engineer')
+        );
+        owner = match?.role || '';
+      } 
+      else if (category.includes('market') || category.includes('competitive')) {
+        const match = resources.find(r => 
+          r.role.toLowerCase().includes('marketing') || 
+          r.role.toLowerCase().includes('sales') ||
+          r.role.toLowerCase().includes('business')
+        );
+        owner = match?.role || '';
+      }
+      else if (category.includes('resource') || category.includes('team')) {
+        const match = resources.find(r => 
+          r.role.toLowerCase().includes('hr') || 
+          r.role.toLowerCase().includes('human') ||
+          r.role.toLowerCase().includes('operations')
+        );
+        owner = match?.role || '';
+      }
+      else if (category.includes('regulatory') || category.includes('compliance')) {
+        const match = resources.find(r => 
+          r.role.toLowerCase().includes('compliance') || 
+          r.role.toLowerCase().includes('legal') ||
+          r.role.toLowerCase().includes('regulatory')
+        );
+        owner = match?.role || '';
+      }
+      else if (category.includes('strategic')) {
+        const match = resources.find(r => 
+          r.role.toLowerCase().includes('strategy') || 
+          r.role.toLowerCase().includes('director') ||
+          r.role.toLowerCase().includes('manager')
+        );
+        owner = match?.role || '';
+      }
+      
+      // If no category match, try content-based matching
+      if (!owner) {
+        if (lowerContent.includes('supply') || lowerContent.includes('vendor')) {
+          const match = resources.find(r => 
+            r.role.toLowerCase().includes('procurement') || 
+            r.role.toLowerCase().includes('supply')
+          );
+          owner = match?.role || '';
+        }
+        else if (lowerContent.includes('customer') || lowerContent.includes('experience')) {
+          const match = resources.find(r => 
+            r.role.toLowerCase().includes('customer') || 
+            r.role.toLowerCase().includes('experience')
+          );
+          owner = match?.role || '';
+        }
+        else if (lowerContent.includes('financial') || lowerContent.includes('budget')) {
+          const match = resources.find(r => 
+            r.role.toLowerCase().includes('financial') || 
+            r.role.toLowerCase().includes('finance')
+          );
+          owner = match?.role || '';
+        }
+      }
+      
+      // Final fallback: use first resource with 'manager' in role, or first resource
+      if (!owner) {
+        const managerMatch = resources.find(r => r.role.toLowerCase().includes('manager'));
+        owner = managerMatch?.role || resources[0]?.role || 'Risk Manager';
+      }
+      
+      return {
+        ...risk,
+        owner
+      };
+    });
+  }
 }
 
 /**
@@ -838,11 +934,19 @@ export class ProgramNameGenerator {
     namingContext?: any
   ): Promise<string> {
     try {
+      // Debug: Log what we received
+      console.log(`[ProgramNameGenerator] Received namingContext:`, {
+        hasNamingContext: !!namingContext,
+        journeyTitle: namingContext?.journeyTitle || 'NOT SET',
+        hasDecisions: !!namingContext?.selectedDecisions,
+        hasBmcInsights: !!namingContext?.bmcKeyInsights?.length
+      });
+      
       // PRIORITY: Use journey title if available (from strategic_understanding)
       // This is the user-facing name they see in the journey, so use it directly
-      if (namingContext?.journeyTitle) {
+      if (namingContext?.journeyTitle && namingContext.journeyTitle.trim().length > 0) {
         console.log(`[ProgramNameGenerator] 🎯 Using journey title: "${namingContext.journeyTitle}"`);
-        return namingContext.journeyTitle;
+        return namingContext.journeyTitle.trim();
       }
       
       const keyInsights = namingContext?.bmcKeyInsights || [];

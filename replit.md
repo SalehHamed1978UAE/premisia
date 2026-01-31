@@ -40,6 +40,16 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tail
 
 # Recent Bug Fixes
 
+## EPM Export Quality Fixes (Jan 31, 2026)
+- **Problem**: Export package missing decisions, assignments, risk owners, and proper severity calculations
+- **Fixes Applied**:
+  - Assignment enum mismatch: Changed `'internal'/'external'/'team'` to `'internal_team'/'external_resource'` in `assignment-generator.ts` to match database enum
+  - Decisions persistence: Modified `base-exporter.ts` to fetch decisions from `strategy_decisions` table using `strategyVersionId`
+  - Risk owners: Added `assignRiskOwners()` method in `generators.ts` and called it in `epm-synthesizer.ts` for both paths
+  - Severity calculation: Fixed CSV exporter to properly calculate and label severity from probability × impact
+  - Program naming: Added journeyTitle priority check with trimming in `ProgramNameGenerator`
+- **Files**: `server/intelligence/epm/assignment-generator.ts`, `server/services/export/base-exporter.ts`, `server/intelligence/epm/generators.ts`, `server/intelligence/epm-synthesizer.ts`, `server/services/export/csv-exporter.ts`
+
 ## EPM Generation Fix for Journey Analysis (Jan 31, 2026)
 - **Problem**: EPM generation failed with "No strategic analysis available" even though SWOT/PESTLE/Porter's analysis was complete
 - **Root Cause**: EPM generator's `getAggregatedAnalysis()` queries `framework_insights` table, but journey executors store analysis in `strategy_versions.analysis_data` instead

@@ -420,7 +420,7 @@ export class EPMSynthesizer {
     
     const [
       executiveSummary,
-      riskRegister,
+      riskRegisterRaw,
       stakeholderMap,
       qaPlan,
     ] = await Promise.all([
@@ -429,6 +429,18 @@ export class EPMSynthesizer {
       this.stakeholderGenerator.generate(insights),
       this.qaPlanGenerator.generate(insights),
     ]);
+    
+    // Assign owners to risks based on resources (Fix 3)
+    const risksWithOwners = this.riskGenerator.assignRiskOwners(
+      riskRegisterRaw.risks,
+      resourcePlan.internalTeam
+    );
+    const riskRegister = {
+      ...riskRegisterRaw,
+      risks: risksWithOwners,
+      topRisks: risksWithOwners.slice().sort((a, b) => b.severity - a.severity).slice(0, 5)
+    };
+    console.log('[EPM Synthesis] ✓ Assigned risk owners (buildV2Program):', risksWithOwners.map(r => ({ id: r.id, owner: r.owner })));
     
     const stageGates = await this.stageGateGenerator.generate(timeline, riskRegister);
     
@@ -587,7 +599,7 @@ export class EPMSynthesizer {
     
     const [
       executiveSummary,
-      riskRegister,
+      riskRegisterRaw2,
       stakeholderMap,
       qaPlan,
     ] = await Promise.all([
@@ -596,6 +608,18 @@ export class EPMSynthesizer {
       this.stakeholderGenerator.generate(insights),
       this.qaPlanGenerator.generate(insights),
     ]);
+    
+    // Assign owners to risks based on resources (Fix 3 - legacy path)
+    const risksWithOwners2 = this.riskGenerator.assignRiskOwners(
+      riskRegisterRaw2.risks,
+      resourcePlan.internalTeam
+    );
+    const riskRegister = {
+      ...riskRegisterRaw2,
+      risks: risksWithOwners2,
+      topRisks: risksWithOwners2.slice().sort((a, b) => b.severity - a.severity).slice(0, 5)
+    };
+    console.log('[EPM Synthesis] ✓ Assigned risk owners (legacy):', risksWithOwners2.map(r => ({ id: r.id, owner: r.owner })));
     
     const stageGates = await this.stageGateGenerator.generate(timeline, riskRegister);
     

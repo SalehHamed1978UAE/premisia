@@ -10,7 +10,7 @@ export interface TaskAssignment {
   epmProgramId: string;
   taskId: string;
   resourceId: string;
-  resourceType: 'internal' | 'external' | 'team';
+  resourceType: 'internal_team' | 'external_resource';
   estimatedHours: number;
   status: 'assigned' | 'in_progress' | 'completed';
   assignmentSource: 'ai_generated' | 'user_assigned' | 'auto_suggested';
@@ -113,21 +113,17 @@ export class AssignmentGenerator {
     return resources[0];
   }
   
-  private determineResourceType(resource: any): 'internal' | 'external' | 'team' {
-    if (!resource) return 'team';
+  private determineResourceType(resource: any): 'internal_team' | 'external_resource' {
+    if (!resource) return 'internal_team';
     
     const role = (resource.role || '').toLowerCase();
     const resourceType = (resource.type || '').toLowerCase();
     
     if (resourceType === 'external' || role.includes('consultant') || role.includes('contractor')) {
-      return 'external';
+      return 'external_resource';
     }
     
-    if (role.includes('team') || resourceType === 'team') {
-      return 'team';
-    }
-    
-    return 'internal';
+    return 'internal_team';
   }
   
   private estimateHours(deliverable: any): number {

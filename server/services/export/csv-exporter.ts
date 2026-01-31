@@ -218,12 +218,17 @@ export function generateRisksCsv(riskRegister: any): string {
   const riskArray = risks.risks || risks;
   if (Array.isArray(riskArray)) {
     riskArray.forEach((r: any, idx: number) => {
+      // Calculate severity if not provided: probability (0-100) * impact multiplier
+      const impactMultiplier = r.impact === 'Critical' ? 4 : r.impact === 'High' ? 3 : r.impact === 'Medium' ? 2 : 1;
+      const calculatedSeverity = r.severity ?? (r.probability ? Math.round(r.probability * impactMultiplier / 10) : '-');
+      const severityLabel = calculatedSeverity >= 30 ? 'Critical' : calculatedSeverity >= 20 ? 'High' : calculatedSeverity >= 10 ? 'Medium' : calculatedSeverity > 0 ? 'Low' : '-';
+      
       const row = [
-        `RISK-${idx + 1}`,
+        r.id || `RISK-${idx + 1}`,
         escapeCsvField(r.risk || r.name || r.description || 'Unnamed risk'),
-        r.probability || r.likelihood || '-',
-        r.impact || r.severity || '-',
-        r.level || r.rating || '-',
+        typeof r.probability === 'number' ? `${r.probability}%` : (r.probability || r.likelihood || '-'),
+        r.impact || '-',
+        typeof calculatedSeverity === 'number' ? `${calculatedSeverity} (${severityLabel})` : calculatedSeverity,
         escapeCsvField(r.mitigation || r.response || r.strategy || '-'),
         escapeCsvField(r.owner || '-')
       ];
