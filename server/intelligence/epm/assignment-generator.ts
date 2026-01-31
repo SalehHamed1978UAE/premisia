@@ -3,11 +3,13 @@
  *
  * ARCHITECTURE SPEC: Section 20 - Assignment Persistence Contract
  * - Creates task assignments by matching resources to deliverables
+ * - Uses AI-based semantic matching (no hardcoded keywords)
  * - Populates ALL required fields: taskName, resourceName, allocation, dates
  * - Uses valid status enum values
  */
 
 import type { EPMProgram } from '../types';
+import { getLLMProvider } from '../../lib/llm-provider';
 
 export interface TaskAssignment {
   epmProgramId: string;
@@ -44,15 +46,37 @@ interface Resource {
   type?: string;
 }
 
+interface TaskInfo {
+  taskId: string;
+  taskName: string;
+  workstreamName: string;
+  workstreamId: string;
+  startMonth: number;
+  endMonth: number;
+}
+
+interface ResourceMatchResult {
+  taskId: string;
+  resourceId: string;
+  confidence: number;
+  reasoning: string;
+}
+
 export class AssignmentGenerator {
+  private llm = getLLMProvider();
+
   async generate(epmProgram: EPMProgram, programId: string): Promise<TaskAssignment[]> {
     const assignments: TaskAssignment[] = [];
 
-    console.log('[AssignmentGenerator] Starting assignment generation...');
+    console.log('[AssignmentGenerator] Starting AI-based assignment generation...');
     console.log(`[AssignmentGenerator] Program ID: ${programId}`);
 
     const workstreams: Workstream[] = epmProgram.workstreams || [];
     const resourcePlan = epmProgram.resourcePlan;
+    const programContext = {
+      name: epmProgram.name || 'Strategic Program',
+      description: epmProgram.description || '',
+    };
 
     if (!workstreams.length) {
       console.log('[AssignmentGenerator] No workstreams found, skipping assignments');
@@ -83,10 +107,8 @@ export class AssignmentGenerator {
 
     console.log(`[AssignmentGenerator] Found ${workstreams.length} workstreams and ${allResources.length} resources`);
 
-    // Track resource workload for allocation calculation
-    const resourceWorkload: Record<string, number> = {};
-    allResources.forEach(r => resourceWorkload[r.id!] = 0);
-
+    // Extract all tasks from workstreams
+    const allTasks: TaskInfo[] = [];
     for (const workstream of workstreams) {
       const deliverables = workstream.deliverables || [];
       const wsStartMonth = workstream.startMonth ?? 0;
@@ -98,41 +120,69 @@ export class AssignmentGenerator {
         const deliverableName = this.extractDeliverableName(deliverable, i);
         const taskId = `${workstream.id}-D${i + 1}`;
 
-        const matchingResource = this.findMatchingResource(workstream, deliverable, allResources);
+        const deliverableStartMonth = wsStartMonth + Math.floor(i * wsDuration / Math.max(deliverables.length, 1));
+        const deliverableEndMonth = Math.min(wsStartMonth + Math.ceil((i + 1) * wsDuration / Math.max(deliverables.length, 1)), wsEndMonth);
 
-        if (matchingResource) {
-          const estimatedHours = this.estimateHours(deliverable, wsDuration);
-          const allocationPercent = this.calculateAllocation(
-            matchingResource,
-            estimatedHours,
-            wsDuration,
-            resourceWorkload
-          );
+        allTasks.push({
+          taskId,
+          taskName: deliverableName,
+          workstreamName: workstream.name,
+          workstreamId: workstream.id,
+          startMonth: deliverableStartMonth,
+          endMonth: deliverableEndMonth,
+        });
+      }
+    }
 
-          // Track workload
-          resourceWorkload[matchingResource.id!] = (resourceWorkload[matchingResource.id!] || 0) + allocationPercent;
+    if (!allTasks.length) {
+      console.log('[AssignmentGenerator] No tasks/deliverables found in workstreams');
+      return [];
+    }
 
-          // Calculate dates based on deliverable position within workstream
-          const deliverableStartMonth = wsStartMonth + Math.floor(i * wsDuration / Math.max(deliverables.length, 1));
-          const deliverableEndMonth = Math.min(wsStartMonth + Math.ceil((i + 1) * wsDuration / Math.max(deliverables.length, 1)), wsEndMonth);
+    // Use AI to match resources to tasks
+    console.log(`[AssignmentGenerator] Using AI to match ${allTasks.length} tasks to ${allResources.length} resources...`);
+    const matches = await this.getAIResourceMatches(allTasks, allResources, programContext);
 
-          assignments.push({
-            epmProgramId: programId,
-            taskId,
-            taskName: deliverableName,
-            resourceId: matchingResource.id!,
-            resourceName: this.formatResourceName(matchingResource),
-            resourceRole: matchingResource.role,
-            resourceType: matchingResource.type === 'external' ? 'external_resource' : 'internal_team',
-            estimatedHours,
-            status: 'assigned',
-            allocationPercent,
-            assignedFrom: this.formatDate(deliverableStartMonth),
-            assignedTo: this.formatDate(deliverableEndMonth),
-            assignmentSource: 'ai_generated',
-            notes: `Auto-assigned based on ${workstream.name} workstream alignment`,
-          });
-        }
+    // Track resource workload for allocation calculation
+    const resourceWorkload: Record<string, number> = {};
+    allResources.forEach(r => resourceWorkload[r.id!] = 0);
+
+    // Create assignments from matches
+    for (const task of allTasks) {
+      const match = matches.find(m => m.taskId === task.taskId);
+      const resource = match
+        ? allResources.find(r => r.id === match.resourceId)
+        : this.getFallbackResource(allResources, resourceWorkload);
+
+      if (resource) {
+        const durationMonths = Math.max(1, task.endMonth - task.startMonth);
+        const estimatedHours = this.estimateHours(null, durationMonths);
+        const allocationPercent = this.calculateAllocation(
+          resource,
+          estimatedHours,
+          durationMonths,
+          resourceWorkload
+        );
+
+        // Track workload
+        resourceWorkload[resource.id!] = (resourceWorkload[resource.id!] || 0) + allocationPercent;
+
+        assignments.push({
+          epmProgramId: programId,
+          taskId: task.taskId,
+          taskName: task.taskName,
+          resourceId: resource.id!,
+          resourceName: this.formatResourceName(resource),
+          resourceRole: resource.role,
+          resourceType: resource.type === 'external' ? 'external_resource' : 'internal_team',
+          estimatedHours,
+          status: 'assigned',
+          allocationPercent,
+          assignedFrom: this.formatDate(task.startMonth),
+          assignedTo: this.formatDate(task.endMonth),
+          assignmentSource: 'ai_generated',
+          notes: match?.reasoning || `Auto-assigned to ${task.workstreamName}`,
+        });
       }
     }
 
@@ -143,15 +193,73 @@ export class AssignmentGenerator {
   }
 
   /**
+   * Use AI to semantically match resources to tasks
+   * Makes ONE batch call for efficiency
+   */
+  private async getAIResourceMatches(
+    tasks: TaskInfo[],
+    resources: Resource[],
+    programContext: { name: string; description: string }
+  ): Promise<ResourceMatchResult[]> {
+    try {
+      const prompt = `You are assigning team members to project tasks for: "${programContext.name}"
+${programContext.description ? `Context: ${programContext.description}` : ''}
+
+TASKS TO ASSIGN:
+${tasks.map(t => `- ${t.taskId}: "${t.taskName}" (Workstream: ${t.workstreamName})`).join('\n')}
+
+AVAILABLE RESOURCES:
+${resources.map(r => `- ${r.id}: ${r.role}${r.skills?.length ? ` (Skills: ${r.skills.join(', ')})` : ''}`).join('\n')}
+
+For each task, select the BEST matching resource based on:
+1. Role relevance to the task
+2. Skills alignment
+3. Workstream context
+
+Return a JSON array of matches. Distribute work across resources - don't assign everything to one person.
+
+Return ONLY this JSON format (no markdown):
+{
+  "matches": [
+    {"taskId": "WS1-D1", "resourceId": "INT-001", "confidence": 0.9, "reasoning": "Role matches task requirements"}
+  ]
+}`;
+
+      const response = await this.llm.generateStructuredResponse(prompt, { matches: [] });
+
+      if (response?.matches && Array.isArray(response.matches)) {
+        console.log(`[AssignmentGenerator] AI matched ${response.matches.length} tasks`);
+        return response.matches;
+      }
+
+      console.log('[AssignmentGenerator] AI returned no matches, using fallback');
+      return [];
+    } catch (error) {
+      console.error('[AssignmentGenerator] AI matching failed, using fallback:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Fallback: Get resource with lowest workload (round-robin effect)
+   */
+  private getFallbackResource(resources: Resource[], workload: Record<string, number>): Resource {
+    const sorted = [...resources].sort((a, b) => {
+      const workloadA = workload[a.id!] || 0;
+      const workloadB = workload[b.id!] || 0;
+      return workloadA - workloadB;
+    });
+    return sorted[0];
+  }
+
+  /**
    * Extract a meaningful name from deliverable data
    */
   private extractDeliverableName(deliverable: any, index: number): string {
     if (typeof deliverable === 'string') {
-      // Deliverable is a string description - extract first sentence or truncate
       const cleaned = deliverable.trim();
       const firstSentence = cleaned.split(/[.;:]/)[0].trim();
       if (firstSentence.length <= 80) return firstSentence;
-      // Truncate at word boundary
       const truncated = firstSentence.substring(0, 80);
       const lastSpace = truncated.lastIndexOf(' ');
       return lastSpace > 40 ? truncated.substring(0, lastSpace) + '...' : truncated + '...';
@@ -168,7 +276,6 @@ export class AssignmentGenerator {
    * Format resource name for display
    */
   private formatResourceName(resource: Resource): string {
-    // Use role as the display name, cleaned up
     const role = resource.role || 'Team Member';
     return role.replace(/\s+/g, ' ').trim();
   }
@@ -177,75 +284,9 @@ export class AssignmentGenerator {
    * Convert month number to date string
    */
   private formatDate(monthNumber: number): string {
-    // Calculate approximate date from project start
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() + monthNumber);
-    return startDate.toISOString().split('T')[0]; // YYYY-MM-DD format
-  }
-
-  /**
-   * Find the best matching resource for a deliverable
-   */
-  private findMatchingResource(workstream: Workstream, deliverable: any, resources: Resource[]): Resource | null {
-    if (!resources.length) return null;
-
-    const workstreamName = (workstream.name || '').toLowerCase();
-    const workstreamOwner = (workstream.owner || '').toLowerCase();
-    const deliverableName = this.extractDeliverableName(deliverable, 0).toLowerCase();
-
-    // Role keyword matching - extended for various contexts including food service
-    const roleKeywordMap: Record<string, string[]> = {
-      'marketing': ['marketing', 'brand', 'campaign', 'acquisition', 'awareness', 'launch', 'social', 'influencer'],
-      'operations': ['operations', 'operational', 'process', 'store', 'retail', 'framework', 'daily', 'restaurant'],
-      'technology': ['technology', 'tech', 'digital', 'system', 'software', 'infrastructure', 'pos', 'crm', 'integration'],
-      'design': ['design', 'storefront', 'construction', 'layout', 'visual', 'fit-out', 'interior'],
-      'chef': ['menu', 'cuisine', 'food', 'kitchen', 'recipe', 'culinary', 'chef'],
-      'compliance': ['compliance', 'regulatory', 'legal', 'license', 'permit', 'safety', 'haccp'],
-      'supply': ['supply', 'vendor', 'procurement', 'inventory', 'supplier', 'logistics'],
-      'talent': ['talent', 'hr', 'hiring', 'training', 'onboarding', 'staff', 'recruitment', 'team'],
-      'customer': ['customer', 'experience', 'service', 'satisfaction', 'loyalty', 'feedback'],
-      'financial': ['financial', 'budget', 'cost', 'investment', 'revenue', 'pricing'],
-    };
-
-    // First priority: Match by workstream owner if specified
-    if (workstreamOwner) {
-      const ownerMatch = resources.find(r =>
-        r.role.toLowerCase() === workstreamOwner ||
-        r.role.toLowerCase().includes(workstreamOwner.split(' ')[0])
-      );
-      if (ownerMatch) return ownerMatch;
-    }
-
-    // Second priority: Match by keyword analysis
-    const searchText = `${workstreamName} ${deliverableName}`;
-
-    for (const resource of resources) {
-      const roleLower = resource.role.toLowerCase();
-
-      for (const [roleKey, keywords] of Object.entries(roleKeywordMap)) {
-        if (roleLower.includes(roleKey)) {
-          for (const keyword of keywords) {
-            if (searchText.includes(keyword)) {
-              return resource;
-            }
-          }
-        }
-      }
-    }
-
-    // Third priority: Match by skills if available
-    for (const resource of resources) {
-      if (resource.skills?.length) {
-        for (const skill of resource.skills) {
-          if (searchText.includes(skill.toLowerCase())) {
-            return resource;
-          }
-        }
-      }
-    }
-
-    // Fallback: Return first available resource (round-robin would be better)
-    return resources[0];
+    return startDate.toISOString().split('T')[0];
   }
 
   /**
@@ -257,12 +298,10 @@ export class AssignmentGenerator {
     durationMonths: number,
     currentWorkload: Record<string, number>
   ): number {
-    // Base calculation: hours / (months * 160 hours/month) * 100
     const totalAvailableHours = durationMonths * 160 * (resource.fte || resource.allocation || 1);
     const baseAllocation = Math.round((estimatedHours / totalAvailableHours) * 100);
 
-    // Note: Resources can be overallocated (>100% workload) in reality
-    // Just ensure each task gets a reasonable allocation (10-80%)
+    // Clamp to reasonable range (10-80% per deliverable)
     const adjustedAllocation = Math.min(Math.max(baseAllocation, 10), 80);
 
     return adjustedAllocation;
@@ -272,7 +311,7 @@ export class AssignmentGenerator {
    * Estimate hours based on deliverable complexity
    */
   private estimateHours(deliverable: any, durationMonths: number): number {
-    if (typeof deliverable === 'object' && deliverable.effort) {
+    if (deliverable && typeof deliverable === 'object' && deliverable.effort) {
       const effort = deliverable.effort;
       if (typeof effort === 'number') return effort * 8;
 
