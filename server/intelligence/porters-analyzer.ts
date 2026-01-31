@@ -52,7 +52,7 @@ export class PortersAnalyzer implements FrameworkAnalyzer<PortersResults> {
     });
     
     // Add overall attractiveness summary
-    if (frameworkResults.overallAttractiveness) {
+    if (frameworkResults.overallAttractiveness?.summary) {
       references.push({
         title: "Porter's Five Forces: Market Attractiveness Summary",
         sourceType: 'internal_doc',
