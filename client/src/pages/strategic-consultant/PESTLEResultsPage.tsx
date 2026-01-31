@@ -75,8 +75,36 @@ export default function PESTLEResultsPage() {
     onSuccess: (data) => {
       console.log('[PESTLEResultsPage] PESTLE analysis complete:', data);
       
-      // The PESTLE data is nested: response.data.data contains the actual PESTLE factors
-      const pestleResults = data.data?.data || data.data;
+      // Normalize PESTLE response - handle multiple possible response shapes from the API
+      // The API may nest data differently: data.data.data.pestleResults, data.data.pestleResults, or direct factors
+      let pestleResults = null;
+      
+      // Check for deeply nested structure: data.data.data.pestleResults
+      if (data.data?.data?.pestleResults) {
+        pestleResults = data.data.data.pestleResults;
+      }
+      // Check for semi-nested structure: data.data.pestleResults  
+      else if (data.data?.pestleResults) {
+        pestleResults = data.data.pestleResults;
+      }
+      // Check for direct pestleResults: data.pestleResults
+      else if ((data as any).pestleResults) {
+        pestleResults = (data as any).pestleResults;
+      }
+      // Check if data.data.data contains direct factors (has political property with trends)
+      else if (data.data?.data?.political?.trends) {
+        pestleResults = data.data.data;
+      }
+      // Fallback: try data.data if it has direct factors
+      else if (data.data?.political?.trends) {
+        pestleResults = data.data;
+      }
+      // Last resort: use whatever we have
+      else {
+        pestleResults = data.data?.data || data.data;
+      }
+      
+      console.log('[PESTLEResultsPage] Extracted pestleResults:', pestleResults);
       setPestleData(pestleResults);
       setFinalVersionNumber(data.versionNumber);
       
