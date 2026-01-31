@@ -1,0 +1,118 @@
+This is exactly what I needed. Now I have full clarity. Let me show you the complete picture:
+
+---
+
+## Complete Journey Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+│                              PREMISIA JOURNEY ARCHITECTURE                               │
+├─────────────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                          │
+│   ╔═══════════════════════════════════════════════════════════════════════════════════╗ │
+│   ║                              UNIVERSAL START                                      ║ │
+│   ║                                                                                   ║ │
+│   ║   STRATEGIC INPUT → AMBIGUITY RESOLVER → BUSINESS TYPE CHOICE                    ║ │
+│   ╚═══════════════════════════════════════════════════════════════════════════════════╝ │
+│                                         │                                                │
+│     ┌───────────────────────────────────┼───────────────────────────────────┐           │
+│     │               │                   │                   │               │           │
+│     ▼               ▼                   ▼                   ▼               ▼           │
+│ ┌─────────┐   ┌─────────┐         ┌─────────┐         ┌─────────┐   ┌─────────┐        │
+│ │ MARKET  │   │   BMI   │         │COMPETIT.│         │ DIGITAL │   │ CRISIS  │        │
+│ │  ENTRY  │   │         │         │STRATEGY │         │ TRANSF. │   │RECOVERY │        │
+│ ├─────────┤   ├─────────┤         ├─────────┤         ├─────────┤   ├─────────┤        │
+│ │ PESTLE  │   │5 WHYS   │         │PORTER'S │         │ PESTLE  │   │ 5 WHYS  │        │
+│ │    ↓    │   │    ↓    │         │    ↓    │         │    ↓    │   │    ↓    │        │
+│ │PORTER'S │   │  BMC    │         │  BMC    │         │  BMC    │   │  SWOT   │        │
+│ │    ↓    │   │         │         │    ↓    │         │    ↓    │   │    ↓    │        │
+│ │  SWOT   │   │         │         │BLUE OCN │         │ ANSOFF  │   │  BMC    │        │
+│ └────┬────┘   └────┬────┘         └────┬────┘         └────┬────┘   └────┬────┘        │
+│      │             │                   │                   │             │              │
+│ ┌────────┐                                                                              │
+│ │ GROWTH │   ┌─────────┐         ┌─────────┐                                           │
+│ │STRATEGY│   │ SEGMENT │         │ CUSTOM  │                                           │
+│ ├────────┤   │DISCOVERY│         │ JOURNEY │                                           │
+│ │ PESTLE │   ├─────────┤         ├─────────┤                                           │
+│ │    ↓   │   │ SEGMENT │         │  USER   │                                           │
+│ │ ANSOFF │   │DISCOVERY│         │ SELECTS │                                           │
+│ │    ↓   │   │         │         │         │                                           │
+│ │  BMC   │   └────┬────┘         └────┬────┘                                           │
+│ └────┬───┘        │                   │                                                 │
+│      │            │                   │                                                 │
+│      └────────────┴───────────────────┴─────────────────────────────────────┐          │
+│                                                                             │          │
+│   ╔═════════════════════════════════════════════════════════════════════════╧════════╗ │
+│   ║                              UNIVERSAL END                                       ║ │
+│   ║                                                                                  ║ │
+│   ║   [Bridge: Prepare for Decisions] → STRATEGIC DECISIONS → PRIORITIES → EPM      ║ │
+│   ╚══════════════════════════════════════════════════════════════════════════════════╝ │
+│                                                                                          │
+└─────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## The 7 Journeys — Complete Spec
+
+| # | Journey | Frameworks | Duration | Status |
+|---|---------|------------|----------|--------|
+| 1 | **Market Entry Strategy** | PESTLE → Porter's → SWOT | 15-20 min | ✅ Implemented |
+| 2 | **Business Model Innovation** | Five Whys → BMC | 30-35 min | ✅ Implemented |
+| 3 | **Market Segmentation Discovery** | Segment Discovery | 3-5 min | ✅ Implemented |
+| 4 | **Custom Journey** | User-selected | Varies | ✅ Implemented |
+| 5 | **Competitive Strategy** | Porter's → BMC → Blue Ocean | 15-22 min | 🚧 Placeholder |
+| 6 | **Digital Transformation** | PESTLE → BMC → Ansoff | 18-25 min | 🚧 Placeholder |
+| 7 | **Crisis Recovery** | Five Whys → SWOT → BMC | 14-20 min | 🚧 Placeholder |
+| 8 | **Growth Strategy** | PESTLE → Ansoff → BMC | 16-23 min | 🚧 Placeholder |
+
+---
+
+## The Critical Problem You Identified
+
+```
+SWOT OUTPUT ──────✗──────▶ STRATEGIC DECISIONS
+                 │
+                 └── Format mismatch!
+                     SWOT output doesn't match
+                     what DecisionGenerator expects
+```
+
+**This is the Bridge problem.** Each journey's final framework must output data in a format the shared `DecisionGenerator` can consume.
+
+---
+
+## What I Need to Create
+
+1. **Universal Components BPMN:**
+   - Strategic Input
+   - Ambiguity Resolver
+   - Business Type Choice
+   - Strategic Decisions (input contract)
+   - Strategic Priorities
+   - EPM
+
+2. **Journey-Specific BPMNs (8 total):**
+   - Market Entry: PESTLE → Porter's → SWOT
+   - BMI: Five Whys → BMC
+   - Segment Discovery: Segment Discovery
+   - Custom: User-selected
+   - Competitive Strategy: Porter's → BMC → Blue Ocean
+   - Digital Transformation: PESTLE → BMC → Ansoff
+   - Crisis Recovery: Five Whys → SWOT → BMC
+   - Growth Strategy: PESTLE → Ansoff → BMC
+
+3. **Bridge Specs (critical):**
+   - How SWOT → Decisions (your current bug)
+   - How BMC → Decisions
+   - How Blue Ocean → Decisions
+   - How Ansoff → Decisions
+   - How Segment Discovery → Decisions
+
+---
+
+**Do you want me to:**
+
+1. Start with the **Universal Components BPMN** (the shared start and end)?
+2. Start with the **Bridge Spec for SWOT → Decisions** (to solve the immediate bug)?
+3. Create all **8 Journey BPMNs** in sequence?

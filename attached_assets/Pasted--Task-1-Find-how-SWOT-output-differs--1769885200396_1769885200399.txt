@@ -1,0 +1,57 @@
+ Task 1: "Find how SWOT output differs"                                        
+                                                                                
+  SWOT Executor returns (line 55-72 in swot-executor.ts):                       
+  {                                                                             
+    framework: 'swot',                                                          
+    output: {                                                                   
+      strengths: [...],                                                         
+      weaknesses: [...],                                                        
+      opportunities: [...],                                                     
+      threats: [...],                                                           
+      strategicOptions: {                                                       
+        soStrategies: [...],                                                    
+        stStrategies: [...],                                                    
+        woStrategies: [...],                                                    
+        wtStrategies: [...],                                                    
+      }                                                                         
+    },                                                                          
+    summary: {...}                                                              
+  }                                                                             
+                                                                                
+  DecisionGenerator expects (check decision-generator.ts):                      
+  {                                                                             
+    decisions: DecisionCard[],  // Array of decision cards with options         
+    // NOT raw SWOT quadrants                                                   
+  }                                                                             
+                                                                                
+  Task 2: "Fix SWOT to Decisions connection"                                    
+                                                                                
+  The fix location is in strategic-consultant-legacy.ts around line 2450:       
+  // CURRENT (broken):                                                          
+  const swotDataForDecisions = (swotResult as any)?.output || swotResult;       
+  // This passes raw SWOT output - wrong format!                                
+                                                                                
+  // NEEDED:                                                                    
+  const swotOutput = (swotResult as any)?.output;                               
+  const decisionsInput = transformSWOTToDecisions(swotOutput, context);         
+  // This transforms SWOT → DecisionCards                                       
+                                                                                
+  Task 3: "Check AI decisions show up"                                          
+                                                                                
+  After fix, verify:                                                            
+  - Decisions page shows 3-7 cards (not empty)                                  
+  - Each card has: title, description, 2-3 options                              
+  - Cards reference SWOT analysis (SO/ST/WO/WT strategies)                      
+                                                                                
+  Task 4: "Write guide for connecting features"                                 
+                                                                                
+  This becomes the pattern doc for all → Decisions bridges:                     
+  - Input: Framework's native output shape                                      
+  - Transform: Extract strategies/recommendations → DecisionCard[]              
+  - Output: { decisions: DecisionCard[], context: {...} }                       
+                                                                                
+  ---                                                                           
+  The bridge spec I wrote in my previous message can be used as the             
+  implementation reference. Once Replit completes these tasks, Market Entry     
+  should work end-to-end.                                                       
+                         
