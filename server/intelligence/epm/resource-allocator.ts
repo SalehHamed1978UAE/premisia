@@ -4,10 +4,11 @@
  * Uses LLM for context-aware role generation with fallback templates.
  */
 
-import type { StrategyInsights, StrategyInsight, Workstream, ResourcePlan, ResourceAllocation, ExternalResource } from '../types';
+import type { StrategyInsights, StrategyInsight, Workstream, ResourcePlan, ResourceAllocation, ExternalResource, StrategyContext, BusinessCategory } from '../types';
 import type { UserContext } from '../types';
 import { aiClients } from '../../ai-clients';
 import { normalizeResourceFTEs } from '../normalizers/fte-normalizer';
+import { ROLE_TEMPLATES, selectRoles, inferSubcategory } from './role-templates';
 
 export class ResourceAllocator {
   /**
@@ -176,7 +177,36 @@ Return ONLY valid JSON array of role objects. NO markdown, NO code blocks, ONLY 
   }
   
   /**
+   * Get roles from context-aware ROLE_TEMPLATES when StrategyContext is available
+   * This is the PREFERRED method as it provides business-appropriate roles
+   */
+  getRolesFromContext(
+    context: StrategyContext,
+    workstreams: Workstream[]
+  ): ResourceAllocation[] {
+    const timeline = workstreams[0]?.endMonth || 12;
+    const justification = `Required for ${workstreams.length} workstreams across ${timeline} months`;
+
+    // Ensure subcategory is populated
+    if (!context.businessType.subcategory) {
+      context.businessType.subcategory = inferSubcategory(context);
+    }
+
+    const roleTemplates = selectRoles(context);
+    console.log(`[ResourceAllocator] Using ROLE_TEMPLATES for ${context.businessType.category}/${context.businessType.subcategory || 'default'}`);
+
+    return roleTemplates.map(template => ({
+      role: template.role,
+      allocation: template.fte,
+      months: Math.ceil(timeline * template.fte), // Scale months by FTE
+      skills: template.skills,
+      justification: template.responsibilities?.join('; ') || justification,
+    }));
+  }
+
+  /**
    * Fallback role templates for each initiative type
+   * Used when StrategyContext is not available
    */
   private getFallbackRoles(
     initiativeType: string,
@@ -185,6 +215,32 @@ Return ONLY valid JSON array of role objects. NO markdown, NO code blocks, ONLY 
   ): ResourceAllocation[] {
     const timeline = workstreams[0]?.endMonth || 12;
     const justification = `Required for ${workstreams.length} workstreams across ${timeline} months`;
+
+    // Try to map initiative type to business category for better fallback
+    const initiativeToCategoryMap: Record<string, BusinessCategory> = {
+      'physical_business_launch': 'retail_general',
+      'retail_launch': 'retail_specialty',
+      'cafe_launch': 'food_beverage',
+      'restaurant_launch': 'food_beverage',
+      'software_development': 'saas_platform',
+      'digital_transformation': 'saas_platform',
+      'market_expansion': 'retail_general',
+      'ecommerce': 'ecommerce',
+      'professional_services': 'professional_services',
+    };
+
+    const category = initiativeToCategoryMap[initiativeType];
+    if (category && ROLE_TEMPLATES[category]?.default) {
+      console.log(`[ResourceAllocator] Using ROLE_TEMPLATES fallback for category: ${category}`);
+      const templates = ROLE_TEMPLATES[category].default;
+      return templates.map(t => ({
+        role: t.role,
+        allocation: t.fte,
+        months: Math.ceil(timeline * t.fte),
+        skills: t.skills,
+        justification,
+      }));
+    }
     
     const templates: Record<string, ResourceAllocation[]> = {
       physical_business_launch: [

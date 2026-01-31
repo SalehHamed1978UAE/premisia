@@ -34,9 +34,19 @@ import type {
   Governance,
   QAPlan,
   Procurement,
-  ExitStrategy
+  ExitStrategy,
+  StrategyContext,
+  RiskCategory,
 } from '../types';
 import { aiClients } from '../../ai-clients';
+import {
+  selectRoles,
+  findRiskOwner,
+  findBenefitOwner,
+  ROLE_TEMPLATES,
+  RISK_CATEGORY_OWNER_MAP,
+  BENEFIT_CATEGORY_OWNER_MAP,
+} from './role-templates';
 
 /**
  * Executive Summary Generator
@@ -473,7 +483,7 @@ export class BenefitsGenerator {
 
   /**
    * Assign responsible parties to benefits based on their category and content
-   * Matches benefits to resources using role-based logic - improved for retail roles
+   * Uses role-templates for context-aware owner assignment with round-robin fallback
    */
   assignBenefitOwners(benefits: Benefit[], resources: ResourceAllocation[]): Benefit[] {
     if (!resources || resources.length === 0) {
@@ -481,107 +491,32 @@ export class BenefitsGenerator {
       return benefits.map(b => ({ ...b, responsibleParty: 'Program Director' }));
     }
 
-    // Track assigned owners to distribute evenly when possible
-    const ownerCounts: Record<string, number> = {};
-    resources.forEach(r => ownerCounts[r.role] = 0);
+    const availableRoles = resources.map(r => r.role);
+    const usedOwners = new Map<string, number>();
 
-    return benefits.map((benefit, idx) => {
-      let owner = '';
+    // Initialize usage counts
+    availableRoles.forEach(role => usedOwners.set(role, 0));
+
+    return benefits.map((benefit) => {
+      // Determine effective category for owner mapping
+      let effectiveCategory = benefit.category || 'Strategic';
       const lowerContent = benefit.description.toLowerCase();
       const lowerName = (benefit.name || '').toLowerCase();
-      const categoryLower = (benefit.category || '').toLowerCase();
 
-      // Try content-based matching FIRST (more specific than category)
-      if (lowerContent.includes('marketing') || lowerContent.includes('brand') ||
-          lowerContent.includes('campaign') || lowerName.includes('marketing')) {
-        const match = resources.find(r =>
-          r.role.toLowerCase().includes('marketing') ||
-          r.role.toLowerCase().includes('brand')
-        );
-        owner = match?.role || '';
-      }
-      else if (lowerContent.includes('partnership') || lowerContent.includes('corporate') ||
-               lowerContent.includes('sponsor') || lowerName.includes('partnership')) {
-        const match = resources.find(r =>
-          r.role.toLowerCase().includes('partnership') ||
-          r.role.toLowerCase().includes('business development')
-        );
-        owner = match?.role || '';
-      }
-      else if (lowerContent.includes('digital') || lowerContent.includes('technology') ||
-               lowerContent.includes('integration') || lowerName.includes('digital')) {
-        const match = resources.find(r =>
-          r.role.toLowerCase().includes('technology') ||
-          r.role.toLowerCase().includes('digital') ||
-          r.role.toLowerCase().includes('tech')
-        );
-        owner = match?.role || '';
-      }
-      else if (lowerContent.includes('product') || lowerContent.includes('merchandise') ||
-               lowerContent.includes('inventory') || lowerName.includes('product')) {
-        const match = resources.find(r =>
-          r.role.toLowerCase().includes('merchandis') ||
-          r.role.toLowerCase().includes('product') ||
-          r.role.toLowerCase().includes('inventory')
-        );
-        owner = match?.role || '';
-      }
-      else if (lowerContent.includes('store') || lowerContent.includes('operations') ||
-               lowerContent.includes('retail') || lowerName.includes('store')) {
-        const match = resources.find(r =>
-          r.role.toLowerCase().includes('operations') ||
-          r.role.toLowerCase().includes('store')
-        );
-        owner = match?.role || '';
-      }
-      else if (lowerContent.includes('customer') || lowerContent.includes('experience') ||
-               lowerContent.includes('culture') || lowerName.includes('customer')) {
-        const match = resources.find(r =>
-          r.role.toLowerCase().includes('customer') ||
-          r.role.toLowerCase().includes('experience') ||
-          r.role.toLowerCase().includes('marketing')
-        );
-        owner = match?.role || '';
-      }
-      else if (lowerContent.includes('expansion') || lowerContent.includes('growth') ||
-               lowerContent.includes('market') || lowerName.includes('expansion')) {
-        const match = resources.find(r =>
-          r.role.toLowerCase().includes('partnership') ||
-          r.role.toLowerCase().includes('business') ||
-          r.role.toLowerCase().includes('development')
-        );
-        owner = match?.role || '';
+      // Content-based category override for better matching
+      if (lowerContent.includes('revenue') || lowerContent.includes('sales') || lowerName.includes('revenue')) {
+        effectiveCategory = 'Revenue';
+      } else if (lowerContent.includes('customer') || lowerContent.includes('experience') || lowerName.includes('customer')) {
+        effectiveCategory = 'Customer Experience';
+      } else if (lowerContent.includes('brand') || lowerContent.includes('marketing') || lowerName.includes('brand')) {
+        effectiveCategory = 'Brand';
       }
 
-      // Category-based fallback
-      if (!owner) {
-        if (categoryLower.includes('financial')) {
-          const match = resources.find(r =>
-            r.role.toLowerCase().includes('financial') ||
-            r.role.toLowerCase().includes('operations')
-          );
-          owner = match?.role || '';
-        }
-        else if (categoryLower.includes('operational')) {
-          const match = resources.find(r =>
-            r.role.toLowerCase().includes('operations') ||
-            r.role.toLowerCase().includes('store')
-          );
-          owner = match?.role || '';
-        }
-      }
+      // Use centralized owner finder
+      const owner = findBenefitOwner(effectiveCategory, availableRoles, usedOwners);
 
-      // Round-robin fallback: distribute evenly among resources
-      if (!owner) {
-        // Find resource with least assignments
-        const sortedByCount = [...resources].sort((a, b) =>
-          (ownerCounts[a.role] || 0) - (ownerCounts[b.role] || 0)
-        );
-        owner = sortedByCount[0]?.role || 'Program Director';
-      }
-
-      // Track assignment
-      ownerCounts[owner] = (ownerCounts[owner] || 0) + 1;
+      // Track usage for round-robin
+      usedOwners.set(owner, (usedOwners.get(owner) || 0) + 1);
 
       return {
         ...benefit,
@@ -742,7 +677,7 @@ export class RiskGenerator {
 
   /**
    * Assign owners to risks based on their category and content
-   * Improved for retail roles with round-robin fallback for even distribution
+   * Uses role-templates for context-aware owner assignment with round-robin fallback
    */
   assignRiskOwners(risks: Risk[], resources: ResourceAllocation[]): Risk[] {
     if (!resources || resources.length === 0) {
@@ -750,101 +685,33 @@ export class RiskGenerator {
       return risks.map(r => ({ ...r, owner: 'Risk Manager' }));
     }
 
-    // Track assigned owners to distribute evenly
-    const ownerCounts: Record<string, number> = {};
-    resources.forEach(r => ownerCounts[r.role] = 0);
+    const availableRoles = resources.map(r => r.role);
+    const usedOwners = new Map<string, number>();
 
-    return risks.map((risk, idx) => {
-      let owner = '';
-      const lowerContent = risk.description.toLowerCase();
-      const category = risk.category.toLowerCase();
+    // Initialize usage counts
+    availableRoles.forEach(role => usedOwners.set(role, 0));
 
-      // Content-based matching FIRST (more specific)
-      if (lowerContent.includes('cost') || lowerContent.includes('budget') || lowerContent.includes('financial')) {
-        const match = resources.find(r =>
-          r.role.toLowerCase().includes('financial') ||
-          r.role.toLowerCase().includes('operations')
-        );
-        owner = match?.role || '';
-      }
-      else if (lowerContent.includes('competition') || lowerContent.includes('competitive') || lowerContent.includes('online')) {
-        const match = resources.find(r =>
-          r.role.toLowerCase().includes('marketing') ||
-          r.role.toLowerCase().includes('partnership')
-        );
-        owner = match?.role || '';
-      }
-      else if (lowerContent.includes('inventory') || lowerContent.includes('supply') || lowerContent.includes('brand relationship')) {
-        const match = resources.find(r =>
-          r.role.toLowerCase().includes('merchandis') ||
-          r.role.toLowerCase().includes('partnership') ||
-          r.role.toLowerCase().includes('operations')
-        );
-        owner = match?.role || '';
-      }
-      else if (lowerContent.includes('market') || lowerContent.includes('understanding') || lowerContent.includes('consumer')) {
-        const match = resources.find(r =>
-          r.role.toLowerCase().includes('marketing') ||
-          r.role.toLowerCase().includes('merchandis')
-        );
-        owner = match?.role || '';
-      }
-      else if (lowerContent.includes('location') || lowerContent.includes('store') || lowerContent.includes('retail')) {
-        const match = resources.find(r =>
-          r.role.toLowerCase().includes('store') ||
-          r.role.toLowerCase().includes('operations') ||
-          r.role.toLowerCase().includes('design')
-        );
-        owner = match?.role || '';
-      }
-      else if (lowerContent.includes('economic') || lowerContent.includes('currency') || lowerContent.includes('sensitivity')) {
-        const match = resources.find(r =>
-          r.role.toLowerCase().includes('partnership') ||
-          r.role.toLowerCase().includes('operations')
-        );
-        owner = match?.role || '';
-      }
-      else if (lowerContent.includes('technology') || lowerContent.includes('digital') || lowerContent.includes('system')) {
-        const match = resources.find(r =>
-          r.role.toLowerCase().includes('technology') ||
-          r.role.toLowerCase().includes('tech')
-        );
-        owner = match?.role || '';
-      }
+    return risks.map((risk) => {
+      // Map risk category string to RiskCategory type
+      const categoryMap: Record<string, RiskCategory> = {
+        'technical': 'operational',
+        'market': 'strategic',
+        'resource': 'operational',
+        'regulatory': 'compliance',
+        'financial': 'financial',
+        'operational': 'operational',
+        'strategic': 'strategic',
+        'reputational': 'reputational',
+        'execution': 'execution',
+      };
 
-      // Category-based fallback
-      if (!owner) {
-        if (category === 'technical') {
-          const match = resources.find(r =>
-            r.role.toLowerCase().includes('technology') ||
-            r.role.toLowerCase().includes('tech')
-          );
-          owner = match?.role || '';
-        }
-        else if (category === 'market') {
-          const match = resources.find(r =>
-            r.role.toLowerCase().includes('marketing')
-          );
-          owner = match?.role || '';
-        }
-        else if (category === 'operational') {
-          const match = resources.find(r =>
-            r.role.toLowerCase().includes('operations')
-          );
-          owner = match?.role || '';
-        }
-      }
+      const riskCategory: RiskCategory = categoryMap[risk.category.toLowerCase()] || 'operational';
 
-      // Round-robin fallback: distribute evenly among resources
-      if (!owner) {
-        const sortedByCount = [...resources].sort((a, b) =>
-          (ownerCounts[a.role] || 0) - (ownerCounts[b.role] || 0)
-        );
-        owner = sortedByCount[0]?.role || 'Risk Manager';
-      }
+      // Use centralized owner finder
+      const owner = findRiskOwner(riskCategory, availableRoles, usedOwners);
 
-      // Track assignment
-      ownerCounts[owner] = (ownerCounts[owner] || 0) + 1;
+      // Track usage for round-robin
+      usedOwners.set(owner, (usedOwners.get(owner) || 0) + 1);
 
       return {
         ...risk,

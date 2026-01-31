@@ -6,7 +6,7 @@
  * (e.g., 166 months for a coffee shop)
  */
 
-import type { StrategyInsights } from '../types';
+import type { StrategyInsights, StrategyContext, BusinessCategory, JourneyType } from '../types';
 import type { PlanningContext, BusinessScale } from '../../../src/lib/intelligent-planning/types';
 
 export class ContextBuilder {
@@ -388,8 +388,144 @@ export class ContextBuilder {
       'ecommerce': 'E-Commerce',
       'general_business': 'General Business',
     };
-    
+
     return industryMap[businessType] || 'General Business';
+  }
+
+  /**
+   * Create a StrategyContext from PlanningContext
+   * Architecture Spec Section 5.2
+   *
+   * This is the context object that flows through ALL downstream EPM components.
+   */
+  static toStrategyContext(
+    planningContext: PlanningContext,
+    sessionId: string,
+    journeyType: JourneyType = 'strategy_workspace'
+  ): StrategyContext {
+    const businessType = planningContext.business.type || 'general_business';
+
+    // Map business type string to BusinessCategory
+    const categoryMap: Record<string, BusinessCategory> = {
+      'retail_specialty': 'retail_specialty',
+      'retail_electronics': 'retail_electronics',
+      'retail_home_goods': 'retail_home_goods',
+      'retail_general': 'retail_general',
+      'retail_food_service': 'food_beverage',
+      'saas_platform': 'saas_platform',
+      'professional_services': 'professional_services',
+      'manufacturing': 'manufacturing',
+      'ecommerce': 'ecommerce',
+      'general_business': 'generic',
+    };
+
+    const category: BusinessCategory = categoryMap[businessType] || 'generic';
+
+    // Infer subcategory from business name and description
+    const subcategory = this.inferSubcategoryFromText(
+      `${planningContext.business.name} ${planningContext.business.description || ''}`
+    );
+
+    // Extract keywords from business description
+    const keywords = this.extractKeywords(
+      planningContext.business.name,
+      planningContext.business.description
+    );
+
+    return {
+      sessionId,
+      journeyType,
+      createdAt: new Date().toISOString(),
+
+      businessType: {
+        name: planningContext.business.name,
+        category,
+        subcategory,
+      },
+
+      industry: {
+        name: planningContext.business.industry || this.inferIndustryFromType(businessType),
+        keywords,
+      },
+
+      region: {
+        country: 'Unknown', // Would need to be extracted from input
+        city: undefined,
+      },
+
+      originalInput: planningContext.business.description || planningContext.business.name,
+
+      strategicSummary: {
+        primaryObjective: planningContext.strategic?.objectives?.[0],
+        keyConstraints: planningContext.strategic?.constraints,
+      },
+    };
+  }
+
+  /**
+   * Infer subcategory from business description text
+   */
+  private static inferSubcategoryFromText(text: string): string | undefined {
+    const lower = text.toLowerCase();
+
+    // Retail specialty subcategories
+    if (lower.match(/basketball|sneaker|footwear|athletic|shoe/)) {
+      return 'athletic_footwear';
+    }
+    if (lower.match(/fashion|apparel|clothing|boutique/)) {
+      return 'fashion_apparel';
+    }
+    if (lower.match(/electronics|gadget|phone|computer/)) {
+      return 'electronics';
+    }
+
+    // Food & beverage subcategories
+    if (lower.match(/cafe|coffee|espresso/)) {
+      return 'cafe_coffee_shop';
+    }
+    if (lower.match(/restaurant|dining|cuisine/)) {
+      return 'restaurant';
+    }
+    if (lower.match(/catering|corporate.*food|event.*food/)) {
+      return 'catering';
+    }
+
+    // Professional services subcategories
+    if (lower.match(/consulting|consultancy|advisory/)) {
+      return 'consulting';
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Extract industry keywords from business name and description
+   */
+  private static extractKeywords(name: string, description?: string): string[] {
+    const text = `${name} ${description || ''}`.toLowerCase();
+    const keywords: string[] = [];
+
+    // Industry-specific keyword patterns
+    const patterns: Record<string, RegExp> = {
+      basketball: /basketball/,
+      sneaker: /sneaker/,
+      athletic: /athletic/,
+      footwear: /footwear|shoe/,
+      retail: /retail|store|shop/,
+      cafe: /cafe|coffee/,
+      restaurant: /restaurant|dining/,
+      technology: /tech|software|saas/,
+      fashion: /fashion|apparel|clothing/,
+      premium: /premium|luxury|high.end/,
+    };
+
+    for (const [keyword, pattern] of Object.entries(patterns)) {
+      if (pattern.test(text)) {
+        keywords.push(keyword);
+      }
+    }
+
+    return keywords.length > 0 ? keywords : ['business'];
   }
 }
 

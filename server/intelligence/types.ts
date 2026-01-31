@@ -560,3 +560,90 @@ export interface UserContext {
   organizationalContext?: string;
   sessionId?: string;  // Added for initiative type lookup
 }
+
+// ============================================================================
+// Strategy Context (Architecture Spec Section 5.2)
+// Passed from journey start through ALL downstream components
+// ============================================================================
+
+export type BusinessCategory =
+  | 'food_beverage'
+  | 'retail_specialty'
+  | 'retail_general'
+  | 'retail_electronics'
+  | 'retail_home_goods'
+  | 'professional_services'
+  | 'saas_platform'
+  | 'manufacturing'
+  | 'ecommerce'
+  | 'generic';
+
+export type JourneyType =
+  | 'market_entry'
+  | 'business_model_innovation'
+  | 'competitive_strategy'
+  | 'growth_acceleration'
+  | 'digital_transformation'
+  | 'strategic_positioning'
+  | 'strategy_workspace';
+
+export interface StrategyContext {
+  // Identity (immutable after creation)
+  sessionId: string;
+  journeyType: JourneyType;
+  createdAt: string;
+
+  // Business Definition (from Ambiguity Resolver / Context Builder)
+  businessType: {
+    name: string;                    // "Premium Basketball Sneaker Store"
+    category: BusinessCategory;      // "retail_specialty"
+    subcategory?: string;            // "athletic_footwear"
+  };
+
+  industry: {
+    code?: string;                   // Optional NAICS/SIC code
+    name: string;                    // "Athletic Footwear Retail"
+    keywords: string[];              // ["basketball", "sneakers", "athletic", "footwear"]
+  };
+
+  region: {
+    country: string;                 // "UAE"
+    city?: string;                   // "Dubai"
+    district?: string;               // "Mall of the Emirates"
+    regulations?: string[];          // ["UAE commercial license", "Dubai free zone"]
+  };
+
+  // Original Input (for reference)
+  originalInput: string;             // "Premium Basketball Sneaker Store in Dubai..."
+
+  // Strategic Summary (populated by frameworks)
+  strategicSummary?: {
+    vision?: string;
+    primaryObjective?: string;
+    keyConstraints?: string[];
+  };
+}
+
+// ============================================================================
+// Role Template (Architecture Spec Section 16.3)
+// ============================================================================
+
+export interface RoleTemplate {
+  role: string;
+  fte: number;                       // 0.1 to 1.0
+  skills: string[];
+  responsibilities?: string[];
+  source?: 'internal_team' | 'new_hire' | 'contractor' | 'vendor';
+}
+
+// ============================================================================
+// Risk Category (Architecture Spec Section 17.2)
+// ============================================================================
+
+export type RiskCategory =
+  | 'strategic'
+  | 'operational'
+  | 'financial'
+  | 'compliance'
+  | 'reputational'
+  | 'execution';
