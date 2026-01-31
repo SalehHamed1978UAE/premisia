@@ -202,28 +202,43 @@ export class AssignmentGenerator {
     programContext: { name: string; description: string }
   ): Promise<ResourceMatchResult[]> {
     try {
-      const prompt = `You are assigning team members to project tasks for: "${programContext.name}"
-${programContext.description ? `Context: ${programContext.description}` : ''}
+      // Calculate target assignments per resource for balanced distribution
+      const targetPerResource = Math.ceil(tasks.length / resources.length);
 
-TASKS TO ASSIGN:
-${tasks.map(t => `- ${t.taskId}: "${t.taskName}" (Workstream: ${t.workstreamName})`).join('\n')}
+      const prompt = `You are a project staffing expert assigning team members to tasks.
 
-AVAILABLE RESOURCES:
-${resources.map(r => `- ${r.id}: ${r.role}${r.skills?.length ? ` (Skills: ${r.skills.join(', ')})` : ''}`).join('\n')}
+PROJECT: "${programContext.name}"
+${programContext.description ? `CONTEXT: ${programContext.description}` : ''}
 
-For each task, select the BEST matching resource based on:
-1. Role relevance to the task
-2. Skills alignment
-3. Workstream context
+AVAILABLE TEAM (${resources.length} people):
+${resources.map(r => `• ${r.id}: ${r.role}${r.skills?.length ? ` — Skills: ${r.skills.join(', ')}` : ''}`).join('\n')}
 
-Return a JSON array of matches. Distribute work across resources - don't assign everything to one person.
+TASKS TO ASSIGN (${tasks.length} total):
+${tasks.map(t => `• ${t.taskId}: "${t.taskName}" [${t.workstreamName}]`).join('\n')}
 
-Return ONLY this JSON format (no markdown):
+ASSIGNMENT RULES:
+1. Match by EXPERTISE: Assign tasks to the person whose role/skills best fit the work
+   - "Menu Development" → Chef/Culinary role
+   - "Marketing Campaign" → Marketing role
+   - "POS System Setup" → IT/Technology role
+   - "Staff Training" → HR/Operations role
+   - "Compliance/Licensing" → Compliance/Legal role
+   - "Financial Planning" → Finance role
+
+2. DISTRIBUTE EVENLY: Each person should get ~${targetPerResource} tasks. Don't overload one person.
+
+3. When in doubt, consider:
+   - Who would naturally own this work based on their job title?
+   - What department would handle this in a real organization?
+
+Return ONLY valid JSON (no markdown, no explanation):
 {
   "matches": [
-    {"taskId": "WS1-D1", "resourceId": "INT-001", "confidence": 0.9, "reasoning": "Role matches task requirements"}
+    {"taskId": "WS001-D1", "resourceId": "INT-001", "confidence": 0.9, "reasoning": "Brief reason"}
   ]
-}`;
+}
+
+IMPORTANT: Return a match for EVERY task. Use exact taskId and resourceId values from above.`;
 
       const response = await this.llm.generateStructuredResponse(prompt, { matches: [] });
 

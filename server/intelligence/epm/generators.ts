@@ -203,7 +203,7 @@ export class BenefitsGenerator {
         id: `B${String(benefits.length + 1).padStart(3, '0')}`,
         name: `Leverage: ${analysis.name}`,
         category: 'Strategic',
-        description: `Capitalize on existing strength: ${insight.content}`,
+        description: `Use ${analysis.name.toLowerCase()} as a competitive differentiator to accelerate market penetration and customer acquisition`,
         target: analysis.target,
         realizationMonth: timeline.totalMonths - 1,
         estimatedValue: undefined,
@@ -446,8 +446,22 @@ export class BenefitsGenerator {
   }
 
   private generateRichDescription(content: string, analysis: { name: string; category: string }): string {
-    // Enhance the description with actionable context
-    return `${content}. This ${analysis.category.toLowerCase()} benefit will be realized through focused execution and tracked via defined KPIs.`;
+    // Use the original content directly - it already contains the meaningful description
+    // Don't add boilerplate - the metrics and targets provide the actionable context
+    const cleaned = content.trim();
+
+    // If content is short, it's likely just a title - expand it based on analysis
+    if (cleaned.length < 50) {
+      const expansions: Record<string, string> = {
+        'Financial': `Capitalize on ${cleaned.toLowerCase()} to drive revenue growth and improve financial performance through targeted initiatives`,
+        'Strategic': `Leverage ${cleaned.toLowerCase()} to strengthen market position and create sustainable competitive advantage`,
+        'Operational': `Optimize ${cleaned.toLowerCase()} to enhance operational efficiency and reduce costs`,
+        'Customer Experience': `Enhance ${cleaned.toLowerCase()} to improve customer satisfaction and loyalty`,
+      };
+      return expansions[analysis.category] || `Realize value from ${cleaned.toLowerCase()} through focused strategic execution`;
+    }
+
+    return cleaned;
   }
 
   private calculateRealizationMonth(idx: number, timeline: Timeline, priority: 'high' | 'medium' | 'low'): number {
