@@ -8,7 +8,6 @@ import { Loader2, ArrowLeft, ArrowRight, AlertCircle, RefreshCw, CheckCircle2 } 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { SWOTResults } from "@/components/strategic-consultant/SWOTResults";
-import { apiRequest } from "@/lib/queryClient";
 
 interface SWOTFactor {
   factor: string;
@@ -77,17 +76,60 @@ export default function SWOTResultsPage() {
   // Execute SWOT analysis mutation
   const executeSWOT = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest(
-        'POST',
-        `/api/strategic-consultant/frameworks/swot/execute/${sessionId}`
-      );
-      return response as SWOTExecuteResponse;
+      const res = await fetch(`/api/strategic-consultant/frameworks/swot/execute/${sessionId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `SWOT analysis failed (${res.status})`);
+      }
+      
+      return res.json();
     },
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       console.log('[SWOTResultsPage] SWOT execution successful:', data);
-      // Extract SWOT data from response - handle different shapes
-      const output = data.data?.output || data.data;
-      setSwotData(output);
+      
+      // Normalize SWOT response - handle multiple possible response shapes from the API
+      // The API may nest data differently: data.data.data.swotResults, data.data.output, or direct props
+      let swotResults = null;
+      
+      // Check for deeply nested structure: data.data.data.swotResults or data.data.data.output
+      if (data.data?.data?.swotResults) {
+        swotResults = data.data.data.swotResults;
+      } else if (data.data?.data?.output) {
+        swotResults = data.data.data.output;
+      }
+      // Check for semi-nested structure: data.data.swotResults or data.data.output
+      else if (data.data?.swotResults) {
+        swotResults = data.data.swotResults;
+      } else if (data.data?.output) {
+        swotResults = data.data.output;
+      }
+      // Check for direct swotResults or output: data.swotResults/data.output
+      else if (data.swotResults) {
+        swotResults = data.swotResults;
+      } else if (data.output) {
+        swotResults = data.output;
+      }
+      // Check if data.data.data contains direct SWOT properties (strengths array)
+      else if (data.data?.data?.strengths) {
+        swotResults = data.data.data;
+      }
+      // Fallback: try data.data if it has direct SWOT properties
+      else if (data.data?.strengths) {
+        swotResults = data.data;
+      }
+      // Last resort: use whatever data we have
+      else {
+        swotResults = data.data?.data || data.data || data;
+      }
+      
+      console.log('[SWOTResultsPage] Extracted swotResults:', swotResults);
+      
+      setSwotData(swotResults);
       setHasExecuted(true);
       toast({
         title: "SWOT Analysis Complete",
@@ -108,12 +150,28 @@ export default function SWOTResultsPage() {
   useEffect(() => {
     if (isLoadingExisting) return;
 
-    // If we have existing data, use it
-    if (existingData?.data) {
-      const output = existingData.data?.output || existingData.data;
-      setSwotData(output);
-      setHasExecuted(true);
-      return;
+    // If we have existing data, use it - apply same robust extraction
+    if (existingData) {
+      let swotResults = null;
+      if (existingData.data?.data?.swotResults) {
+        swotResults = existingData.data.data.swotResults;
+      } else if (existingData.data?.data?.output) {
+        swotResults = existingData.data.data.output;
+      } else if (existingData.data?.swotResults) {
+        swotResults = existingData.data.swotResults;
+      } else if (existingData.data?.output) {
+        swotResults = existingData.data.output;
+      } else if (existingData.data?.strengths) {
+        swotResults = existingData.data;
+      } else if (existingData.strengths) {
+        swotResults = existingData;
+      }
+      
+      if (swotResults) {
+        setSwotData(swotResults);
+        setHasExecuted(true);
+        return;
+      }
     }
 
     // No existing data and haven't executed yet - execute SWOT

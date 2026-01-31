@@ -1,0 +1,61 @@
+Here’s the reconciled, repo‑truth plan, updated for the three artifacts. I’ve
+  folded in the real repo state, the earlier brain dump, and the Replit dump,
+  and corrected the mismatches.
+
+  Updated Plan (Aligned to Repo State)
+
+  Phase 0 — Fix the real blockers (today)
+
+  1. PESTLE results extraction fix (repo missing)
+      - File: client/src/pages/strategic-consultant/PESTLEResultsPage.tsx
+      - Add robust extraction for:
+          - data.data.data.pestleResults
+          - data.data.pestleResults
+          - direct factor props fallback
+      - This brings the repo in line with the Replit brain dump.
+  2. Porter’s executor must use PESTLE bridge data
+      - File: server/journey/executors/porters-executor.ts
+      - Inject context.pestleToPortersBridge and/or
+        context.insights?.trendFactors into the prompt.
+      - This fixes the “Market Entry fully working” claim.
+
+  Phase 1 — Stabilize Market Entry + BMI through module factory
+  3) Add Market Entry YAML
+
+  - Create server/modules/journeys/market-entry.yaml
+  - Use module IDs that exist in server/modules/manifests/*
+
+  4. Map module IDs to framework names
+      - Update server/journey/journey-registry.ts mapping so config journeys
+        resolve to framework sequences.
+  5. Standardize context output
+      - Update server/journey/strategic-context-accumulator.ts to map executor
+        shapes into context.insights.<module> consistently (Porter’s, PESTLE,
+        SWOT, BMC).
+      - This removes ad‑hoc storage and makes bridge usage reliable.
+
+  Phase 2 — Bridge completeness
+  6) Register SWOT → Strategic Decisions bridge
+
+  - Add registerBridge('swot', 'strategic_decisions') to server/journey/startup-
+    validator.ts.
+
+  7. Implement SWOT → Decisions bridge
+      - Create server/journey/bridges/swot-to-decisions-bridge.ts.
+      - Wire it into server/journey/journey-orchestrator.ts before the decisions
+        step.
+
+  Phase 3 — Decision → EPM stability
+  8) Verify program ID persistence
+
+  - Trace strategyVersions.convertedProgramId flow in server/routes/strategic-
+    consultant-legacy.ts and the Decision/EPM pages.
+  - Fix any null/undefined ID routing (likely in DecisionPage → EPMPage
+    navigation).
+
+  Phase 4 — Regression & validation
+  9) Golden Records regression for BMI + Market Entry
+
+  - Use golden records framework (server/utils/golden-records-service.ts) and
+    add tests under tests/.
+

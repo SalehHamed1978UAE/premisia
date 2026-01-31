@@ -8,7 +8,6 @@ import { Loader2, ArrowLeft, ArrowRight, AlertCircle, RefreshCw, Building2 } fro
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { PortersResults } from "@/components/strategic-consultant/PortersResults";
-import { apiRequest } from "@/lib/queryClient";
 
 interface PortersData {
   threatOfNewEntrants: { score: number; analysis: string; barriers: string[]; risks: string[] };
@@ -38,18 +37,65 @@ export default function PortersResultsPage() {
   // Mutation to execute Porter's Five Forces analysis
   const executeMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest<ExecuteResponse>(
-        "POST",
-        `/api/strategic-consultant/frameworks/porters/execute/${sessionId}`
-      );
-      return response;
+      const res = await fetch(`/api/strategic-consultant/frameworks/porters/execute/${sessionId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Porter's analysis failed (${res.status})`);
+      }
+      
+      return res.json();
     },
-    onSuccess: (data) => {
-      if (data.portersResults) {
-        setPortersData(data.portersResults);
+    onSuccess: (data: any) => {
+      console.log('[PortersResultsPage] Porter\'s analysis complete:', data);
+      
+      // Normalize Porter's response - handle multiple possible response shapes from the API
+      // The API may nest data differently: data.data.data.portersResults, data.data.portersResults, or direct props
+      let portersResults = null;
+      
+      // Check for deeply nested structure: data.data.data.portersResults
+      if (data.data?.data?.portersResults) {
+        portersResults = data.data.data.portersResults;
+      }
+      // Check for semi-nested structure: data.data.portersResults
+      else if (data.data?.portersResults) {
+        portersResults = data.data.portersResults;
+      }
+      // Check for direct portersResults: data.portersResults
+      else if (data.portersResults) {
+        portersResults = data.portersResults;
+      }
+      // Check if data.data.data contains direct force properties
+      else if (data.data?.data?.threatOfNewEntrants) {
+        portersResults = data.data.data;
+      }
+      // Fallback: try data.data if it has direct force properties
+      else if (data.data?.threatOfNewEntrants) {
+        portersResults = data.data;
+      }
+      // Last resort: use whatever data we have
+      else {
+        portersResults = data.data?.data || data.data || data;
+      }
+      
+      console.log('[PortersResultsPage] Extracted portersResults:', portersResults);
+      
+      if (portersResults && portersResults.threatOfNewEntrants) {
+        setPortersData(portersResults);
         toast({
           title: "Analysis Complete",
           description: "Porter's Five Forces analysis has been completed successfully.",
+        });
+      } else {
+        console.error('[PortersResultsPage] No valid Porter\'s data found in response');
+        toast({
+          title: "Data Error",
+          description: "Analysis completed but results format was unexpected.",
+          variant: "destructive",
         });
       }
     },
