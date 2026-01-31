@@ -193,16 +193,17 @@ export class AssignmentGenerator {
     const workstreamOwner = (workstream.owner || '').toLowerCase();
     const deliverableName = this.extractDeliverableName(deliverable, 0).toLowerCase();
 
-    // Role keyword matching - extended for retail context
+    // Role keyword matching - extended for various contexts including food service
     const roleKeywordMap: Record<string, string[]> = {
-      'marketing': ['marketing', 'brand', 'campaign', 'acquisition', 'awareness', 'launch', 'social'],
-      'operations': ['operations', 'operational', 'process', 'store', 'retail', 'framework', 'daily'],
-      'technology': ['technology', 'tech', 'digital', 'system', 'software', 'infrastructure', 'pos', 'crm'],
-      'design': ['design', 'storefront', 'construction', 'layout', 'visual', 'merchandis'],
-      'merchandis': ['product', 'inventory', 'merchandise', 'stock', 'catalog', 'supplier', 'vendor'],
+      'marketing': ['marketing', 'brand', 'campaign', 'acquisition', 'awareness', 'launch', 'social', 'influencer'],
+      'operations': ['operations', 'operational', 'process', 'store', 'retail', 'framework', 'daily', 'restaurant'],
+      'technology': ['technology', 'tech', 'digital', 'system', 'software', 'infrastructure', 'pos', 'crm', 'integration'],
+      'design': ['design', 'storefront', 'construction', 'layout', 'visual', 'fit-out', 'interior'],
+      'chef': ['menu', 'cuisine', 'food', 'kitchen', 'recipe', 'culinary', 'chef'],
+      'compliance': ['compliance', 'regulatory', 'legal', 'license', 'permit', 'safety', 'haccp'],
+      'supply': ['supply', 'vendor', 'procurement', 'inventory', 'supplier', 'logistics'],
       'talent': ['talent', 'hr', 'hiring', 'training', 'onboarding', 'staff', 'recruitment', 'team'],
-      'partnership': ['partnership', 'compliance', 'regulatory', 'legal', 'license', 'sponsor', 'corporate'],
-      'customer': ['customer', 'experience', 'service', 'satisfaction', 'loyalty'],
+      'customer': ['customer', 'experience', 'service', 'satisfaction', 'loyalty', 'feedback'],
       'financial': ['financial', 'budget', 'cost', 'investment', 'revenue', 'pricing'],
     };
 
@@ -260,12 +261,9 @@ export class AssignmentGenerator {
     const totalAvailableHours = durationMonths * 160 * (resource.fte || resource.allocation || 1);
     const baseAllocation = Math.round((estimatedHours / totalAvailableHours) * 100);
 
-    // Adjust for existing workload - don't exceed 100%
-    const existingWorkload = currentWorkload[resource.id!] || 0;
-    const remainingCapacity = 100 - existingWorkload;
-
-    // Clamp to reasonable range (10-80% per deliverable)
-    const adjustedAllocation = Math.min(Math.max(baseAllocation, 10), Math.min(80, remainingCapacity));
+    // Note: Resources can be overallocated (>100% workload) in reality
+    // Just ensure each task gets a reasonable allocation (10-80%)
+    const adjustedAllocation = Math.min(Math.max(baseAllocation, 10), 80);
 
     return adjustedAllocation;
   }
