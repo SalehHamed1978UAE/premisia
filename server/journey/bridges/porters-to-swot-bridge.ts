@@ -11,6 +11,7 @@
  */
 
 import type { StrategicContext } from '@shared/journey-types';
+import { normalizePortersOutput, normalizePESTLEOutput } from './output-normalizer';
 
 /**
  * Derived O/T item for SWOT
@@ -91,14 +92,18 @@ function getForceLevel(force: any): string {
  * Transform Porter's output into SWOT context
  */
 function transformPortersToSWOT(
-  portersOutput: any,
-  pestleOutput: any | undefined
+  rawPortersOutput: any,
+  rawPestleOutput: any | undefined
 ): PortersToSWOTEnhancement {
+  // Normalize outputs to handle various wrapper shapes
+  const portersOutput = normalizePortersOutput(rawPortersOutput);
+  const pestleOutput = rawPestleOutput ? normalizePESTLEOutput(rawPestleOutput) : undefined;
+
   const opportunities: DerivedItem[] = [];
   const threats: DerivedItem[] = [];
   const porterForcesUsed: string[] = [];
   const pestleFactorsUsed: string[] = [];
-  
+
   const forces = portersOutput?.forces || portersOutput?.portersResults;
   
   if (forces) {

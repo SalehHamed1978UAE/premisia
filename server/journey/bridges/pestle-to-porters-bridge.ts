@@ -12,6 +12,7 @@
  */
 
 import type { StrategicContext } from '@shared/journey-types';
+import { normalizePESTLEOutput } from './output-normalizer';
 
 /**
  * Enhanced context for Porter's analysis based on PESTLE findings
@@ -61,7 +62,10 @@ export interface PESTLEToPortersEnhancement {
 /**
  * Transform PESTLE output into Porter's context
  */
-function transformPESTLEToPorters(pestleOutput: any): PESTLEToPortersEnhancement {
+function transformPESTLEToPorters(rawPestleOutput: any): PESTLEToPortersEnhancement {
+  // Normalize output to handle various wrapper shapes
+  const pestleOutput = normalizePESTLEOutput(rawPestleOutput);
+
   const result: PESTLEToPortersEnhancement = {
     regulatoryBarriers: [],
     buyerPowerIndicators: [],
@@ -71,9 +75,9 @@ function transformPESTLEToPorters(pestleOutput: any): PESTLEToPortersEnhancement
     pestleScope: pestleOutput?.scope || '',
     pestleConfidence: pestleOutput?.confidenceLevel || 'medium',
   };
-  
+
   if (!pestleOutput?.factors) return result;
-  
+
   const factors = pestleOutput.factors;
   
   // Legal factors → Entry barriers
