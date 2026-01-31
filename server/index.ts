@@ -200,11 +200,7 @@ server.on('error', (error: any) => {
 
 // START LISTENING IMMEDIATELY - This makes health checks pass right away
 // All async initialization happens in background after server is listening
-server.listen({
-  port,
-  host: "0.0.0.0",
-  reusePort: true,
-}, () => {
+server.listen(port, process.env.HOST || "0.0.0.0", () => {
   log(`serving on port ${port}`);
   log('Server ready for health checks');
     

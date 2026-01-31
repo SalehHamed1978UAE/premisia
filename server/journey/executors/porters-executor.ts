@@ -2,6 +2,7 @@ import type { FrameworkExecutor } from '../framework-executor-registry';
 import type { StrategicContext } from '@shared/journey-types';
 import { PortersAnalyzer } from '../../intelligence/porters-analyzer';
 import { aiClients } from '../../ai-clients';
+import { extractJsonFromMarkdown } from '../../utils/json-parser';
 
 /**
  * Porter's Five Forces Framework Executor
@@ -85,7 +86,12 @@ Return as JSON:
         maxTokens: 4000,
       });
 
-      const portersResults = JSON.parse(response.content);
+      const parseResult = extractJsonFromMarkdown(response.content);
+      if (!parseResult.success) {
+        console.error('[Porters Executor] Failed to parse AI response:', parseResult.error);
+        throw new Error(`Failed to parse Porter's analysis: ${parseResult.error}`);
+      }
+      const portersResults = parseResult.data;
 
       console.log('[Porters Executor] Porter\'s analysis generated');
       console.log(`  Threat of New Entrants: ${portersResults.threatOfNewEntrants?.score}/10`);

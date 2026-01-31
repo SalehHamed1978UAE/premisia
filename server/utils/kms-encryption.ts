@@ -5,6 +5,36 @@ const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
 const KEY_LENGTH = 32;
 
+/**
+ * Check if we should skip KMS encryption (dev mode)
+ * In development, we use a simple base64 encoding instead of KMS
+ * to avoid requiring AWS credentials for local testing
+ */
+function isDevMode(): boolean {
+  return process.env.NODE_ENV === 'development' && 
+         process.env.SKIP_ENCRYPTION !== 'false' &&
+         (!process.env.AWS_ACCESS_KEY_ID || !process.env.PREMISIA_KMS_KEY_ID);
+}
+
+// Simple dev mode "encryption" - just base64 encode with a prefix
+const DEV_PREFIX = 'DEV_UNENCRYPTED:';
+
+function devModeEncode(data: string): string {
+  return DEV_PREFIX + Buffer.from(data, 'utf-8').toString('base64');
+}
+
+function devModeDecode(encoded: string): string {
+  if (!encoded.startsWith(DEV_PREFIX)) {
+    // Not dev-encoded, return as-is (might be plain text or already decrypted)
+    return encoded;
+  }
+  return Buffer.from(encoded.slice(DEV_PREFIX.length), 'base64').toString('utf-8');
+}
+
+function isDevEncoded(data: string): boolean {
+  return data.startsWith(DEV_PREFIX);
+}
+
 export interface EncryptedPayload {
   dataKeyCiphertext: string;
   iv: string;
@@ -197,6 +227,12 @@ function isLegacyEncryptedFormat(data: string): boolean {
 export async function encryptKMS(text: string | null | undefined): Promise<string | null> {
   if (!text) return null;
   
+  // Dev mode bypass - use simple base64 encoding instead of KMS
+  if (isDevMode()) {
+    console.log('⚠️  [DEV MODE] Using unencrypted storage (no KMS)');
+    return devModeEncode(text);
+  }
+  
   let plaintextKey: Buffer | null = null;
   
   try {
@@ -220,6 +256,11 @@ export async function encryptKMS(text: string | null | undefined): Promise<strin
 
 export async function decryptKMS(encryptedData: string | object | null | undefined): Promise<string | null> {
   if (!encryptedData) return null;
+
+  // Dev mode bypass - handle base64 encoded data
+  if (typeof encryptedData === 'string' && isDevEncoded(encryptedData)) {
+    return devModeDecode(encryptedData);
+  }
 
   // Handle case where JSONB column returns the data as a JavaScript string (the encrypted JSON)
   // or as an already-parsed object

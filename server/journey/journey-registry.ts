@@ -56,12 +56,14 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
     frameworks: ['pestle', 'porters', 'swot'],
     pageSequence: [
       '/strategic-consultant/input',
-      '/strategic-consultant/research/:sessionId',
-      '/strategy-workspace/decisions/:sessionId/:versionNumber',
-      '/strategy-workspace/prioritization/:sessionId/:versionNumber',
+      '/strategic-consultant/pestle-results/:sessionId/:versionNumber',   // Step 1: PESTLE analysis
+      '/strategic-consultant/porters-results/:sessionId/:versionNumber',  // Step 2: Porter's Five Forces
+      '/strategic-consultant/swot-results/:sessionId/:versionNumber',     // Step 3: SWOT analysis
+      '/strategy-workspace/decisions/:sessionId/:versionNumber',          // Step 4: Strategic decisions
+      '/strategy-workspace/prioritization/:sessionId/:versionNumber',     // Step 5: Prioritization
     ],
     estimatedDuration: '15-20 minutes',
-    available: true, // FULLY IMPLEMENTED - PESTLE, Porter's, SWOT workflow
+    available: true, // FULLY IMPLEMENTED - Sequential PESTLE → Porter's → SWOT workflow
     summaryBuilder: 'pestlePorters',
     defaultReadiness: {
       minReferences: 0,

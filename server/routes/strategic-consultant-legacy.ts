@@ -612,7 +612,12 @@ router.post('/journeys/execute', async (req: Request, res: Response) => {
 
     // Return the first actual journey page (skip input page at index 0)
     const firstPage = (journey as any).pageSequence?.[1] || '/strategic-consultant/whys-tree/:understandingId';
-    const navigationUrl = firstPage.replace(':understandingId', understandingId).replace(':sessionId', understanding.sessionId);
+    console.log(`[JourneyExecute] journeyType=${journeyType}, pageSequence[1]=${firstPage}`);
+    const navigationUrl = firstPage
+      .replace(':understandingId', understandingId)
+      .replace(':sessionId', understanding.sessionId)
+      .replace(':versionNumber', String(versionNumber));
+    console.log(`[JourneyExecute] Final navigationUrl=${navigationUrl}`);
 
     res.json({
       success: true,
@@ -2441,7 +2446,8 @@ router.get('/market-entry-research/stream/:sessionId', async (req: Request, res:
     let decisions: any;
     try {
       // Extract SWOT data from framework result
-      const swotDataForDecisions = (swotResult as any)?.data || swotResult;
+      // SWOT executor returns { framework: 'swot', output: swotOutput, summary: {...} }
+      const swotDataForDecisions = (swotResult as any)?.output || (swotResult as any)?.data || swotResult;
       decisions = await generator.generateDecisionsFromSWOT(
         swotDataForDecisions,
         input
@@ -2565,6 +2571,10 @@ router.get('/market-entry-research/stream/:sessionId', async (req: Request, res:
     // Stop keepalive before ending stream
     if (keepaliveInterval) clearInterval(keepaliveInterval);
     
+    // For Market Entry journey, redirect to results review page (PESTLE → Porter's → SWOT)
+    // User reviews all analysis before proceeding to strategic decisions
+    const nextUrl = `/strategic-consultant/market-entry-results/${sessionId}/${finalVersionNumber}`;
+    
     res.write(`data: ${JSON.stringify({ 
       type: 'complete', 
       data: {
@@ -2573,7 +2583,7 @@ router.get('/market-entry-research/stream/:sessionId', async (req: Request, res:
         versionNumber: finalVersionNumber,
         sourcesAnalyzed: 3,
         timeElapsed: '~2 minutes',
-        nextUrl: `/strategy-workspace/decisions/${sessionId}/${finalVersionNumber}`,
+        nextUrl,
         // Include framework analysis results
         marketEntryAnalysis: {
           pestle: pestleResult,
@@ -2583,7 +2593,7 @@ router.get('/market-entry-research/stream/:sessionId', async (req: Request, res:
       }
     })}\n\n`);
     res.end();
-    console.log('[MARKET-ENTRY-RESEARCH] Stream ended successfully, nextUrl: /strategy-workspace/decisions/' + sessionId + '/' + finalVersionNumber);
+    console.log('[MARKET-ENTRY-RESEARCH] Stream ended successfully, nextUrl:', nextUrl);
   } catch (error: any) {
     if (keepaliveInterval) clearInterval(keepaliveInterval);
     console.error('Error in /market-entry-research/stream:', error);
@@ -3333,6 +3343,284 @@ router.get('/framework-insights/:sessionId', async (req: Request, res: Response)
   } catch (error: any) {
     console.error('[Framework Insights] Error fetching all insights:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch framework insights' });
+  }
+});
+
+// ============================================================================
+// INDIVIDUAL FRAMEWORK EXECUTION ENDPOINTS (Sequential Page Flow)
+// ============================================================================
+// These endpoints execute ONE framework at a time, storing results in strategy_versions.
+// Used by the sequential page flow: PESTLE page → Porter's page → SWOT page → Decisions
+
+/**
+ * Execute PESTLE analysis for a session
+ * POST /api/strategic-consultant/frameworks/pestle/execute/:sessionId
+ */
+router.post('/frameworks/pestle/execute/:sessionId', async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.params;
+    console.log('[PESTLE Execute] Starting for session:', sessionId);
+
+    // Get understanding data
+    const journeySession = await getJourneySession(sessionId);
+    let understanding;
+    
+    if (journeySession?.understandingId) {
+      understanding = await getStrategicUnderstanding(journeySession.understandingId);
+    } else {
+      understanding = await getStrategicUnderstandingBySession(sessionId);
+    }
+
+    if (!understanding?.userInput) {
+      return res.status(404).json({ error: 'Strategic understanding not found' });
+    }
+
+    // Import and execute PESTLE
+    const { frameworkRegistry } = await import('../journey/framework-executor-registry');
+    const strategicContext = {
+      userInput: understanding.userInput,
+      understandingId: understanding.id,
+      sessionId,
+      insights: {},
+    };
+
+    const pestleResult = await frameworkRegistry.execute('pestle', strategicContext);
+    console.log('[PESTLE Execute] ✓ Analysis complete');
+
+    // Get or create strategy version
+    const userId = (req.user as any)?.claims?.sub || 'system';
+    let versions = await storage.getStrategyVersionsBySession(sessionId);
+    let version;
+    const versionNumber = journeySession?.versionNumber || 1;
+
+    if (versions.length === 0) {
+      version = await storage.createStrategyVersion({
+        sessionId,
+        versionNumber,
+        status: 'draft',
+        analysisData: { pestle: pestleResult },
+        userId,
+        createdBy: userId,
+        inputSummary: understanding.userInput.slice(0, 200),
+      });
+    } else {
+      version = versions[versions.length - 1];
+      const existingData = (version.analysisData as any) || {};
+      await storage.updateStrategyVersion(version.id, {
+        analysisData: { ...existingData, pestle: pestleResult },
+      });
+    }
+
+    res.json({
+      success: true,
+      framework: 'pestle',
+      data: pestleResult,
+      versionNumber: version?.versionNumber || versionNumber,
+    });
+  } catch (error: any) {
+    console.error('[PESTLE Execute] Error:', error);
+    res.status(500).json({ error: error.message || 'PESTLE analysis failed' });
+  }
+});
+
+/**
+ * Execute Porter's Five Forces analysis for a session
+ * POST /api/strategic-consultant/frameworks/porters/execute/:sessionId
+ */
+router.post('/frameworks/porters/execute/:sessionId', async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.params;
+    console.log('[Porters Execute] Starting for session:', sessionId);
+
+    // Get understanding data
+    const journeySession = await getJourneySession(sessionId);
+    let understanding;
+    
+    if (journeySession?.understandingId) {
+      understanding = await getStrategicUnderstanding(journeySession.understandingId);
+    } else {
+      understanding = await getStrategicUnderstandingBySession(sessionId);
+    }
+
+    if (!understanding?.userInput) {
+      return res.status(404).json({ error: 'Strategic understanding not found' });
+    }
+
+    // Get existing analysis data (PESTLE should already be there)
+    const versions = await storage.getStrategyVersionsBySession(sessionId);
+    const existingData = versions.length > 0 ? (versions[versions.length - 1].analysisData as any) || {} : {};
+
+    // Import and execute Porter's
+    const { frameworkRegistry } = await import('../journey/framework-executor-registry');
+    const strategicContext = {
+      userInput: understanding.userInput,
+      understandingId: understanding.id,
+      sessionId,
+      insights: {},
+      previousResults: { pestle: existingData.pestle },
+    };
+
+    const portersResult = await frameworkRegistry.execute('porters', strategicContext);
+    console.log('[Porters Execute] ✓ Analysis complete');
+
+    // Update strategy version
+    const userId = (req.user as any)?.claims?.sub || 'system';
+    const versionNumber = journeySession?.versionNumber || 1;
+    let version;
+
+    if (versions.length === 0) {
+      version = await storage.createStrategyVersion({
+        sessionId,
+        versionNumber,
+        status: 'draft',
+        analysisData: { ...existingData, porters: portersResult },
+        userId,
+        createdBy: userId,
+        inputSummary: understanding.userInput.slice(0, 200),
+      });
+    } else {
+      version = versions[versions.length - 1];
+      await storage.updateStrategyVersion(version.id, {
+        analysisData: { ...existingData, porters: portersResult },
+      });
+    }
+
+    res.json({
+      success: true,
+      framework: 'porters',
+      data: portersResult,
+      versionNumber: version?.versionNumber || versionNumber,
+    });
+  } catch (error: any) {
+    console.error('[Porters Execute] Error:', error);
+    res.status(500).json({ error: error.message || 'Porter\'s analysis failed' });
+  }
+});
+
+/**
+ * Execute SWOT analysis for a session
+ * POST /api/strategic-consultant/frameworks/swot/execute/:sessionId
+ */
+router.post('/frameworks/swot/execute/:sessionId', async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.params;
+    console.log('[SWOT Execute] Starting for session:', sessionId);
+
+    // Get understanding data
+    const journeySession = await getJourneySession(sessionId);
+    let understanding;
+    
+    if (journeySession?.understandingId) {
+      understanding = await getStrategicUnderstanding(journeySession.understandingId);
+    } else {
+      understanding = await getStrategicUnderstandingBySession(sessionId);
+    }
+
+    if (!understanding?.userInput) {
+      return res.status(404).json({ error: 'Strategic understanding not found' });
+    }
+
+    // Get existing analysis data (PESTLE + Porter's should be there)
+    const versions = await storage.getStrategyVersionsBySession(sessionId);
+    const existingData = versions.length > 0 ? (versions[versions.length - 1].analysisData as any) || {} : {};
+
+    // Import and execute SWOT
+    const { frameworkRegistry } = await import('../journey/framework-executor-registry');
+    const strategicContext = {
+      userInput: understanding.userInput,
+      understandingId: understanding.id,
+      sessionId,
+      insights: existingData, // Pass previous results for context
+      previousResults: { 
+        pestle: existingData.pestle, 
+        porters: existingData.porters 
+      },
+    };
+
+    const swotResult = await frameworkRegistry.execute('swot', strategicContext);
+    console.log('[SWOT Execute] ✓ Analysis complete');
+
+    // Generate decisions from SWOT
+    const generator = new DecisionGenerator();
+    let decisions;
+    try {
+      // SWOT executor returns { framework: 'swot', output: swotOutput, summary: {...} }
+      const swotData = swotResult?.output || swotResult;
+      decisions = await generator.generateDecisionsFromSWOT(swotData, understanding.userInput);
+      console.log(`[SWOT Execute] Generated ${decisions?.decisions?.length || 0} decisions`);
+    } catch (decisionError: any) {
+      console.error('[SWOT Execute] Decision generation failed:', decisionError.message);
+      decisions = { decisions: [], decision_flow: {}, estimated_completion_time_minutes: 30 };
+    }
+
+    // Update strategy version
+    const userId = (req.user as any)?.claims?.sub || 'system';
+    const versionNumber = journeySession?.versionNumber || 1;
+    let version;
+
+    if (versions.length === 0) {
+      version = await storage.createStrategyVersion({
+        sessionId,
+        versionNumber,
+        status: 'draft',
+        analysisData: { ...existingData, swot: swotResult },
+        decisionsData: decisions,
+        userId,
+        createdBy: userId,
+        inputSummary: understanding.userInput.slice(0, 200),
+      });
+    } else {
+      version = versions[versions.length - 1];
+      await storage.updateStrategyVersion(version.id, {
+        analysisData: { ...existingData, swot: swotResult },
+        decisionsData: decisions,
+      });
+    }
+
+    res.json({
+      success: true,
+      framework: 'swot',
+      data: swotResult,
+      decisions,
+      versionNumber: version?.versionNumber || versionNumber,
+    });
+  } catch (error: any) {
+    console.error('[SWOT Execute] Error:', error);
+    res.status(500).json({ error: error.message || 'SWOT analysis failed' });
+  }
+});
+
+/**
+ * Get framework results for a session (for page refresh/back navigation)
+ * GET /api/strategic-consultant/frameworks/:framework/:sessionId
+ */
+router.get('/frameworks/:framework/:sessionId', async (req: Request, res: Response) => {
+  try {
+    const { framework, sessionId } = req.params;
+    console.log(`[Framework Get] Fetching ${framework} for session:`, sessionId);
+
+    const versions = await storage.getStrategyVersionsBySession(sessionId);
+    if (versions.length === 0) {
+      return res.status(404).json({ error: 'No analysis data found for this session' });
+    }
+
+    const version = versions[versions.length - 1];
+    const analysisData = (version.analysisData as any) || {};
+    const frameworkData = analysisData[framework];
+
+    if (!frameworkData) {
+      return res.status(404).json({ error: `${framework} analysis not found` });
+    }
+
+    res.json({
+      success: true,
+      framework,
+      data: frameworkData,
+      versionNumber: version.versionNumber,
+    });
+  } catch (error: any) {
+    console.error('[Framework Get] Error:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch framework data' });
   }
 });
 

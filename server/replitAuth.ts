@@ -238,11 +238,13 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
                               process.env.NODE_ENV === 'development';
     
     // SECURITY: Use actual socket address, NOT hostname headers (which can be spoofed)
-    // Only allow bypass from true loopback connections
+    // Only allow bypass from true loopback connections (or Docker bridge in dev)
     const remoteAddress = req.socket.remoteAddress || '';
     const isLoopback = remoteAddress === '127.0.0.1' || 
                        remoteAddress === '::1' ||
-                       remoteAddress === '::ffff:127.0.0.1';
+                       remoteAddress === '::ffff:127.0.0.1' ||
+                       remoteAddress.startsWith('172.') ||      // Docker bridge
+                       remoteAddress.startsWith('192.168.65.'); // Docker Desktop for Mac
     
     // Only bypass if BOTH conditions are met: explicit flag AND loopback connection
     const shouldBypass = isExplicitDevMode && isLoopback;

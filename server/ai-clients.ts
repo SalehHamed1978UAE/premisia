@@ -13,6 +13,10 @@ const ANTHROPIC_MODEL = "claude-sonnet-4-20250514";
 // The newest Gemini model series is "gemini-2.5-flash" or "gemini-2.5-pro"
 const GEMINI_MODEL = "gemini-2.5-pro";
 
+// Local Ollama model (free, runs on localhost:11434)
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "llama3.1:8b";
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1";
+
 interface AIClientRequest {
   systemPrompt: string;
   userMessage: string;
@@ -30,6 +34,7 @@ export class AIClients {
   private openai: OpenAI | null = null;
   private anthropic: Anthropic | null = null;
   private gemini: GoogleGenAI | null = null;
+  private ollama: OpenAI | null = null;
 
   constructor() {
     // Lazy initialization - only create clients when API keys are available
@@ -66,6 +71,17 @@ export class AIClients {
       this.gemini = new GoogleGenAI({ apiKey });
     }
     return this.gemini;
+  }
+
+  private getOllama(): OpenAI {
+    if (!this.ollama) {
+      // Ollama uses OpenAI-compatible API, no API key needed
+      this.ollama = new OpenAI({ 
+        baseURL: OLLAMA_BASE_URL,
+        apiKey: "ollama" // Ollama doesn't need a real key
+      });
+    }
+    return this.ollama;
   }
 
   async callOpenAI(request: AIClientRequest): Promise<AIClientResponse> {
@@ -147,6 +163,27 @@ export class AIClients {
     };
   }
 
+  async callOllama(request: AIClientRequest): Promise<AIClientResponse> {
+    const { systemPrompt, userMessage, maxTokens = 8192 } = request;
+
+    const ollama = this.getOllama();
+
+    const response = await ollama.chat.completions.create({
+      model: OLLAMA_MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage }
+      ],
+      max_tokens: maxTokens,
+    });
+
+    return {
+      content: response.choices[0].message.content || "",
+      provider: "ollama" as AIProvider,
+      model: OLLAMA_MODEL,
+    };
+  }
+
   async call(provider: AIProvider, request: AIClientRequest): Promise<AIClientResponse> {
     switch (provider) {
       case "openai":
@@ -155,6 +192,8 @@ export class AIClients {
         return this.callAnthropic(request);
       case "gemini":
         return this.callGemini(request);
+      case "ollama" as AIProvider:
+        return this.callOllama(request);
       default:
         throw new Error(`Unknown AI provider: ${provider}`);
     }
@@ -168,6 +207,9 @@ export class AIClients {
         return !!process.env.ANTHROPIC_API_KEY;
       case "gemini":
         return !!process.env.GEMINI_API_KEY;
+      case "ollama" as AIProvider:
+        // Ollama is available if USE_OLLAMA=true (local dev)
+        return process.env.USE_OLLAMA === "true";
       default:
         return false;
     }
@@ -175,6 +217,7 @@ export class AIClients {
 
   getAvailableProviders(): AIProvider[] {
     const providers: AIProvider[] = [];
+    if (this.isProviderAvailable("ollama" as AIProvider)) providers.push("ollama" as AIProvider);
     if (this.isProviderAvailable("openai")) providers.push("openai");
     if (this.isProviderAvailable("anthropic")) providers.push("anthropic");
     if (this.isProviderAvailable("gemini")) providers.push("gemini");
@@ -199,10 +242,15 @@ export class AIClients {
   }
 
   async callWithFallback(request: AIClientRequest, preferredProvider?: AIProvider): Promise<AIClientResponse> {
-    // Priority order: Anthropic (Claude) → OpenAI (GPT-4o) → Gemini
-    const providerOrder: AIProvider[] = preferredProvider 
-      ? [preferredProvider, ...["anthropic", "openai", "gemini"].filter(p => p !== preferredProvider) as AIProvider[]]
+    // Priority order: Ollama (free local) → Anthropic (Claude) → OpenAI (GPT-5) → Gemini
+    // When USE_OLLAMA=true, Ollama is first; otherwise skip it
+    const defaultOrder: AIProvider[] = process.env.USE_OLLAMA === "true"
+      ? ["ollama" as AIProvider, "anthropic", "openai", "gemini"]
       : ["anthropic", "openai", "gemini"];
+    
+    const providerOrder: AIProvider[] = preferredProvider 
+      ? [preferredProvider, ...defaultOrder.filter(p => p !== preferredProvider)]
+      : defaultOrder;
 
     const errors: { provider: AIProvider; error: string }[] = [];
 

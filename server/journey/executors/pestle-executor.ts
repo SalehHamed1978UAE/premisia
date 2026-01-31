@@ -2,6 +2,7 @@ import type { FrameworkExecutor } from '../framework-executor-registry';
 import type { StrategicContext } from '@shared/journey-types';
 import { PESTLEAnalyzer } from '../../intelligence/pestle-analyzer';
 import { aiClients } from '../../ai-clients';
+import { extractJsonFromMarkdown } from '../../utils/json-parser';
 
 /**
  * PESTLE Framework Executor
@@ -63,7 +64,12 @@ Return as JSON with structure:
         maxTokens: 4000,
       });
 
-      const pestleResults = JSON.parse(response.content);
+      const parseResult = extractJsonFromMarkdown(response.content);
+      if (!parseResult.success) {
+        console.error('[PESTLE Executor] Failed to parse AI response:', parseResult.error);
+        throw new Error(`Failed to parse PESTLE analysis: ${parseResult.error}`);
+      }
+      const pestleResults = parseResult.data;
 
       console.log('[PESTLE Executor] PESTLE analysis generated');
       console.log(`  Political factors: ${pestleResults.political?.trends?.length || 0} trends`);

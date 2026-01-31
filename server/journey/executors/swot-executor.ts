@@ -21,12 +21,14 @@ export class SWOTExecutor implements FrameworkExecutor {
     console.log('[SWOT Executor] Starting SWOT analysis...');
 
     // Build the SWOT input from strategic context
+    // Safely access insights - may be undefined for some journey types
+    const insights = context.insights || {};
     const swotInput: SWOTInput = {
       businessContext: context.userInput,
       // Include previous framework outputs if available
-      ...(context.insights.bmcBlocks && { bmcOutput: context.insights.bmcBlocks }),
-      ...(context.insights.portersForces && { portersOutput: context.insights.portersForces }),
-      ...(context.insights.trendFactors && { pestleOutput: context.insights.trendFactors }),
+      ...(insights.bmcBlocks && { bmcOutput: insights.bmcBlocks }),
+      ...(insights.portersForces && { portersOutput: insights.portersForces }),
+      ...(insights.trendFactors && { pestleOutput: insights.trendFactors }),
     };
 
     try {

@@ -25,6 +25,10 @@ import MyDiscoveriesPage from "@/pages/marketing-consultant/MyDiscoveriesPage";
 import ClassificationPage from "@/pages/strategic-consultant/ClassificationPage";
 import JourneySelectionPage from "@/pages/strategic-consultant/JourneySelectionPage";
 import JourneyResultsPage from "@/pages/strategic-consultant/JourneyResultsPage";
+import MarketEntryResultsPage from "@/pages/strategic-consultant/MarketEntryResultsPage";
+import PESTLEResultsPage from "@/pages/strategic-consultant/PESTLEResultsPage";
+import PortersResultsPage from "@/pages/strategic-consultant/PortersResultsPage";
+import SWOTResultsPage from "@/pages/strategic-consultant/SWOTResultsPage";
 import StrategyResultsPage from "@/pages/strategic-consultant/StrategyResultsPage";
 import AnalysisPage from "@/pages/strategic-consultant/AnalysisPage";
 import TrendAnalysisPage from "@/pages/strategic-consultant/TrendAnalysisPage";
@@ -70,6 +74,8 @@ function Router() {
         <ProtectedRoute path="/strategic-consultant/classification/:understandingId" component={ClassificationPage} />
         <ProtectedRoute path="/strategic-consultant/journey-selection/:understandingId" component={JourneySelectionPage} />
         <ProtectedRoute path="/strategic-consultant/journey-results/:sessionId" component={JourneyResultsPage} />
+        <ProtectedRoute path="/strategic-consultant/market-entry-results/:sessionId/:versionNumber" component={MarketEntryResultsPage} />
+        <ProtectedRoute path="/strategic-consultant/pestle-results/:sessionId/:versionNumber" component={PESTLEResultsPage} />
         <ProtectedRoute path="/strategic-consultant/results/:sessionId/:versionNumber" component={StrategyResultsPage} />
         <ProtectedRoute path="/strategic-consultant/analysis/:sessionId" component={AnalysisPage} />
         <ProtectedRoute path="/strategic-consultant/framework-insight/:sessionId" component={FrameworkInsightPage} />
@@ -77,6 +83,8 @@ function Router() {
         <ProtectedRoute path="/strategic-consultant/decisions/:sessionId/:versionNumber" component={DecisionPage} />
         <ProtectedRoute path="/strategic-consultant/whys-tree/:understandingId" component={WhysTreePage} />
         <ProtectedRoute path="/strategic-consultant/research/:sessionId" component={ResearchPage} />
+        <ProtectedRoute path="/strategic-consultant/porters-results/:sessionId/:versionNumber" component={PortersResultsPage} />
+        <ProtectedRoute path="/strategic-consultant/swot-results/:sessionId/:versionNumber" component={SWOTResultsPage} />
         <ProtectedRoute path="/strategic-consultant/epm/:sessionId/:versionNumber" component={EPMPage} />
         <ProtectedRoute path="/strategic-consultant/versions/:sessionId" component={VersionsPage} />
         <ProtectedRoute path="/strategy-workspace/programs" component={ProgramsListPage} />
