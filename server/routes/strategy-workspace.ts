@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db } from '../db';
 import { strategyDecisions, epmPrograms, journeySessions, strategyVersions, strategicUnderstanding, taskAssignments, goldenRecords } from '@shared/schema';
 import { eq, desc, inArray, and } from 'drizzle-orm';
-import { BMCAnalyzer, PortersAnalyzer, PESTLEAnalyzer, EPMSynthesizer, getAggregatedAnalysis } from '../intelligence';
+import { BMCAnalyzer, PortersAnalyzer, PESTLEAnalyzer, EPMSynthesizer, getAggregatedAnalysis, normalizeSWOT } from '../intelligence';
 import type { BMCResults, PortersResults, PESTLEResults } from '../intelligence/types';
 import { storage } from '../storage';
 import { createOpenAIProvider } from '../../src/lib/intelligent-planning/llm-provider';
@@ -428,15 +428,30 @@ async function processEPMGeneration(
         ? await getAggregatedAnalysis(version.sessionId)
         : { insights: null, availableFrameworks: [], primaryFramework: null };
 
-    // Fallback: Check for BMC in analysisData if aggregator returns nothing
+    // Fallback: Check for analysis data from multiple sources
     const analysisData = version.analysisData as any;
     const bmcAnalysis = analysisData?.bmc_research;
+    
+    // Journey-based analysis is stored directly in analysisData (swot, pestle, porters)
+    // Check for journey framework analysis if aggregator returns nothing
+    const journeySwotData = analysisData?.swot?.data?.output || analysisData?.swot?.output || analysisData?.swot;
+    const journeyPestleData = analysisData?.pestle?.data?.pestleResults || analysisData?.pestle?.pestleResults;
+    const journeyPortersData = analysisData?.porters?.data?.portersResults || analysisData?.porters?.portersResults;
+    const hasJourneyAnalysis = !!(journeySwotData?.strengths || journeyPestleData || journeyPortersData);
 
-    if (!aggregatedInsights && !bmcAnalysis) {
+    if (!aggregatedInsights && !bmcAnalysis && !hasJourneyAnalysis) {
       throw new Error('No strategic analysis available. Run at least one framework (SWOT, BMC, Porters, or PESTLE) before generating EPM.');
     }
 
-    console.log(`[EPM Generation] Using ${primaryFramework || 'bmc'} as primary framework, ${availableFrameworks.length} total frameworks available`);
+    // Determine the actual primary framework being used
+    let effectivePrimaryFramework = primaryFramework;
+    if (!aggregatedInsights && hasJourneyAnalysis) {
+      if (journeySwotData?.strengths) effectivePrimaryFramework = 'swot';
+      else if (journeyPortersData) effectivePrimaryFramework = 'porters';
+      else if (journeyPestleData) effectivePrimaryFramework = 'pestle';
+    }
+
+    console.log(`[EPM Generation] Using ${effectivePrimaryFramework || 'bmc'} as primary framework, ${availableFrameworks.length} aggregated + journey analysis available: ${hasJourneyAnalysis}`);
 
     // Prepare context for intelligent program naming
     // journeyTitle takes priority - use it directly instead of AI generation
@@ -446,7 +461,7 @@ async function processEPMGeneration(
       bmcRecommendations: bmcAnalysis?.recommendations || [],
       selectedDecisions: version.selectedDecisions || null,
       decisionsData: version.decisionsData || null,
-      framework: primaryFramework || 'bmc',
+      framework: effectivePrimaryFramework || 'bmc',
     };
 
     // Fetch user decisions if provided
@@ -532,6 +547,20 @@ async function processEPMGeneration(
       };
       insights = await bmcAnalyzer.analyze(bmcResults);
       console.log('[EPM Generation] Using BMC analyzer fallback');
+    } else if (journeySwotData?.strengths) {
+      // Fallback: Use journey SWOT analysis
+      console.log('[EPM Generation] Using journey SWOT analysis fallback');
+      insights = await normalizeSWOT(journeySwotData);
+    } else if (journeyPortersData) {
+      // Fallback: Use journey Porter's analysis
+      console.log('[EPM Generation] Using journey Porter\'s analysis fallback');
+      const portersAnalyzer = new PortersAnalyzer();
+      insights = await portersAnalyzer.analyze(journeyPortersData);
+    } else if (journeyPestleData) {
+      // Fallback: Use journey PESTLE analysis
+      console.log('[EPM Generation] Using journey PESTLE analysis fallback');
+      const pestleAnalyzer = new PESTLEAnalyzer();
+      insights = await pestleAnalyzer.analyze(journeyPestleData);
     } else {
       throw new Error('No strategic analysis available');
     }
@@ -579,7 +608,7 @@ async function processEPMGeneration(
       strategyVersionId,
       strategyDecisionId: decisionId || null,
       userId,
-      frameworkType: primaryFramework || 'bmc',
+      frameworkType: effectivePrimaryFramework || 'bmc',
       executiveSummary: epmProgram.executiveSummary,
       workstreams: epmProgram.workstreams,
       timeline: epmProgram.timeline,

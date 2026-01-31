@@ -99,7 +99,7 @@ export async function getAggregatedAnalysis(sessionId: string): Promise<Aggregat
   };
 }
 
-async function normalizeBMC(bmcData: any): Promise<StrategyInsights> {
+export async function normalizeBMC(bmcData: any): Promise<StrategyInsights> {
   const blocks = bmcData.blocks || [];
   const findBlock = (name: string) => blocks.find((b: any) =>
     b.blockName?.toLowerCase().includes(name.toLowerCase())
@@ -123,7 +123,7 @@ async function normalizeBMC(bmcData: any): Promise<StrategyInsights> {
   return bmcAnalyzer.analyze(bmcResults);
 }
 
-async function normalizeSWOT(swotData: any): Promise<StrategyInsights> {
+export async function normalizeSWOT(swotData: any): Promise<StrategyInsights> {
   const data = swotData.output || swotData;
   const insights: StrategyInsight[] = [];
 

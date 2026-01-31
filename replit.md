@@ -40,6 +40,13 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tail
 
 # Recent Bug Fixes
 
+## EPM Generation Fix for Journey Analysis (Jan 31, 2026)
+- **Problem**: EPM generation failed with "No strategic analysis available" even though SWOT/PESTLE/Porter's analysis was complete
+- **Root Cause**: EPM generator's `getAggregatedAnalysis()` queries `framework_insights` table, but journey executors store analysis in `strategy_versions.analysis_data` instead
+- **Fix**: Added fallback in `strategy-workspace.ts` to check for journey-based analysis data (swot, pestle, porters) in `analysisData` when aggregator returns nothing
+- **Files**: `server/routes/strategy-workspace.ts`, `server/intelligence/analysis-aggregator.ts`
+- **Exported**: `normalizeSWOT` function from analysis-aggregator for journey data normalization
+
 ## SWOT → Decisions Bridge Fix (Jan 31, 2026)
 - **Problem**: Market Entry journey shows empty "Strategic Choices" form instead of AI-generated decision cards
 - **Root Cause**: `frameworkRegistry.execute()` wraps results in `{data: executorOutput}`, but code extracted `swotResult?.output` which doesn't exist. Actual SWOT data is at `swotResult.data.output`
