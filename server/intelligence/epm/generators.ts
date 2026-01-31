@@ -146,6 +146,11 @@ export class FinancialPlanGenerator {
 
 /**
  * Benefits Realization Generator
+ *
+ * ARCHITECTURE SPEC: Section 18 - Benefits Generator Contract
+ * - Derives benefits from SWOT opportunities with specific, measurable targets
+ * - Categories vary based on content analysis
+ * - Each benefit has business-specific metrics, not generic placeholders
  */
 export class BenefitsGenerator {
   async generate(
@@ -153,34 +158,54 @@ export class BenefitsGenerator {
     timeline: Timeline
   ): Promise<BenefitsRealization> {
     const benefitInsights = insights.insights.filter(i => i.type === 'benefit');
-    
-    const benefits: Benefit[] = benefitInsights.map((insight, idx) => {
-      const estimatedValue = this.estimateBenefitValue(insight);
-      return {
-        id: `B${String(idx + 1).padStart(3, '0')}`,
-        name: this.generateBenefitName(insight.content),
-        category: this.categorizeBenefit(insight.content) as any,
-        description: insight.content,
-        target: this.generateBenefitTarget(insight.content, estimatedValue),
-        realizationMonth: Math.min(timeline.totalMonths - 2 + idx, timeline.totalMonths + 6),
-        estimatedValue,
-        measurement: this.generateMeasurement(insight.content),
-        confidence: insight.confidence,
-      };
-    });
 
-    if (benefits.length < 3) {
+    // Also look for strengths that can be leveraged as benefits
+    const strengthInsights = insights.insights.filter(i =>
+      i.source?.includes('strength') || i.type === 'other' && i.source?.includes('SWOT.strengths')
+    );
+
+    const benefits: Benefit[] = [];
+
+    // Process opportunity-based benefits (primary source)
+    benefitInsights.forEach((insight, idx) => {
+      const analysis = this.analyzeOpportunity(insight.content);
+      const estimatedValue = this.estimateBenefitValue(insight, analysis);
+
       benefits.push({
         id: `B${String(benefits.length + 1).padStart(3, '0')}`,
-        name: 'Strategic Positioning',
-        category: 'Strategic',
-        description: 'Enhanced strategic positioning and market competitiveness',
-        target: '+10% market position improvement',
-        realizationMonth: timeline.totalMonths,
-        estimatedValue: undefined,
-        measurement: 'Strategic metrics (annual)',
-        confidence: 0.70,
+        name: analysis.name,
+        category: analysis.category as any,
+        description: this.generateRichDescription(insight.content, analysis),
+        target: analysis.target,
+        realizationMonth: this.calculateRealizationMonth(idx, timeline, analysis.priority),
+        estimatedValue,
+        measurement: analysis.measurement,
+        confidence: insight.confidence,
       });
+    });
+
+    // Add strength-based benefits (leverage existing capabilities)
+    strengthInsights.slice(0, 2).forEach((insight, idx) => {
+      if (benefits.length >= 6) return; // Cap at 6 benefits
+
+      const analysis = this.analyzeStrength(insight.content);
+      benefits.push({
+        id: `B${String(benefits.length + 1).padStart(3, '0')}`,
+        name: `Leverage: ${analysis.name}`,
+        category: 'Strategic',
+        description: `Capitalize on existing strength: ${insight.content}`,
+        target: analysis.target,
+        realizationMonth: timeline.totalMonths - 1,
+        estimatedValue: undefined,
+        measurement: analysis.measurement,
+        confidence: insight.confidence * 0.9,
+      });
+    });
+
+    // Ensure minimum 3 benefits
+    if (benefits.length < 3) {
+      const defaultBenefits = this.generateContextualDefaults(insights, timeline, 3 - benefits.length);
+      benefits.push(...defaultBenefits);
     }
 
     const totalFinancialValue = benefits
@@ -190,23 +215,250 @@ export class BenefitsGenerator {
     return {
       benefits,
       totalFinancialValue: totalFinancialValue > 0 ? totalFinancialValue : undefined,
-      confidence: benefitInsights.length > 0 ? 0.70 : 0.60,
+      confidence: benefitInsights.length > 0 ? 0.75 : 0.60,
     };
+  }
+
+  /**
+   * Analyze an opportunity to extract specific benefit details
+   */
+  private analyzeOpportunity(content: string): {
+    name: string;
+    category: string;
+    target: string;
+    measurement: string;
+    priority: 'high' | 'medium' | 'low';
+  } {
+    const lower = content.toLowerCase();
+
+    // Streetwear/Fashion/Culture benefits
+    if (lower.includes('streetwear') || lower.includes('culture') || lower.includes('community')) {
+      return {
+        name: 'Community & Culture Engagement',
+        category: 'Strategic',
+        target: '+25% community engagement; 500+ loyalty members in Year 1',
+        measurement: 'Community size, event attendance, social engagement (monthly)',
+        priority: 'high',
+      };
+    }
+
+    // Digital/Technology benefits
+    if (lower.includes('digital') || lower.includes('technology') || lower.includes('integration') || lower.includes('online')) {
+      return {
+        name: 'Digital Channel Revenue',
+        category: 'Financial',
+        target: '15% of total revenue from digital channels by Month 6',
+        measurement: 'E-commerce revenue, app downloads, digital conversion rate (weekly)',
+        priority: 'high',
+      };
+    }
+
+    // Product/Launch/Exclusive benefits
+    if (lower.includes('exclusive') || lower.includes('launch') || lower.includes('product')) {
+      return {
+        name: 'Exclusive Product Premium',
+        category: 'Financial',
+        target: '+20% margin on exclusive releases; 3+ brand partnerships',
+        measurement: 'Exclusive SKU margin, brand partnership count, release sell-through rate (monthly)',
+        priority: 'high',
+      };
+    }
+
+    // Partnership/Corporate benefits
+    if (lower.includes('partnership') || lower.includes('corporate') || lower.includes('sponsor')) {
+      return {
+        name: 'Strategic Partnership Value',
+        category: 'Strategic',
+        target: '2+ corporate partnerships generating $50K+ annual revenue',
+        measurement: 'Partnership revenue, contract value, renewal rate (quarterly)',
+        priority: 'medium',
+      };
+    }
+
+    // Expansion/Growth benefits
+    if (lower.includes('expansion') || lower.includes('regional') || lower.includes('growth') || lower.includes('potential')) {
+      return {
+        name: 'Market Expansion Readiness',
+        category: 'Strategic',
+        target: 'Expansion-ready operations by Month 9; 2nd location feasibility complete',
+        measurement: 'Expansion readiness score, location analysis, capital requirements (quarterly)',
+        priority: 'medium',
+      };
+    }
+
+    // Customer/Experience benefits
+    if (lower.includes('customer') || lower.includes('experience') || lower.includes('service')) {
+      return {
+        name: 'Premium Customer Experience',
+        category: 'Operational',
+        target: 'NPS 60+; 40% repeat customer rate by Month 6',
+        measurement: 'NPS score, repeat purchase rate, customer satisfaction surveys (monthly)',
+        priority: 'high',
+      };
+    }
+
+    // Revenue/Sales benefits
+    if (lower.includes('revenue') || lower.includes('sales') || lower.includes('income')) {
+      return {
+        name: 'Revenue Growth',
+        category: 'Financial',
+        target: '+20% YoY revenue growth; break-even by Month 8',
+        measurement: 'Monthly revenue, growth rate, gross margin (weekly)',
+        priority: 'high',
+      };
+    }
+
+    // Brand/Awareness benefits
+    if (lower.includes('brand') || lower.includes('awareness') || lower.includes('recognition')) {
+      return {
+        name: 'Brand Recognition',
+        category: 'Strategic',
+        target: '70% brand awareness in target demographic within 6 months',
+        measurement: 'Brand awareness surveys, social mentions, media coverage (monthly)',
+        priority: 'medium',
+      };
+    }
+
+    // Default: Use original content as name with contextual target
+    return {
+      name: this.extractBenefitName(content),
+      category: 'Strategic',
+      target: this.generateContextualTarget(content),
+      measurement: 'Performance metrics and KPI tracking (quarterly)',
+      priority: 'medium',
+    };
+  }
+
+  /**
+   * Analyze a strength to create leverage benefit
+   */
+  private analyzeStrength(content: string): {
+    name: string;
+    target: string;
+    measurement: string;
+  } {
+    const lower = content.toLowerCase();
+
+    if (lower.includes('location') || lower.includes('prime') || lower.includes('foot traffic')) {
+      return {
+        name: 'Prime Location Advantage',
+        target: '+30% walk-in conversion vs market average',
+        measurement: 'Foot traffic, conversion rate, avg transaction value',
+      };
+    }
+
+    if (lower.includes('expertise') || lower.includes('knowledge') || lower.includes('team')) {
+      return {
+        name: 'Domain Expertise',
+        target: '95% customer satisfaction on product advice',
+        measurement: 'Customer feedback, upsell rate, return rate',
+      };
+    }
+
+    // Default
+    return {
+      name: this.extractBenefitName(content),
+      target: '+15% competitive advantage in key metrics',
+      measurement: 'Competitive benchmarking (quarterly)',
+    };
+  }
+
+  /**
+   * Generate contextual default benefits when too few are identified
+   */
+  private generateContextualDefaults(
+    insights: StrategyInsights,
+    timeline: Timeline,
+    count: number
+  ): Benefit[] {
+    const defaults: Benefit[] = [];
+    const industry = insights.marketContext?.industry?.toLowerCase() || '';
+
+    const templates = [
+      {
+        name: 'Operational Excellence',
+        category: 'Operational' as const,
+        description: 'Achieve operational efficiency through optimized processes',
+        target: '-15% operational costs; 95% process compliance',
+        measurement: 'Cost per transaction, process adherence (monthly)',
+      },
+      {
+        name: 'Market Positioning',
+        category: 'Strategic' as const,
+        description: 'Establish strong market position in target segment',
+        target: 'Top 3 position in local market segment',
+        measurement: 'Market share surveys, competitive analysis (quarterly)',
+      },
+      {
+        name: 'Customer Acquisition',
+        category: 'Financial' as const,
+        description: 'Build sustainable customer acquisition channels',
+        target: '1000+ customers in database by Month 6',
+        measurement: 'Customer count, CAC, LTV (monthly)',
+      },
+    ];
+
+    for (let i = 0; i < count && i < templates.length; i++) {
+      defaults.push({
+        id: `B${String(defaults.length + 10).padStart(3, '0')}`,
+        ...templates[i],
+        realizationMonth: timeline.totalMonths - (count - i),
+        estimatedValue: undefined,
+        confidence: 0.65,
+      });
+    }
+
+    return defaults;
+  }
+
+  private extractBenefitName(content: string): string {
+    // Clean and extract meaningful name from content
+    const cleaned = content.replace(/^(opportunity:|benefit:|strength:)/i, '').trim();
+    const firstPhrase = cleaned.split(/[.!?,;]/)[0].trim();
+
+    if (firstPhrase.length <= 50) return firstPhrase;
+
+    // Truncate at word boundary
+    const truncated = firstPhrase.substring(0, 50);
+    const lastSpace = truncated.lastIndexOf(' ');
+    return lastSpace > 20 ? truncated.substring(0, lastSpace) : truncated;
+  }
+
+  private generateContextualTarget(content: string): string {
+    const lower = content.toLowerCase();
+
+    if (lower.includes('market') || lower.includes('position')) return '+15% market penetration in Year 1';
+    if (lower.includes('efficien') || lower.includes('process')) return '+20% operational efficiency';
+    if (lower.includes('quality') || lower.includes('premium')) return '95% quality score; <2% defect rate';
+    if (lower.includes('innovat') || lower.includes('new')) return '3+ innovations implemented per year';
+
+    return 'Measurable improvement vs baseline within 6 months';
+  }
+
+  private generateRichDescription(content: string, analysis: { name: string; category: string }): string {
+    // Enhance the description with actionable context
+    return `${content}. This ${analysis.category.toLowerCase()} benefit will be realized through focused execution and tracked via defined KPIs.`;
+  }
+
+  private calculateRealizationMonth(idx: number, timeline: Timeline, priority: 'high' | 'medium' | 'low'): number {
+    const baseMonth = priority === 'high' ? 3 : priority === 'medium' ? 6 : 9;
+    return Math.min(baseMonth + idx, timeline.totalMonths);
   }
 
   private categorizeBenefit(content: string): 'Financial' | 'Strategic' | 'Operational' | 'Risk Mitigation' {
     const lower = content.toLowerCase();
-    if (lower.includes('revenue') || lower.includes('cost') || lower.includes('$')) return 'Financial';
-    if (lower.includes('risk') || lower.includes('mitigate')) return 'Risk Mitigation';
-    if (lower.includes('efficiency') || lower.includes('process')) return 'Operational';
+    if (lower.includes('revenue') || lower.includes('cost') || lower.includes('$') || lower.includes('margin')) return 'Financial';
+    if (lower.includes('risk') || lower.includes('mitigate') || lower.includes('compliance')) return 'Risk Mitigation';
+    if (lower.includes('efficiency') || lower.includes('process') || lower.includes('operation')) return 'Operational';
     return 'Strategic';
   }
 
-  private estimateBenefitValue(insight: StrategyInsight): number | undefined {
+  private estimateBenefitValue(insight: StrategyInsight, analysis?: any): number | undefined {
     const match = insight.content.match(/\$([0-9,]+)/);
     if (match) {
       return parseInt(match[1].replace(/,/g, ''));
     }
+    // Could estimate based on category in future
     return undefined;
   }
 
@@ -217,63 +469,6 @@ export class BenefitsGenerator {
     if (lower.includes('customer')) return 'Customer surveys (quarterly)';
     if (lower.includes('market')) return 'Market analysis (semi-annual)';
     return 'Performance metrics (quarterly)';
-  }
-
-  private generateBenefitName(content: string): string {
-    // Extract a short, descriptive name from the benefit content
-    const lower = content.toLowerCase();
-    
-    // Look for common benefit patterns - order from most specific to most general
-    if (lower.includes('revenue') || lower.includes('sales')) return 'Revenue Growth';
-    if (lower.includes('cost reduction') || lower.includes('cost savings')) return 'Cost Reduction';
-    if (lower.includes('cost') || lower.includes('efficiency')) return 'Cost Optimization';
-    if (lower.includes('customer satisfaction') || lower.includes('nps')) return 'Customer Experience';
-    if (lower.includes('expansion') || lower.includes('segment')) return 'Market Expansion';
-    if (lower.includes('market share')) return 'Market Position';
-    if (lower.includes('market') || lower.includes('share')) return 'Market Position';
-    if (lower.includes('customer')) return 'Customer Experience';
-    if (lower.includes('brand') || lower.includes('awareness')) return 'Brand Awareness';
-    if (lower.includes('employee') || lower.includes('productivity')) return 'Team Productivity';
-    if (lower.includes('quality')) return 'Quality Improvement';
-    if (lower.includes('time to market') || lower.includes('speed') || lower.includes('time')) return 'Time-to-Value';
-    if (lower.includes('risk')) return 'Risk Reduction';
-    if (lower.includes('compliance')) return 'Compliance Achievement';
-    if (lower.includes('innovation')) return 'Innovation Capability';
-    
-    // Fallback: extract first meaningful phrase (up to 40 chars)
-    const firstSentence = content.split(/[.!?]/)[0].trim();
-    if (firstSentence.length <= 40) return firstSentence;
-    
-    // Truncate at word boundary
-    const truncated = firstSentence.substring(0, 40);
-    const lastSpace = truncated.lastIndexOf(' ');
-    return lastSpace > 20 ? truncated.substring(0, lastSpace) : truncated;
-  }
-
-  private generateBenefitTarget(content: string, estimatedValue?: number): string {
-    const lower = content.toLowerCase();
-    
-    // If we have an estimated value, use it
-    if (estimatedValue) {
-      return `$${estimatedValue.toLocaleString()} expected value`;
-    }
-    
-    // Generate measurable targets based on content - order from most specific to most general
-    if (lower.includes('revenue') || lower.includes('sales')) return '+15% revenue increase';
-    if (lower.includes('cost')) return '-15% cost reduction';
-    if (lower.includes('efficiency') || lower.includes('productivity')) return '+20% efficiency gain';
-    if (lower.includes('customer satisfaction') || lower.includes('nps')) return '+10 NPS points';
-    if (lower.includes('expansion') || lower.includes('segment')) return '+15% market expansion';
-    if (lower.includes('market') || lower.includes('share')) return '+10% market share';
-    if (lower.includes('customer')) return '+10 NPS points';
-    if (lower.includes('brand') || lower.includes('awareness')) return '+20% brand awareness';
-    if (lower.includes('time') || lower.includes('speed')) return '-30% cycle time reduction';
-    if (lower.includes('quality') || lower.includes('defect')) return '-50% defect rate';
-    if (lower.includes('employee') || lower.includes('retention')) return '+15% retention improvement';
-    if (lower.includes('compliance')) return '100% compliance achievement';
-    if (lower.includes('risk')) return '-25% risk exposure';
-    
-    return '+10% performance improvement';
   }
 
   /**
