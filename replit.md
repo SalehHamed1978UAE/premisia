@@ -80,10 +80,24 @@ All journeys share: **Input → Disambiguation → Business Type → [Frameworks
 | Business Model Innovation | Five Whys → BMC | ✅ Implemented |
 | Market Segmentation Discovery | Segment Discovery | ✅ Implemented |
 | Custom Journey | User-selected | ✅ Implemented |
-| Competitive Strategy | Porter's → BMC → Blue Ocean | 🚧 Placeholder |
-| Digital Transformation | PESTLE → BMC → Ansoff | 🚧 Placeholder |
-| Crisis Recovery | Five Whys → SWOT → BMC | 🚧 Placeholder |
-| Growth Strategy | PESTLE → Ansoff → BMC | 🚧 Placeholder |
+| Crisis Recovery | Five Whys → SWOT → BMC | ✅ Implemented (Feb 1, 2026) |
+| Competitive Strategy | Porter's → BMC → Blue Ocean | ✅ Implemented (Feb 1, 2026) |
+| Digital Transformation | PESTLE → BMC → Ansoff | ✅ Implemented (Feb 1, 2026) |
+| Growth Strategy | PESTLE → Ansoff → BMC | ✅ Implemented (Feb 1, 2026) |
+
+## Bridge Registry (11 bridges)
+Bridges transform output from one framework into context for the next:
+- `five_whys_to_bmc`: Root cause analysis → Business Model Canvas
+- `pestle_to_porters`: Macro environment → Industry structure  
+- `porters_to_swot`: Industry forces → SWOT synthesis
+- `five_whys_to_swot`: Root causes → SWOT threats/opportunities (Crisis Recovery)
+- `swot_to_bmc`: Strategic insights → Business model adaptation (Crisis Recovery)
+- `porters_to_bmc`: Competitive forces → Business model design (Competitive Strategy)
+- `bmc_to_blue_ocean`: Business model → Blue Ocean strategy (Competitive Strategy)
+- `pestle_to_bmc`: Macro trends → Business model opportunities (Digital Transformation)
+- `bmc_to_ansoff`: Business model → Growth strategy matrix (Digital Transformation)
+- `pestle_to_ansoff`: Macro trends → Growth opportunities (Growth Strategy)
+- `ansoff_to_bmc`: Growth strategy → Business model optimization (Growth Strategy)
 
 # External Dependencies
 - **Database Service**: Neon serverless PostgreSQL
