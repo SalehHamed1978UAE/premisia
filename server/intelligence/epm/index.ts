@@ -16,6 +16,7 @@ export { TimelineCalculator, default as TimelineCalculatorDefault } from './time
 export { WorkstreamGenerator, default as WorkstreamGeneratorDefault } from './workstream-generator';
 export { ResourceAllocator, default as ResourceAllocatorDefault } from './resource-allocator';
 export { AssignmentGenerator, default as AssignmentGeneratorDefault } from './assignment-generator';
+export { RoleInferenceService, normalizeRole, ensureResourceExists, inferSkillsFromCategory } from './role-inference';
 
 export {
   ExecutiveSummaryGenerator,

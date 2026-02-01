@@ -62,6 +62,9 @@ import {
   ProcurementGenerator,
   ExitStrategyGenerator,
   ProgramNameGenerator,
+  RoleInferenceService,
+  normalizeRole,
+  ensureResourceExists,
 } from './epm';
 
 export { ContextBuilder } from './epm';
@@ -100,6 +103,7 @@ export class EPMSynthesizer {
   private exitStrategyGenerator: ExitStrategyGenerator;
   private programNameGenerator: ProgramNameGenerator;
   private assignmentGenerator: AssignmentGenerator;
+  private roleInferenceService: RoleInferenceService;
 
   constructor(llm?: any) {
     // Note: llm MUST implement ILLMProvider with generateStructured method for WBS Builder.
@@ -125,6 +129,7 @@ export class EPMSynthesizer {
     this.exitStrategyGenerator = new ExitStrategyGenerator();
     this.programNameGenerator = new ProgramNameGenerator();
     this.assignmentGenerator = new AssignmentGenerator();
+    this.roleInferenceService = new RoleInferenceService();
   }
 
   /**
@@ -517,10 +522,18 @@ export class EPMSynthesizer {
       strategyContext  // Pass strategy context for context-aware role selection
     );
     console.log(`[EPM Synthesis] ✓ Resources: ${resourcePlan.totalFTEs} FTEs, ${resourcePlan.internalTeam.length} roles`);
-    
-    // Assign owners to workstreams based on resource roles (Fix 5b)
-    this.assignWorkstreamOwners(workstreams, resourcePlan);
-    console.log(`[EPM Synthesis] ✓ Workstream owners assigned`);
+
+    // LLM-driven workstream owner assignment (replaces hardcoded keyword matching)
+    // Uses batch AI call to infer appropriate role for each workstream
+    const businessContext = {
+      industry: planningContext.business.industry,
+      businessType: strategyContext.businessType.subcategory || strategyContext.businessType.category,
+      geography: planningContext.business.region,
+      initiativeType: planningContext.business.initiativeType,
+      programName,
+    };
+    await this.assignWorkstreamOwners(workstreams, resourcePlan, businessContext);
+    console.log(`[EPM Synthesis] ✓ Workstream owners assigned via LLM inference`);
     
     onProgress?.({
       type: 'step-start',
@@ -875,10 +888,15 @@ export class EPMSynthesizer {
   }
 
   /**
-   * Assign owners to workstreams based on resource roles (Fix 5b)
-   * Matches workstream category/content to appropriate resource role
+   * Assign owners to workstreams using LLM-based role inference
+   * Makes a single batch AI call to determine appropriate roles for all workstreams
+   * Falls back to heuristics if LLM call fails
    */
-  private assignWorkstreamOwners(workstreams: Workstream[], resourcePlan: ResourcePlan): void {
+  private async assignWorkstreamOwners(
+    workstreams: Workstream[],
+    resourcePlan: ResourcePlan,
+    businessContext?: { industry?: string; businessType?: string; geography?: string; initiativeType?: string; programName?: string }
+  ): Promise<void> {
     if (!resourcePlan.internalTeam || resourcePlan.internalTeam.length === 0) {
       // No resources to assign - use default
       workstreams.forEach(ws => {
@@ -887,92 +905,66 @@ export class EPMSynthesizer {
       return;
     }
 
-    // Build role lookup from internal team
-    const roleNames = resourcePlan.internalTeam.map(r => r.role.toLowerCase());
-    
-    // Find default/fallback owner (prefer Program Manager, then first role)
-    const defaultOwner = resourcePlan.internalTeam.find(r => 
-      r.role.toLowerCase().includes('program') || 
+    // Find default/fallback owner
+    const defaultOwner = resourcePlan.internalTeam.find(r =>
+      r.role.toLowerCase().includes('program') ||
       r.role.toLowerCase().includes('director') ||
       r.role.toLowerCase().includes('manager')
     )?.role || resourcePlan.internalTeam[0]?.role || 'Program Manager';
 
-    workstreams.forEach(ws => {
-      const wsName = ws.name.toLowerCase();
-      const wsDesc = ws.description.toLowerCase();
-      const combined = `${wsName} ${wsDesc}`;
+    // Use LLM-based role inference
+    const maxRoles = Math.min(workstreams.length, 6);
 
-      // Match workstream to resource based on category keywords
-      let assignedOwner = defaultOwner;
+    console.log(`[EPM Synthesis] 🤖 Invoking LLM for workstream owner inference...`);
+    const inferenceResult = await this.roleInferenceService.inferOwners(
+      businessContext || {},
+      workstreams,
+      maxRoles
+    );
 
-      // Construction / Design / Build-out workstreams (MUST BE FIRST - most specific)
-      if (combined.includes('construction') || combined.includes('build-out') || combined.includes('buildout') ||
-          combined.includes('design') || combined.includes('fit-out') || combined.includes('fitout') ||
-          combined.includes('interior') || combined.includes('equipment installation') || combined.includes('renovation')) {
-        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam,
-          ['construction', 'design', 'build', 'fit-out', 'architect', 'buildout']) || defaultOwner;
-      }
-      // Compliance / Regulatory / Licensing workstreams
-      else if (combined.includes('compliance') || combined.includes('regulatory') || combined.includes('licensing') ||
-               combined.includes('permit') || combined.includes('health') || combined.includes('safety') ||
-               combined.includes('inspection') || combined.includes('certification') || combined.includes('legal')) {
-        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam,
-          ['compliance', 'licensing', 'regulatory', 'safety', 'legal', 'permit']) || defaultOwner;
-      }
-      // Technology / Systems / POS workstreams
-      else if (combined.includes('technology') || combined.includes('system') || combined.includes('pos') ||
-               combined.includes('point-of-sale') || combined.includes('digital') || combined.includes('integration') ||
-               combined.includes('software') || combined.includes('data') || combined.includes('wifi') || combined.includes('tech')) {
-        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam,
-          ['technology', 'systems', 'tech', 'digital', 'pos', 'it', 'engineer']) || defaultOwner;
-      }
-      // Talent / HR / Training / Recruitment workstreams
-      else if (combined.includes('talent') || combined.includes('training') || combined.includes('recruitment') ||
-               combined.includes('hiring') || combined.includes('staff') || combined.includes('onboarding') ||
-               combined.includes('hr') || combined.includes('employee') || combined.includes('barista training')) {
-        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam,
-          ['hr', 'training', 'talent', 'recruitment', 'coordinator', 'people']) || defaultOwner;
-      }
-      // Marketing / Brand / Community workstreams
-      else if (combined.includes('marketing') || combined.includes('brand') || combined.includes('community') ||
-               combined.includes('social media') || combined.includes('campaign') || combined.includes('promotion') ||
-               combined.includes('advertising') || combined.includes('pr') || combined.includes('launch event')) {
-        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam,
-          ['marketing', 'community', 'brand', 'pr', 'social', 'campaign']) || defaultOwner;
-      }
-      // Supply Chain / Inventory / Vendor workstreams
-      else if (combined.includes('supply chain') || combined.includes('logistics') ||
-               combined.includes('inventory') || combined.includes('vendor') || combined.includes('sourcing') ||
-               combined.includes('procurement') || combined.includes('supplier')) {
-        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam,
-          ['supply chain', 'operations', 'logistics', 'procurement', 'inventory']) || defaultOwner;
-      }
-      // Financial workstreams
-      else if (combined.includes('financial') || combined.includes('budget') ||
-               combined.includes('cost') || combined.includes('revenue') || combined.includes('pricing')) {
-        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam,
-          ['financial', 'finance', 'controller', 'accountant']) || defaultOwner;
-      }
-      // Operations / Readiness workstreams (general catch for ops)
-      else if (combined.includes('operations') || combined.includes('operational') || combined.includes('readiness') ||
-               combined.includes('launch') || combined.includes('opening')) {
-        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam,
-          ['operations', 'manager', 'launch', 'readiness']) || defaultOwner;
-      }
-
-      ws.owner = assignedOwner;
-    });
-  }
-
-  /**
-   * Find a matching role from the team based on keywords
-   */
-  private findMatchingRole(team: ResourceAllocation[], keywords: string[]): string | null {
-    for (const keyword of keywords) {
-      const match = team.find(r => r.role.toLowerCase().includes(keyword));
-      if (match) return match.role;
+    console.log(`[EPM Synthesis] Role inference result: cache=${inferenceResult.usedCache}, fallback=${inferenceResult.usedFallback}`);
+    if (inferenceResult.notes) {
+      console.log(`[EPM Synthesis] Notes: ${inferenceResult.notes}`);
     }
-    return null;
+
+    // Build owner lookup map
+    const ownerMap = new Map<string, { roleTitle: string; category: string; rationale: string }>();
+    for (const owner of inferenceResult.owners) {
+      ownerMap.set(owner.workstreamId, {
+        roleTitle: owner.roleTitle,
+        category: owner.category,
+        rationale: owner.rationale,
+      });
+    }
+
+    // Assign owners to workstreams and ensure resources exist
+    for (const ws of workstreams) {
+      const inferred = ownerMap.get(ws.id);
+
+      if (inferred) {
+        ws.owner = normalizeRole(inferred.roleTitle);
+
+        // Store rationale in metadata for audit/export
+        (ws as any).metadata = {
+          ...(ws as any).metadata,
+          ownerCategory: inferred.category,
+          ownerRationale: inferred.rationale,
+        };
+
+        // Ensure the role exists in the resource plan
+        ensureResourceExists(inferred.roleTitle, resourcePlan, inferred.category);
+
+        console.log(`[EPM Synthesis]   ${ws.name} → ${ws.owner} (${inferred.category})`);
+      } else {
+        // Fallback if no inference returned for this workstream
+        ws.owner = defaultOwner;
+        console.log(`[EPM Synthesis]   ${ws.name} → ${ws.owner} (default fallback)`);
+      }
+    }
+
+    // Log summary of unique roles assigned
+    const uniqueRoles = new Set(workstreams.map(ws => ws.owner));
+    console.log(`[EPM Synthesis] ✓ Assigned ${uniqueRoles.size} unique owner roles across ${workstreams.length} workstreams`);
   }
 
   /**
