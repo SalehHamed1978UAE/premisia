@@ -143,7 +143,7 @@ export class RoleInferenceService {
       const workstreamList = uncachedWorkstreams.map((ws, i) => {
         const topDeliverables = (ws.deliverables || [])
           .slice(0, 3)
-          .map(d => typeof d === 'string' ? d : d.name || d.title || 'Deliverable')
+          .map(d => typeof d === 'string' ? d : d.name || 'Deliverable')
           .join(', ');
 
         return `${i + 1}. ID: ${ws.id}
