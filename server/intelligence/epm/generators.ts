@@ -47,6 +47,18 @@ import {
   RISK_CATEGORY_OWNER_MAP,
   BENEFIT_CATEGORY_OWNER_MAP,
 } from './role-templates';
+import {
+  summarizeDecision,
+  buildBenefitDescription,
+  inferCategory,
+  deriveMetric,
+  deriveTarget,
+  deriveTimeframe,
+  pickOwner,
+  matchOwnerToOpportunity,
+  truncate,
+  type BenefitCategory,
+} from './benefit-helpers';
 
 /**
  * Executive Summary Generator
@@ -158,11 +170,99 @@ export class FinancialPlanGenerator {
  * Benefits Realization Generator
  *
  * ARCHITECTURE SPEC: Section 18 - Benefits Generator Contract
- * - Derives benefits from SWOT opportunities with specific, measurable targets
- * - Uses AI to generate contextual descriptions (not templates)
- * - Uses AI to assign owners based on actual resource list
+ * - Derives benefits from ACTUAL STRATEGIC DATA (decisions + SWOT)
+ * - NOT from AI generation or templates
+ * - Uses selected decisions as primary source
+ * - Falls back to SWOT opportunities if needed
  */
 export class BenefitsGenerator {
+  /**
+   * Generate benefits from strategic context (decisions + SWOT)
+   * This is the PRIMARY method - uses actual user decisions
+   */
+  generateFromContext(
+    decisions: any[],
+    swotData: any,
+    workstreams: any[],
+    resources: ResourceAllocation[],
+    programTimeline?: number
+  ): BenefitsRealization {
+    const benefits: Benefit[] = [];
+
+    console.log(`[BenefitsGenerator] Generating from context: ${decisions?.length || 0} decisions, ${workstreams?.length || 0} workstreams`);
+
+    // PRIMARY: Derive benefits from selected decisions
+    const selectedDecisions = decisions?.filter((d: any) => d.selectedOptionId) || [];
+
+    selectedDecisions.forEach((decision: any, index: number) => {
+      if (benefits.length >= 6) return; // Cap at 6 benefits
+
+      const option = decision.options?.find((o: any) => o.id === decision.selectedOptionId);
+      if (!option) return;
+
+      const category = inferCategory(decision.impactAreas);
+
+      benefits.push({
+        id: `BEN-${String(index + 1).padStart(2, '0')}`,
+        name: summarizeDecision(decision, option),
+        description: buildBenefitDescription(decision, option),
+        category: category as any,
+        measurement: deriveMetric(option, category),
+        target: deriveTarget(option, category),
+        realizationMonth: this.parseTimeframeToMonth(deriveTimeframe(option, programTimeline)),
+        responsibleParty: pickOwner(decision, workstreams, resources),
+        confidence: 0.8,
+      });
+    });
+
+    console.log(`[BenefitsGenerator] Generated ${benefits.length} benefits from decisions`);
+
+    // FALLBACK: Add SWOT opportunities if we have fewer than 4 benefits
+    if (benefits.length < 4) {
+      const opportunities = swotData?.opportunities || [];
+
+      opportunities.slice(0, 4 - benefits.length).forEach((op: any, idx: number) => {
+        const opText = op.content || op.description || op.name || '';
+
+        benefits.push({
+          id: `BEN-SWOT-${String(idx + 1).padStart(2, '0')}`,
+          name: op.name || `Opportunity: ${truncate(opText)}`,
+          description: opText || 'Strategic opportunity identified through SWOT analysis.',
+          category: 'Strategic',
+          measurement: 'Performance metrics and KPI tracking (quarterly)',
+          target: op.target || 'Measurable improvement vs baseline within 6 months',
+          realizationMonth: programTimeline ? Math.min(programTimeline, 6) : 4,
+          responsibleParty: matchOwnerToOpportunity(op, workstreams, resources),
+          confidence: 0.7,
+        });
+      });
+
+      console.log(`[BenefitsGenerator] Added ${benefits.length - selectedDecisions.length} benefits from SWOT opportunities`);
+    }
+
+    const totalFinancialValue = benefits
+      .filter(b => b.estimatedValue)
+      .reduce((sum, b) => sum + (b.estimatedValue || 0), 0);
+
+    return {
+      benefits: benefits.slice(0, 6),
+      totalFinancialValue: totalFinancialValue > 0 ? totalFinancialValue : undefined,
+      confidence: benefits.length > 0 ? 0.8 : 0.6,
+    };
+  }
+
+  /**
+   * Parse timeframe string to month number
+   */
+  private parseTimeframeToMonth(timeframe: string): number {
+    const match = timeframe.match(/Month\s*(\d+)/i);
+    return match ? parseInt(match[1], 10) : 4;
+  }
+
+  /**
+   * Legacy generate method - falls back to insight-based generation
+   * Used when strategic context is not available
+   */
   async generate(
     insights: StrategyInsights,
     timeline: Timeline,
@@ -186,7 +286,7 @@ export class BenefitsGenerator {
         id: `B${String(benefits.length + 1).padStart(3, '0')}`,
         name: analysis.name,
         category: analysis.category as any,
-        description: insight.content, // Use original content, AI will enhance later
+        description: insight.content,
         target: analysis.target,
         realizationMonth: this.calculateRealizationMonth(idx, timeline, analysis.priority),
         estimatedValue,
@@ -204,7 +304,7 @@ export class BenefitsGenerator {
         id: `B${String(benefits.length + 1).padStart(3, '0')}`,
         name: `Leverage: ${analysis.name}`,
         category: 'Strategic',
-        description: insight.content, // Use original content, AI will enhance later
+        description: insight.content,
         target: analysis.target,
         realizationMonth: timeline.totalMonths - 1,
         estimatedValue: undefined,

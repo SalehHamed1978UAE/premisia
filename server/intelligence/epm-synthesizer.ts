@@ -214,67 +214,72 @@ export class EPMSynthesizer {
     startTime?: number
   ): Promise<EPMProgram> {
     const processStartTime = startTime || Date.now();
-    
+
     onProgress?.({
       type: 'step-start',
       step: 'workstreams',
       description: 'Generating intelligent workstreams',
       elapsedSeconds: Math.round((Date.now() - processStartTime) / 1000)
     });
-    
+
     const workstreams = await this.workstreamGenerator.generate(
       insights,
       userContext,
       onProgress,
       processStartTime
     );
-    
+
     console.log(`[EPM Synthesis] ✓ Generated ${workstreams.length} workstreams`);
-    
+
     onProgress?.({
       type: 'step-start',
       step: 'planning-context',
       description: 'Building planning context',
       elapsedSeconds: Math.round((Date.now() - processStartTime) / 1000)
     });
-    
+
     const planningContext = await ContextBuilder.fromJourneyInsights(
       insights,
       insights.frameworkType || 'strategy_workspace',
       userContext?.sessionId
     );
-    
+
     console.log(`[EPM Synthesis] ✓ Planning context: Scale=${planningContext.business.scale}, Timeline=${planningContext.execution.timeline.min}-${planningContext.execution.timeline.max}mo`);
-    
+
     onProgress?.({
       type: 'step-start',
       step: 'intelligent-planning',
       description: 'Applying intelligent timeline planning',
       elapsedSeconds: Math.round((Date.now() - processStartTime) / 1000)
     });
-    
+
     // CRITICAL: Wrap workstreams in object structure expected by replaceTimelineGeneration
     // The function expects an object with a .workstreams property, not a raw array
     const epmProgramInput = { workstreams };
-    
+
     const planningResult = await replaceTimelineGeneration(
       epmProgramInput,
       planningContext
     );
-    
+
+    // Extract strategic context for benefits generation
+    const strategicContext = this.extractStrategicContext(insights, namingContext);
+    console.log(`[EPM Synthesis] ✓ Strategic context: ${strategicContext.decisions.length} decisions, SWOT available: ${!!strategicContext.swotData}`);
+
     if (planningResult.success && planningResult.confidence >= 0.6) {
       console.log('[EPM Synthesis] ✓ Intelligent planning successful');
       console.log(`[EPM Synthesis]   Confidence: ${(planningResult.confidence * 100).toFixed(1)}%`);
-      
+
       // CRITICAL: Extract workstreams from program object, not from non-existent planningResult.workstreams
       const scheduledWorkstreams = planningResult.program?.workstreams || workstreams;
-      
+
       return await this.buildFullProgram(
         insights,
         scheduledWorkstreams,
         planningContext,
         userContext,
         namingContext,
+        strategicContext,
         onProgress,
         processStartTime
       );
@@ -288,35 +293,85 @@ export class EPMSynthesizer {
       console.log('  - Confidence:', planningResult.confidence);
       console.log('  - Warnings count:', planningResult.warnings?.length || 0);
       console.log('  - Adjustments count:', planningResult.adjustments?.length || 0);
-      
+
       if (planningResult.adjustments && planningResult.adjustments.length > 0) {
         console.log('[EPM Synthesis] Adjustments needed:');
         planningResult.adjustments.forEach((adj, i) => {
           console.log(`    ${i + 1}. ${adj}`);
         });
       }
-      
+
       // PRESERVE WBS BUILDER WORKSTREAMS - Use them as-is without timeline optimization
       console.log('[EPM Synthesis] 📦 Using WBS Builder workstreams as-is (skipping timeline optimization)');
       console.log(`[EPM Synthesis]   Workstreams preserved: ${workstreams.length}`);
-      
+
       // Assign default timings based on workstream position when intelligent planning fails
       // This ensures timeline calculator gets proper duration data
       const timedWorkstreams = this.assignDefaultTimings(workstreams, planningContext);
       timedWorkstreams.forEach((ws, i) => {
         console.log(`[EPM Synthesis]     ${i + 1}. ${ws.name} (M${ws.startMonth}-M${ws.endMonth}, ${ws.deliverables?.length || 0} deliverables)`);
       });
-      
+
       return await this.buildFullProgram(
         insights,
         timedWorkstreams, // Use WBS Builder workstreams with default timings
         planningContext,
         userContext,
         namingContext,
+        strategicContext,
         onProgress,
         processStartTime
       );
     }
+  }
+
+  /**
+   * Extract strategic context (decisions + SWOT) for benefits generation
+   * This pulls ACTUAL user decisions and SWOT analysis data
+   */
+  private extractStrategicContext(
+    insights: StrategyInsights,
+    namingContext?: any
+  ): { decisions: any[]; swotData: any } {
+    // Extract decisions from namingContext
+    const decisionsData = namingContext?.decisionsData?.decisions || [];
+    const selectedDecisions = namingContext?.selectedDecisions || {};
+
+    // Merge selection into decisions
+    const decisions = decisionsData.map((d: any) => ({
+      ...d,
+      selectedOptionId: selectedDecisions[d.id] || d.selectedOptionId,
+    }));
+
+    // Extract SWOT data from insights
+    const swotInsights = insights.insights.filter(i =>
+      i.source?.includes('SWOT') ||
+      i.source?.includes('swot') ||
+      i.type === 'benefit' && i.source?.includes('opportunity')
+    );
+
+    const opportunities = swotInsights
+      .filter(i => i.source?.includes('opportunity') || i.source?.includes('Opportunities'))
+      .map(i => ({
+        name: i.content.split('\n')[0]?.substring(0, 60),
+        description: i.content,
+        content: i.content,
+      }));
+
+    // Also check for SWOT in market context or raw insights
+    const swotData = {
+      opportunities: opportunities.length > 0 ? opportunities :
+        (insights.marketContext as any)?.swot?.opportunities || [],
+      strengths: swotInsights
+        .filter(i => i.source?.includes('strength') || i.source?.includes('Strengths'))
+        .map(i => ({ content: i.content })),
+    };
+
+    console.log(`[EPM Synthesis] Extracted strategic context:`);
+    console.log(`  - Decisions with selections: ${decisions.filter((d: any) => d.selectedOptionId).length}`);
+    console.log(`  - SWOT opportunities: ${swotData.opportunities.length}`);
+
+    return { decisions, swotData };
   }
   
   /**
@@ -366,6 +421,7 @@ export class EPMSynthesizer {
     planningContext: PlanningContext,
     userContext?: UserContext,
     namingContext?: any,
+    strategicContext?: { decisions: any[]; swotData: any },
     onProgress?: (event: any) => void,
     startTime?: number
   ): Promise<EPMProgram> {
@@ -473,28 +529,50 @@ export class EPMSynthesizer {
       description: 'Generating financial and benefit plans',
       elapsedSeconds: Math.round((Date.now() - processStartTime) / 1000)
     });
-    
+
+    // Generate benefits from ACTUAL STRATEGIC DATA when available
+    // This uses decisions + SWOT instead of AI generation
+    let benefitsRealization: BenefitsRealization;
+
+    const hasStrategicDecisions = strategicContext?.decisions?.some((d: any) => d.selectedOptionId);
+
+    if (hasStrategicDecisions) {
+      console.log('[EPM Synthesis] 🎯 Using generateFromContext (decisions + SWOT) for benefits');
+      benefitsRealization = this.benefitsGenerator.generateFromContext(
+        strategicContext!.decisions,
+        strategicContext!.swotData,
+        workstreams,
+        resourcePlan.internalTeam,
+        timeline.totalMonths
+      );
+      console.log('[EPM Synthesis] ✓ Generated benefits from strategic context:', benefitsRealization.benefits.map(b => ({
+        name: b.name,
+        owner: b.responsibleParty,
+        category: b.category
+      })));
+    } else {
+      console.log('[EPM Synthesis] ⚠️ No strategic decisions found, falling back to insight-based generation');
+      const benefitsRealizationRaw = await this.benefitsGenerator.generate(insights, timeline);
+      // Still enhance with AI for descriptions and assign owners
+      const benefitsWithOwners = await this.benefitsGenerator.enhanceBenefitsWithAI(
+        benefitsRealizationRaw.benefits,
+        resourcePlan.internalTeam,
+        { name: programName, description: planningContext.business.description }
+      );
+      benefitsRealization = {
+        ...benefitsRealizationRaw,
+        benefits: benefitsWithOwners
+      };
+      console.log('[EPM Synthesis] ✓ Enhanced benefits with AI (fallback):', benefitsWithOwners.map(b => ({ name: b.name, owner: b.responsibleParty })));
+    }
+
     const [
       financialPlan,
-      benefitsRealizationRaw,
       governance,
     ] = await Promise.all([
       this.financialPlanGenerator.generate(insights, resourcePlan, userContext),
-      this.benefitsGenerator.generate(insights, timeline),
       this.governanceGenerator.generate(insights, stakeholderMap),
     ]);
-    
-    // Enhance benefits with AI-generated descriptions and assign owners
-    const benefitsWithOwners = await this.benefitsGenerator.enhanceBenefitsWithAI(
-      benefitsRealizationRaw.benefits,
-      resourcePlan.internalTeam,
-      { name: programName, description: planningContext.business.description }
-    );
-    const benefitsRealization = {
-      ...benefitsRealizationRaw,
-      benefits: benefitsWithOwners
-    };
-    console.log('[EPM Synthesis] ✓ Enhanced benefits with AI (buildV2Program):', benefitsWithOwners.map(b => ({ name: b.name, owner: b.responsibleParty })));
     
     const [
       kpis,
