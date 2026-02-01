@@ -1,0 +1,120 @@
+Honest answer: Yes, ROLE_TEMPLATES is hardcoded configuration.                
+                                                                                
+  // role-templates.ts                                                          
+  food_beverage: {                                                              
+    cafe_coffee_shop: [                                                         
+      { role: 'Cafe Manager', fte: 1.0, skills: [...] },                        
+      { role: 'Head Barista', fte: 1.0, skills: [...] },                        
+      ...                                                                       
+    ],                                                                          
+    restaurant: [                                                               
+      { role: 'Restaurant Manager', ... },                                      
+      { role: 'Head Chef', ... },                                               
+      ...                                                                       
+    ],                                                                          
+  }                                                                             
+                                                                                
+  The difference from before:                                                   
+  Type: Hardcoded detection logic                                               
+  Example: if (text.includes('chef'))                                           
+  Problem: Doesn't scale, misses cases                                          
+  ────────────────────────────────────────                                      
+  Type: Hardcoded templates                                                     
+  Example: cafe_coffee_shop → [roles]                                           
+  Problem: Configuration, not logic                                             
+  But you're right to question it. This approach:                               
+  - Requires adding new templates for each business type                        
+  - Won't adapt to unusual businesses                                           
+  - Is static, not intelligent                                                  
+                                                                                
+  Better alternatives using Context Foundry:                                    
+                                                                                
+  1. AI-inferred roles: Use LLM with business context to generate roles (what we
+   had, but it was unreliable)                                                  
+  2. Context Foundry entity extraction: Extract role types from business        
+  description                                                                   
+  "coffee shop in business district" → entities: [cafe, retail, food_service]   
+  → infer roles from entity types                                               
+  3. Hybrid: Use Context Foundry to determine business type, then use templates 
+  as baseline, then let AI customize                                            
+                                                                                
+  What would you prefer?                                                        
+  - Keep templates as reliable baseline?                                        
+  - Replace with full AI/Context Foundry inference?                             
+  - Hybrid approach?                                                            
+                                                                                
+❯ lets move forward now but make a note to use CF or something else in the      
+  futur eto make it more robust                                                 
+                                                                                
+⏺ Noted. I'll add a TODO comment in the code:                                   
+                                                                                
+⏺ Update(server/intelligence/epm/role-templates.ts)                             
+  ⎿  Added 7 lines                                                              
+       6   * appropriate resources for each business type.                      
+       7   *                                                                    
+       8   * CRITICAL: A cafe should get "Cafe Manager", "Head Barista"         
+          - NOT "Corporate Sales Manager"                                       
+       9 + *                                                                    
+      10 + * TODO: Replace hardcoded templates with Context Foundry             
+         +integration                                                           
+      11 + * - Use CF entity extraction to infer business type                  
+         +dynamically                                                           
+      12 + * - Use CF to suggest appropriate roles based on business            
+         +context                                                               
+      13 + * - Keep templates as fallback only, not primary source              
+      14 + * - This will make role selection more robust and scalable           
+      15 + * See: Context Foundry integration discussion (Feb 2026)             
+      16   */                                                                   
+      17                                                                        
+      18  import type { BusinessCategory, RoleTemplate, StrategyContext,        
+           RiskCategory } from '../types';                                      
+                                                                                
+⏺ Bash(cd "/Users/saleh/Downloads/Premisia 31stJan2026" && git add              
+      server/intelligence/epm/role-templates.ts && git commit -m "Add TODO:     
+      Replace hardcoded role templat…)                                          
+  ⎿  Error: Exit code 1                                                         
+     To https://github.com/SalehHamed1978UAE/premisia.git                       
+      ! [rejected]        main -> main (fetch first)                            
+     error: failed to push some refs to                                         
+     'https://github.com/SalehHamed1978UAE/premisia.git'                        
+     hint: Updates were rejected because the remote contains work that you do   
+     hint: not have locally. This is usually caused by another repository pushin
+     hint: to the same ref. You may want to first integrate the remote changes  
+     hint: (e.g., 'git pull ...') before pushing again.                         
+     hint: See the 'Note about fast-forwards' in 'git push --help' for details. 
+                                                                                
+                                                                                
+     … +2 lines (ctrl+o to see all)                                             
+                                                                                
+⏺ Bash(cd "/Users/saleh/Downloads/Premisia 31stJan2026" && git pull origin main 
+      --no-edit && git push origin main)                                        
+  ⎿  Error: Exit code 128                                                       
+     From https://github.com/SalehHamed1978UAE/premisia                         
+      * branch            main       -> FETCH_HEAD                              
+        11bc34a..9ccdba8  main       -> origin/main                             
+     hint: You have divergent branches and need to specify how to reconcile them
+     hint: You can do so by running one of the following commands sometime befor
+     hint: your next pull:                                                      
+     hint:                                                                      
+     hint:   git config pull.rebase false  # merge                              
+     hint:   git config pull.rebase true   # rebase                             
+                                                                                
+                                                                                
+     … +7 lines (ctrl+o to see all)                                             
+                                                                                
+⏺ Bash(cd "/Users/saleh/Downloads/Premisia 31stJan2026" && git pull origin main 
+      --rebase && git push origin main)                                         
+  ⎿  From https://github.com/SalehHamed1978UAE/premisia                         
+      * branch            main       -> FETCH_HEAD                              
+     Rebasing (1/1)Successfully rebased and updated refs/heads/main.            
+     … +2 lines (ctrl+o to expand)                                              
+                                                                                
+⏺ Done. Ready to test.                                                          
+                                                                                
+  Current status:                                                               
+  - ✅ Context-aware role templates (cafe → cafe roles)                         
+  - ✅ Dual-path benefits (legacy + Journey Builder)                            
+  - ✅ TODO noted for Context Foundry integration                               
+  - ⚠️ Benefits descriptions still need verification (depends on server restart)
+                                                                                
+  Run a new coffee shop or other journey to verify the fixes are working.
