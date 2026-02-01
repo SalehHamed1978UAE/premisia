@@ -104,8 +104,9 @@ router.get('/statements', async (req: any, res) => {
             }
           }
 
-          // Check for Porter's Five Forces
-          if (data?.porters_five_forces) {
+          // Check for Porter's Five Forces (both key formats: 'porters_five_forces' and 'porters')
+          const portersData = data?.porters_five_forces || data?.porters;
+          if (portersData) {
             const framework = "Porter's Five Forces";
             if (!analysisSummary[framework]) {
               analysisSummary[framework] = { count: 0, latestVersion: `v${version.versionNumber}` };
@@ -358,9 +359,9 @@ router.get('/statements/:understandingId', async (req, res) => {
         });
       }
 
-      // Check for Porter's Five Forces analysis
-      if (analysisData?.porters_five_forces) {
-        const portersData = analysisData.porters_five_forces;
+      // Check for Porter's Five Forces analysis (both key formats: 'porters_five_forces' and 'porters')
+      const portersData = analysisData?.porters_five_forces || analysisData?.porters;
+      if (portersData) {
         const framework = "Porter's Five Forces";
 
         if (!groupedAnalyses[framework]) {
@@ -370,16 +371,22 @@ router.get('/statements/:understandingId', async (req, res) => {
         let summary = '';
         let keyFindings: string[] = [];
 
-        // Extract insights from Porter's forces
-        if (portersData.forces && Array.isArray(portersData.forces)) {
-          const allImplications = portersData.forces
-            .map((force: any) => force.strategicImplication)
+        // Extract insights from Porter's forces (check multiple data structures)
+        const forces = portersData.forces || portersData.data?.forces;
+        if (forces && Array.isArray(forces)) {
+          const allImplications = forces
+            .map((force: any) => force.strategicImplication || force.analysis)
             .filter(Boolean);
 
           if (allImplications.length > 0) {
             summary = allImplications.slice(0, 2).join(' ').substring(0, 200) + '...';
             keyFindings = allImplications.slice(0, 3);
           }
+        }
+
+        // Also try overall analysis if forces not found
+        if (!summary && portersData.overallAttractiveness?.summary) {
+          summary = portersData.overallAttractiveness.summary.substring(0, 200);
         }
 
         groupedAnalyses[framework].push({
