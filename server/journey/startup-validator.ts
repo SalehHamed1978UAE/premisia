@@ -303,6 +303,12 @@ export function registerAllBridges(): void {
   // BMC → Ansoff (Digital Transformation)
   registerBridge('bmc', 'ansoff');
   
+  // PESTLE → Ansoff (Growth Strategy)
+  registerBridge('pestle', 'ansoff');
+  
+  // Ansoff → BMC (Growth Strategy)
+  registerBridge('ansoff', 'bmc');
+  
   console.log(`[Startup Validator] ✓ Registered ${registeredBridges.size} bridge(s)`);
 }
 

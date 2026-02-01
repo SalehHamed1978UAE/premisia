@@ -173,15 +173,23 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
   /**
    * Growth Strategy Journey
    * For expansion and scaling strategies
-   * NOT YET IMPLEMENTED: Placeholder only
+   * IMPLEMENTED: PESTLE → Ansoff → BMC sequential workflow
    */
   growth_strategy: {
     type: 'growth_strategy',
     name: 'Growth Strategy',
     description: 'Explore growth opportunities through market trends, expansion options, and business model optimization',
     frameworks: ['pestle', 'ansoff', 'bmc'],
+    pageSequence: [
+      '/strategic-consultant/input',
+      '/strategic-consultant/pestle-results/:sessionId/:versionNumber',  // Step 1: PESTLE analysis
+      '/strategic-consultant/framework-insight/:sessionId',              // Step 2: Ansoff Matrix
+      '/strategic-consultant/research/:sessionId',                       // Step 3: BMC analysis
+      '/strategy-workspace/decisions/:sessionId/:versionNumber',         // Step 4: Strategic decisions
+      '/strategy-workspace/prioritization/:sessionId/:versionNumber',    // Step 5: Prioritization
+    ],
     estimatedDuration: '16-23 minutes',
-    available: false, // Placeholder - not implemented
+    available: true, // IMPLEMENTED - PESTLE → Ansoff → BMC workflow
     summaryBuilder: 'pestleAnsoff',
     defaultReadiness: {
       minReferences: 3,
@@ -190,6 +198,7 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
     insightsConfig: {},
     dependencies: [
       { from: 'pestle', to: 'ansoff' },
+      { from: 'ansoff', to: 'bmc' },
     ],
   },
 
