@@ -279,11 +279,17 @@ export function registerAllBridges(): void {
   // Five Whys → BMC (existing)
   registerBridge('five_whys', 'bmc');
   
-  // PESTLE → Porter's (new)
+  // PESTLE → Porter's (Market Entry)
   registerBridge('pestle', 'porters');
   
-  // Porter's → SWOT (new)
+  // Porter's → SWOT (Market Entry)
   registerBridge('porters', 'swot');
+  
+  // Five Whys → SWOT (Crisis Recovery)
+  registerBridge('five_whys', 'swot');
+  
+  // SWOT → BMC (Crisis Recovery)
+  registerBridge('swot', 'bmc');
   
   console.log(`[Startup Validator] ✓ Registered ${registeredBridges.size} bridge(s)`);
 }

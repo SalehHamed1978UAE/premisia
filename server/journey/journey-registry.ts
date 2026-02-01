@@ -129,7 +129,7 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
   /**
    * Crisis Recovery Journey
    * For turnaround and crisis management
-   * NOT YET IMPLEMENTED: Placeholder only
+   * IMPLEMENTED: Five Whys → SWOT → BMC sequential workflow
    */
   crisis_recovery: {
     type: 'crisis_recovery',
@@ -137,7 +137,7 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
     description: 'Diagnose root causes of crisis, assess internal strengths/weaknesses, and rebuild business model',
     frameworks: ['five_whys', 'swot', 'bmc'],
     estimatedDuration: '14-20 minutes',
-    available: false, // Placeholder - not implemented
+    available: true, // IMPLEMENTED - Five Whys → SWOT → BMC workflow
     summaryBuilder: 'fiveWhysSwot',
     defaultReadiness: {
       minReferences: 2,
@@ -148,6 +148,7 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
     },
     dependencies: [
       { from: 'five_whys', to: 'swot' },
+      { from: 'swot', to: 'bmc' },
     ],
   },
 
