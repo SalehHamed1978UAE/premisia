@@ -1,0 +1,49 @@
+Partial success! Resources are diversified, but workstream owners still need  
+  work.                                                                         
+                                                                                
+  Resources ✅ PERFECT                                                          
+                                                                                
+  All 7 roles now in the team:                                                  
+  - Cafe Operations Manager                                                     
+  - Head Barista                                                                
+  - Cafe Design & Construction Lead ✅                                          
+  - Technology & Systems Specialist ✅                                          
+  - HR & Training Coordinator ✅                                                
+  - Marketing & Community Manager ✅                                            
+  - Compliance & Licensing Specialist ✅                                        
+                                                                                
+  Assignments ✅ DIVERSIFIED                                                    
+                                                                                
+  Looking at the CSV:                                                           
+  ┌──────────────────────┬──────────────────────────────────────┐               
+  │         Task         │             Assigned To              │               
+  ├──────────────────────┼──────────────────────────────────────┤               
+  │ Interior design plan │ Cafe Design & Construction Lead ✅   │               
+  ├──────────────────────┼──────────────────────────────────────┤               
+  │ Kitchen construction │ Cafe Design & Construction Lead ✅   │               
+  ├──────────────────────┼──────────────────────────────────────┤               
+  │ POS system setup     │ Technology & Systems Specialist ✅   │               
+  ├──────────────────────┼──────────────────────────────────────┤               
+  │ Training materials   │ HR & Training Coordinator ✅         │               
+  ├──────────────────────┼──────────────────────────────────────┤               
+  │ Health certification │ Compliance & Licensing Specialist ✅ │               
+  ├──────────────────────┼──────────────────────────────────────┤               
+  │ Security audit       │ Consultant (external) ✅             │               
+  └──────────────────────┴──────────────────────────────────────┘               
+  Gantt Owner Display ⚠️ ISSUE                                                  
+                                                                                
+  The Gantt shows "Marketing & Community Manager" for most workstreams, but     
+  assignments are correctly diversified.                                        
+                                                                                
+  This suggests the workstream owner assignment (assignWorkstreamOwners) isn't  
+  matching keywords properly, but the task assignment (AssignmentGenerator) IS  
+  working.                                                                      
+                                                                                
+  The workstream-level owner (shown on Gantt) vs task-level assignments (in CSV)
+   are different. The Gantt shows workstream owners, which still default to one 
+  role.                                                                         
+                                                                                
+  Want me to fix the workstream owner matching logic to better match the new    
+  role names?                                                                   
+                                                                                
+─────────────────────────────────────────────
