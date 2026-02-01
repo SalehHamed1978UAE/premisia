@@ -220,24 +220,35 @@ export class BenefitsGenerator {
     // FALLBACK: Add SWOT opportunities if we have fewer than 4 benefits
     if (benefits.length < 4) {
       const opportunities = swotData?.opportunities || [];
+      const benefitsFromDecisions = benefits.length;
 
-      opportunities.slice(0, 4 - benefits.length).forEach((op: any, idx: number) => {
+      opportunities.slice(0, 6 - benefits.length).forEach((op: any, idx: number) => {
         const opText = op.content || op.description || op.name || '';
+        const opName = op.name || truncate(opText, 60);
+
+        // Use analyzeOpportunity logic for richer descriptions when SWOT only has names
+        const analysis = this.analyzeOpportunity(opText || opName);
+
+        // Only use analysis if original description is too short (likely just a name)
+        const needsEnrichment = !opText || opText.length < 50 || opText === opName;
+        const description = needsEnrichment
+          ? this.generateRichDescription(opName, analysis)
+          : opText;
 
         benefits.push({
           id: `BEN-SWOT-${String(idx + 1).padStart(2, '0')}`,
-          name: op.name || `Opportunity: ${truncate(opText)}`,
-          description: opText || 'Strategic opportunity identified through SWOT analysis.',
-          category: 'Strategic',
-          measurement: 'Performance metrics and KPI tracking (quarterly)',
-          target: op.target || 'Measurable improvement vs baseline within 6 months',
+          name: analysis.name || opName,
+          description: description,
+          category: analysis.category as any,
+          measurement: analysis.measurement,
+          target: op.target || analysis.target,
           realizationMonth: programTimeline ? Math.min(programTimeline, 6) : 4,
           responsibleParty: matchOwnerToOpportunity(op, workstreams, resources),
           confidence: 0.7,
         });
       });
 
-      console.log(`[BenefitsGenerator] Added ${benefits.length - selectedDecisions.length} benefits from SWOT opportunities`);
+      console.log(`[BenefitsGenerator] Added ${benefits.length - benefitsFromDecisions} benefits from SWOT opportunities`);
     }
 
     const totalFinancialValue = benefits

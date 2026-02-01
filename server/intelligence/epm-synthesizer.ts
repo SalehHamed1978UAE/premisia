@@ -328,12 +328,18 @@ export class EPMSynthesizer {
   /**
    * Extract strategic context (decisions + SWOT) for benefits generation
    * This pulls ACTUAL user decisions and SWOT analysis data
+   *
+   * DUAL-PATH SUPPORT:
+   * 1. Legacy path: namingContext.decisionsData / selectedDecisions (from version table)
+   * 2. Journey Builder path: namingContext.decisionsData (from frameworkInsights)
+   * 3. SWOT: Check namingContext.journeyBuilderSwot first, then insights
    */
   private extractStrategicContext(
     insights: StrategyInsights,
     namingContext?: any
   ): { decisions: any[]; swotData: any } {
-    // Extract decisions from namingContext
+    // Extract decisions from namingContext (works for both legacy and Journey Builder paths)
+    // The route handler already fetches from frameworkInsights if version.decisionsData is empty
     const decisionsData = namingContext?.decisionsData?.decisions || [];
     const selectedDecisions = namingContext?.selectedDecisions || {};
 
@@ -343,33 +349,70 @@ export class EPMSynthesizer {
       selectedOptionId: selectedDecisions[d.id] || d.selectedOptionId,
     }));
 
-    // Extract SWOT data from insights
-    const swotInsights = insights.insights.filter(i =>
-      i.source?.includes('SWOT') ||
-      i.source?.includes('swot') ||
-      i.type === 'benefit' && i.source?.includes('opportunity')
-    );
+    // SWOT extraction with Journey Builder fallback
+    // Priority: 1. Journey Builder SWOT (from frameworkInsights), 2. Insights, 3. Market context
+    let opportunities: any[] = [];
+    let strengths: any[] = [];
 
-    const opportunities = swotInsights
-      .filter(i => i.source?.includes('opportunity') || i.source?.includes('Opportunities'))
-      .map(i => ({
-        name: i.content.split('\n')[0]?.substring(0, 60),
-        description: i.content,
-        content: i.content,
+    // Check Journey Builder SWOT first (passed from route handler)
+    const journeyBuilderSwot = namingContext?.journeyBuilderSwot;
+    if (journeyBuilderSwot) {
+      console.log('[EPM Synthesis] Using Journey Builder SWOT from frameworkInsights');
+
+      // Extract opportunities from Journey Builder SWOT structure
+      const jbOpportunities = journeyBuilderSwot?.opportunities ||
+        journeyBuilderSwot?.output?.opportunities ||
+        journeyBuilderSwot?.data?.output?.opportunities || [];
+
+      opportunities = jbOpportunities.map((op: any) => ({
+        name: typeof op === 'string' ? op.substring(0, 60) : (op.name || op.title || op.content?.substring(0, 60)),
+        description: typeof op === 'string' ? op : (op.description || op.content || op.name || ''),
+        content: typeof op === 'string' ? op : (op.content || op.description || op.name || ''),
       }));
 
-    // Also check for SWOT in market context or raw insights
-    const swotData = {
-      opportunities: opportunities.length > 0 ? opportunities :
-        (insights.marketContext as any)?.swot?.opportunities || [],
-      strengths: swotInsights
+      // Extract strengths
+      const jbStrengths = journeyBuilderSwot?.strengths ||
+        journeyBuilderSwot?.output?.strengths ||
+        journeyBuilderSwot?.data?.output?.strengths || [];
+
+      strengths = jbStrengths.map((s: any) => ({
+        content: typeof s === 'string' ? s : (s.content || s.description || s.name || ''),
+      }));
+    }
+
+    // Fallback: Extract from insights if Journey Builder SWOT not available
+    if (opportunities.length === 0) {
+      const swotInsights = insights.insights.filter(i =>
+        i.source?.includes('SWOT') ||
+        i.source?.includes('swot') ||
+        i.type === 'benefit' && i.source?.includes('opportunity')
+      );
+
+      opportunities = swotInsights
+        .filter(i => i.source?.includes('opportunity') || i.source?.includes('Opportunities'))
+        .map(i => ({
+          name: i.content.split('\n')[0]?.substring(0, 60),
+          description: i.content,
+          content: i.content,
+        }));
+
+      strengths = swotInsights
         .filter(i => i.source?.includes('strength') || i.source?.includes('Strengths'))
-        .map(i => ({ content: i.content })),
-    };
+        .map(i => ({ content: i.content }));
+    }
+
+    // Final fallback: Check market context
+    if (opportunities.length === 0) {
+      opportunities = (insights.marketContext as any)?.swot?.opportunities || [];
+    }
+
+    const swotData = { opportunities, strengths };
 
     console.log(`[EPM Synthesis] Extracted strategic context:`);
     console.log(`  - Decisions with selections: ${decisions.filter((d: any) => d.selectedOptionId).length}`);
     console.log(`  - SWOT opportunities: ${swotData.opportunities.length}`);
+    console.log(`  - SWOT strengths: ${swotData.strengths.length}`);
+    console.log(`  - Source: ${journeyBuilderSwot ? 'Journey Builder (frameworkInsights)' : 'Legacy (insights/marketContext)'}`);
 
     return { decisions, swotData };
   }

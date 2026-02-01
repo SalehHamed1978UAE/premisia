@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db';
-import { strategyDecisions, epmPrograms, journeySessions, strategyVersions, strategicUnderstanding, taskAssignments, goldenRecords } from '@shared/schema';
+import { strategyDecisions, epmPrograms, journeySessions, strategyVersions, strategicUnderstanding, taskAssignments, goldenRecords, frameworkInsights } from '@shared/schema';
 import { eq, desc, inArray, and } from 'drizzle-orm';
 import { BMCAnalyzer, PortersAnalyzer, PESTLEAnalyzer, EPMSynthesizer, getAggregatedAnalysis, normalizeSWOT } from '../intelligence';
 import type { BMCResults, PortersResults, PESTLEResults } from '../intelligence/types';
@@ -454,15 +454,95 @@ async function processEPMGeneration(
 
     console.log(`[EPM Generation] Using ${effectivePrimaryFramework || 'bmc'} as primary framework, ${availableFrameworks.length} aggregated + journey analysis available: ${hasJourneyAnalysis}`);
 
+    // DUAL-PATH DECISION FETCHING:
+    // 1. Legacy path: version.decisionsData / version.selectedDecisions
+    // 2. Journey Builder path: frameworkInsights with frameworkName = 'strategic_decisions'
+    let decisionsData = version.decisionsData;
+    let selectedDecisions = version.selectedDecisions;
+    let journeyBuilderSwot: any = null;
+
+    // Check if legacy path has decisions
+    const hasLegacyDecisions = decisionsData &&
+      (decisionsData as any)?.decisions?.length > 0;
+
+    if (!hasLegacyDecisions && version.sessionId) {
+      console.log('[EPM Generation] Legacy decisionsData empty, checking Journey Builder path (frameworkInsights)...');
+
+      try {
+        // Look up the journey session to get the sessionId for frameworkInsights
+        const [understanding] = await db
+          .select()
+          .from(strategicUnderstanding)
+          .where(eq(strategicUnderstanding.sessionId, version.sessionId))
+          .limit(1);
+
+        if (understanding) {
+          // Find the journey session
+          const [journeySession] = await db
+            .select()
+            .from(journeySessions)
+            .where(
+              and(
+                eq(journeySessions.understandingId, understanding.id),
+                eq(journeySessions.versionNumber, version.versionNumber)
+              )
+            )
+            .limit(1);
+
+          if (journeySession) {
+            // Fetch strategic_decisions from frameworkInsights
+            const [decisionInsight] = await db
+              .select()
+              .from(frameworkInsights)
+              .where(
+                and(
+                  eq(frameworkInsights.sessionId, journeySession.id),
+                  eq(frameworkInsights.frameworkName, 'strategic_decisions')
+                )
+              )
+              .orderBy(desc(frameworkInsights.createdAt))
+              .limit(1);
+
+            if (decisionInsight?.insights) {
+              console.log('[EPM Generation] ✓ Found decisions in frameworkInsights (Journey Builder path)');
+              decisionsData = decisionInsight.insights as any;
+            }
+
+            // Also fetch SWOT from frameworkInsights for better benefit generation
+            const [swotInsight] = await db
+              .select()
+              .from(frameworkInsights)
+              .where(
+                and(
+                  eq(frameworkInsights.sessionId, journeySession.id),
+                  eq(frameworkInsights.frameworkName, 'swot')
+                )
+              )
+              .orderBy(desc(frameworkInsights.createdAt))
+              .limit(1);
+
+            if (swotInsight?.insights) {
+              console.log('[EPM Generation] ✓ Found SWOT in frameworkInsights (Journey Builder path)');
+              journeyBuilderSwot = swotInsight.insights;
+            }
+          }
+        }
+      } catch (fbError) {
+        console.warn('[EPM Generation] Failed to fetch from frameworkInsights:', fbError);
+      }
+    }
+
     // Prepare context for intelligent program naming
     // journeyTitle takes priority - use it directly instead of AI generation
     const namingContext = {
       journeyTitle: journeyTitle, // From strategic_understanding.title - USE THIS!
       bmcKeyInsights: bmcAnalysis?.keyInsights || [],
       bmcRecommendations: bmcAnalysis?.recommendations || [],
-      selectedDecisions: version.selectedDecisions || null,
-      decisionsData: version.decisionsData || null,
+      selectedDecisions: selectedDecisions || null,
+      decisionsData: decisionsData || null,
       framework: effectivePrimaryFramework || 'bmc',
+      // Pass Journey Builder SWOT for benefit generation
+      journeyBuilderSwot: journeyBuilderSwot,
     };
 
     // Fetch user decisions if provided
