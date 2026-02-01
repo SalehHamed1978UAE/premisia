@@ -79,15 +79,23 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
   /**
    * Competitive Strategy Journey
    * For competitive positioning and differentiation
-   * NOT YET IMPLEMENTED: Placeholder only
+   * IMPLEMENTED: Porter's → BMC → Blue Ocean sequential workflow
    */
   competitive_strategy: {
     type: 'competitive_strategy',
     name: 'Competitive Strategy',
     description: 'Understand competitive forces, identify strategic gaps, and develop differentiation strategies',
     frameworks: ['porters', 'bmc', 'blue_ocean'],
+    pageSequence: [
+      '/strategic-consultant/input',
+      '/strategic-consultant/porters-results/:sessionId/:versionNumber',  // Step 1: Porter's Five Forces
+      '/strategic-consultant/research/:sessionId',                        // Step 2: BMC analysis
+      '/strategic-consultant/framework-insight/:sessionId',               // Step 3: Blue Ocean Strategy
+      '/strategy-workspace/decisions/:sessionId/:versionNumber',          // Step 4: Strategic decisions
+      '/strategy-workspace/prioritization/:sessionId/:versionNumber',     // Step 5: Prioritization
+    ],
     estimatedDuration: '15-22 minutes',
-    available: false, // Placeholder - not implemented
+    available: true, // IMPLEMENTED - Porter's → BMC → Blue Ocean workflow
     summaryBuilder: 'portersBmc',
     defaultReadiness: {
       minReferences: 3,
@@ -98,6 +106,7 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
     },
     dependencies: [
       { from: 'porters', to: 'bmc' },
+      { from: 'bmc', to: 'blue_ocean' },
     ],
   },
 

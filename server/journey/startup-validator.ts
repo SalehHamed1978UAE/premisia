@@ -291,6 +291,12 @@ export function registerAllBridges(): void {
   // SWOT → BMC (Crisis Recovery)
   registerBridge('swot', 'bmc');
   
+  // Porter's → BMC (Competitive Strategy)
+  registerBridge('porters', 'bmc');
+  
+  // BMC → Blue Ocean (Competitive Strategy)
+  registerBridge('bmc', 'blue_ocean');
+  
   console.log(`[Startup Validator] ✓ Registered ${registeredBridges.size} bridge(s)`);
 }
 
