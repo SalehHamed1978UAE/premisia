@@ -41,6 +41,16 @@ export default function StatementDetailView() {
       "Porter's": 'text-orange-600 dark:text-orange-400',
       "Porter's Five Forces": 'text-orange-600 dark:text-orange-400',
       SWOT: 'text-teal-600 dark:text-teal-400',
+      'Ansoff Matrix': 'text-indigo-600 dark:text-indigo-400',
+      'Blue Ocean': 'text-cyan-600 dark:text-cyan-400',
+      'Ocean Strategy': 'text-cyan-600 dark:text-cyan-400',
+      VRIO: 'text-amber-600 dark:text-amber-400',
+      'BCG Matrix': 'text-rose-600 dark:text-rose-400',
+      'Value Chain': 'text-emerald-600 dark:text-emerald-400',
+      'Jobs to Be Done': 'text-violet-600 dark:text-violet-400',
+      'Competitive Positioning': 'text-red-600 dark:text-red-400',
+      'Scenario Planning': 'text-sky-600 dark:text-sky-400',
+      OKR: 'text-lime-600 dark:text-lime-400',
     };
     return colors[framework] || 'text-gray-600 dark:text-gray-400';
   };
@@ -51,6 +61,15 @@ export default function StatementDetailView() {
     if (framework === 'Five Whys') return '❓';
     if (framework === "Porter's" || framework === "Porter's Five Forces") return '🎯';
     if (framework === 'SWOT') return '📈';
+    if (framework === 'Ansoff Matrix') return '📐';
+    if (framework === 'Blue Ocean' || framework === 'Ocean Strategy') return '🌊';
+    if (framework === 'VRIO') return '💎';
+    if (framework === 'BCG Matrix') return '📉';
+    if (framework === 'Value Chain') return '🔗';
+    if (framework === 'Jobs to Be Done') return '🎯';
+    if (framework === 'Competitive Positioning') return '🏆';
+    if (framework === 'Scenario Planning') return '🔮';
+    if (framework === 'OKR') return '🎯';
     return '📋';
   };
 

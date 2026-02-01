@@ -143,6 +143,143 @@ router.get('/statements', async (req: any, res) => {
               latestActivity = version.createdAt;
             }
           }
+
+          // Check for Ansoff Matrix analysis
+          const ansoffData = data?.ansoff?.output || data?.ansoff;
+          if (ansoffData?.marketPenetration || ansoffData?.marketDevelopment ||
+              ansoffData?.productDevelopment || ansoffData?.diversification) {
+            const framework = 'Ansoff Matrix';
+            if (!analysisSummary[framework]) {
+              analysisSummary[framework] = { count: 0, latestVersion: `v${version.versionNumber}` };
+            }
+            analysisSummary[framework].count++;
+            if (version.createdAt && version.createdAt > latestActivity) {
+              latestActivity = version.createdAt;
+            }
+          }
+
+          // Check for Blue Ocean Strategy analysis
+          const blueOceanData = data?.blue_ocean?.output || data?.blue_ocean ||
+                                data?.ocean_strategy?.output || data?.ocean_strategy;
+          if (blueOceanData?.eliminateFactors || blueOceanData?.reduceFactors ||
+              blueOceanData?.raiseFactors || blueOceanData?.createFactors ||
+              blueOceanData?.strategyCanvas) {
+            const framework = 'Blue Ocean';
+            if (!analysisSummary[framework]) {
+              analysisSummary[framework] = { count: 0, latestVersion: `v${version.versionNumber}` };
+            }
+            analysisSummary[framework].count++;
+            if (version.createdAt && version.createdAt > latestActivity) {
+              latestActivity = version.createdAt;
+            }
+          }
+
+          // Check for VRIO analysis
+          const vrioData = data?.vrio?.output || data?.vrio;
+          if (vrioData?.resources || vrioData?.capabilities || vrioData?.analysis) {
+            const framework = 'VRIO';
+            if (!analysisSummary[framework]) {
+              analysisSummary[framework] = { count: 0, latestVersion: `v${version.versionNumber}` };
+            }
+            analysisSummary[framework].count++;
+            if (version.createdAt && version.createdAt > latestActivity) {
+              latestActivity = version.createdAt;
+            }
+          }
+
+          // Check for BCG Matrix analysis
+          const bcgData = data?.bcg?.output || data?.bcg || data?.bcg_matrix;
+          if (bcgData?.stars || bcgData?.cashCows || bcgData?.questionMarks || bcgData?.dogs ||
+              bcgData?.products || bcgData?.portfolio) {
+            const framework = 'BCG Matrix';
+            if (!analysisSummary[framework]) {
+              analysisSummary[framework] = { count: 0, latestVersion: `v${version.versionNumber}` };
+            }
+            analysisSummary[framework].count++;
+            if (version.createdAt && version.createdAt > latestActivity) {
+              latestActivity = version.createdAt;
+            }
+          }
+
+          // Check for Value Chain analysis
+          const valueChainData = data?.value_chain?.output || data?.value_chain || data?.valueChain;
+          if (valueChainData?.primaryActivities || valueChainData?.supportActivities ||
+              valueChainData?.inboundLogistics || valueChainData?.operations) {
+            const framework = 'Value Chain';
+            if (!analysisSummary[framework]) {
+              analysisSummary[framework] = { count: 0, latestVersion: `v${version.versionNumber}` };
+            }
+            analysisSummary[framework].count++;
+            if (version.createdAt && version.createdAt > latestActivity) {
+              latestActivity = version.createdAt;
+            }
+          }
+
+          // Check for Ocean Strategy analysis
+          const oceanStrategyData = data?.ocean_strategy?.output || data?.ocean_strategy;
+          if (oceanStrategyData?.strategicMoves || oceanStrategyData?.valueInnovation ||
+              oceanStrategyData?.marketCreation) {
+            const framework = 'Ocean Strategy';
+            if (!analysisSummary[framework]) {
+              analysisSummary[framework] = { count: 0, latestVersion: `v${version.versionNumber}` };
+            }
+            analysisSummary[framework].count++;
+            if (version.createdAt && version.createdAt > latestActivity) {
+              latestActivity = version.createdAt;
+            }
+          }
+
+          // Check for JTBD (Jobs to Be Done) analysis
+          const jtbdData = data?.jtbd?.output || data?.jtbd || data?.jobs_to_be_done;
+          if (jtbdData?.jobs || jtbdData?.outcomes || jtbdData?.customerJobs) {
+            const framework = 'Jobs to Be Done';
+            if (!analysisSummary[framework]) {
+              analysisSummary[framework] = { count: 0, latestVersion: `v${version.versionNumber}` };
+            }
+            analysisSummary[framework].count++;
+            if (version.createdAt && version.createdAt > latestActivity) {
+              latestActivity = version.createdAt;
+            }
+          }
+
+          // Check for Competitive Positioning analysis
+          const compPosData = data?.competitive_positioning?.output || data?.competitive_positioning;
+          if (compPosData?.positioning || compPosData?.competitors || compPosData?.differentiators) {
+            const framework = 'Competitive Positioning';
+            if (!analysisSummary[framework]) {
+              analysisSummary[framework] = { count: 0, latestVersion: `v${version.versionNumber}` };
+            }
+            analysisSummary[framework].count++;
+            if (version.createdAt && version.createdAt > latestActivity) {
+              latestActivity = version.createdAt;
+            }
+          }
+
+          // Check for Scenario Planning analysis
+          const scenarioData = data?.scenario_planning?.output || data?.scenario_planning;
+          if (scenarioData?.scenarios || scenarioData?.drivers || scenarioData?.implications) {
+            const framework = 'Scenario Planning';
+            if (!analysisSummary[framework]) {
+              analysisSummary[framework] = { count: 0, latestVersion: `v${version.versionNumber}` };
+            }
+            analysisSummary[framework].count++;
+            if (version.createdAt && version.createdAt > latestActivity) {
+              latestActivity = version.createdAt;
+            }
+          }
+
+          // Check for OKR Generator analysis
+          const okrData = data?.okr_generator?.output || data?.okr_generator || data?.okr;
+          if (okrData?.objectives || okrData?.keyResults || okrData?.okrs) {
+            const framework = 'OKR';
+            if (!analysisSummary[framework]) {
+              analysisSummary[framework] = { count: 0, latestVersion: `v${version.versionNumber}` };
+            }
+            analysisSummary[framework].count++;
+            if (version.createdAt && version.createdAt > latestActivity) {
+              latestActivity = version.createdAt;
+            }
+          }
         });
 
         const totalAnalyses = oldAnalyses.length + newAnalyses.length;
@@ -482,6 +619,264 @@ router.get('/statements/:understandingId', async (req, res) => {
           createdAt: version.createdAt,
           summary,
           keyFindings: keyFindings.slice(0, 3),
+        });
+      }
+
+      // Check for Ansoff Matrix analysis
+      const ansoffData = analysisData?.ansoff?.output || analysisData?.ansoff;
+      if (ansoffData?.marketPenetration || ansoffData?.marketDevelopment ||
+          ansoffData?.productDevelopment || ansoffData?.diversification) {
+        const framework = 'Ansoff Matrix';
+        if (!groupedAnalyses[framework]) {
+          groupedAnalyses[framework] = [];
+        }
+        let summary = '';
+        const keyFindings: string[] = [];
+        if (ansoffData.recommendation?.primaryStrategy) {
+          summary = `Recommended: ${ansoffData.recommendation.primaryStrategy}`;
+          keyFindings.push(summary);
+        }
+        groupedAnalyses[framework].push({
+          id: version.id,
+          frameworkName: framework,
+          version: `v${version.versionNumber}`,
+          versionNumber: version.versionNumber,
+          createdAt: version.createdAt,
+          summary,
+          keyFindings,
+        });
+      }
+
+      // Check for Blue Ocean Strategy analysis
+      const blueOceanData = analysisData?.blue_ocean?.output || analysisData?.blue_ocean ||
+                            analysisData?.ocean_strategy?.output || analysisData?.ocean_strategy;
+      if (blueOceanData?.eliminateFactors || blueOceanData?.reduceFactors ||
+          blueOceanData?.raiseFactors || blueOceanData?.createFactors ||
+          blueOceanData?.strategyCanvas || blueOceanData?.strategicMoves) {
+        const framework = 'Blue Ocean';
+        if (!groupedAnalyses[framework]) {
+          groupedAnalyses[framework] = [];
+        }
+        let summary = '';
+        const keyFindings: string[] = [];
+        if (blueOceanData.createFactors?.length) {
+          keyFindings.push(`Create: ${blueOceanData.createFactors[0]?.factor || blueOceanData.createFactors[0]}`);
+        }
+        if (blueOceanData.eliminateFactors?.length) {
+          keyFindings.push(`Eliminate: ${blueOceanData.eliminateFactors[0]?.factor || blueOceanData.eliminateFactors[0]}`);
+        }
+        if (keyFindings.length > 0) {
+          summary = keyFindings.join('; ').substring(0, 200);
+        }
+        groupedAnalyses[framework].push({
+          id: version.id,
+          frameworkName: framework,
+          version: `v${version.versionNumber}`,
+          versionNumber: version.versionNumber,
+          createdAt: version.createdAt,
+          summary,
+          keyFindings,
+        });
+      }
+
+      // Check for VRIO analysis
+      const vrioData = analysisData?.vrio?.output || analysisData?.vrio;
+      if (vrioData?.resources || vrioData?.capabilities || vrioData?.analysis) {
+        const framework = 'VRIO';
+        if (!groupedAnalyses[framework]) {
+          groupedAnalyses[framework] = [];
+        }
+        let summary = '';
+        const keyFindings: string[] = [];
+        const resources = vrioData.resources || vrioData.analysis || [];
+        if (Array.isArray(resources) && resources.length > 0) {
+          const sustained = resources.filter((r: any) => r.sustainedAdvantage || r.competitiveAdvantage === 'sustained');
+          if (sustained.length > 0) {
+            keyFindings.push(`Sustained advantages: ${sustained.length}`);
+          }
+        }
+        if (keyFindings.length > 0) {
+          summary = keyFindings.join('; ').substring(0, 200);
+        }
+        groupedAnalyses[framework].push({
+          id: version.id,
+          frameworkName: framework,
+          version: `v${version.versionNumber}`,
+          versionNumber: version.versionNumber,
+          createdAt: version.createdAt,
+          summary,
+          keyFindings,
+        });
+      }
+
+      // Check for BCG Matrix analysis
+      const bcgData = analysisData?.bcg_matrix?.output || analysisData?.bcg_matrix || analysisData?.bcg;
+      if (bcgData?.stars || bcgData?.cashCows || bcgData?.questionMarks || bcgData?.dogs ||
+          bcgData?.products || bcgData?.portfolio) {
+        const framework = 'BCG Matrix';
+        if (!groupedAnalyses[framework]) {
+          groupedAnalyses[framework] = [];
+        }
+        let summary = '';
+        const keyFindings: string[] = [];
+        if (bcgData.stars?.length) keyFindings.push(`Stars: ${bcgData.stars.length}`);
+        if (bcgData.cashCows?.length) keyFindings.push(`Cash Cows: ${bcgData.cashCows.length}`);
+        if (keyFindings.length > 0) {
+          summary = keyFindings.join(', ').substring(0, 200);
+        }
+        groupedAnalyses[framework].push({
+          id: version.id,
+          frameworkName: framework,
+          version: `v${version.versionNumber}`,
+          versionNumber: version.versionNumber,
+          createdAt: version.createdAt,
+          summary,
+          keyFindings,
+        });
+      }
+
+      // Check for Value Chain analysis
+      const valueChainData = analysisData?.value_chain?.output || analysisData?.value_chain || analysisData?.valueChain;
+      if (valueChainData?.primaryActivities || valueChainData?.supportActivities ||
+          valueChainData?.inboundLogistics || valueChainData?.operations) {
+        const framework = 'Value Chain';
+        if (!groupedAnalyses[framework]) {
+          groupedAnalyses[framework] = [];
+        }
+        let summary = '';
+        const keyFindings: string[] = [];
+        if (valueChainData.primaryActivities?.length) {
+          keyFindings.push(`Primary activities: ${valueChainData.primaryActivities.length}`);
+        }
+        if (valueChainData.supportActivities?.length) {
+          keyFindings.push(`Support activities: ${valueChainData.supportActivities.length}`);
+        }
+        if (keyFindings.length > 0) {
+          summary = keyFindings.join(', ').substring(0, 200);
+        }
+        groupedAnalyses[framework].push({
+          id: version.id,
+          frameworkName: framework,
+          version: `v${version.versionNumber}`,
+          versionNumber: version.versionNumber,
+          createdAt: version.createdAt,
+          summary,
+          keyFindings,
+        });
+      }
+
+      // Check for JTBD (Jobs to Be Done) analysis
+      const jtbdData = analysisData?.jtbd?.output || analysisData?.jtbd || analysisData?.jobs_to_be_done;
+      if (jtbdData?.jobs || jtbdData?.outcomes || jtbdData?.customerJobs) {
+        const framework = 'Jobs to Be Done';
+        if (!groupedAnalyses[framework]) {
+          groupedAnalyses[framework] = [];
+        }
+        let summary = '';
+        const keyFindings: string[] = [];
+        const jobs = jtbdData.jobs || jtbdData.customerJobs || [];
+        if (Array.isArray(jobs) && jobs.length > 0) {
+          keyFindings.push(`Jobs identified: ${jobs.length}`);
+          if (jobs[0]?.job || jobs[0]?.description) {
+            keyFindings.push(jobs[0].job || jobs[0].description);
+          }
+        }
+        if (keyFindings.length > 0) {
+          summary = keyFindings[0].substring(0, 200);
+        }
+        groupedAnalyses[framework].push({
+          id: version.id,
+          frameworkName: framework,
+          version: `v${version.versionNumber}`,
+          versionNumber: version.versionNumber,
+          createdAt: version.createdAt,
+          summary,
+          keyFindings,
+        });
+      }
+
+      // Check for Competitive Positioning analysis
+      const compPosData = analysisData?.competitive_positioning?.output || analysisData?.competitive_positioning;
+      if (compPosData?.positioning || compPosData?.competitors || compPosData?.differentiators) {
+        const framework = 'Competitive Positioning';
+        if (!groupedAnalyses[framework]) {
+          groupedAnalyses[framework] = [];
+        }
+        let summary = '';
+        const keyFindings: string[] = [];
+        if (compPosData.positioning) {
+          keyFindings.push(`Position: ${compPosData.positioning}`);
+        }
+        if (compPosData.differentiators?.length) {
+          keyFindings.push(`Differentiators: ${compPosData.differentiators.length}`);
+        }
+        if (keyFindings.length > 0) {
+          summary = keyFindings.join('; ').substring(0, 200);
+        }
+        groupedAnalyses[framework].push({
+          id: version.id,
+          frameworkName: framework,
+          version: `v${version.versionNumber}`,
+          versionNumber: version.versionNumber,
+          createdAt: version.createdAt,
+          summary,
+          keyFindings,
+        });
+      }
+
+      // Check for Scenario Planning analysis
+      const scenarioData = analysisData?.scenario_planning?.output || analysisData?.scenario_planning;
+      if (scenarioData?.scenarios || scenarioData?.drivers || scenarioData?.implications) {
+        const framework = 'Scenario Planning';
+        if (!groupedAnalyses[framework]) {
+          groupedAnalyses[framework] = [];
+        }
+        let summary = '';
+        const keyFindings: string[] = [];
+        if (scenarioData.scenarios?.length) {
+          keyFindings.push(`Scenarios: ${scenarioData.scenarios.length}`);
+        }
+        if (scenarioData.drivers?.length) {
+          keyFindings.push(`Key drivers: ${scenarioData.drivers.length}`);
+        }
+        if (keyFindings.length > 0) {
+          summary = keyFindings.join(', ').substring(0, 200);
+        }
+        groupedAnalyses[framework].push({
+          id: version.id,
+          frameworkName: framework,
+          version: `v${version.versionNumber}`,
+          versionNumber: version.versionNumber,
+          createdAt: version.createdAt,
+          summary,
+          keyFindings,
+        });
+      }
+
+      // Check for OKR Generator analysis
+      const okrData = analysisData?.okr_generator?.output || analysisData?.okr_generator || analysisData?.okr;
+      if (okrData?.objectives || okrData?.keyResults || okrData?.okrs) {
+        const framework = 'OKR';
+        if (!groupedAnalyses[framework]) {
+          groupedAnalyses[framework] = [];
+        }
+        let summary = '';
+        const keyFindings: string[] = [];
+        const objectives = okrData.objectives || okrData.okrs || [];
+        if (Array.isArray(objectives) && objectives.length > 0) {
+          keyFindings.push(`Objectives: ${objectives.length}`);
+        }
+        if (keyFindings.length > 0) {
+          summary = keyFindings.join(', ').substring(0, 200);
+        }
+        groupedAnalyses[framework].push({
+          id: version.id,
+          frameworkName: framework,
+          version: `v${version.versionNumber}`,
+          versionNumber: version.versionNumber,
+          createdAt: version.createdAt,
+          summary,
+          keyFindings,
         });
       }
     });
