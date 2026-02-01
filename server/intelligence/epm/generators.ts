@@ -513,37 +513,42 @@ export class BenefitsGenerator {
     const availableRoles = resources.map(r => r.role);
 
     try {
-      const prompt = `You are a strategic benefits analyst. Enhance these benefits for a program.
+      const prompt = `You are writing benefit descriptions for a strategic program. Each benefit needs a FULL PARAGRAPH description.
 
 PROGRAM: "${programContext?.name || 'Strategic Program'}"
 ${programContext?.description ? `CONTEXT: ${programContext.description}` : ''}
 
-AVAILABLE TEAM MEMBERS (assign owners from this list ONLY):
+TEAM MEMBERS (assign owners from this list ONLY):
 ${availableRoles.map((r, i) => `• ${r}`).join('\n')}
 
-BENEFITS TO ENHANCE:
-${benefits.map((b, i) => `${i + 1}. "${b.name}" - Original: ${b.description.substring(0, 100)}...`).join('\n')}
+BENEFITS TO DESCRIBE:
+${benefits.map((b, i) => `${i + 1}. "${b.name}" (Target: ${b.target || 'TBD'})`).join('\n')}
 
-For each benefit, provide:
-1. A contextual description (2-3 sentences) that explains HOW this benefit will be achieved and WHY it matters for this specific program. Do NOT use generic phrases like "leverage to strengthen market position" - be specific.
-2. The best owner from the available team members based on WHO would naturally own this outcome.
+EXAMPLE of a GOOD description (this is the quality I need):
+"By establishing partnerships with regional tourism boards and eco-tourism operators, the zoo will tap into the growing market of environmentally-conscious travelers. This will drive a projected 25% increase in international visitors within the first year, generating an estimated $500K in additional ticket revenue while positioning the zoo as a leading sustainable attraction in the Gulf region."
 
-Return ONLY valid JSON (no markdown):
+YOUR TASK: Write a description like the example above for EACH benefit. Each description must:
+- Be 2-3 full sentences (40-80 words)
+- Explain HOW the benefit will be achieved
+- Include specific outcomes or metrics where possible
+- Reference the actual program context
+
+Return ONLY valid JSON:
 {
   "enhancements": [
     {
       "benefitIndex": 0,
-      "description": "Specific description of how this benefit will be realized...",
-      "owner": "Exact role name from the list above",
-      "reasoning": "Why this person owns this benefit"
+      "description": "Full paragraph description here (2-3 sentences, 40-80 words)...",
+      "owner": "Exact role name from the team list"
     }
   ]
 }
 
-IMPORTANT:
-- Descriptions must be specific to the program, not generic templates
-- Owners must exactly match one of the available team member roles
-- Distribute ownership - don't assign everything to one person`;
+RULES:
+- DO NOT write short phrases like "Regional Tourism Hub Development" - write FULL PARAGRAPHS
+- DO NOT use boilerplate like "This benefit will be realized through..."
+- Owners must EXACTLY match a team member name from the list
+- Distribute ownership across different team members`;
 
       const result = await aiClients.callWithFallback({
         prompt,
