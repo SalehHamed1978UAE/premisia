@@ -56,16 +56,17 @@ export default function StatementDetailView() {
 
   const handleViewFullReport = (framework: string, sessionId: string, versionNumber?: number) => {
     const version = versionNumber || 1;
+    // Add viewOnly=true to prevent re-running analysis when viewing saved reports
     if (framework === 'PESTLE') {
-      setLocation(`/strategic-consultant/pestle-results/${sessionId}/${version}`);
+      setLocation(`/strategic-consultant/pestle-results/${sessionId}/${version}?viewOnly=true`);
     } else if (framework === 'Business Model Canvas') {
-      setLocation(`/strategic-consultant/results/${sessionId}/${version}`);
+      setLocation(`/strategic-consultant/results/${sessionId}/${version}?viewOnly=true`);
     } else if (framework === 'Five Whys') {
-      setLocation(`/strategic-consultant/results/${sessionId}/${version}`);
+      setLocation(`/strategic-consultant/results/${sessionId}/${version}?viewOnly=true`);
     } else if (framework === "Porter's Five Forces") {
-      setLocation(`/strategic-consultant/porters-results/${sessionId}/${version}`);
+      setLocation(`/strategic-consultant/porters-results/${sessionId}/${version}?viewOnly=true`);
     } else if (framework === 'SWOT') {
-      setLocation(`/strategic-consultant/swot-results/${sessionId}/${version}`);
+      setLocation(`/strategic-consultant/swot-results/${sessionId}/${version}?viewOnly=true`);
     }
   };
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useLocation } from "wouter";
+import { useParams, useLocation, useSearch } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,9 +51,13 @@ interface SWOTExecuteResponse {
 export default function SWOTResultsPage() {
   const [, setLocation] = useLocation();
   const { sessionId, versionNumber } = useParams<{ sessionId: string; versionNumber: string }>();
+  const searchString = useSearch();
   const { toast } = useToast();
   const [swotData, setSwotData] = useState<SWOTData | null>(null);
   const [hasExecuted, setHasExecuted] = useState(false);
+
+  // Check if this is a view-only request (from Statement Analysis page)
+  const isViewOnly = searchString.includes('viewOnly=true');
 
   // Try to fetch existing SWOT results first (for page refresh / back navigation)
   const { data: existingData, isLoading: isLoadingExisting } = useQuery({
@@ -174,12 +178,19 @@ export default function SWOTResultsPage() {
       }
     }
 
+    // If viewOnly mode and no data, don't run analysis - just mark as executed
+    if (isViewOnly) {
+      console.log('[SWOTResultsPage] View-only mode, no existing data found');
+      setHasExecuted(true);
+      return;
+    }
+
     // No existing data and haven't executed yet - execute SWOT
     if (!hasExecuted && !executeSWOT.isPending) {
       console.log('[SWOTResultsPage] No existing SWOT data, executing analysis...');
       executeSWOT.mutate();
     }
-  }, [isLoadingExisting, existingData, hasExecuted, executeSWOT.isPending]);
+  }, [isLoadingExisting, existingData, hasExecuted, executeSWOT.isPending, isViewOnly]);
 
   const handleContinue = () => {
     setLocation(`/strategy-workspace/decisions/${sessionId}/${versionNumber}`);

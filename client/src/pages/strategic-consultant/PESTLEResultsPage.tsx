@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { useLocation, useParams } from "wouter";
+import { useLocation, useParams, useSearch } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,11 +33,15 @@ interface PESTLEExecuteResponse {
 export default function PESTLEResultsPage() {
   const [, setLocation] = useLocation();
   const { sessionId, versionNumber } = useParams<{ sessionId: string; versionNumber: string }>();
+  const searchString = useSearch();
   const { toast } = useToast();
-  
+
+  // Check if this is a view-only request (from Statement Analysis page)
+  const isViewOnly = searchString.includes('viewOnly=true');
+
   // Track if we've already initiated the execute call
   const hasInitiated = useRef(false);
-  
+
   // State to hold PESTLE results
   const [pestleData, setPestleData] = useState<any>(null);
   const [finalVersionNumber, setFinalVersionNumber] = useState<number | null>(null);
@@ -55,6 +59,21 @@ export default function PESTLEResultsPage() {
       return res.json();
     },
     enabled: !!sessionId,
+  });
+
+  // Fetch existing PESTLE data (for view-only mode or page refresh)
+  const { data: existingData, isLoading: isLoadingExisting } = useQuery({
+    queryKey: ['pestle-results', sessionId],
+    queryFn: async () => {
+      const response = await fetch(`/api/strategic-consultant/frameworks/pestle/${sessionId}`);
+      if (!response.ok) {
+        if (response.status === 404) return null;
+        throw new Error('Failed to fetch PESTLE results');
+      }
+      return response.json();
+    },
+    enabled: !!sessionId,
+    retry: false,
   });
 
   // Mutation to execute PESTLE analysis
@@ -123,14 +142,39 @@ export default function PESTLEResultsPage() {
     },
   });
 
-  // Execute PESTLE analysis on mount
+  // Check for existing data or execute PESTLE analysis
   useEffect(() => {
     if (!sessionId || hasInitiated.current) return;
-    
+    if (isLoadingExisting) return;
+
+    // Check if we have existing data
+    if (existingData?.success && existingData?.data) {
+      console.log('[PESTLEResultsPage] Found existing PESTLE data:', existingData.data);
+      const pestleResults = existingData.data?.data?.pestleResults ||
+                           existingData.data?.pestleResults ||
+                           existingData.data?.data ||
+                           existingData.data;
+
+      if (pestleResults?.political?.trends) {
+        setPestleData(pestleResults);
+        setFinalVersionNumber(existingData.versionNumber);
+        hasInitiated.current = true;
+        return;
+      }
+    }
+
+    // If viewOnly mode and no data, don't run analysis
+    if (isViewOnly) {
+      console.log('[PESTLEResultsPage] View-only mode, no existing data found');
+      hasInitiated.current = true;
+      return;
+    }
+
+    // No existing data - execute PESTLE analysis
     console.log('[PESTLEResultsPage] Initiating PESTLE analysis for session:', sessionId);
     hasInitiated.current = true;
     executePestle.mutate(sessionId);
-  }, [sessionId]);
+  }, [sessionId, isLoadingExisting, existingData, isViewOnly]);
 
   // Handle navigation to Porter's analysis
   const handleContinue = () => {
@@ -174,8 +218,8 @@ export default function PESTLEResultsPage() {
     );
   }
 
-  // Loading state
-  if (executePestle.isPending) {
+  // Loading state (either fetching existing or running new analysis)
+  if (isLoadingExisting || executePestle.isPending) {
     return (
       <AppLayout
         title="PESTLE Analysis"

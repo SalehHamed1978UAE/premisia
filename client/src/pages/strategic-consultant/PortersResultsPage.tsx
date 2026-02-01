@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
-import { useLocation, useParams } from "wouter";
-import { useMutation } from "@tanstack/react-query";
+import { useLocation, useParams, useSearch } from "wouter";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -29,10 +29,22 @@ interface ExecuteResponse {
 export default function PortersResultsPage() {
   const [, setLocation] = useLocation();
   const { sessionId, versionNumber } = useParams<{ sessionId: string; versionNumber: string }>();
+  const searchString = useSearch();
   const { toast } = useToast();
-  
+
   const [portersData, setPortersData] = useState<PortersData | null>(null);
   const hasExecuted = useRef(false);
+
+  // Check if this is a view-only request (from Statement Analysis page)
+  const isViewOnly = searchString.includes('viewOnly=true');
+
+  // Query to fetch existing Porter's data
+  const existingDataQuery = useQuery({
+    queryKey: [`/api/strategic-consultant/frameworks/porters/${sessionId}`],
+    enabled: !!sessionId,
+    retry: false,
+    staleTime: 0,
+  });
 
   // Mutation to execute Porter's Five Forces analysis
   const executeMutation = useMutation({
@@ -42,21 +54,21 @@ export default function PortersResultsPage() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
       });
-      
+
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || `Porter's analysis failed (${res.status})`);
       }
-      
+
       return res.json();
     },
     onSuccess: (data: any) => {
       console.log('[PortersResultsPage] Porter\'s analysis complete:', data);
-      
+
       // Normalize Porter's response - handle multiple possible response shapes from the API
       // The API may nest data differently: data.data.data.portersResults, data.data.portersResults, or direct props
       let portersResults = null;
-      
+
       // Check for deeply nested structure: data.data.data.portersResults
       if (data.data?.data?.portersResults) {
         portersResults = data.data.data.portersResults;
@@ -81,9 +93,9 @@ export default function PortersResultsPage() {
       else {
         portersResults = data.data?.data || data.data || data;
       }
-      
+
       console.log('[PortersResultsPage] Extracted portersResults:', portersResults);
-      
+
       if (portersResults && portersResults.threatOfNewEntrants) {
         setPortersData(portersResults);
         toast({
@@ -109,14 +121,42 @@ export default function PortersResultsPage() {
     },
   });
 
-  // Execute Porter's analysis on mount
+  // Effect to handle existing data or trigger new analysis
   useEffect(() => {
     if (!sessionId || hasExecuted.current) return;
-    
+
+    // If query is still loading, wait
+    if (existingDataQuery.isLoading) return;
+
+    // Check if we have existing data
+    const existingData = existingDataQuery.data as any;
+    if (existingData?.success && existingData?.data) {
+      console.log('[PortersResultsPage] Found existing Porter\'s data:', existingData.data);
+      // Extract Porter's results from existing data
+      const portersResults = existingData.data?.data?.portersResults ||
+                            existingData.data?.portersResults ||
+                            existingData.data?.data ||
+                            existingData.data;
+
+      if (portersResults?.threatOfNewEntrants) {
+        setPortersData(portersResults);
+        hasExecuted.current = true;
+        return;
+      }
+    }
+
+    // If viewOnly mode and no data, show error instead of running analysis
+    if (isViewOnly) {
+      hasExecuted.current = true;
+      console.log('[PortersResultsPage] View-only mode but no existing data found');
+      return;
+    }
+
+    // No existing data found - run new analysis
     hasExecuted.current = true;
-    console.log(`[PortersResultsPage] Executing Porter's analysis for session: ${sessionId}`);
+    console.log(`[PortersResultsPage] No existing data, executing Porter's analysis for session: ${sessionId}`);
     executeMutation.mutate();
-  }, [sessionId]);
+  }, [sessionId, existingDataQuery.isLoading, existingDataQuery.data, isViewOnly]);
 
   const handleBack = () => {
     setLocation(`/strategic-consultant/pestle-results/${sessionId}/${versionNumber}`);
@@ -151,8 +191,8 @@ export default function PortersResultsPage() {
     );
   }
 
-  // Loading state
-  if (executeMutation.isPending) {
+  // Loading state (either fetching existing data or running new analysis)
+  if (existingDataQuery.isLoading || executeMutation.isPending) {
     return (
       <AppLayout
         title="Porter's Five Forces"

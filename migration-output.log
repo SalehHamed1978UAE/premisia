@@ -1,0 +1,1158 @@
+🔐 KMS Encryption Migration Script
+=====================================
+🔍 Validating KMS access...
+✅ KMS client initialized for region: eu-north-1
+  ✓ Successfully generated data key
+  ✓ Successfully decrypted data key
+  ✓ Full encryption/decryption cycle successful
+✅ KMS validation successful - ready to proceed with migration
+
+
+📋 Migrating strategic_understanding...
+  Total records: 35
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  Progress: 10/35 records (10 migrated, 0 skipped)
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  Progress: 20/35 records (20 migrated, 0 skipped)
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  Progress: 30/35 records (30 migrated, 0 skipped)
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.user_input from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_understanding.initiative_description from JSONB-format to TEXT-format encryption
+  Progress: 35/35 records (35 migrated, 0 skipped)
+  ✅ Completed: 35 migrated, 0 skipped
+
+📋 Migrating journey_sessions...
+  Total records: 16
+  Progress: 10/16 records (0 migrated, 10 skipped)
+  Progress: 16/16 records (0 migrated, 16 skipped)
+  ✅ Completed: 0 migrated, 16 skipped
+
+📋 Migrating strategic_entities...
+  Total records: 292
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  Progress: 10/292 records (10 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  Progress: 20/292 records (20 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  Progress: 30/292 records (30 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  Progress: 40/292 records (40 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  Progress: 50/292 records (50 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  Progress: 60/292 records (60 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  Progress: 70/292 records (70 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  Progress: 80/292 records (80 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  Progress: 90/292 records (90 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  Progress: 100/292 records (100 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  Progress: 110/292 records (110 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  Progress: 120/292 records (120 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  Progress: 130/292 records (130 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  Progress: 140/292 records (140 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  Progress: 150/292 records (150 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  Progress: 160/292 records (160 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  Progress: 170/292 records (170 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  Progress: 180/292 records (180 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  Progress: 190/292 records (190 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  Progress: 200/292 records (200 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  Progress: 210/292 records (210 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  Progress: 220/292 records (220 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  Progress: 230/292 records (230 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  Progress: 240/292 records (240 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  Progress: 250/292 records (250 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  Progress: 260/292 records (260 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  Progress: 270/292 records (270 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  Progress: 280/292 records (280 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  Progress: 290/292 records (290 migrated, 0 skipped)
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.category from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.claim from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.source from JSONB-format to TEXT-format encryption
+  🔄 Converted strategic_entities.evidence from JSONB-format to TEXT-format encryption
+  Progress: 292/292 records (292 migrated, 0 skipped)
+  ✅ Completed: 292 migrated, 0 skipped
+
+📋 Migrating strategic_relationships...
+  Total records: 1
+  Progress: 1/1 records (1 migrated, 0 skipped)
+  ✅ Completed: 1 migrated, 0 skipped
+
+📋 Migrating epm_programs...
+  Total records: 1
+  Progress: 1/1 records (1 migrated, 0 skipped)
+  ✅ Completed: 1 migrated, 0 skipped
+
+📋 Migrating strategy_versions...
+  Total records: 4
+  Progress: 4/4 records (4 migrated, 0 skipped)
+  ✅ Completed: 4 migrated, 0 skipped
+
+📋 Migrating strategic_decisions...
+  Total records: 0
+  ✅ Completed: 0 migrated, 0 skipped
+
+🔍 Verifying migration (sensitive fields only)...
+  ✅ strategic_understanding.user_input (d4b29a11-6dc4-4a45-8ac9-d56ad65b2480) - Successfully decrypted with KMS
+  ✅ strategic_understanding.initiative_description (d4b29a11-6dc4-4a45-8ac9-d56ad65b2480) - Successfully decrypted with KMS
+  ✅ strategic_understanding.user_input (fad72117-b61c-4b0d-96f0-b97bbe87cb23) - Successfully decrypted with KMS
+  ✅ strategic_understanding.initiative_description (fad72117-b61c-4b0d-96f0-b97bbe87cb23) - Successfully decrypted with KMS
+  ✅ strategic_understanding.user_input (208dee6f-fe14-4091-ab0e-810b1372bcc0) - Successfully decrypted with KMS
+  ✅ strategic_understanding.initiative_description (208dee6f-fe14-4091-ab0e-810b1372bcc0) - Successfully decrypted with KMS
+  ✅ journey_sessions.accumulated_context (77b453b3-6ce5-4cd3-8d8e-afa107789003) - Successfully decrypted with KMS
+  ✅ journey_sessions.accumulated_context (97c48b92-c7bb-4447-b43d-db104217f85e) - Successfully decrypted with KMS
+  ✅ journey_sessions.accumulated_context (23eb685f-2b7e-4ece-9c19-694c2f91ed74) - Successfully decrypted with KMS
+  ✅ strategic_entities.claim (9a95ffc1-888a-4dbd-aa3a-fc4f9f27d470) - Successfully decrypted with KMS
+  ✅ strategic_entities.source (9a95ffc1-888a-4dbd-aa3a-fc4f9f27d470) - Successfully decrypted with KMS
+❌ Error parsing decrypted JSON: SyntaxError: Unexpected token 'I', "Identified"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at decryptJSONKMS (/home/runner/workspace/server/utils/kms-encryption.ts:256:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async verifyMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:920:11)
+    at async runMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:973:7)
+  ✅ strategic_entities.evidence (9a95ffc1-888a-4dbd-aa3a-fc4f9f27d470) - Successfully decrypted with KMS
+  ✅ strategic_entities.claim (f094fbec-0eab-4682-a516-427e8b366c92) - Successfully decrypted with KMS
+  ✅ strategic_entities.source (f094fbec-0eab-4682-a516-427e8b366c92) - Successfully decrypted with KMS
+❌ Error parsing decrypted JSON: SyntaxError: Unexpected token 'l', "location_target" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at decryptJSONKMS (/home/runner/workspace/server/utils/kms-encryption.ts:256:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async verifyMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:920:11)
+    at async runMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:973:7)
+  ✅ strategic_entities.category (f094fbec-0eab-4682-a516-427e8b366c92) - Successfully decrypted with KMS
+  ✅ strategic_entities.claim (ba953c77-ddff-4c90-9638-2f84bb063e50) - Successfully decrypted with KMS
+  ✅ strategic_entities.source (ba953c77-ddff-4c90-9638-2f84bb063e50) - Successfully decrypted with KMS
+❌ Error parsing decrypted JSON: SyntaxError: Unexpected token 'C', "Choosing D"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at decryptJSONKMS (/home/runner/workspace/server/utils/kms-encryption.ts:256:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async verifyMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:920:11)
+    at async runMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:973:7)
+  ✅ strategic_entities.evidence (ba953c77-ddff-4c90-9638-2f84bb063e50) - Successfully decrypted with KMS
+❌ Error parsing decrypted JSON: SyntaxError: Unexpected token 'E', "Expand tar"... is not valid JSON
+    at JSON.parse (<anonymous>)
+    at decryptJSONKMS (/home/runner/workspace/server/utils/kms-encryption.ts:256:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async verifyMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:920:11)
+    at async runMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:973:7)
+  ✅ strategic_relationships.evidence (a84c43f2-4727-42e6-8c17-004f15208d22) - Successfully decrypted with KMS
+⚠️  Unencrypted data detected, returning as-is
+❌ Error parsing decrypted JSON: SyntaxError: "[object Object]" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at decryptJSONKMS (/home/runner/workspace/server/utils/kms-encryption.ts:256:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async verifyMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:920:11)
+    at async runMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:973:7)
+  ✅ strategic_relationships.metadata (a84c43f2-4727-42e6-8c17-004f15208d22) - Successfully decrypted with KMS
+⚠️  Unencrypted data detected, returning as-is
+❌ Error parsing decrypted JSON: SyntaxError: "[object Object]" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at decryptJSONKMS (/home/runner/workspace/server/utils/kms-encryption.ts:256:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async verifyMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:920:11)
+    at async runMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:973:7)
+  ✅ epm_programs.executive_summary (8b73fa15-b3f1-465b-967e-1d2c18da8707) - Successfully decrypted with KMS
+⚠️  Unencrypted data detected, returning as-is
+❌ Error parsing decrypted JSON: SyntaxError: "[object Object]" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at decryptJSONKMS (/home/runner/workspace/server/utils/kms-encryption.ts:256:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async verifyMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:920:11)
+    at async runMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:973:7)
+  ✅ epm_programs.workstreams (8b73fa15-b3f1-465b-967e-1d2c18da8707) - Successfully decrypted with KMS
+⚠️  Unencrypted data detected, returning as-is
+❌ Error parsing decrypted JSON: SyntaxError: "[object Object]" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at decryptJSONKMS (/home/runner/workspace/server/utils/kms-encryption.ts:256:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async verifyMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:920:11)
+    at async runMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:973:7)
+  ✅ epm_programs.timeline (8b73fa15-b3f1-465b-967e-1d2c18da8707) - Successfully decrypted with KMS
+⚠️  Unencrypted data detected, returning as-is
+❌ Error parsing decrypted JSON: SyntaxError: "[object Object]" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at decryptJSONKMS (/home/runner/workspace/server/utils/kms-encryption.ts:256:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async verifyMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:920:11)
+    at async runMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:973:7)
+  ✅ epm_programs.resource_plan (8b73fa15-b3f1-465b-967e-1d2c18da8707) - Successfully decrypted with KMS
+⚠️  Unencrypted data detected, returning as-is
+❌ Error parsing decrypted JSON: SyntaxError: "[object Object]" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at decryptJSONKMS (/home/runner/workspace/server/utils/kms-encryption.ts:256:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async verifyMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:920:11)
+    at async runMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:973:7)
+  ✅ epm_programs.financial_plan (8b73fa15-b3f1-465b-967e-1d2c18da8707) - Successfully decrypted with KMS
+⚠️  Unencrypted data detected, returning as-is
+❌ Error parsing decrypted JSON: SyntaxError: "[object Object]" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at decryptJSONKMS (/home/runner/workspace/server/utils/kms-encryption.ts:256:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async verifyMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:920:11)
+    at async runMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:973:7)
+  ✅ epm_programs.benefits_realization (8b73fa15-b3f1-465b-967e-1d2c18da8707) - Successfully decrypted with KMS
+⚠️  Unencrypted data detected, returning as-is
+❌ Error parsing decrypted JSON: SyntaxError: "[object Object]" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at decryptJSONKMS (/home/runner/workspace/server/utils/kms-encryption.ts:256:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async verifyMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:920:11)
+    at async runMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:973:7)
+  ✅ epm_programs.risk_register (8b73fa15-b3f1-465b-967e-1d2c18da8707) - Successfully decrypted with KMS
+⚠️  Unencrypted data detected, returning as-is
+❌ Error parsing decrypted JSON: SyntaxError: "[object Object]" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at decryptJSONKMS (/home/runner/workspace/server/utils/kms-encryption.ts:256:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async verifyMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:920:11)
+    at async runMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:973:7)
+  ✅ epm_programs.stakeholder_map (8b73fa15-b3f1-465b-967e-1d2c18da8707) - Successfully decrypted with KMS
+⚠️  Unencrypted data detected, returning as-is
+❌ Error parsing decrypted JSON: SyntaxError: "[object Object]" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at decryptJSONKMS (/home/runner/workspace/server/utils/kms-encryption.ts:256:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async verifyMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:920:11)
+    at async runMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:973:7)
+  ✅ epm_programs.governance (8b73fa15-b3f1-465b-967e-1d2c18da8707) - Successfully decrypted with KMS
+⚠️  Unencrypted data detected, returning as-is
+❌ Error parsing decrypted JSON: SyntaxError: "[object Object]" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at decryptJSONKMS (/home/runner/workspace/server/utils/kms-encryption.ts:256:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async verifyMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:920:11)
+    at async runMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:973:7)
+  ✅ epm_programs.qa_plan (8b73fa15-b3f1-465b-967e-1d2c18da8707) - Successfully decrypted with KMS
+⚠️  Unencrypted data detected, returning as-is
+❌ Error parsing decrypted JSON: SyntaxError: "[object Object]" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at decryptJSONKMS (/home/runner/workspace/server/utils/kms-encryption.ts:256:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async verifyMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:920:11)
+    at async runMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:973:7)
+  ✅ epm_programs.procurement (8b73fa15-b3f1-465b-967e-1d2c18da8707) - Successfully decrypted with KMS
+⚠️  Unencrypted data detected, returning as-is
+❌ Error parsing decrypted JSON: SyntaxError: "[object Object]" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at decryptJSONKMS (/home/runner/workspace/server/utils/kms-encryption.ts:256:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async verifyMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:920:11)
+    at async runMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:973:7)
+  ✅ epm_programs.exit_strategy (8b73fa15-b3f1-465b-967e-1d2c18da8707) - Successfully decrypted with KMS
+⚠️  Unencrypted data detected, returning as-is
+❌ Error parsing decrypted JSON: SyntaxError: "[object Object]" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at decryptJSONKMS (/home/runner/workspace/server/utils/kms-encryption.ts:256:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async verifyMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:920:11)
+    at async runMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:973:7)
+  ✅ epm_programs.kpis (8b73fa15-b3f1-465b-967e-1d2c18da8707) - Successfully decrypted with KMS
+  ✅ strategy_versions.input_summary (3ec00901-fef9-48ad-ab1d-9aaef824e12a) - Successfully decrypted with KMS
+⚠️  Unencrypted data detected, returning as-is
+❌ Error parsing decrypted JSON: SyntaxError: "[object Object]" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at decryptJSONKMS (/home/runner/workspace/server/utils/kms-encryption.ts:256:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async verifyMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:920:11)
+    at async runMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:973:7)
+  ✅ strategy_versions.analysis_data (3ec00901-fef9-48ad-ab1d-9aaef824e12a) - Successfully decrypted with KMS
+⚠️  Unencrypted data detected, returning as-is
+❌ Error parsing decrypted JSON: SyntaxError: "[object Object]" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at decryptJSONKMS (/home/runner/workspace/server/utils/kms-encryption.ts:256:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async verifyMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:920:11)
+    at async runMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:973:7)
+  ✅ strategy_versions.decisions_data (3ec00901-fef9-48ad-ab1d-9aaef824e12a) - Successfully decrypted with KMS
+  ✅ strategy_versions.input_summary (6825fa07-451f-4883-ad6e-856908b9b436) - Successfully decrypted with KMS
+⚠️  Unencrypted data detected, returning as-is
+❌ Error parsing decrypted JSON: SyntaxError: "[object Object]" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at decryptJSONKMS (/home/runner/workspace/server/utils/kms-encryption.ts:256:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async verifyMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:920:11)
+    at async runMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:973:7)
+  ✅ strategy_versions.analysis_data (6825fa07-451f-4883-ad6e-856908b9b436) - Successfully decrypted with KMS
+⚠️  Unencrypted data detected, returning as-is
+❌ Error parsing decrypted JSON: SyntaxError: "[object Object]" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at decryptJSONKMS (/home/runner/workspace/server/utils/kms-encryption.ts:256:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async verifyMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:920:11)
+    at async runMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:973:7)
+  ✅ strategy_versions.decisions_data (6825fa07-451f-4883-ad6e-856908b9b436) - Successfully decrypted with KMS
+  ✅ strategy_versions.input_summary (abd090b8-f46c-45b3-9fb9-ab5e8c122c51) - Successfully decrypted with KMS
+⚠️  Unencrypted data detected, returning as-is
+❌ Error parsing decrypted JSON: SyntaxError: "[object Object]" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at decryptJSONKMS (/home/runner/workspace/server/utils/kms-encryption.ts:256:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async verifyMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:920:11)
+    at async runMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:973:7)
+  ✅ strategy_versions.analysis_data (abd090b8-f46c-45b3-9fb9-ab5e8c122c51) - Successfully decrypted with KMS
+⚠️  Unencrypted data detected, returning as-is
+❌ Error parsing decrypted JSON: SyntaxError: "[object Object]" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at decryptJSONKMS (/home/runner/workspace/server/utils/kms-encryption.ts:256:17)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async verifyMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:920:11)
+    at async runMigration (/home/runner/workspace/server/scripts/migrate-to-kms-encryption.ts:973:7)
+  ✅ strategy_versions.decisions_data (abd090b8-f46c-45b3-9fb9-ab5e8c122c51) - Successfully decrypted with KMS
+
+📊 Verified 42 sensitive fields
+✅ Verification passed - all sampled sensitive fields decrypt successfully with KMS
+
+=====================================
+📊 Migration Summary
+=====================================
+Total records processed: 349
+Successfully migrated: 333
+Skipped (already migrated): 16
+Errors: 0
+Duration: 236.37s
+
+✅ Migration completed successfully!
