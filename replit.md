@@ -29,7 +29,7 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tail
 - **Authentication/Authorization**: Session-based authentication via Passport.js with Replit OIDC, HTTP-only cookies, and a three-tier role system (Admin, Editor, Viewer).
 - **AI Multi-Agent System**: An ontology-based architecture with Executive, Builder, QA Specialist Agents, and a Multi-Agent Orchestrator.
 - **Strategic Consultant & EPM Integration**: Converts executive input into AI-analyzed strategic decisions and EPM program structures, supporting Five Whys AI-coaching, Anti-Confirmation Bias Research, Version Management, and Intelligent Framework Selection.
-- **EPM V2 Engine**: Generates EPM programs with industry-appropriate content, proper FTE decimals, validated dependencies, and context-aware risks/benefits.
+- **EPM V2 Engine**: Generates EPM programs with industry-appropriate content, proper FTE decimals, validated dependencies, and context-aware risks/benefits. Features LLM-driven workstream owner assignment using `RoleInferenceService` (batch inference, caching, deduplication, fallback to keyword-based heuristics).
 - **Business Model Canvas (BMC) Analysis**: Full 9-block implementation with query generation, parallel research, and cross-block consistency validation.
 - **Strategic Understanding Service**: Uses PostgreSQL with `pgvector` for entity categorization, relationship mapping, semantic search, and contradiction validation.
 - **Journey-Based Strategic Analysis**: Guides users through interactive sequences for strategic frameworks with backend-controlled orchestration via an Orchestrator-driven `pageSequence`.
