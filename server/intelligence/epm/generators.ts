@@ -159,13 +159,14 @@ export class FinancialPlanGenerator {
  *
  * ARCHITECTURE SPEC: Section 18 - Benefits Generator Contract
  * - Derives benefits from SWOT opportunities with specific, measurable targets
- * - Categories vary based on content analysis
- * - Each benefit has business-specific metrics, not generic placeholders
+ * - Uses AI to generate contextual descriptions (not templates)
+ * - Uses AI to assign owners based on actual resource list
  */
 export class BenefitsGenerator {
   async generate(
     insights: StrategyInsights,
-    timeline: Timeline
+    timeline: Timeline,
+    programContext?: { name: string; description?: string }
   ): Promise<BenefitsRealization> {
     const benefitInsights = insights.insights.filter(i => i.type === 'benefit');
 
@@ -185,7 +186,7 @@ export class BenefitsGenerator {
         id: `B${String(benefits.length + 1).padStart(3, '0')}`,
         name: analysis.name,
         category: analysis.category as any,
-        description: this.generateRichDescription(insight.content, analysis),
+        description: insight.content, // Use original content, AI will enhance later
         target: analysis.target,
         realizationMonth: this.calculateRealizationMonth(idx, timeline, analysis.priority),
         estimatedValue,
@@ -203,7 +204,7 @@ export class BenefitsGenerator {
         id: `B${String(benefits.length + 1).padStart(3, '0')}`,
         name: `Leverage: ${analysis.name}`,
         category: 'Strategic',
-        description: `Use ${analysis.name.toLowerCase()} as a competitive differentiator to accelerate market penetration and customer acquisition`,
+        description: insight.content, // Use original content, AI will enhance later
         target: analysis.target,
         realizationMonth: timeline.totalMonths - 1,
         estimatedValue: undefined,
@@ -496,8 +497,106 @@ export class BenefitsGenerator {
   }
 
   /**
+   * Use AI to enhance benefits with contextual descriptions and assign owners
+   * Makes ONE batch call for efficiency
+   */
+  async enhanceBenefitsWithAI(
+    benefits: Benefit[],
+    resources: ResourceAllocation[],
+    programContext?: { name: string; description?: string }
+  ): Promise<Benefit[]> {
+    if (!resources || resources.length === 0 || benefits.length === 0) {
+      console.log('[BenefitsGenerator] No resources or benefits, using defaults');
+      return benefits.map(b => ({ ...b, responsibleParty: 'Program Director' }));
+    }
+
+    const availableRoles = resources.map(r => r.role);
+
+    try {
+      const prompt = `You are a strategic benefits analyst. Enhance these benefits for a program.
+
+PROGRAM: "${programContext?.name || 'Strategic Program'}"
+${programContext?.description ? `CONTEXT: ${programContext.description}` : ''}
+
+AVAILABLE TEAM MEMBERS (assign owners from this list ONLY):
+${availableRoles.map((r, i) => `• ${r}`).join('\n')}
+
+BENEFITS TO ENHANCE:
+${benefits.map((b, i) => `${i + 1}. "${b.name}" - Original: ${b.description.substring(0, 100)}...`).join('\n')}
+
+For each benefit, provide:
+1. A contextual description (2-3 sentences) that explains HOW this benefit will be achieved and WHY it matters for this specific program. Do NOT use generic phrases like "leverage to strengthen market position" - be specific.
+2. The best owner from the available team members based on WHO would naturally own this outcome.
+
+Return ONLY valid JSON (no markdown):
+{
+  "enhancements": [
+    {
+      "benefitIndex": 0,
+      "description": "Specific description of how this benefit will be realized...",
+      "owner": "Exact role name from the list above",
+      "reasoning": "Why this person owns this benefit"
+    }
+  ]
+}
+
+IMPORTANT:
+- Descriptions must be specific to the program, not generic templates
+- Owners must exactly match one of the available team member roles
+- Distribute ownership - don't assign everything to one person`;
+
+      const result = await aiClients.callWithFallback({
+        prompt,
+        maxTokens: 2000,
+        temperature: 0.7,
+      });
+
+      const responseText = result?.content || result?.text || '';
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+
+        if (parsed.enhancements && Array.isArray(parsed.enhancements)) {
+          console.log(`[BenefitsGenerator] AI enhanced ${parsed.enhancements.length} benefits`);
+
+          return benefits.map((benefit, idx) => {
+            const enhancement = parsed.enhancements.find((e: any) => e.benefitIndex === idx);
+
+            if (enhancement) {
+              // Validate owner is in available roles
+              const validOwner = availableRoles.find(r =>
+                r.toLowerCase() === enhancement.owner?.toLowerCase()
+              ) || availableRoles[idx % availableRoles.length];
+
+              return {
+                ...benefit,
+                description: enhancement.description || benefit.description,
+                responsibleParty: validOwner,
+              };
+            }
+
+            return {
+              ...benefit,
+              responsibleParty: availableRoles[idx % availableRoles.length],
+            };
+          });
+        }
+      }
+
+      console.log('[BenefitsGenerator] AI returned no valid enhancements, using fallback');
+    } catch (error) {
+      console.error('[BenefitsGenerator] AI enhancement failed:', error);
+    }
+
+    // Fallback: use existing method
+    return this.assignBenefitOwners(benefits, resources);
+  }
+
+  /**
    * Assign responsible parties to benefits based on their category and content
    * Uses role-templates for context-aware owner assignment with round-robin fallback
+   * NOTE: This is the fallback method - prefer enhanceBenefitsWithAI for better results
    */
   assignBenefitOwners(benefits: Benefit[], resources: ResourceAllocation[]): Benefit[] {
     if (!resources || resources.length === 0) {

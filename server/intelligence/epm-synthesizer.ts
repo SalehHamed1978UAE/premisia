@@ -484,16 +484,17 @@ export class EPMSynthesizer {
       this.governanceGenerator.generate(insights, stakeholderMap),
     ]);
     
-    // Assign responsible parties to benefits based on resources
-    const benefitsWithOwners = this.benefitsGenerator.assignBenefitOwners(
+    // Enhance benefits with AI-generated descriptions and assign owners
+    const benefitsWithOwners = await this.benefitsGenerator.enhanceBenefitsWithAI(
       benefitsRealizationRaw.benefits,
-      resourcePlan.internalTeam
+      resourcePlan.internalTeam,
+      { name: programName, description: planningContext.business.description }
     );
     const benefitsRealization = {
       ...benefitsRealizationRaw,
       benefits: benefitsWithOwners
     };
-    console.log('[EPM Synthesis] ✓ Assigned benefit owners (buildV2Program):', benefitsWithOwners.map(b => ({ name: b.name, owner: b.responsibleParty })));
+    console.log('[EPM Synthesis] ✓ Enhanced benefits with AI (buildV2Program):', benefitsWithOwners.map(b => ({ name: b.name, owner: b.responsibleParty })));
     
     const [
       kpis,
@@ -642,16 +643,17 @@ export class EPMSynthesizer {
       this.governanceGenerator.generate(insights, stakeholderMap),
     ]);
     
-    // Assign responsible parties to benefits based on resources (legacy path)
-    const benefitsWithOwners2 = this.benefitsGenerator.assignBenefitOwners(
+    // Enhance benefits with AI-generated descriptions and assign owners (legacy path)
+    const benefitsWithOwners2 = await this.benefitsGenerator.enhanceBenefitsWithAI(
       benefitsRealizationRaw2.benefits,
-      resourcePlan.internalTeam
+      resourcePlan.internalTeam,
+      { name: programName }
     );
     const benefitsRealization = {
       ...benefitsRealizationRaw2,
       benefits: benefitsWithOwners2
     };
-    console.log('[EPM Synthesis] ✓ Assigned benefit owners (legacy):', benefitsWithOwners2.map(b => ({ name: b.name, owner: b.responsibleParty })));
+    console.log('[EPM Synthesis] ✓ Enhanced benefits with AI (legacy):', benefitsWithOwners2.map(b => ({ name: b.name, owner: b.responsibleParty })));
     
     const [
       kpis,
