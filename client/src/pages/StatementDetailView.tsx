@@ -36,29 +36,36 @@ export default function StatementDetailView() {
     const colors: Record<string, string> = {
       PESTLE: 'text-blue-600 dark:text-blue-400',
       BMC: 'text-green-600 dark:text-green-400',
+      'Business Model Canvas': 'text-green-600 dark:text-green-400',
       'Five Whys': 'text-purple-600 dark:text-purple-400',
       "Porter's": 'text-orange-600 dark:text-orange-400',
+      "Porter's Five Forces": 'text-orange-600 dark:text-orange-400',
+      SWOT: 'text-teal-600 dark:text-teal-400',
     };
     return colors[framework] || 'text-gray-600 dark:text-gray-400';
   };
 
   const getFrameworkIcon = (framework: string) => {
     if (framework === 'PESTLE') return '🌍';
-    if (framework === 'BMC') return '📊';
+    if (framework === 'BMC' || framework === 'Business Model Canvas') return '📊';
     if (framework === 'Five Whys') return '❓';
-    if (framework === "Porter's") return '🎯';
+    if (framework === "Porter's" || framework === "Porter's Five Forces") return '🎯';
+    if (framework === 'SWOT') return '📈';
     return '📋';
   };
 
   const handleViewFullReport = (framework: string, sessionId: string, versionNumber?: number) => {
+    const version = versionNumber || 1;
     if (framework === 'PESTLE') {
-      setLocation(`/strategic-consultant/trend-analysis/${sessionId}/1`);
+      setLocation(`/strategic-consultant/pestle-results/${sessionId}/${version}`);
     } else if (framework === 'Business Model Canvas') {
-      const version = versionNumber || 1;
       setLocation(`/strategic-consultant/results/${sessionId}/${version}`);
     } else if (framework === 'Five Whys') {
-      const version = versionNumber || 1;
       setLocation(`/strategic-consultant/results/${sessionId}/${version}`);
+    } else if (framework === "Porter's Five Forces") {
+      setLocation(`/strategic-consultant/porters-results/${sessionId}/${version}`);
+    } else if (framework === 'SWOT') {
+      setLocation(`/strategic-consultant/swot-results/${sessionId}/${version}`);
     }
   };
 

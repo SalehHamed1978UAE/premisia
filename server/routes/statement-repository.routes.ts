@@ -78,7 +78,7 @@ router.get('/statements', async (req: any, res) => {
         // Process new analyses from strategy versions
         newAnalyses.forEach((version) => {
           const data = version.analysisData as any;
-          
+
           // Check for BMC
           if (data?.bmc_research) {
             const framework = 'Business Model Canvas';
@@ -90,7 +90,7 @@ router.get('/statements', async (req: any, res) => {
               latestActivity = version.createdAt;
             }
           }
-          
+
           // Check for Five Whys (support both new nested structure and old root-level structure)
           const fiveWhysData = data?.five_whys || (data?.rootCause && data?.framework === 'five_whys' ? data : null);
           if (fiveWhysData && (fiveWhysData.rootCause || fiveWhysData.whysPath)) {
@@ -103,10 +103,37 @@ router.get('/statements', async (req: any, res) => {
               latestActivity = version.createdAt;
             }
           }
-          
+
           // Check for Porter's Five Forces
           if (data?.porters_five_forces) {
             const framework = "Porter's Five Forces";
+            if (!analysisSummary[framework]) {
+              analysisSummary[framework] = { count: 0, latestVersion: `v${version.versionNumber}` };
+            }
+            analysisSummary[framework].count++;
+            if (version.createdAt && version.createdAt > latestActivity) {
+              latestActivity = version.createdAt;
+            }
+          }
+
+          // Check for SWOT analysis (Market Entry journey)
+          const swotData = data?.swot?.data?.output || data?.swot?.output || data?.swot;
+          if (swotData?.strengths || swotData?.weaknesses || swotData?.opportunities || swotData?.threats) {
+            const framework = 'SWOT';
+            if (!analysisSummary[framework]) {
+              analysisSummary[framework] = { count: 0, latestVersion: `v${version.versionNumber}` };
+            }
+            analysisSummary[framework].count++;
+            if (version.createdAt && version.createdAt > latestActivity) {
+              latestActivity = version.createdAt;
+            }
+          }
+
+          // Check for PESTLE analysis (new format in strategyVersions)
+          const pestleData = data?.pestle?.data?.pestleResults || data?.pestle?.pestleResults || data?.pestle;
+          if (pestleData?.political || pestleData?.economic || pestleData?.social ||
+              pestleData?.technological || pestleData?.legal || pestleData?.environmental) {
+            const framework = 'PESTLE';
             if (!analysisSummary[framework]) {
               analysisSummary[framework] = { count: 0, latestVersion: `v${version.versionNumber}` };
             }
@@ -335,7 +362,7 @@ router.get('/statements/:understandingId', async (req, res) => {
       if (analysisData?.porters_five_forces) {
         const portersData = analysisData.porters_five_forces;
         const framework = "Porter's Five Forces";
-        
+
         if (!groupedAnalyses[framework]) {
           groupedAnalyses[framework] = [];
         }
@@ -348,7 +375,7 @@ router.get('/statements/:understandingId', async (req, res) => {
           const allImplications = portersData.forces
             .map((force: any) => force.strategicImplication)
             .filter(Boolean);
-          
+
           if (allImplications.length > 0) {
             summary = allImplications.slice(0, 2).join(' ').substring(0, 200) + '...';
             keyFindings = allImplications.slice(0, 3);
@@ -363,6 +390,91 @@ router.get('/statements/:understandingId', async (req, res) => {
           createdAt: version.createdAt,
           summary,
           keyFindings,
+        });
+      }
+
+      // Check for SWOT analysis (Market Entry journey)
+      const swotData = analysisData?.swot?.data?.output ||
+                       analysisData?.swot?.output ||
+                       analysisData?.swot;
+      if (swotData?.strengths || swotData?.weaknesses || swotData?.opportunities || swotData?.threats) {
+        const framework = 'SWOT';
+
+        if (!groupedAnalyses[framework]) {
+          groupedAnalyses[framework] = [];
+        }
+
+        let summary = '';
+        const keyFindings: string[] = [];
+
+        // Extract key findings from SWOT quadrants
+        if (swotData.strengths && Array.isArray(swotData.strengths)) {
+          const topStrength = swotData.strengths[0];
+          if (topStrength?.name) keyFindings.push(`Strength: ${topStrength.name}`);
+        }
+        if (swotData.opportunities && Array.isArray(swotData.opportunities)) {
+          const topOpp = swotData.opportunities[0];
+          if (topOpp?.name) keyFindings.push(`Opportunity: ${topOpp.name}`);
+        }
+        if (swotData.threats && Array.isArray(swotData.threats)) {
+          const topThreat = swotData.threats[0];
+          if (topThreat?.name) keyFindings.push(`Threat: ${topThreat.name}`);
+        }
+
+        if (keyFindings.length > 0) {
+          summary = keyFindings.join('; ').substring(0, 200);
+        }
+
+        groupedAnalyses[framework].push({
+          id: version.id,
+          frameworkName: framework,
+          version: `v${version.versionNumber}`,
+          versionNumber: version.versionNumber,
+          createdAt: version.createdAt,
+          summary,
+          keyFindings,
+        });
+      }
+
+      // Check for PESTLE analysis (new format in strategyVersions)
+      const pestleData = analysisData?.pestle?.data?.pestleResults ||
+                         analysisData?.pestle?.pestleResults ||
+                         analysisData?.pestle;
+      if (pestleData?.political || pestleData?.economic || pestleData?.social ||
+          pestleData?.technological || pestleData?.legal || pestleData?.environmental) {
+        const framework = 'PESTLE';
+
+        if (!groupedAnalyses[framework]) {
+          groupedAnalyses[framework] = [];
+        }
+
+        let summary = '';
+        const keyFindings: string[] = [];
+
+        // Extract key trends from each factor
+        const factors = ['political', 'economic', 'social', 'technological', 'legal', 'environmental'];
+        for (const factor of factors) {
+          const factorData = pestleData[factor];
+          if (factorData?.trends && Array.isArray(factorData.trends) && factorData.trends.length > 0) {
+            const trend = factorData.trends[0];
+            if (trend?.description) {
+              keyFindings.push(`${factor.charAt(0).toUpperCase() + factor.slice(1)}: ${trend.description.substring(0, 50)}`);
+            }
+          }
+        }
+
+        if (keyFindings.length > 0) {
+          summary = keyFindings.slice(0, 2).join('; ').substring(0, 200);
+        }
+
+        groupedAnalyses[framework].push({
+          id: version.id,
+          frameworkName: framework,
+          version: `v${version.versionNumber}`,
+          versionNumber: version.versionNumber,
+          createdAt: version.createdAt,
+          summary,
+          keyFindings: keyFindings.slice(0, 3),
         });
       }
     });
