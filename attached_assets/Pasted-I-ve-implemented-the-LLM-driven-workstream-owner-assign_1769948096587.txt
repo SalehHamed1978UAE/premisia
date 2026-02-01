@@ -1,0 +1,32 @@
+I've implemented the LLM-driven workstream owner assignment as specified in   
+  the implementation plan. Here's what was done:                                
+                                                                                
+  New file created: server/intelligence/epm/role-inference.ts                   
+  - RoleInferenceService class that makes a single batch LLM call to infer      
+  appropriate owners for all workstreams                                        
+  - In-memory caching by workstream name to avoid redundant LLM calls           
+  - Fallback heuristics if LLM fails                                            
+  - normalizeRole() for consistent role title formatting                        
+  - ensureResourceExists() to auto-add inferred roles to the resource plan      
+  - inferSkillsFromCategory() to assign appropriate skills based on role        
+  category                                                                      
+                                                                                
+  Updated: server/intelligence/epm-synthesizer.ts                               
+  - Replaced the 100+ lines of hardcoded keyword matching with the new async    
+  LLM-based inference                                                           
+  - Passes business context (industry, businessType, geography, initiativeType, 
+  programName) to the inference service                                         
+  - Stores owner rationale in workstream metadata for audit trail               
+  - Logs detailed inference results including cache hits and unique role count  
+                                                                                
+  Key features:                                                                 
+  1. Batch call - All workstreams processed in ONE LLM call for efficiency      
+  2. Caching - Results cached by businessType::workstreamName key               
+  3. Role deduplication - LLM prompted to reuse roles when appropriate (max 6   
+  unique)                                                                       
+  4. Fallback - Graceful degradation to heuristics if LLM fails                 
+  5. Resource integration - Inferred roles auto-added to resource plan with     
+  appropriate skills                                                            
+                                                                                
+  The changes have been pushed to the remote repository. Replit should pull the 
+  code and restart the server to test with a cafe/restaurant journey.  
