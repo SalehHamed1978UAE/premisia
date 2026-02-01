@@ -901,53 +901,65 @@ export class EPMSynthesizer {
       const wsName = ws.name.toLowerCase();
       const wsDesc = ws.description.toLowerCase();
       const combined = `${wsName} ${wsDesc}`;
-      
+
       // Match workstream to resource based on category keywords
       let assignedOwner = defaultOwner;
-      
-      // Supply Chain / Operations workstreams
-      if (combined.includes('supply chain') || combined.includes('logistics') || 
-          combined.includes('inventory') || combined.includes('vendor') || combined.includes('sourcing')) {
-        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam, 
-          ['supply chain', 'operations', 'logistics', 'procurement']) || defaultOwner;
+
+      // Construction / Design / Build-out workstreams (MUST BE FIRST - most specific)
+      if (combined.includes('construction') || combined.includes('build-out') || combined.includes('buildout') ||
+          combined.includes('design') || combined.includes('fit-out') || combined.includes('fitout') ||
+          combined.includes('interior') || combined.includes('equipment installation') || combined.includes('renovation')) {
+        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam,
+          ['construction', 'design', 'build', 'fit-out', 'architect', 'buildout']) || defaultOwner;
+      }
+      // Compliance / Regulatory / Licensing workstreams
+      else if (combined.includes('compliance') || combined.includes('regulatory') || combined.includes('licensing') ||
+               combined.includes('permit') || combined.includes('health') || combined.includes('safety') ||
+               combined.includes('inspection') || combined.includes('certification') || combined.includes('legal')) {
+        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam,
+          ['compliance', 'licensing', 'regulatory', 'safety', 'legal', 'permit']) || defaultOwner;
+      }
+      // Technology / Systems / POS workstreams
+      else if (combined.includes('technology') || combined.includes('system') || combined.includes('pos') ||
+               combined.includes('point-of-sale') || combined.includes('digital') || combined.includes('integration') ||
+               combined.includes('software') || combined.includes('data') || combined.includes('wifi') || combined.includes('tech')) {
+        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam,
+          ['technology', 'systems', 'tech', 'digital', 'pos', 'it', 'engineer']) || defaultOwner;
+      }
+      // Talent / HR / Training / Recruitment workstreams
+      else if (combined.includes('talent') || combined.includes('training') || combined.includes('recruitment') ||
+               combined.includes('hiring') || combined.includes('staff') || combined.includes('onboarding') ||
+               combined.includes('hr') || combined.includes('employee') || combined.includes('barista training')) {
+        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam,
+          ['hr', 'training', 'talent', 'recruitment', 'coordinator', 'people']) || defaultOwner;
+      }
+      // Marketing / Brand / Community workstreams
+      else if (combined.includes('marketing') || combined.includes('brand') || combined.includes('community') ||
+               combined.includes('social media') || combined.includes('campaign') || combined.includes('promotion') ||
+               combined.includes('advertising') || combined.includes('pr') || combined.includes('launch event')) {
+        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam,
+          ['marketing', 'community', 'brand', 'pr', 'social', 'campaign']) || defaultOwner;
+      }
+      // Supply Chain / Inventory / Vendor workstreams
+      else if (combined.includes('supply chain') || combined.includes('logistics') ||
+               combined.includes('inventory') || combined.includes('vendor') || combined.includes('sourcing') ||
+               combined.includes('procurement') || combined.includes('supplier')) {
+        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam,
+          ['supply chain', 'operations', 'logistics', 'procurement', 'inventory']) || defaultOwner;
       }
       // Financial workstreams
-      else if (combined.includes('financial') || combined.includes('budget') || 
+      else if (combined.includes('financial') || combined.includes('budget') ||
                combined.includes('cost') || combined.includes('revenue') || combined.includes('pricing')) {
-        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam, 
+        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam,
           ['financial', 'finance', 'controller', 'accountant']) || defaultOwner;
       }
-      // Customer / Marketing workstreams
-      else if (combined.includes('customer') || combined.includes('marketing') || 
-               combined.includes('brand') || combined.includes('sales') || combined.includes('experience')) {
-        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam, 
-          ['customer', 'marketing', 'sales', 'experience', 'brand']) || defaultOwner;
+      // Operations / Readiness workstreams (general catch for ops)
+      else if (combined.includes('operations') || combined.includes('operational') || combined.includes('readiness') ||
+               combined.includes('launch') || combined.includes('opening')) {
+        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam,
+          ['operations', 'manager', 'launch', 'readiness']) || defaultOwner;
       }
-      // Technology / Data workstreams
-      else if (combined.includes('technology') || combined.includes('data') || 
-               combined.includes('system') || combined.includes('digital') || combined.includes('integration')) {
-        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam, 
-          ['technology', 'data', 'tech', 'digital', 'engineer', 'architect']) || defaultOwner;
-      }
-      // Talent / HR workstreams
-      else if (combined.includes('talent') || combined.includes('hr') || 
-               combined.includes('hiring') || combined.includes('training') || combined.includes('staff')) {
-        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam, 
-          ['hr', 'human resource', 'talent', 'people', 'training']) || defaultOwner;
-      }
-      // Quality / Compliance workstreams
-      else if (combined.includes('quality') || combined.includes('compliance') || 
-               combined.includes('audit') || combined.includes('standard')) {
-        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam, 
-          ['quality', 'compliance', 'qa', 'audit']) || defaultOwner;
-      }
-      // Store / Location / Retail workstreams
-      else if (combined.includes('store') || combined.includes('location') || 
-               combined.includes('retail') || combined.includes('launch') || combined.includes('setup')) {
-        assignedOwner = this.findMatchingRole(resourcePlan.internalTeam, 
-          ['store', 'retail', 'operations', 'location']) || defaultOwner;
-      }
-      
+
       ws.owner = assignedOwner;
     });
   }
