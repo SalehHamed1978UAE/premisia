@@ -6,6 +6,13 @@
  * appropriate resources for each business type.
  *
  * CRITICAL: A cafe should get "Cafe Manager", "Head Barista" - NOT "Corporate Sales Manager"
+ *
+ * TODO: Replace hardcoded templates with Context Foundry integration
+ * - Use CF entity extraction to infer business type dynamically
+ * - Use CF to suggest appropriate roles based on business context
+ * - Keep templates as fallback only, not primary source
+ * - This will make role selection more robust and scalable
+ * See: Context Foundry integration discussion (Feb 2026)
  */
 
 import type { BusinessCategory, RoleTemplate, StrategyContext, RiskCategory } from '../types';
