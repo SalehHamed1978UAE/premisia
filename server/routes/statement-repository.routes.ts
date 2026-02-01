@@ -280,6 +280,19 @@ router.get('/statements', async (req: any, res) => {
               latestActivity = version.createdAt;
             }
           }
+
+          // Check for Strategic Decisions (user selections from AI-generated options)
+          const selectedDecisions = version.selectedDecisions as Record<string, string> | null;
+          if (selectedDecisions && typeof selectedDecisions === 'object' && Object.keys(selectedDecisions).length > 0) {
+            const framework = 'Strategic Decisions';
+            if (!analysisSummary[framework]) {
+              analysisSummary[framework] = { count: 0, latestVersion: `v${version.versionNumber}` };
+            }
+            analysisSummary[framework].count++;
+            if (version.createdAt && version.createdAt > latestActivity) {
+              latestActivity = version.createdAt;
+            }
+          }
         });
 
         const totalAnalyses = oldAnalyses.length + newAnalyses.length;
@@ -869,6 +882,29 @@ router.get('/statements/:understandingId', async (req, res) => {
         if (keyFindings.length > 0) {
           summary = keyFindings.join(', ').substring(0, 200);
         }
+        groupedAnalyses[framework].push({
+          id: version.id,
+          frameworkName: framework,
+          version: `v${version.versionNumber}`,
+          versionNumber: version.versionNumber,
+          createdAt: version.createdAt,
+          summary,
+          keyFindings,
+        });
+      }
+
+      // Check for Strategic Decisions (user selections from AI-generated options)
+      const selectedDecisions = version.selectedDecisions as Record<string, string> | null;
+      if (selectedDecisions && typeof selectedDecisions === 'object' && Object.keys(selectedDecisions).length > 0) {
+        const framework = 'Strategic Decisions';
+        if (!groupedAnalyses[framework]) {
+          groupedAnalyses[framework] = [];
+        }
+        const decisionCount = Object.keys(selectedDecisions).length;
+        const summary = `${decisionCount} strategic decision${decisionCount !== 1 ? 's' : ''} made`;
+        const keyFindings = Object.entries(selectedDecisions).slice(0, 3).map(([key, value]) =>
+          `${key}: ${value}`.substring(0, 100)
+        );
         groupedAnalyses[framework].push({
           id: version.id,
           frameworkName: framework,

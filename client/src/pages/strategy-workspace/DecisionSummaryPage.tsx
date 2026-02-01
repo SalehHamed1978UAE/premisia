@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useRoute, useLocation } from "wouter";
+import { useRoute, useLocation, useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -66,6 +66,7 @@ interface VersionData {
     bmc_research?: BMCAnalysis;
   };
   decisions?: GeneratedDecisions;
+  selectedDecisions?: Record<string, string>;
 }
 
 interface StrategyDecision {
@@ -110,9 +111,13 @@ function extractListItems(text: string): string[] {
 export default function DecisionSummaryPage() {
   const [, params] = useRoute("/strategy-workspace/decisions/:sessionId/:versionNumber");
   const [, setLocation] = useLocation();
+  const searchString = useSearch();
   const { toast } = useToast();
   const sessionId = params?.sessionId;
   const versionNumber = params?.versionNumber ? parseInt(params.versionNumber) : 1;
+
+  // Check if this is a view-only request (from Statement Analysis page)
+  const isViewOnly = searchString.includes('viewOnly=true');
 
   const [currentStep, setCurrentStep] = useState(1);
   const [decisionData, setDecisionData] = useState<Partial<StrategyDecision>>({
@@ -147,12 +152,24 @@ export default function DecisionSummaryPage() {
         decisionsKeys: versionResponse.version?.decisions ? Object.keys(versionResponse.version.decisions) : [],
         decisionsData: versionResponse.version?.decisions,
         decisionCount: versionResponse.version?.decisions?.decisions?.length || 0,
+        selectedDecisions: versionResponse.version?.selectedDecisions,
       });
     }
   }, [versionResponse]);
-  
+
   // Track which strategic decision options the user has selected
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
+
+  // Load saved selectedDecisions when viewing existing data
+  useEffect(() => {
+    if (versionResponse?.version?.selectedDecisions) {
+      const saved = versionResponse.version.selectedDecisions;
+      if (typeof saved === 'object' && Object.keys(saved).length > 0) {
+        console.log('[DecisionSummaryPage] Loading saved selectedDecisions:', saved);
+        setSelectedOptions(saved);
+      }
+    }
+  }, [versionResponse?.version?.selectedDecisions]);
 
   // Extract BMC data when loaded
   useEffect(() => {
@@ -346,7 +363,8 @@ export default function DecisionSummaryPage() {
                   
                   <RadioGroup
                     value={selectedOptions[decision.id] || ''}
-                    onValueChange={(value) => setSelectedOptions(prev => ({ ...prev, [decision.id]: value }))}
+                    onValueChange={(value) => !isViewOnly && setSelectedOptions(prev => ({ ...prev, [decision.id]: value }))}
+                    disabled={isViewOnly}
                   >
                     {decision.options.map((option) => (
                       <div
@@ -416,44 +434,59 @@ export default function DecisionSummaryPage() {
               ))}
               
               <div className="flex flex-col sm:flex-row sm:justify-end gap-3 sm:gap-4 pt-4">
-                {Object.keys(selectedOptions).length < generatedDecisions.decisions.length && (
-                  <p className="text-sm text-amber-600 sm:mr-auto">
-                    Please select an option for all {generatedDecisions.decisions.length} strategic decisions
-                    ({Object.keys(selectedOptions).length}/{generatedDecisions.decisions.length} selected)
-                  </p>
+                {isViewOnly ? (
+                  <Button
+                    onClick={() => setLocation('/repository')}
+                    variant="outline"
+                    data-testid="button-back-to-repository"
+                    className="w-full sm:w-auto"
+                    size="lg"
+                  >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back to Repository
+                  </Button>
+                ) : (
+                  <>
+                    {Object.keys(selectedOptions).length < generatedDecisions.decisions.length && (
+                      <p className="text-sm text-amber-600 sm:mr-auto">
+                        Please select an option for all {generatedDecisions.decisions.length} strategic decisions
+                        ({Object.keys(selectedOptions).length}/{generatedDecisions.decisions.length} selected)
+                      </p>
+                    )}
+                    <Button
+                      onClick={() => {
+                        // Validate all decisions have selections
+                        if (Object.keys(selectedOptions).length < generatedDecisions.decisions.length) {
+                          toast({
+                            title: "Missing selections",
+                            description: "Please select an option for all strategic decisions",
+                            variant: "destructive",
+                          });
+                          return;
+                        }
+
+                        // Save selected decisions and navigate to prioritization
+                        saveSelectedDecisionsMutation.mutate(selectedOptions);
+                      }}
+                      disabled={Object.keys(selectedOptions).length < generatedDecisions.decisions.length || saveSelectedDecisionsMutation.isPending}
+                      data-testid="button-proceed-prioritization"
+                      className="w-full sm:w-auto"
+                      size="lg"
+                    >
+                      {saveSelectedDecisionsMutation.isPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          Proceed to Prioritization
+                          <ArrowRight className="ml-2 h-4 w-4" />
+                        </>
+                      )}
+                    </Button>
+                  </>
                 )}
-                <Button
-                  onClick={() => {
-                    // Validate all decisions have selections
-                    if (Object.keys(selectedOptions).length < generatedDecisions.decisions.length) {
-                      toast({
-                        title: "Missing selections",
-                        description: "Please select an option for all strategic decisions",
-                        variant: "destructive",
-                      });
-                      return;
-                    }
-                    
-                    // Save selected decisions and navigate to prioritization
-                    saveSelectedDecisionsMutation.mutate(selectedOptions);
-                  }}
-                  disabled={Object.keys(selectedOptions).length < generatedDecisions.decisions.length || saveSelectedDecisionsMutation.isPending}
-                  data-testid="button-proceed-prioritization"
-                  className="w-full sm:w-auto"
-                  size="lg"
-                >
-                  {saveSelectedDecisionsMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      Proceed to Prioritization
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </>
-                  )}
-                </Button>
               </div>
             </CardContent>
           </Card>

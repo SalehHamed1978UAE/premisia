@@ -51,6 +51,7 @@ export default function StatementDetailView() {
       'Competitive Positioning': 'text-red-600 dark:text-red-400',
       'Scenario Planning': 'text-sky-600 dark:text-sky-400',
       OKR: 'text-lime-600 dark:text-lime-400',
+      'Strategic Decisions': 'text-fuchsia-600 dark:text-fuchsia-400',
     };
     return colors[framework] || 'text-gray-600 dark:text-gray-400';
   };
@@ -70,6 +71,7 @@ export default function StatementDetailView() {
     if (framework === 'Competitive Positioning') return '🏆';
     if (framework === 'Scenario Planning') return '🔮';
     if (framework === 'OKR') return '🎯';
+    if (framework === 'Strategic Decisions') return '⚖️';
     return '📋';
   };
 
@@ -86,6 +88,8 @@ export default function StatementDetailView() {
       setLocation(`/strategic-consultant/porters-results/${sessionId}/${version}?viewOnly=true`);
     } else if (framework === 'SWOT') {
       setLocation(`/strategic-consultant/swot-results/${sessionId}/${version}?viewOnly=true`);
+    } else if (framework === 'Strategic Decisions') {
+      setLocation(`/strategy-workspace/decisions/${sessionId}/${version}?viewOnly=true`);
     }
   };
 
