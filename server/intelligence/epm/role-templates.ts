@@ -24,18 +24,27 @@ import type { BusinessCategory, RoleTemplate, StrategyContext, RiskCategory } fr
 export const ROLE_TEMPLATES: Record<BusinessCategory, Record<string, RoleTemplate[]>> = {
   food_beverage: {
     cafe_coffee_shop: [
-      { role: 'Cafe Manager', fte: 1.0, skills: ['cafe operations', 'staff management', 'inventory control'] },
-      { role: 'Head Barista', fte: 1.0, skills: ['espresso preparation', 'latte art', 'quality control'] },
-      { role: 'Shift Supervisor', fte: 0.8, skills: ['team coordination', 'cash handling', 'opening/closing'] },
-      { role: 'Barista', fte: 0.6, skills: ['beverage preparation', 'customer service'] },
-      { role: 'Kitchen Staff', fte: 0.5, skills: ['food prep', 'food safety', 'inventory'] },
+      // Core Operations
+      { role: 'Cafe Operations Manager', fte: 1.0, skills: ['cafe operations', 'staff management', 'inventory control', 'P&L'] },
+      { role: 'Head Barista', fte: 0.8, skills: ['espresso preparation', 'latte art', 'quality control', 'training'] },
+      // Launch/Project Functional Roles
+      { role: 'Cafe Design & Construction Lead', fte: 0.7, skills: ['interior design', 'contractor management', 'buildout', 'permits'] },
+      { role: 'Technology & Systems Specialist', fte: 0.6, skills: ['POS systems', 'WiFi infrastructure', 'digital integration', 'customer experience tech'] },
+      { role: 'HR & Training Coordinator', fte: 0.6, skills: ['recruitment', 'barista training', 'onboarding', 'staff scheduling'] },
+      { role: 'Marketing & Community Manager', fte: 0.6, skills: ['local marketing', 'social media', 'community events', 'brand building'] },
+      { role: 'Compliance & Licensing Specialist', fte: 0.5, skills: ['food safety', 'health permits', 'regulatory compliance', 'inspections'] },
     ],
     restaurant: [
-      { role: 'Restaurant Manager', fte: 1.0, skills: ['restaurant operations', 'P&L management'] },
-      { role: 'Head Chef', fte: 1.0, skills: ['menu development', 'kitchen management'] },
-      { role: 'Sous Chef', fte: 0.8, skills: ['food preparation', 'quality control'] },
-      { role: 'Front of House Manager', fte: 0.8, skills: ['customer service', 'reservations'] },
-      { role: 'Server', fte: 0.5, skills: ['customer service', 'upselling'] },
+      // Core Operations
+      { role: 'Restaurant Operations Manager', fte: 1.0, skills: ['restaurant operations', 'P&L management', 'vendor relations'] },
+      { role: 'Executive Chef', fte: 1.0, skills: ['menu development', 'kitchen management', 'food costing'] },
+      { role: 'Front of House Manager', fte: 0.8, skills: ['customer service', 'reservations', 'staff supervision'] },
+      // Launch/Project Functional Roles
+      { role: 'Restaurant Design & Buildout Lead', fte: 0.7, skills: ['interior design', 'kitchen layout', 'contractor management'] },
+      { role: 'Technology & POS Specialist', fte: 0.5, skills: ['POS systems', 'reservation systems', 'inventory tech'] },
+      { role: 'HR & Training Manager', fte: 0.6, skills: ['recruitment', 'server training', 'kitchen staff onboarding'] },
+      { role: 'Marketing & PR Coordinator', fte: 0.6, skills: ['restaurant marketing', 'social media', 'PR', 'events'] },
+      { role: 'Compliance & Health Safety Lead', fte: 0.5, skills: ['food safety', 'health inspections', 'licensing', 'HACCP'] },
     ],
     catering: [
       { role: 'Catering Operations Manager', fte: 1.0, skills: ['event coordination', 'logistics'] },
