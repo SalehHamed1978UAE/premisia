@@ -5,15 +5,40 @@ import { Badge } from "@/components/ui/badge";
 import type { FrameworkRendererProps } from './index';
 
 const FiveWhysRenderer: FC<FrameworkRendererProps<FiveWhysFrameworkResult>> = ({ data }) => {
+  // Helper to safely extract text from any value (handles nested objects)
+  const safeText = (value: any): string => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number') return String(value);
+    if (typeof value === 'object') {
+      // Try common text fields
+      if ('text' in value) return safeText(value.text);
+      if ('content' in value) return safeText(value.content);
+      if ('description' in value) return safeText(value.description);
+      if ('answer' in value) return safeText(value.answer);
+      if ('value' in value) return safeText(value.value);
+      // Last resort: stringify nicely
+      try {
+        return JSON.stringify(value, null, 2);
+      } catch {
+        return '[Complex data]';
+      }
+    }
+    return String(value);
+  };
+
   const safeGetWhy = (why: any): { question: string; answer: string } => {
     if (!why) return { question: '', answer: '' };
     if (typeof why === 'object' && 'question' in why && 'answer' in why) {
       return {
-        question: String(why.question || ''),
-        answer: String(why.answer || '')
+        question: safeText(why.question),
+        answer: safeText(why.answer)
       };
     }
-    return { question: '', answer: String(why) };
+    if (typeof why === 'string') {
+      return { question: '', answer: why };
+    }
+    return { question: '', answer: safeText(why) };
   };
 
   const why1 = safeGetWhy(data.why_1);
