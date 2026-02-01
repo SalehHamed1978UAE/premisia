@@ -87,15 +87,18 @@ export class AssignmentGenerator {
     const externalResources: Resource[] = resourcePlan?.externalResources || [];
 
     // Assign IDs to resources if missing
+    // Note: External resources have 'type' (Consultant, Software) not 'role'
+    // We map 'type' to 'role' for consistency in assignment matching
     const allResources = [
       ...internalTeam.map((r, i) => ({
         ...r,
         id: r.id || `INT-${String(i + 1).padStart(3, '0')}`,
         type: 'internal',
       })),
-      ...externalResources.map((r, i) => ({
+      ...externalResources.map((r: any, i) => ({
         ...r,
         id: r.id || `EXT-${String(i + 1).padStart(3, '0')}`,
+        role: r.role || r.type || 'External Consultant',  // Map type to role for external resources
         type: 'external',
       })),
     ];
@@ -173,7 +176,7 @@ export class AssignmentGenerator {
           taskName: task.taskName,
           resourceId: resource.id!,
           resourceName: this.formatResourceName(resource),
-          resourceRole: resource.role,
+          resourceRole: resource.role || 'Team Member',  // Ensure never undefined
           resourceType: resource.type === 'external' ? 'external_resource' : 'internal_team',
           estimatedHours,
           status: 'assigned',
