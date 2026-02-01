@@ -37,6 +37,7 @@ import type {
   QAPlan,
   Procurement,
   ExitStrategy,
+  StrategyContext,
 } from './types';
 import { replaceTimelineGeneration } from '../../src/lib/intelligent-planning/epm-integration';
 import type { PlanningContext, BusinessScale } from '../../src/lib/intelligent-planning/types';
@@ -496,13 +497,24 @@ export class EPMSynthesizer {
       description: 'Generating resource plan',
       elapsedSeconds: Math.round((Date.now() - processStartTime) / 1000)
     });
-    
+
     const initiativeType = planningContext.business.initiativeType;
+
+    // Create StrategyContext for context-aware role selection
+    // This ensures cafe gets cafe roles, restaurant gets restaurant roles, etc.
+    const strategyContext = ContextBuilder.toStrategyContext(
+      planningContext,
+      userContext?.sessionId || 'unknown',
+      'strategy_workspace'
+    );
+    console.log(`[EPM Synthesis] ✓ Strategy context: ${strategyContext.businessType.category}/${strategyContext.businessType.subcategory || 'default'}`);
+
     const resourcePlan = await this.resourceAllocator.allocate(
       insights,
       workstreams,
       userContext,
-      initiativeType
+      initiativeType,
+      strategyContext  // Pass strategy context for context-aware role selection
     );
     console.log(`[EPM Synthesis] ✓ Resources: ${resourcePlan.totalFTEs} FTEs, ${resourcePlan.internalTeam.length} roles`);
     

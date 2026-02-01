@@ -13,29 +13,46 @@ import { ROLE_TEMPLATES, selectRoles, inferSubcategory } from './role-templates'
 export class ResourceAllocator {
   /**
    * Generate resource plan with internal team and external resources
+   *
+   * CONTEXT-AWARE ROLE SELECTION:
+   * 1. If strategyContext is provided, use ROLE_TEMPLATES (cafe → cafe roles, restaurant → restaurant roles)
+   * 2. Fallback to LLM generation if no context
+   * 3. Final fallback to initiative-type templates
    */
   async allocate(
     insights: StrategyInsights,
     workstreams: Workstream[],
     userContext?: UserContext,
-    initiativeType?: string
+    initiativeType?: string,
+    strategyContext?: StrategyContext
   ): Promise<ResourcePlan> {
     const resourceInsights = insights.insights.filter(i => i.type === 'resource');
-    
+
     const estimatedFTEs = Math.max(8, Math.min(workstreams.length * 2, 20));
-    
+
     const finalInitiativeType = initiativeType || 'other';
-    console.log('[ResourceAllocator] 🎯 Initiative type source:');
-    console.log(`  Passed parameter: ${initiativeType || 'UNDEFINED'}`);
-    console.log(`  Final value used: ${finalInitiativeType}`);
-    
-    const internalTeam = await this.generateInternalTeam(
-      estimatedFTEs, 
-      workstreams, 
-      resourceInsights,
-      finalInitiativeType,
-      insights
-    );
+    console.log('[ResourceAllocator] 🎯 Resource allocation context:');
+    console.log(`  Initiative type: ${finalInitiativeType}`);
+    console.log(`  Strategy context: ${strategyContext ? `${strategyContext.businessType.category}/${strategyContext.businessType.subcategory || 'default'}` : 'NOT PROVIDED'}`);
+
+    let internalTeam: ResourceAllocation[];
+
+    // PRIORITY 1: Use context-aware ROLE_TEMPLATES if StrategyContext is available
+    if (strategyContext) {
+      console.log('[ResourceAllocator] ✅ Using context-aware ROLE_TEMPLATES');
+      internalTeam = this.getRolesFromContext(strategyContext, workstreams);
+    } else {
+      // PRIORITY 2: Fall back to LLM/template generation
+      console.log('[ResourceAllocator] ⚠️ No StrategyContext, falling back to LLM/templates');
+      internalTeam = await this.generateInternalTeam(
+        estimatedFTEs,
+        workstreams,
+        resourceInsights,
+        finalInitiativeType,
+        insights
+      );
+    }
+
     const externalResources = this.generateExternalResources(insights, userContext);
     const criticalSkills = Array.from(new Set(internalTeam.flatMap(r => r.skills)));
 
@@ -44,7 +61,7 @@ export class ResourceAllocator {
       externalResources,
       criticalSkills,
       totalFTEs: estimatedFTEs,
-      confidence: resourceInsights.length > 0 ? 0.70 : 0.60,
+      confidence: strategyContext ? 0.85 : (resourceInsights.length > 0 ? 0.70 : 0.60),
     };
   }
 
