@@ -1,0 +1,63 @@
+Based on my exploration, here's the current state and what's next:            
+                                                                                
+  Current Journey Status                                                        
+  Journey: Business Model Innovation                                            
+  Status: ✅ LIVE                                                               
+  Frameworks: Five Whys → BMC → Decisions → EPM                                 
+  ────────────────────────────────────────                                      
+  Journey: Market Entry Strategy                                                
+  Status: ✅ LIVE                                                               
+  Frameworks: PESTLE → Porter's → SWOT → Decisions → EPM                        
+  ────────────────────────────────────────                                      
+  Journey: Market Segmentation                                                  
+  Status: ✅ LIVE                                                               
+  Frameworks: Segment Discovery (Marketing Consultant)                          
+  ────────────────────────────────────────                                      
+  Journey: Custom Journey                                                       
+  Status: ✅ LIVE                                                               
+  Frameworks: User-defined                                                      
+  ────────────────────────────────────────                                      
+  Journey: Competitive Strategy                                                 
+  Status: ❌ Placeholder                                                        
+  Frameworks: Porter's → BMC → Blue Ocean                                       
+  ────────────────────────────────────────                                      
+  Journey: Digital Transformation                                               
+  Status: ❌ Placeholder                                                        
+  Frameworks: PESTLE → BMC → Ansoff                                             
+  ────────────────────────────────────────                                      
+  Journey: Crisis Recovery                                                      
+  Status: ❌ Placeholder                                                        
+  Frameworks: Five Whys → SWOT → BMC                                            
+  ────────────────────────────────────────                                      
+  Journey: Growth Strategy                                                      
+  Status: ❌ Placeholder                                                        
+  Frameworks: PESTLE → Ansoff → BMC                                             
+  What We Need to Build (4 Journeys)                                            
+                                                                                
+  Each journey needs:                                                           
+  1. Framework Executors - Most already exist (PESTLE, Porter's, SWOT, BMC, Five
+   Whys, Ansoff)                                                                
+  2. Bridges - Transform output between frameworks (some exist, some need       
+  creation)                                                                     
+  3. Result Pages - Frontend pages for each framework step                      
+  4. Page Sequence - Define the route flow                                      
+  5. Set available: true in journey-registry.ts                                 
+                                                                                
+  The "Builder Approach" Pattern                                                
+                                                                                
+  From Market Entry, the pattern is:                                            
+  Input → Framework 1 (executor + results page) → Bridge → Framework 2 → Bridge 
+  → Framework 3 → Decisions → Prioritization → EPM                              
+                                                                                
+  Next Steps - Which Journey First?                                             
+                                                                                
+  I'd recommend this order based on framework reuse:                            
+                                                                                
+  1. Crisis Recovery (easiest) - Five Whys + SWOT + BMC all exist               
+  2. Competitive Strategy - Porter's + BMC exist, needs Blue Ocean integration  
+  3. Digital Transformation - PESTLE + BMC exist, needs Ansoff page             
+  4. Growth Strategy - PESTLE exists, needs Ansoff page + BMC                   
+                                                                                
+  Want me to start with Crisis Recovery since it reuses the most existing       
+  components? Or would you prefer a different order?                            
+                                                     
