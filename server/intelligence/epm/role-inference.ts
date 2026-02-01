@@ -180,15 +180,20 @@ Return ONLY valid JSON (no markdown, no explanation):
 }
 
 RULES:
-1. Reuse the SAME role title for multiple workstreams if realistic (small teams share duties)
+1. CRITICAL: Each workstream should have a DISTINCT specialist owner. Do NOT default everything to "Operations Manager" or "Program Manager"
 2. Use precise, professional titles appropriate for the business type:
-   - For cafes/restaurants: Cafe Manager, Head Chef, Front-of-House Manager, Barista Trainer
-   - For tech: Engineering Lead, DevOps Lead, Product Manager
-   - For retail: Store Manager, Visual Merchandiser, Inventory Manager
+   - Construction/Build-out workstream → "Construction & Design Lead" or "Cafe Build-out Manager"
+   - Technology/Digital/POS workstream → "Digital Systems Lead" or "Technology Manager"
+   - HR/Hiring/Training workstream → "HR & Training Coordinator" or "Talent Manager"
+   - Marketing/Community/Engagement workstream → "Marketing & Community Manager"
+   - Compliance/Licensing/Regulatory workstream → "Compliance Specialist"
+   - Operations/Workflow workstream → "Operations Manager"
+   - Supply Chain/Inventory workstream → "Supply Chain Manager"
 3. Category must be ONE of: construction, design, technology, hr, training, marketing, community, compliance, licensing, operations, supply_chain, finance, culinary
-4. If consolidating roles to stay within team-size target, explain in rationale
+4. Only consolidate roles if workstreams are genuinely similar (e.g., two marketing workstreams can share one Marketing Manager)
 5. Match role titles to the actual business type - a cafe should NOT have "Catering Operations Manager"
-6. Return an owner for EVERY workstream ID listed above`;
+6. Return an owner for EVERY workstream ID listed above
+7. AIM FOR DIVERSITY: If you have 6 workstreams, you should have 4-6 different role titles, not 2-3`;
 
       const response = await this.llm.generateStructuredResponse(prompt, { owners: [] });
 
@@ -223,11 +228,22 @@ RULES:
       }
 
       // Combine cached and newly inferred
-      const allOwners = [...cachedOwners, ...inferredOwners];
+      let allOwners = [...cachedOwners, ...inferredOwners];
 
-      // Check for role count
+      // Check for role count and validate balance
       const uniqueRoles = new Set(allOwners.map(o => o.roleTitle));
-      console.log(`[RoleInference] Total unique roles: ${uniqueRoles.size} (target max: ${effectiveMaxRoles})`);
+      console.log(`[RoleInference] Initial unique roles: ${uniqueRoles.size} (target: ${effectiveMaxRoles})`);
+
+      // VALIDATION PASS: If too few unique roles, ask LLM to review and rebalance
+      if (uniqueRoles.size < Math.min(4, workstreams.length) && workstreams.length >= 4) {
+        console.log(`[RoleInference] 🔄 Too few unique roles (${uniqueRoles.size}), running validation pass...`);
+        const validated = await this.validateAndRebalance(allOwners, workstreams, businessContext);
+        if (validated) {
+          allOwners = validated;
+          const newUniqueRoles = new Set(allOwners.map(o => o.roleTitle));
+          console.log(`[RoleInference] ✓ Validation rebalanced to ${newUniqueRoles.size} unique roles`);
+        }
+      }
 
       return {
         owners: allOwners,
@@ -302,6 +318,109 @@ RULES:
       usedCache: false,
       usedFallback: true,
     };
+  }
+
+  /**
+   * Validation pass: Review assignments and rebalance if too many share the same role
+   * This is a second LLM call that critiques and improves the initial assignments
+   */
+  private async validateAndRebalance(
+    currentOwners: InferredOwner[],
+    workstreams: Workstream[],
+    businessContext: BusinessContext
+  ): Promise<InferredOwner[] | null> {
+    try {
+      // Build current assignment summary for review
+      const assignmentSummary = currentOwners.map(o => {
+        const ws = workstreams.find(w => w.id === o.workstreamId);
+        return `- "${ws?.name || o.workstreamId}" → ${o.roleTitle}`;
+      }).join('\n');
+
+      // Count role distribution
+      const roleCounts: Record<string, number> = {};
+      currentOwners.forEach(o => {
+        roleCounts[o.roleTitle] = (roleCounts[o.roleTitle] || 0) + 1;
+      });
+      const distribution = Object.entries(roleCounts)
+        .map(([role, count]) => `${role}: ${count} workstreams`)
+        .join(', ');
+
+      const prompt = `You are reviewing workstream-to-owner assignments for quality and balance.
+
+BUSINESS CONTEXT:
+- Industry: ${businessContext.industry || 'Not specified'}
+- Business type: ${businessContext.businessType || 'Not specified'}
+- Total workstreams: ${workstreams.length}
+
+CURRENT ASSIGNMENTS:
+${assignmentSummary}
+
+CURRENT DISTRIBUTION: ${distribution}
+
+PROBLEM: Too many workstreams are assigned to the same role. This isn't realistic - different workstreams need different specialists.
+
+REVIEW AND FIX:
+1. Identify workstreams that should have a DIFFERENT specialist owner
+2. For each misassigned workstream, provide the CORRECT role title
+3. Use these specialist roles as guidance:
+   - Construction/Build-out → "Construction & Design Lead"
+   - Technology/Digital/POS → "Digital Systems Lead" or "Technology Manager"
+   - HR/Hiring/Training → "HR & Training Coordinator"
+   - Marketing/Community → "Marketing & Community Manager"
+   - Compliance/Licensing → "Compliance Specialist"
+   - Operations/Workflow → "Operations Manager"
+
+Return ONLY valid JSON with corrections:
+{
+  "corrections": [
+    {
+      "workstream_id": "WS001",
+      "old_role": "Operations Manager",
+      "new_role": "Digital Systems Lead",
+      "category": "technology",
+      "reason": "This workstream is about POS and digital systems, not general operations"
+    }
+  ],
+  "validation_notes": "Brief summary of what was fixed"
+}
+
+If no corrections needed, return: {"corrections": [], "validation_notes": "Assignments are balanced"}`;
+
+      const response = await this.llm.generateStructuredResponse(prompt, { corrections: [] });
+
+      if (!response?.corrections || !Array.isArray(response.corrections) || response.corrections.length === 0) {
+        console.log('[RoleInference] Validation found no corrections needed');
+        return null;
+      }
+
+      console.log(`[RoleInference] Validation suggested ${response.corrections.length} corrections:`);
+
+      // Apply corrections
+      const correctedOwners = currentOwners.map(owner => {
+        const correction = response.corrections.find((c: any) => c.workstream_id === owner.workstreamId);
+        if (correction) {
+          console.log(`  - ${owner.workstreamId}: "${owner.roleTitle}" → "${correction.new_role}" (${correction.reason})`);
+          return {
+            ...owner,
+            roleTitle: normalizeRole(correction.new_role),
+            category: correction.category || owner.category,
+            rationale: `Rebalanced: ${correction.reason}`,
+            confidence: 0.85,
+          };
+        }
+        return owner;
+      });
+
+      if (response.validation_notes) {
+        console.log(`[RoleInference] Validation notes: ${response.validation_notes}`);
+      }
+
+      return correctedOwners;
+
+    } catch (error) {
+      console.error('[RoleInference] Validation pass failed:', error);
+      return null; // Keep original assignments on failure
+    }
   }
 
   /**
