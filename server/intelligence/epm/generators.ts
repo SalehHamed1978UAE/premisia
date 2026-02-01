@@ -662,12 +662,12 @@ RULES:
 - Distribute ownership across different team members`;
 
       const result = await aiClients.callWithFallback({
-        prompt,
+        systemPrompt: 'You are an expert at writing strategic benefit descriptions for enterprise programs.',
+        userMessage: prompt,
         maxTokens: 2000,
-        temperature: 0.7,
       });
 
-      const responseText = result?.content || result?.text || '';
+      const responseText = result?.content || '';
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
 
       if (jsonMatch) {
@@ -732,13 +732,13 @@ RULES:
       const lowerContent = benefit.description.toLowerCase();
       const lowerName = (benefit.name || '').toLowerCase();
 
-      // Content-based category override for better matching
+      // Content-based category override for better matching (using valid category types)
       if (lowerContent.includes('revenue') || lowerContent.includes('sales') || lowerName.includes('revenue')) {
-        effectiveCategory = 'Revenue';
+        effectiveCategory = 'Financial';
       } else if (lowerContent.includes('customer') || lowerContent.includes('experience') || lowerName.includes('customer')) {
-        effectiveCategory = 'Customer Experience';
+        effectiveCategory = 'Operational';
       } else if (lowerContent.includes('brand') || lowerContent.includes('marketing') || lowerName.includes('brand')) {
-        effectiveCategory = 'Brand';
+        effectiveCategory = 'Strategic';
       }
 
       // Use centralized owner finder

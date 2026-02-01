@@ -404,7 +404,7 @@ async function processEPMGeneration(
           sessionId: version.sessionId,
           versionNumber: version.versionNumber,
         },
-        sessionId: version.sessionId, // Store sessionId for session-based lookups
+        sessionId: version.sessionId ?? undefined, // Store sessionId for session-based lookups
         relatedEntityId: strategyVersionId,
         relatedEntityType: 'strategy_version',
       });
