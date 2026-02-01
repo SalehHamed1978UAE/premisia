@@ -180,18 +180,171 @@ function SWOTRenderer({ data }: { data: any }) {
 }
 
 function GenericRenderer({ data, frameworkName }: { data: any; frameworkName: string }) {
+  // Helper to safely extract text from nested objects
+  const safeText = (value: any): string => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number') return String(value);
+    if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+    if (Array.isArray(value)) return value.map(safeText).join(', ');
+    if (typeof value === 'object') {
+      if ('text' in value) return safeText(value.text);
+      if ('content' in value) return safeText(value.content);
+      if ('description' in value) return safeText(value.description);
+      if ('answer' in value) return safeText(value.answer);
+      if ('value' in value) return safeText(value.value);
+      if ('name' in value) return safeText(value.name);
+    }
+    return '';
+  };
+
+  // Render a single value with appropriate formatting
+  const renderValue = (value: any, depth: number = 0): React.ReactNode => {
+    if (!value) return <span className="text-muted-foreground italic">Not specified</span>;
+
+    if (typeof value === 'string') {
+      return <span>{value}</span>;
+    }
+
+    if (typeof value === 'number') {
+      return <span className="font-mono">{value}</span>;
+    }
+
+    if (typeof value === 'boolean') {
+      return <Badge variant={value ? 'default' : 'secondary'}>{value ? 'Yes' : 'No'}</Badge>;
+    }
+
+    if (Array.isArray(value)) {
+      if (value.length === 0) {
+        return <span className="text-muted-foreground italic">None</span>;
+      }
+      // Check if array contains simple strings
+      if (value.every(v => typeof v === 'string')) {
+        return (
+          <ul className="space-y-1 list-disc list-inside">
+            {value.map((item, i) => (
+              <li key={i} className="text-sm">{item}</li>
+            ))}
+          </ul>
+        );
+      }
+      // Complex array items
+      return (
+        <div className="space-y-2">
+          {value.map((item, i) => (
+            <div key={i} className="p-3 bg-muted/50 rounded-lg">
+              {renderValue(item, depth + 1)}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (typeof value === 'object') {
+      // Try to extract meaningful text first
+      const text = safeText(value);
+      if (text && !text.includes(',')) {
+        return <span>{text}</span>;
+      }
+
+      // Render as key-value pairs
+      const entries = Object.entries(value).filter(([k, v]) =>
+        v !== null && v !== undefined && k !== 'id' && !k.startsWith('_')
+      );
+
+      if (entries.length === 0) {
+        return <span className="text-muted-foreground italic">Empty</span>;
+      }
+
+      return (
+        <div className={`space-y-2 ${depth > 0 ? 'pl-4 border-l-2 border-muted' : ''}`}>
+          {entries.map(([key, val]) => (
+            <div key={key}>
+              <span className="font-medium text-sm capitalize">
+                {key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()}:
+              </span>
+              <div className="mt-1 text-sm text-muted-foreground">
+                {renderValue(val, depth + 1)}
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    return <span>{String(value)}</span>;
+  };
+
+  // Extract main content from data
+  const output = data?.output || data;
+  const summary = data?.summary || output?.summary;
+
+  // Get the main sections to display
+  const mainSections = Object.entries(output || {}).filter(([key, value]) =>
+    value !== null &&
+    value !== undefined &&
+    !['summary', 'id', 'frameworkName', 'confidence', 'version'].includes(key) &&
+    !key.startsWith('_')
+  );
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Framework Results</CardTitle>
-        <CardDescription>Raw output from {frameworkName} analysis</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <pre className="bg-muted p-4 rounded-lg overflow-auto text-sm max-h-[600px]">
-          {JSON.stringify(data, null, 2)}
-        </pre>
-      </CardContent>
-    </Card>
+    <div className="space-y-4">
+      {/* Summary if available */}
+      {summary && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Summary</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">{safeText(summary)}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Main content sections */}
+      {mainSections.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{frameworkDisplayNames[frameworkName] || frameworkName} Results</CardTitle>
+            <CardDescription>Analysis output</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {mainSections.map(([key, value]) => (
+              <div key={key} className="space-y-2">
+                <h4 className="font-semibold capitalize text-sm">
+                  {key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim()}
+                </h4>
+                <div className="text-sm">
+                  {renderValue(value)}
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Framework Results</CardTitle>
+            <CardDescription>Raw output from {frameworkName} analysis</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <pre className="bg-muted p-4 rounded-lg overflow-auto text-sm max-h-[600px]">
+              {JSON.stringify(data, null, 2)}
+            </pre>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Confidence score if available */}
+      {(data?.confidence || output?.confidence) && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span>Confidence:</span>
+          <Badge variant="outline">
+            {Math.round((data?.confidence || output?.confidence) * 100)}%
+          </Badge>
+        </div>
+      )}
+    </div>
   );
 }
 
