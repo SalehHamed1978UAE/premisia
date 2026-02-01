@@ -9,6 +9,7 @@ interface AppLayoutProps {
   showTopBar?: boolean;
   sidebarOpen?: boolean;
   onSidebarToggle?: () => void;
+  onViewChange?: () => void;
 }
 
 export function AppLayout({ 
