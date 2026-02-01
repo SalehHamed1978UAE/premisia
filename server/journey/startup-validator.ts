@@ -297,6 +297,12 @@ export function registerAllBridges(): void {
   // BMC → Blue Ocean (Competitive Strategy)
   registerBridge('bmc', 'blue_ocean');
   
+  // PESTLE → BMC (Digital Transformation)
+  registerBridge('pestle', 'bmc');
+  
+  // BMC → Ansoff (Digital Transformation)
+  registerBridge('bmc', 'ansoff');
+  
   console.log(`[Startup Validator] ✓ Registered ${registeredBridges.size} bridge(s)`);
 }
 

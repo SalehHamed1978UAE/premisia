@@ -12,6 +12,8 @@ export * from './whys-to-swot-bridge';
 export * from './swot-to-bmc-bridge';
 export * from './porters-to-bmc-bridge';
 export * from './bmc-to-blueocean-bridge';
+export * from './pestle-to-bmc-bridge';
+export * from './bmc-to-ansoff-bridge';
 
 // Re-export bridge utilities
 export { 

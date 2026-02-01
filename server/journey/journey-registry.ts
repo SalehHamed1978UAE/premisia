@@ -113,15 +113,23 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
   /**
    * Digital Transformation Journey
    * For technology-driven change initiatives
-   * NOT YET IMPLEMENTED: Placeholder only
+   * IMPLEMENTED: PESTLE → BMC → Ansoff sequential workflow
    */
   digital_transformation: {
     type: 'digital_transformation',
     name: 'Digital Transformation',
     description: 'Navigate digital disruption by analyzing tech trends, redesigning operating models, and planning growth',
     frameworks: ['pestle', 'bmc', 'ansoff'],
+    pageSequence: [
+      '/strategic-consultant/input',
+      '/strategic-consultant/pestle-results/:sessionId/:versionNumber',  // Step 1: PESTLE analysis
+      '/strategic-consultant/research/:sessionId',                       // Step 2: BMC analysis
+      '/strategic-consultant/framework-insight/:sessionId',              // Step 3: Ansoff Matrix
+      '/strategy-workspace/decisions/:sessionId/:versionNumber',         // Step 4: Strategic decisions
+      '/strategy-workspace/prioritization/:sessionId/:versionNumber',    // Step 5: Prioritization
+    ],
     estimatedDuration: '18-25 minutes',
-    available: false, // Placeholder - not implemented
+    available: true, // IMPLEMENTED - PESTLE → BMC → Ansoff workflow
     summaryBuilder: 'pestleBmc',
     defaultReadiness: {
       minReferences: 3,
@@ -132,6 +140,7 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
     },
     dependencies: [
       { from: 'pestle', to: 'bmc' },
+      { from: 'bmc', to: 'ansoff' },
     ],
   },
 
