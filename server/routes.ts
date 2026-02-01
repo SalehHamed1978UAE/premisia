@@ -38,12 +38,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Complete auth setup (OIDC config + strategy registration + auth routes)
   // This registers /api/login, /api/callback, /api/logout
-  // Skip OIDC setup when DEV_AUTH_BYPASS=true (local dev without Replit)
-  if (process.env.DEV_AUTH_BYPASS !== 'true') {
+  // Skip OIDC setup only when BOTH DEV_AUTH_BYPASS=true AND NODE_ENV=development
+  const shouldSkipOIDC = process.env.DEV_AUTH_BYPASS === 'true' && process.env.NODE_ENV === 'development';
+  if (!shouldSkipOIDC) {
     const { finishAuthSetup } = await import('./replitAuth.js');
     await finishAuthSetup(app);
+    console.log('[Auth] OIDC authentication configured');
   } else {
-    console.log('[Auth] Skipping OIDC setup (DEV_AUTH_BYPASS=true)');
+    console.log('[Auth] Skipping OIDC setup (DEV_AUTH_BYPASS=true in development)');
   }
 
   // Auth user endpoint for Replit Auth
