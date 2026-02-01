@@ -18,6 +18,7 @@
 
 import type {
   EPMProgram,
+  EPMValidationReport,
   StrategyInsights,
   StrategyInsight,
   UserContext,
@@ -525,14 +526,14 @@ export class EPMSynthesizer {
 
     // LLM-driven workstream owner assignment (replaces hardcoded keyword matching)
     // Uses batch AI call to infer appropriate role for each workstream
-    const businessContext = {
-      industry: planningContext.business.industry,
-      businessType: strategyContext.businessType.subcategory || strategyContext.businessType.category,
-      geography: planningContext.business.region,
-      initiativeType: planningContext.business.initiativeType,
+    const ownerInferenceContext = {
+      industry: planningContext.business.industry || 'general',
+      businessType: strategyContext?.businessType?.subcategory || strategyContext?.businessType?.category || 'general_business',
+      geography: 'unspecified', // TODO: Extract from strategic understanding
+      initiativeType: planningContext.business.initiativeType || 'market_entry',
       programName,
     };
-    await this.assignWorkstreamOwners(workstreams, resourcePlan, businessContext);
+    await this.assignWorkstreamOwners(workstreams, resourcePlan, ownerInferenceContext);
     console.log(`[EPM Synthesis] ✓ Workstream owners assigned via LLM inference`);
     
     onProgress?.({
@@ -872,7 +873,7 @@ export class EPMSynthesizer {
     stageGates: StageGates,
     validationResult: { errors: string[]; corrections: string[] },
     planningGrid: { conflicts: string[]; maxUtilization: number; totalTasks: number }
-  ): ValidationReport {
+  ): EPMValidationReport {
     return {
       isComplete: validationResult.errors.length === 0,
       missingComponents: [],

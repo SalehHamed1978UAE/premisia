@@ -316,11 +316,15 @@ export interface ExitStrategy {
 
 export interface EPMProgram {
   // Metadata
-  frameworkType: 'bmc' | 'porters' | 'pestle' | 'swot';
-  frameworkRunId: string;
+  id?: string;
+  frameworkType?: 'bmc' | 'porters' | 'pestle' | 'swot';
+  sourceFramework?: string;
+  frameworkRunId?: string;
   generatedAt: Date;
   overallConfidence: number;
-  extractionRationale: string;
+  extractionRationale?: string;
+  sourceInsightsCount?: number;
+  validationReport?: EPMValidationReport;
 
   // The 14 Required Components
   executiveSummary: ExecutiveSummary;
@@ -331,12 +335,26 @@ export interface EPMProgram {
   benefitsRealization: BenefitsRealization;
   riskRegister: RiskRegister;
   stageGates: StageGates;
-  kpis: KPIs;
-  stakeholderMap: StakeholderMap;
-  governance: Governance;
-  qaPlan: QAPlan;
-  procurement: Procurement;
-  exitStrategy: ExitStrategy;
+  kpis?: KPIs;
+  stakeholderMap?: StakeholderMap;
+  governance?: Governance;
+  qaPlan?: QAPlan;
+  procurement?: Procurement;
+  exitStrategy?: ExitStrategy;
+}
+
+// ValidationReport for EPM synthesis (different from validator report)
+export interface EPMValidationReport {
+  isComplete: boolean;
+  missingComponents: string[];
+  warnings: string[];
+  corrections: string[];
+  completenessScore: number;
+  planningGrid?: {
+    conflicts: string[];
+    maxUtilization: number;
+    totalTasks: number;
+  };
 }
 
 // ============================================================================
