@@ -355,6 +355,10 @@ export interface EPMValidationReport {
     maxUtilization: number;
     totalTasks: number;
   };
+  roleValidation?: {
+    warnings: string[];
+    checked: boolean;
+  };
 }
 
 // ============================================================================

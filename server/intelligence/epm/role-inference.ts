@@ -23,11 +23,21 @@ export interface InferredOwner {
   confidence: number;
 }
 
+export interface ValidationWarning {
+  type: 'over_consolidation' | 'missing_function' | 'team_size' | 'mismatch';
+  severity: 'info' | 'warning' | 'critical';
+  message: string;
+  recommendation: string;
+  workstreamId?: string;
+}
+
 export interface RoleInferenceResult {
   owners: InferredOwner[];
   notes?: string;
+  warnings: ValidationWarning[];
   usedCache: boolean;
   usedFallback: boolean;
+  validationRan: boolean;
 }
 
 interface BusinessContext {
@@ -126,13 +136,37 @@ export class RoleInferenceService {
       }
     }
 
-    // If all cached, return immediately
+    // If all cached, return immediately (but still run validation for quality)
     if (uncachedWorkstreams.length === 0) {
       console.log(`[RoleInference] All ${workstreams.length} workstreams found in cache`);
+
+      // Still run validation on cached results
+      let warnings: ValidationWarning[] = [];
+      let finalOwners = cachedOwners;
+      let validationRan = false;
+
+      if (workstreams.length >= 3) {
+        const validationResult = await this.comprehensiveValidation(
+          cachedOwners,
+          workstreams,
+          businessContext,
+          effectiveMaxRoles
+        );
+        if (validationResult) {
+          validationRan = true;
+          warnings = validationResult.warnings;
+          if (validationResult.correctedOwners) {
+            finalOwners = validationResult.correctedOwners;
+          }
+        }
+      }
+
       return {
-        owners: cachedOwners,
+        owners: finalOwners,
+        warnings,
         usedCache: true,
         usedFallback: false,
+        validationRan,
       };
     }
 
@@ -230,26 +264,51 @@ RULES:
       // Combine cached and newly inferred
       let allOwners = [...cachedOwners, ...inferredOwners];
 
-      // Check for role count and validate balance
+      // Check for role count
       const uniqueRoles = new Set(allOwners.map(o => o.roleTitle));
       console.log(`[RoleInference] Initial unique roles: ${uniqueRoles.size} (target: ${effectiveMaxRoles})`);
 
-      // VALIDATION PASS: If too few unique roles, ask LLM to review and rebalance
-      if (uniqueRoles.size < Math.min(4, workstreams.length) && workstreams.length >= 4) {
-        console.log(`[RoleInference] 🔄 Too few unique roles (${uniqueRoles.size}), running validation pass...`);
-        const validated = await this.validateAndRebalance(allOwners, workstreams, businessContext);
-        if (validated) {
-          allOwners = validated;
-          const newUniqueRoles = new Set(allOwners.map(o => o.roleTitle));
-          console.log(`[RoleInference] ✓ Validation rebalanced to ${newUniqueRoles.size} unique roles`);
+      // COMPREHENSIVE VALIDATION PASS - Always run for 3+ workstreams
+      let warnings: ValidationWarning[] = [];
+      let validationRan = false;
+
+      if (workstreams.length >= 3) {
+        console.log(`[RoleInference] 🔍 Running comprehensive validation...`);
+        const validationResult = await this.comprehensiveValidation(
+          allOwners,
+          workstreams,
+          businessContext,
+          effectiveMaxRoles
+        );
+
+        if (validationResult) {
+          validationRan = true;
+          warnings = validationResult.warnings;
+
+          // Apply corrections if any
+          if (validationResult.correctedOwners) {
+            allOwners = validationResult.correctedOwners;
+            const newUniqueRoles = new Set(allOwners.map(o => o.roleTitle));
+            console.log(`[RoleInference] ✓ Validation corrected to ${newUniqueRoles.size} unique roles`);
+          }
+
+          // Log warnings
+          if (warnings.length > 0) {
+            console.log(`[RoleInference] ⚠️ Validation warnings (${warnings.length}):`);
+            warnings.forEach(w => console.log(`  - [${w.severity}] ${w.message}`));
+          } else {
+            console.log(`[RoleInference] ✓ Validation passed with no warnings`);
+          }
         }
       }
 
       return {
         owners: allOwners,
         notes: response.notes,
+        warnings,
         usedCache: cachedOwners.length > 0,
         usedFallback: false,
+        validationRan,
       };
 
     } catch (error) {
@@ -315,25 +374,36 @@ RULES:
     return {
       owners,
       notes: 'Fallback assignment used due to LLM failure',
+      warnings: [{
+        type: 'mismatch',
+        severity: 'warning',
+        message: 'LLM inference failed, using fallback heuristics',
+        recommendation: 'Review owner assignments manually for accuracy',
+      }],
       usedCache: false,
       usedFallback: true,
+      validationRan: false,
     };
   }
 
   /**
-   * Validation pass: Review assignments and rebalance if too many share the same role
-   * This is a second LLM call that critiques and improves the initial assignments
+   * Comprehensive validation pass - checks multiple quality dimensions
+   * 1. Are workstreams properly matched to roles?
+   * 2. Is the team size realistic for business scale?
+   * 3. Are any roles over-consolidated (too many workstreams)?
+   * 4. Are any key functions missing (marketing, compliance, HR)?
    */
-  private async validateAndRebalance(
+  private async comprehensiveValidation(
     currentOwners: InferredOwner[],
     workstreams: Workstream[],
-    businessContext: BusinessContext
-  ): Promise<InferredOwner[] | null> {
+    businessContext: BusinessContext,
+    targetMaxRoles: number
+  ): Promise<{ correctedOwners: InferredOwner[] | null; warnings: ValidationWarning[] } | null> {
     try {
       // Build current assignment summary for review
       const assignmentSummary = currentOwners.map(o => {
         const ws = workstreams.find(w => w.id === o.workstreamId);
-        return `- "${ws?.name || o.workstreamId}" → ${o.roleTitle}`;
+        return `- "${ws?.name || o.workstreamId}" → ${o.roleTitle} (category: ${o.category})`;
       }).join('\n');
 
       // Count role distribution
@@ -345,81 +415,153 @@ RULES:
         .map(([role, count]) => `${role}: ${count} workstreams`)
         .join(', ');
 
-      const prompt = `You are reviewing workstream-to-owner assignments for quality and balance.
+      // Get unique categories covered
+      const categoriesCovered = [...new Set(currentOwners.map(o => o.category))];
+
+      const prompt = `You are a COO reviewing staffing assignments for a new ${businessContext.businessType || 'business'} launch.
 
 BUSINESS CONTEXT:
 - Industry: ${businessContext.industry || 'Not specified'}
 - Business type: ${businessContext.businessType || 'Not specified'}
+- Geography: ${businessContext.geography || 'Not specified'}
+- Initiative: ${businessContext.initiativeType || 'market_entry'}
 - Total workstreams: ${workstreams.length}
+- Target team size: ${targetMaxRoles} roles max
 
 CURRENT ASSIGNMENTS:
 ${assignmentSummary}
 
-CURRENT DISTRIBUTION: ${distribution}
+ROLE DISTRIBUTION: ${distribution}
+CATEGORIES COVERED: ${categoriesCovered.join(', ')}
 
-PROBLEM: Too many workstreams are assigned to the same role. This isn't realistic - different workstreams need different specialists.
+REVIEW THESE QUALITY DIMENSIONS:
 
-REVIEW AND FIX:
-1. Identify workstreams that should have a DIFFERENT specialist owner
-2. For each misassigned workstream, provide the CORRECT role title
-3. Use these specialist roles as guidance:
-   - Construction/Build-out → "Construction & Design Lead"
-   - Technology/Digital/POS → "Digital Systems Lead" or "Technology Manager"
-   - HR/Hiring/Training → "HR & Training Coordinator"
-   - Marketing/Community → "Marketing & Community Manager"
-   - Compliance/Licensing → "Compliance Specialist"
-   - Operations/Workflow → "Operations Manager"
+1. ROLE-WORKSTREAM MATCH: Does each workstream have the right specialist?
+   - Technology/Digital/POS workstream should have Technology Lead, NOT Operations Manager
+   - HR/Training workstream should have HR Coordinator, NOT Operations Manager
+   - Marketing/Community workstream should have Marketing Manager, NOT Operations Manager
 
-Return ONLY valid JSON with corrections:
+2. TEAM SIZE REALISM: Is ${Object.keys(roleCounts).length} unique roles realistic for a ${businessContext.businessType || 'small business'}?
+   - Small cafe/restaurant: 4-6 roles is typical
+   - Tech startup: 5-8 roles is typical
+   - Enterprise: 8-12 roles is typical
+
+3. OVER-CONSOLIDATION: Is any single role assigned to 3+ very different workstreams?
+   - OK: Operations Manager owns 2 operational workstreams
+   - NOT OK: Operations Manager owns Construction, Marketing, AND Technology workstreams
+
+4. MISSING FUNCTIONS: For this business type, are any critical functions missing?
+   - Cafe/Restaurant typically needs: Operations, Construction/Design, Compliance, Marketing, HR/Training
+   - Tech typically needs: Engineering, Product, Marketing, Operations, Compliance
+
+Return ONLY valid JSON:
 {
+  "assessment": {
+    "role_match_score": 0.8,
+    "team_size_appropriate": true,
+    "over_consolidation_detected": false,
+    "missing_functions": []
+  },
   "corrections": [
     {
       "workstream_id": "WS001",
       "old_role": "Operations Manager",
       "new_role": "Digital Systems Lead",
       "category": "technology",
-      "reason": "This workstream is about POS and digital systems, not general operations"
+      "reason": "POS integration is technology work, not general operations"
     }
   ],
-  "validation_notes": "Brief summary of what was fixed"
-}
+  "warnings": [
+    {
+      "type": "over_consolidation",
+      "severity": "warning",
+      "message": "Operations Manager is assigned to 4 different workstreams",
+      "recommendation": "Consider splitting into specialized roles",
+      "workstream_id": null
+    }
+  ],
+  "notes": "Summary of validation findings"
+}`;
 
-If no corrections needed, return: {"corrections": [], "validation_notes": "Assignments are balanced"}`;
+      const response = await this.llm.generateStructuredResponse(prompt, {
+        assessment: {},
+        corrections: [],
+        warnings: [],
+      });
 
-      const response = await this.llm.generateStructuredResponse(prompt, { corrections: [] });
-
-      if (!response?.corrections || !Array.isArray(response.corrections) || response.corrections.length === 0) {
-        console.log('[RoleInference] Validation found no corrections needed');
+      if (!response) {
+        console.log('[RoleInference] Validation returned empty response');
         return null;
       }
 
-      console.log(`[RoleInference] Validation suggested ${response.corrections.length} corrections:`);
+      // Process warnings
+      const warnings: ValidationWarning[] = (response.warnings || []).map((w: any) => ({
+        type: w.type || 'mismatch',
+        severity: w.severity || 'warning',
+        message: w.message || 'Validation issue detected',
+        recommendation: w.recommendation || 'Review assignments',
+        workstreamId: w.workstream_id || undefined,
+      }));
 
-      // Apply corrections
-      const correctedOwners = currentOwners.map(owner => {
-        const correction = response.corrections.find((c: any) => c.workstream_id === owner.workstreamId);
-        if (correction) {
-          console.log(`  - ${owner.workstreamId}: "${owner.roleTitle}" → "${correction.new_role}" (${correction.reason})`);
-          return {
-            ...owner,
-            roleTitle: normalizeRole(correction.new_role),
-            category: correction.category || owner.category,
-            rationale: `Rebalanced: ${correction.reason}`,
-            confidence: 0.85,
-          };
-        }
-        return owner;
-      });
-
-      if (response.validation_notes) {
-        console.log(`[RoleInference] Validation notes: ${response.validation_notes}`);
+      // Add assessment-based warnings
+      if (response.assessment?.missing_functions?.length > 0) {
+        warnings.push({
+          type: 'missing_function',
+          severity: 'warning',
+          message: `Missing key functions: ${response.assessment.missing_functions.join(', ')}`,
+          recommendation: 'Consider adding roles for these functions',
+        });
       }
 
-      return correctedOwners;
+      if (response.assessment?.over_consolidation_detected) {
+        warnings.push({
+          type: 'over_consolidation',
+          severity: 'warning',
+          message: 'Some roles are overloaded with too many different workstreams',
+          recommendation: 'Review the corrections below to rebalance',
+        });
+      }
+
+      if (response.assessment?.team_size_appropriate === false) {
+        warnings.push({
+          type: 'team_size',
+          severity: 'info',
+          message: `Team size may not be optimal for ${businessContext.businessType || 'this business type'}`,
+          recommendation: 'Consider adjusting team structure based on business scale',
+        });
+      }
+
+      // Apply corrections if any
+      let correctedOwners: InferredOwner[] | null = null;
+
+      if (response.corrections && Array.isArray(response.corrections) && response.corrections.length > 0) {
+        console.log(`[RoleInference] Validation suggested ${response.corrections.length} corrections:`);
+
+        correctedOwners = currentOwners.map(owner => {
+          const correction = response.corrections.find((c: any) => c.workstream_id === owner.workstreamId);
+          if (correction) {
+            console.log(`  - ${owner.workstreamId}: "${owner.roleTitle}" → "${correction.new_role}" (${correction.reason})`);
+            return {
+              ...owner,
+              roleTitle: normalizeRole(correction.new_role),
+              category: correction.category || owner.category,
+              rationale: `Validated: ${correction.reason}`,
+              confidence: 0.9,
+            };
+          }
+          return owner;
+        });
+      }
+
+      if (response.notes) {
+        console.log(`[RoleInference] Validation notes: ${response.notes}`);
+      }
+
+      return { correctedOwners, warnings };
 
     } catch (error) {
-      console.error('[RoleInference] Validation pass failed:', error);
-      return null; // Keep original assignments on failure
+      console.error('[RoleInference] Comprehensive validation failed:', error);
+      return null;
     }
   }
 

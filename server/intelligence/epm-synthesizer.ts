@@ -533,7 +533,7 @@ export class EPMSynthesizer {
       initiativeType: planningContext.business.initiativeType || 'market_entry',
       programName,
     };
-    await this.assignWorkstreamOwners(workstreams, resourcePlan, ownerInferenceContext);
+    const roleValidationWarnings = await this.assignWorkstreamOwners(workstreams, resourcePlan, ownerInferenceContext);
     console.log(`[EPM Synthesis] ✓ Workstream owners assigned via LLM inference`);
     
     onProgress?.({
@@ -642,7 +642,7 @@ export class EPMSynthesizer {
       this.financialPlanGenerator.generate(insights, resourcePlan, userContext),
       this.governanceGenerator.generate(insights, stakeholderMap),
     ]);
-    
+
     const [
       kpis,
       procurement,
@@ -652,13 +652,14 @@ export class EPMSynthesizer {
       this.procurementGenerator.generate(insights, financialPlan),
       this.exitStrategyGenerator.generate(insights, riskRegister),
     ]);
-    
+
     const validationReport = this.buildValidationReport(
       workstreams,
       timeline,
       stageGates,
       validationResult,
-      planningGrid
+      planningGrid,
+      roleValidationWarnings
     );
     
     const confidences = [
@@ -872,12 +873,20 @@ export class EPMSynthesizer {
     timeline: Timeline,
     stageGates: StageGates,
     validationResult: { errors: string[]; corrections: string[] },
-    planningGrid: { conflicts: string[]; maxUtilization: number; totalTasks: number }
+    planningGrid: { conflicts: string[]; maxUtilization: number; totalTasks: number },
+    roleValidationWarnings: string[] = []
   ): EPMValidationReport {
+    // Combine all warnings: validation errors + planning conflicts + role validation
+    const allWarnings = [
+      ...validationResult.errors,
+      ...planningGrid.conflicts,
+      ...roleValidationWarnings,
+    ];
+
     return {
       isComplete: validationResult.errors.length === 0,
       missingComponents: [],
-      warnings: validationResult.errors.concat(planningGrid.conflicts),
+      warnings: allWarnings,
       corrections: validationResult.corrections,
       completenessScore: 1.0 - (validationResult.errors.length * 0.05),
       planningGrid: {
@@ -885,6 +894,10 @@ export class EPMSynthesizer {
         maxUtilization: planningGrid.maxUtilization,
         totalTasks: planningGrid.totalTasks,
       },
+      roleValidation: roleValidationWarnings.length > 0 ? {
+        warnings: roleValidationWarnings,
+        checked: true,
+      } : undefined,
     };
   }
 
@@ -897,13 +910,13 @@ export class EPMSynthesizer {
     workstreams: Workstream[],
     resourcePlan: ResourcePlan,
     businessContext?: { industry?: string; businessType?: string; geography?: string; initiativeType?: string; programName?: string }
-  ): Promise<void> {
+  ): Promise<string[]> {
     if (!resourcePlan.internalTeam || resourcePlan.internalTeam.length === 0) {
       // No resources to assign - use default
       workstreams.forEach(ws => {
         ws.owner = 'Program Manager';
       });
-      return;
+      return ['[Role Validation] No internal team defined - using default Program Manager for all workstreams'];
     }
 
     // Find default/fallback owner
@@ -923,9 +936,18 @@ export class EPMSynthesizer {
       maxRoles
     );
 
-    console.log(`[EPM Synthesis] Role inference result: cache=${inferenceResult.usedCache}, fallback=${inferenceResult.usedFallback}`);
+    console.log(`[EPM Synthesis] Role inference result: cache=${inferenceResult.usedCache}, fallback=${inferenceResult.usedFallback}, validated=${inferenceResult.validationRan}`);
     if (inferenceResult.notes) {
       console.log(`[EPM Synthesis] Notes: ${inferenceResult.notes}`);
+    }
+
+    // Log validation warnings for visibility
+    if (inferenceResult.warnings && inferenceResult.warnings.length > 0) {
+      console.log(`[EPM Synthesis] ⚠️ Validation warnings (${inferenceResult.warnings.length}):`);
+      inferenceResult.warnings.forEach(w => {
+        console.log(`  - [${w.severity.toUpperCase()}] ${w.message}`);
+        console.log(`    Recommendation: ${w.recommendation}`);
+      });
     }
 
     // Build owner lookup map
@@ -966,6 +988,9 @@ export class EPMSynthesizer {
     // Log summary of unique roles assigned
     const uniqueRoles = new Set(workstreams.map(ws => ws.owner));
     console.log(`[EPM Synthesis] ✓ Assigned ${uniqueRoles.size} unique owner roles across ${workstreams.length} workstreams`);
+
+    // Return warnings for inclusion in validation report
+    return inferenceResult.warnings.map(w => `[Role Validation] ${w.message} - ${w.recommendation}`);
   }
 
   /**
