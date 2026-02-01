@@ -1,0 +1,148 @@
+Here’s the exact implementation plan we should hand to Replit. It keeps the
+  dynamic owner generation, but puts guardrails around performance, consistency,
+  and integration.
+
+  ———
+
+  ## Implementation Steps
+
+  ### 1. Add RoleInferenceService (batch mode)
+
+  - Create a helper class (e.g., server/intelligence/epm/role-inference.ts) that
+    accepts a list of workstreams plus business context and returns an array of
+    { workstreamId, roleTitle, rationale, category }.
+  - Prompt template:
+
+  You are a COO staffing expert designing a launch team.
+
+  PROGRAM CONTEXT:
+  - Industry: {{industry}}
+  - Business type: {{businessType}}
+  - Geography: {{geography}}
+  - Initiative: {{initiativeType || 'market_entry'}}
+  - Team size target: At most {{maxRoles}} unique roles
+
+  WORKSTREAMS:
+  1. ID: {{ws.id}}
+     Name: {{ws.name}}
+     Description: {{ws.description || 'N/A'}}
+     Sample tasks: {{top 2-3 deliverables}}
+
+  Return JSON:
+  {
+    "owners": [
+      {
+        "workstream_id": "WS001",
+        "role_title": "Cafe Design & Build Lead",
+        "category": "construction",
+        "rationale": "Reason referencing context",
+        "confidence": 0.9
+      },
+      ...
+    ],
+    "notes": "Optional consolidation notes"
+  }
+
+  Rules:
+  - Reuse the same role title for multiple workstreams if realistic (small
+  teams).
+  - Prefer precise titles (Construction Lead, POS Implementation Lead, HR &
+  Training Coordinator, Marketing & Community Manager, Compliance & Licensing
+  Specialist, etc.).
+  - If you must consolidate roles to stay within the team-size target, make that
+  explicit in the rationale.
+
+  - Send all workstreams in one call to reduce latency.
+  - Limit to ~6 owners by default (maxRoles = min(workstreams.length, 6)).
+
+  ### 2. Integrate into EPM synthesis
+
+  - After workstreams are generated (and before resource allocation/
+    assignments), call the new service:
+
+  const inference = await roleInferenceService.inferOwners({
+    businessContext,
+    workstreams,
+    maxRoles: Math.min(workstreams.length, 6),
+  });
+
+  - For each inference.owner, set:
+
+  const inferred = ownerMap[ws.id];
+  if (inferred) {
+    ws.owner = normalizeRole(inferred.roleTitle);
+    ws.metadata = { ...ws.metadata, ownerCategory: inferred.category,
+  ownerRationale: inferred.rationale };
+    ensureResourceExists(ws.owner, resourcePlan, inferred.category);
+  }
+
+  - normalizeRole should trim, title-case, and collapse whitespace so “cafe
+    design lead” and “Cafe Design Lead” become identical.
+
+  ### 3. Resource-plan integration
+
+  - Implement ensureResourceExists(roleTitle, resourcePlan, category):
+      - Check resourcePlan.internalTeam for case-insensitive match; if absent,
+        push a new entry:
+
+  resourcePlan.internalTeam.push({
+    role: roleTitle,
+    fte: 1,
+    type: 'internal',
+    allocation: 1,
+    skills: inferSkillsFromCategory(category),
+  });
+
+  - inferSkillsFromCategory can be a simple mapping for now (construction →
+    ['fit-out','build-out'], tech → ['POS','systems'], HR →
+    ['training','recruitment'], marketing → ['launch campaigns'], compliance →
+    ['regulatory','food safety']).
+
+  ### 4. Caching & dedupe
+
+  - Maintain an in-memory map during the run: roleCache[key] = roleTitle.
+      - key = normalize(businessType + ws.name).
+      - Before calling the LLM, check if all workstreams have cached roles; if
+        so, use them and skip the call.
+      - After the call, populate the cache.
+  - Ensure dedupe by storing normalized roles in a Set. If we exceed maxRoles,
+    ask the LLM to consolidate or automatically group the lowest-confidence ones
+    under existing titles.
+
+  ### 5. Fallback behavior
+
+  - Wrap the LLM call in try/catch.
+  - If it fails, log the error and fall back to the current template-based
+    assignment so synthesis still completes.
+  - Include in the SSE/log output that fallback was used.
+
+  ### 6. Logging & audit
+
+  - Log each inferred role: [RoleInference] WS: Cafe Build-out → Owner: Cafe
+    Design & Build Lead (confidence 0.82)
+  - Store rationale in ws.metadata.ownerRationale so exports or future UIs can
+    display “Why this owner”.
+
+  ———
+
+  ## Testing Checklist
+
+  1. Run a café journey:
+      - Ensure Gantt owners show diverse roles (Construction Lead, POS Lead, HR
+        Coordinator, Marketing, Compliance).
+      - Verify resourcePlan.internalTeam contains those titles.
+      - Check assignments CSV: deliverables assigned to matching roles (thanks
+        to ensureResourceExists).
+  2. Run another industry (e.g., SaaS platform):
+      - Confirm owners adapt (Data Infrastructure Lead, Compliance Lead, etc.).
+      - No more “one role everywhere” behavior.
+  3. Negative test (LLM failure):
+      - Simulate a failed call and ensure we fall back to template owners
+        without crashing.
+
+  ———
+
+  This plan gives us dynamic, context-aware owners now, without needing Context
+  Foundry yet, while keeping the pipeline fast and consistent. Let me know if
+  you want me to stub out the new RoleInferenceService or if Replit will take it
+  from here.

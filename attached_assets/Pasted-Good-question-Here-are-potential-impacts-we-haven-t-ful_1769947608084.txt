@@ -1,0 +1,42 @@
+Good question. Here are potential impacts we haven't fully considered:        
+                                                                                
+  Performance & Cost                                                            
+  ┌──────────────────────────┬─────────────────────────────────┐                
+  │         Concern          │             Impact              │                
+  ├──────────────────────────┼─────────────────────────────────┤                
+  │ 6+ LLM calls per journey │ Adds 6-12 seconds latency       │                
+  ├──────────────────────────┼─────────────────────────────────┤                
+  │ API costs                │ Each workstream = 1 API call    │                
+  ├──────────────────────────┼─────────────────────────────────┤                
+  │ Rate limits              │ Parallel calls could hit limits │                
+  └──────────────────────────┴─────────────────────────────────┘                
+  Consistency Issues                                                            
+  Concern: Role name variance                                                   
+  Impact: Same workstream could get "Cafe Construction Lead" vs "Interior       
+    Build-out Manager" on different runs                                        
+  ────────────────────────────────────────                                      
+  Concern: Deduplication                                                        
+  Impact: How do we know "POS Lead" and "Technology & POS Lead" are the same    
+    role?                                                                       
+  ────────────────────────────────────────                                      
+  Concern: Downstream matching                                                  
+  Impact: Assignment generator, benefits, risks all match by role name - will   
+    they find these dynamic roles?                                              
+  Realism                                                                       
+  Concern: Role explosion                                                       
+  Impact: 6 workstreams → 6 unique roles. Small cafe doesn't have 6 specialists 
+  ────────────────────────────────────────                                      
+  Concern: Team size mismatch                                                   
+  Impact: LLM doesn't know actual team size - might suggest roles owner can't   
+    hire                                                                        
+  Possible Mitigations                                                          
+                                                                                
+  1. Batch call - One LLM call for ALL workstreams, not per-workstream          
+  2. Role normalization - Map generated roles to a controlled vocabulary        
+  3. Team size context - Tell LLM "this is a 3-person team, consolidate roles"  
+  4. Caching - Same workstream type → same role across runs                     
+                                                                                
+  Recommendation: Start with batch call (all workstreams in one prompt) to      
+  reduce latency/cost, and include team size constraint in the prompt.          
+                                                                                
+  Want me to adjust the approach before Replit implements? 

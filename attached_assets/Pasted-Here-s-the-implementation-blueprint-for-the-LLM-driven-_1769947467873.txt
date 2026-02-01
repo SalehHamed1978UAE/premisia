@@ -1,0 +1,162 @@
+Here’s the implementation blueprint for the LLM-driven owner assignment you
+  described. This removes all hardcoded keyword guesses and lets the model
+  produce the right role title per workstream.
+
+  ———
+
+  ## 1. Add Role Generation Helper
+
+  Create a helper in WorkstreamGenerator (or a new RoleInferenceService) that
+  takes business context + workstream info and asks the LLM for the most
+  appropriate role.
+
+  interface RoleInferenceInput {
+    businessContext: {
+      businessType: string;        // e.g., “cafe_coffee_shop”
+      industry: string;            // “food & beverage”
+      geography: string;           // “Dubai, UAE”
+      scale?: string;              // “single storefront”, “multi-location”
+      initiativeType?: string;     // “market_entry”
+    };
+    workstream: {
+      id: string;
+      name: string;
+      description?: string;
+      tasks?: string[];
+    };
+  }
+
+  interface RoleInferenceResult {
+    roleTitle: string;
+    rationale?: string;
+    confidence?: number; // optional
+  }
+
+  ### Prompt Template
+
+  You are a COO staffing expert for strategic launch programs.
+
+  BUSINESS CONTEXT:
+  - Industry: {{industry}}
+  - Business type: {{businessType}}
+  - Geography: {{geography}}
+  - Initiative: {{initiativeType}}
+
+  WORKSTREAM:
+  - Name: {{workstream.name}}
+  - Description: {{workstream.description || "N/A"}}
+  - Sample tasks: {{workstream.tasks?.slice(0,3).join("; ") || "Not provided"}}
+
+  QUESTION:
+  Which single role title should OWN this workstream during the launch?
+  Rules:
+  1. Role must be an actual job title (e.g., "Cafe Design & Construction Lead",
+  "POS Implementation Manager").
+  2. Must reflect launch responsibility, not generic “Manager”.
+  3. Prefer precise functional titles (Construction Lead, Technology Lead, HR
+  Coordinator, Compliance Specialist, etc.).
+  4. Should be internal team role if possible; if it must be external, say so.
+  5. Output valid JSON:
+  {
+    "role_title": "string",
+    "rationale": "string",
+    "confidence": 0-1
+  }
+
+  ### Helper Implementation
+
+  class RoleInferenceService {
+    constructor(private llm = getLLMProvider()) {}
+
+    async inferRole(input: RoleInferenceInput): Promise<RoleInferenceResult> {
+      const prompt = buildPrompt(input); // use template above
+      const response = await this.llm.generateStructured({
+        prompt,
+        schema: {
+          type: 'object',
+          properties: {
+            role_title: { type: 'string' },
+            rationale: { type: 'string' },
+            confidence: { type: 'number', minimum: 0, maximum: 1 },
+          },
+          required: ['role_title'],
+        },
+        maxTokens: 512,
+        temperature: 0.2,
+      });
+
+      const { role_title, rationale, confidence } = response.output;
+      return {
+        roleTitle: role_title.trim(),
+        rationale,
+        confidence,
+      };
+    }
+  }
+
+  ———
+
+  ## 2. Integrate with Workstream Generation
+
+  In WorkstreamGenerator or the EPM synthesizer:
+
+  1. Instantiate RoleInferenceService.
+  2. After workstreams are created, loop through them:
+
+     const inferenceInput = {
+       businessContext: contextBuilder.getBusinessContext(),
+       workstream: { ...ws, tasks: ws.deliverables?.map(d => d.name ||
+  d.description) }
+     };
+     const inferred = await roleInferenceService.inferRole(inferenceInput);
+     ws.owner = inferred.roleTitle;
+     ws.metadata = { ...ws.metadata, ownerRationale: inferred.rationale };
+     addRoleToResourcePlanIfMissing(inferred.roleTitle, resourcePlan);
+  3. Ensure resourcePlan.internalTeam includes an entry for that role (if it’s
+     not already there), so later steps (assignments, role templates) see it:
+
+     function addRoleToResourcePlanIfMissing(role: string, plan: ResourcePlan) {
+       const exists = plan.internalTeam?.some(r => r.role === role);
+       if (!exists) {
+         plan.internalTeam = plan.internalTeam || [];
+         plan.internalTeam.push({
+           role,
+           fte: 1,
+           type: 'internal',
+           allocation: 1,
+           skills: inferSkillsFromRole(role),
+         });
+       }
+     }
+     (Optional: use a simple heuristic to tag skills—e.g., if role contains
+     “Compliance”, add ['regulatory compliance','food safety'].)
+
+  ———
+
+  ## 3. Fallback / Resilience
+
+  - If the LLM call fails, fall back to a template role (existing
+    ROLE_TEMPLATES) so we don’t block synthesis.
+  - Cache results per workstream ID during a run to avoid duplicate calls if the
+    same workstream is referenced later.
+  - Consider storing the generated role titles in the DB or export metadata so
+    audits show how owners were chosen.
+
+  ———
+
+  ## 4. Testing Checklist
+
+  1. Run a Market Entry → Café scenario:
+      - Confirm workstreams[].owner shows different launch roles (Construction
+        Lead, POS Lead, HR, Marketing, Compliance).
+      - Verify resourcePlan.internalTeam includes those titles.
+  2. Export CSV/Gantt to ensure owners/names appear as expected.
+  3. Run a different industry (e.g., SaaS platform) to ensure the LLM adapts to
+     that context (e.g., “Data Integration Lead”, “Security Compliance Lead”).
+
+  ———
+
+  This change keeps owner selection dynamic, avoids keyword drift, and feeds the
+  rest of the pipeline (assignments, exports) with accurate role metadata. Let
+  me know if you want a ready-to-merge branch wiring this up; otherwise we can
+  hand these instructions to Replit.
