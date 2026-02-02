@@ -375,7 +375,7 @@ export default function GanttChartView({ workstreams, timeline, stageGates }: Ga
                         <td className="p-2">{fromTask?.name || dep.fromId}</td>
                         <td className="p-2">{toTask?.name || dep.toId}</td>
                         <td className="p-2">
-                          <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                          <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 px-2 py-1 rounded">
                             {dep.type}
                           </span>
                         </td>

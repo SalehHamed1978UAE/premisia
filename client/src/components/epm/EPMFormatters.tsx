@@ -439,11 +439,11 @@ export function FinancialPlanFormatter({ data }: { data: FinancialPlan }) {
 export function BenefitsRealizationFormatter({ data }: { data: BenefitsRealization }) {
   const getCategoryColor = (category: string) => {
     switch (category) {
-      case 'Financial': return 'bg-green-100 text-green-800';
-      case 'Strategic': return 'bg-blue-100 text-blue-800';
-      case 'Operational': return 'bg-purple-100 text-purple-800';
-      case 'Risk Mitigation': return 'bg-orange-100 text-orange-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'Financial': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+      case 'Strategic': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+      case 'Operational': return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
+      case 'Risk Mitigation': return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200';
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
     }
   };
 
@@ -529,11 +529,11 @@ export function BenefitsRealizationFormatter({ data }: { data: BenefitsRealizati
 export function RiskRegisterFormatter({ data }: { data: RiskRegister }) {
   const getImpactColor = (impact: string) => {
     switch (impact) {
-      case 'Critical': return 'bg-red-100 text-red-800 border-red-300';
-      case 'High': return 'bg-orange-100 text-orange-800 border-orange-300';
-      case 'Medium': return 'bg-yellow-100 text-yellow-800 border-yellow-300';
-      case 'Low': return 'bg-green-100 text-green-800 border-green-300';
-      default: return 'bg-gray-100 text-gray-800 border-gray-300';
+      case 'Critical': return 'bg-red-100 text-red-800 border-red-300 dark:bg-red-900 dark:text-red-200 dark:border-red-700';
+      case 'High': return 'bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900 dark:text-orange-200 dark:border-orange-700';
+      case 'Medium': return 'bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900 dark:text-yellow-200 dark:border-yellow-700';
+      case 'Low': return 'bg-green-100 text-green-800 border-green-300 dark:bg-green-900 dark:text-green-200 dark:border-green-700';
+      default: return 'bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600';
     }
   };
 
@@ -655,11 +655,11 @@ export function StageGatesFormatter({ data }: { data: StageGates }) {
 export function KPIsFormatter({ data }: { data: KPIs }) {
   const getCategoryColor = (category: string) => {
     switch (category) {
-      case 'Financial': return 'bg-green-100 text-green-800';
-      case 'Operational': return 'bg-blue-100 text-blue-800';
-      case 'Strategic': return 'bg-purple-100 text-purple-800';
-      case 'Customer': return 'bg-orange-100 text-orange-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'Financial': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+      case 'Operational': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+      case 'Strategic': return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
+      case 'Customer': return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200';
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
     }
   };
 
@@ -721,10 +721,10 @@ export function KPIsFormatter({ data }: { data: KPIs }) {
 
 export function StakeholderMapFormatter({ data }: { data: StakeholderMap }) {
   const getQuadrant = (power: string, interest: string) => {
-    if (power === 'High' && interest === 'High') return { label: 'Manage Closely', color: 'bg-red-100 text-red-800' };
-    if (power === 'High' && interest !== 'High') return { label: 'Keep Satisfied', color: 'bg-orange-100 text-orange-800' };
-    if (power !== 'High' && interest === 'High') return { label: 'Keep Informed', color: 'bg-blue-100 text-blue-800' };
-    return { label: 'Monitor', color: 'bg-gray-100 text-gray-800' };
+    if (power === 'High' && interest === 'High') return { label: 'Manage Closely', color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' };
+    if (power === 'High' && interest !== 'High') return { label: 'Keep Satisfied', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' };
+    if (power !== 'High' && interest === 'High') return { label: 'Keep Informed', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' };
+    return { label: 'Monitor', color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200' };
   };
 
   return (
@@ -805,10 +805,10 @@ export function StakeholderMapFormatter({ data }: { data: StakeholderMap }) {
 export function GovernanceFormatter({ data }: { data: Governance }) {
   const getLevelColor = (level: string) => {
     switch (level) {
-      case 'Strategic': return 'bg-purple-100 text-purple-800';
-      case 'Tactical': return 'bg-blue-100 text-blue-800';
-      case 'Execution': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'Strategic': return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
+      case 'Tactical': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+      case 'Execution': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
     }
   };
 
@@ -946,10 +946,10 @@ export function QAPlanFormatter({ data }: { data: QAPlan }) {
 export function ProcurementFormatter({ data }: { data: Procurement }) {
   const getTypeColor = (type: string) => {
     switch (type) {
-      case 'Software': return 'bg-blue-100 text-blue-800';
-      case 'Services': return 'bg-green-100 text-green-800';
-      case 'Hardware': return 'bg-purple-100 text-purple-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'Software': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+      case 'Services': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+      case 'Hardware': return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
     }
   };
 
@@ -1010,10 +1010,10 @@ export function ProcurementFormatter({ data }: { data: Procurement }) {
 export function ExitStrategyFormatter({ data }: { data: ExitStrategy }) {
   const getSeverityColor = (severity: string) => {
     switch (severity) {
-      case 'Critical': return 'bg-red-100 text-red-800 border-red-300';
-      case 'High': return 'bg-orange-100 text-orange-800 border-orange-300';
-      case 'Medium': return 'bg-yellow-100 text-yellow-800 border-yellow-300';
-      default: return 'bg-gray-100 text-gray-800 border-gray-300';
+      case 'Critical': return 'bg-red-100 text-red-800 border-red-300 dark:bg-red-900 dark:text-red-200 dark:border-red-700';
+      case 'High': return 'bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900 dark:text-orange-200 dark:border-orange-700';
+      case 'Medium': return 'bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900 dark:text-yellow-200 dark:border-yellow-700';
+      default: return 'bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600';
     }
   };
 
