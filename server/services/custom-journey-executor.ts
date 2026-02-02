@@ -1,10 +1,11 @@
 /**
  * Custom Journey Executor
- * 
+ *
  * Executes custom journey configurations node-by-node in topological order,
  * streaming progress via SSE and updating database state.
- * 
+ *
  * Now routes to REAL analyzers instead of mock data.
+ * UPDATED: Now applies cognitive bridges between frameworks for enriched data flow.
  */
 
 import { Response } from 'express';
@@ -14,6 +15,19 @@ import { eq, and } from 'drizzle-orm';
 import { getExecutionOrder } from '../modules/compatibility';
 import { moduleRegistry } from '../modules/registry';
 import { v4 as uuidv4 } from 'uuid';
+
+// Import bridge functions for cognitive transformation between frameworks
+import { applyPESTLEToPortersBridge } from '../journey/bridges/pestle-to-porters-bridge';
+import { applyPortersToSWOTBridge } from '../journey/bridges/porters-to-swot-bridge';
+import { applyWhysToBMCBridge, transformWhysToBMC } from '../journey/bridges/whys-to-bmc-bridge';
+import { transformWhysToSwot } from '../journey/bridges/whys-to-swot-bridge';
+import { transformSwotToBmc } from '../journey/bridges/swot-to-bmc-bridge';
+import { transformPortersToBmc } from '../journey/bridges/porters-to-bmc-bridge';
+import { transformBmcToBlueOcean } from '../journey/bridges/bmc-to-blueocean-bridge';
+import { transformPestleToBmc } from '../journey/bridges/pestle-to-bmc-bridge';
+import { transformBmcToAnsoff } from '../journey/bridges/bmc-to-ansoff-bridge';
+import { transformPestleToAnsoff } from '../journey/bridges/pestle-to-ansoff-bridge';
+import { transformAnsoffToBmc } from '../journey/bridges/ansoff-to-bmc-bridge';
 
 // Import real analyzers - singletons
 import { swotAnalyzer, SWOTOutput } from '../intelligence/swot-analyzer';
@@ -469,7 +483,27 @@ export class CustomJourneyExecutor {
             output,
           };
           aggregatedOutputs[nodeId] = output;
-          
+
+          // Apply cognitive bridges to enrich data for downstream nodes
+          const outgoingEdges = edges.filter(e => e.sourceNodeId === nodeId);
+          for (const edge of outgoingEdges) {
+            const targetNode = nodeMap.get(edge.targetNodeId);
+            if (targetNode) {
+              const bridgeEnhancement = await this.applyBridgeIfExists(
+                normalizedModuleId,
+                this.normalizeModuleId(targetNode.moduleId),
+                output,
+                aggregatedOutputs
+              );
+              if (bridgeEnhancement) {
+                // Store bridge enhancement with a special key for the target node to pick up
+                const bridgeKey = `bridge_${nodeId}_to_${edge.targetNodeId}`;
+                aggregatedOutputs[bridgeKey] = bridgeEnhancement;
+                console.log(`[CustomJourneyExecutor] Applied bridge: ${normalizedModuleId} → ${targetNode.moduleId}`);
+              }
+            }
+          }
+
           // Save to frameworkInsights table for UI display
           const understandingId = (execution.inputData as Record<string, any>)?.understandingId;
           if (understandingId && output) {
@@ -606,13 +640,23 @@ export class CustomJourneyExecutor {
     }
 
     const incomingEdges = edges.filter(e => e.targetNodeId === nodeId);
-    
+
     for (const edge of incomingEdges) {
       const sourceOutput = aggregatedOutputs[edge.sourceNodeId];
       if (sourceOutput !== undefined) {
         inputs[edge.targetPortId] = sourceOutput;
         inputs[edge.sourcePortId] = sourceOutput;
         inputs[`from_${edge.sourceNodeId}`] = sourceOutput;
+
+        // Also include bridge-enhanced data if available
+        // Bridges provide cognitive transformations between frameworks
+        const bridgeKey = `bridge_${edge.sourceNodeId}_to_${nodeId}`;
+        const bridgeEnhancement = aggregatedOutputs[bridgeKey];
+        if (bridgeEnhancement) {
+          inputs.bridgeContext = bridgeEnhancement;
+          inputs[`bridge_from_${edge.sourceNodeId}`] = bridgeEnhancement;
+          console.log(`[CustomJourneyExecutor] Including bridge context for node ${nodeId}`);
+        }
       }
     }
 
@@ -1000,15 +1044,122 @@ export class CustomJourneyExecutor {
     // Check if there's a mapping
     const mapped = FRAMEWORK_KEY_TO_MODULE_ID[moduleId];
     if (mapped) return mapped;
-    
+
     // Try underscore to hyphen conversion
     const hyphenated = moduleId.replace(/_/g, '-');
     const mappedHyphen = FRAMEWORK_KEY_TO_MODULE_ID[hyphenated];
     if (mappedHyphen) return mappedHyphen;
-    
+
     return moduleId;
   }
-  
+
+  /**
+   * Apply cognitive bridge between frameworks if one exists
+   * Bridges transform outputs from one framework into enriched context for the next
+   */
+  private async applyBridgeIfExists(
+    sourceModuleId: string,
+    targetModuleId: string,
+    sourceOutput: any,
+    allOutputs: Record<string, any>
+  ): Promise<any | null> {
+    // Normalize module IDs for bridge lookup
+    const normalizedSource = this.getFrameworkKey(sourceModuleId);
+    const normalizedTarget = this.getFrameworkKey(targetModuleId);
+
+    console.log(`[CustomJourneyExecutor] Checking for bridge: ${normalizedSource} → ${normalizedTarget}`);
+
+    try {
+      // Route to the appropriate bridge based on source → target pair
+      switch (`${normalizedSource}_to_${normalizedTarget}`) {
+        case 'pestle_to_porters':
+          return await applyPESTLEToPortersBridge(sourceOutput, {});
+
+        case 'porters_to_swot':
+          const pestleForSwot = this.findOutputByType(allOutputs, 'pestle');
+          return await applyPortersToSWOTBridge(sourceOutput, pestleForSwot, {});
+
+        case 'five_whys_to_bmc':
+        case 'whys_to_bmc':
+          // transformWhysToBMC expects { rootCauses, whysPath, strategicImplications, userInput }
+          const whysInput = {
+            rootCauses: sourceOutput.rootCauses || sourceOutput.root_causes || [],
+            whysPath: sourceOutput.whysPath || sourceOutput.whys_path || [],
+            strategicImplications: sourceOutput.strategicImplications || sourceOutput.strategic_implications || [],
+            userInput: sourceOutput.userInput || sourceOutput.businessContext || '',
+          };
+          return transformWhysToBMC(whysInput);
+
+        case 'five_whys_to_swot':
+        case 'whys_to_swot':
+          return transformWhysToSwot(sourceOutput);
+
+        case 'swot_to_bmc':
+          return transformSwotToBmc(sourceOutput);
+
+        case 'porters_to_bmc':
+          return transformPortersToBmc(sourceOutput);
+
+        case 'bmc_to_blue_ocean':
+        case 'bmc_to_blueocean':
+          return transformBmcToBlueOcean(sourceOutput);
+
+        case 'pestle_to_bmc':
+          return transformPestleToBmc(sourceOutput);
+
+        case 'bmc_to_ansoff':
+          return transformBmcToAnsoff(sourceOutput);
+
+        case 'pestle_to_ansoff':
+          return transformPestleToAnsoff(sourceOutput);
+
+        case 'ansoff_to_bmc':
+          return transformAnsoffToBmc(sourceOutput);
+
+        default:
+          // No bridge exists for this pair
+          return null;
+      }
+    } catch (error: any) {
+      console.warn(`[CustomJourneyExecutor] Bridge error (${normalizedSource} → ${normalizedTarget}):`, error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Get the canonical framework key for bridge lookup
+   */
+  private getFrameworkKey(moduleId: string): string {
+    // Map analyzer IDs back to framework keys
+    const reverseMap: Record<string, string> = {
+      'pestle-analyzer': 'pestle',
+      'porters-analyzer': 'porters',
+      'swot-analyzer': 'swot',
+      'bmc-analyzer': 'bmc',
+      'five-whys-analyzer': 'five_whys',
+      'ansoff-analyzer': 'ansoff',
+      'blue-ocean-analyzer': 'blue_ocean',
+      'value-chain-analyzer': 'value_chain',
+      'vrio-analyzer': 'vrio',
+      'bcg-matrix-analyzer': 'bcg_matrix',
+    };
+
+    return reverseMap[moduleId] || moduleId.replace(/-analyzer$/, '').replace(/-/g, '_');
+  }
+
+  /**
+   * Find output by framework type from all outputs
+   */
+  private findOutputByType(allOutputs: Record<string, any>, frameworkType: string): any | null {
+    // Search for output matching the framework type
+    for (const [key, value] of Object.entries(allOutputs)) {
+      if (key.includes(frameworkType) || key.includes(frameworkType.replace(/_/g, '-'))) {
+        return value;
+      }
+    }
+    return null;
+  }
+
   /**
    * Save framework analysis results to frameworkInsights table
    */
