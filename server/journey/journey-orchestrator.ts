@@ -521,6 +521,10 @@ export class JourneyOrchestrator {
 
   /**
    * Prepare for user input step by creating decision version and returning redirect URL
+   *
+   * FIXED: Now queries for the LAST framework in the journey instead of hard-coding SWOT.
+   * For growth_strategy (PESTLE → Ansoff → BMC), this uses BMC.
+   * For market_entry (PESTLE → Porter's → SWOT), this uses SWOT.
    */
   private async prepareUserInputStep(
     journeySessionId: string,
@@ -533,78 +537,118 @@ export class JourneyOrchestrator {
       .from(strategyVersions)
       .where(eq(strategyVersions.sessionId, understandingId))
       .orderBy(strategyVersions.versionNumber);
-    
+
     if (existingVersions.length === 0) {
-      // No versions exist: create version 1 with AI-generated decisions based on SWOT
+      // No versions exist: create version 1 with AI-generated decisions
       const { DecisionGenerator } = await import('../strategic-consultant-legacy/decision-generator');
       const generator = new DecisionGenerator();
-      
-      // Try to extract SWOT output from framework_insights table
+
       let decisionsData: any;
-      
-      // Query for SWOT insight from this journey session
-      console.log(`[JourneyOrchestrator] Looking for SWOT insights in session: ${journeySessionId}`);
-      const swotInsights = await db
+
+      // CRITICAL FIX: Determine the LAST framework in the journey, don't hard-code SWOT
+      // Query the journey session to get the journey type and frameworks
+      const journeySession = await db.select()
+        .from(journeySessions)
+        .where(eq(journeySessions.id, journeySessionId))
+        .limit(1);
+
+      let lastFramework = 'swot'; // Default fallback
+      if (journeySession[0]) {
+        const journeyType = journeySession[0].journeyType;
+
+        // Get the framework sequence for this journey type
+        if (journeyType === 'custom' && journeySession[0].metadata) {
+          const metadata = typeof journeySession[0].metadata === 'string'
+            ? JSON.parse(journeySession[0].metadata)
+            : journeySession[0].metadata;
+          const frameworks = metadata.frameworks || [];
+          lastFramework = frameworks[frameworks.length - 1] || 'swot';
+        } else if (journeyType) {
+          const journey = getJourney(journeyType as JourneyType);
+          lastFramework = journey.frameworks[journey.frameworks.length - 1] || 'swot';
+        }
+      }
+
+      console.log(`[JourneyOrchestrator] Journey last framework: ${lastFramework}`);
+      console.log(`[JourneyOrchestrator] Looking for ${lastFramework} insights in session: ${journeySessionId}`);
+
+      // Query for the LAST framework's insight from this journey session
+      const frameworkInsightsResult = await db
         .select()
         .from(frameworkInsights)
-        .where(sql`${frameworkInsights.sessionId} = ${journeySessionId} AND ${frameworkInsights.frameworkName} = 'swot'`)
+        .where(sql`${frameworkInsights.sessionId} = ${journeySessionId} AND ${frameworkInsights.frameworkName} = ${lastFramework}`)
         .limit(1);
-      
-      console.log(`[JourneyOrchestrator] Found ${swotInsights.length} SWOT insight records`);
-      if (swotInsights.length > 0) {
-        console.log(`[JourneyOrchestrator] SWOT insight ID: ${swotInsights[0].id}, sessionId: ${swotInsights[0].sessionId}`);
+
+      console.log(`[JourneyOrchestrator] Found ${frameworkInsightsResult.length} ${lastFramework} insight records`);
+      if (frameworkInsightsResult.length > 0) {
+        console.log(`[JourneyOrchestrator] ${lastFramework} insight ID: ${frameworkInsightsResult[0].id}, sessionId: ${frameworkInsightsResult[0].sessionId}`);
       }
-      
+
       // Decrypt the insights (they are encrypted in the database)
-      let swotData: any = null;
-      if (swotInsights[0]?.insights) {
-        const rawInsights = swotInsights[0].insights;
-        console.log(`[JourneyOrchestrator] SWOT insights raw type: ${typeof rawInsights}`);
-        if (typeof rawInsights === 'string') {
-          console.log(`[JourneyOrchestrator] SWOT insights string length: ${rawInsights.length}, starts with: ${rawInsights.substring(0, 50)}...`);
-        }
-        
+      let frameworkData: any = null;
+      if (frameworkInsightsResult[0]?.insights) {
+        const rawInsights = frameworkInsightsResult[0].insights;
+        console.log(`[JourneyOrchestrator] ${lastFramework} insights raw type: ${typeof rawInsights}`);
+
         try {
-          // Check if it's a string (encrypted) or already an object
           if (typeof rawInsights === 'string') {
-            swotData = await decryptJSONKMS(rawInsights);
-            console.log('[JourneyOrchestrator] Decrypted SWOT insights successfully');
-            if (swotData) {
-              console.log(`[JourneyOrchestrator] Decrypted data keys: ${Object.keys(swotData).join(', ')}`);
+            frameworkData = await decryptJSONKMS(rawInsights);
+            console.log(`[JourneyOrchestrator] Decrypted ${lastFramework} insights successfully`);
+            if (frameworkData) {
+              console.log(`[JourneyOrchestrator] Decrypted data keys: ${Object.keys(frameworkData).join(', ')}`);
             }
           } else if (typeof rawInsights === 'object') {
-            // Already an object (maybe not encrypted or pre-decrypted)
-            swotData = rawInsights;
-            console.log(`[JourneyOrchestrator] SWOT insights already an object with keys: ${Object.keys(swotData || {}).join(', ')}`);
+            frameworkData = rawInsights;
+            console.log(`[JourneyOrchestrator] ${lastFramework} insights already an object with keys: ${Object.keys(frameworkData || {}).join(', ')}`);
           }
         } catch (decryptError) {
-          console.warn('[JourneyOrchestrator] Failed to decrypt SWOT insights:', decryptError);
+          console.warn(`[JourneyOrchestrator] Failed to decrypt ${lastFramework} insights:`, decryptError);
         }
       } else {
-        console.log('[JourneyOrchestrator] No insights field found in SWOT record');
+        console.log(`[JourneyOrchestrator] No insights field found in ${lastFramework} record`);
       }
-      
-      // SWOT data is nested: { output: { strengths, weaknesses, ... }, summary, framework }
-      // Need to access swotData.output for the actual SWOT arrays
-      const swotOutput = swotData?.output || swotData;
-      console.log(`[JourneyOrchestrator] SWOT output keys: ${Object.keys(swotOutput || {}).join(', ')}`);
-      
-      if (swotOutput && Array.isArray(swotOutput.strengths) && Array.isArray(swotOutput.weaknesses)) {
-        try {
+
+      // Generate decisions based on the framework type
+      const frameworkOutput = frameworkData?.output || frameworkData;
+      console.log(`[JourneyOrchestrator] ${lastFramework} output keys: ${Object.keys(frameworkOutput || {}).join(', ')}`);
+
+      try {
+        if (lastFramework === 'swot' && frameworkOutput && Array.isArray(frameworkOutput.strengths)) {
+          // SWOT-based decisions
           console.log('[JourneyOrchestrator] Generating AI decisions from SWOT analysis');
-          console.log(`[JourneyOrchestrator] SWOT has ${swotOutput.strengths.length} strengths, ${swotOutput.weaknesses.length} weaknesses`);
+          console.log(`[JourneyOrchestrator] SWOT has ${frameworkOutput.strengths.length} strengths, ${frameworkOutput.weaknesses?.length || 0} weaknesses`);
           decisionsData = await generator.generateDecisionsFromSWOT(
-            swotOutput,
+            frameworkOutput,
             context.userInput || ''
           );
-          console.log(`[JourneyOrchestrator] AI generated ${decisionsData?.decisions?.length || 0} decisions`);
-        } catch (error) {
-          console.warn('[JourneyOrchestrator] AI decision generation failed, using placeholders:', error);
+        } else if (lastFramework === 'bmc' && frameworkOutput) {
+          // BMC-based decisions
+          console.log('[JourneyOrchestrator] Generating AI decisions from BMC analysis');
+          console.log(`[JourneyOrchestrator] BMC has ${frameworkOutput.blocks?.length || 0} blocks`);
+          decisionsData = await generator.generateDecisionsFromBMC(
+            frameworkOutput,
+            context.userInput || ''
+          );
+        } else if (frameworkOutput) {
+          // Generic fallback: try to extract insights for decision generation
+          console.log(`[JourneyOrchestrator] Generating decisions from ${lastFramework} using generic approach`);
+          // For frameworks without specific decision generators, we'll create a summary and use SWOT-style generation
+          const genericSummary = this.extractGenericInsights(frameworkOutput, lastFramework);
+          if (genericSummary) {
+            decisionsData = await generator.generateDecisionsFromSWOT(
+              genericSummary,
+              context.userInput || ''
+            );
+          } else {
+            decisionsData = this.generatePlaceholderDecisions(context);
+          }
+        } else {
+          console.log(`[JourneyOrchestrator] No valid ${lastFramework} data available, using placeholder decisions`);
           decisionsData = this.generatePlaceholderDecisions(context);
         }
-      } else {
-        console.log('[JourneyOrchestrator] No valid SWOT data available, using placeholder decisions');
-        console.log(`[JourneyOrchestrator] swotOutput exists: ${!!swotOutput}, strengths is array: ${Array.isArray(swotOutput?.strengths)}, weaknesses is array: ${Array.isArray(swotOutput?.weaknesses)}`);
+        console.log(`[JourneyOrchestrator] AI generated ${decisionsData?.decisions?.length || 0} decisions`);
+      } catch (error) {
+        console.warn('[JourneyOrchestrator] AI decision generation failed, using placeholders:', error);
         decisionsData = this.generatePlaceholderDecisions(context);
       }
       
@@ -661,6 +705,212 @@ export class JourneyOrchestrator {
       ],
       priorities: [],
     };
+  }
+
+  /**
+   * Extract generic insights from any framework output and convert to SWOT-like structure
+   * This allows decision generation from frameworks that don't have dedicated decision generators
+   *
+   * @param frameworkOutput - Raw output from the framework
+   * @param frameworkName - Name of the framework (pestle, ansoff, porters, etc.)
+   * @returns SWOT-like structure or null if unable to extract
+   */
+  private extractGenericInsights(frameworkOutput: any, frameworkName: string): any | null {
+    if (!frameworkOutput) return null;
+
+    console.log(`[JourneyOrchestrator] Extracting generic insights from ${frameworkName}`);
+
+    // Convert framework-specific outputs to a pseudo-SWOT structure
+    // This allows the existing decision generator to work with any framework
+    switch (frameworkName.toLowerCase()) {
+      case 'pestle':
+        return this.convertPESTLEToSWOT(frameworkOutput);
+      case 'ansoff':
+        return this.convertAnsoffToSWOT(frameworkOutput);
+      case 'porters':
+      case 'porter':
+        return this.convertPortersToSWOT(frameworkOutput);
+      default:
+        // Generic fallback: try to find arrays of insights and map them
+        return this.convertGenericToSWOT(frameworkOutput, frameworkName);
+    }
+  }
+
+  /**
+   * Convert PESTLE output to SWOT-like structure
+   */
+  private convertPESTLEToSWOT(pestle: any): any {
+    const strengths: string[] = [];
+    const weaknesses: string[] = [];
+    const opportunities: string[] = [];
+    const threats: string[] = [];
+
+    // PESTLE factors map to O/T primarily
+    const categories = ['political', 'economic', 'social', 'technological', 'legal', 'environmental'];
+
+    for (const category of categories) {
+      const factors = pestle[category] || pestle[category.charAt(0).toUpperCase() + category.slice(1)] || [];
+      if (Array.isArray(factors)) {
+        factors.forEach((factor: any) => {
+          const text = typeof factor === 'string' ? factor : factor?.factor || factor?.description || JSON.stringify(factor);
+          const impact = factor?.impact || factor?.implication || '';
+          const entry = `${text}${impact ? ': ' + impact : ''}`;
+
+          // Classify based on sentiment/keywords
+          if (this.isPositiveFactor(text + impact)) {
+            opportunities.push(entry);
+          } else {
+            threats.push(entry);
+          }
+        });
+      }
+    }
+
+    return { strengths, weaknesses, opportunities, threats };
+  }
+
+  /**
+   * Convert Ansoff Matrix output to SWOT-like structure
+   */
+  private convertAnsoffToSWOT(ansoff: any): any {
+    const strengths: string[] = [];
+    const weaknesses: string[] = [];
+    const opportunities: string[] = [];
+    const threats: string[] = [];
+
+    // Ansoff strategies represent growth opportunities
+    const strategies = ['market_penetration', 'market_development', 'product_development', 'diversification'];
+
+    for (const strategy of strategies) {
+      const strategyData = ansoff[strategy] || ansoff[strategy.replace(/_/g, '')] || null;
+      if (strategyData) {
+        const description = typeof strategyData === 'string'
+          ? strategyData
+          : strategyData?.description || strategyData?.recommendation || JSON.stringify(strategyData);
+        opportunities.push(`${strategy.replace(/_/g, ' ')}: ${description}`);
+
+        // Extract risks as threats
+        if (strategyData?.risks && Array.isArray(strategyData.risks)) {
+          threats.push(...strategyData.risks.map((r: any) => typeof r === 'string' ? r : r?.description || JSON.stringify(r)));
+        }
+      }
+    }
+
+    // Check for recommendation/selected strategy as a strength
+    if (ansoff.recommendation || ansoff.selectedStrategy) {
+      const rec = ansoff.recommendation || ansoff.selectedStrategy;
+      strengths.push(`Recommended strategy: ${typeof rec === 'string' ? rec : JSON.stringify(rec)}`);
+    }
+
+    return { strengths, weaknesses, opportunities, threats };
+  }
+
+  /**
+   * Convert Porter's Five Forces output to SWOT-like structure
+   */
+  private convertPortersToSWOT(porters: any): any {
+    const strengths: string[] = [];
+    const weaknesses: string[] = [];
+    const opportunities: string[] = [];
+    const threats: string[] = [];
+
+    const forces = [
+      'buyer_power', 'supplier_power', 'competitive_rivalry',
+      'threat_of_substitutes', 'threat_of_new_entrants'
+    ];
+
+    for (const force of forces) {
+      const forceData = porters[force] || porters[force.replace(/_/g, '')] || null;
+      if (forceData) {
+        const intensity = forceData?.intensity || forceData?.level || 'moderate';
+        const description = forceData?.analysis || forceData?.description || '';
+        const entry = `${force.replace(/_/g, ' ')}: ${intensity}${description ? ' - ' + description : ''}`;
+
+        // High intensity forces are threats, low intensity are opportunities
+        if (intensity.toLowerCase().includes('high') || intensity.toLowerCase().includes('strong')) {
+          threats.push(entry);
+        } else if (intensity.toLowerCase().includes('low') || intensity.toLowerCase().includes('weak')) {
+          opportunities.push(entry);
+        } else {
+          // Moderate forces: buyer/supplier power as weaknesses, others as threats
+          if (force.includes('buyer') || force.includes('supplier')) {
+            weaknesses.push(entry);
+          } else {
+            threats.push(entry);
+          }
+        }
+      }
+    }
+
+    return { strengths, weaknesses, opportunities, threats };
+  }
+
+  /**
+   * Generic fallback conversion for unknown frameworks
+   */
+  private convertGenericToSWOT(output: any, frameworkName: string): any {
+    const strengths: string[] = [];
+    const weaknesses: string[] = [];
+    const opportunities: string[] = [];
+    const threats: string[] = [];
+
+    // Try to find arrays of insights in the output
+    const traverse = (obj: any, path: string = '') => {
+      if (!obj || typeof obj !== 'object') return;
+
+      for (const key of Object.keys(obj)) {
+        const value = obj[key];
+        if (Array.isArray(value)) {
+          value.forEach((item: any) => {
+            const text = typeof item === 'string' ? item : item?.text || item?.description || item?.insight || JSON.stringify(item);
+            // Distribute evenly across SWOT categories as a fallback
+            if (key.toLowerCase().includes('strength') || key.toLowerCase().includes('advantage')) {
+              strengths.push(text);
+            } else if (key.toLowerCase().includes('weakness') || key.toLowerCase().includes('challenge')) {
+              weaknesses.push(text);
+            } else if (key.toLowerCase().includes('opportunit')) {
+              opportunities.push(text);
+            } else if (key.toLowerCase().includes('threat') || key.toLowerCase().includes('risk')) {
+              threats.push(text);
+            } else {
+              // Classify based on content sentiment
+              if (this.isPositiveFactor(text)) {
+                opportunities.push(`${key}: ${text}`);
+              } else {
+                threats.push(`${key}: ${text}`);
+              }
+            }
+          });
+        } else if (typeof value === 'object' && value !== null) {
+          traverse(value, `${path}.${key}`);
+        }
+      }
+    };
+
+    traverse(output);
+
+    // If we couldn't extract anything, return null to trigger placeholder
+    if (strengths.length === 0 && weaknesses.length === 0 && opportunities.length === 0 && threats.length === 0) {
+      console.log(`[JourneyOrchestrator] Could not extract insights from ${frameworkName} output`);
+      return null;
+    }
+
+    console.log(`[JourneyOrchestrator] Extracted ${strengths.length}S/${weaknesses.length}W/${opportunities.length}O/${threats.length}T from ${frameworkName}`);
+    return { strengths, weaknesses, opportunities, threats };
+  }
+
+  /**
+   * Simple heuristic to determine if a factor is positive or negative
+   */
+  private isPositiveFactor(text: string): boolean {
+    const positiveKeywords = ['growth', 'opportunity', 'advantage', 'benefit', 'improve', 'increase', 'expand', 'gain', 'positive', 'favorable'];
+    const negativeKeywords = ['risk', 'threat', 'decline', 'decrease', 'challenge', 'obstacle', 'barrier', 'negative', 'unfavorable', 'loss'];
+
+    const lowerText = text.toLowerCase();
+    const positiveScore = positiveKeywords.filter(k => lowerText.includes(k)).length;
+    const negativeScore = negativeKeywords.filter(k => lowerText.includes(k)).length;
+
+    return positiveScore >= negativeScore;
   }
 
   /**
