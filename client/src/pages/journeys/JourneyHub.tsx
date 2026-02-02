@@ -5,7 +5,7 @@ import { useLocation } from 'wouter';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Clock, Star, Sparkles, ArrowRight, Play, Edit2, Trash2, Puzzle, AlertCircle } from 'lucide-react';
+import { Plus, Clock, Star, Sparkles, ArrowRight, Play, Edit2, Trash2, Puzzle, AlertCircle, LayoutGrid } from 'lucide-react';
 import { JourneyBuilderWizard } from './JourneyBuilderWizard';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useToast } from '@/hooks/use-toast';
@@ -191,16 +191,29 @@ export function JourneyHub() {
               Choose a pre-defined journey or create your own custom path
             </p>
           </div>
-          <Button 
-            onClick={() => setShowBuilder(true)}
-            size="default"
-            className="gap-2 bg-purple-600 hover:bg-purple-700 shrink-0 text-sm md:text-base px-3 md:px-4"
-            data-testid="button-create-custom-journey"
-          >
-            <Plus className="w-4 h-4 md:w-5 md:h-5" />
-            <span className="hidden sm:inline">Create Custom Journey</span>
-            <span className="sm:hidden">Create</span>
-          </Button>
+          <div className="flex gap-2 shrink-0">
+            <Button
+              onClick={() => setLocation('/journey-builder')}
+              size="default"
+              variant="outline"
+              className="gap-2 border-purple-500 text-purple-600 hover:bg-purple-50 text-sm md:text-base px-3 md:px-4"
+              data-testid="button-visual-builder"
+            >
+              <LayoutGrid className="w-4 h-4 md:w-5 md:h-5" />
+              <span className="hidden sm:inline">Visual Builder</span>
+              <span className="sm:hidden">Canvas</span>
+            </Button>
+            <Button
+              onClick={() => setShowBuilder(true)}
+              size="default"
+              className="gap-2 bg-purple-600 hover:bg-purple-700 text-sm md:text-base px-3 md:px-4"
+              data-testid="button-create-custom-journey"
+            >
+              <Plus className="w-4 h-4 md:w-5 md:h-5" />
+              <span className="hidden sm:inline">Create Custom Journey</span>
+              <span className="sm:hidden">Create</span>
+            </Button>
+          </div>
         </div>
       </div>
 
