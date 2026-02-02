@@ -1,0 +1,40 @@
+ Replit Instructions: Journey Builder Verification                             
+                                                                                
+  What to Test                                                                  
+                                                                                
+  1. Access the Journey Builder                                                 
+                                                                                
+  Navigate to /journeys and you should now see a "Visual Builder" button next to
+   "Create Custom Journey". Click it to go to /journey-builder.                 
+                                                                                
+  2. Test the Visual Canvas                                                     
+                                                                                
+  On the Journey Builder canvas (/journey-builder):                             
+  1. Drag PESTLE Analyzer onto the canvas                                       
+  2. Drag Porter's Five Forces onto the canvas                                  
+  3. Drag SWOT Analyzer onto the canvas                                         
+  4. Connect: PESTLE output → Porter's input                                    
+  5. Connect: Porter's output → SWOT input                                      
+  6. Click Validate - should show "Journey is valid"                            
+                                                                                
+  3. Run a Test Journey                                                         
+                                                                                
+  1. Enter a name like "Test Journey"                                           
+  2. Click Run                                                                  
+  3. Enter business context when prompted (e.g., "Opening a coffee shop in      
+  Dubai")                                                                       
+  4. Watch the execution progress                                               
+                                                                                
+  4. Verify Bridges in Console Logs                                             
+                                                                                
+  Look for these log messages:                                                  
+  [CustomJourneyExecutor] Applied bridge: pestle → porters                      
+  [CustomJourneyExecutor] Applied bridge: porters → swot                        
+  [CustomJourneyExecutor] Including bridge context for node...                  
+                                                                                
+  Changes Deployed                                                              
+                                                                                
+  - Bridge integration: Custom journey executor now applies cognitive bridges   
+  between connected nodes                                                       
+  - UI access: New "Visual Builder" button on /journeys page                    
+  - Documentation: docs/JOURNEY_BUILDER_GUIDE.md      
