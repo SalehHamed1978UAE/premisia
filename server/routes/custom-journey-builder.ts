@@ -6,7 +6,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { eq, desc, and } from 'drizzle-orm';
+import { eq, desc, and, ne } from 'drizzle-orm';
 import { db } from '../db';
 import { customJourneyConfigs, customJourneyExecutions } from '@shared/schema';
 import { moduleRegistry } from '../modules/registry';
@@ -97,7 +97,7 @@ router.get('/modules', async (_req: Request, res: Response) => {
 router.get('/configs', async (req: Request, res: Response) => {
   try {
     const userId = (req.user as any)?.claims?.sub;
-    
+
     if (!userId) {
       return res.status(401).json({
         success: false,
@@ -106,12 +106,24 @@ router.get('/configs', async (req: Request, res: Response) => {
     }
 
     const status = req.query.status as string | undefined;
-    
-    let whereClause = eq(customJourneyConfigs.createdBy, userId);
+    const includeArchived = req.query.includeArchived === 'true';
+
+    let whereClause;
+
     if (status && ['draft', 'published', 'archived'].includes(status)) {
+      // Explicit status filter
       whereClause = and(
         eq(customJourneyConfigs.createdBy, userId),
         eq(customJourneyConfigs.status, status as 'draft' | 'published' | 'archived')
+      )!;
+    } else if (includeArchived) {
+      // Include all statuses
+      whereClause = eq(customJourneyConfigs.createdBy, userId);
+    } else {
+      // Default: exclude archived
+      whereClause = and(
+        eq(customJourneyConfigs.createdBy, userId),
+        ne(customJourneyConfigs.status, 'archived')
       )!;
     }
 
@@ -319,7 +331,8 @@ router.delete('/configs/:id', async (req: Request, res: Response) => {
   try {
     const userId = (req.user as any)?.claims?.sub;
     const { id } = req.params;
-    
+    const permanent = req.query.permanent === 'true';
+
     if (!userId) {
       return res.status(401).json({
         success: false,
@@ -361,14 +374,51 @@ router.delete('/configs/:id', async (req: Request, res: Response) => {
       });
     }
 
-    await db
-      .delete(customJourneyConfigs)
-      .where(eq(customJourneyConfigs.id, id));
+    // Check if there are any completed executions with artifacts
+    const completedExecutions = await db
+      .select()
+      .from(customJourneyExecutions)
+      .where(and(
+        eq(customJourneyExecutions.configId, id),
+        eq(customJourneyExecutions.status, 'completed')
+      ));
 
-    res.json({
-      success: true,
-      message: 'Journey config deleted',
-    });
+    // Soft delete: archive the config to preserve artifact traceability
+    // Use permanent=true query param only if user explicitly wants hard delete AND no artifacts exist
+    if (permanent && completedExecutions.length === 0) {
+      // Hard delete only allowed if no completed executions (no artifacts)
+      await db
+        .delete(customJourneyExecutions)
+        .where(eq(customJourneyExecutions.configId, id));
+
+      await db
+        .delete(customJourneyConfigs)
+        .where(eq(customJourneyConfigs.id, id));
+
+      res.json({
+        success: true,
+        message: 'Journey config permanently deleted',
+        deletedExecutions: 0,
+      });
+    } else {
+      // Soft delete: set status to archived
+      await db
+        .update(customJourneyConfigs)
+        .set({
+          status: 'archived',
+          updatedAt: new Date(),
+        })
+        .where(eq(customJourneyConfigs.id, id));
+
+      res.json({
+        success: true,
+        message: completedExecutions.length > 0
+          ? 'Journey archived (has execution history with artifacts)'
+          : 'Journey archived',
+        archived: true,
+        executionCount: completedExecutions.length,
+      });
+    }
   } catch (error) {
     console.error('[Custom Journey Builder] Error deleting config:', error);
     res.status(500).json({
