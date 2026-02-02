@@ -69,49 +69,54 @@ export class TimelineCalculator implements ITimelineCalculator {
   }
 
   /**
-   * Generate project phases
+   * Generate project phases aligned with actual workstream execution windows
+   *
+   * Phases are divided evenly across the program duration, and workstreams
+   * are assigned to phases based on when they EXECUTE (overlap with phase window),
+   * not just when they start.
    */
   generatePhases(totalMonths: number, workstreams: Workstream[]): TimelinePhase[] {
-    const phaseDuration = Math.ceil(totalMonths / 4);
-    
-    return [
-      {
-        phase: 1,
-        name: 'Planning & Foundation',
-        startMonth: 0,
-        endMonth: phaseDuration,
-        description: 'Initial setup, team assembly, detailed planning',
-        keyMilestones: ['Project kickoff', 'Team onboarded', 'Detailed plan approved'],
-        workstreamIds: workstreams.filter(w => w.startMonth <= phaseDuration).map(w => w.id),
-      },
-      {
-        phase: 2,
-        name: 'Development & Execution',
-        startMonth: phaseDuration,
-        endMonth: phaseDuration * 2,
-        description: 'Core workstream execution, deliverable development',
-        keyMilestones: ['Key deliverables completed', 'Progress review', 'Adjustments made'],
-        workstreamIds: workstreams.filter(w => w.startMonth > phaseDuration && w.startMonth <= phaseDuration * 2).map(w => w.id),
-      },
-      {
-        phase: 3,
-        name: 'Integration & Testing',
-        startMonth: phaseDuration * 2,
-        endMonth: phaseDuration * 3,
-        description: 'Integration of deliverables, testing, refinement',
-        keyMilestones: ['Integration complete', 'Testing passed', 'Stakeholder approval'],
-        workstreamIds: workstreams.filter(w => w.endMonth > phaseDuration * 2 && w.endMonth <= phaseDuration * 3).map(w => w.id),
-      },
-      {
-        phase: 4,
-        name: 'Deployment & Stabilization',
-        startMonth: phaseDuration * 3,
-        endMonth: totalMonths,
-        description: 'Launch, monitoring, optimization',
-        keyMilestones: ['Launch complete', 'Performance validated', 'Benefits tracking'],
-        workstreamIds: workstreams.filter(w => w.endMonth > phaseDuration * 3).map(w => w.id),
-      },
+    // Determine optimal phase count based on duration
+    const phaseCount = totalMonths <= 4 ? 2 : totalMonths <= 8 ? 3 : 4;
+    const phaseDuration = Math.ceil(totalMonths / phaseCount);
+
+    const phaseConfigs = [
+      { name: 'Planning & Foundation', description: 'Initial setup, team assembly, detailed planning', milestones: ['Project kickoff', 'Team onboarded', 'Detailed plan approved'] },
+      { name: 'Development & Execution', description: 'Core workstream execution, deliverable development', milestones: ['Key deliverables completed', 'Progress review', 'Adjustments made'] },
+      { name: 'Integration & Testing', description: 'Integration of deliverables, testing, refinement', milestones: ['Integration complete', 'Testing passed', 'Stakeholder approval'] },
+      { name: 'Deployment & Stabilization', description: 'Launch, monitoring, optimization', milestones: ['Launch complete', 'Performance validated', 'Benefits tracking'] },
     ];
+
+    const phases: TimelinePhase[] = [];
+
+    for (let i = 0; i < phaseCount; i++) {
+      const phaseStart = i * phaseDuration;
+      const phaseEnd = Math.min((i + 1) * phaseDuration, totalMonths);
+      const config = phaseConfigs[i] || phaseConfigs[phaseConfigs.length - 1];
+
+      // Assign workstreams that EXECUTE during this phase (any overlap counts)
+      // A workstream executes during a phase if: ws.startMonth < phaseEnd AND ws.endMonth >= phaseStart
+      const phaseWorkstreams = workstreams.filter(w =>
+        w.startMonth < phaseEnd && w.endMonth >= phaseStart
+      );
+
+      phases.push({
+        phase: i + 1,
+        name: config.name,
+        startMonth: phaseStart,
+        endMonth: phaseEnd,
+        description: config.description,
+        keyMilestones: config.milestones,
+        workstreamIds: phaseWorkstreams.map(w => w.id),
+      });
+    }
+
+    console.log(`[TimelineCalculator] Generated ${phaseCount} phases for ${totalMonths} month program:`);
+    phases.forEach(p => {
+      console.log(`  Phase ${p.phase} (M${p.startMonth}-M${p.endMonth}): ${p.workstreamIds.length} workstreams`);
+    });
+
+    return phases;
   }
 
   /**

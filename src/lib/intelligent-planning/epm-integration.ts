@@ -446,19 +446,37 @@ function integrateScheduleIntoEPM(epmProgram: any, schedule: any): any {
     });
   }
   
-  // Update timeline
+  // CRITICAL FIX: Calculate totalMonths from ACTUAL workstream timings, not schedule.totalMonths
+  // The schedule.totalMonths might be calculated before workstreams are fully scheduled
+  const actualMaxEndMonth = updatedProgram.workstreams?.length > 0
+    ? Math.max(...updatedProgram.workstreams.map((w: any) => w.endMonth || 0))
+    : 0;
+  const actualTotalMonths = actualMaxEndMonth > 0 ? actualMaxEndMonth + 1 : (schedule.totalMonths || 12);
+
+  console.log(`[EPM Integration] Timeline recalculation:`);
+  console.log(`  - schedule.totalMonths: ${schedule.totalMonths}`);
+  console.log(`  - Actual max workstream endMonth: ${actualMaxEndMonth}`);
+  console.log(`  - Corrected totalMonths: ${actualTotalMonths}`);
+
+  // Regenerate phases based on actual timeline and workstream positions
+  const correctedPhases = generatePhasesFromActualWorkstreams(
+    actualTotalMonths,
+    updatedProgram.workstreams || []
+  );
+
+  // Update timeline with corrected values
   updatedProgram.timeline = {
     ...epmProgram.timeline,
-    totalMonths: schedule.totalMonths,
-    phases: schedule.phases,
+    totalMonths: actualTotalMonths,
+    phases: correctedPhases,
     criticalPath: schedule.criticalPath,
     milestones: schedule.milestones
   };
-  
-  // Update stage gates to align with phases
+
+  // Update stage gates to align with corrected phases
   if (updatedProgram.stageGates?.gates) {
     updatedProgram.stageGates.gates = updatedProgram.stageGates.gates.map((gate: any, index: number) => {
-      const phase = schedule.phases?.[index];
+      const phase = correctedPhases[index];
       if (phase) {
         return {
           ...gate,
@@ -469,8 +487,58 @@ function integrateScheduleIntoEPM(epmProgram: any, schedule: any): any {
       return gate;
     });
   }
-  
+
   return updatedProgram;
+}
+
+/**
+ * Generate phases based on actual workstream execution windows
+ * Workstreams are assigned to phases based on overlap, not just start time
+ */
+function generatePhasesFromActualWorkstreams(totalMonths: number, workstreams: any[]): any[] {
+  // Determine optimal phase count based on duration
+  const phaseCount = totalMonths <= 4 ? 2 : totalMonths <= 8 ? 3 : 4;
+  const phaseDuration = Math.ceil(totalMonths / phaseCount);
+
+  const phaseConfigs = [
+    { name: 'Planning & Foundation', description: 'Initial setup, team assembly, detailed planning' },
+    { name: 'Development & Execution', description: 'Core workstream execution, deliverable development' },
+    { name: 'Integration & Testing', description: 'Integration of deliverables, testing, refinement' },
+    { name: 'Deployment & Stabilization', description: 'Launch, monitoring, optimization' },
+  ];
+
+  const phases = [];
+  const projectStartDate = new Date();
+
+  for (let i = 0; i < phaseCount; i++) {
+    const phaseStart = i * phaseDuration;
+    const phaseEnd = Math.min((i + 1) * phaseDuration, totalMonths);
+    const config = phaseConfigs[i] || phaseConfigs[phaseConfigs.length - 1];
+
+    // Assign workstreams that EXECUTE during this phase (any overlap counts)
+    const phaseWorkstreams = workstreams.filter((w: any) =>
+      w.startMonth < phaseEnd && w.endMonth >= phaseStart
+    );
+
+    phases.push({
+      phase: i + 1,
+      name: config.name,
+      startMonth: phaseStart,
+      endMonth: phaseEnd,
+      description: config.description,
+      startDate: new Date(projectStartDate.getTime() + phaseStart * 30 * 24 * 60 * 60 * 1000),
+      endDate: new Date(projectStartDate.getTime() + (phaseEnd + 1) * 30 * 24 * 60 * 60 * 1000),
+      workstreamIds: phaseWorkstreams.map((w: any) => w.id),
+      keyMilestones: [`${config.name} Complete`]
+    });
+  }
+
+  console.log(`[EPM Integration] Generated ${phaseCount} phases for ${totalMonths} month program`);
+  phases.forEach(p => {
+    console.log(`  Phase ${p.phase} (M${p.startMonth}-M${p.endMonth}): ${p.workstreamIds.length} workstreams`);
+  });
+
+  return phases;
 }
 
 /**
