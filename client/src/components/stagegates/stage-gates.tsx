@@ -80,15 +80,15 @@ export function StageGates() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Passed':
-        return 'bg-green-100 text-green-800';
+        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
       case 'In Review':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
       case 'Failed':
-        return 'bg-red-100 text-red-800';
+        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
       case 'On Hold':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200';
     }
   };
 
@@ -186,10 +186,10 @@ export function StageGates() {
                 <div className="flex items-start justify-between">
                   <div className="flex items-center space-x-3">
                     <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
-                      status === 'Passed' ? 'bg-green-100' :
-                      status === 'In Review' ? 'bg-blue-100' :
-                      status === 'Failed' ? 'bg-red-100' :
-                      'bg-gray-100'
+                      status === 'Passed' ? 'bg-green-100 dark:bg-green-900' :
+                      status === 'In Review' ? 'bg-blue-100 dark:bg-blue-900' :
+                      status === 'Failed' ? 'bg-red-100 dark:bg-red-900' :
+                      'bg-gray-100 dark:bg-gray-800'
                     }`}>
                       <Flag className={`h-6 w-6 ${
                         status === 'Passed' ? 'text-green-600' :

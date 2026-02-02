@@ -195,9 +195,9 @@ export default function ProgramsPage() {
                   <CardTitle className="flex items-center justify-between" data-testid={`text-program-name-${program.id}`}>
                     {program.name}
                     <span className={`text-xs px-2 py-1 rounded-full ${
-                      program.status === 'Active' ? 'bg-green-100 text-green-800' :
-                      program.status === 'Completed' ? 'bg-blue-100 text-blue-800' :
-                      'bg-gray-100 text-gray-800'
+                      program.status === 'Active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                      program.status === 'Completed' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                      'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
                     }`} data-testid={`text-program-status-${program.id}`}>
                       {program.status}
                     </span>
