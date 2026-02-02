@@ -154,6 +154,14 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
     name: 'Crisis Recovery',
     description: 'Diagnose root causes of crisis, assess internal strengths/weaknesses, and rebuild business model',
     frameworks: ['five_whys', 'swot', 'bmc'],
+    pageSequence: [
+      '/strategic-consultant/input',
+      '/strategic-consultant/whys-tree/:understandingId',          // Step 1: Five Whys analysis
+      '/strategic-consultant/swot-results/:sessionId/:versionNumber', // Step 2: SWOT analysis
+      '/strategic-consultant/research/:sessionId',                  // Step 3: BMC analysis
+      '/strategy-workspace/decisions/:sessionId/:versionNumber',    // Step 4: Strategic decisions
+      '/strategy-workspace/prioritization/:sessionId/:versionNumber', // Step 5: Prioritization
+    ],
     estimatedDuration: '14-20 minutes',
     available: true, // IMPLEMENTED - Five Whys → SWOT → BMC workflow
     summaryBuilder: 'fiveWhysSwot',

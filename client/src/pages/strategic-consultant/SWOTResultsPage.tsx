@@ -8,6 +8,7 @@ import { Loader2, ArrowLeft, ArrowRight, AlertCircle, RefreshCw, CheckCircle2 } 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { SWOTResults } from "@/components/strategic-consultant/SWOTResults";
+import { getNextPageUrl } from "@/hooks/useJourneyNavigation";
 
 interface SWOTFactor {
   factor: string;
@@ -58,6 +59,21 @@ export default function SWOTResultsPage() {
 
   // Check if this is a view-only request (from Statement Analysis page)
   const isViewOnly = searchString.includes('viewOnly=true');
+
+  // Fetch journey session to get pageSequence for dynamic navigation
+  const { data: journeySession } = useQuery({
+    queryKey: ['journey-session', sessionId],
+    queryFn: async () => {
+      if (!sessionId) return null;
+      const res = await fetch(`/api/strategic-consultant/journey-sessions/by-session/${sessionId}`);
+      if (!res.ok) {
+        console.warn(`[SWOTResultsPage] Journey session not found for ${sessionId}`);
+        return null;
+      }
+      return res.json();
+    },
+    enabled: !!sessionId,
+  });
 
   // Try to fetch existing SWOT results first (for page refresh / back navigation)
   const { data: existingData, isLoading: isLoadingExisting } = useQuery({
@@ -192,9 +208,31 @@ export default function SWOTResultsPage() {
     }
   }, [isLoadingExisting, existingData, hasExecuted, executeSWOT.isPending, isViewOnly]);
 
+  // Handle navigation to next step (dynamic based on journey type)
   const handleContinue = () => {
-    setLocation(`/strategy-workspace/decisions/${sessionId}/${versionNumber}`);
+    // Use dynamic navigation based on journey pageSequence
+    const { nextUrl } = getNextPageUrl(
+      journeySession,
+      'swot-results',
+      sessionId!,
+      versionNumber
+    );
+
+    if (nextUrl) {
+      setLocation(nextUrl);
+    } else {
+      // Fallback for journeys without pageSequence (legacy behavior)
+      setLocation(`/strategy-workspace/decisions/${sessionId}/${versionNumber}`);
+    }
   };
+
+  // Get dynamic button label
+  const { nextLabel } = getNextPageUrl(
+    journeySession,
+    'swot-results',
+    sessionId!,
+    versionNumber
+  );
 
   const handleBack = () => {
     setLocation(`/strategic-consultant/porters-results/${sessionId}/${versionNumber}`);
@@ -329,7 +367,7 @@ export default function SWOTResultsPage() {
             Back to Porter's
           </Button>
           <Button onClick={handleContinue} className="gap-2" data-testid="button-continue-decisions">
-            Continue to Strategic Decisions
+            {nextLabel}
             <ArrowRight className="h-4 w-4" />
           </Button>
         </div>

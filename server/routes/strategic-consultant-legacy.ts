@@ -478,6 +478,17 @@ router.get('/journey-sessions/by-session/:sessionId', async (req: Request, res: 
       return res.status(404).json({ error: 'Journey session not found' });
     }
 
+    // Get the journey definition to include pageSequence for dynamic navigation
+    let pageSequence: string[] = [];
+    let frameworks: string[] = [];
+    if (session.journeyType) {
+      const journeyDef = journeyRegistry.getJourney(session.journeyType as JourneyType);
+      if (journeyDef) {
+        pageSequence = journeyDef.pageSequence || [];
+        frameworks = journeyDef.frameworks || [];
+      }
+    }
+
     res.json({
       id: session.id,
       understandingId: session.understandingId,
@@ -486,6 +497,8 @@ router.get('/journey-sessions/by-session/:sessionId', async (req: Request, res: 
       completedFrameworks: session.completedFrameworks,
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
+      pageSequence,  // Added for dynamic navigation
+      frameworks,    // Added for dynamic navigation
     });
   } catch (error: any) {
     console.error('Error in /journey-sessions/by-session/:sessionId:', error);

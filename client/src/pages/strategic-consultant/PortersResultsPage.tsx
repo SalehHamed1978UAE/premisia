@@ -8,6 +8,7 @@ import { Loader2, ArrowLeft, ArrowRight, AlertCircle, RefreshCw, Building2 } fro
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { PortersResults } from "@/components/strategic-consultant/PortersResults";
+import { getNextPageUrl } from "@/hooks/useJourneyNavigation";
 
 interface PortersData {
   threatOfNewEntrants: { score: number; analysis: string; barriers: string[]; risks: string[] };
@@ -37,6 +38,21 @@ export default function PortersResultsPage() {
 
   // Check if this is a view-only request (from Statement Analysis page)
   const isViewOnly = searchString.includes('viewOnly=true');
+
+  // Fetch journey session to get pageSequence for dynamic navigation
+  const { data: journeySession } = useQuery({
+    queryKey: ['journey-session', sessionId],
+    queryFn: async () => {
+      if (!sessionId) return null;
+      const res = await fetch(`/api/strategic-consultant/journey-sessions/by-session/${sessionId}`);
+      if (!res.ok) {
+        console.warn(`[PortersResultsPage] Journey session not found for ${sessionId}`);
+        return null;
+      }
+      return res.json();
+    },
+    enabled: !!sessionId,
+  });
 
   // Query to fetch existing Porter's data
   const existingDataQuery = useQuery({
@@ -162,9 +178,31 @@ export default function PortersResultsPage() {
     setLocation(`/strategic-consultant/pestle-results/${sessionId}/${versionNumber}`);
   };
 
+  // Handle navigation to next step (dynamic based on journey type)
   const handleContinue = () => {
-    setLocation(`/strategic-consultant/swot-results/${sessionId}/${versionNumber}`);
+    // Use dynamic navigation based on journey pageSequence
+    const { nextUrl } = getNextPageUrl(
+      journeySession,
+      'porters-results',
+      sessionId!,
+      versionNumber
+    );
+
+    if (nextUrl) {
+      setLocation(nextUrl);
+    } else {
+      // Fallback for journeys without pageSequence (legacy behavior)
+      setLocation(`/strategic-consultant/swot-results/${sessionId}/${versionNumber}`);
+    }
   };
+
+  // Get dynamic button label
+  const { nextLabel } = getNextPageUrl(
+    journeySession,
+    'porters-results',
+    sessionId!,
+    versionNumber
+  );
 
   const handleRetry = () => {
     hasExecuted.current = false;
@@ -309,12 +347,12 @@ export default function PortersResultsPage() {
             Back to PESTLE Results
           </Button>
           
-          <Button 
+          <Button
             onClick={handleContinue}
             data-testid="button-continue"
             className="gap-2"
           >
-            Continue to SWOT Analysis
+            {nextLabel}
             <ArrowRight className="h-4 w-4" />
           </Button>
         </div>

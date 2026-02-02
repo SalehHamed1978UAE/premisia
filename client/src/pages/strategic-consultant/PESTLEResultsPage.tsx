@@ -8,6 +8,7 @@ import { Loader2, ArrowLeft, ArrowRight, AlertCircle, RefreshCw, Globe } from "l
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { PESTLEResults } from "@/components/strategic-consultant/PESTLEResults";
+import { getNextPageUrl } from "@/hooks/useJourneyNavigation";
 
 interface PESTLEExecuteResponse {
   success: boolean;
@@ -176,11 +177,33 @@ export default function PESTLEResultsPage() {
     executePestle.mutate(sessionId);
   }, [sessionId, isLoadingExisting, existingData, isViewOnly]);
 
-  // Handle navigation to Porter's analysis
+  // Handle navigation to next step (dynamic based on journey type)
   const handleContinue = () => {
     const nextVersionNumber = finalVersionNumber || versionNumber || 1;
-    setLocation(`/strategic-consultant/porters-results/${sessionId}/${nextVersionNumber}`);
+
+    // Use dynamic navigation based on journey pageSequence
+    const { nextUrl } = getNextPageUrl(
+      journeySession,
+      'pestle-results',
+      sessionId!,
+      nextVersionNumber
+    );
+
+    if (nextUrl) {
+      setLocation(nextUrl);
+    } else {
+      // Fallback for journeys without pageSequence (legacy behavior)
+      setLocation(`/strategic-consultant/porters-results/${sessionId}/${nextVersionNumber}`);
+    }
   };
+
+  // Get dynamic button label
+  const { nextLabel } = getNextPageUrl(
+    journeySession,
+    'pestle-results',
+    sessionId!,
+    finalVersionNumber || versionNumber || 1
+  );
 
   // Handle back navigation to journey selection
   const handleBack = () => {
@@ -349,12 +372,12 @@ export default function PESTLEResultsPage() {
               <ArrowLeft className="h-4 w-4" />
               Back
             </Button>
-            <Button 
+            <Button
               onClick={handleContinue}
               className="gap-2"
               data-testid="button-continue"
             >
-              Continue to Porter's Analysis
+              {nextLabel}
               <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
