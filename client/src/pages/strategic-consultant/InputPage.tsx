@@ -45,6 +45,7 @@ export default function InputPage() {
   const journeySessionId = urlParams.get('journeySession');
   const discoveryId = urlParams.get('discoveryId');
   const templateId = urlParams.get('templateId');
+  const journeyType = urlParams.get('journeyType');
   const [text, setText] = useState(prefilledText);
   const [isLoadingSummary, setIsLoadingSummary] = useState(false);
 
@@ -326,10 +327,13 @@ export default function InputPage() {
       setProgress(100);
 
       // Navigate to Classification page for user confirmation
-      // Pass templateId if this is a custom journey
+      // Pass templateId or journeyType if specified
       setTimeout(() => {
-        const classificationParams = templateId ? `?templateId=${templateId}` : '';
-        setLocation(`/strategic-consultant/classification/${understandingId}${classificationParams}`);
+        const params = new URLSearchParams();
+        if (templateId) params.set('templateId', templateId);
+        if (journeyType) params.set('journeyType', journeyType);
+        const queryString = params.toString();
+        setLocation(`/strategic-consultant/classification/${understandingId}${queryString ? '?' + queryString : ''}`);
       }, 300);
 
     } catch (error: any) {

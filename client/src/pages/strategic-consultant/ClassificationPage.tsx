@@ -68,9 +68,10 @@ export default function ClassificationPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
-  // Check for templateId in URL (custom journey flow)
+  // Check for templateId or journeyType in URL
   const urlParams = new URLSearchParams(window.location.search);
   const templateId = urlParams.get('templateId');
+  const journeyTypeParam = urlParams.get('journeyType');
 
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
@@ -224,8 +225,10 @@ export default function ClassificationPage() {
           }
         } else {
           // Standard flow: go to journey selection
-          console.log('[ClassificationPage] No templateId, going to journey selection');
-          setLocation(`/strategic-consultant/journey-selection/${understandingId}`);
+          // Pass journeyType if pre-selected from JourneyHub
+          console.log('[ClassificationPage] No templateId, going to journey selection with journeyType:', journeyTypeParam);
+          const journeyParams = journeyTypeParam ? `?journeyType=${journeyTypeParam}` : '';
+          setLocation(`/strategic-consultant/journey-selection/${understandingId}${journeyParams}`);
         }
       }, 500);
       

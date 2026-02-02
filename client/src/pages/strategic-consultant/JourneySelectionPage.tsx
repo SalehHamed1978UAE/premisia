@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +15,11 @@ export default function JourneySelectionPage() {
   const [, setLocation] = useLocation();
   const { toast} = useToast();
   const [executingJourney, setExecutingJourney] = useState<string | null>(null);
+  const autoStarted = useRef(false);
+  
+  // Get journeyType from URL if pre-selected from JourneyHub
+  const urlParams = new URLSearchParams(window.location.search);
+  const preselectedJourneyType = urlParams.get('journeyType');
 
   // Debug: Log params to understand routing issue
   console.log('[JourneySelection] URL params:', params);
@@ -133,6 +138,26 @@ export default function JourneySelectionPage() {
       setExecutingJourney(null);
     }
   };
+
+  // Auto-start journey if preselected from JourneyHub
+  useEffect(() => {
+    if (
+      preselectedJourneyType && 
+      !isLoading && 
+      journeys.length > 0 && 
+      !autoStarted.current &&
+      !executingJourney
+    ) {
+      const journey = journeys.find((j: any) => j.type === preselectedJourneyType);
+      if (journey?.available) {
+        console.log('[JourneySelection] Auto-starting preselected journey:', preselectedJourneyType);
+        autoStarted.current = true;
+        handleJourneySelect(preselectedJourneyType);
+      } else {
+        console.log('[JourneySelection] Preselected journey not available:', preselectedJourneyType);
+      }
+    }
+  }, [preselectedJourneyType, isLoading, journeys, executingJourney]);
 
   if (isLoading) {
     return (

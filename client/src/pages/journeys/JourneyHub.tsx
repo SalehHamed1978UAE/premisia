@@ -122,8 +122,11 @@ export function JourneyHub() {
   const comingSoonJourneys = journeys.filter(j => !j.available);
 
   const startJourney = (journeyType: string) => {
-    const params = discoveryId ? `?discoveryId=${discoveryId}` : '';
-    setLocation(`/strategic-consultant${params}`);
+    const params = new URLSearchParams();
+    if (discoveryId) params.set('discoveryId', discoveryId);
+    params.set('journeyType', journeyType);
+    const queryString = params.toString();
+    setLocation(`/strategic-consultant${queryString ? '?' + queryString : ''}`);
   };
 
   const startTemplateJourney = (templateId: string) => {
