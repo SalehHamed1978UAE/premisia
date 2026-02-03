@@ -18,7 +18,8 @@ const CACHE_METADATA = new Map<string, { timestamp: number }>();
 // Cleanup stale cache entries every 5 minutes
 setInterval(() => {
   const now = Date.now();
-  for (const [key, meta] of CACHE_METADATA.entries()) {
+  const entries = Array.from(CACHE_METADATA.entries());
+  for (const [key, meta] of entries) {
     if (now - meta.timestamp > CACHE_TTL) {
       SESSION_BRANCH_CACHE.delete(key);
       CACHE_METADATA.delete(key);
