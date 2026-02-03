@@ -70,6 +70,18 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tail
 - **Fix**: Changed to `fetch().json()` like PESTLE, plus robust data extraction
 - **Files**: `client/src/pages/strategic-consultant/PortersResultsPage.tsx`, `client/src/pages/strategic-consultant/SWOTResultsPage.tsx`
 
+## Journey Navigation & Session Lookup Fixes (Feb 3, 2026)
+- **Problem 1**: Business Model Innovation showed "Journey session not found" error when transitioning from Five Whys to Research
+- **Root Cause**: URL sessionId might be an understanding session ID, not journey session ID
+- **Fix**: Added fallback lookup using `getJourneySessionByUnderstandingSessionId()` in `/journey-research/stream/:sessionId` endpoint
+- **Problem 2**: Digital Transformation, Competitive Strategy, Growth Strategy had broken pageSequence with invalid intermediate pages
+- **Root Cause**: pageSequence referenced `/strategic-consultant/research/:sessionId` and `/strategic-consultant/framework-insight/:sessionId` which don't exist as proper results pages
+- **Fix**: Simplified pageSequence to use unified research flow: input → research → decisions → prioritization
+- **Problem 3**: Framework insights not persisting due to FK constraint violations
+- **Root Cause**: Code used URL `sessionId` instead of `journeySession.id` for frameworkInsights FK
+- **Fix**: Changed to use `journeySession.id` for frameworkInsights sessionId field
+- **Files**: `server/routes/strategic-consultant-legacy.ts`, `server/journey/journey-registry.ts`
+
 # Journey Architecture
 
 All journeys share: **Input → Disambiguation → Business Type → [Frameworks] → Strategic Decisions → Priorities → EPM**

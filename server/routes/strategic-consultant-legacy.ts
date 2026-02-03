@@ -2501,10 +2501,11 @@ router.get('/journey-research/stream/:sessionId', async (req: Request, res: Resp
         })}\n\n`);
 
         // Save to frameworkInsights
+        // Use journeySession.id (not URL sessionId) as FK to journey_sessions table
         try {
           await db.insert(frameworkInsights).values({
             understandingId: understanding.id!,
-            sessionId,
+            sessionId: journeySession.id,  // Use journey session primary key for FK
             frameworkName,
             frameworkVersion: '1.0',
             insights: result.data,
@@ -2514,7 +2515,7 @@ router.get('/journey-research/stream/:sessionId', async (req: Request, res: Resp
               source: 'unified_journey_research',
             } as any,
           }).onConflictDoNothing();
-          console.log(`[JOURNEY-RESEARCH] ✓ Saved ${frameworkName} to frameworkInsights`);
+          console.log(`[JOURNEY-RESEARCH] ✓ Saved ${frameworkName} to frameworkInsights for session ${journeySession.id}`);
         } catch (saveError: any) {
           console.warn(`[JOURNEY-RESEARCH] Failed to save ${frameworkName} insight:`, saveError.message);
         }
