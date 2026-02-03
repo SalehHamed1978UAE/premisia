@@ -935,13 +935,56 @@ router.get('/versions/:sessionId/:versionNumber', async (req: Request, res: Resp
       sessionId: version.sessionId,
     });
 
+    // Merge framework insights from journey-based flows
+    let analysisData = version.analysisData || {};
+    
+    // Try to find journey session and its framework insights
+    // First resolve URL sessionId to understanding
+    const understanding = await db.query.strategicUnderstanding.findFirst({
+      where: eq(strategicUnderstanding.sessionId, sessionId),
+    });
+    
+    if (understanding) {
+      // Find the journey session for this understanding
+      const journeySession = await db.query.journeySessions.findFirst({
+        where: eq(journeySessions.understandingId, understanding.id!),
+        orderBy: (js, { desc }) => [desc(js.updatedAt)],
+      });
+      
+      if (journeySession) {
+        console.log(`[GET /versions] Found journeySession ${journeySession.id} for understanding ${understanding.id}`);
+        
+        // Fetch framework insights for this journey session
+        const insights = await db.query.frameworkInsights.findMany({
+          where: eq(frameworkInsights.sessionId, journeySession.id),
+          orderBy: (fi, { asc }) => [asc(fi.createdAt)],
+        });
+        
+        if (insights.length > 0) {
+          console.log(`[GET /versions] Found ${insights.length} framework insights`);
+          
+          // Convert framework insights to the expected format
+          const frameworkResults = insights.map(insight => ({
+            framework: insight.frameworkName,
+            ...(insight.insights as object || {}),
+          }));
+          
+          // Merge with existing analysis data
+          analysisData = {
+            ...analysisData,
+            frameworks: frameworkResults,
+          };
+        }
+      }
+    }
+
     res.json({
       success: true,
       version: {
         id: version.id,
         versionNumber: version.versionNumber,
         status: version.status,
-        analysis: version.analysisData,
+        analysis: analysisData,
         decisions: version.decisionsData,
         selectedDecisions: version.selectedDecisions,
         program: version.programStructure,

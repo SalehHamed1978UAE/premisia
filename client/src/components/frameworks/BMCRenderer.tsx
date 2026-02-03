@@ -27,16 +27,20 @@ const BMCRenderer: FC<FrameworkRendererProps<BMCFrameworkResult>> = ({ data }) =
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Overall Assessment</CardTitle>
+            {typeof data.overallConfidence === 'number' && (
             <Badge variant={data.overallConfidence > 0.7 ? "default" : "secondary"} data-testid="badge-confidence">
               {Math.round(data.overallConfidence * 100)}% Confidence
             </Badge>
+            )}
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {data.viability && (
           <div>
             <h3 className="font-semibold mb-2">Viability</h3>
             <p className="text-sm text-muted-foreground" data-testid="text-viability">{data.viability}</p>
           </div>
+          )}
 
           {Array.isArray(data.contradictions) && data.contradictions.length > 0 && (
             <div className="space-y-3">
@@ -136,6 +140,7 @@ const BMCRenderer: FC<FrameworkRendererProps<BMCFrameworkResult>> = ({ data }) =
       )}
 
       {/* BMC Blocks */}
+      {Array.isArray(data.blocks) && data.blocks.length > 0 && (
       <div className="space-y-6">
         <h2 className="text-2xl font-bold">Canvas Components</h2>
         
@@ -188,6 +193,7 @@ const BMCRenderer: FC<FrameworkRendererProps<BMCFrameworkResult>> = ({ data }) =
           })}
         </div>
       </div>
+      )}
 
       {/* Critical Gaps */}
       {Array.isArray(data.criticalGaps) && data.criticalGaps.length > 0 && (
