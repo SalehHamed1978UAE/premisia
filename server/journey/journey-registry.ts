@@ -88,11 +88,9 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
     frameworks: ['porters', 'bmc', 'blue_ocean'],
     pageSequence: [
       '/strategic-consultant/input',
-      '/strategic-consultant/porters-results/:sessionId/:versionNumber',  // Step 1: Porter's Five Forces
-      '/strategic-consultant/research/:sessionId',                        // Step 2: BMC analysis
-      '/strategic-consultant/framework-insight/:sessionId',               // Step 3: Blue Ocean Strategy
-      '/strategy-workspace/decisions/:sessionId/:versionNumber',          // Step 4: Strategic decisions
-      '/strategy-workspace/prioritization/:sessionId/:versionNumber',     // Step 5: Prioritization
+      '/strategic-consultant/research/:sessionId',                        // Unified research runs all frameworks
+      '/strategy-workspace/decisions/:sessionId/:versionNumber',          // Strategic decisions
+      '/strategy-workspace/prioritization/:sessionId/:versionNumber',     // Prioritization
     ],
     estimatedDuration: '15-22 minutes',
     available: true, // IMPLEMENTED - Porter's → BMC → Blue Ocean workflow
@@ -122,11 +120,9 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
     frameworks: ['pestle', 'bmc', 'ansoff'],
     pageSequence: [
       '/strategic-consultant/input',
-      '/strategic-consultant/pestle-results/:sessionId/:versionNumber',  // Step 1: PESTLE analysis
-      '/strategic-consultant/research/:sessionId',                       // Step 2: BMC analysis
-      '/strategic-consultant/framework-insight/:sessionId',              // Step 3: Ansoff Matrix
-      '/strategy-workspace/decisions/:sessionId/:versionNumber',         // Step 4: Strategic decisions
-      '/strategy-workspace/prioritization/:sessionId/:versionNumber',    // Step 5: Prioritization
+      '/strategic-consultant/research/:sessionId',                       // Unified research runs all frameworks
+      '/strategy-workspace/decisions/:sessionId/:versionNumber',         // Strategic decisions
+      '/strategy-workspace/prioritization/:sessionId/:versionNumber',    // Prioritization
     ],
     estimatedDuration: '18-25 minutes',
     available: true, // IMPLEMENTED - PESTLE → BMC → Ansoff workflow
@@ -190,11 +186,9 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
     frameworks: ['pestle', 'ansoff', 'bmc'],
     pageSequence: [
       '/strategic-consultant/input',
-      '/strategic-consultant/pestle-results/:sessionId/:versionNumber',  // Step 1: PESTLE analysis
-      '/strategic-consultant/framework-insight/:sessionId',              // Step 2: Ansoff Matrix
-      '/strategic-consultant/research/:sessionId',                       // Step 3: BMC analysis
-      '/strategy-workspace/decisions/:sessionId/:versionNumber',         // Step 4: Strategic decisions
-      '/strategy-workspace/prioritization/:sessionId/:versionNumber',    // Step 5: Prioritization
+      '/strategic-consultant/research/:sessionId',                       // Unified research runs all frameworks
+      '/strategy-workspace/decisions/:sessionId/:versionNumber',         // Strategic decisions
+      '/strategy-workspace/prioritization/:sessionId/:versionNumber',    // Prioritization
     ],
     estimatedDuration: '16-23 minutes',
     available: true, // IMPLEMENTED - PESTLE → Ansoff → BMC workflow
