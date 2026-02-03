@@ -169,18 +169,15 @@ export default function ResearchPage() {
     console.log(`[ResearchPage] Journey type: ${journeyType} (from ${journeySession?.journeyType ? 'backend' : 'localStorage or default'})`);
 
     // Determine which endpoint to use based on journey type
-    // BMI uses BMC research endpoint (after Five Whys)
+    // BMI uses BMC research endpoint
     // Market Entry uses Market Entry research endpoint (PESTLE→Porter's→SWOT)
-    // Other journeys use BMC research endpoint (no Five Whys needed)
+    // Other journeys with Five Whys would use the standard research stream
     const isBMCJourney = journeyType === 'business_model_innovation';
     const isMarketEntryJourney = journeyType === 'market_entry';
-
-    // Five Whys data is only needed for journeys that explicitly use Five Whys framework
-    // These are: business_model_innovation and crisis_recovery
-    // Other journeys like competitive_strategy, digital_transformation, growth_strategy
-    // go to Research page for BMC but don't use Five Whys
-    const fiveWhysJourneys = ['business_model_innovation', 'crisis_recovery'];
-    const requiresFiveWhys = fiveWhysJourneys.includes(journeyType);
+    
+    // Five Whys data is only needed for journeys that actually use Five Whys framework
+    // BMI uses Five Whys + BMC, Market Entry uses PESTLE + Porter's + SWOT (no Five Whys)
+    const requiresFiveWhys = !isBMCJourney && !isMarketEntryJourney;
     
     // Only require Five Whys data for journeys that need it
     if (requiresFiveWhys) {
@@ -199,13 +196,19 @@ export default function ResearchPage() {
     const startTime = Date.now();
     
     let eventSource: EventSource;
-
-    if (isMarketEntryJourney) {
+    
+    if (isBMCJourney) {
+      // For BMI journeys, use BMC research stream
+      // Input is fetched from journey session on the backend
+      eventSource = new EventSource(`/api/strategic-consultant/bmc-research/stream/${sessionId}`);
+      console.log('[ResearchPage] Using BMC research endpoint for BMI journey');
+    } else if (isMarketEntryJourney) {
       // For Market Entry journeys, use dedicated PESTLE→Porter's→SWOT stream
+      // Input is fetched from journey session on the backend
       eventSource = new EventSource(`/api/strategic-consultant/market-entry-research/stream/${sessionId}`);
       console.log('[ResearchPage] Using Market Entry research endpoint (PESTLE→Porter\'s→SWOT)');
-    } else if (requiresFiveWhys) {
-      // For journeys that use Five Whys (BMI, crisis_recovery), use standard research stream
+    } else {
+      // For other journeys with Five Whys, use the standard research stream
       const rootCause = localStorage.getItem(`strategic-rootCause-${sessionId}`) || '';
       const whysPathStr = localStorage.getItem(`strategic-whysPath-${sessionId}`) || '[]';
       const whysPath = JSON.parse(whysPathStr);
@@ -216,12 +219,7 @@ export default function ResearchPage() {
         input,
       });
       eventSource = new EventSource(`/api/strategic-consultant/research/stream/${sessionId}?${params.toString()}`);
-      console.log(`[ResearchPage] Using Five Whys research endpoint for ${journeyType}`);
-    } else {
-      // For other journeys (competitive_strategy, digital_transformation, growth_strategy)
-      // Use BMC research stream - input is fetched from journey session on backend
-      eventSource = new EventSource(`/api/strategic-consultant/bmc-research/stream/${sessionId}`);
-      console.log(`[ResearchPage] Using BMC research endpoint for ${journeyType}`);
+      console.log('[ResearchPage] Using standard research endpoint');
     }
 
     console.log('[ResearchPage] Connecting to research stream:', eventSource.url);
