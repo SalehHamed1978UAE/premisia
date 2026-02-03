@@ -113,6 +113,15 @@ The `getAggregatedAnalysis()` function handles all three cases. Don't assume one
 - **Fixes**: Added null-safety to BMC executor; Updated analysis-aggregator.ts to resolve full lookup chain
 - **Files**: `server/journey/executors/bmc-executor.ts`, `server/intelligence/analysis-aggregator.ts`
 
+## View Full Report Fix for Journey-Based Analysis (Feb 3, 2026)
+- **Problem**: "View Full Report" button showed incomplete/blank analysis for Business Model Innovation and other journey flows
+- **Root Cause**: `/versions/:sessionId/:versionNumber` endpoint only fetched from `strategy_versions.analysisData` (legacy), missing data from `framework_insights` table (journey flows)
+- **Fixes**: 
+  1. Enhanced endpoint with three-path sessionId resolution (URL → strategicUnderstanding → journeySession)
+  2. Fetch and merge `framework_insights` data for journey-based sessions
+  3. Added null-safety to BMCRenderer for `data.blocks`, `data.overallConfidence`, `data.viability`
+- **Files**: `server/routes/strategic-consultant-legacy.ts`, `client/src/components/frameworks/BMCRenderer.tsx`
+
 # External Dependencies
 - **Database Service**: Neon serverless PostgreSQL
 - **Session Store**: `connect-pg-simple`
