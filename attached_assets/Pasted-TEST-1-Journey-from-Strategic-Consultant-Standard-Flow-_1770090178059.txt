@@ -1,0 +1,147 @@
+TEST 1: Journey from Strategic Consultant (Standard Flow)                     
+                                                                                
+  Purpose: Verify the journey selection page still works when NO journey is     
+  pre-selected                                                                  
+                                                                                
+  Steps:                                                                        
+  1. Go to /strategic-consultant directly (NOT from journey hub)                
+  2. Enter business context: We are a fintech startup in Singapore looking to   
+  expand.                                                                       
+  3. Click "Start Strategic Analysis"                                           
+  4. On Classification page, confirm the initiative type and click "Confirm and 
+  Continue"                                                                     
+  5. VERIFY: You should see the Journey Selection page with all journey options 
+                                                                                
+  Required Console Output:                                                      
+  [ClassificationPage] No pre-selection, going to journey selection page        
+                                                                                
+  Required UI Result:                                                           
+  - Journey Selection page displays                                             
+  - All available journeys shown as cards                                       
+  - User can click to select any journey                                        
+                                                                                
+  FAIL if:                                                                      
+  - Skips directly to Research page                                             
+  - Console shows "Journey pre-selected from JourneyHub"                        
+                                                                                
+  ---                                                                           
+  TEST 2: Journey from JourneyHub (Skip Selection Flow)                         
+                                                                                
+  Purpose: Verify journey selection is SKIPPED when coming from JourneyHub      
+                                                                                
+  Steps:                                                                        
+  1. Go to /journey-hub                                                         
+  2. Click "Start Journey" on the "Market Entry" card                           
+  3. You land on /strategic-consultant?journeyType=market_entry                 
+  4. Enter business context: We are a software company based in Dubai wanting to
+   expand into Saudi Arabia.                                                    
+  5. Click "Start Strategic Analysis"                                           
+  6. On Classification page, confirm and click "Confirm and Continue"           
+  7. VERIFY: You should go DIRECTLY to Research page, NOT Journey Selection     
+                                                                                
+  Required Console Output:                                                      
+  [ClassificationPage] Journey pre-selected from JourneyHub: market_entry       
+  [ClassificationPage] Executing journey directly, skipping selection page...   
+  [ClassificationPage] Navigating to: /strategic-consultant/research/...        
+                                                                                
+  Required UI Result:                                                           
+  - Classification page → Research page DIRECTLY                                
+  - NO Journey Selection page in between                                        
+  - Research page shows framework execution                                     
+                                                                                
+  FAIL if:                                                                      
+  - Journey Selection page appears                                              
+  - Console shows "going to journey selection page"                             
+  - Any error messages                                                          
+                                                                                
+  ---                                                                           
+  TEST 3: Unified Research Endpoint (Market Entry)                              
+                                                                                
+  Purpose: Verify the unified endpoint works for Market Entry                   
+                                                                                
+  Steps:                                                                        
+  1. Continue from TEST 2 (or start Market Entry from JourneyHub)               
+  2. Watch the Research page execute                                            
+                                                                                
+  Required Console Output (Browser):                                            
+  [ResearchPage] Journey type: market_entry (from backend)                      
+  [ResearchPage] Using unified journey research endpoint for market_entry       
+                                                                                
+  Required Console Output (Server/Replit):                                      
+  [JOURNEY-RESEARCH] Unified endpoint called!                                   
+  [JOURNEY-RESEARCH] Journey type: market_entry                                 
+  [JOURNEY-RESEARCH] Framework sequence: pestle → porters → swot                
+  [JOURNEY-RESEARCH] ✓ pestle complete                                          
+  [JOURNEY-RESEARCH] Applying bridge: pestle → porters                          
+  [JOURNEY-RESEARCH] ✓ porters complete                                         
+  [JOURNEY-RESEARCH] Applying bridge: porters → swot                            
+  [JOURNEY-RESEARCH] ✓ swot complete                                            
+  [JOURNEY-RESEARCH] ✓ Journey complete                                         
+                                                                                
+  FAIL if:                                                                      
+  - Console shows old endpoint (/market-entry-research/stream)                  
+  - No bridge messages in server logs                                           
+                                                                                
+  ---                                                                           
+  TEST 4: Competitive Strategy (Blue Ocean) - THE BUG FIX                       
+                                                                                
+  Purpose: Verify the bug is fixed - this journey was previously broken         
+                                                                                
+  Steps:                                                                        
+  1. Go to /journey-hub                                                         
+  2. Click "Start Journey" on "Competitive Strategy" card                       
+  3. Enter: We run a budget airline competing against AirAsia. We want blue     
+  ocean differentiation.                                                        
+  4. Click "Start Strategic Analysis"                                           
+  5. Confirm classification                                                     
+  6. Watch Research page                                                        
+                                                                                
+  Required Console Output (Browser):                                            
+  [ResearchPage] Journey type: competitive_strategy (from backend)              
+  [ResearchPage] Using unified journey research endpoint for                    
+  competitive_strategy                                                          
+                                                                                
+  Required Server Output:                                                       
+  [JOURNEY-RESEARCH] Journey type: competitive_strategy                         
+  [JOURNEY-RESEARCH] Framework sequence: porters → bmc → blue_ocean             
+                                                                                
+  Required UI Result:                                                           
+  - Progress completes to 100%                                                  
+  - Navigates to decisions page                                                 
+  - NO "Missing required data from previous steps" error                        
+                                                                                
+  FAIL if:                                                                      
+  - Error: "Missing required data from previous steps" (THIS WAS THE BUG)       
+  - Journey fails to complete                                                   
+                                                                                
+  ---                                                                           
+  Verification Checklist                                                        
+                                                                                
+  TEST 1 - Standard Flow (no pre-selection):                                    
+  [ ] Journey Selection page appears                                            
+  [ ] Console shows "No pre-selection, going to journey selection page"         
+  [ ] Can manually select a journey                                             
+                                                                                
+  TEST 2 - JourneyHub Flow (pre-selected):                                      
+  [ ] Classification → Research DIRECTLY (no selection page)                    
+  [ ] Console shows "Journey pre-selected from JourneyHub"                      
+  [ ] Console shows "Executing journey directly, skipping selection page"       
+                                                                                
+  TEST 3 - Unified Endpoint (Market Entry):                                     
+  [ ] Console shows "unified journey research endpoint"                         
+  [ ] Server shows "Framework sequence: pestle → porters → swot"                
+  [ ] Server shows bridge applications                                          
+  [ ] Completes successfully                                                    
+                                                                                
+  TEST 4 - Competitive Strategy (Bug Fix):                                      
+  [ ] NO "Missing required data" error                                          
+  [ ] Server shows "Framework sequence: porters → bmc → blue_ocean"             
+  [ ] Completes and navigates to decisions                                      
+                                                                                
+  ---                                                                           
+  If Any Test Fails                                                             
+                                                                                
+  1. Copy FULL error from browser console AND Replit server console             
+  2. Screenshot the page                                                        
+  3. Note which test failed                                                     
+  4. Do NOT proceed to other tests   
