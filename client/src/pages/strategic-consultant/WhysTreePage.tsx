@@ -1111,692 +1111,203 @@ export default function WhysTreePage() {
       title="Five Whys Analysis"
       subtitle="Discover root causes through strategic questioning"
     >
-      <div className="max-w-4xl mx-auto space-y-2 sm:space-y-6 p-2 sm:p-0">
-        {/* Part 1: Breadcrumb - Simple at Level 1, Collapsible at Level 2+ */}
-        {currentLevel === 1 ? (
-          /* Level 1: Large faded number background */
-          <div className="relative py-2 px-3 sm:py-4 sm:px-0" data-testid="breadcrumb-level-1">
-            {/* Large faded background number */}
-            <div className="absolute inset-0 flex items-center justify-start opacity-5 pointer-events-none overflow-hidden">
-              <span className="text-[120px] sm:text-[140px] font-black leading-none">1</span>
-            </div>
-            {/* Question text */}
-            <p className="relative text-base sm:text-lg font-bold text-primary">
-              {getCurrentQuestion()}
-            </p>
-          </div>
-        ) : (
-          /* Level 2+: Show collapsible breadcrumb */
-          <Collapsible open={isBreadcrumbExpanded} onOpenChange={setIsBreadcrumbExpanded}>
-            <Card className="bg-muted/30" data-testid="breadcrumb-card">
-              <CardContent className="p-4">
-                <CollapsibleTrigger asChild>
-                  <button 
-                    className="flex items-center justify-between w-full text-left group"
-                    data-testid="breadcrumb-toggle"
-                  >
-                    <span className="text-sm font-medium text-muted-foreground">
-                      Your Path So Far...
-                    </span>
-                    <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isBreadcrumbExpanded ? 'rotate-180' : ''}`} />
-                  </button>
-                </CollapsibleTrigger>
-
-                <div className="mt-3 space-y-2">
-                  {/* When collapsed - show only current question with faded number background */}
-                  {!isBreadcrumbExpanded && (
-                    <div className="relative py-2" data-testid="breadcrumb-current-collapsed">
-                      {/* Large faded background number */}
-                      <div className="absolute inset-0 flex items-center justify-start opacity-5 pointer-events-none overflow-hidden">
-                        <span className="text-[120px] sm:text-[140px] font-black leading-none">{currentLevel}</span>
-                      </div>
-                      {/* Question text */}
-                      <p className="relative text-base sm:text-lg font-bold text-primary">
-                        {getCurrentQuestion()}
-                      </p>
-                    </div>
-                  )}
-
-                {/* When expanded - show full path */}
-                <CollapsibleContent className="space-y-3">
-                  {/* Root question */}
-                  <div className="flex items-start gap-2" data-testid="breadcrumb-root">
-                    <Badge variant="outline" className="shrink-0 mt-1">
-                      1st
-                    </Badge>
-                    <div className="flex-1">
-                      <p className={currentLevel === 1 ? "text-lg font-bold text-primary" : "text-sm text-muted-foreground"}>
-                        {tree.rootQuestion}
-                      </p>
-                      {selectedPath.length > 0 && (
-                        <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                          <ArrowRight className="h-3 w-3" />
-                          <span>{selectedPath[0].answer}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Previous whys (exclude current level) */}
-                  {selectedPath.slice(0, -1).map((pathItem, idx) => {
-                    // Get the question for this level by navigating to the node's branches
-                    let questionText = `Why ${pathItem.answer}?`;
-                    if (tree) {
-                      let currentNodes = tree.branches;
-                      for (let i = 0; i <= idx; i++) {
-                        const node = currentNodes.find(n => n.id === selectedPath[i].nodeId);
-                        if (!node) break;
-                        
-                        // If this is the target level and has branches, get question from first branch
-                        if (i === idx && node.branches && node.branches.length > 0) {
-                          questionText = node.branches[0].question;
-                          break;
-                        }
-                        
-                        if (node.branches) {
-                          currentNodes = node.branches;
-                        }
-                      }
-                    }
-                    
-                    return (
-                      <div key={idx} className="flex items-start gap-2" data-testid={`breadcrumb-item-${idx}`}>
-                        <Badge variant="outline" className="shrink-0 mt-1">
-                          {getOrdinalLabel(idx + 2)}
-                        </Badge>
-                        <div className="flex-1">
-                          <p className="text-sm text-muted-foreground">
-                            {questionText}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                            <ArrowRight className="h-3 w-3" />
-                            <span>{selectedPath[idx + 1].answer}</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  </CollapsibleContent>
-                </div>
-              </CardContent>
-            </Card>
-          </Collapsible>
-        )}
-
-        {/* Options display */}
-        {currentOptions.length > 0 ? (
-          <>
-            {/* Part 2: Mobile Carousel Wheel & Desktop Grid */}
-            {/* Mobile: Carousel Wheel Picker (<640px) */}
-            <div className="sm:hidden relative">
-              {/* Fixed viewport window with fade masks */}
-              <div className="relative h-[280px] overflow-hidden border-2 border-primary/30 rounded-lg bg-background/50">
-                {/* Top fade mask with scroll indicator */}
-                <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-b from-background via-background/70 to-transparent z-10 pointer-events-none" />
-                <div className="absolute top-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none" data-testid="scroll-indicator-up">
-                  <ChevronUp className="h-5 w-5 text-muted-foreground/60 animate-bounce" />
-                </div>
-                
-                {/* Bottom fade mask with scroll indicator */}
-                <div className="absolute bottom-12 left-0 right-0 h-16 bg-gradient-to-t from-background via-background/70 to-transparent z-10 pointer-events-none" />
-                <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-20 pointer-events-none" data-testid="scroll-indicator-down">
-                  <ChevronDown className="h-5 w-5 text-muted-foreground/60 animate-bounce" />
-                </div>
-                
-                {/* Center highlight window - removed horizontal lines, kept subtle background */}
-                <div className="absolute top-1/2 left-0 right-0 -translate-y-1/2 h-[110px] pointer-events-none z-0 bg-primary/5" />
-
-                {/* Scrollable content */}
-                <div
-                  ref={scrollContainerRef}
-                  className="h-[calc(100%-48px)] overflow-y-auto px-3 py-[100px]"
-                  style={{
-                    scrollSnapType: 'y mandatory',
-                  }}
-                  data-testid="options-mobile-scroll"
+      <div className="max-w-4xl mx-auto space-y-6 p-4">
+        {/* Minimal tree renderer - Phase 1 */}
+        <AnimatePresence mode="wait">
+          {whysState.levels.map((level, idx) => {
+            if (level.status === "loading") {
+              return (
+                <motion.div
+                  key={`level-${level.depth}`}
+                  className="relative"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
                 >
-                  {currentOptions.map((option) => {
-                    const isCentered = centeredOptionId === option.id;
-                    const isSelected = selectedOptionId === option.id;
+                  {/* Connector line from previous level */}
+                  {idx > 0 && (
+                    <div className="absolute left-4 -top-4 h-4 w-px bg-primary/30" />
+                  )}
+                  <Card className="border-dashed border-2 border-primary/30">
+                    <CardContent className="p-6 flex items-center gap-3">
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      <div className="space-y-2 w-full">
+                        <div className="h-4 bg-muted animate-pulse rounded w-1/2" />
+                        <div className="h-4 bg-muted animate-pulse rounded w-2/3" />
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Generating next level...
+                      </p>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            }
+
+            // status === "ready"
+            const selectedId = level.selectedId;
+            const firstNode = level.nodes[0];
+
+            return (
+              <motion.div
+                key={`level-${level.depth}`}
+                className="relative"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                {/* Connector line from previous level */}
+                {idx > 0 && (
+                  <div className="absolute left-4 -top-4 h-4 w-px bg-primary/30" />
+                )}
+
+                {/* Level indicator */}
+                <div className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                  <Badge variant="outline">Level {level.depth}</Badge>
+                  {selectedId && <span className="text-primary">→ Selected</span>}
+                </div>
+
+                {/* Question */}
+                <Card className="mb-4 bg-muted/30">
+                  <CardContent className="p-4">
+                    <p className="font-semibold text-lg">{firstNode?.question || "Why?"}</p>
+                  </CardContent>
+                </Card>
+
+                {/* Options grid */}
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {level.nodes.map(node => {
+                    const isSelected = selectedId === node.id;
 
                     return (
-                      <div
-                        key={option.id}
-                        ref={(el) => {
-                          if (el) optionRefs.current.set(option.id, el);
-                          else optionRefs.current.delete(option.id);
-                        }}
-                        data-option-id={option.id}
-                        style={{
-                          scrollSnapAlign: 'center',
-                          transform: isCentered ? 'scale(1.05)' : 'scale(1)',
-                          opacity: isCentered ? 1 : 0.5,
-                          transition: 'transform 250ms ease, opacity 250ms ease',
-                        }}
-                        className="mb-3 last:mb-0"
+                      <motion.div
+                        key={node.id}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
                       >
                         <Card
-                          className={`cursor-pointer transition-all relative ${
+                          className={`cursor-pointer transition-all ${
                             isSelected
-                              ? 'border-primary bg-primary/10 shadow-lg'
-                              : isCentered
-                              ? 'border-primary/50 shadow-md'
-                              : 'border-border'
+                              ? "border-primary bg-primary/5 shadow-lg"
+                              : "hover:border-primary/50"
                           }`}
-                          onClick={() => {
-                            // Scroll clicked option to center
-                            const element = optionRefs.current.get(option.id);
-                            if (element) {
-                              element.scrollIntoView({
-                                behavior: 'smooth',
-                                block: 'center',
-                              });
-                            }
-                          }}
-                          data-testid={`option-card-mobile-${option.id}`}
+                          onClick={() => selectNode(level.depth, node.id)}
                         >
-                          <CardContent className="p-2.5 relative">
-                            {/* Pencil icon for editing */}
-                            <button
-                              className="absolute top-2 right-2 p-1 rounded hover:bg-muted transition-colors opacity-60 hover:opacity-100"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedOptionId(option.id);
-                                setEditedWhyText(option.option);
-                                setIsEditingWhy(true);
-                              }}
-                              data-testid="button-edit-option"
-                              title="Edit this option"
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
-                            
-                            <p className="font-medium text-sm pr-6">{option.option}</p>
-
-                            {/* Icon Action Bar - Only show on centered option */}
-                            {isCentered && (
-                              <div className="flex items-center justify-center gap-3 mt-2.5" data-testid="icon-action-bar">
-                                {option.consideration && (
-                                  <button
-                                    className="p-2 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors animate-wiggle"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleIconClick('consider', option);
-                                    }}
-                                    data-testid="button-consider"
-                                    title="View considerations"
-                                  >
-                                    <Lightbulb className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                                  </button>
-                                )}
-                                {option.supporting_evidence?.length > 0 && (
-                                  <button
-                                    className="p-2 rounded-full hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors animate-wiggle"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleIconClick('evidence', option);
-                                    }}
-                                    data-testid="button-evidence"
-                                    title="View supporting evidence"
-                                  >
-                                    <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
-                                  </button>
-                                )}
-                                {option.counter_arguments?.length > 0 && (
-                                  <button
-                                    className="p-2 rounded-full hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors animate-wiggle"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleIconClick('counter', option);
-                                    }}
-                                    data-testid="button-counter"
-                                    title="View counter-arguments"
-                                  >
-                                    <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                                  </button>
-                                )}
+                          <CardContent className="p-4">
+                            <p className="text-sm font-medium mb-2">{node.option}</p>
+                            {node.consideration && (
+                              <p className="text-xs text-muted-foreground">
+                                {node.consideration}
+                              </p>
+                            )}
+                            {isSelected && (
+                              <div className="mt-2 flex items-center gap-1 text-xs text-primary">
+                                <CheckCircle2 className="h-3 w-3" />
+                                <span>Selected</span>
                               </div>
                             )}
                           </CardContent>
                         </Card>
-                      </div>
+                      </motion.div>
                     );
                   })}
                 </div>
-                
-                {/* Select button integrated into frame */}
-                <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-primary/20 to-transparent z-20 flex items-end justify-center pb-2">
-                  <Button
-                    onClick={() => {
-                      if (!centeredOptionId) return;
-                      
-                      if (!isAnswerSelected) {
-                        // First click: select the answer
-                        setSelectedOptionId(centeredOptionId);
-                        setIsAnswerSelected(true);
-                      } else {
-                        // Second click: finalize if at max depth, otherwise continue
-                        if (currentLevel >= 5) {
-                          handleFinalize();
-                        } else {
-                          handleSelectAndContinue();
-                        }
-                      }
-                    }}
-                    disabled={!centeredOptionId || isProcessingAction || expandBranchMutation.isPending || finalizeMutation.isPending || validateRootCauseMutation.isPending}
-                    size="lg"
-                    className={`text-base font-semibold min-h-[44px] px-8 shadow-xl hover:shadow-2xl ${isAnswerSelected ? 'animate-pulse-glow' : ''}`}
-                    data-testid="button-select-answer"
+
+                {/* Show evidence/counter for selected option */}
+                {selectedId && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    className="mt-4"
                   >
-                    {(isProcessingAction || expandBranchMutation.isPending || finalizeMutation.isPending || validateRootCauseMutation.isPending) ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        {finalizeMutation.isPending || validateRootCauseMutation.isPending ? 'Finalizing...' : 'Loading...'}
-                      </>
-                    ) : isAnswerSelected ? (
-                      currentLevel >= 5 ? (
-                        <>
-                          <CheckCircle2 className="h-4 w-4 mr-2" />
-                          This is my root cause
-                        </>
-                      ) : (
-                        <>
-                          <ArrowRight className="h-4 w-4 mr-2" />
-                          Continue
-                        </>
-                      )
-                    ) : (
-                      'Select This Answer'
-                    )}
-                  </Button>
+                    {level.nodes
+                      .filter(n => n.id === selectedId)
+                      .map(node => (
+                        <Card key={node.id} className="bg-muted/20">
+                          <CardContent className="p-4 space-y-3">
+                            {node.supporting_evidence.length > 0 && (
+                              <div>
+                                <p className="text-xs font-medium text-green-600 mb-1">
+                                  ✓ Supporting Evidence
+                                </p>
+                                <ul className="text-xs space-y-1 text-muted-foreground">
+                                  {node.supporting_evidence.map((ev, i) => (
+                                    <li key={i}>• {ev}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {node.counter_arguments.length > 0 && (
+                              <div>
+                                <p className="text-xs font-medium text-orange-600 mb-1">
+                                  ⚠ Counter-arguments
+                                </p>
+                                <ul className="text-xs space-y-1 text-muted-foreground">
+                                  {node.counter_arguments.map((ca, i) => (
+                                    <li key={i}>• {ca}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))}
+                  </motion.div>
+                )}
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+
+        {/* Custom Why input (simplified) */}
+        {whysState.activeDepth < whysState.maxDepth && (
+          <Card className="border-dashed">
+            <CardContent className="p-4">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Plus className="h-4 w-4 text-muted-foreground" />
+                  <label className="text-sm font-medium">Add your own answer</label>
                 </div>
-              </div>
-            </div>
-
-            {/* Desktop: Grid Layout (≥640px) */}
-            <div className="hidden sm:grid sm:grid-cols-2 gap-3 md:gap-4" data-testid="options-grid">
-              {currentOptions.map((option) => (
-                <Card
-                  key={option.id}
-                  className={`cursor-pointer transition-all min-h-[44px] ${
-                    selectedOptionId === option.id
-                      ? 'border-primary bg-primary/5 shadow-md'
-                      : 'hover:border-primary/50 hover:shadow-sm'
-                  }`}
-                  onClick={() => setSelectedOptionId(option.id)}
-                  data-testid={`option-card-${option.id}`}
+                <Textarea
+                  value={customWhyText}
+                  onChange={(e) => setCustomWhyText(e.target.value)}
+                  placeholder="If none of the options fit, type your own answer here..."
+                  rows={2}
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    // TODO: Implement custom why handling
+                    toast({
+                      title: "Custom answer",
+                      description: "Custom answers coming soon",
+                    });
+                  }}
+                  disabled={!customWhyText.trim()}
+                  className="w-full"
                 >
-                  <CardContent className="p-4 relative">
-                    {/* Pencil icon for editing */}
-                    <button
-                      className="absolute top-3 right-3 p-1 rounded hover:bg-muted transition-colors opacity-60 hover:opacity-100"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedOptionId(option.id);
-                        setEditedWhyText(option.option);
-                        setIsEditingWhy(true);
-                      }}
-                      data-testid="button-edit-option"
-                      title="Edit this option"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    
-                    <p className="font-medium text-base pr-8">{option.option}</p>
-                    {option.consideration && (
-                      <div className="mt-3 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                        <div className="flex items-start gap-2">
-                          <Lightbulb className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
-                          <p className="text-xs text-blue-900 dark:text-blue-100">{option.consideration}</p>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            {/* Continue Button (hidden on mobile) - Positioned directly under cards */}
-            <div className="hidden sm:flex justify-center mt-6">
-              <div className="w-full md:w-auto flex flex-col gap-3">
-                {!showOnlyFinalize && canShowContinueButton && (
-                  <Button
-                    className={`w-full md:w-auto md:min-w-[280px] transition-all ${
-                      !selectedOptionId 
-                        ? 'bg-muted text-muted-foreground hover:bg-muted cursor-not-allowed' 
-                        : 'bg-primary text-primary-foreground hover:bg-primary/90'
-                    }`}
-                    size="lg"
-                    onClick={handleSelectAndContinue}
-                    disabled={!selectedOptionId || isProcessingAction || expandBranchMutation.isPending || finalizeMutation.isPending}
-                    data-testid="button-continue"
-                  >
-                    {(isProcessingAction || expandBranchMutation.isPending) ? (
-                      <>
-                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                        Loading next level...
-                      </>
-                    ) : (
-                      <>
-                        <ArrowRight className="h-5 w-5 mr-2" />
-                        Continue to Next Why
-                      </>
-                    )}
-                  </Button>
-                )}
-
-                {canShowRootCauseButton && (
-                  <Button
-                    variant={showOnlyFinalize ? "default" : "secondary"}
-                    className="w-full md:w-auto md:min-w-[280px]"
-                    size="lg"
-                    onClick={handleFinalize}
-                    disabled={!selectedOptionId || validateRootCauseMutation.isPending || finalizeMutation.isPending}
-                    data-testid="button-finalize"
-                  >
-                    {(validateRootCauseMutation.isPending || finalizeMutation.isPending) ? (
-                      <>
-                        <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                        {validateRootCauseMutation.isPending ? "Validating..." : "Processing..."}
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="h-5 w-5 mr-2" />
-                        This is my root cause
-                      </>
-                    )}
-                  </Button>
-                )}
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Custom Answer
+                </Button>
               </div>
-            </div>
-
-            {/* Desktop Evidence Box - Shows below continue button */}
-            {selectedOption && (selectedOption.supporting_evidence?.length > 0 || selectedOption.counter_arguments?.length > 0) && (
-              <Card className="hidden sm:block border-primary/50 bg-muted/50 mt-6" data-testid="evidence-box">
-                <CardHeader>
-                  <CardTitle className="text-base">Evidence for: {selectedOption.option}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {/* Supporting Evidence */}
-                  {selectedOption.supporting_evidence?.length > 0 && (
-                    <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg p-4" data-testid="supporting-evidence">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-lg">✅</span>
-                        <span className="font-medium text-green-900 dark:text-green-100 text-sm">Supporting Evidence</span>
-                      </div>
-                      <ul className="space-y-2">
-                        {selectedOption.supporting_evidence.map((point, i) => (
-                          <li key={i} className="text-sm text-green-900 dark:text-green-100 flex gap-2">
-                            <span className="text-green-600 dark:text-green-400 mt-1">•</span>
-                            <span>{point}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Counter-Arguments */}
-                  {selectedOption.counter_arguments?.length > 0 && (
-                    <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4" data-testid="counter-arguments">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-lg">⚠️</span>
-                        <span className="font-medium text-amber-900 dark:text-amber-100 text-sm">Counter-Arguments</span>
-                      </div>
-                      <ul className="space-y-2">
-                        {selectedOption.counter_arguments.map((point, i) => (
-                          <li key={i} className="text-sm text-amber-900 dark:text-amber-100 flex gap-2">
-                            <span className="text-amber-600 dark:text-amber-400 mt-1">•</span>
-                            <span>{point}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Edit Section - Only for selected option (hidden on mobile) */}
-            {selectedOption && (
-              <Card className="hidden sm:block border-dashed mt-6">
-                <CardContent className="p-4">
-                  {isEditingWhy ? (
-                    <div className="space-y-3">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Edit this Why</label>
-                        <Textarea
-                          value={editedWhyText}
-                          onChange={(e) => setEditedWhyText(e.target.value)}
-                          placeholder="Edit your Why statement..."
-                          rows={3}
-                          data-testid="textarea-edit-why"
-                        />
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          className="flex-1"
-                          onClick={handleEditWhy}
-                          disabled={!editedWhyText.trim()}
-                          data-testid="button-save-edit"
-                        >
-                          <CheckCircle2 className="h-4 w-4 mr-2" />
-                          Save Changes
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={handleCancelEdit}
-                          data-testid="button-cancel-edit"
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleStartEdit}
-                      className="w-full"
-                      data-testid="button-start-edit"
-                    >
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit selected Why
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Skeleton loader for expanding branch */}
-            {expandBranchMutation.isPending && selectedOptionId && (
-              <Card className="border-dashed border-2 animate-pulse">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4">
-                    <Loader2 className="h-6 w-6 animate-spin text-primary shrink-0" />
-                    <div className="flex-1 space-y-2">
-                      <div className="h-4 bg-muted rounded w-3/4" />
-                      <div className="h-4 bg-muted rounded w-1/2" />
-                    </div>
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-4">
-                    Generating next level of Whys... (10-15 seconds)
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Custom Why Input Section */}
-            {!expandBranchMutation.isPending && (
-              <Card className="border-dashed">
-                <CardContent className="p-4">
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Plus className="h-4 w-4 text-muted-foreground" />
-                      <label className="text-sm font-medium">Add your own Why</label>
-                    </div>
-                    <Textarea
-                      value={customWhyText}
-                      onChange={(e) => setCustomWhyText(e.target.value)}
-                      placeholder="If none of the options fit, type your own Why statement here..."
-                      rows={2}
-                      data-testid="textarea-custom-why"
-                    />
-                    <Button
-                      variant="outline"
-                      onClick={handleAddCustomWhy}
-                      disabled={!customWhyText.trim()}
-                      className="w-full"
-                      data-testid="button-add-custom-why"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Custom Why
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </>
-        ) : (
-          <Alert>
-            <AlertDescription>No options available at this level</AlertDescription>
-          </Alert>
+            </CardContent>
+          </Card>
         )}
       </div>
 
-      {/* Validation Warning Modal */}
-      <AlertDialog open={showValidationWarning} onOpenChange={setShowValidationWarning}>
-        <AlertDialogContent data-testid="dialog-validation-warning">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cultural Observation Detected</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <p>{validationMessage}</p>
-              <p className="text-sm mt-2">
-                Please select a different branch that focuses on market dynamics, competitive positioning, or product-market fit.
-              </p>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setShowValidationWarning(false)} data-testid="button-go-back">
-              Go Back
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Coaching Modal */}
-      {currentEvaluation && tree && (
-        <CoachingModal
-          open={showCoachingModal}
-          onOpenChange={setShowCoachingModal}
-          evaluation={currentEvaluation}
-          candidate={selectedOption?.option || customWhyText || editedWhyText}
-          rootQuestion={tree.rootQuestion}
-          previousWhys={selectedPath.map(p => p.answer)}
-          sessionId={tree.sessionId}
-          onRevise={handleRevision}
-          onOverride={handleOverride}
-        />
-      )}
-
-      {/* Mobile Edit Dialog */}
-      <Dialog open={isEditingWhy} onOpenChange={setIsEditingWhy}>
-        <DialogContent className="sm:max-w-[425px]" data-testid="dialog-edit-why">
-          <DialogHeader>
-            <DialogTitle>Edit this Why</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <Textarea
-              value={editedWhyText}
-              onChange={(e) => setEditedWhyText(e.target.value)}
-              placeholder="Edit your Why statement..."
-              rows={4}
-              data-testid="textarea-edit-why-mobile"
-            />
-          </div>
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button
-              variant="outline"
-              onClick={handleCancelEdit}
-              className="w-full sm:w-auto"
-              data-testid="button-cancel-edit-mobile"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleEditWhy}
-              disabled={!editedWhyText.trim()}
-              className="w-full sm:w-auto"
-              data-testid="button-save-edit-mobile"
-            >
-              <CheckCircle2 className="h-4 w-4 mr-2" />
-              Save Changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Mobile Bottom Sheet for detailed content */}
+      {/* Detail Sheet (simplified placeholder) */}
       <Sheet open={!!sheetContent} onOpenChange={(open) => !open && setSheetContent(null)}>
-        <SheetContent side="bottom" className="max-h-[80vh] overflow-y-auto" data-testid="detail-sheet">
+        <SheetContent side="bottom" className="max-h-[80vh] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Details</SheetTitle>
+          </SheetHeader>
           {sheetContent && (
-            <>
-              <SheetHeader>
-                <SheetTitle data-testid="sheet-title">
-                  {sheetContent.type === 'consider' && 'Consider This'}
-                  {sheetContent.type === 'evidence' && 'Supporting Evidence'}
-                  {sheetContent.type === 'counter' && 'Counter-Arguments'}
-                </SheetTitle>
-              </SheetHeader>
-              <div className="mt-4 space-y-3">
-                {sheetContent.type === 'consider' && sheetContent.option.consideration && (
-                  <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                    <div className="flex items-start gap-2">
-                      <Lightbulb className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
-                      <p className="text-sm text-blue-900 dark:text-blue-100">{sheetContent.option.consideration}</p>
-                    </div>
-                  </div>
-                )}
-
-                {sheetContent.type === 'evidence' && sheetContent.option.supporting_evidence && (
-                  <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
-                      <span className="font-medium text-green-900 dark:text-green-100">Supporting Evidence</span>
-                    </div>
-                    <ul className="space-y-2">
-                      {sheetContent.option.supporting_evidence.map((point, i) => (
-                        <li key={i} className="text-sm text-green-900 dark:text-green-100 flex gap-2">
-                          <span className="text-green-600 dark:text-green-400 mt-1">•</span>
-                          <span>{point}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {sheetContent.type === 'counter' && sheetContent.option.counter_arguments && (
-                  <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-                      <span className="font-medium text-amber-900 dark:text-amber-100">Counter-Arguments</span>
-                    </div>
-                    <ul className="space-y-2">
-                      {sheetContent.option.counter_arguments.map((point, i) => (
-                        <li key={i} className="text-sm text-amber-900 dark:text-amber-100 flex gap-2">
-                          <span className="text-amber-600 dark:text-amber-400 mt-1">•</span>
-                          <span>{point}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            </>
+            <div className="space-y-4 mt-4">
+              <p className="text-sm">{sheetContent.option.option}</p>
+            </div>
           )}
         </SheetContent>
       </Sheet>
 
-      {/* Prefetch indicator */}
       {isPrefetching && (
         <div className="fixed bottom-6 right-6 bg-muted rounded-full px-4 py-2 text-sm shadow-lg flex items-center gap-2 z-50">
           <Loader2 className="h-4 w-4 animate-spin" />
