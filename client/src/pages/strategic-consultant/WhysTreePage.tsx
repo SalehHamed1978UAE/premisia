@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { flushSync } from "react-dom";
 import { useRoute, useLocation } from "wouter";
+import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +48,28 @@ interface WhyTree {
   sessionId: string;
 }
 
+// NEW: Levels-array state model
+type LevelState =
+  | {
+      depth: number;
+      status: "ready";
+      parentId?: string;
+      nodes: WhyNode[];
+      selectedId?: string;
+    }
+  | {
+      depth: number;
+      status: "loading";
+      parentId?: string;
+    };
+
+interface WhysTreeState {
+  rootQuestion: string;
+  levels: LevelState[];
+  activeDepth: number;
+  maxDepth: number;
+}
+
 export default function WhysTreePage() {
   const [, params] = useRoute("/strategic-consultant/whys-tree/:understandingId");
   const [, setLocation] = useLocation();
@@ -56,40 +79,27 @@ export default function WhysTreePage() {
   const [understanding, setUnderstanding] = useState<{ id: string; sessionId: string; userInput: string; journeyType?: string } | null>(null);
   const [journeySessionId, setJourneySessionId] = useState<string | null>(null);
   const [isLoadingUnderstanding, setIsLoadingUnderstanding] = useState(true);
-  const [tree, setTree] = useState<WhyTree | null>(null);
-  const [selectedPath, setSelectedPath] = useState<{ nodeId: string; question: string; answer: string; depth: number }[]>([]);
-  const [currentLevel, setCurrentLevel] = useState(1);
-  const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
+
+  // NEW: Levels-based state (replaces tree, selectedPath, currentLevel, selectedOptionId)
+  const [whysState, setWhysState] = useState<WhysTreeState | null>(null);
+
+  // UI state
   const [customWhyText, setCustomWhyText] = useState("");
-  const [isEditingWhy, setIsEditingWhy] = useState(false);
-  const [editedWhyText, setEditedWhyText] = useState("");
-  const [showValidationWarning, setShowValidationWarning] = useState(false);
-  const [validationMessage, setValidationMessage] = useState("");
-  const [isLongGeneration, setIsLongGeneration] = useState(false);
-  const [isProcessingAction, setIsProcessingAction] = useState(false);
   const [isPrefetching, setIsPrefetching] = useState(false);
-
-  // Coaching modal state
-  const [showCoachingModal, setShowCoachingModal] = useState(false);
-  const [currentEvaluation, setCurrentEvaluation] = useState<any>(null);
-  const [pendingAction, setPendingAction] = useState<{ type: 'continue' | 'custom' | 'edit'; data?: any } | null>(null);
-
-  // New state for redesign
-  const [isBreadcrumbExpanded, setIsBreadcrumbExpanded] = useState(false);
-  const [centeredOptionId, setCenteredOptionId] = useState<string | null>(null);
   const [sheetContent, setSheetContent] = useState<{ type: 'consider' | 'evidence' | 'counter', option: WhyNode } | null>(null);
-  const [isAnswerSelected, setIsAnswerSelected] = useState(false);
-  
-  // Refs for intersection observer
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const optionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // Cache for prefetched branches
+  const branchCache = useRef(new Map<string, WhyNode[]>());
+
+  const getCacheKey = (sessionId: string, nodeId: string, depth: number) =>
+    `${sessionId}:${nodeId}:${depth}`;
 
   const generateTreeMutation = useMutation({
     mutationFn: async () => {
       if (!understanding) {
         throw new Error('Understanding data not loaded. Please wait...');
       }
-      
+
       const response = await apiRequest('POST', '/api/strategic-consultant/whys-tree/generate', {
         sessionId: understanding.sessionId,
         input: understanding.userInput,
@@ -97,7 +107,21 @@ export default function WhysTreePage() {
       return response.json();
     },
     onSuccess: (data: any) => {
-      setTree(data.tree);
+      // Initialize levels-based state from tree response
+      const tree: WhyTree = data.tree;
+      setWhysState({
+        rootQuestion: tree.rootQuestion,
+        maxDepth: tree.maxDepth,
+        activeDepth: 1,
+        levels: [
+          {
+            depth: 1,
+            status: "ready",
+            nodes: tree.branches,
+            selectedId: undefined,
+          }
+        ]
+      });
     },
     onError: (error: any) => {
       toast({
@@ -108,92 +132,163 @@ export default function WhysTreePage() {
     },
   });
 
-  const expandBranchMutation = useMutation({
-    mutationFn: async ({ nodeId, parentQuestion, currentDepth, isCustom, customOption }: {
-      nodeId: string;
-      parentQuestion: string;
-      currentDepth: number;
-      isCustom?: boolean;
-      customOption?: string;
-    }) => {
-      if (!understanding) {
-        throw new Error('Understanding data not loaded. Please wait...');
+  // Fetch children for a node (with caching)
+  const fetchChildren = async (nodeId: string, depth: number, node: WhyNode): Promise<WhyNode[]> => {
+    if (!understanding) throw new Error('Understanding not loaded');
+
+    const cacheKey = getCacheKey(understanding.sessionId, nodeId, depth);
+
+    // Check cache first
+    if (branchCache.current.has(cacheKey)) {
+      console.log(`[Cache HIT] ${cacheKey}`);
+      return branchCache.current.get(cacheKey)!;
+    }
+
+    // Build path history from levels
+    const pathHistory: Array<{ question: string; answer: string }> = [];
+    if (whysState) {
+      for (let i = 0; i < whysState.levels.length; i++) {
+        const level = whysState.levels[i];
+        if (level.status === "ready" && level.selectedId) {
+          const selected = level.nodes.find(n => n.id === level.selectedId);
+          if (selected) {
+            pathHistory.push({ question: selected.question, answer: selected.option });
+          }
+        }
       }
+    }
 
-      const pathHistory = selectedPath.map(p => ({ question: p.question, answer: p.answer }));
+    // Get siblings for prefetch
+    const currentLevel = whysState?.levels[depth - 1];
+    const siblings = currentLevel && currentLevel.status === "ready" ? currentLevel.nodes : [];
+    const strippedSiblings = siblings.map(opt => ({
+      id: opt.id,
+      question: opt.question,
+      option: opt.option,
+      depth: opt.depth
+    }));
 
-      // Get current options and strip to minimal data for allSiblings
-      const currentOptions = getCurrentOptions();
-      const strippedSiblings = currentOptions.map(opt => ({
-        id: opt.id,
-        question: opt.question,
-        option: opt.option,
-        depth: opt.depth
-      }));
+    const response = await apiRequest('POST', '/api/strategic-consultant/whys-tree/expand', {
+      sessionId: understanding.sessionId,
+      nodeId,
+      selectedPath: pathHistory,
+      currentDepth: depth,
+      parentQuestion: node.question,
+      input: understanding.userInput,
+      allSiblings: strippedSiblings,
+    });
 
-      const response = await apiRequest('POST', '/api/strategic-consultant/whys-tree/expand', {
-        sessionId: understanding.sessionId,
-        nodeId,
-        selectedPath: pathHistory,
-        currentDepth,
-        parentQuestion,
-        input: understanding.userInput,
-        isCustom: isCustom || false,
-        customOption,
-        allSiblings: strippedSiblings,
+    const data = await response.json();
+
+    // Show toast for cache hits from server
+    if (data.fromCache) {
+      toast({
+        title: "⚡ Instant",
+        description: "Already prepared this path",
+        duration: 2000,
       });
-      return response.json();
-    },
-    onSuccess: (data: any, variables) => {
-      setIsProcessingAction(false);
+    }
 
-      // Show toast for cache hits
-      if (data.fromCache) {
-        toast({
-          title: "⚡ Instant",
-          description: "Already prepared this path",
-          duration: 2000,
-        });
+    // Track prefetch
+    if (data.prefetchStarted) {
+      setIsPrefetching(true);
+      setTimeout(() => setIsPrefetching(false), 20000);
+    }
+
+    const children: WhyNode[] = data.expandedBranches || [];
+
+    // Cache the result
+    branchCache.current.set(cacheKey, children);
+
+    return children;
+  };
+
+  // Core expansion function: selectNode
+  const selectNode = async (depth: number, nodeId: string) => {
+    if (!whysState || !understanding) return;
+
+    const level = whysState.levels[depth - 1];
+    if (!level || level.status !== "ready") return;
+
+    const node = level.nodes.find(n => n.id === nodeId);
+    if (!node) return;
+
+    // Don't expand if already at max depth
+    if (depth >= whysState.maxDepth) {
+      // Just mark as selected
+      setWhysState(prev => {
+        if (!prev) return null;
+        const next = { ...prev };
+        const targetLevel = next.levels[depth - 1];
+        if (targetLevel.status === "ready") {
+          targetLevel.selectedId = nodeId;
+        }
+        return next;
+      });
+      return;
+    }
+
+    // 1) Mark selection + append loading placeholder
+    setWhysState(prev => {
+      if (!prev) return null;
+      const next = { ...prev, activeDepth: depth + 1 };
+      const levels = [...next.levels];
+
+      // Update selection
+      const targetLevel = levels[depth - 1];
+      if (targetLevel.status === "ready") {
+        targetLevel.selectedId = nodeId;
       }
 
-      // Track prefetch activity
-      if (data.prefetchStarted) {
-        setIsPrefetching(true);
-        // Auto-clear after 20 seconds
-        setTimeout(() => setIsPrefetching(false), 20000);
-      }
+      // Truncate levels beyond current depth and add loading placeholder
+      levels.splice(depth);
+      levels[depth] = {
+        depth: depth + 1,
+        status: "loading",
+        parentId: nodeId,
+      };
 
-      if (data.expandedBranches && tree) {
-        const updateNodeBranches = (nodes: WhyNode[]): WhyNode[] => {
-          return nodes.map(node => {
-            if (node.id === variables.nodeId) {
-              return { ...node, branches: data.expandedBranches };
-            }
-            if (node.branches) {
-              return { ...node, branches: updateNodeBranches(node.branches) };
-            }
-            return node;
-          });
+      next.levels = levels;
+      return next;
+    });
+
+    // 2) Fetch children
+    try {
+      const children = await fetchChildren(nodeId, depth, node);
+
+      // 3) Replace loading placeholder with real nodes
+      setWhysState(prev => {
+        if (!prev) return null;
+        const next = { ...prev };
+        const levels = [...next.levels];
+
+        levels[depth] = {
+          depth: depth + 1,
+          status: "ready",
+          parentId: nodeId,
+          nodes: children,
+          selectedId: undefined,
         };
 
-        setTree({
-          ...tree,
-          branches: updateNodeBranches(tree.branches),
-        });
-        setCurrentLevel(prev => prev + 1);
-        setSelectedOptionId(null);
-      }
-    },
-    onError: (error: any) => {
-      setIsProcessingAction(false);
+        next.levels = levels;
+        return next;
+      });
+    } catch (error: any) {
+      // Remove loading placeholder on error
+      setWhysState(prev => {
+        if (!prev) return null;
+        const next = { ...prev };
+        next.levels = next.levels.slice(0, depth);
+        return next;
+      });
 
       toast({
         title: "Expansion failed",
         description: error.message || "Failed to expand branch",
         variant: "destructive",
       });
-    },
-  });
+    }
+  };
 
   const validateRootCauseMutation = useMutation({
     mutationFn: async (rootCauseText: string) => {
@@ -972,10 +1067,7 @@ export default function WhysTreePage() {
     }
   };
 
-  const canShowRootCauseButton = currentLevel >= 3;
-  const canShowContinueButton = currentLevel < 5;
-  const showOnlyFinalize = currentLevel === 5;
-
+  // Error states
   if (!understandingId) {
     return (
       <AppLayout title="Five Whys Analysis" subtitle="Error">
@@ -1002,12 +1094,12 @@ export default function WhysTreePage() {
     );
   }
 
-  if (!tree) {
+  if (!whysState) {
     return (
       <AppLayout title="Five Whys Analysis" subtitle="Error loading">
         <div className="flex items-center justify-center p-8">
           <Alert variant="destructive" className="max-w-md">
-            <AlertDescription>Failed to load decision tree</AlertDescription>
+            <AlertDescription>Failed to load Five Whys analysis</AlertDescription>
           </Alert>
         </div>
       </AppLayout>
