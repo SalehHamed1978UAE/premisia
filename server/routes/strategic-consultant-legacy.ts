@@ -1144,22 +1144,35 @@ router.post('/whys-tree/generate', async (req: Request, res: Response) => {
 
 router.post('/whys-tree/expand', async (req: Request, res: Response) => {
   try {
-    const { sessionId, nodeId, selectedPath, currentDepth, parentQuestion, input, isCustom, customOption } = req.body;
+    const {
+      sessionId,
+      nodeId,
+      selectedPath,
+      currentDepth,
+      parentQuestion,
+      input,
+      isCustom,
+      customOption,
+      allSiblings
+    } = req.body;
 
     if (!sessionId || !nodeId || !selectedPath || currentDepth === undefined || !parentQuestion || !input) {
-      return res.status(400).json({ 
-        error: 'sessionId, nodeId, selectedPath, currentDepth, parentQuestion, and input are required' 
+      return res.status(400).json({
+        error: 'sessionId, nodeId, selectedPath, currentDepth, parentQuestion, and input are required'
       });
     }
 
     let expandedBranches;
+    let fromCache = false;
+    let prefetchStarted = false;
+    let prefetchCount = 0;
 
     if (isCustom && customOption) {
       console.log('[API] Custom branch expansion requested');
       console.log('[API] selectedPath:', selectedPath);
       console.log('[API] customOption:', customOption);
       console.log('[API] isCustom:', isCustom);
-      
+
       // For custom options, generate fresh branches using the custom option as context
       expandedBranches = await whysTreeGenerator.generateCustomBranches(
         customOption,
@@ -1169,19 +1182,41 @@ router.post('/whys-tree/expand', async (req: Request, res: Response) => {
         currentDepth
       );
     } else {
-      // For AI-generated options, use normal expand logic
-      expandedBranches = await whysTreeGenerator.expandBranch(
-        nodeId,
-        selectedPath,
-        input,
-        sessionId,
-        currentDepth,
-        parentQuestion
-      );
+      // Check cache first
+      const cached = whysTreeGenerator.getCachedBranches(sessionId, nodeId, currentDepth);
+
+      if (cached) {
+        console.log('[API] Cache HIT - returning cached branches');
+        expandedBranches = cached;
+        fromCache = true;
+      } else {
+        // Use prefetch-enabled expansion
+        const result = await whysTreeGenerator.expandBranchWithPrefetch(
+          nodeId,
+          selectedPath,
+          input,
+          sessionId,
+          currentDepth,
+          parentQuestion,
+          allSiblings
+        );
+
+        expandedBranches = result.expandedBranches;
+
+        // Determine if prefetch was triggered
+        if (allSiblings && allSiblings.length > 1 && currentDepth <= 3) {
+          prefetchStarted = true;
+          prefetchCount = allSiblings.length - 1;
+          console.log(`[API] Prefetch initiated for ${prefetchCount} siblings at depth ${currentDepth}`);
+        }
+      }
     }
 
     res.json({
       expandedBranches,
+      fromCache,
+      prefetchStarted,
+      prefetchCount
     });
   } catch (error: any) {
     console.error('Error in /whys-tree/expand:', error);

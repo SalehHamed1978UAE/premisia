@@ -67,7 +67,8 @@ export default function WhysTreePage() {
   const [validationMessage, setValidationMessage] = useState("");
   const [isLongGeneration, setIsLongGeneration] = useState(false);
   const [isProcessingAction, setIsProcessingAction] = useState(false);
-  
+  const [isPrefetching, setIsPrefetching] = useState(false);
+
   // Coaching modal state
   const [showCoachingModal, setShowCoachingModal] = useState(false);
   const [currentEvaluation, setCurrentEvaluation] = useState<any>(null);
@@ -118,8 +119,18 @@ export default function WhysTreePage() {
       if (!understanding) {
         throw new Error('Understanding data not loaded. Please wait...');
       }
-      
+
       const pathHistory = selectedPath.map(p => ({ question: p.question, answer: p.answer }));
+
+      // Get current options and strip to minimal data for allSiblings
+      const currentOptions = getCurrentOptions();
+      const strippedSiblings = currentOptions.map(opt => ({
+        id: opt.id,
+        question: opt.question,
+        option: opt.option,
+        depth: opt.depth
+      }));
+
       const response = await apiRequest('POST', '/api/strategic-consultant/whys-tree/expand', {
         sessionId: understanding.sessionId,
         nodeId,
@@ -129,12 +140,29 @@ export default function WhysTreePage() {
         input: understanding.userInput,
         isCustom: isCustom || false,
         customOption,
+        allSiblings: strippedSiblings,
       });
       return response.json();
     },
     onSuccess: (data: any, variables) => {
       setIsProcessingAction(false);
-      
+
+      // Show toast for cache hits
+      if (data.fromCache) {
+        toast({
+          title: "⚡ Instant",
+          description: "Already prepared this path",
+          duration: 2000,
+        });
+      }
+
+      // Track prefetch activity
+      if (data.prefetchStarted) {
+        setIsPrefetching(true);
+        // Auto-clear after 20 seconds
+        setTimeout(() => setIsPrefetching(false), 20000);
+      }
+
       if (data.expandedBranches && tree) {
         const updateNodeBranches = (nodes: WhyNode[]): WhyNode[] => {
           return nodes.map(node => {
@@ -158,7 +186,7 @@ export default function WhysTreePage() {
     },
     onError: (error: any) => {
       setIsProcessingAction(false);
-      
+
       toast({
         title: "Expansion failed",
         description: error.message || "Failed to expand branch",
@@ -456,6 +484,77 @@ export default function WhysTreePage() {
       setCenteredOptionId(currentOptions[0].id);
     }
   }, [currentOptions.length, centeredOptionId]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      // Guard: Don't intercept if typing in input/textarea
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      // Guard: Don't intercept if modal/dialog is open
+      if (document.querySelector('[role="dialog"]') || showCoachingModal || isEditingWhy) {
+        return;
+      }
+
+      // Guard: Don't intercept if processing
+      if (isProcessingAction || expandBranchMutation.isPending || finalizeMutation.isPending) {
+        return;
+      }
+
+      const currentOptions = getCurrentOptions();
+      if (currentOptions.length === 0) return;
+
+      const currentIndex = selectedOptionId
+        ? currentOptions.findIndex(o => o.id === selectedOptionId)
+        : -1;
+
+      switch(e.key) {
+        case 'ArrowUp':
+        case 'ArrowLeft':
+          e.preventDefault();
+          if (currentIndex > 0) {
+            setSelectedOptionId(currentOptions[currentIndex - 1].id);
+          } else if (currentIndex === -1 && currentOptions.length > 0) {
+            setSelectedOptionId(currentOptions[0].id);
+          }
+          break;
+
+        case 'ArrowDown':
+        case 'ArrowRight':
+          e.preventDefault();
+          if (currentIndex < currentOptions.length - 1) {
+            setSelectedOptionId(currentOptions[currentIndex + 1].id);
+          } else if (currentIndex === -1 && currentOptions.length > 0) {
+            setSelectedOptionId(currentOptions[0].id);
+          }
+          break;
+
+        case 'Enter':
+          e.preventDefault();
+          if (selectedOptionId) {
+            handleSelectAndContinue();
+          }
+          break;
+
+        case 'Backspace':
+          e.preventDefault();
+          if (selectedPath.length > 0) {
+            handleGoBack();
+          }
+          break;
+
+        case 'Escape':
+          e.preventDefault();
+          setSelectedOptionId(null);
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [selectedOptionId, currentLevel, isProcessingAction, expandBranchMutation.isPending, finalizeMutation.isPending, showCoachingModal, isEditingWhy, selectedPath.length]);
 
   const handleSelectAndContinue = async () => {
     if (!selectedOption || !tree) return;
@@ -1032,20 +1131,8 @@ export default function WhysTreePage() {
           </Collapsible>
         )}
 
-        {/* Loading state for branch expansion */}
-        {expandBranchMutation.isPending ? (
-          <Card className="border-2">
-            <CardContent className="py-12">
-              <div className="flex flex-col items-center justify-center gap-4 text-center">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                <div>
-                  <p className="text-lg font-semibold">Generating next level of Whys...</p>
-                  <p className="text-sm text-muted-foreground mt-1">This usually takes 10-15 seconds</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ) : currentOptions.length > 0 ? (
+        {/* Options display */}
+        {currentOptions.length > 0 ? (
           <>
             {/* Part 2: Mobile Carousel Wheel & Desktop Grid */}
             {/* Mobile: Carousel Wheel Picker (<640px) */}
@@ -1428,6 +1515,24 @@ export default function WhysTreePage() {
               </Card>
             )}
 
+            {/* Skeleton loader for expanding branch */}
+            {expandBranchMutation.isPending && selectedOptionId && (
+              <Card className="border-dashed border-2 animate-pulse">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary shrink-0" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-muted rounded w-3/4" />
+                      <div className="h-4 bg-muted rounded w-1/2" />
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-4">
+                    Generating next level of Whys... (10-15 seconds)
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Custom Why Input Section */}
             {!expandBranchMutation.isPending && (
               <Card className="border-dashed">
@@ -1598,6 +1703,14 @@ export default function WhysTreePage() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Prefetch indicator */}
+      {isPrefetching && (
+        <div className="fixed bottom-6 right-6 bg-muted rounded-full px-4 py-2 text-sm shadow-lg flex items-center gap-2 z-50">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>Preparing alternatives</span>
+        </div>
+      )}
     </AppLayout>
   );
 }

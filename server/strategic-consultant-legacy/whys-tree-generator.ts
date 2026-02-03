@@ -1,11 +1,31 @@
 import { randomUUID } from 'crypto';
 import { aiClients } from '../ai-clients.js';
-import { 
-  orchestrateAnalysis, 
+import {
+  orchestrateAnalysis,
   OrchestrationResult,
-  isContextFoundryConfigured 
+  isContextFoundryConfigured
 } from '../services/grounded-analysis-service';
 import type { ContextBundle } from '../services/context-foundry-client';
+import { FIVE_WHYS_SYSTEM_PROMPT } from '../../shared/contracts/five-whys.schema.js';
+
+// =============================================================================
+// MODULE-LEVEL CACHE (persists across requests)
+// =============================================================================
+const SESSION_BRANCH_CACHE = new Map<string, WhyNode[]>();
+const CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+const CACHE_METADATA = new Map<string, { timestamp: number }>();
+
+// Cleanup stale cache entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, meta] of CACHE_METADATA.entries()) {
+    if (now - meta.timestamp > CACHE_TTL) {
+      SESSION_BRANCH_CACHE.delete(key);
+      CACHE_METADATA.delete(key);
+      console.log(`[Cache] Cleaned up stale entry: ${key}`);
+    }
+  }
+}, 5 * 60 * 1000);
 
 export interface WhyNode {
   id: string;
@@ -216,27 +236,35 @@ export class WhysTreeGenerator {
 
   async generateRootQuestion(input: string): Promise<string> {
     // Build system prompt with CF context if available
-    let systemPrompt = 'You\'re a friendly strategic consultant helping someone think through their business challenge. You use the "5 Whys" technique - asking "why" to get to the heart of the matter.';
-    
+    let systemPrompt = FIVE_WHYS_SYSTEM_PROMPT;
+
     if (this.cfContextPrompt) {
       systemPrompt += `\n\nYou have access to verified organizational data. Use specific entity names and relationships from this data when forming your questions.`;
     }
-    
-    let userMessage = `Here's what they told you:
-${input}
+
+    let userMessage = `Business challenge: ${input}
 ${this.cfContextPrompt}
 
-Let's start by asking a good "Why" question that gets to the core of what's going on. 
+Generate the opening question for this Five Whys analysis.
 
-Write a question that:
-- Feels natural and conversational (like you're talking to a friend)
-- Gets at the real reason or purpose behind what they shared
-- Opens the door for deeper exploration
-${this.cfContextPrompt ? '- References specific entities or relationships from the verified context above when relevant' : ''}
+The question must:
+- Focus on a critical business success factor (customer value, competitive advantage, market opportunity, or business viability)
+- Be specific and interrogative (not vague or philosophical)
+- Lead directly toward business mechanisms and evidence
+${this.cfContextPrompt ? '- Reference specific entities or relationships from the verified context above when relevant' : ''}
 
-Return a JSON object with the question:
+GOOD examples:
+- "Why would customers choose your solution over existing alternatives?"
+- "Why can't competitors easily replicate this advantage?"
+- "Why would this business model generate sustainable revenue?"
+
+BAD examples:
+- "Why do you want to start a business?" (too philosophical)
+- "Why is this important to you?" (personal, not business-focused)
+
+Return JSON:
 {
-  "question": "Why [phrase this naturally]?"
+  "question": "Why [specific business mechanism]?"
 }`;
 
     const response = await aiClients.callWithFallback({
@@ -305,88 +333,73 @@ Return a JSON object with the question:
   ): Promise<WhyNode[]> {
     const isLeaf = depth >= this.maxDepth;
     const maxRetries = 3;
-    
-    // Build system prompt with CF context awareness
-    let systemPrompt = 'You\'re a friendly business advisor helping someone figure out what\'s really going on with their business. Talk to them like a supportive friend who gets business stuff.';
+
+    // Build enhanced system prompt
+    let systemPrompt = `${FIVE_WHYS_SYSTEM_PROMPT}
+
+CRITICAL: Every "why" answer must include:
+1. MECHANISM: What drives this (cause → effect relationship)
+2. OBSERVABLE SIGNAL: What data would prove this
+3. DISCONFIRMING SIGNAL: What would falsify this claim
+
+BUSINESS DOMAINS ONLY:
+- Market dynamics, Customer behavior, Competition, Economics
+- Distribution, Regulation, Resources
+
+ANTI-PATTERNS (Reject):
+✗ "You think/feel" ✗ "Because it's important" ✗ "Because it's new"`;
+
     if (this.cfContextPrompt) {
       systemPrompt += '\n\nIMPORTANT: You have verified organizational data available. When making claims about the organization\'s systems, services, or relationships, use the specific entity names and facts provided. Mark claims as [VERIFIED] when they match the provided context, or [ASSUMED] when they go beyond it.';
     }
-    
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       const response = await aiClients.callWithFallback({
         systemPrompt,
-        userMessage: `Alright, let's dig into this together! We're trying to understand the business reasons behind what's going on.
-
-So here's the thing - we want to stay focused on business angles. That means looking at stuff like what's happening in the market, how customers are behaving, what the competition is doing, pricing dynamics, or resource constraints. Skip the cultural or social observations - those don't help us figure out the business logic here.
+        userMessage: `Business challenge: ${context.input}
 ${this.cfContextPrompt}
 
-A few quick examples of what I'm looking for:
-- "The market's growing 40% yearly with only 3 main players" ✓
-- "This solves a problem that costs businesses $50K each year" ✓
-- "Competitors don't have this feature yet - you've got a 6-month window" ✓
-${this.cfContextPrompt ? '- "API Gateway has 3 dependent services that cascade on failure" ✓ (uses verified entities)' : ''}
-- "Cultural norms around hierarchy affect decisions" ✗ (too cultural, not business-focused)
+Current question: ${question}
 
-What they told us originally:
-${context.input}
+${context.history.length > 0 ? `Path so far:\n${context.history.map((step, i) => `${i + 1}. Q: ${step.question}\n   A: ${step.answer}`).join('\n\n')}` : ''}
 
-The question we're asking now:
-${question}
+Depth: ${depth}/${this.maxDepth}
 
-${context.history.length > 0 ? `Here's the path we've explored so far:\n${context.history.map((step, i) => `${i + 1}. Q: ${step.question}\n   A: ${step.answer}`).join('\n\n')}` : ''}
+Generate exactly 3 possible answers explaining WHY.
 
-We're at step ${depth} of ${this.maxDepth}.
+EACH ANSWER REQUIRES:
+- MECHANISM: Causal relationship (X → Y through Z)
+- OBSERVABLE SIGNAL: Specific evidence/data
+- DISCONFIRMING SIGNAL: What would prove this wrong
+- BUSINESS LENS: Tie to market/customer/competition/economics
 
-Give me 3-4 different answers to this "why" question - all focused on business reasons.
+NO vague statements. Use specific numbers when possible.
+NO invented facts unless marked [ASSUMPTION].
 
-**CRITICAL: Your answers must be EXPLANATIONS, not repetitions**
-❌ BAD: If question is "Why does your organization sit on massive proprietary datasets?" DON'T answer "Your organization sits on massive proprietary datasets"
-✓ GOOD: Instead answer with the REASON: "The data was collected over 15 years of operations and can't be easily replicated" or "It creates a competitive moat that new entrants can't overcome"
+EXAMPLES:
+✓ "Customer acquisition cost ($450/customer) exceeds customer lifetime value ($280) due to 60% annual churn"
+✓ "UAE regulatory framework requires AED 50K minimum capital + DFSA license (6-month approval process)"
+✓ "Market leader (40% share) has locked 80% of enterprise customers into 3-year contracts"
+${this.cfContextPrompt ? '✓ "API Gateway (verified entity) handles 2M requests/day and has 3 dependent services that cascade on failure"' : ''}
 
-Each answer should explain the underlying cause, mechanism, or reason - NOT just restate what the question already said.
+✗ "Because it's important to customers" (no mechanism, no signal)
+✗ "The market is growing" (no numbers, no evidence)
+✗ "People value authenticity" (vague, untestable)
 
-For each answer, I want you to help them evaluate whether this is the right path:
+**CRITICAL: next_question must interrogate THIS answer**
+If answer is "Traditional cafes have 40% lower operational overhead due to simpler supply chains"
+→ next_question: "Why do traditional cafes have lower operational overhead?"
+NOT: "What are customer preferences in Dubai?" (different topic!)
 
-Supporting evidence (2-3 points): What makes this explanation make sense? Give concrete reasons - data, market signals, economic factors, whatever backs this up.
-
-Counter-arguments (2-3 points): What might poke holes in this explanation? Are there other ways to look at it? What suggests this might not be the real reason?
-
-Something to consider (1 sentence): A neutral observation that helps them compare this option to the others. Start with "Consider: [something insightful]"
-
-**CRITICAL: The next_question field**
-This is where you create the follow-up question IF they choose this option. The next question MUST directly interrogate THIS SPECIFIC OPTION - not jump to a different topic.
-
-Examples of CORRECT next questions:
-- If option is "Traditional cafes have lower operational complexity" → "Why do traditional cafes have lower operational complexity?"
-- If option is "The market is growing 40% yearly" → "Why is the market growing 40% yearly?"
-- If option is "Customers prefer premium experiences" → "Why do customers prefer premium experiences?"
-
-Examples of WRONG next questions (these jump to unrelated topics):
-- If option is "Traditional cafes have lower operational complexity" → "What specific aspects of Dubai's tourist traffic patterns..." ✗ (completely different topic!)
-- If option is "The market is growing" → "How does competition affect pricing?" ✗ (didn't ask WHY it's growing)
-
-The next question must always be: "Why [this exact option statement]?" - Keep the logical thread tight!
-
-Remember - we're not at the final answer yet. We're just helping them figure out which path feels most accurate so they can keep digging.
-
-Return ONLY valid JSON (no markdown, no extra text):
-
+Return JSON:
 {
   "branches": [
     {
-      "option": "Clear explanation in everyday language that answers WHY (not a restatement)",
-      "next_question": "Why [directly ask about THIS option - must interrogate this specific claim]?",
-      "supporting_evidence": [
-        "Specific, concrete reason this makes sense",
-        "Another solid piece of evidence",
-        "Third point if relevant"
-      ],
-      "counter_arguments": [
-        "Specific reason this might not be accurate",
-        "Alternative explanation or contradicting evidence",
-        "Third counter-point if relevant"
-      ],
-      "consideration": "Neutral one-sentence insight to help them compare"
+      "option": "Mechanism explaining why (cause → effect)",
+      "next_question": "Why [interrogate this specific answer]?",
+      "supporting_evidence": ["Observable signal 1", "Observable signal 2"],
+      "counter_arguments": ["Disconfirming signal 1", "Disconfirming signal 2"],
+      "consideration": "Neutral comparison insight"
     }
   ]
 }`,
@@ -489,11 +502,11 @@ Return ONLY valid JSON (no markdown, no extra text):
     }
 
     // Convert old format (string[]) to new format for backward compatibility
-    const history: Array<{ question: string; answer: string }> = 
+    const history: Array<{ question: string; answer: string }> =
       Array.isArray(selectedPath) && selectedPath.length > 0 && typeof selectedPath[0] === 'string'
-        ? (selectedPath as string[]).map((answer, idx) => ({ 
+        ? (selectedPath as string[]).map((answer, idx) => ({
             question: `Step ${idx + 1}`, // Placeholder for old format
-            answer 
+            answer
           }))
         : selectedPath as Array<{ question: string; answer: string }>;
 
@@ -506,6 +519,122 @@ Return ONLY valid JSON (no markdown, no extra text):
     );
 
     return branches;
+  }
+
+  // =============================================================================
+  // CACHE METHODS
+  // =============================================================================
+
+  getCachedBranches(sessionId: string, nodeId: string, depth: number): WhyNode[] | null {
+    const cacheKey = `${sessionId}:${nodeId}:${depth}`;
+    const cached = SESSION_BRANCH_CACHE.get(cacheKey);
+
+    if (cached) {
+      console.log(`[Cache HIT] ${cacheKey}`);
+      return cached;
+    }
+
+    return null;
+  }
+
+  private setCachedBranches(sessionId: string, nodeId: string, depth: number, branches: WhyNode[]): void {
+    const cacheKey = `${sessionId}:${nodeId}:${depth}`;
+    SESSION_BRANCH_CACHE.set(cacheKey, branches);
+    CACHE_METADATA.set(cacheKey, { timestamp: Date.now() });
+    console.log(`[Cache SET] ${cacheKey} - ${branches.length} branches`);
+  }
+
+  // =============================================================================
+  // PREFETCH METHODS
+  // =============================================================================
+
+  async expandBranchWithPrefetch(
+    nodeId: string,
+    selectedPath: Array<{ question: string; answer: string }>,
+    input: string,
+    sessionId: string,
+    currentDepth: number,
+    parentQuestion: string,
+    allSiblings?: Array<{ id: string; question: string; option: string; depth: number }>
+  ): Promise<{ expandedBranches: WhyNode[]; prefetchPromises?: Promise<void>[] }> {
+
+    // Check cache first
+    const cached = this.getCachedBranches(sessionId, nodeId, currentDepth);
+    if (cached) {
+      return { expandedBranches: cached };
+    }
+
+    // Expand the selected branch
+    const expandedBranches = await this.expandBranch(
+      nodeId,
+      selectedPath,
+      input,
+      sessionId,
+      currentDepth,
+      parentQuestion
+    );
+
+    // Cache the result
+    this.setCachedBranches(sessionId, nodeId, currentDepth, expandedBranches);
+
+    let prefetchPromises: Promise<void>[] = [];
+
+    // ONLY prefetch if depth <= 3 and we have siblings
+    if (allSiblings && allSiblings.length > 1 && currentDepth <= 3 && currentDepth < this.maxDepth - 1) {
+      const otherSiblings = allSiblings.filter(s => s.id !== nodeId);
+
+      console.log(`[Prefetch START] Session ${sessionId}, depth ${currentDepth}, prefetching ${otherSiblings.length} siblings`);
+
+      prefetchPromises = otherSiblings.map(sibling =>
+        this.prefetchBranch(sibling, input, selectedPath, currentDepth, sessionId)
+          .catch(err => {
+            console.warn(`[Prefetch FAILED] Node ${sibling.id}:`, err.message);
+          })
+      );
+
+      // Don't await - let them run in background
+      Promise.allSettled(prefetchPromises).then(() => {
+        console.log(`[Prefetch COMPLETE] Session ${sessionId}, depth ${currentDepth}`);
+      });
+    }
+
+    return { expandedBranches, prefetchPromises };
+  }
+
+  private async prefetchBranch(
+    sibling: { id: string; question: string; option: string; depth: number },
+    input: string,
+    selectedPath: Array<{ question: string; answer: string }>,
+    currentDepth: number,
+    sessionId: string
+  ): Promise<void> {
+    // Check if already cached
+    const cached = this.getCachedBranches(sessionId, sibling.id, currentDepth);
+    if (cached) {
+      console.log(`[Prefetch SKIP] ${sibling.id} - already cached`);
+      return;
+    }
+
+    // Build hypothetical path if user had selected this sibling instead
+    const hypotheticalPath = [...selectedPath, { question: sibling.question, answer: sibling.option }];
+
+    try {
+      const nextDepth = currentDepth + 1;
+      const branches = await this.generateLevelInParallel(
+        sibling.question,
+        { input, history: hypotheticalPath },
+        nextDepth,
+        sibling.id
+      );
+
+      // Cache the result
+      this.setCachedBranches(sessionId, sibling.id, currentDepth, branches);
+
+      console.log(`[Prefetch SUCCESS] Node ${sibling.id} - cached ${branches.length} branches`);
+    } catch (error: any) {
+      console.error(`[Prefetch ERROR] Node ${sibling.id}:`, error.message);
+      throw error;
+    }
   }
 
   async generateCustomBranches(
