@@ -25,6 +25,7 @@ import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { CoachingModal } from "@/components/five-whys/CoachingModal";
 import { FiveWhysAnimation } from "@/components/five-whys-animation/FiveWhysAnimation";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface WhyNode {
   id: string;
@@ -47,6 +48,28 @@ interface WhyTree {
   sessionId: string;
 }
 
+// NEW: Levels-array state model (parallel to existing tree state)
+type LevelState =
+  | {
+      depth: number;
+      status: "ready";
+      parentId?: string;
+      nodes: WhyNode[];
+      selectedId?: string;
+    }
+  | {
+      depth: number;
+      status: "loading";
+      parentId?: string;
+    };
+
+interface WhysTreeState {
+  rootQuestion: string;
+  levels: LevelState[];
+  activeDepth: number;
+  maxDepth: number;
+}
+
 export default function WhysTreePage() {
   const [, params] = useRoute("/strategic-consultant/whys-tree/:understandingId");
   const [, setLocation] = useLocation();
@@ -57,6 +80,8 @@ export default function WhysTreePage() {
   const [journeySessionId, setJourneySessionId] = useState<string | null>(null);
   const [isLoadingUnderstanding, setIsLoadingUnderstanding] = useState(true);
   const [tree, setTree] = useState<WhyTree | null>(null);
+  // NEW: Parallel state for expanding tree (kept in sync with tree)
+  const [whysState, setWhysState] = useState<WhysTreeState | null>(null);
   const [selectedPath, setSelectedPath] = useState<{ nodeId: string; question: string; answer: string; depth: number }[]>([]);
   const [currentLevel, setCurrentLevel] = useState(1);
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
@@ -84,6 +109,9 @@ export default function WhysTreePage() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const optionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
+  // NEW: Feature flag to toggle between old and new renderer
+  const USE_NEW_RENDERER = false; // Set to true to enable expanding tree UI
+
   const generateTreeMutation = useMutation({
     mutationFn: async () => {
       if (!understanding) {
@@ -97,7 +125,21 @@ export default function WhysTreePage() {
       return response.json();
     },
     onSuccess: (data: any) => {
-      setTree(data.tree);
+      const tree: WhyTree = data.tree;
+      setTree(tree); // Keep existing behavior
+
+      // NEW: Also initialize parallel whysState
+      setWhysState({
+        rootQuestion: tree.rootQuestion,
+        maxDepth: tree.maxDepth,
+        activeDepth: 1,
+        levels: [{
+          depth: 1,
+          status: "ready",
+          nodes: tree.branches,
+          selectedId: undefined
+        }]
+      });
     },
     onError: (error: any) => {
       toast({
@@ -180,6 +222,40 @@ export default function WhysTreePage() {
           ...tree,
           branches: updateNodeBranches(tree.branches),
         });
+
+        // NEW: Also sync whysState when expanding branches
+        if (whysState) {
+          setWhysState(prev => {
+            if (!prev) return prev;
+
+            const newLevels = [...prev.levels];
+            const parentDepth = variables.currentDepth;
+
+            // Mark the selected node in the parent level
+            if (newLevels[parentDepth - 1]?.status === "ready") {
+              newLevels[parentDepth - 1] = {
+                ...newLevels[parentDepth - 1],
+                selectedId: variables.nodeId
+              } as LevelState;
+            }
+
+            // Add new level with expanded branches
+            newLevels[parentDepth] = {
+              depth: parentDepth + 1,
+              status: "ready",
+              parentId: variables.nodeId,
+              nodes: data.expandedBranches,
+              selectedId: undefined
+            };
+
+            return {
+              ...prev,
+              levels: newLevels,
+              activeDepth: parentDepth + 1
+            };
+          });
+        }
+
         setCurrentLevel(prev => prev + 1);
         setSelectedOptionId(null);
       }
@@ -976,6 +1052,155 @@ export default function WhysTreePage() {
   const canShowContinueButton = currentLevel < 5;
   const showOnlyFinalize = currentLevel === 5;
 
+  // NEW: Expanding tree renderer using whysState
+  const renderExpandingTree = () => {
+    if (!whysState) return null;
+
+    const selectNode = async (depth: number, nodeId: string) => {
+      // Find the node that was selected
+      const level = whysState.levels[depth - 1];
+      if (level?.status !== "ready") return;
+
+      const selectedNode = level.nodes.find(n => n.id === nodeId);
+      if (!selectedNode) return;
+
+      // 1) Mark selection + append loading placeholder
+      setWhysState(prev => {
+        if (!prev) return prev;
+
+        const newLevels = [...prev.levels];
+
+        // Mark this node as selected
+        if (newLevels[depth - 1]?.status === "ready") {
+          newLevels[depth - 1] = {
+            ...newLevels[depth - 1],
+            selectedId: nodeId
+          } as LevelState;
+        }
+
+        // Add loading placeholder for next level
+        newLevels[depth] = {
+          depth: depth + 1,
+          status: "loading",
+          parentId: nodeId
+        };
+
+        return {
+          ...prev,
+          levels: newLevels,
+          activeDepth: depth + 1
+        };
+      });
+
+      // 2) Fetch children (this will update whysState via expandBranchMutation.onSuccess)
+      try {
+        await expandBranchMutation.mutateAsync({
+          nodeId,
+          parentQuestion: selectedNode.question,
+          currentDepth: depth,
+        });
+      } catch (error) {
+        // Remove loading placeholder on error
+        setWhysState(prev => {
+          if (!prev) return prev;
+          const newLevels = prev.levels.slice(0, depth);
+          return { ...prev, levels: newLevels };
+        });
+      }
+    };
+
+    return (
+      <div className="space-y-6">
+        <AnimatePresence mode="wait">
+          {whysState.levels.map((level, idx) => {
+            // Render loading placeholder
+            if (level.status === "loading") {
+              return (
+                <motion.div
+                  key={`level-${level.depth}-loading`}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="relative"
+                >
+                  {/* Visual connector from parent */}
+                  {idx > 0 && (
+                    <div className="absolute left-4 -top-4 h-4 w-px bg-primary/30" />
+                  )}
+
+                  <Card className="border-dashed bg-muted/30">
+                    <CardContent className="p-6 flex items-center gap-3">
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 bg-muted animate-pulse rounded w-3/4" />
+                        <div className="h-4 bg-muted animate-pulse rounded w-1/2" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              );
+            }
+
+            // Render ready level with options
+            return (
+              <motion.div
+                key={`level-${level.depth}`}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-3"
+              >
+                {/* Question header */}
+                {level.nodes[0] && (
+                  <Card className="bg-primary/5 border-primary/20">
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        <Badge variant="outline" className="shrink-0">
+                          {getOrdinalLabel(level.depth)}
+                        </Badge>
+                        <p className="text-base font-semibold text-primary">
+                          {level.nodes[0].question}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Options grid */}
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {level.nodes.map(node => {
+                    const isSelected = level.selectedId === node.id;
+
+                    return (
+                      <Card
+                        key={node.id}
+                        className={`cursor-pointer transition-all ${
+                          isSelected
+                            ? 'border-primary bg-primary/10 shadow-lg'
+                            : 'hover:border-primary/50 hover:shadow-md'
+                        }`}
+                        onClick={() => !isSelected && selectNode(level.depth, node.id)}
+                      >
+                        <CardContent className="p-4">
+                          <p className="text-sm font-medium">{node.option}</p>
+
+                          {/* Show connector when selected */}
+                          {isSelected && idx < whysState.levels.length - 1 && (
+                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full h-4 w-px bg-primary/30" />
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            );
+          })}
+        </AnimatePresence>
+      </div>
+    );
+  };
+
   if (!understandingId) {
     return (
       <AppLayout title="Five Whys Analysis" subtitle="Error">
@@ -1020,6 +1245,11 @@ export default function WhysTreePage() {
       subtitle="Discover root causes through strategic questioning"
     >
       <div className="max-w-4xl mx-auto space-y-2 sm:space-y-6 p-2 sm:p-0">
+        {/* NEW: Conditional rendering based on feature flag */}
+        {USE_NEW_RENDERER ? (
+          renderExpandingTree()
+        ) : (
+          <>
         {/* Part 1: Breadcrumb - Simple at Level 1, Collapsible at Level 2+ */}
         {currentLevel === 1 ? (
           /* Level 1: Large faded number background */
@@ -1642,6 +1872,9 @@ export default function WhysTreePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+          </>
+        )}
+      </div>
 
       {/* Mobile Bottom Sheet for detailed content */}
       <Sheet open={!!sheetContent} onOpenChange={(open) => !open && setSheetContent(null)}>
