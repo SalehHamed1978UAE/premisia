@@ -176,14 +176,26 @@ export class BMCAnalyzer implements FrameworkAnalyzer<BMCResults> {
     // 1. Extract from Contradictions (PRIMARY SOURCE for risks)
     if (frameworkResults.contradictions && frameworkResults.contradictions.length > 0) {
       frameworkResults.contradictions.forEach((contradiction, idx) => {
+        // Handle both string (legacy) and object (new) contradiction formats
+        // Note: Runtime data may have object-based contradictions from journey flows
+        const contradictionAny = contradiction as unknown;
+        let contradictionContent: string;
+        
+        if (typeof contradictionAny === 'object' && contradictionAny !== null) {
+          const obj = contradictionAny as { assumption?: string; recommendation?: string };
+          contradictionContent = `${obj.assumption || 'Assumption'}: ${obj.recommendation || 'Risk identified'}`;
+        } else {
+          contradictionContent = String(contradiction);
+        }
+        
         insights.push({
           type: 'risk',
           source: `BMC.contradictions[${idx}]`,
-          content: contradiction,
+          content: contradictionContent,
           confidence: 0.90, // HIGH confidence - explicit contradictions
           reasoning: 'Contradiction indicates strategic risk',
           metadata: {
-            severity: this.assessContradictionSeverity(contradiction),
+            severity: this.assessContradictionSeverity(contradictionAny as string | { impact?: string; assumption?: string }),
           },
         });
       });
@@ -518,8 +530,20 @@ export class BMCAnalyzer implements FrameworkAnalyzer<BMCResults> {
     return 'Other';
   }
 
-  private assessContradictionSeverity(contradiction: string): string {
-    const lower = contradiction.toLowerCase();
+  private assessContradictionSeverity(contradiction: string | { impact?: string; assumption?: string }): string {
+    // Handle object-based contradictions (new format)
+    if (typeof contradiction === 'object' && contradiction !== null) {
+      const impact = contradiction.impact?.toUpperCase();
+      if (impact === 'HIGH') return 'High';
+      if (impact === 'MEDIUM') return 'Medium';
+      if (impact === 'LOW') return 'Low';
+      // Fallback to checking assumption text
+      const text = contradiction.assumption || '';
+      return this.assessContradictionSeverity(text);
+    }
+    
+    // Handle string-based contradictions (legacy format)
+    const lower = String(contradiction).toLowerCase();
     if (lower.includes('critical') || lower.includes('catastrophic') || lower.includes('fatal')) return 'Critical';
     if (lower.includes('high') || lower.includes('significant') || lower.includes('major')) return 'High';
     if (lower.includes('medium') || lower.includes('moderate')) return 'Medium';
