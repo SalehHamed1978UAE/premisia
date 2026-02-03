@@ -2317,8 +2317,319 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
   }
 });
 
+// =============================================================================
+// UNIFIED JOURNEY RESEARCH STREAM
+// Single endpoint that handles ALL journey types using the executor + bridge pattern
+// =============================================================================
+router.get('/journey-research/stream/:sessionId', async (req: Request, res: Response) => {
+  console.log('[JOURNEY-RESEARCH] Unified endpoint called! sessionId:', req.params.sessionId);
+  req.socket.setTimeout(600000);
+
+  let keepaliveInterval: NodeJS.Timeout | null = null;
+
+  try {
+    // Proactively refresh token before long-running operation
+    const tokenValid = await refreshTokenProactively(req, 600);
+    if (!tokenValid) {
+      return res.status(401).json({
+        error: 'Session expired',
+        message: 'Please log in again to continue'
+      });
+    }
+
+    const { sessionId } = req.params;
+
+    if (!sessionId) {
+      return res.status(400).json({ error: 'Session ID is required' });
+    }
+
+    // Set up Server-Sent Events
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+
+    // Get journey session to determine journey type and get understandingId
+    const journeySession = await getJourneySession(sessionId);
+
+    if (!journeySession) {
+      res.write(`data: ${JSON.stringify({ type: 'error', error: 'Journey session not found' })}\n\n`);
+      res.end();
+      return;
+    }
+
+    const journeyType = journeySession.journeyType as JourneyType;
+    console.log(`[JOURNEY-RESEARCH] Journey type: ${journeyType}`);
+
+    // Get journey definition from registry
+    const journeyDef = journeyRegistry.getJourney(journeyType);
+    if (!journeyDef) {
+      res.write(`data: ${JSON.stringify({ type: 'error', error: `Unknown journey type: ${journeyType}` })}\n\n`);
+      res.end();
+      return;
+    }
+
+    console.log(`[JOURNEY-RESEARCH] Framework sequence: ${journeyDef.frameworks.join(' → ')}`);
+
+    // Get strategic understanding
+    let understanding;
+    if (journeySession.understandingId) {
+      understanding = await getStrategicUnderstanding(journeySession.understandingId);
+    } else {
+      understanding = await getStrategicUnderstandingBySession(sessionId);
+    }
+
+    if (!understanding || !understanding.userInput) {
+      res.write(`data: ${JSON.stringify({ type: 'error', error: 'Strategic understanding not found' })}\n\n`);
+      res.end();
+      return;
+    }
+
+    const input = understanding.userInput;
+    console.log(`[JOURNEY-RESEARCH] Input length: ${input.length}`);
+
+    // Send initial message
+    res.write(`data: ${JSON.stringify({
+      type: 'progress',
+      message: `🚀 Starting ${journeyDef.name}...`,
+      progress: 0,
+      journeyType,
+      frameworks: journeyDef.frameworks
+    })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: 'debug', debugInput: input.slice(0, 200) })}\n\n`);
+
+    // Start SSE keepalive
+    keepaliveInterval = setInterval(() => {
+      try {
+        res.write(`: keepalive ${Date.now()}\n\n`);
+      } catch (e) {
+        if (keepaliveInterval) clearInterval(keepaliveInterval);
+      }
+    }, 15000);
+
+    res.on('close', () => {
+      if (keepaliveInterval) clearInterval(keepaliveInterval);
+    });
+
+    // Import framework executors and bridges
+    const { frameworkRegistry: fwRegistry } = await import('../journey/framework-executor-registry');
+    const { getBridge } = await import('@shared/contracts/bridge.contract');
+
+    // Build initial strategic context
+    const strategicContext: any = {
+      userInput: input,
+      understandingId: understanding.id,
+      sessionId,
+      journeyType,
+      previousResults: {},
+      bridgeEnhancements: {},
+    };
+
+    // Execute frameworks in sequence
+    const frameworkResults: Record<string, any> = {};
+    const totalFrameworks = journeyDef.frameworks.length;
+
+    for (let i = 0; i < totalFrameworks; i++) {
+      const frameworkName = journeyDef.frameworks[i];
+      const progressPercent = Math.round(((i) / totalFrameworks) * 80) + 10;
+
+      // Skip user input frameworks (strategic_decisions, prioritization) - these pause the journey
+      if (['strategic_decisions', 'prioritization'].includes(frameworkName)) {
+        console.log(`[JOURNEY-RESEARCH] Skipping user input framework: ${frameworkName}`);
+        continue;
+      }
+
+      res.write(`data: ${JSON.stringify({
+        type: 'progress',
+        message: `📊 Running ${frameworkName.replace(/_/g, ' ').toUpperCase()} analysis...`,
+        progress: progressPercent,
+        currentFramework: frameworkName
+      })}\n\n`);
+
+      console.log(`[JOURNEY-RESEARCH] Executing ${frameworkName}...`);
+
+      // Check for bridge from previous framework
+      if (i > 0) {
+        const prevFramework = journeyDef.frameworks[i - 1];
+        const bridge = getBridge(prevFramework, frameworkName);
+
+        if (bridge) {
+          console.log(`[JOURNEY-RESEARCH] Applying bridge: ${prevFramework} → ${frameworkName}`);
+          try {
+            const bridgeContext = {
+              positioning: understanding.strategyMetadata?.positioning || {},
+              allPriorOutputs: frameworkResults,
+              sessionId,
+              journeyType,
+            };
+            const enhancement = await bridge.transform(frameworkResults[prevFramework], bridgeContext);
+            strategicContext.bridgeEnhancements[frameworkName] = enhancement;
+            console.log(`[JOURNEY-RESEARCH] ✓ Bridge applied: ${prevFramework} → ${frameworkName}`);
+          } catch (bridgeError: any) {
+            console.warn(`[JOURNEY-RESEARCH] Bridge failed (${prevFramework} → ${frameworkName}):`, bridgeError.message);
+            // Continue without bridge - not fatal
+          }
+        }
+      }
+
+      // Update context with previous results
+      strategicContext.previousResults = frameworkResults;
+
+      // Execute framework
+      let result;
+      try {
+        result = await fwRegistry.execute(frameworkName as any, strategicContext);
+        frameworkResults[frameworkName] = result.data;
+        console.log(`[JOURNEY-RESEARCH] ✓ ${frameworkName} complete`);
+
+        res.write(`data: ${JSON.stringify({
+          type: 'progress',
+          message: `✓ ${frameworkName.replace(/_/g, ' ').toUpperCase()} complete`,
+          progress: progressPercent + Math.round(80 / totalFrameworks),
+          completedFramework: frameworkName
+        })}\n\n`);
+
+        // Save to frameworkInsights
+        try {
+          await db.insert(frameworkInsights).values({
+            understandingId: understanding.id!,
+            sessionId,
+            frameworkName,
+            frameworkVersion: '1.0',
+            insights: result.data,
+            telemetry: {
+              duration: result.duration,
+              executedAt: result.executedAt.toISOString(),
+              source: 'unified_journey_research',
+            } as any,
+          }).onConflictDoNothing();
+          console.log(`[JOURNEY-RESEARCH] ✓ Saved ${frameworkName} to frameworkInsights`);
+        } catch (saveError: any) {
+          console.warn(`[JOURNEY-RESEARCH] Failed to save ${frameworkName} insight:`, saveError.message);
+        }
+
+      } catch (error: any) {
+        console.error(`[JOURNEY-RESEARCH] ${frameworkName} failed:`, error.message);
+        res.write(`data: ${JSON.stringify({
+          type: 'progress',
+          message: `⚠️ ${frameworkName} had issues, continuing...`,
+          progress: progressPercent + Math.round(80 / totalFrameworks)
+        })}\n\n`);
+        frameworkResults[frameworkName] = { error: error.message };
+      }
+    }
+
+    // Generate decisions from final framework output
+    res.write(`data: ${JSON.stringify({ type: 'progress', message: '💾 Generating strategic decisions...', progress: 90 })}\n\n`);
+
+    const generator = new DecisionGenerator();
+    let decisions: any;
+    const finalFramework = journeyDef.frameworks[journeyDef.frameworks.length - 1];
+    const finalResult = frameworkResults[finalFramework];
+
+    // Extract the actual data from framework result
+    const finalData = finalResult?.output || finalResult?.data || finalResult;
+
+    try {
+      // Route to appropriate decision generator based on final framework
+      if (finalFramework === 'swot' && finalData && !finalData.error) {
+        decisions = await generator.generateDecisionsFromSWOT(finalData, input);
+      } else if (finalFramework === 'bmc' && finalData && !finalData.error) {
+        decisions = await generator.generateDecisionsFromBMC(finalData, input);
+      } else if (finalData && !finalData.error) {
+        // Generic decision generation from any framework
+        decisions = await generator.generateDecisions(finalData, input);
+      } else {
+        // Fallback decisions
+        decisions = {
+          decisions: [{
+            id: 'review_analysis',
+            title: 'Review Analysis Results',
+            question: 'Based on the analysis, what strategic direction should we pursue?',
+            options: [
+              { id: 'growth', label: 'Growth Strategy', description: 'Focus on expansion' },
+              { id: 'consolidate', label: 'Consolidation', description: 'Optimize current operations' },
+              { id: 'transform', label: 'Transformation', description: 'Significant change' },
+            ],
+          }],
+        };
+      }
+      console.log(`[JOURNEY-RESEARCH] ✓ Generated ${decisions?.decisions?.length || 0} decision points`);
+    } catch (decisionError: any) {
+      console.error('[JOURNEY-RESEARCH] Decision generation failed:', decisionError.message);
+      decisions = { decisions: [], error: decisionError.message };
+    }
+
+    // Save strategy version with decisions
+    res.write(`data: ${JSON.stringify({ type: 'progress', message: '💾 Saving results...', progress: 95 })}\n\n`);
+
+    const userId = (req.user as any)?.claims?.sub || 'system';
+
+    // Check existing versions
+    const existingVersions = await db.select()
+      .from(strategyVersions)
+      .where(eq(strategyVersions.sessionId, sessionId));
+
+    const versionNumber = existingVersions.length + 1;
+
+    await db.insert(strategyVersions).values({
+      sessionId,
+      versionNumber,
+      versionLabel: `${journeyDef.name} v${versionNumber}`,
+      analysisData: frameworkResults,
+      decisionsData: decisions,
+      status: 'draft',
+      createdBy: userId,
+      userId,
+    });
+
+    console.log(`[JOURNEY-RESEARCH] ✓ Created strategy version ${versionNumber}`);
+
+    // Build next URL based on journey page sequence
+    const decisionPageIndex = journeyDef.pageSequence.findIndex(p => p.includes('decisions'));
+    let nextUrl = `/strategy-workspace/decisions/${sessionId}/${versionNumber}`;
+    if (decisionPageIndex > 0) {
+      nextUrl = journeyDef.pageSequence[decisionPageIndex]
+        .replace(':sessionId', sessionId)
+        .replace(':versionNumber', versionNumber.toString());
+    }
+
+    // Clear keepalive
+    if (keepaliveInterval) {
+      clearInterval(keepaliveInterval);
+      keepaliveInterval = null;
+    }
+
+    // Send completion
+    res.write(`data: ${JSON.stringify({
+      type: 'complete',
+      data: {
+        findings: frameworkResults,
+        decisions,
+        versionNumber,
+        nextUrl,
+        sourcesAnalyzed: Object.keys(frameworkResults).length,
+        timeElapsed: 'completed',
+        journeyType,
+      }
+    })}\n\n`);
+
+    console.log(`[JOURNEY-RESEARCH] ✓ Journey complete for ${sessionId}`);
+    res.end();
+
+  } catch (error: any) {
+    if (keepaliveInterval) clearInterval(keepaliveInterval);
+
+    console.error('[JOURNEY-RESEARCH] Error:', error);
+    res.write(`data: ${JSON.stringify({ type: 'error', error: error.message || 'Journey research failed' })}\n\n`);
+    res.end();
+  }
+});
+
 // Market Entry research stream - runs PESTLE → Porter's → SWOT analysis
 // Similar to BMC research stream but for market_entry journey type
+// DEPRECATED: Use /journey-research/stream/:sessionId instead
 router.get('/market-entry-research/stream/:sessionId', async (req: Request, res: Response) => {
   console.log('[MARKET-ENTRY-RESEARCH] GET endpoint called! sessionId:', req.params.sessionId);
   req.socket.setTimeout(600000);
