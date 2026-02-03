@@ -110,7 +110,7 @@ export default function WhysTreePage() {
   const optionRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // NEW: Feature flag to toggle between old and new renderer
-  const USE_NEW_RENDERER = false; // Set to true to enable expanding tree UI
+  const USE_NEW_RENDERER = true; // Set to true to enable expanding tree UI
 
   const generateTreeMutation = useMutation({
     mutationFn: async () => {
