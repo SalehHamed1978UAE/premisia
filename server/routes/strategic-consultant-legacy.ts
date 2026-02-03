@@ -2351,13 +2351,23 @@ router.get('/journey-research/stream/:sessionId', async (req: Request, res: Resp
     res.flushHeaders();
 
     // Get journey session to determine journey type and get understandingId
-    const journeySession = await getJourneySession(sessionId);
+    // Try direct lookup first, then fall back to understanding session ID lookup
+    let journeySession = await getJourneySession(sessionId);
+    
+    if (!journeySession) {
+      // Fallback: sessionId might be an understanding session ID
+      console.log(`[JOURNEY-RESEARCH] Direct lookup failed, trying understanding session lookup for: ${sessionId}`);
+      journeySession = await getJourneySessionByUnderstandingSessionId(sessionId);
+    }
 
     if (!journeySession) {
+      console.error(`[JOURNEY-RESEARCH] Journey session not found for sessionId: ${sessionId}`);
       res.write(`data: ${JSON.stringify({ type: 'error', error: 'Journey session not found' })}\n\n`);
       res.end();
       return;
     }
+    
+    console.log(`[JOURNEY-RESEARCH] Found journey session: ${journeySession.id}, type: ${journeySession.journeyType}`)
 
     const journeyType = journeySession.journeyType as JourneyType;
     console.log(`[JOURNEY-RESEARCH] Journey type: ${journeyType}`);
