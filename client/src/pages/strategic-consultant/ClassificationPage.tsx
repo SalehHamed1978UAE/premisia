@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { CheckCircle2, AlertCircle, Loader2, ArrowRight, Info } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { queryClient } from '@/lib/queryClient';
 
 interface ClassificationData {
   initiativeType: string;
@@ -178,16 +179,16 @@ export default function ClassificationPage() {
           : 'Classification confirmed and saved.',
       });
       
-      // If custom journey template is present, start the first framework directly
-      // Otherwise, navigate to journey selection for predefined journeys
-      console.log('[ClassificationPage] handleConfirm - templateId:', templateId, 'templateData:', templateData);
-      
+      // Route based on entry point:
+      // 1. Custom journey (templateId) - start custom journey directly
+      // 2. Pre-selected journey from JourneyHub (journeyTypeParam) - execute journey directly, skip selection
+      // 3. Standard flow (neither) - go to journey selection page
+      console.log('[ClassificationPage] handleConfirm - templateId:', templateId, 'journeyTypeParam:', journeyTypeParam);
+
       setTimeout(async () => {
-        // Check if this is a custom journey - we have templateId and either templateData 
-        // OR we can call the API directly which will handle the template lookup
         if (templateId) {
+          // CASE 1: Custom journey from Journey Builder
           console.log('[ClassificationPage] Custom journey detected, starting execution...');
-          // Start custom journey execution with the first framework
           try {
             const startResponse = await fetch('/api/journey-builder/start-custom-journey', {
               method: 'POST',
@@ -197,18 +198,18 @@ export default function ClassificationPage() {
                 templateId,
               }),
             });
-            
+
             if (startResponse.ok) {
               const { journeySessionId, firstFramework } = await startResponse.json();
               console.log('[ClassificationPage] Custom journey started - sessionId:', journeySessionId, 'firstFramework:', firstFramework);
-              
+
               // Trigger journey execution in background
               console.log('[ClassificationPage] Triggering custom journey execution for session:', journeySessionId);
               fetch(`/api/strategic-consultant/journeys/${journeySessionId}/execute`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
               }).catch(err => console.error('[ClassificationPage] Execution trigger failed:', err));
-              
+
               // Navigate to the first framework in the custom journey
               const frameworkRoute = getFrameworkRoute(firstFramework, understandingId!, journeySessionId);
               console.log('[ClassificationPage] Navigating to:', frameworkRoute);
@@ -216,19 +217,72 @@ export default function ClassificationPage() {
             } else {
               const errorData = await startResponse.json().catch(() => ({}));
               console.error('[ClassificationPage] Failed to start custom journey:', errorData);
-              // Fallback to journey selection if custom journey start fails
               setLocation(`/strategic-consultant/journey-selection/${understandingId}`);
             }
           } catch (error) {
             console.error('[ClassificationPage] Error starting custom journey:', error);
             setLocation(`/strategic-consultant/journey-selection/${understandingId}`);
           }
+        } else if (journeyTypeParam) {
+          // CASE 2: Pre-selected journey from JourneyHub - skip journey selection page
+          console.log('[ClassificationPage] Journey pre-selected from JourneyHub:', journeyTypeParam);
+          console.log('[ClassificationPage] Executing journey directly, skipping selection page...');
+
+          try {
+            const payload = {
+              journeyType: journeyTypeParam,
+              understandingId,
+            };
+
+            const response = await fetch('/api/strategic-consultant/journeys/execute', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+              const error = await response.json();
+              throw new Error(error.error || 'Journey execution failed');
+            }
+
+            const result = await response.json();
+
+            // Store journey type and version number in localStorage for downstream pages
+            localStorage.setItem(`journey-type-${result.sessionId}`, journeyTypeParam);
+            if (result.versionNumber) {
+              localStorage.setItem(`journey-version-${result.sessionId}`, String(result.versionNumber));
+              if (result.journeySessionId) {
+                localStorage.setItem(`journey-version-${result.journeySessionId}`, String(result.versionNumber));
+              }
+              console.log(`[ClassificationPage] Stored version ${result.versionNumber} for session`);
+            }
+
+            // Invalidate session context cache
+            queryClient.invalidateQueries({ queryKey: ["/api/session-context"] });
+
+            toast({
+              title: "Journey started!",
+              description: result.message,
+            });
+
+            // Navigate directly to first page in the journey
+            console.log('[ClassificationPage] Navigating to:', result.navigationUrl);
+            setLocation(result.navigationUrl);
+
+          } catch (error: any) {
+            console.error('[ClassificationPage] Journey execution failed:', error);
+            toast({
+              title: "Journey execution failed",
+              description: error.message,
+              variant: "destructive",
+            });
+            // Fallback to journey selection on error
+            setLocation(`/strategic-consultant/journey-selection/${understandingId}?journeyType=${journeyTypeParam}`);
+          }
         } else {
-          // Standard flow: go to journey selection
-          // Pass journeyType if pre-selected from JourneyHub
-          console.log('[ClassificationPage] No templateId, going to journey selection with journeyType:', journeyTypeParam);
-          const journeyParams = journeyTypeParam ? `?journeyType=${journeyTypeParam}` : '';
-          setLocation(`/strategic-consultant/journey-selection/${understandingId}${journeyParams}`);
+          // CASE 3: Standard flow - go to journey selection page
+          console.log('[ClassificationPage] No pre-selection, going to journey selection page');
+          setLocation(`/strategic-consultant/journey-selection/${understandingId}`);
         }
       }, 500);
       
