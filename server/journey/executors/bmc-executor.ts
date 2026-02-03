@@ -19,14 +19,17 @@ export class BMCExecutor implements FrameworkExecutor {
     console.log('[BMC Executor] Starting Business Model Canvas research...');
     
     // Extract BMC constraints from context (if provided by Five Whys)
-    const constraints = context.insights.bmcDesignConstraints;
+    // Use optional chaining for null-safety - insights may not be populated by all bridges
+    const constraints = context.insights?.bmcDesignConstraints;
     
     if (constraints) {
       console.log('[BMC Executor] Using Five Whys constraints:', {
-        problems: constraints.problemsToSolve.length,
-        capabilities: constraints.mustHaveCapabilities.length,
-        principles: constraints.designPrinciples.length,
+        problems: constraints.problemsToSolve?.length ?? 0,
+        capabilities: constraints.mustHaveCapabilities?.length ?? 0,
+        principles: constraints.designPrinciples?.length ?? 0,
       });
+    } else {
+      console.log('[BMC Executor] No Five Whys constraints available, proceeding with standard BMC research');
     }
 
     // Conduct BMC research

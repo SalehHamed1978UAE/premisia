@@ -5,8 +5,8 @@
  */
 
 import { db } from '../db';
-import { frameworkInsights, journeySessions } from '@shared/schema';
-import { eq, desc } from 'drizzle-orm';
+import { frameworkInsights, journeySessions, strategicUnderstanding } from '@shared/schema';
+import { eq, desc, or } from 'drizzle-orm';
 import { decryptJSONKMS } from '../utils/kms-encryption';
 import { BMCAnalyzer } from './bmc-analyzer';
 import { PortersAnalyzer } from './porters-analyzer';
@@ -30,20 +30,84 @@ export interface AggregatedAnalysis {
  * ARCHITECTURE FIX: Now checks BOTH sources:
  * 1. framework_insights table (legacy framework runs)
  * 2. journey_sessions table (journey-based analysis)
+ *
+ * LOOKUP CHAIN:
+ * - sessionId can be URL format (session-xxx) or UUID
+ * - We first resolve to understanding UUID, then find journey session
+ * - Framework insights are stored with journeySession.id as sessionId
  */
 export async function getAggregatedAnalysis(sessionId: string): Promise<AggregatedAnalysis> {
-  console.log(`[AnalysisAggregator] Fetching insights for understandingId: ${sessionId}`);
+  console.log(`[AnalysisAggregator] Fetching insights for sessionId: ${sessionId}`);
 
   const analyses: Record<string, any> = {};
   const availableFrameworks: string[] = [];
 
-  // SOURCE 1: Query framework_insights table (legacy)
-  const frameworkInsightsData = await db.select()
-    .from(frameworkInsights)
-    .where(eq(frameworkInsights.understandingId, sessionId));
+  // STEP 1: Resolve sessionId to the correct IDs
+  // sessionId can be: URL format (session-xxx), understanding UUID, or journeySession UUID
+  let understandingId: string | null = null;
+  let journeySessionId: string | null = null;
+
+  // Path 1: Try URL session format (session-xxx) → understanding
+  const [understanding] = await db.select()
+    .from(strategicUnderstanding)
+    .where(eq(strategicUnderstanding.sessionId, sessionId))
+    .limit(1);
+
+  if (understanding) {
+    understandingId = understanding.id!;
+    console.log(`[AnalysisAggregator] Resolved URL sessionId to understanding: ${understandingId}`);
+
+    // Find the journey session for this understanding
+    const [journeySession] = await db.select()
+      .from(journeySessions)
+      .where(eq(journeySessions.understandingId, understandingId))
+      .orderBy(desc(journeySessions.updatedAt))
+      .limit(1);
+
+    if (journeySession) {
+      journeySessionId = journeySession.id;
+      console.log(`[AnalysisAggregator] Found journey session: ${journeySessionId}`);
+    }
+  } else {
+    // Path 2: sessionId might already be a journeySession.id (UUID)
+    const [directJourneySession] = await db.select()
+      .from(journeySessions)
+      .where(eq(journeySessions.id, sessionId))
+      .limit(1);
+
+    if (directJourneySession) {
+      journeySessionId = directJourneySession.id;
+      understandingId = directJourneySession.understandingId;
+      console.log(`[AnalysisAggregator] sessionId is journeySession.id: ${journeySessionId}, understandingId: ${understandingId}`);
+    } else {
+      // Path 3: Fallback - treat as understandingId directly (legacy)
+      understandingId = sessionId;
+      console.log(`[AnalysisAggregator] Fallback: treating sessionId as direct understandingId: ${understandingId}`);
+    }
+  }
+
+  // SOURCE 1: Query framework_insights table
+  // Check by understandingId (legacy path) AND by journeySession.id (modern journey path)
+  let frameworkInsightsData: any[] = [];
+
+  if (journeySessionId) {
+    // Modern journey path: framework insights stored with journeySession.id
+    frameworkInsightsData = await db.select()
+      .from(frameworkInsights)
+      .where(eq(frameworkInsights.sessionId, journeySessionId));
+    console.log(`[AnalysisAggregator] Queried by journeySessionId: ${journeySessionId}, found ${frameworkInsightsData.length} insights`);
+  }
+
+  // Also check by understandingId (legacy path) if we didn't find via journey session
+  if (frameworkInsightsData.length === 0 && understandingId) {
+    frameworkInsightsData = await db.select()
+      .from(frameworkInsights)
+      .where(eq(frameworkInsights.understandingId, understandingId));
+    console.log(`[AnalysisAggregator] Queried by understandingId: ${understandingId}, found ${frameworkInsightsData.length} insights`);
+  }
 
   if (frameworkInsightsData && frameworkInsightsData.length > 0) {
-    console.log(`[AnalysisAggregator] Found ${frameworkInsightsData.length} framework insights`);
+    console.log(`[AnalysisAggregator] Processing ${frameworkInsightsData.length} framework insights`);
     for (const insight of frameworkInsightsData) {
       try {
         const decrypted = await decryptJSONKMS(insight.insights as string);
@@ -58,17 +122,21 @@ export async function getAggregatedAnalysis(sessionId: string): Promise<Aggregat
     }
   }
 
-  // SOURCE 2: Query journey_sessions table (journey-based analysis)
-  // This is where Market Entry and other journey analysis data is stored
-  const journeyData = await db.select()
-    .from(journeySessions)
-    .where(eq(journeySessions.understandingId, sessionId))
-    .orderBy(desc(journeySessions.updatedAt))
-    .limit(1);
+  // SOURCE 2: Query journey_sessions table (journey-based analysis data)
+  // This is where Market Entry and other journey analysis data is stored in analysisData column
+  const journeyData = understandingId
+    ? await db.select()
+        .from(journeySessions)
+        .where(eq(journeySessions.understandingId, understandingId))
+        .orderBy(desc(journeySessions.updatedAt))
+        .limit(1)
+    : [];
 
-  if (journeyData && journeyData.length > 0 && journeyData[0].analysisData) {
-    console.log(`[AnalysisAggregator] Found journey session analysis data`);
-    const analysisData = journeyData[0].analysisData as any;
+  // Journey sessions use accumulatedContext for bridged data between frameworks
+  const accumulatedContext = journeyData.length > 0 ? (journeyData[0].accumulatedContext as any) : null;
+  if (accumulatedContext) {
+    console.log(`[AnalysisAggregator] Found journey session accumulated context`);
+    const analysisData = accumulatedContext;
 
     // Extract SWOT from journey
     const swotData = analysisData?.swot?.data?.output ||
