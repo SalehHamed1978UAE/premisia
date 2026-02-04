@@ -69,7 +69,7 @@ interface GraphNodeData {
 
 const NODE_WIDTH = 260;
 const NODE_HEIGHT = 120;
-const RADIAL_DISTANCE = 260;
+const RADIAL_DISTANCE = 320;
 const CHILD_SPREAD = Math.PI * 0.9; // ~162 degrees
 
 const nodeTypes: NodeTypes = {
@@ -133,6 +133,7 @@ export default function WhysTreePage() {
   const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [confirmedPathIds, setConfirmedPathIds] = useState<string[]>([]);
   const [customWhyText, setCustomWhyText] = useState("");
   const [isProcessingAction, setIsProcessingAction] = useState(false);
   const [validationWarning, setValidationWarning] = useState<string | null>(null);
@@ -143,6 +144,8 @@ export default function WhysTreePage() {
     if (!selectedNodeId) return null;
     return nodes.find((n) => n.id === selectedNodeId) || null;
   }, [nodes, selectedNodeId]);
+
+  const confirmedSet = useMemo(() => new Set(confirmedPathIds), [confirmedPathIds]);
 
   const pathIds = useMemo(() => {
     if (!selectedNodeId) return new Set<string>();
@@ -234,6 +237,7 @@ export default function WhysTreePage() {
   const initializeGraph = (tree: WhyTree) => {
     setTreeMeta({ rootQuestion: tree.rootQuestion, maxDepth: tree.maxDepth });
     nodeMetaRef.current.clear();
+    setConfirmedPathIds([]);
 
     const rootId = "root";
     const rootNode: Node<GraphNodeData> = {
@@ -325,13 +329,18 @@ export default function WhysTreePage() {
 
     setEdges((eds) =>
       eds.map((edge) => {
-        const isActive = nodeId ? pathIds.has(edge.source) && pathIds.has(edge.target) : false;
+        const isConfirmed = confirmedSet.has(edge.target);
+        const isSelectedEdge = nodeId ? edge.target === nodeId : false;
         return {
           ...edge,
-          animated: isActive,
+          animated: isConfirmed,
           style: {
-            stroke: isActive ? "hsl(var(--primary))" : "hsl(var(--border))",
-            strokeWidth: isActive ? 2 : 1,
+            stroke: isConfirmed
+              ? "hsl(142 76% 45%)"
+              : isSelectedEdge
+              ? "hsl(48 94% 50%)"
+              : "hsl(var(--border))",
+            strokeWidth: isConfirmed || isSelectedEdge ? 2.5 : 1,
           },
         };
       })
@@ -340,7 +349,7 @@ export default function WhysTreePage() {
 
   useEffect(() => {
     updateSelectionVisuals(selectedNodeId);
-  }, [selectedNodeId, nodes.length, edges.length]);
+  }, [selectedNodeId, nodes.length, edges.length, confirmedPathIds]);
 
   const buildSelectedPath = (nodeId: string): Array<{ question: string; answer: string }> => {
     const path: Array<{ question: string; answer: string }> = [];
@@ -462,9 +471,14 @@ export default function WhysTreePage() {
   const handleNodeClick = (_: any, node: Node<GraphNodeData>) => {
     setSelectedNodeId(node.id);
     centerOnNode(node.id);
-    if (!node.data?.isRoot) {
-      expandNode(node.id);
-    }
+  };
+
+  const handleNodeDoubleClick = (_: any, node: Node<GraphNodeData>) => {
+    setSelectedNodeId(node.id);
+    centerOnNode(node.id);
+    if (node.data?.isRoot) return;
+    setConfirmedPathIds((prev) => (prev.includes(node.id) ? prev : [...prev, node.id]));
+    expandNode(node.id);
   };
 
   const handleFinalize = async () => {
@@ -589,7 +603,13 @@ export default function WhysTreePage() {
             onInit={setReactFlowInstance}
             nodeTypes={nodeTypes}
             onNodeClick={handleNodeClick}
+            onNodeDoubleClick={handleNodeDoubleClick}
+            nodesDraggable={false}
+            nodesConnectable={false}
+            panOnDrag
+            zoomOnScroll
             fitView
+            fitViewOptions={{ padding: 0.6 }}
             minZoom={0.2}
             maxZoom={2}
             className="bg-background"
@@ -604,7 +624,7 @@ export default function WhysTreePage() {
             <Badge variant="secondary">Five Whys</Badge>
             <h2 className="text-lg font-semibold">Path Navigator</h2>
             <p className="text-sm text-muted-foreground">
-              Click any node to focus. The camera will center on it and expand its next level.
+              Click once to select (yellow). Double-click to expand and confirm the path (green).
             </p>
           </div>
 
