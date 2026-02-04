@@ -9,3 +9,4 @@ vite.config.ts.*
 .env.*.local
 .env
 docker-compose.dev.yml
+.local/
