@@ -2698,6 +2698,7 @@ router.get('/journey-research/stream/:sessionId', async (req: Request, res: Resp
         decisions,
         versionNumber,
         nextUrl,
+        bmcAnalysis: frameworkResults.bmc,
         sourcesAnalyzed: Object.keys(frameworkResults).length,
         timeElapsed: 'completed',
         journeyType,

@@ -69,8 +69,9 @@ interface GraphNodeData {
 
 const NODE_WIDTH = 260;
 const NODE_HEIGHT = 120;
-const RADIAL_DISTANCE = 360;
-const CHILD_SPREAD = Math.PI * 0.9; // ~162 degrees
+const RADIAL_DISTANCE = 320;
+// Fixed slot angles: 0° (top), 120° (bottom-right), 240° (bottom-left)
+const FIXED_CHILD_ANGLES = [-Math.PI / 2, Math.PI / 6, (5 * Math.PI) / 6];
 
 const nodeTypes: NodeTypes = {
   whyNode: WhyGraphNode,
@@ -274,21 +275,19 @@ export default function WhysTreePage() {
       source: rootId,
       target: node.id,
       type: "smoothstep" as const,
+      style: { stroke: "hsl(215 15% 45%)", strokeWidth: 1.75, strokeOpacity: 0.9 },
+      markerEnd: { type: "arrowclosed", color: "hsl(215 15% 45%)" },
     }));
 
     setNodes([rootNode, ...childNodes]);
     setEdges(childEdges);
     setSelectedNodeId(rootId);
+    setTimeout(() => centerOnNode(rootId), 0);
   };
 
   const createChildNodes = (parent: Node<GraphNodeData>, branches: WhyNode[], questionAsked: string) => {
-    const parentMeta = nodeMetaRef.current.get(parent.id);
-    const parentAngle = parentMeta?.angle ?? 0;
-    const offsets = [-CHILD_SPREAD / 2, 0, CHILD_SPREAD / 2];
-    const baseAngles = branches.length === 1 ? [parentAngle] : offsets.map((o) => parentAngle + o);
-
     return branches.map((branch, index) => {
-      const angle = baseAngles[index % baseAngles.length];
+      const angle = FIXED_CHILD_ANGLES[index % FIXED_CHILD_ANGLES.length];
       const position = {
         x: parent.position.x + RADIAL_DISTANCE * Math.cos(angle),
         y: parent.position.y + RADIAL_DISTANCE * Math.sin(angle),
@@ -345,18 +344,20 @@ export default function WhysTreePage() {
       eds.map((edge) => {
         const isConfirmed = confirmedSet.has(edge.target);
         const isSelectedEdge = nodeId ? edge.target === nodeId : false;
+        const strokeColor = isConfirmed
+          ? "hsl(142 76% 45%)"
+          : isSelectedEdge
+          ? "hsl(48 94% 50%)"
+          : "hsl(215 15% 45%)";
         return {
           ...edge,
           animated: isConfirmed,
           style: {
-            stroke: isConfirmed
-              ? "hsl(142 76% 45%)"
-              : isSelectedEdge
-              ? "hsl(48 94% 50%)"
-              : "hsl(215 15% 35%)",
-            strokeWidth: isConfirmed || isSelectedEdge ? 2.5 : 1.5,
+            stroke: strokeColor,
+            strokeWidth: isConfirmed || isSelectedEdge ? 2.75 : 1.75,
             strokeOpacity: 0.9,
           },
+          markerEnd: { type: "arrowclosed", color: strokeColor },
         };
       })
     );
@@ -467,6 +468,8 @@ export default function WhysTreePage() {
         source: nodeId,
         target: child.id,
         type: "smoothstep" as const,
+        style: { stroke: "hsl(215 15% 45%)", strokeWidth: 1.75, strokeOpacity: 0.9 },
+        markerEnd: { type: "arrowclosed", color: "hsl(215 15% 45%)" },
       }));
 
       setNodes((nds) => [...nds, ...childNodes]);
@@ -636,7 +639,7 @@ export default function WhysTreePage() {
             className="bg-background"
             defaultEdgeOptions={{
               type: "smoothstep",
-              style: { stroke: "hsl(215 15% 35%)", strokeWidth: 1.5, strokeOpacity: 0.9 },
+              style: { stroke: "hsl(215 15% 45%)", strokeWidth: 1.75, strokeOpacity: 0.9 },
               markerEnd: { type: "arrowclosed", color: "hsl(215 15% 45%)" },
             }}
           >
