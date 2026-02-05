@@ -57,6 +57,7 @@ const NODE_H = 110;
 const H_GAP = 40;
 const V_GAP = 140;
 const MAX_CHILDREN = 3;
+const NODE_SUMMARY_LIMIT = 160;
 
 const slotKey = (d: number, i: number) => `${d}-${i}`;
 
@@ -156,6 +157,13 @@ function computeBounds(nodes: Array<{ x: number; y: number }>) {
   const px = 120;
   const py = 100;
   return { x: minX - px, y: minY - py, w: maxX - minX + px * 2, h: maxY - minY + py * 2 };
+}
+
+function summarizeText(text?: string, limit: number = NODE_SUMMARY_LIMIT) {
+  if (!text) return "";
+  const trimmed = text.trim();
+  if (trimmed.length <= limit) return trimmed;
+  return trimmed.slice(0, limit - 1).trimEnd() + "…";
 }
 
 export default function WhysTreePage() {
@@ -771,8 +779,14 @@ export default function WhysTreePage() {
                         overflow: "hidden",
                       }}
                     >
-                      <div style={{ fontWeight: 600, marginBottom: 4 }}>{data.label}</div>
-                      {data.option && <div style={{ opacity: 0.7 }}>{data.option}</div>}
+                      <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                        {summarizeText(data.label, NODE_SUMMARY_LIMIT)}
+                      </div>
+                      {data.option && (
+                        <div style={{ opacity: 0.7 }}>
+                          {summarizeText(data.option, NODE_SUMMARY_LIMIT)}
+                        </div>
+                      )}
                     </div>
                   </foreignObject>
                 </g>
