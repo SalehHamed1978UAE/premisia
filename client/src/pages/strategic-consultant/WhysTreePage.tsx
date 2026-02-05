@@ -590,6 +590,7 @@ export default function WhysTreePage() {
     if (!canFinalizeRootCause) return;
 
     try {
+      setIsProcessingAction(true);
       setValidationWarning(null);
       const response = await apiRequest("POST", "/api/strategic-consultant/whys-tree/validate-root-cause", {
         rootCauseText: node.label,
@@ -627,6 +628,8 @@ export default function WhysTreePage() {
         description: error.message || "Failed to finalize root cause",
         variant: "destructive",
       });
+    } finally {
+      setIsProcessingAction(false);
     }
   };
 
@@ -897,8 +900,12 @@ export default function WhysTreePage() {
                     )}
                     {canFinalizeRootCause && (
                       <Button className="w-full" onClick={handleFinalize} disabled={isProcessingAction}>
-                        <CheckCircle2 className="h-4 w-4 mr-2" />
-                        This is my root cause
+                        {isProcessingAction ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="h-4 w-4 mr-2" />
+                        )}
+                        {isProcessingAction ? "Finalizing..." : "This is my root cause"}
                       </Button>
                     )}
                   </div>
