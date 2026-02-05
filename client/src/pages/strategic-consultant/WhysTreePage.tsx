@@ -353,8 +353,9 @@ export default function WhysTreePage() {
               ? "hsl(142 76% 45%)"
               : isSelectedEdge
               ? "hsl(48 94% 50%)"
-              : "hsl(var(--border))",
-            strokeWidth: isConfirmed || isSelectedEdge ? 2.5 : 1,
+              : "hsl(215 15% 35%)",
+            strokeWidth: isConfirmed || isSelectedEdge ? 2.5 : 1.5,
+            strokeOpacity: 0.9,
           },
         };
       })
@@ -487,12 +488,11 @@ export default function WhysTreePage() {
     centerOnNode(node.id);
   };
 
-  const handleNodeDoubleClick = (_: any, node: Node<GraphNodeData>) => {
-    setSelectedNodeId(node.id);
-    centerOnNode(node.id);
-    if (node.data?.isRoot) return;
-    setConfirmedPathIds((prev) => (prev.includes(node.id) ? prev : [...prev, node.id]));
-    expandNode(node.id);
+  const handleConfirmWhy = () => {
+    if (!selectedNode || selectedNode.data?.isRoot) return;
+    if (!selectedNodeId) return;
+    setConfirmedPathIds((prev) => (prev.includes(selectedNodeId) ? prev : [...prev, selectedNodeId]));
+    expandNode(selectedNodeId);
   };
 
   const handleFinalize = async () => {
@@ -502,7 +502,7 @@ export default function WhysTreePage() {
     if (!canFinalizeRootCause) {
       toast({
         title: "Select a deeper, confirmed why",
-        description: "Double-click a why at level 3 or deeper to confirm the path before finalizing.",
+        description: "Confirm a why at level 3 or deeper before finalizing the root cause.",
         variant: "destructive",
       });
       return;
@@ -625,7 +625,6 @@ export default function WhysTreePage() {
             onInit={setReactFlowInstance}
             nodeTypes={nodeTypes}
             onNodeClick={handleNodeClick}
-            onNodeDoubleClick={handleNodeDoubleClick}
             nodesDraggable={false}
             nodesConnectable={false}
             panOnDrag
@@ -635,6 +634,11 @@ export default function WhysTreePage() {
             minZoom={0.2}
             maxZoom={2}
             className="bg-background"
+            defaultEdgeOptions={{
+              type: "smoothstep",
+              style: { stroke: "hsl(215 15% 35%)", strokeWidth: 1.5, strokeOpacity: 0.9 },
+              markerEnd: { type: "arrowclosed", color: "hsl(215 15% 45%)" },
+            }}
           >
             <Background variant={BackgroundVariant.Dots} gap={24} size={1} />
             <Controls />
@@ -646,7 +650,7 @@ export default function WhysTreePage() {
             <Badge variant="secondary">Five Whys</Badge>
             <h2 className="text-lg font-semibold">Path Navigator</h2>
             <p className="text-sm text-muted-foreground">
-              Click once to select (yellow). Double-click to expand and confirm the path (green).
+              Click a node to select it (yellow). Use “Select this as my why” to confirm and expand (green).
             </p>
           </div>
 
@@ -708,13 +712,19 @@ export default function WhysTreePage() {
 
                 {!selectedNode.data.isRoot && (
                   <div className="pt-2 space-y-2">
+                    {!isSelectedConfirmed && (
+                      <Button className="w-full" onClick={handleConfirmWhy} disabled={isProcessingAction}>
+                        <ArrowRight className="h-4 w-4 mr-2" />
+                        Select this as my why
+                      </Button>
+                    )}
                     <Button className="w-full" onClick={handleFinalize} disabled={!canFinalizeRootCause}>
                       <CheckCircle2 className="h-4 w-4 mr-2" />
                       This is my root cause
                     </Button>
                     {!canFinalizeRootCause && (
                       <p className="text-xs text-muted-foreground">
-                        Select a why at level 3+ and double-click to confirm the path.
+                        Confirm a why at level 3+ before finalizing the root cause.
                       </p>
                     )}
                   </div>
