@@ -25,6 +25,7 @@ export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
       '/strategic-consultant/input',
       '/strategic-consultant/whys-tree/:understandingId',
       '/strategic-consultant/research/:sessionId',
+      '/bmc/results/:sessionId/:versionNumber',
       '/strategy-workspace/decisions/:sessionId/:versionNumber',
       '/strategy-workspace/prioritization/:sessionId/:versionNumber',
     ],
