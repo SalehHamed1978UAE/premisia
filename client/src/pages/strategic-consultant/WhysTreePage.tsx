@@ -238,15 +238,14 @@ export default function WhysTreePage() {
     selectedNodeId &&
       selectedNode &&
       !selectedNode.isRoot &&
-      selectedDepth >= 4 &&
-      isSelectedConfirmed
+      selectedDepth >= 4
   );
 
   const canConfirmWhy = Boolean(
     selectedNodeId &&
       selectedNode &&
       !selectedNode.isRoot &&
-      selectedDepth < ((treeMeta?.maxDepth ?? 5) - 1)
+      selectedDepth < 4
   );
 
   useEffect(() => {
@@ -581,23 +580,14 @@ export default function WhysTreePage() {
     if (!selectedNode || selectedNode.isRoot) return;
     if (!selectedNodeId) return;
     setConfirmedPathIds((prev) => (prev.includes(selectedNodeId) ? prev : [...prev, selectedNodeId]));
-    if (selectedDepth < ((treeMeta?.maxDepth ?? 5) - 1)) {
-      expandNode(selectedNodeId);
-    }
+    expandNode(selectedNodeId);
   };
 
   const handleFinalize = async () => {
     if (!selectedNodeId || !understanding) return;
     const node = nodeDataById[selectedNodeId];
     if (!node || node.isRoot) return;
-    if (!canFinalizeRootCause) {
-      toast({
-        title: "Select a deeper, confirmed why",
-        description: "Confirm a why at level 4 or deeper before finalizing the root cause.",
-        variant: "destructive",
-      });
-      return;
-    }
+    if (!canFinalizeRootCause) return;
 
     try {
       setValidationWarning(null);
@@ -899,20 +889,17 @@ export default function WhysTreePage() {
 
                 {!selectedNode.isRoot && (
                   <div className="pt-2 space-y-2">
-                    {!isSelectedConfirmed && canConfirmWhy && (
+                    {canConfirmWhy && (
                       <Button className="w-full" onClick={handleConfirmWhy} disabled={isProcessingAction}>
                         <ArrowRight className="h-4 w-4 mr-2" />
                         Select this as my why
                       </Button>
                     )}
-                    <Button className="w-full" onClick={handleFinalize} disabled={!canFinalizeRootCause}>
-                      <CheckCircle2 className="h-4 w-4 mr-2" />
-                      This is my root cause
-                    </Button>
-                    {!canFinalizeRootCause && (
-                      <p className="text-xs text-muted-foreground">
-                        Confirm a why at level 4+ before finalizing the root cause.
-                      </p>
+                    {canFinalizeRootCause && (
+                      <Button className="w-full" onClick={handleFinalize} disabled={isProcessingAction}>
+                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                        This is my root cause
+                      </Button>
                     )}
                   </div>
                 )}
