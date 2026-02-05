@@ -205,8 +205,15 @@ export default function WhysTreePage() {
     selectedNodeId &&
       selectedNode &&
       !selectedNode.isRoot &&
-      selectedDepth >= 3 &&
+      selectedDepth >= 4 &&
       isSelectedConfirmed
+  );
+
+  const canConfirmWhy = Boolean(
+    selectedNodeId &&
+      selectedNode &&
+      !selectedNode.isRoot &&
+      selectedDepth < (treeMeta?.maxDepth ?? 5)
   );
 
   useEffect(() => {
@@ -451,6 +458,9 @@ export default function WhysTreePage() {
 
       setSlotToNodeId(updatedSlotToId);
       setNodeDataById(updatedNodeData);
+
+      // Prefetch siblings in background (non-blocking)
+      prefetchSiblingBranches(nodeId, meta.depth + 1, meta.index, updatedSlotToId, updatedNodeData, newActive);
     } catch (error: any) {
       toast({
         title: "Expansion failed",
@@ -459,6 +469,80 @@ export default function WhysTreePage() {
       });
     } finally {
       setIsProcessingAction(false);
+    }
+  };
+
+  const prefetchSiblingBranches = async (
+    parentId: string,
+    depth: number,
+    parentIndex: number,
+    currentSlotToId: Record<string, string>,
+    currentNodeData: Record<string, GraphNodeData>,
+    currentActive: Set<string>
+  ) => {
+    if (!understanding) return;
+    if (!treeMeta || depth >= treeMeta.maxDepth) return;
+
+    const parentMeta = nodeMetaRef.current.get(parentId);
+    if (!parentMeta) return;
+
+    const siblings = currentActive
+      ? [0, 1, 2].map((c) => parentIndex * MAX_CHILDREN + c)
+      : [];
+
+    for (const siblingIndex of siblings) {
+      const siblingSlot = slotKey(depth, siblingIndex);
+      const siblingId = currentSlotToId[siblingSlot];
+      if (!siblingId || siblingId === parentId) continue;
+      // Skip if already expanded
+      const hasAnyChild = [0, 1, 2].some((c) => currentSlotToId[slotKey(depth + 1, siblingIndex * MAX_CHILDREN + c)]);
+      if (hasAnyChild) continue;
+
+      try {
+        const response = await apiRequest("POST", "/api/strategic-consultant/whys-tree/expand", {
+          sessionId: understanding.sessionId,
+          nodeId: siblingId,
+          selectedPath: buildSelectedPath(siblingId),
+          currentDepth: depth,
+          parentQuestion: currentNodeData[siblingId]?.nextQuestion || currentNodeData[siblingId]?.label,
+          input: understanding.userInput,
+        });
+
+        const data = (await response.json()) as { expandedBranches: WhyNode[] };
+        if (!data.expandedBranches || data.expandedBranches.length === 0) continue;
+
+        const nextSlotToId = { ...currentSlotToId };
+        const nextNodeData = { ...currentNodeData };
+        const nextActive = new Set(currentActive);
+
+        data.expandedBranches.forEach((branch, idx) => {
+          const childSlot = slotKey(depth + 1, siblingIndex * MAX_CHILDREN + idx);
+          nextSlotToId[childSlot] = branch.id;
+          nextNodeData[branch.id] = {
+            label: branch.option,
+            option: branch.consideration,
+            questionAsked: currentNodeData[siblingId]?.nextQuestion || currentNodeData[siblingId]?.label,
+            nextQuestion: branch.question,
+            depth: depth + 2,
+            supporting_evidence: branch.supporting_evidence,
+            counter_arguments: branch.counter_arguments,
+            consideration: branch.consideration,
+          };
+          nodeMetaRef.current.set(branch.id, {
+            parentId: siblingId,
+            depth: depth + 1,
+            index: siblingIndex * MAX_CHILDREN + idx,
+            questionAsked: currentNodeData[siblingId]?.nextQuestion || currentNodeData[siblingId]?.label,
+          });
+          nextActive.add(childSlot);
+        });
+
+        setSlotToNodeId(nextSlotToId);
+        setNodeDataById(nextNodeData);
+        setActiveSlots(nextActive);
+      } catch (error) {
+        // Prefetch failures are non-fatal
+      }
     }
   };
 
@@ -476,7 +560,7 @@ export default function WhysTreePage() {
     if (!canFinalizeRootCause) {
       toast({
         title: "Select a deeper, confirmed why",
-        description: "Confirm a why at level 3 or deeper before finalizing the root cause.",
+        description: "Confirm a why at level 4 or deeper before finalizing the root cause.",
         variant: "destructive",
       });
       return;
@@ -764,7 +848,7 @@ export default function WhysTreePage() {
 
                 {!selectedNode.isRoot && (
                   <div className="pt-2 space-y-2">
-                    {!isSelectedConfirmed && (
+                    {!isSelectedConfirmed && canConfirmWhy && (
                       <Button className="w-full" onClick={handleConfirmWhy} disabled={isProcessingAction}>
                         <ArrowRight className="h-4 w-4 mr-2" />
                         Select this as my why
@@ -776,7 +860,7 @@ export default function WhysTreePage() {
                     </Button>
                     {!canFinalizeRootCause && (
                       <p className="text-xs text-muted-foreground">
-                        Confirm a why at level 3+ before finalizing the root cause.
+                        Confirm a why at level 4+ before finalizing the root cause.
                       </p>
                     )}
                   </div>
