@@ -69,7 +69,7 @@ interface GraphNodeData {
 
 const NODE_WIDTH = 260;
 const NODE_HEIGHT = 120;
-const RADIAL_DISTANCE = 320;
+const RADIAL_DISTANCE = 520;
 // Fixed slot angles: 0° (top), 120° (bottom-right), 240° (bottom-left)
 const FIXED_CHILD_ANGLES = [-Math.PI / 2, Math.PI / 6, (5 * Math.PI) / 6];
 
@@ -275,8 +275,8 @@ export default function WhysTreePage() {
       source: rootId,
       target: node.id,
       type: "smoothstep" as const,
-      style: { stroke: "hsl(215 15% 45%)", strokeWidth: 1.75, strokeOpacity: 0.9 },
-      markerEnd: { type: "arrowclosed", color: "hsl(215 15% 45%)" },
+      style: { stroke: "hsl(210 30% 70%)", strokeWidth: 2.25, strokeOpacity: 1 },
+      markerEnd: { type: "arrowclosed", color: "hsl(210 30% 70%)" },
     }));
 
     setNodes([rootNode, ...childNodes]);
@@ -354,8 +354,8 @@ export default function WhysTreePage() {
           animated: isConfirmed,
           style: {
             stroke: strokeColor,
-            strokeWidth: isConfirmed || isSelectedEdge ? 2.75 : 1.75,
-            strokeOpacity: 0.9,
+            strokeWidth: isConfirmed || isSelectedEdge ? 3.5 : 2.25,
+            strokeOpacity: 1,
           },
           markerEnd: { type: "arrowclosed", color: strokeColor },
         };
@@ -468,8 +468,8 @@ export default function WhysTreePage() {
         source: nodeId,
         target: child.id,
         type: "smoothstep" as const,
-        style: { stroke: "hsl(215 15% 45%)", strokeWidth: 1.75, strokeOpacity: 0.9 },
-        markerEnd: { type: "arrowclosed", color: "hsl(215 15% 45%)" },
+        style: { stroke: "hsl(210 30% 70%)", strokeWidth: 2.25, strokeOpacity: 1 },
+        markerEnd: { type: "arrowclosed", color: "hsl(210 30% 70%)" },
       }));
 
       setNodes((nds) => [...nds, ...childNodes]);
@@ -633,14 +633,14 @@ export default function WhysTreePage() {
             panOnDrag
             zoomOnScroll
             fitView
-            fitViewOptions={{ padding: 0.6 }}
-            minZoom={0.2}
+            fitViewOptions={{ padding: 1.2 }}
+            minZoom={0.1}
             maxZoom={2}
             className="bg-background"
             defaultEdgeOptions={{
               type: "smoothstep",
-              style: { stroke: "hsl(215 15% 45%)", strokeWidth: 1.75, strokeOpacity: 0.9 },
-              markerEnd: { type: "arrowclosed", color: "hsl(215 15% 45%)" },
+              style: { stroke: "hsl(210 30% 70%)", strokeWidth: 2.25, strokeOpacity: 1 },
+              markerEnd: { type: "arrowclosed", color: "hsl(210 30% 70%)" },
             }}
           >
             <Background variant={BackgroundVariant.Dots} gap={24} size={1} />
