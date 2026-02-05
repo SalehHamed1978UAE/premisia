@@ -1,18 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRoute, useLocation } from "wouter";
-import {
-  ReactFlow,
-  Controls,
-  Background,
-  BackgroundVariant,
-  type Node,
-  type Edge,
-  type NodeTypes,
-  type ReactFlowInstance,
-  useNodesState,
-  useEdgesState,
-} from "@xyflow/react";
-import "@xyflow/react/dist/style.css";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -60,61 +47,115 @@ interface GraphNodeData {
   depth: number;
   isRoot?: boolean;
   isLoading?: boolean;
-  isSelected?: boolean;
-  isActivePath?: boolean;
   supporting_evidence?: string[];
   counter_arguments?: string[];
   consideration?: string;
 }
 
-const NODE_WIDTH = 260;
-const NODE_HEIGHT = 120;
-const V_SPACING = 260;
-const H_SPACING = 340;
+const NODE_W = 220;
+const NODE_H = 110;
+const H_GAP = 40;
+const V_GAP = 140;
 const MAX_CHILDREN = 3;
 
-const nodeTypes: NodeTypes = {
-  whyNode: WhyGraphNode,
-};
+const slotKey = (d: number, i: number) => `${d}-${i}`;
 
-function WhyGraphNode({ data }: { data: GraphNodeData }) {
-  if (data.isLoading) {
-    return (
-      <Card className="border-dashed shadow-sm">
-        <CardContent className="p-4 flex items-center gap-3">
-          <Loader2 className="h-4 w-4 animate-spin text-primary" />
-          <div className="space-y-2 w-full">
-            <div className="h-3 bg-muted animate-pulse rounded w-1/2" />
-            <div className="h-3 bg-muted animate-pulse rounded w-2/3" />
-          </div>
-        </CardContent>
-      </Card>
-    );
+function computeLayout(activeSlots: Set<string>) {
+  const nodes: Record<string, { d: number; i: number; x: number; y: number; key: string }> = {};
+  const edges: Array<{ key: string; parent: string; child: string }> = [];
+
+  const parsed = Array.from(activeSlots).map((key) => {
+    const [d, i] = key.split("-").map((v) => parseInt(v, 10));
+    return { d, i, key };
+  });
+  parsed.sort((a, b) => a.d - b.d || a.i - b.i);
+
+  const childrenOf: Record<string, Array<{ d: number; i: number; key: string }>> = {};
+  parsed.forEach((n) => {
+    const ck = slotKey(n.d, n.i);
+    childrenOf[ck] = [];
+    if (n.d < 5) {
+      for (let c = 0; c < MAX_CHILDREN; c++) {
+        const ci = n.i * MAX_CHILDREN + c;
+        const childKey = slotKey(n.d + 1, ci);
+        if (activeSlots.has(childKey)) {
+          childrenOf[ck].push({ d: n.d + 1, i: ci, key: childKey });
+        }
+      }
+    }
+  });
+
+  const widthOf: Record<string, number> = {};
+  const computeWidth = (d: number, i: number) => {
+    const key = slotKey(d, i);
+    const children = childrenOf[key] || [];
+    if (children.length === 0) {
+      widthOf[key] = NODE_W + H_GAP;
+      return widthOf[key];
+    }
+    let total = 0;
+    children.forEach((ch) => {
+      total += computeWidth(ch.d, ch.i);
+    });
+    widthOf[key] = Math.max(NODE_W + H_GAP, total);
+    return widthOf[key];
+  };
+
+  if (activeSlots.has("0-0")) {
+    computeWidth(0, 0);
   }
 
-  return (
-    <Card
-      className={cn(
-        "transition-shadow",
-        data.isSelected ? "border-primary shadow-lg" : "border-border",
-        data.isActivePath && !data.isSelected ? "border-primary/50" : ""
-      )}
-    >
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle className="text-sm leading-snug">{data.label}</CardTitle>
-          <Badge variant="outline" className="text-[10px]">
-            L{data.depth}
-          </Badge>
-        </div>
-      </CardHeader>
-      {data.option && (
-        <CardContent className="pt-0 text-xs text-muted-foreground">
-          {data.option}
-        </CardContent>
-      )}
-    </Card>
-  );
+  const assignX = (d: number, i: number, leftEdge: number) => {
+    const key = slotKey(d, i);
+    const myWidth = widthOf[key] ?? NODE_W + H_GAP;
+    const centerX = leftEdge + myWidth / 2;
+    const y = d * (NODE_H + V_GAP);
+    nodes[key] = { d, i, x: centerX, y, key };
+
+    const children = childrenOf[key] || [];
+    if (children.length > 0) {
+      let childLeft = leftEdge;
+      children.forEach((ch) => {
+        const cw = widthOf[slotKey(ch.d, ch.i)] ?? NODE_W + H_GAP;
+        assignX(ch.d, ch.i, childLeft);
+        childLeft += cw;
+      });
+    }
+  };
+
+  if (activeSlots.has("0-0")) {
+    const rootWidth = widthOf["0-0"] ?? NODE_W + H_GAP;
+    assignX(0, 0, -rootWidth / 2);
+  }
+
+  parsed.forEach((n) => {
+    if (n.d > 0) {
+      const pi = Math.floor(n.i / MAX_CHILDREN);
+      const parentKey = slotKey(n.d - 1, pi);
+      if (nodes[parentKey] && nodes[n.key]) {
+        edges.push({ key: `e-${parentKey}-${n.key}`, parent: parentKey, child: n.key });
+      }
+    }
+  });
+
+  return { nodes: Object.values(nodes), edges };
+}
+
+function computeBounds(nodes: Array<{ x: number; y: number }>) {
+  if (nodes.length === 0) return { x: -200, y: -50, w: 400, h: 200 };
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  nodes.forEach((n) => {
+    if (n.x - NODE_W / 2 < minX) minX = n.x - NODE_W / 2;
+    if (n.x + NODE_W / 2 > maxX) maxX = n.x + NODE_W / 2;
+    if (n.y < minY) minY = n.y;
+    if (n.y + NODE_H + 30 > maxY) maxY = n.y + NODE_H + 30;
+  });
+  const px = 120;
+  const py = 100;
+  return { x: minX - px, y: minY - py, w: maxX - minX + px * 2, h: maxY - minY + py * 2 };
 }
 
 export default function WhysTreePage() {
@@ -129,52 +170,44 @@ export default function WhysTreePage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [treeMeta, setTreeMeta] = useState<{ rootQuestion: string; maxDepth: number } | null>(null);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node<GraphNodeData>>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
-  const [reactFlowInstance, setReactFlowInstance] = useState<ReactFlowInstance | null>(null);
+  const [activeSlots, setActiveSlots] = useState<Set<string>>(new Set(["0-0"]));
+  const [slotToNodeId, setSlotToNodeId] = useState<Record<string, string>>({});
+  const [nodeDataById, setNodeDataById] = useState<Record<string, GraphNodeData>>({});
+  const nodeMetaRef = useRef(new Map<string, { parentId?: string; depth: number; index: number; questionAsked?: string }>());
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [confirmedPathIds, setConfirmedPathIds] = useState<string[]>([]);
-  const [rootId] = useState("root");
   const [customWhyText, setCustomWhyText] = useState("");
   const [isProcessingAction, setIsProcessingAction] = useState(false);
   const [validationWarning, setValidationWarning] = useState<string | null>(null);
 
-  const nodeMetaRef = useRef(new Map<string, { parentId?: string; depth: number; index: number; questionAsked?: string }>());
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const vbRef = useRef({ x: -200, y: -50, w: 400, h: 200 });
+  const [viewBox, setViewBox] = useState(vbRef.current);
+  const [isPanning, setIsPanning] = useState(false);
+  const panRef = useRef({ x: 0, y: 0, vx: 0, vy: 0 });
 
   const confirmedSet = useMemo(() => new Set(confirmedPathIds), [confirmedPathIds]);
 
   const selectedNode = useMemo(() => {
     if (!selectedNodeId) return null;
-    return nodes.find((n) => n.id === selectedNodeId) || null;
-  }, [nodes, selectedNodeId]);
+    return nodeDataById[selectedNodeId] || null;
+  }, [nodeDataById, selectedNodeId]);
 
   const selectedMeta = useMemo(() => {
     if (!selectedNodeId) return null;
     return nodeMetaRef.current.get(selectedNodeId) || null;
-  }, [selectedNodeId, nodes.length]);
+  }, [selectedNodeId]);
 
   const selectedDepth = selectedMeta?.depth ?? 0;
   const isSelectedConfirmed = selectedNodeId ? confirmedSet.has(selectedNodeId) : false;
   const canFinalizeRootCause = Boolean(
     selectedNodeId &&
-      !selectedNode?.data?.isRoot &&
+      selectedNode &&
+      !selectedNode.isRoot &&
       selectedDepth >= 3 &&
       isSelectedConfirmed
   );
-
-  const pathIds = useMemo(() => {
-    if (!selectedNodeId) return new Set<string>();
-    const ids = new Set<string>();
-    let current = selectedNodeId;
-    while (current) {
-      ids.add(current);
-      const meta = nodeMetaRef.current.get(current);
-      current = meta?.parentId || "";
-      if (!current) break;
-    }
-    return ids;
-  }, [selectedNodeId, nodes.length]);
 
   useEffect(() => {
     const fetchUnderstanding = async () => {
@@ -255,234 +288,170 @@ export default function WhysTreePage() {
     nodeMetaRef.current.clear();
     setConfirmedPathIds([]);
 
-    const rootNode: Node<GraphNodeData> = {
-      id: rootId,
-      type: "whyNode",
-      position: { x: 0, y: 0 },
-      data: {
-        label: tree.rootQuestion,
-        depth: 1,
-        isRoot: true,
-      },
-      style: { width: NODE_WIDTH },
+    const rootId = "root";
+    const rootSlot = slotKey(0, 0);
+
+    nodeMetaRef.current.set(rootId, { depth: 0, index: 0, questionAsked: tree.rootQuestion });
+
+    const rootData: GraphNodeData = {
+      label: tree.rootQuestion,
+      depth: 1,
+      isRoot: true,
     };
 
-    nodeMetaRef.current.set(rootId, { depth: 1, index: 0, questionAsked: tree.rootQuestion });
+    const newNodeData: Record<string, GraphNodeData> = { [rootId]: rootData };
+    const newSlotToId: Record<string, string> = { [rootSlot]: rootId };
 
-    const childNodes = createChildNodes(rootNode, tree.branches, tree.rootQuestion);
-    const childEdges = childNodes.map((node) => ({
-      id: `e-${rootId}-${node.id}`,
-      source: rootId,
-      target: node.id,
-      type: "smoothstep" as const,
-      style: { stroke: "hsl(210 30% 70%)", strokeWidth: 2.25, strokeOpacity: 1 },
-      markerEnd: { type: "arrowclosed", color: "hsl(210 30% 70%)" },
-    }));
+    const newActive = new Set<string>([rootSlot]);
 
-    setNodes([rootNode, ...childNodes]);
-    setEdges(childEdges);
-    setSelectedNodeId(rootId);
-    setTimeout(() => centerOnNode(rootId), 0);
-  };
-
-  const createChildNodes = (parent: Node<GraphNodeData>, branches: WhyNode[], questionAsked: string) => {
-    const parentMeta = nodeMetaRef.current.get(parent.id);
-    const parentIndex = parentMeta?.index ?? 0;
-    const depth = (parentMeta?.depth ?? 1) + 1;
-    const levelSize = Math.pow(MAX_CHILDREN, depth - 1);
-
-    return branches.map((branch, index) => {
-      const childIndex = parentIndex * MAX_CHILDREN + (index % MAX_CHILDREN);
-      const position = {
-        x: (childIndex - (levelSize - 1) / 2) * H_SPACING,
-        y: (depth - 1) * V_SPACING,
-      };
-
+    tree.branches.forEach((branch, idx) => {
+      const childSlot = slotKey(1, idx);
       nodeMetaRef.current.set(branch.id, {
-        parentId: parent.id,
-        depth,
-        index: childIndex,
-        questionAsked,
+        parentId: rootId,
+        depth: 1,
+        index: idx,
+        questionAsked: tree.rootQuestion,
       });
-
-      return {
-        id: branch.id,
-        type: "whyNode",
-        position,
-        data: {
-          label: branch.option,
-          option: branch.consideration,
-          questionAsked,
-          nextQuestion: branch.question,
-          depth,
-          supporting_evidence: branch.supporting_evidence,
-          counter_arguments: branch.counter_arguments,
-          consideration: branch.consideration,
-        },
-        style: { width: NODE_WIDTH },
-      } as Node<GraphNodeData>;
+      newSlotToId[childSlot] = branch.id;
+      newNodeData[branch.id] = {
+        label: branch.option,
+        option: branch.consideration,
+        questionAsked: tree.rootQuestion,
+        nextQuestion: branch.question,
+        depth: 2,
+        supporting_evidence: branch.supporting_evidence,
+        counter_arguments: branch.counter_arguments,
+        consideration: branch.consideration,
+      };
+      newActive.add(childSlot);
     });
+
+    setSlotToNodeId(newSlotToId);
+    setNodeDataById(newNodeData);
+    setActiveSlots(newActive);
+    setSelectedNodeId(rootId);
   };
 
-  const centerOnNode = (nodeId: string) => {
-    if (!reactFlowInstance) return;
-    const node = reactFlowInstance.getNode(nodeId);
-    if (!node) return;
-    const centerX = node.position.x + NODE_WIDTH / 2;
-    const centerY = node.position.y + NODE_HEIGHT / 2;
-    reactFlowInstance.setCenter(centerX, centerY, { zoom: 1, duration: 600 });
-  };
+  const layout = useMemo(() => computeLayout(activeSlots), [activeSlots]);
 
-  const updateSelectionVisuals = (nodeId: string | null) => {
-    setNodes((nds) =>
-      nds.map((node) => ({
-        ...node,
-        data: {
-          ...node.data,
-          isSelected: node.id === nodeId,
-          isActivePath: nodeId ? pathIds.has(node.id) : false,
-        },
-      }))
-    );
-
-    setEdges((eds) =>
-      eds.map((edge) => {
-        const isConfirmed = confirmedSet.has(edge.target);
-        const isSelectedEdge = nodeId ? edge.target === nodeId : false;
-        const strokeColor = isConfirmed
-          ? "hsl(142 76% 45%)"
-          : isSelectedEdge
-          ? "hsl(48 94% 50%)"
-          : "hsl(215 15% 45%)";
-        return {
-          ...edge,
-          animated: isConfirmed,
-          style: {
-            stroke: strokeColor,
-            strokeWidth: isConfirmed || isSelectedEdge ? 3.5 : 2.25,
-            strokeOpacity: 1,
-          },
-          markerEnd: { type: "arrowclosed", color: strokeColor },
-        };
-      })
-    );
-  };
+  const posBySlot = useMemo(() => {
+    const map: Record<string, { x: number; y: number }> = {};
+    layout.nodes.forEach((n) => {
+      map[n.key] = { x: n.x, y: n.y };
+    });
+    return map;
+  }, [layout.nodes]);
 
   useEffect(() => {
-    updateSelectionVisuals(selectedNodeId);
-  }, [selectedNodeId, nodes.length, edges.length, confirmedPathIds]);
+    const b = computeBounds(layout.nodes);
+    vbRef.current = b;
+    setViewBox(b);
+  }, [layout]);
+
+  const centerOnNodeId = useCallback((nodeId: string) => {
+    const meta = nodeMetaRef.current.get(nodeId);
+    if (!meta) return;
+    const key = slotKey(meta.depth, meta.index);
+    const pos = posBySlot[key];
+    if (!pos) return;
+    const vb = vbRef.current;
+    const cx = pos.x;
+    const cy = pos.y;
+    const nb = { x: cx - vb.w / 2, y: cy - vb.h / 2, w: vb.w, h: vb.h };
+    vbRef.current = nb;
+    setViewBox(nb);
+  }, [posBySlot]);
 
   const buildSelectedPath = (nodeId: string): Array<{ question: string; answer: string }> => {
     const path: Array<{ question: string; answer: string }> = [];
     let currentId: string | undefined = nodeId;
     while (currentId) {
       const meta = nodeMetaRef.current.get(currentId);
-      const node = nodes.find((n) => n.id === currentId);
-      if (node && meta?.questionAsked && node.data?.label && !node.data.isRoot) {
-        path.push({ question: meta.questionAsked, answer: node.data.label });
+      const node = nodeDataById[currentId];
+      if (node && meta?.questionAsked && node.label && !node.isRoot) {
+        path.push({ question: meta.questionAsked, answer: node.label });
       }
       currentId = meta?.parentId;
     }
     return path.reverse();
   };
 
-  const hasChildrenLoaded = (nodeId: string) => {
-    return edges.some((edge) => edge.source === nodeId && !edge.target.startsWith("loading-"));
-  };
-
-  const removeLoadingChildren = (parentId: string) => {
-    setNodes((nds) => nds.filter((node) => !(node.id.startsWith("loading-") && nodeMetaRef.current.get(node.id)?.parentId === parentId)));
-    setEdges((eds) => eds.filter((edge) => !(edge.source === parentId && edge.target.startsWith("loading-"))));
-  };
-
   const expandNode = async (nodeId: string) => {
     if (!understanding || isProcessingAction) return;
-    if (hasChildrenLoaded(nodeId)) return;
-
-    const node = nodes.find((n) => n.id === nodeId);
-    if (!node) return;
-
     const meta = nodeMetaRef.current.get(nodeId);
     if (!meta || !treeMeta || meta.depth >= treeMeta.maxDepth) return;
 
     setIsProcessingAction(true);
 
-    const loadingId = `loading-${nodeId}`;
-    const depth = meta.depth + 1;
-    const levelSize = Math.pow(MAX_CHILDREN, depth - 1);
-    const childIndex = meta.index * MAX_CHILDREN + 1; // middle slot as placeholder
-    const position = {
-      x: (childIndex - (levelSize - 1) / 2) * H_SPACING,
-      y: (depth - 1) * V_SPACING,
-    };
+    const childSlots = [0, 1, 2].map((c) => slotKey(meta.depth + 1, meta.index * MAX_CHILDREN + c));
+    const newActive = new Set(activeSlots);
+    const newSlotToId = { ...slotToNodeId };
+    const newNodeData = { ...nodeDataById };
 
-    nodeMetaRef.current.set(loadingId, {
-      parentId: nodeId,
-      depth,
-      index: childIndex,
+    childSlots.forEach((slot, idx) => {
+      if (!newSlotToId[slot]) {
+        const tempId = `temp-${slot}`;
+        newSlotToId[slot] = tempId;
+        newNodeData[tempId] = {
+          label: "Loading...",
+          depth: meta.depth + 2,
+          isLoading: true,
+        };
+      }
+      newActive.add(slot);
     });
 
-    setNodes((nds) => [
-      ...nds,
-      {
-        id: loadingId,
-        type: "whyNode",
-        position,
-        data: {
-          label: "Loading next why...",
-          depth,
-          isLoading: true,
-        },
-        style: { width: NODE_WIDTH },
-      },
-    ]);
-
-    setEdges((eds) => [
-      ...eds,
-      {
-        id: `e-${nodeId}-${loadingId}`,
-        source: nodeId,
-        target: loadingId,
-        type: "smoothstep",
-      },
-    ]);
+    setActiveSlots(newActive);
+    setSlotToNodeId(newSlotToId);
+    setNodeDataById(newNodeData);
 
     try {
       const response = await apiRequest("POST", "/api/strategic-consultant/whys-tree/expand", {
         sessionId: understanding.sessionId,
         nodeId,
         selectedPath: buildSelectedPath(nodeId),
-        currentDepth: meta.depth,
-        parentQuestion: node.data?.nextQuestion || node.data?.questionAsked || node.data?.label,
+        currentDepth: meta.depth + 1,
+        parentQuestion: nodeDataById[nodeId]?.nextQuestion || nodeDataById[nodeId]?.label,
         input: understanding.userInput,
       });
 
       const data = (await response.json()) as { expandedBranches: WhyNode[] };
-      removeLoadingChildren(nodeId);
-
       if (!data.expandedBranches || data.expandedBranches.length === 0) {
         setIsProcessingAction(false);
         return;
       }
 
-      const childNodes = createChildNodes(
-        node,
-        data.expandedBranches,
-        node.data?.nextQuestion || node.data?.label || ""
-      );
-      const childEdges = childNodes.map((child) => ({
-        id: `e-${nodeId}-${child.id}`,
-        source: nodeId,
-        target: child.id,
-        type: "smoothstep" as const,
-        style: { stroke: "hsl(210 30% 70%)", strokeWidth: 2.25, strokeOpacity: 1 },
-        markerEnd: { type: "arrowclosed", color: "hsl(210 30% 70%)" },
-      }));
+      const updatedSlotToId = { ...newSlotToId };
+      const updatedNodeData = { ...newNodeData };
 
-      setNodes((nds) => [...nds, ...childNodes]);
-      setEdges((eds) => [...eds, ...childEdges]);
+      data.expandedBranches.forEach((branch, idx) => {
+        const slot = childSlots[idx] || childSlots[0];
+        const oldId = updatedSlotToId[slot];
+        if (oldId && oldId.startsWith("temp-")) {
+          delete updatedNodeData[oldId];
+        }
+        updatedSlotToId[slot] = branch.id;
+        updatedNodeData[branch.id] = {
+          label: branch.option,
+          option: branch.consideration,
+          questionAsked: nodeDataById[nodeId]?.nextQuestion || nodeDataById[nodeId]?.label,
+          nextQuestion: branch.question,
+          depth: meta.depth + 2,
+          supporting_evidence: branch.supporting_evidence,
+          counter_arguments: branch.counter_arguments,
+          consideration: branch.consideration,
+        };
+        nodeMetaRef.current.set(branch.id, {
+          parentId: nodeId,
+          depth: meta.depth + 1,
+          index: meta.index * MAX_CHILDREN + idx,
+          questionAsked: nodeDataById[nodeId]?.nextQuestion || nodeDataById[nodeId]?.label,
+        });
+      });
+
+      setSlotToNodeId(updatedSlotToId);
+      setNodeDataById(updatedNodeData);
     } catch (error: any) {
-      removeLoadingChildren(nodeId);
       toast({
         title: "Expansion failed",
         description: error.message || "Failed to expand branch",
@@ -493,13 +462,8 @@ export default function WhysTreePage() {
     }
   };
 
-  const handleNodeClick = (_: any, node: Node<GraphNodeData>) => {
-    setSelectedNodeId(node.id);
-    centerOnNode(node.id);
-  };
-
   const handleConfirmWhy = () => {
-    if (!selectedNode || selectedNode.data?.isRoot) return;
+    if (!selectedNode || selectedNode.isRoot) return;
     if (!selectedNodeId) return;
     setConfirmedPathIds((prev) => (prev.includes(selectedNodeId) ? prev : [...prev, selectedNodeId]));
     expandNode(selectedNodeId);
@@ -507,8 +471,8 @@ export default function WhysTreePage() {
 
   const handleFinalize = async () => {
     if (!selectedNodeId || !understanding) return;
-    const node = nodes.find((n) => n.id === selectedNodeId);
-    if (!node || node.data?.isRoot) return;
+    const node = nodeDataById[selectedNodeId];
+    if (!node || node.isRoot) return;
     if (!canFinalizeRootCause) {
       toast({
         title: "Select a deeper, confirmed why",
@@ -521,7 +485,7 @@ export default function WhysTreePage() {
     try {
       setValidationWarning(null);
       const response = await apiRequest("POST", "/api/strategic-consultant/whys-tree/validate-root-cause", {
-        rootCauseText: node.data?.label,
+        rootCauseText: node.label,
       });
       const validation = await response.json();
       if (!validation.valid) {
@@ -534,13 +498,13 @@ export default function WhysTreePage() {
       const finalizeResponse = await apiRequest("POST", "/api/strategic-consultant/whys-tree/finalize", {
         sessionId: understanding.sessionId,
         selectedPath: pathHistory,
-        rootCause: node.data?.label,
+        rootCause: node.label,
         input: understanding.userInput,
       });
 
       await finalizeResponse.json();
 
-      localStorage.setItem(`strategic-rootCause-${sessionIdForNavigation}`, node.data?.label || "");
+      localStorage.setItem(`strategic-rootCause-${sessionIdForNavigation}`, node.label || "");
       localStorage.setItem(`strategic-whysPath-${sessionIdForNavigation}`, JSON.stringify(pathHistory));
       localStorage.setItem(`strategic-input-${sessionIdForNavigation}`, understanding.userInput);
       localStorage.setItem(`journey-type-${sessionIdForNavigation}`, understanding.journeyType || "");
@@ -561,61 +525,78 @@ export default function WhysTreePage() {
 
   const handleAddCustomWhy = () => {
     if (!customWhyText.trim() || !selectedNodeId || !treeMeta) return;
-    const parentNode = nodes.find((n) => n.id === selectedNodeId);
-    if (!parentNode) return;
+    const meta = nodeMetaRef.current.get(selectedNodeId);
+    if (!meta) return;
 
+    const slot = slotKey(meta.depth + 1, meta.index * MAX_CHILDREN);
     const customId = `custom-${Date.now()}`;
-    const parentMeta = nodeMetaRef.current.get(selectedNodeId);
-    if (!parentMeta) return;
 
-    const depth = parentMeta.depth + 1;
-    const levelSize = Math.pow(MAX_CHILDREN, depth - 1);
-    const existingChildCount = edges.filter((edge) => edge.source === selectedNodeId).length;
-    const childSlot = Math.min(existingChildCount, MAX_CHILDREN - 1);
-    const childIndex = parentMeta.index * MAX_CHILDREN + childSlot;
-    const position = {
-      x: (childIndex - (levelSize - 1) / 2) * H_SPACING,
-      y: (depth - 1) * V_SPACING,
+    const newActive = new Set(activeSlots);
+    newActive.add(slot);
+
+    const newSlotToId = { ...slotToNodeId, [slot]: customId };
+    const newNodeData = {
+      ...nodeDataById,
+      [customId]: {
+        label: customWhyText.trim(),
+        depth: meta.depth + 2,
+        questionAsked: nodeDataById[selectedNodeId]?.label,
+        nextQuestion: `Why is this? (${customWhyText.trim()})`,
+        consideration: "Custom option",
+      },
     };
 
     nodeMetaRef.current.set(customId, {
       parentId: selectedNodeId,
-      depth,
-      index: childIndex,
-      questionAsked: parentNode.data?.label || parentNode.data?.questionAsked,
+      depth: meta.depth + 1,
+      index: meta.index * MAX_CHILDREN,
+      questionAsked: nodeDataById[selectedNodeId]?.label,
     });
 
-    setNodes((nds) => [
-      ...nds,
-      {
-        id: customId,
-        type: "whyNode",
-        position,
-        data: {
-          label: customWhyText.trim(),
-          depth,
-          questionAsked: parentNode.data?.label || parentNode.data?.questionAsked,
-          nextQuestion: `Why is this? (${customWhyText.trim()})`,
-          supporting_evidence: [],
-          counter_arguments: [],
-          consideration: "Custom option",
-        },
-        style: { width: NODE_WIDTH },
-      },
-    ]);
-
-    setEdges((eds) => [
-      ...eds,
-      {
-        id: `e-${selectedNodeId}-${customId}`,
-        source: selectedNodeId,
-        target: customId,
-        type: "smoothstep",
-      },
-    ]);
-
+    setActiveSlots(newActive);
+    setSlotToNodeId(newSlotToId);
+    setNodeDataById(newNodeData);
     setCustomWhyText("");
   };
+
+  const onMouseDown = (e: React.MouseEvent<SVGSVGElement>) => {
+    if ((e.target as HTMLElement).closest("[data-node]")) return;
+    setIsPanning(true);
+    panRef.current = { x: e.clientX, y: e.clientY, vx: vbRef.current.x, vy: vbRef.current.y };
+  };
+
+  const onMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!isPanning) return;
+    const svg = svgRef.current;
+    if (!svg) return;
+    const r = svg.getBoundingClientRect();
+    const vb = vbRef.current;
+    const dx = (e.clientX - panRef.current.x) * (vb.w / r.width);
+    const dy = (e.clientY - panRef.current.y) * (vb.h / r.height);
+    const nb = { x: panRef.current.vx - dx, y: panRef.current.vy - dy, w: vb.w, h: vb.h };
+    vbRef.current = nb;
+    setViewBox(nb);
+  };
+
+  const onMouseUp = () => setIsPanning(false);
+
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    const h = (e: WheelEvent) => {
+      e.preventDefault();
+      const f = e.deltaY > 0 ? 1.1 : 0.91;
+      const r = el.getBoundingClientRect();
+      const vb = vbRef.current;
+      const mx = ((e.clientX - r.left) / r.width) * vb.w + vb.x;
+      const my = ((e.clientY - r.top) / r.height) * vb.h + vb.y;
+      const nb = { x: mx - (mx - vb.x) * f, y: my - (my - vb.y) * f, w: vb.w * f, h: vb.h * f };
+      vbRef.current = nb;
+      setViewBox(nb);
+    };
+    el.addEventListener("wheel", h, { passive: false });
+    return () => el.removeEventListener("wheel", h);
+  }, []);
 
   if (isLoadingUnderstanding || isGenerating) {
     return (
@@ -627,36 +608,93 @@ export default function WhysTreePage() {
     );
   }
 
+  const vbStr = `${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`;
+
   return (
     <AppLayout>
       <div className="flex h-[calc(100vh-4rem)]">
-        <div className="flex-1 relative">
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onInit={setReactFlowInstance}
-            nodeTypes={nodeTypes}
-            onNodeClick={handleNodeClick}
-            nodesDraggable={false}
-            nodesConnectable={false}
-            panOnDrag
-            zoomOnScroll
-            fitView
-            fitViewOptions={{ padding: 1.2 }}
-            minZoom={0.1}
-            maxZoom={2}
-            className="bg-background"
-            defaultEdgeOptions={{
-              type: "smoothstep",
-              style: { stroke: "hsl(210 30% 70%)", strokeWidth: 2.25, strokeOpacity: 1 },
-              markerEnd: { type: "arrowclosed", color: "hsl(210 30% 70%)" },
-            }}
+        <div className="flex-1 relative bg-background">
+          <svg
+            ref={svgRef}
+            className="w-full h-full"
+            viewBox={vbStr}
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseUp={onMouseUp}
+            onMouseLeave={onMouseUp}
           >
-            <Background variant={BackgroundVariant.Dots} gap={24} size={1} />
-            <Controls />
-          </ReactFlow>
+            <rect x={viewBox.x} y={viewBox.y} width={viewBox.w} height={viewBox.h} fill="transparent" />
+            {layout.edges.map((edge) => {
+              const parentPos = posBySlot[edge.parent];
+              const childPos = posBySlot[edge.child];
+              const parentId = slotToNodeId[edge.parent];
+              const childId = slotToNodeId[edge.child];
+              if (!parentPos || !childPos || !parentId || !childId) return null;
+              const isConfirmed = confirmedSet.has(childId);
+              const isSelected = selectedNodeId === childId;
+              const stroke = isConfirmed ? "#00d4aa" : isSelected ? "#f5b700" : "#7b879b";
+              const x1 = parentPos.x;
+              const y1 = parentPos.y + NODE_H;
+              const x2 = childPos.x;
+              const y2 = childPos.y;
+              const midY = (y1 + y2) / 2;
+              const path = `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+              return (
+                <path
+                  key={edge.key}
+                  d={path}
+                  stroke={stroke}
+                  strokeWidth={isConfirmed || isSelected ? 3 : 2}
+                  fill="none"
+                  opacity={1}
+                />
+              );
+            })}
+
+            {layout.nodes.map((node) => {
+              const nodeId = slotToNodeId[node.key];
+              if (!nodeId) return null;
+              const data = nodeDataById[nodeId];
+              if (!data) return null;
+              const isSelected = nodeId === selectedNodeId;
+              const isConfirmed = confirmedSet.has(nodeId);
+              return (
+                <g
+                  key={node.key}
+                  data-node
+                  onClick={() => {
+                    setSelectedNodeId(nodeId);
+                    centerOnNodeId(nodeId);
+                  }}
+                >
+                  <rect
+                    x={node.x - NODE_W / 2}
+                    y={node.y}
+                    width={NODE_W}
+                    height={NODE_H}
+                    rx={12}
+                    fill="#0f172a"
+                    stroke={isConfirmed ? "#00d4aa" : isSelected ? "#f5b700" : "#3b4657"}
+                    strokeWidth={isConfirmed || isSelected ? 2.5 : 1.5}
+                  />
+                  <foreignObject x={node.x - NODE_W / 2 + 10} y={node.y + 10} width={NODE_W - 20} height={NODE_H - 20}>
+                    <div
+                      style={{
+                        color: "#e2e8f0",
+                        fontSize: 11,
+                        lineHeight: 1.2,
+                        height: NODE_H - 20,
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div style={{ fontWeight: 600, marginBottom: 4 }}>{data.label}</div>
+                      {data.option && <div style={{ opacity: 0.7 }}>{data.option}</div>}
+                    </div>
+                  </foreignObject>
+                </g>
+              );
+            })}
+          </svg>
         </div>
 
         <aside className="w-96 border-l border-border bg-background/80 backdrop-blur p-4 space-y-4 overflow-y-auto">
@@ -664,7 +702,7 @@ export default function WhysTreePage() {
             <Badge variant="secondary">Five Whys</Badge>
             <h2 className="text-lg font-semibold">Path Navigator</h2>
             <p className="text-sm text-muted-foreground">
-              Click a node to select it (yellow). Use “Select this as my why” to confirm and expand (green).
+              Click a node to select it. Use “Select this as my why” to confirm and expand.
             </p>
           </div>
 
@@ -682,7 +720,7 @@ export default function WhysTreePage() {
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Badge variant="outline">Level {selectedDepth}</Badge>
+                  <Badge variant="outline">Level {selectedDepth + 1}</Badge>
                   {isSelectedConfirmed ? (
                     <Badge className="bg-emerald-500/10 text-emerald-300 border-emerald-400/40" variant="outline">
                       Confirmed
@@ -695,36 +733,36 @@ export default function WhysTreePage() {
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Statement</div>
-                  <div className="font-medium">{selectedNode.data.label}</div>
+                  <div className="font-medium">{selectedNode.label}</div>
                 </div>
-                {selectedNode.data.consideration && (
+                {selectedNode.consideration && (
                   <div>
                     <div className="text-xs text-muted-foreground">Consideration</div>
-                    <div>{selectedNode.data.consideration}</div>
+                    <div>{selectedNode.consideration}</div>
                   </div>
                 )}
-                {selectedNode.data.supporting_evidence && selectedNode.data.supporting_evidence.length > 0 && (
+                {selectedNode.supporting_evidence && selectedNode.supporting_evidence.length > 0 && (
                   <div>
                     <div className="text-xs text-muted-foreground">Evidence</div>
                     <ul className="list-disc ml-4 space-y-1">
-                      {selectedNode.data.supporting_evidence.map((item, idx) => (
+                      {selectedNode.supporting_evidence.map((item, idx) => (
                         <li key={idx}>{item}</li>
                       ))}
                     </ul>
                   </div>
                 )}
-                {selectedNode.data.counter_arguments && selectedNode.data.counter_arguments.length > 0 && (
+                {selectedNode.counter_arguments && selectedNode.counter_arguments.length > 0 && (
                   <div>
                     <div className="text-xs text-muted-foreground">Counterpoints</div>
                     <ul className="list-disc ml-4 space-y-1">
-                      {selectedNode.data.counter_arguments.map((item, idx) => (
+                      {selectedNode.counter_arguments.map((item, idx) => (
                         <li key={idx}>{item}</li>
                       ))}
                     </ul>
                   </div>
                 )}
 
-                {!selectedNode.data.isRoot && (
+                {!selectedNode.isRoot && (
                   <div className="pt-2 space-y-2">
                     {!isSelectedConfirmed && (
                       <Button className="w-full" onClick={handleConfirmWhy} disabled={isProcessingAction}>
