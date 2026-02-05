@@ -69,9 +69,9 @@ interface GraphNodeData {
 
 const NODE_WIDTH = 260;
 const NODE_HEIGHT = 120;
-const RADIAL_DISTANCE = 520;
-// Fixed slot angles: 0° (top), 120° (bottom-right), 240° (bottom-left)
-const FIXED_CHILD_ANGLES = [-Math.PI / 2, Math.PI / 6, (5 * Math.PI) / 6];
+const V_SPACING = 260;
+const H_SPACING = 340;
+const MAX_CHILDREN = 3;
 
 const nodeTypes: NodeTypes = {
   whyNode: WhyGraphNode,
@@ -140,7 +140,7 @@ export default function WhysTreePage() {
   const [isProcessingAction, setIsProcessingAction] = useState(false);
   const [validationWarning, setValidationWarning] = useState<string | null>(null);
 
-  const nodeMetaRef = useRef(new Map<string, { parentId?: string; depth: number; angle: number; questionAsked?: string }>());
+  const nodeMetaRef = useRef(new Map<string, { parentId?: string; depth: number; index: number; questionAsked?: string }>());
 
   const confirmedSet = useMemo(() => new Set(confirmedPathIds), [confirmedPathIds]);
 
@@ -267,7 +267,7 @@ export default function WhysTreePage() {
       style: { width: NODE_WIDTH },
     };
 
-    nodeMetaRef.current.set(rootId, { depth: 1, angle: 0, questionAsked: tree.rootQuestion });
+    nodeMetaRef.current.set(rootId, { depth: 1, index: 0, questionAsked: tree.rootQuestion });
 
     const childNodes = createChildNodes(rootNode, tree.branches, tree.rootQuestion);
     const childEdges = childNodes.map((node) => ({
@@ -286,17 +286,22 @@ export default function WhysTreePage() {
   };
 
   const createChildNodes = (parent: Node<GraphNodeData>, branches: WhyNode[], questionAsked: string) => {
+    const parentMeta = nodeMetaRef.current.get(parent.id);
+    const parentIndex = parentMeta?.index ?? 0;
+    const depth = (parentMeta?.depth ?? 1) + 1;
+    const levelSize = Math.pow(MAX_CHILDREN, depth - 1);
+
     return branches.map((branch, index) => {
-      const angle = FIXED_CHILD_ANGLES[index % FIXED_CHILD_ANGLES.length];
+      const childIndex = parentIndex * MAX_CHILDREN + (index % MAX_CHILDREN);
       const position = {
-        x: parent.position.x + RADIAL_DISTANCE * Math.cos(angle),
-        y: parent.position.y + RADIAL_DISTANCE * Math.sin(angle),
+        x: (childIndex - (levelSize - 1) / 2) * H_SPACING,
+        y: (depth - 1) * V_SPACING,
       };
 
       nodeMetaRef.current.set(branch.id, {
         parentId: parent.id,
-        depth: branch.depth,
-        angle,
+        depth,
+        index: childIndex,
         questionAsked,
       });
 
@@ -309,7 +314,7 @@ export default function WhysTreePage() {
           option: branch.consideration,
           questionAsked,
           nextQuestion: branch.question,
-          depth: branch.depth,
+          depth,
           supporting_evidence: branch.supporting_evidence,
           counter_arguments: branch.counter_arguments,
           consideration: branch.consideration,
@@ -403,16 +408,18 @@ export default function WhysTreePage() {
     setIsProcessingAction(true);
 
     const loadingId = `loading-${nodeId}`;
-    const angle = meta.angle;
+    const depth = meta.depth + 1;
+    const levelSize = Math.pow(MAX_CHILDREN, depth - 1);
+    const childIndex = meta.index * MAX_CHILDREN + 1; // middle slot as placeholder
     const position = {
-      x: node.position.x + RADIAL_DISTANCE * Math.cos(angle),
-      y: node.position.y + RADIAL_DISTANCE * Math.sin(angle),
+      x: (childIndex - (levelSize - 1) / 2) * H_SPACING,
+      y: (depth - 1) * V_SPACING,
     };
 
     nodeMetaRef.current.set(loadingId, {
       parentId: nodeId,
-      depth: meta.depth + 1,
-      angle,
+      depth,
+      index: childIndex,
     });
 
     setNodes((nds) => [
@@ -423,7 +430,7 @@ export default function WhysTreePage() {
         position,
         data: {
           label: "Loading next why...",
-          depth: meta.depth + 1,
+          depth,
           isLoading: true,
         },
         style: { width: NODE_WIDTH },
@@ -561,16 +568,20 @@ export default function WhysTreePage() {
     const parentMeta = nodeMetaRef.current.get(selectedNodeId);
     if (!parentMeta) return;
 
-    const angle = parentMeta.angle + Math.PI / 4;
+    const depth = parentMeta.depth + 1;
+    const levelSize = Math.pow(MAX_CHILDREN, depth - 1);
+    const existingChildCount = edges.filter((edge) => edge.source === selectedNodeId).length;
+    const childSlot = Math.min(existingChildCount, MAX_CHILDREN - 1);
+    const childIndex = parentMeta.index * MAX_CHILDREN + childSlot;
     const position = {
-      x: parentNode.position.x + RADIAL_DISTANCE * Math.cos(angle),
-      y: parentNode.position.y + RADIAL_DISTANCE * Math.sin(angle),
+      x: (childIndex - (levelSize - 1) / 2) * H_SPACING,
+      y: (depth - 1) * V_SPACING,
     };
 
     nodeMetaRef.current.set(customId, {
       parentId: selectedNodeId,
-      depth: parentMeta.depth + 1,
-      angle,
+      depth,
+      index: childIndex,
       questionAsked: parentNode.data?.label || parentNode.data?.questionAsked,
     });
 
@@ -582,7 +593,7 @@ export default function WhysTreePage() {
         position,
         data: {
           label: customWhyText.trim(),
-          depth: parentMeta.depth + 1,
+          depth,
           questionAsked: parentNode.data?.label || parentNode.data?.questionAsked,
           nextQuestion: `Why is this? (${customWhyText.trim()})`,
           supporting_evidence: [],
