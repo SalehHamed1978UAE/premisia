@@ -57,7 +57,7 @@ const NODE_H = 110;
 const H_GAP = 40;
 const V_GAP = 140;
 const MAX_CHILDREN = 3;
-const NODE_SUMMARY_LIMIT = 160;
+const NODE_SUMMARY_LIMIT = 220;
 
 const slotKey = (d: number, i: number) => `${d}-${i}`;
 
@@ -779,14 +779,9 @@ export default function WhysTreePage() {
                         overflow: "hidden",
                       }}
                     >
-                      <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                      <div style={{ fontWeight: 600 }}>
                         {summarizeText(data.label, NODE_SUMMARY_LIMIT)}
                       </div>
-                      {data.option && (
-                        <div style={{ opacity: 0.7 }}>
-                          {summarizeText(data.option, NODE_SUMMARY_LIMIT)}
-                        </div>
-                      )}
                     </div>
                   </foreignObject>
                 </g>
