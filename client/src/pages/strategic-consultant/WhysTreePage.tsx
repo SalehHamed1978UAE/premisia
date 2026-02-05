@@ -69,7 +69,7 @@ interface GraphNodeData {
 
 const NODE_WIDTH = 260;
 const NODE_HEIGHT = 120;
-const RADIAL_DISTANCE = 320;
+const RADIAL_DISTANCE = 360;
 const CHILD_SPREAD = Math.PI * 0.9; // ~162 degrees
 
 const nodeTypes: NodeTypes = {
@@ -134,18 +134,33 @@ export default function WhysTreePage() {
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [confirmedPathIds, setConfirmedPathIds] = useState<string[]>([]);
+  const [rootId] = useState("root");
   const [customWhyText, setCustomWhyText] = useState("");
   const [isProcessingAction, setIsProcessingAction] = useState(false);
   const [validationWarning, setValidationWarning] = useState<string | null>(null);
 
   const nodeMetaRef = useRef(new Map<string, { parentId?: string; depth: number; angle: number; questionAsked?: string }>());
 
+  const confirmedSet = useMemo(() => new Set(confirmedPathIds), [confirmedPathIds]);
+
   const selectedNode = useMemo(() => {
     if (!selectedNodeId) return null;
     return nodes.find((n) => n.id === selectedNodeId) || null;
   }, [nodes, selectedNodeId]);
 
-  const confirmedSet = useMemo(() => new Set(confirmedPathIds), [confirmedPathIds]);
+  const selectedMeta = useMemo(() => {
+    if (!selectedNodeId) return null;
+    return nodeMetaRef.current.get(selectedNodeId) || null;
+  }, [selectedNodeId, nodes.length]);
+
+  const selectedDepth = selectedMeta?.depth ?? 0;
+  const isSelectedConfirmed = selectedNodeId ? confirmedSet.has(selectedNodeId) : false;
+  const canFinalizeRootCause = Boolean(
+    selectedNodeId &&
+      !selectedNode?.data?.isRoot &&
+      selectedDepth >= 3 &&
+      isSelectedConfirmed
+  );
 
   const pathIds = useMemo(() => {
     if (!selectedNodeId) return new Set<string>();
@@ -239,7 +254,6 @@ export default function WhysTreePage() {
     nodeMetaRef.current.clear();
     setConfirmedPathIds([]);
 
-    const rootId = "root";
     const rootNode: Node<GraphNodeData> = {
       id: rootId,
       type: "whyNode",
@@ -485,6 +499,14 @@ export default function WhysTreePage() {
     if (!selectedNodeId || !understanding) return;
     const node = nodes.find((n) => n.id === selectedNodeId);
     if (!node || node.data?.isRoot) return;
+    if (!canFinalizeRootCause) {
+      toast({
+        title: "Select a deeper, confirmed why",
+        description: "Double-click a why at level 3 or deeper to confirm the path before finalizing.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
       setValidationWarning(null);
@@ -641,6 +663,18 @@ export default function WhysTreePage() {
                 <CardTitle className="text-base">Selected Why</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Badge variant="outline">Level {selectedDepth}</Badge>
+                  {isSelectedConfirmed ? (
+                    <Badge className="bg-emerald-500/10 text-emerald-300 border-emerald-400/40" variant="outline">
+                      Confirmed
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-amber-500/10 text-amber-300 border-amber-400/40" variant="outline">
+                      Selected
+                    </Badge>
+                  )}
+                </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Statement</div>
                   <div className="font-medium">{selectedNode.data.label}</div>
@@ -674,10 +708,15 @@ export default function WhysTreePage() {
 
                 {!selectedNode.data.isRoot && (
                   <div className="pt-2 space-y-2">
-                    <Button className="w-full" onClick={handleFinalize}>
+                    <Button className="w-full" onClick={handleFinalize} disabled={!canFinalizeRootCause}>
                       <CheckCircle2 className="h-4 w-4 mr-2" />
                       This is my root cause
                     </Button>
+                    {!canFinalizeRootCause && (
+                      <p className="text-xs text-muted-foreground">
+                        Select a why at level 3+ and double-click to confirm the path.
+                      </p>
+                    )}
                   </div>
                 )}
               </CardContent>
