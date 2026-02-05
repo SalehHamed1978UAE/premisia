@@ -246,7 +246,7 @@ export default function WhysTreePage() {
     selectedNodeId &&
       selectedNode &&
       !selectedNode.isRoot &&
-      selectedDepth < (treeMeta?.maxDepth ?? 5)
+      selectedDepth < ((treeMeta?.maxDepth ?? 5) - 1)
   );
 
   useEffect(() => {
@@ -419,7 +419,7 @@ export default function WhysTreePage() {
   const expandNode = async (nodeId: string) => {
     if (!understanding || isProcessingAction) return;
     const meta = nodeMetaRef.current.get(nodeId);
-    if (!meta || !treeMeta || meta.depth >= treeMeta.maxDepth) return;
+    if (!meta || !treeMeta || meta.depth >= treeMeta.maxDepth - 1) return;
 
     setIsProcessingAction(true);
 
@@ -493,7 +493,7 @@ export default function WhysTreePage() {
       setNodeDataById(updatedNodeData);
 
       // Prefetch siblings in background (non-blocking)
-      prefetchSiblingBranches(nodeId, meta.depth + 1, meta.index, updatedSlotToId, updatedNodeData, newActive);
+      prefetchSiblingBranches(nodeId, meta.depth + 1, updatedSlotToId, updatedNodeData, newActive);
     } catch (error: any) {
       toast({
         title: "Expansion failed",
@@ -508,7 +508,6 @@ export default function WhysTreePage() {
   const prefetchSiblingBranches = async (
     parentId: string,
     depth: number,
-    parentIndex: number,
     currentSlotToId: Record<string, string>,
     currentNodeData: Record<string, GraphNodeData>,
     currentActive: Set<string>
@@ -519,9 +518,8 @@ export default function WhysTreePage() {
     const parentMeta = nodeMetaRef.current.get(parentId);
     if (!parentMeta) return;
 
-    const siblings = currentActive
-      ? [0, 1, 2].map((c) => parentIndex * MAX_CHILDREN + c)
-      : [];
+    const siblingGroupIndex = Math.floor(parentMeta.index / MAX_CHILDREN);
+    const siblings = [0, 1, 2].map((c) => siblingGroupIndex * MAX_CHILDREN + c);
 
     for (const siblingIndex of siblings) {
       const siblingSlot = slotKey(depth, siblingIndex);
@@ -583,7 +581,9 @@ export default function WhysTreePage() {
     if (!selectedNode || selectedNode.isRoot) return;
     if (!selectedNodeId) return;
     setConfirmedPathIds((prev) => (prev.includes(selectedNodeId) ? prev : [...prev, selectedNodeId]));
-    expandNode(selectedNodeId);
+    if (selectedDepth < ((treeMeta?.maxDepth ?? 5) - 1)) {
+      expandNode(selectedNodeId);
+    }
   };
 
   const handleFinalize = async () => {
