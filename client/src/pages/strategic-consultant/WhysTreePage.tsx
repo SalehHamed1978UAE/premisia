@@ -166,6 +166,31 @@ function summarizeText(text?: string, limit: number = NODE_SUMMARY_LIMIT) {
   return trimmed.slice(0, limit - 1).trimEnd() + "…";
 }
 
+function summarizeStatement(text?: string) {
+  if (!text) return "";
+  let t = text.replace(/→/g, " ").replace(/\s+/g, " ").trim();
+  // Prefer the first sentence
+  const sentence = t.split(/[.!?]/)[0]?.trim() || t;
+  t = sentence;
+
+  const cutTokens = [" through ", " where ", " while ", " which ", " that ", " because ", " due to "];
+  for (const token of cutTokens) {
+    const idx = t.toLowerCase().indexOf(token);
+    if (idx > 40) {
+      t = t.slice(0, idx).trim();
+      break;
+    }
+  }
+
+  // Limit to ~16 words for compact summary
+  const words = t.split(" ");
+  if (words.length > 16) {
+    t = words.slice(0, 16).join(" ");
+  }
+
+  return summarizeText(t, NODE_SUMMARY_LIMIT);
+}
+
 export default function WhysTreePage() {
   const [, params] = useRoute("/strategic-consultant/whys-tree/:understandingId");
   const [, setLocation] = useLocation();
@@ -672,19 +697,28 @@ export default function WhysTreePage() {
 
   const onMouseUp = () => setIsPanning(false);
 
+  const applyZoom = (factor: number, clientX?: number, clientY?: number) => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const r = svg.getBoundingClientRect();
+    const vb = vbRef.current;
+    const mx = clientX !== undefined ? clientX : r.left + r.width / 2;
+    const my = clientY !== undefined ? clientY : r.top + r.height / 2;
+    const vx = ((mx - r.left) / r.width) * vb.w + vb.x;
+    const vy = ((my - r.top) / r.height) * vb.h + vb.y;
+    const nb = { x: vx - (vx - vb.x) * factor, y: vy - (vy - vb.y) * factor, w: vb.w * factor, h: vb.h * factor };
+    vbRef.current = nb;
+    setViewBox(nb);
+  };
+
   useEffect(() => {
     const el = svgRef.current;
     if (!el) return;
     const h = (e: WheelEvent) => {
+      if (!e.shiftKey) return;
       e.preventDefault();
       const f = e.deltaY > 0 ? 1.1 : 0.91;
-      const r = el.getBoundingClientRect();
-      const vb = vbRef.current;
-      const mx = ((e.clientX - r.left) / r.width) * vb.w + vb.x;
-      const my = ((e.clientY - r.top) / r.height) * vb.h + vb.y;
-      const nb = { x: mx - (mx - vb.x) * f, y: my - (my - vb.y) * f, w: vb.w * f, h: vb.h * f };
-      vbRef.current = nb;
-      setViewBox(nb);
+      applyZoom(f, e.clientX, e.clientY);
     };
     el.addEventListener("wheel", h, { passive: false });
     return () => el.removeEventListener("wheel", h);
@@ -706,6 +740,14 @@ export default function WhysTreePage() {
     <AppLayout>
       <div className="flex h-[calc(100vh-4rem)]">
         <div className="flex-1 relative bg-background">
+          <div className="absolute bottom-6 left-6 z-10 flex flex-col gap-2">
+            <Button size="sm" onClick={() => applyZoom(0.9)} aria-label="Zoom in">
+              +
+            </Button>
+            <Button size="sm" onClick={() => applyZoom(1.1)} aria-label="Zoom out">
+              −
+            </Button>
+          </div>
           <svg
             ref={svgRef}
             className="w-full h-full"
@@ -780,7 +822,7 @@ export default function WhysTreePage() {
                       }}
                     >
                       <div style={{ fontWeight: 600 }}>
-                        {summarizeText(data.label, NODE_SUMMARY_LIMIT)}
+                        {summarizeStatement(data.label)}
                       </div>
                     </div>
                   </foreignObject>
