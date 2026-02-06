@@ -31,6 +31,31 @@ describe('Export JSON payload normalization', () => {
     expect(payload.strategicImplications).toEqual(['Fix store operations before paid growth']);
   });
 
+  it('prefers the richer nested whysPath when top-level path is shorter', () => {
+    const payload = buildStrategyJsonPayload({
+      understanding: { id: 'u3' },
+      journeySession: {
+        journeyType: 'business_model_innovation',
+        completedFrameworks: ['five_whys'],
+      },
+      strategyVersion: {
+        id: 'sv3',
+        analysisData: {
+          five_whys: {
+            root_cause: 'True root cause',
+            whysPath: ['step 1', 'step 2', 'step 3', 'step 4'],
+          },
+        },
+      },
+      decisions: [],
+      whysPath: ['question 1', 'question 2', 'question 3'],
+    });
+
+    expect(payload.whysPath).toHaveLength(4);
+    expect(payload.whysPath).toEqual(['step 1', 'step 2', 'step 3', 'step 4']);
+    expect(payload.rootCause).toBe('True root cause');
+  });
+
   it('derives frameworks from analysisData keys when frameworks array is empty', () => {
     const payload = buildStrategyJsonPayload({
       understanding: { id: 'u2' },
@@ -71,4 +96,3 @@ describe('Export JSON payload normalization', () => {
     expect(payload.assignments).toHaveLength(1);
   });
 });
-
