@@ -1337,18 +1337,29 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
     let version;
     const userId = (req.user as any)?.claims?.sub || null;
 
-    // Determine target version number with fallback logic
-    let targetVersionNumber: number;
-    if (versionNumber) {
-      // Version number provided in request (from journey flow)
-      targetVersionNumber = versionNumber;
-    } else {
-      // Fallback: query max version and increment
+    // Determine target version number (authoritative: journey session if available)
+    let targetVersionNumber: number | undefined = versionNumber;
+
+    const understanding = await db.query.strategicUnderstanding.findFirst({
+      where: eq(strategicUnderstanding.sessionId, sessionId),
+    });
+
+    if (understanding?.id) {
+      const journeySession = await db.query.journeySessions.findFirst({
+        where: eq(journeySessions.understandingId, understanding.id),
+      });
+      if (journeySession?.versionNumber) {
+        targetVersionNumber = journeySession.versionNumber;
+        console.log(`[FiveWhys] Using journey session versionNumber=${targetVersionNumber} (authoritative)`);
+      }
+    }
+
+    if (!targetVersionNumber) {
       const versions = await storage.getStrategyVersionsBySession(sessionId);
       if (versions.length > 0) {
         const maxVersion = Math.max(...versions.map(v => v.versionNumber));
-        targetVersionNumber = maxVersion + 1;
-        console.log(`[FiveWhys] No versionNumber provided, computed max+1: ${targetVersionNumber}`);
+        targetVersionNumber = maxVersion;
+        console.log(`[FiveWhys] No versionNumber provided, using latest=${targetVersionNumber}`);
       } else {
         targetVersionNumber = 1;
         console.log(`[FiveWhys] No existing versions, using version 1`);
@@ -1400,9 +1411,6 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
 
     // Persist to frameworkInsights for export/report consistency
     try {
-      const understanding = await db.query.strategicUnderstanding.findFirst({
-        where: eq(strategicUnderstanding.sessionId, sessionId),
-      });
       if (understanding?.id) {
         const journeySession = await db.query.journeySessions.findFirst({
           where: eq(journeySessions.understandingId, understanding.id),
@@ -1425,9 +1433,6 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
 
     // Update journey session status to completed if possible
     try {
-      const understanding = await db.query.strategicUnderstanding.findFirst({
-        where: eq(strategicUnderstanding.sessionId, sessionId),
-      });
       if (understanding?.id) {
         await db.update(journeySessions)
           .set({ status: 'completed', completedAt: new Date() })
