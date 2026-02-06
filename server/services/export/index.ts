@@ -8,6 +8,7 @@ import { DocxExporter, generateDocxReport, generateDocxFromHtml } from './docx-e
 import { CsvExporter, generateAssignmentsCsv, generateWorkstreamsCsv, generateResourcesCsv, generateRisksCsv, generateBenefitsCsv } from './csv-exporter';
 import { ExcelExporter, generateExcelWorkbook } from './excel-exporter';
 import { escapeCsvField } from './base-exporter';
+import { buildStrategyJsonPayload, buildEpmJsonPayload } from './json-payloads';
 
 export { loadExportData, escapeCsvField };
 export type { ExportRequest, FullExportPackage, ExportResult, IExporter };
@@ -62,8 +63,10 @@ export async function generateFullPassExport(
   const docx = await generateDocxReport(exportPackage);
   
   console.log('[Export Service] Generating JSON and CSV exports...');
-  const strategyJson = JSON.stringify(exportPackage.strategy, null, 2);
-  const epmJson = exportPackage.epm?.program ? JSON.stringify(exportPackage.epm, null, 2) : null;
+  const strategyJson = JSON.stringify(buildStrategyJsonPayload(exportPackage.strategy), null, 2);
+  const epmJson = exportPackage.epm?.program
+    ? JSON.stringify(buildEpmJsonPayload(exportPackage.epm), null, 2)
+    : null;
   
   const parseField = (field: any) => {
     if (!field) return null;

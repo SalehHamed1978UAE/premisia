@@ -1,0 +1,74 @@
+import { describe, expect, it } from 'vitest';
+import { buildEpmJsonPayload, buildStrategyJsonPayload } from '../server/services/export/json-payloads';
+
+describe('Export JSON payload normalization', () => {
+  it('normalizes strategy payload with canonical five-whys fields', () => {
+    const payload = buildStrategyJsonPayload({
+      understanding: { id: 'u1' },
+      journeySession: {
+        journeyType: 'business_model_innovation',
+        completedFrameworks: ['five_whys', 'bmc'],
+      },
+      strategyVersion: {
+        id: 'sv1',
+        analysisData: {
+          frameworks: [],
+          five_whys: {
+            root_cause: 'Low repeat visits due to poor in-store experience',
+            whysPath: ['why 1', 'why 2', 'why 3', 'why 4'],
+            strategic_implications: ['Fix store operations before paid growth'],
+          },
+        },
+      },
+      decisions: [],
+      whysPath: [],
+    });
+
+    expect(payload.whysPath).toHaveLength(4);
+    expect(payload.rootCause).toBe('Low repeat visits due to poor in-store experience');
+    expect(payload.frameworks).toContain('five_whys');
+    expect(payload.frameworks).toContain('bmc');
+    expect(payload.strategicImplications).toEqual(['Fix store operations before paid growth']);
+  });
+
+  it('derives frameworks from analysisData keys when frameworks array is empty', () => {
+    const payload = buildStrategyJsonPayload({
+      understanding: { id: 'u2' },
+      journeySession: { completedFrameworks: [] },
+      strategyVersion: {
+        id: 'sv2',
+        analysisData: {
+          frameworks: [],
+          pestle: {},
+          porters: {},
+          swot: {},
+        },
+      },
+      decisions: [],
+    });
+
+    expect(payload.frameworks).toEqual(expect.arrayContaining(['pestle', 'porters', 'swot']));
+  });
+
+  it('adds normalized top-level EPM sections from program JSON fields', () => {
+    const payload = buildEpmJsonPayload({
+      program: {
+        workstreams: JSON.stringify([{ id: 'WS001' }, { id: 'WS002' }]),
+        resourcePlan: JSON.stringify({
+          internalTeam: [{ role: 'Program Manager' }],
+          externalResources: [{ type: 'Consultant' }],
+        }),
+        riskRegister: JSON.stringify({ risks: [{ id: 'R1' }] }),
+        benefitsRealization: JSON.stringify({ benefits: [{ id: 'B1' }] }),
+      },
+      assignments: [{ id: 'A1' }],
+    });
+
+    expect(payload.workstreams).toHaveLength(2);
+    expect(payload.resources).toHaveLength(2);
+    expect(payload.risks).toHaveLength(1);
+    expect(payload.benefits).toHaveLength(1);
+    expect(payload.assignments).toHaveLength(1);
+  });
+});
+
