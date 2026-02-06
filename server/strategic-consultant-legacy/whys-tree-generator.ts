@@ -32,6 +32,7 @@ export interface WhyNode {
   id: string;
   question: string;
   option: string;
+  summary?: string;
   depth: number;
   branches?: WhyNode[];
   isLeaf: boolean;
@@ -71,6 +72,9 @@ export class WhysTreeGenerator {
   private readonly maxDepth = 5;
   private groundingContext: OrchestrationResult | null = null;
   private cfContextPrompt: string = '';
+  private readonly summaryMaxChars = 180;
+  private readonly summaryMinWords = 4;
+  private readonly summaryMaxWords = 22;
 
   /**
    * Build a context prompt section from Context Foundry data
@@ -326,6 +330,134 @@ Return JSON:
     return { valid: true };
   }
 
+  private normalizeSummary(summary: string): string {
+    let cleaned = summary.replace(/\s+/g, ' ').trim();
+    cleaned = cleaned.replace(/[.!?]+$/g, '').trim();
+    if (!cleaned.endsWith('.')) {
+      cleaned = `${cleaned}.`;
+    }
+    return cleaned;
+  }
+
+  private validateSummary(summary: string): { valid: boolean; reason?: string } {
+    const cleaned = summary.replace(/\s+/g, ' ').trim();
+    if (cleaned.length === 0) {
+      return { valid: false, reason: 'Summary is empty' };
+    }
+    if (cleaned.includes('...') || cleaned.includes('…')) {
+      return { valid: false, reason: 'Summary contains ellipsis' };
+    }
+    if (!cleaned.endsWith('.')) {
+      return { valid: false, reason: 'Summary does not end with a period' };
+    }
+    if (cleaned.length > this.summaryMaxChars) {
+      return { valid: false, reason: `Summary too long (${cleaned.length} chars)` };
+    }
+    const words = cleaned.split(/\s+/).filter(Boolean);
+    if (words.length < this.summaryMinWords) {
+      return { valid: false, reason: `Summary too short (${words.length} words)` };
+    }
+    if (words.length > this.summaryMaxWords) {
+      return { valid: false, reason: `Summary too long (${words.length} words)` };
+    }
+    const sentenceCount = cleaned.split(/[.!?]/).filter(Boolean).length;
+    if (sentenceCount > 1) {
+      return { valid: false, reason: 'Summary has multiple sentences' };
+    }
+    return { valid: true };
+  }
+
+  private fallbackSummary(option: string): string {
+    let summary = option.replace(/\s+/g, ' ').trim();
+    summary = summary.split(/[.!?]/)[0]?.trim() || summary;
+    const cutTokens = [' due to ', ' because ', ' which ', ' where ', ' while ', ' that ', ' through '];
+    for (const token of cutTokens) {
+      const idx = summary.toLowerCase().indexOf(token);
+      if (idx > 40) {
+        summary = summary.slice(0, idx).trim();
+        break;
+      }
+    }
+    if (summary.length > this.summaryMaxChars) {
+      summary = summary.slice(0, this.summaryMaxChars);
+      summary = summary.replace(/\s+\S*$/, '').trim();
+    }
+    return this.normalizeSummary(summary);
+  }
+
+  private async generateOptionSummary(option: string): Promise<string> {
+    const systemPrompt = `You are a business analyst. Summarize the reason into ONE sentence.`;
+    const maxRetries = 3;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const userMessage = `Summarize the following business reason into ONE sentence.
+
+Rules:
+- End with a period.
+- No ellipsis, no trailing fragments.
+- Keep the main subject and key causal mechanism.
+- Max ${this.summaryMaxChars} characters.
+- Between ${this.summaryMinWords} and ${this.summaryMaxWords} words.
+
+Reason:
+${option}
+
+Return JSON:
+{ "summary": "..." }`;
+
+      try {
+        const response = await aiClients.callWithFallback({
+          systemPrompt,
+          userMessage,
+          maxTokens: 200,
+        });
+        const parsed = this.extractJSON(response, 'generateOptionSummary', { summary: '' });
+        const raw = typeof parsed.summary === 'string' ? parsed.summary : '';
+        const candidate = this.normalizeSummary(raw);
+        const validation = this.validateSummary(candidate);
+        if (validation.valid) {
+          return candidate;
+        }
+        console.warn(`[Summary QC] Invalid summary attempt ${attempt}/${maxRetries}: ${validation.reason}`);
+      } catch (error: any) {
+        console.warn(`[Summary QC] Summary generation failed attempt ${attempt}/${maxRetries}:`, error.message || error);
+      }
+    }
+
+    return this.fallbackSummary(option);
+  }
+
+  private async buildNodesFromBranches(
+    branches: Array<{
+      option: string;
+      next_question: string;
+      supporting_evidence: string[];
+      counter_arguments: string[];
+      consideration: string;
+    }>,
+    depth: number,
+    isLeaf: boolean,
+    parentId?: string
+  ): Promise<WhyNode[]> {
+    const summaries = await Promise.all(
+      branches.map((branch) => this.generateOptionSummary(branch.option))
+    );
+
+    return branches.map((branch, idx) => ({
+      id: randomUUID(),
+      question: branch.next_question,
+      option: branch.option,
+      summary: summaries[idx],
+      depth,
+      isLeaf,
+      parentId,
+      branches: isLeaf ? undefined : [],
+      supporting_evidence: branch.supporting_evidence || [],
+      counter_arguments: branch.counter_arguments || [],
+      consideration: branch.consideration || '',
+    }));
+  }
+
   async generateLevelInParallel(
     question: string,
     context: { input: string; history: Array<{ question: string; answer: string }> },
@@ -429,26 +561,7 @@ Return JSON:
 
       if (validBranches.length >= 3) {
         console.log(`[Quality Control] ✓ Generated ${validBranches.length} valid answers on attempt ${attempt}/${maxRetries}`);
-        
-        const nodes: WhyNode[] = validBranches.map((branch: { 
-          option: string; 
-          next_question: string;
-          supporting_evidence: string[];
-          counter_arguments: string[];
-          consideration: string;
-        }) => ({
-          id: randomUUID(),
-          question: branch.next_question,
-          option: branch.option,
-          depth,
-          isLeaf,
-          parentId,
-          branches: isLeaf ? undefined : [],
-          supporting_evidence: branch.supporting_evidence || [],
-          counter_arguments: branch.counter_arguments || [],
-          consideration: branch.consideration || '',
-        }));
-
+        const nodes = await this.buildNodesFromBranches(validBranches, depth, isLeaf, parentId);
         return nodes;
       }
 
@@ -463,26 +576,7 @@ Return JSON:
         if (validBranches.length === 0) {
           throw new Error(`Failed to generate any valid answers after ${maxRetries} attempts. All answers were circular or too similar to the question.`);
         }
-
-        const nodes: WhyNode[] = validBranches.map((branch: { 
-          option: string; 
-          next_question: string;
-          supporting_evidence: string[];
-          counter_arguments: string[];
-          consideration: string;
-        }) => ({
-          id: randomUUID(),
-          question: branch.next_question,
-          option: branch.option,
-          depth,
-          isLeaf,
-          parentId,
-          branches: isLeaf ? undefined : [],
-          supporting_evidence: branch.supporting_evidence || [],
-          counter_arguments: branch.counter_arguments || [],
-          consideration: branch.consideration || '',
-        }));
-
+        const nodes = await this.buildNodesFromBranches(validBranches, depth, isLeaf, parentId);
         return nodes;
       }
     }

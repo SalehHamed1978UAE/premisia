@@ -15,6 +15,7 @@ interface WhyNode {
   id: string;
   question: string;
   option: string;
+  summary?: string;
   depth: number;
   branches?: WhyNode[];
   isLeaf: boolean;
@@ -41,6 +42,7 @@ interface UnderstandingResponse {
 
 interface GraphNodeData {
   label: string;
+  summary?: string;
   option?: string;
   questionAsked?: string;
   nextQuestion?: string;
@@ -359,6 +361,7 @@ export default function WhysTreePage() {
       newSlotToId[childSlot] = branch.id;
       newNodeData[branch.id] = {
         label: branch.option,
+        summary: branch.summary,
         option: branch.consideration,
         questionAsked: tree.rootQuestion,
         nextQuestion: branch.question,
@@ -478,6 +481,7 @@ export default function WhysTreePage() {
         updatedSlotToId[slot] = branch.id;
         updatedNodeData[branch.id] = {
           label: branch.option,
+          summary: branch.summary,
           option: branch.consideration,
           questionAsked: nodeDataById[nodeId]?.nextQuestion || nodeDataById[nodeId]?.label,
           nextQuestion: branch.question,
@@ -670,6 +674,7 @@ export default function WhysTreePage() {
       ...nodeDataById,
       [customId]: {
         label: customWhyText.trim(),
+        summary: summarizeStatement(customWhyText.trim()),
         depth: meta.depth + 2,
         questionAsked: nodeDataById[selectedNodeId]?.label,
         nextQuestion: `Why is this? (${customWhyText.trim()})`,
@@ -836,7 +841,7 @@ export default function WhysTreePage() {
                       }}
                     >
                       <div style={{ fontWeight: 600 }}>
-                        {summarizeStatement(data.label)}
+                        {data.summary || summarizeStatement(data.label)}
                       </div>
                     </div>
                   </foreignObject>
