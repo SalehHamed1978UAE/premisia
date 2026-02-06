@@ -273,6 +273,11 @@ export default function WhysTreePage() {
                 localStorage.setItem(`journey-type-${data.sessionId}`, journeyData.journeyType);
                 data.journeyType = journeyData.journeyType;
               }
+              if (journeyData.versionNumber) {
+                localStorage.setItem(`journey-version-${data.sessionId}`, String(journeyData.versionNumber));
+                localStorage.setItem(`journey-version-${storedJourneySessionId}`, String(journeyData.versionNumber));
+                localStorage.setItem(`strategic-versionNumber-${data.sessionId}`, String(journeyData.versionNumber));
+              }
               setJourneySessionId(storedJourneySessionId);
             }
           } catch (journeyError) {
@@ -619,7 +624,14 @@ export default function WhysTreePage() {
         versionNumber,
       });
 
-      await finalizeResponse.json();
+      const finalizeData = await finalizeResponse.json();
+      if (finalizeData?.versionNumber) {
+        localStorage.setItem(`strategic-versionNumber-${sessionIdForNavigation}`, String(finalizeData.versionNumber));
+        localStorage.setItem(`journey-version-${sessionIdForNavigation}`, String(finalizeData.versionNumber));
+        if (journeySessionId) {
+          localStorage.setItem(`journey-version-${journeySessionId}`, String(finalizeData.versionNumber));
+        }
+      }
 
       localStorage.setItem(`strategic-rootCause-${sessionIdForNavigation}`, node.label || "");
       localStorage.setItem(`strategic-whysPath-${sessionIdForNavigation}`, JSON.stringify(pathHistory));
