@@ -2709,33 +2709,59 @@ router.get('/journey-research/stream/:sessionId', async (req: Request, res: Resp
 
     const userId = (req.user as any)?.claims?.sub || 'system';
 
-    // Check existing versions
-    const existingVersions = await db.select()
-      .from(strategyVersions)
-      .where(eq(strategyVersions.sessionId, sessionId));
+    const targetVersionNumber = journeySession.versionNumber || 1;
+    const existingVersion = await storage.getStrategyVersion(sessionId, targetVersionNumber);
 
-    const versionNumber = existingVersions.length + 1;
+    const mergeAnalysis = (existingAnalysis: any, newAnalysis: any) => {
+      const merged = { ...newAnalysis, ...existingAnalysis };
+      const existingWhys = existingAnalysis?.five_whys;
+      const hasFinalizedWhys =
+        existingWhys?.root_cause ||
+        (Array.isArray(existingWhys?.whysPath) && existingWhys.whysPath.length >= 4);
+      if (hasFinalizedWhys) {
+        merged.five_whys = existingWhys;
+      } else if (newAnalysis?.five_whys) {
+        merged.five_whys = newAnalysis.five_whys;
+      }
+      return merged;
+    };
 
-    await db.insert(strategyVersions).values({
-      sessionId,
-      versionNumber,
-      versionLabel: `${journeyDef.name} v${versionNumber}`,
-      analysisData: frameworkResults,
-      decisionsData: decisions,
-      status: 'draft',
-      createdBy: userId,
-      userId,
-    });
+    if (existingVersion) {
+      const existingAnalysis =
+        typeof existingVersion.analysisData === 'string'
+          ? JSON.parse(existingVersion.analysisData as any)
+          : existingVersion.analysisData || {};
 
-    console.log(`[JOURNEY-RESEARCH] ✓ Created strategy version ${versionNumber}`);
+      const mergedAnalysis = mergeAnalysis(existingAnalysis, frameworkResults);
+
+      await storage.updateStrategyVersion(existingVersion.id, {
+        analysisData: mergedAnalysis,
+        decisionsData: decisions,
+        versionLabel: existingVersion.versionLabel || `${journeyDef.name} v${targetVersionNumber}`,
+        status: 'draft',
+      });
+      console.log(`[JOURNEY-RESEARCH] ✓ Updated strategy version ${targetVersionNumber}`);
+    } else {
+      await storage.createStrategyVersion({
+        sessionId,
+        versionNumber: targetVersionNumber,
+        versionLabel: `${journeyDef.name} v${targetVersionNumber}`,
+        analysisData: frameworkResults,
+        decisionsData: decisions,
+        status: 'draft',
+        createdBy: userId,
+        userId,
+      });
+      console.log(`[JOURNEY-RESEARCH] ✓ Created strategy version ${targetVersionNumber}`);
+    }
 
     // Build next URL based on journey page sequence
     const decisionPageIndex = journeyDef.pageSequence.findIndex(p => p.includes('decisions'));
-    let nextUrl = `/strategy-workspace/decisions/${sessionId}/${versionNumber}`;
+    let nextUrl = `/strategy-workspace/decisions/${sessionId}/${targetVersionNumber}`;
     if (decisionPageIndex > 0) {
       nextUrl = journeyDef.pageSequence[decisionPageIndex]
         .replace(':sessionId', sessionId)
-        .replace(':versionNumber', versionNumber.toString());
+        .replace(':versionNumber', targetVersionNumber.toString());
     }
 
     // Clear keepalive
@@ -2750,7 +2776,7 @@ router.get('/journey-research/stream/:sessionId', async (req: Request, res: Resp
       data: {
         findings: frameworkResults,
         decisions,
-        versionNumber,
+        versionNumber: targetVersionNumber,
         nextUrl,
         bmcAnalysis: frameworkResults.bmc,
         sourcesAnalyzed: Object.keys(frameworkResults).length,
