@@ -1285,11 +1285,19 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
       return '';
     }).filter((s: string) => s && s.trim().length > 0);
 
+    console.log('[FiveWhys] Finalize received:', {
+      sessionId,
+      versionNumber,
+      selectedPathLength: Array.isArray(selectedPath) ? selectedPath.length : 0,
+      normalizedPathLength: normalizedPath.length,
+      rootCausePreview: rootCause?.slice(0, 120),
+    });
+
     const insights = await whysTreeGenerator.analyzePathInsights(
       input,
       normalizedPath.map((option: string, index: number) => ({
-      id: `node-${index}`,
-      question: '',
+        id: `node-${index}`,
+        question: '',
       option,
       depth: index + 1,
       isLeaf: false,
@@ -1442,6 +1450,23 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
       console.warn('[FiveWhys] Failed to update journey status:', statusError?.message || statusError);
     }
 
+    // Trace: read back analysisData from the version we wrote
+    try {
+      const writtenVersion = await storage.getStrategyVersion(sessionId, targetVersionNumber);
+      const analysisData = typeof writtenVersion?.analysisData === 'string'
+        ? JSON.parse(writtenVersion?.analysisData as any)
+        : writtenVersion?.analysisData || {};
+      const five = analysisData?.five_whys || {};
+      console.log('[FiveWhys] Finalize write verification:', {
+        targetVersionNumber,
+        fiveWhysKeys: five ? Object.keys(five) : [],
+        whysPathLength: Array.isArray(five?.whysPath) ? five.whysPath.length : 0,
+        rootCause: five?.root_cause || null,
+      });
+    } catch (verifyError: any) {
+      console.warn('[FiveWhys] Finalize verification failed:', verifyError?.message || verifyError);
+    }
+
     res.json({
       rootCause,
       fullPath: normalizedPath,
@@ -1468,6 +1493,51 @@ router.post('/whys-tree/validate-root-cause', async (req: Request, res: Response
   } catch (error: any) {
     console.error('Error in /whys-tree/validate-root-cause:', error);
     res.status(500).json({ error: error.message || 'Root cause validation failed' });
+  }
+});
+
+// Debug endpoint: inspect Five Whys persistence for a session
+router.get('/whys-tree/debug/:sessionId', async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.params;
+    if (!sessionId) return res.status(400).json({ error: 'sessionId is required' });
+
+    const understanding = await db.query.strategicUnderstanding.findFirst({
+      where: eq(strategicUnderstanding.sessionId, sessionId),
+    });
+    const journeySession = understanding?.id
+      ? await db.query.journeySessions.findFirst({
+          where: eq(journeySessions.understandingId, understanding.id),
+        })
+      : null;
+
+    const versions = await storage.getStrategyVersionsBySession(sessionId);
+    const versionSummaries = versions.map(v => {
+      const analysisData = typeof v.analysisData === 'string' ? JSON.parse(v.analysisData as any) : v.analysisData || {};
+      const five = analysisData?.five_whys || {};
+      return {
+        versionNumber: v.versionNumber,
+        status: v.status,
+        fiveWhysKeys: five ? Object.keys(five) : [],
+        whysPathLength: Array.isArray(five?.whysPath) ? five.whysPath.length : 0,
+        rootCause: five?.root_cause || null,
+      };
+    });
+
+    res.json({
+      sessionId,
+      understandingId: understanding?.id || null,
+      journeySession: journeySession ? {
+        id: journeySession.id,
+        versionNumber: journeySession.versionNumber,
+        status: journeySession.status,
+        completedFrameworks: journeySession.completedFrameworks,
+      } : null,
+      versions: versionSummaries,
+    });
+  } catch (error: any) {
+    console.error('[FiveWhys Debug] Error:', error);
+    res.status(500).json({ error: error.message || 'Debug endpoint failed' });
   }
 });
 
@@ -2739,6 +2809,15 @@ router.get('/journey-research/stream/:sessionId', async (req: Request, res: Resp
         decisionsData: decisions,
         versionLabel: existingVersion.versionLabel || `${journeyDef.name} v${targetVersionNumber}`,
         status: 'draft',
+      });
+      const existingWhys = existingAnalysis?.five_whys;
+      const mergedWhys = mergedAnalysis?.five_whys;
+      console.log('[JOURNEY-RESEARCH] Five Whys merge check:', {
+        targetVersionNumber,
+        existingWhysKeys: existingWhys ? Object.keys(existingWhys) : [],
+        mergedWhysKeys: mergedWhys ? Object.keys(mergedWhys) : [],
+        mergedWhysPathLength: Array.isArray(mergedWhys?.whysPath) ? mergedWhys.whysPath.length : 0,
+        mergedRootCause: mergedWhys?.root_cause || null,
       });
       console.log(`[JOURNEY-RESEARCH] ✓ Updated strategy version ${targetVersionNumber}`);
     } else {
