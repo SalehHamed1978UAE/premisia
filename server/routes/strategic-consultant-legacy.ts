@@ -1423,6 +1423,20 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
       console.warn('[FiveWhys] Failed to persist frameworkInsights:', insightsError?.message || insightsError);
     }
 
+    // Update journey session status to completed if possible
+    try {
+      const understanding = await db.query.strategicUnderstanding.findFirst({
+        where: eq(strategicUnderstanding.sessionId, sessionId),
+      });
+      if (understanding?.id) {
+        await db.update(journeySessions)
+          .set({ status: 'completed', completedAt: new Date() })
+          .where(eq(journeySessions.understandingId, understanding.id));
+      }
+    } catch (statusError: any) {
+      console.warn('[FiveWhys] Failed to update journey status:', statusError?.message || statusError);
+    }
+
     res.json({
       rootCause,
       fullPath: normalizedPath,

@@ -589,6 +589,13 @@ export default function WhysTreePage() {
     if (!node || node.isRoot) return;
     if (!canFinalizeRootCause) return;
 
+    const storedVersionRaw =
+      localStorage.getItem(`journey-version-${understanding.sessionId}`) ||
+      (journeySessionId ? localStorage.getItem(`journey-version-${journeySessionId}`) : null) ||
+      localStorage.getItem(`strategic-versionNumber-${understanding.sessionId}`);
+    const storedVersionNumber = storedVersionRaw ? parseInt(storedVersionRaw, 10) : NaN;
+    const versionNumber = Number.isFinite(storedVersionNumber) ? storedVersionNumber : undefined;
+
     try {
       setIsProcessingAction(true);
       setValidationWarning(null);
@@ -608,6 +615,7 @@ export default function WhysTreePage() {
         selectedPath: pathHistory,
         rootCause: node.label,
         input: understanding.userInput,
+        versionNumber,
       });
 
       await finalizeResponse.json();
