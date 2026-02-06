@@ -76,16 +76,16 @@ export class CsvExporter extends BaseExporter {
     }
   }
 
-  generateAssignmentsCsv(assignments: any[]): string {
-    return generateAssignmentsCsv(assignments);
+  generateAssignmentsCsv(assignments: any[], workstreams?: any[]): string {
+    return generateAssignmentsCsv(assignments, workstreams);
   }
 
   generateWorkstreamsCsv(workstreams: any[]): string {
     return generateWorkstreamsCsv(workstreams);
   }
 
-  generateResourcesCsv(resourcePlan: any): string {
-    return generateResourcesCsv(resourcePlan);
+  generateResourcesCsv(resourcePlan: any, assignments: any[] = []): string {
+    return generateResourcesCsv(resourcePlan, assignments);
   }
 
   generateRisksCsv(riskRegister: any): string {
@@ -97,14 +97,59 @@ export class CsvExporter extends BaseExporter {
   }
 }
 
-export function generateAssignmentsCsv(assignments: any[]): string {
-  const headers = ['Task ID', 'Task Name', 'Owner', 'Resource ID', 'Resource Name', 'Resource Role', 'Resource Type', 'Status', 'Allocation %', 'Assigned From', 'Assigned To'];
+export function generateAssignmentsCsv(assignments: any[], workstreams?: any[]): string {
+  const headers = ['Task ID', 'Task Name', 'Workstream ID', 'Owner', 'Resource ID', 'Resource Name', 'Resource Role', 'Resource Type', 'Status', 'Allocation %', 'Assigned From', 'Assigned To', 'Start Month', 'End Month'];
   const rows = [headers.join(',')];
 
+  const deliverableLookup: Record<string, { workstreamId?: string; startMonth?: number; endMonth?: number }> = {};
+  if (Array.isArray(workstreams)) {
+    workstreams.forEach((ws: any) => {
+      const wsId = ws.id;
+      const wsStart = ws.startMonth;
+      const wsEnd = ws.endMonth;
+      (ws.deliverables || []).forEach((d: any) => {
+        const taskId = d.id || d.taskId || d.name;
+        if (!taskId) return;
+        const dueMonth = d.dueMonth ?? d.due_month;
+        deliverableLookup[taskId] = {
+          workstreamId: wsId,
+          startMonth: wsStart,
+          endMonth: dueMonth ?? wsEnd ?? wsStart,
+        };
+      });
+    });
+  }
+
+  const parseTaskIdWorkstream = (taskId?: string) => {
+    if (!taskId) return '';
+    const match = taskId.match(/^(WS\\d+)/i);
+    return match ? match[1] : '';
+  };
+
+  const minAssignedFrom = assignments
+    .map(a => a.assignedFrom)
+    .filter(Boolean)
+    .map((d: any) => new Date(d))
+    .sort((a, b) => a.getTime() - b.getTime())[0];
+
   assignments.forEach(assignment => {
+    const lookup = deliverableLookup[assignment.taskId] || {};
+    const workstreamId = lookup.workstreamId || assignment.workstreamId || parseTaskIdWorkstream(assignment.taskId);
+
+    let startMonth = lookup.startMonth;
+    let endMonth = lookup.endMonth;
+    if ((startMonth === undefined || endMonth === undefined) && assignment.assignedFrom && assignment.assignedTo && minAssignedFrom) {
+      const start = new Date(assignment.assignedFrom);
+      const end = new Date(assignment.assignedTo);
+      const monthsFromStart = (d: Date) => Math.max(0, Math.round((d.getTime() - minAssignedFrom.getTime()) / (1000 * 60 * 60 * 24 * 30)));
+      startMonth = startMonth ?? monthsFromStart(start);
+      endMonth = endMonth ?? monthsFromStart(end);
+    }
+
     const row = [
       escapeCsvField(assignment.taskId),
       escapeCsvField(assignment.taskName),
+      escapeCsvField(workstreamId || ''),
       escapeCsvField(assignment.owner || assignment.resourceName || assignment.resourceRole || ''),
       escapeCsvField(assignment.resourceId),
       escapeCsvField(assignment.resourceName),
@@ -114,6 +159,8 @@ export function generateAssignmentsCsv(assignments: any[]): string {
       assignment.allocationPercent?.toString() || '100',
       assignment.assignedFrom ? format(new Date(assignment.assignedFrom), 'yyyy-MM-dd') : '',
       assignment.assignedTo ? format(new Date(assignment.assignedTo), 'yyyy-MM-dd') : '',
+      startMonth !== undefined ? `Month ${startMonth}` : '',
+      endMonth !== undefined ? `Month ${endMonth}` : '',
     ];
     rows.push(row.join(','));
   });
@@ -148,12 +195,29 @@ export function generateWorkstreamsCsv(workstreams: any[]): string {
   return rows.join('\n');
 }
 
-export function generateResourcesCsv(resourcePlan: any): string {
-  const headers = ['Resource Type', 'Role/Title', 'FTE/Quantity', 'Skills/Responsibilities', 'Source'];
+export function generateResourcesCsv(resourcePlan: any, assignments: any[] = []): string {
+  const headers = ['Resource Type', 'Role/Title', 'FTE/Quantity', 'Total Allocation %', 'Estimated FTE', 'Overallocated', 'Skills/Responsibilities', 'Source'];
   const rows = [headers.join(',')];
 
   const plan = typeof resourcePlan === 'string' ? JSON.parse(resourcePlan) : resourcePlan;
   if (!plan) return rows.join('\n');
+
+  const allocationByRole: Record<string, number> = {};
+  assignments.forEach((a: any) => {
+    const key = a.resourceRole || a.resourceName || a.owner;
+    if (!key) return;
+    const alloc = typeof a.allocationPercent === 'number' ? a.allocationPercent : parseFloat(a.allocationPercent || '0');
+    if (!Number.isNaN(alloc)) {
+      allocationByRole[key] = (allocationByRole[key] || 0) + alloc;
+    }
+  });
+
+  const allocationInfo = (role: string) => {
+    const total = allocationByRole[role] ?? 0;
+    const estimatedFte = total ? (total / 100).toFixed(2) : '';
+    const over = total > 100 ? 'Yes' : 'No';
+    return { total: total ? total.toFixed(0) + '%' : '', estimatedFte, over };
+  };
 
   if (plan.internalTeam && plan.internalTeam.length > 0) {
     plan.internalTeam.forEach((r: any) => {
@@ -170,10 +234,15 @@ export function generateResourcesCsv(resourcePlan: any): string {
         skillsText = r.justification;
       }
       
+      const role = r.role || r.title || 'Not specified';
+      const alloc = allocationInfo(role);
       const row = [
         'Internal',
-        escapeCsvField(r.role || r.title || 'Not specified'),
+        escapeCsvField(role),
         r.allocation || r.fte || 'TBD',
+        alloc.total,
+        alloc.estimatedFte,
+        alloc.over,
         escapeCsvField(skillsText),
         'Internal Team'
       ];
@@ -195,10 +264,15 @@ export function generateResourcesCsv(resourcePlan: any): string {
         skillsText = r.description;
       }
       
+      const role = r.type || r.role || 'Contractor';
+      const alloc = allocationInfo(role);
       const row = [
         'External',
-        escapeCsvField(r.type || r.role || 'Contractor'),
+        escapeCsvField(role),
         r.quantity || r.count || '1',
+        alloc.total,
+        alloc.estimatedFte,
+        alloc.over,
         escapeCsvField(skillsText),
         'External/Vendor'
       ];

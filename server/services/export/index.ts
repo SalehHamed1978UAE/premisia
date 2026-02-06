@@ -64,7 +64,6 @@ export async function generateFullPassExport(
   console.log('[Export Service] Generating JSON and CSV exports...');
   const strategyJson = JSON.stringify(exportPackage.strategy, null, 2);
   const epmJson = exportPackage.epm?.program ? JSON.stringify(exportPackage.epm, null, 2) : null;
-  const assignmentsCsv = exportPackage.epm?.assignments ? generateAssignmentsCsv(exportPackage.epm.assignments) : null;
   
   const parseField = (field: any) => {
     if (!field) return null;
@@ -73,10 +72,13 @@ export async function generateFullPassExport(
   };
   
   const workstreams = parseField(exportPackage.epm?.program?.workstreams);
+  const assignmentsCsv = exportPackage.epm?.assignments
+    ? generateAssignmentsCsv(exportPackage.epm.assignments, workstreams || [])
+    : null;
   const workstreamsCsv = workstreams && workstreams.length > 0 ? generateWorkstreamsCsv(workstreams) : null;
   
   const resourcePlan = parseField(exportPackage.epm?.program?.resourcePlan);
-  const resourcesCsv = resourcePlan ? generateResourcesCsv(resourcePlan) : null;
+  const resourcesCsv = resourcePlan ? generateResourcesCsv(resourcePlan, exportPackage.epm?.assignments || []) : null;
   
   const riskRegister = parseField(exportPackage.epm?.program?.riskRegister);
   const risksCsv = riskRegister ? generateRisksCsv(riskRegister) : null;
