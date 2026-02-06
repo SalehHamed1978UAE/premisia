@@ -3,6 +3,7 @@ import { format } from 'date-fns';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { BaseExporter, type FullExportPackage, type ExportResult } from './base-exporter';
+import { deriveInsights } from './insights';
 
 export class HtmlExporter extends BaseExporter {
   readonly name = 'HTML Exporter';
@@ -241,8 +242,7 @@ export function generateUiStyledHtml(pkg: FullExportPackage): string {
       </div>
     `);
     
-    const context = parseField(j.accumulatedContext);
-    const insights = context?.insights || {};
+    const insights = deriveInsights(pkg, parseField);
     
     if (insights.rootCauses || insights.whysPath || insights.strategicImplications) {
       contentParts.push(`

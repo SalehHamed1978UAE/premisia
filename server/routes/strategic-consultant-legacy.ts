@@ -1277,7 +1277,17 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
       });
     }
 
-    const insights = await whysTreeGenerator.analyzePathInsights(input, selectedPath.map((option: string, index: number) => ({
+    const normalizedPath: string[] = (selectedPath || []).map((step: any) => {
+      if (typeof step === 'string') return step;
+      if (step?.answer) return step.answer;
+      if (step?.option) return step.option;
+      if (step?.label) return step.label;
+      return '';
+    }).filter((s: string) => s && s.trim().length > 0);
+
+    const insights = await whysTreeGenerator.analyzePathInsights(
+      input,
+      normalizedPath.map((option: string, index: number) => ({
       id: `node-${index}`,
       question: '',
       option,
@@ -1292,28 +1302,28 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
         problem_statement: input,
         why_1: {
           question: "Why is this happening?",
-          answer: selectedPath[0] || ""
+          answer: normalizedPath[0] || ""
         },
         why_2: {
           question: "Why does that occur?",
-          answer: selectedPath[1] || ""
+          answer: normalizedPath[1] || ""
         },
         why_3: {
           question: "Why is that the case?",
-          answer: selectedPath[2] || ""
+          answer: normalizedPath[2] || ""
         },
         why_4: {
           question: "Why does that matter?",
-          answer: selectedPath[3] || ""
+          answer: normalizedPath[3] || ""
         },
         why_5: {
           question: "What's the underlying cause?",
-          answer: selectedPath[4] || ""
+          answer: normalizedPath[4] || ""
         },
         root_cause: rootCause,
         strategic_implications: insights.strategic_implications,
         // Keep whysPath for backward compatibility
-        whysPath: selectedPath,
+        whysPath: normalizedPath,
         recommendedActions: insights.recommended_actions,
         framework: 'five_whys',
       },
@@ -1388,9 +1398,34 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
       });
     }
 
+    // Persist to frameworkInsights for export/report consistency
+    try {
+      const understanding = await db.query.strategicUnderstanding.findFirst({
+        where: eq(strategicUnderstanding.sessionId, sessionId),
+      });
+      if (understanding?.id) {
+        const journeySession = await db.query.journeySessions.findFirst({
+          where: eq(journeySessions.understandingId, understanding.id),
+        });
+        if (journeySession?.id) {
+          await db.insert(frameworkInsights).values({
+            sessionId: journeySession.id,
+            frameworkName: 'five_whys',
+            insights: {
+              whysPath: normalizedPath,
+              rootCauses: rootCause ? [rootCause] : [],
+              strategicImplications: insights.strategic_implications || [],
+            },
+          });
+        }
+      }
+    } catch (insightsError: any) {
+      console.warn('[FiveWhys] Failed to persist frameworkInsights:', insightsError?.message || insightsError);
+    }
+
     res.json({
       rootCause,
-      fullPath: selectedPath,
+      fullPath: normalizedPath,
       strategicImplication: insights.strategic_implications.join('; '),
       versionNumber: version.versionNumber,
     });

@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
 import { BaseExporter, type FullExportPackage, type ExportResult } from './base-exporter';
+import { deriveInsights } from './insights';
 
 export class MarkdownExporter extends BaseExporter {
   readonly name = 'Markdown Exporter';
@@ -215,8 +216,7 @@ export function generateMarkdownReport(pkg: FullExportPackage): string {
     
     lines.push('\n---\n');
     
-    const context = parseField(j.accumulatedContext);
-    const insights = context?.insights || {};
+    const insights = deriveInsights(pkg, parseField);
     
     if (pkg.strategy.fiveWhysTree) {
       const treeMarkdown = generateFiveWhysTreeMarkdown(pkg.strategy.fiveWhysTree, pkg.strategy.whysPath);

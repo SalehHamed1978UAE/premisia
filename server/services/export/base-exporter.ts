@@ -126,6 +126,18 @@ export async function loadExportData(
     }
   }
 
+  // Fallback: derive whysPath from strategyVersion.analysisData if missing
+  if ((!whysPath || whysPath.length === 0) && strategyVersion?.analysisData) {
+    const analysisData = typeof strategyVersion.analysisData === 'string'
+      ? JSON.parse(strategyVersion.analysisData as any)
+      : strategyVersion.analysisData;
+    const fiveWhys = analysisData?.five_whys || analysisData?.fiveWhys;
+    if (fiveWhys?.whysPath && Array.isArray(fiveWhys.whysPath)) {
+      whysPath = fiveWhys.whysPath;
+      console.log('[Export Service] Five Whys path loaded from strategyVersion.analysisData:', whysPath.length);
+    }
+  }
+
   console.log('[Export Service] loadExportData - Fetching clarifications from strategic understanding...');
   let clarifications;
   if (understanding) {
@@ -203,6 +215,28 @@ export async function loadExportData(
       createdAt: d.createdAt,
     }));
     console.log('[Export Service] Strategic decisions loaded:', decisions.length);
+  }
+
+  // Fallback: use decisionsData from strategyVersion if no decisions persisted
+  if (decisions.length === 0 && strategyVersion?.decisionsData) {
+    const decisionsData = typeof strategyVersion.decisionsData === 'string'
+      ? JSON.parse(strategyVersion.decisionsData as any)
+      : strategyVersion.decisionsData;
+    const rawDecisions = Array.isArray(decisionsData?.decisions) ? decisionsData.decisions : [];
+    if (rawDecisions.length > 0) {
+      decisions = rawDecisions.map((d: any, idx: number) => {
+        const recommended = Array.isArray(d.options) ? d.options.find((o: any) => o.recommended) : null;
+        return {
+          id: d.id || `decision_${idx + 1}`,
+          type: d.title || d.question || 'Decision',
+          value: recommended?.label || (d.options && d.options[0]?.label) || d.title || 'Not specified',
+          rationale: recommended?.reasoning || d.context || '',
+          options: d.options || [],
+          question: d.question || '',
+        };
+      });
+      console.log('[Export Service] Strategic decisions loaded from decisionsData:', decisions.length);
+    }
   }
 
   return {
