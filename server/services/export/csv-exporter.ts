@@ -98,13 +98,14 @@ export class CsvExporter extends BaseExporter {
 }
 
 export function generateAssignmentsCsv(assignments: any[]): string {
-  const headers = ['Task ID', 'Task Name', 'Resource ID', 'Resource Name', 'Resource Role', 'Resource Type', 'Status', 'Allocation %', 'Assigned From', 'Assigned To'];
+  const headers = ['Task ID', 'Task Name', 'Owner', 'Resource ID', 'Resource Name', 'Resource Role', 'Resource Type', 'Status', 'Allocation %', 'Assigned From', 'Assigned To'];
   const rows = [headers.join(',')];
 
   assignments.forEach(assignment => {
     const row = [
       escapeCsvField(assignment.taskId),
       escapeCsvField(assignment.taskName),
+      escapeCsvField(assignment.owner || assignment.resourceName || assignment.resourceRole || ''),
       escapeCsvField(assignment.resourceId),
       escapeCsvField(assignment.resourceName),
       escapeCsvField(assignment.resourceRole || ''),
@@ -209,7 +210,7 @@ export function generateResourcesCsv(resourcePlan: any): string {
 }
 
 export function generateRisksCsv(riskRegister: any): string {
-  const headers = ['Risk ID', 'Risk Description', 'Probability', 'Impact', 'Severity', 'Mitigation Strategy', 'Owner'];
+  const headers = ['Risk ID', 'Risk Description', 'Probability', 'Impact', 'Severity', 'Severity Score', 'Severity Level', 'Mitigation Strategy', 'Owner'];
   const rows = [headers.join(',')];
 
   const risks = typeof riskRegister === 'string' ? JSON.parse(riskRegister) : riskRegister;
@@ -220,8 +221,26 @@ export function generateRisksCsv(riskRegister: any): string {
     riskArray.forEach((r: any, idx: number) => {
       // Calculate severity if not provided: probability (0-100) * impact multiplier
       const impactMultiplier = r.impact === 'Critical' ? 4 : r.impact === 'High' ? 3 : r.impact === 'Medium' ? 2 : 1;
-      const calculatedSeverity = r.severity ?? (r.probability ? Math.round(r.probability * impactMultiplier / 10) : '-');
-      const severityLabel = calculatedSeverity >= 30 ? 'Critical' : calculatedSeverity >= 20 ? 'High' : calculatedSeverity >= 10 ? 'Medium' : calculatedSeverity > 0 ? 'Low' : '-';
+      let probabilityValue: number | null = null;
+      if (typeof r.probability === 'number') probabilityValue = r.probability;
+      if (typeof r.probability === 'string') {
+        const p = parseFloat(r.probability.replace('%', '').trim());
+        if (!Number.isNaN(p)) probabilityValue = p;
+      }
+
+      const calculatedSeverity = r.severity ?? (probabilityValue !== null ? Math.round((probabilityValue * impactMultiplier) / 10) : '-');
+      const severityScore = typeof calculatedSeverity === 'number' ? calculatedSeverity : '-';
+      const severityLabel = typeof calculatedSeverity === 'number'
+        ? calculatedSeverity >= 30
+          ? 'Critical'
+          : calculatedSeverity >= 20
+            ? 'High'
+            : calculatedSeverity >= 10
+              ? 'Medium'
+              : calculatedSeverity > 0
+                ? 'Low'
+                : '-'
+        : '-';
       
       const row = [
         r.id || `RISK-${idx + 1}`,
@@ -229,6 +248,8 @@ export function generateRisksCsv(riskRegister: any): string {
         typeof r.probability === 'number' ? `${r.probability}%` : (r.probability || r.likelihood || '-'),
         r.impact || '-',
         typeof calculatedSeverity === 'number' ? `${calculatedSeverity} (${severityLabel})` : calculatedSeverity,
+        severityScore,
+        severityLabel,
         escapeCsvField(r.mitigation || r.response || r.strategy || '-'),
         escapeCsvField(r.owner || '-')
       ];

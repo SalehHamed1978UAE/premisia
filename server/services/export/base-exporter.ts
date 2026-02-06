@@ -100,6 +100,13 @@ export async function loadExportData(
     }
   }
 
+  if (assignments.length > 0) {
+    assignments = assignments.map(a => ({
+      ...a,
+      owner: a.owner || a.resourceName || a.resourceRole || null,
+    }));
+  }
+
   console.log('[Export Service] loadExportData - Fetching Five Whys tree from framework_insights...');
   let fiveWhysTree;
   let whysPath;
