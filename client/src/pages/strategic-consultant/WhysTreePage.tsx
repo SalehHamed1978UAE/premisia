@@ -407,8 +407,9 @@ export default function WhysTreePage() {
     while (currentId) {
       const meta = nodeMetaRef.current.get(currentId);
       const node = nodeDataById[currentId];
-      if (node && meta?.questionAsked && node.label && !node.isRoot) {
-        path.push({ question: meta.questionAsked, answer: node.label });
+      if (node && node.label && !node.isRoot) {
+        const fallbackQuestion = meta?.depth ? `Why ${meta.depth}?` : "Why?";
+        path.push({ question: meta?.questionAsked || fallbackQuestion, answer: node.label });
       }
       currentId = meta?.parentId;
     }
