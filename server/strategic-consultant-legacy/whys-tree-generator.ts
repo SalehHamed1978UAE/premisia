@@ -305,7 +305,7 @@ Return JSON:
     }
 
     const similarity = this.calculateTextSimilarity(option, question);
-    if (similarity > 0.7) {
+    if (similarity > 0.85) {
       return { valid: false, reason: `Answer is too similar to question (${Math.round(similarity * 100)}% similarity)` };
     }
 
@@ -317,7 +317,7 @@ Return JSON:
         word.length > 3 && normalizedOption.includes(word)
       ).length;
       
-      if (consecutiveMatches > questionWords.length * 0.6) {
+      if (consecutiveMatches > questionWords.length * 0.8 && optionWords.length < 18) {
         return { valid: false, reason: 'Answer repeats too many words from question' };
       }
     }
@@ -466,6 +466,22 @@ Return JSON:
   ): Promise<WhyNode[]> {
     const isLeaf = depth >= this.maxDepth;
     const maxRetries = 3;
+    const targetCount = 3;
+    const seenOptions = new Set<string>();
+    const validBranches: Array<{
+      option: string;
+      next_question: string;
+      supporting_evidence: string[];
+      counter_arguments: string[];
+      consideration: string;
+    }> = [];
+    const rejectedBranches: Array<{
+      option: string;
+      next_question: string;
+      supporting_evidence: string[];
+      counter_arguments: string[];
+      consideration: string;
+    }> = [];
 
     // Build enhanced system prompt
     let systemPrompt = `${FIVE_WHYS_SYSTEM_PROMPT}
@@ -545,23 +561,27 @@ Return JSON:
         console.log(`[generateLevelInParallel] Depth ${depth} - Q&A history sent to AI:`, context.history);
       }
 
-      const validBranches: typeof parsed.branches = [];
       const invalidBranches: Array<{ option: string; reason: string }> = [];
 
       for (const branch of parsed.branches) {
+        if (seenOptions.has(branch.option)) {
+          continue;
+        }
+        seenOptions.add(branch.option);
         const qualityCheck = this.validateAnswerQuality(branch.option, question);
         
         if (qualityCheck.valid) {
           validBranches.push(branch);
         } else {
           invalidBranches.push({ option: branch.option, reason: qualityCheck.reason || 'Unknown' });
+          rejectedBranches.push(branch);
           console.warn(`[Quality Control] Rejected answer (attempt ${attempt}/${maxRetries}): "${branch.option}" - Reason: ${qualityCheck.reason}`);
         }
       }
 
-      if (validBranches.length >= 3) {
+      if (validBranches.length >= targetCount) {
         console.log(`[Quality Control] ✓ Generated ${validBranches.length} valid answers on attempt ${attempt}/${maxRetries}`);
-        const nodes = await this.buildNodesFromBranches(validBranches, depth, isLeaf, parentId);
+        const nodes = await this.buildNodesFromBranches(validBranches.slice(0, targetCount), depth, isLeaf, parentId);
         return nodes;
       }
 
@@ -573,15 +593,112 @@ Return JSON:
       } else {
         console.warn(`[Quality Control] Failed to generate 3+ valid answers after ${maxRetries} attempts. Using best available (${validBranches.length} valid answers)`);
         
-        if (validBranches.length === 0) {
-          throw new Error(`Failed to generate any valid answers after ${maxRetries} attempts. All answers were circular or too similar to the question.`);
+        let finalBranches = [...validBranches];
+
+        if (finalBranches.length < targetCount) {
+          const missing = targetCount - finalBranches.length;
+          const repairBranches = await this.generateMissingBranches(
+            question,
+            context,
+            missing,
+            finalBranches.map(b => b.option)
+          );
+
+          for (const branch of repairBranches) {
+            if (finalBranches.length >= targetCount) break;
+            if (seenOptions.has(branch.option)) continue;
+            const qualityCheck = this.validateAnswerQuality(branch.option, question);
+            if (qualityCheck.valid) {
+              finalBranches.push(branch);
+              seenOptions.add(branch.option);
+            } else {
+              rejectedBranches.push(branch);
+            }
+          }
         }
-        const nodes = await this.buildNodesFromBranches(validBranches, depth, isLeaf, parentId);
+
+        if (finalBranches.length < targetCount && rejectedBranches.length > 0) {
+          for (const branch of rejectedBranches) {
+            if (finalBranches.length >= targetCount) break;
+            if (seenOptions.has(branch.option)) continue;
+            finalBranches.push(branch);
+            seenOptions.add(branch.option);
+          }
+        }
+
+        if (finalBranches.length === 0) {
+          throw new Error(`Failed to generate any usable answers after ${maxRetries} attempts and repair.`);
+        }
+
+        const nodes = await this.buildNodesFromBranches(finalBranches.slice(0, targetCount), depth, isLeaf, parentId);
         return nodes;
       }
     }
 
     throw new Error('Unexpected error in generateLevelInParallel - should not reach here');
+  }
+
+  private async generateMissingBranches(
+    question: string,
+    context: { input: string; history: Array<{ question: string; answer: string }> },
+    missingCount: number,
+    existingOptions: string[]
+  ): Promise<Array<{
+    option: string;
+    next_question: string;
+    supporting_evidence: string[];
+    counter_arguments: string[];
+    consideration: string;
+  }>> {
+    if (missingCount <= 0) return [];
+
+    let systemPrompt = `${FIVE_WHYS_SYSTEM_PROMPT}
+
+You are generating additional distinct answers to complete a set of 3.`;
+
+    if (this.cfContextPrompt) {
+      systemPrompt += `\n\n${this.cfContextPrompt}`;
+    }
+
+    const userMessage = `Business challenge: ${context.input}
+
+Current question: ${question}
+
+Existing answers (do NOT repeat or rephrase these):
+${existingOptions.map((opt, i) => `${i + 1}. ${opt}`).join('\n')}
+
+Generate exactly ${missingCount} NEW answers explaining WHY.
+
+Rules:
+- Must be different in meaning from the existing answers.
+- Focus on business mechanisms with evidence.
+- Provide next_question that interrogates THIS answer.
+
+Return JSON:
+{
+  "branches": [
+    {
+      "option": "Mechanism explaining why (cause → effect)",
+      "next_question": "Why [interrogate this specific answer]?",
+      "supporting_evidence": ["Observable signal 1", "Observable signal 2"],
+      "counter_arguments": ["Disconfirming signal 1", "Disconfirming signal 2"],
+      "consideration": "Neutral comparison insight"
+    }
+  ]
+}`;
+
+    try {
+      const response = await aiClients.callWithFallback({
+        systemPrompt,
+        userMessage,
+        maxTokens: 1200,
+      });
+      const parsed = this.extractJSON(response, 'generateMissingBranches', { branches: [] });
+      return Array.isArray(parsed.branches) ? parsed.branches : [];
+    } catch (error: any) {
+      console.warn('[generateMissingBranches] Failed to generate missing branches:', error.message || error);
+      return [];
+    }
   }
 
   async expandBranch(
