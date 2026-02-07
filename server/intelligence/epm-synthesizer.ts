@@ -430,36 +430,104 @@ export class EPMSynthesizer {
    */
   private assignDefaultTimings(workstreams: Workstream[], planningContext: PlanningContext): Workstream[] {
     const scale = planningContext.business.scale || 'mid_market';
-    
-    // Base duration per workstream based on scale - this is what we actually use
-    const baseDurationMonths = scale === 'smb' ? 1 : scale === 'mid_market' ? 1 : 2;
-    
-    const wsCount = workstreams.length || 1;
-    
-    // Calculate total program duration: number of workstreams with overlap
-    // For SMB: short, compact timelines. Each workstream ~1 month, some overlap
-    const overlapFactor = 0.5; // Each workstream overlaps 50% with the next
-    const totalDuration = Math.ceil(baseDurationMonths + (wsCount - 1) * baseDurationMonths * overlapFactor);
-    
-    console.log(`[EPM Synthesis] 📅 Assigning default timings: Scale=${scale}, ${wsCount} workstreams, ${baseDurationMonths}mo each, total=${totalDuration}mo`);
-    
-    return workstreams.map((ws, index) => {
-      // Staggered start with overlap between workstreams
-      const startMonth = Math.floor(index * baseDurationMonths * overlapFactor);
-      const endMonth = startMonth + baseDurationMonths;
-      
-      console.log(`[EPM Synthesis]   ${index + 1}. ${ws.name}: M${startMonth}-M${endMonth}`);
-      
-      return {
+
+    // Base duration per workstream based on scale.
+    const baseDurationMonths = scale === 'smb' ? 1 : scale === 'mid_market' ? 2 : 3;
+    const overlapFactor = 0.5;
+
+    const byId = new Map(workstreams.map((ws) => [ws.id, ws]));
+    const inDegree = new Map<string, number>();
+    const dependents = new Map<string, string[]>();
+    const validDepsById = new Map<string, string[]>();
+
+    for (const ws of workstreams) {
+      inDegree.set(ws.id, 0);
+      dependents.set(ws.id, []);
+      validDepsById.set(ws.id, []);
+    }
+
+    for (const ws of workstreams) {
+      const validDeps = (ws.dependencies || []).filter((depId) => byId.has(depId));
+      validDepsById.set(ws.id, validDeps);
+      for (const depId of validDeps) {
+        inDegree.set(ws.id, (inDegree.get(ws.id) || 0) + 1);
+        dependents.get(depId)?.push(ws.id);
+      }
+    }
+
+    const queue: string[] = workstreams
+      .filter((ws) => (inDegree.get(ws.id) || 0) === 0)
+      .map((ws) => ws.id);
+    const topo: string[] = [];
+
+    while (queue.length > 0) {
+      const id = queue.shift() as string;
+      topo.push(id);
+
+      for (const dependentId of dependents.get(id) || []) {
+        const nextDegree = (inDegree.get(dependentId) || 0) - 1;
+        inDegree.set(dependentId, nextDegree);
+        if (nextDegree === 0) queue.push(dependentId);
+      }
+    }
+
+    // Cycle fallback: preserve original order to avoid hard failure.
+    const orderedIds = topo.length === workstreams.length
+      ? topo
+      : workstreams.map((ws) => ws.id);
+
+    const endMonthById = new Map<string, number>();
+    const timedById = new Map<string, Workstream>();
+    let independentCursor = 0;
+
+    for (const id of orderedIds) {
+      const ws = byId.get(id)!;
+      const deps = validDepsById.get(id) || [];
+
+      const complexityLift = Math.floor((ws.deliverables?.length || 0) / 4);
+      const durationMonths = Math.max(1, baseDurationMonths + complexityLift);
+
+      let startMonth: number;
+      if (deps.length > 0) {
+        const depEndMonths = deps
+          .map((depId) => endMonthById.get(depId))
+          .filter((month): month is number => month !== undefined);
+        const maxDepEnd = depEndMonths.length > 0 ? Math.max(...depEndMonths) : 0;
+        startMonth = maxDepEnd + 1;
+      } else {
+        startMonth = Math.floor(independentCursor * baseDurationMonths * overlapFactor);
+        independentCursor += 1;
+      }
+
+      const endMonth = startMonth + durationMonths - 1;
+
+      console.log(`[EPM Synthesis]   ${ws.name}: M${startMonth}-M${endMonth} (${durationMonths}mo)`);
+
+      const timed: Workstream = {
         ...ws,
         startMonth,
         endMonth,
-        deliverables: ws.deliverables.map((d, di) => ({
+        deliverables: (ws.deliverables || []).map((d) => ({
           ...d,
           dueMonth: endMonth, // Deliverables due at end of workstream
         })),
       };
-    });
+
+      timedById.set(id, timed);
+      endMonthById.set(id, endMonth);
+    }
+
+    const timedWorkstreams = workstreams.map((ws) => timedById.get(ws.id) || ws);
+    const maxEndMonth = timedWorkstreams.length > 0
+      ? Math.max(...timedWorkstreams.map((ws) => ws.endMonth))
+      : 0;
+
+    console.log(
+      `[EPM Synthesis] 📅 Assigned dependency-aware default timings: ` +
+      `Scale=${scale}, workstreams=${workstreams.length}, total=${maxEndMonth + 1}mo`
+    );
+
+    return timedWorkstreams;
   }
 
   /**
