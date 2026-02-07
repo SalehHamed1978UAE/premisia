@@ -61,6 +61,19 @@ function deriveFrameworks(
   strategy: StrategyPayload,
   analysisData: Record<string, any>,
 ): string[] {
+  // AUTHORITATIVE: Use journey definition if available
+  const journeyType = strategy.journeySession?.journeyType;
+  if (journeyType) {
+    // Import journey registry to get authoritative framework list
+    const { journeyRegistry } = require('../../journey/journey-registry');
+    const journeyDef = journeyRegistry.getJourney(journeyType);
+    if (journeyDef && journeyDef.frameworks) {
+      // Return ONLY the frameworks defined for this journey
+      return journeyDef.frameworks;
+    }
+  }
+
+  // FALLBACK: If no journey definition, derive from data (old behavior)
   const fromAnalysisArray = Array.isArray(analysisData.frameworks)
     ? analysisData.frameworks
         .map((f: any) => (typeof f === 'string' ? normalizeFrameworkName(f) : null))
