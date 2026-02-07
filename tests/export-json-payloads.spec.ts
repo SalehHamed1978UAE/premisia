@@ -56,10 +56,13 @@ describe('Export JSON payload normalization', () => {
     expect(payload.rootCause).toBe('True root cause');
   });
 
-  it('derives frameworks from analysisData keys when frameworks array is empty', () => {
+  it('uses journey definition frameworks over analysisData key contamination', () => {
     const payload = buildStrategyJsonPayload({
       understanding: { id: 'u2' },
-      journeySession: { completedFrameworks: [] },
+      journeySession: {
+        journeyType: 'business_model_innovation',
+        completedFrameworks: [],
+      },
       strategyVersion: {
         id: 'sv2',
         analysisData: {
@@ -72,7 +75,46 @@ describe('Export JSON payload normalization', () => {
       decisions: [],
     });
 
-    expect(payload.frameworks).toEqual(expect.arrayContaining(['pestle', 'porters', 'swot']));
+    expect(payload.frameworks).toEqual(['five_whys', 'bmc']);
+  });
+
+  it('uses custom journey metadata frameworks when provided', () => {
+    const payload = buildStrategyJsonPayload({
+      understanding: { id: 'u4' },
+      journeySession: {
+        journeyType: 'custom',
+        completedFrameworks: [],
+        metadata: {
+          frameworks: ['swot', 'ansoff'],
+        },
+      },
+      strategyVersion: {
+        id: 'sv4',
+        analysisData: {
+          frameworks: ['porters'],
+        },
+      },
+      decisions: [],
+    });
+
+    expect(payload.frameworks).toEqual(['swot', 'ansoff']);
+  });
+
+  it('falls back to explicit frameworks array when no journey context exists', () => {
+    const payload = buildStrategyJsonPayload({
+      understanding: { id: 'u5' },
+      journeySession: { completedFrameworks: [] },
+      strategyVersion: {
+        id: 'sv5',
+        analysisData: {
+          frameworks: ['pestle', 'swot'],
+          porters_analysis: {},
+        },
+      },
+      decisions: [],
+    });
+
+    expect(payload.frameworks).toEqual(['pestle', 'swot']);
   });
 
   it('adds normalized top-level EPM sections from program JSON fields', () => {

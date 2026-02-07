@@ -9,6 +9,7 @@ import { CsvExporter, generateAssignmentsCsv, generateWorkstreamsCsv, generateRe
 import { ExcelExporter, generateExcelWorkbook } from './excel-exporter';
 import { escapeCsvField } from './base-exporter';
 import { buildStrategyJsonPayload, buildEpmJsonPayload } from './json-payloads';
+import { validateExportAcceptance } from './acceptance-gates';
 
 export { loadExportData, escapeCsvField };
 export type { ExportRequest, FullExportPackage, ExportResult, IExporter };
@@ -88,6 +89,34 @@ export async function generateFullPassExport(
   
   const benefitsRealization = parseField(exportPackage.epm?.program?.benefitsRealization);
   const benefitsCsv = benefitsRealization ? generateBenefitsCsv(benefitsRealization) : null;
+
+  console.log('[Export Service] Running acceptance gates...');
+  const acceptanceReport = validateExportAcceptance({
+    strategyJson,
+    epmJson,
+    assignmentsCsv,
+    workstreamsCsv,
+    resourcesCsv,
+    risksCsv,
+    benefitsCsv,
+  });
+  if (!acceptanceReport.passed) {
+    acceptanceReport.criticalIssues.forEach((issue) => {
+      console.error(`[Export Acceptance] ${issue.code}: ${issue.message}`);
+      if (issue.details) {
+        console.error('[Export Acceptance] Details:', issue.details);
+      }
+    });
+    throw new Error(
+      `Export acceptance gates failed with ${acceptanceReport.criticalIssues.length} critical issue(s)`
+    );
+  }
+  console.log('[Export Service] Acceptance gates passed');
+  if (acceptanceReport.warnings.length > 0) {
+    acceptanceReport.warnings.forEach((warning) =>
+      console.warn(`[Export Acceptance] ${warning.code}: ${warning.message}`)
+    );
+  }
 
   console.log('[Export Service] Generating UI-styled HTML...');
   const uiHtml = generateUiStyledHtml(exportPackage);
