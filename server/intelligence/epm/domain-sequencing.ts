@@ -1,85 +1,78 @@
 import type { Workstream } from '../types';
 
-const RESTAURANT_DOMAIN_RE = /restaurant|cafe|café|kitchen|food|hospitality/i;
-const CONSTRUCTION_RE = /construction|design|build|fit[\s-]?out|infrastructure|kitchen|renovat|site\s*prep|site\s*preparation/i;
-const COMPLIANCE_RE = /regulatory|compliance|license|licensing|permit|food safety|health/i;
-const TECHNOLOGY_RE = /technology|digital|pos|ordering|system/i;
-const STAFF_RE = /staff|hr|training|recruit|talent|onboarding/i;
-const MARKETING_RE = /marketing|brand|campaign|sales|promotion|audience/i;
+const STAGE_PATTERNS: Array<{ stage: number; pattern: RegExp }> = [
+  { stage: 0, pattern: /discover|research|analysis|assess|diagnos|requirement|planning|plan|scope|governance|compliance|legal|permit|approval|design|architecture|procurement/i },
+  { stage: 1, pattern: /build|develop|implementation|implement|configure|configuration|setup|construction|integrat|migration|infrastructure/i },
+  { stage: 2, pattern: /test|qa|validation|pilot|train|training|recruit|hiring|onboard|enablement/i },
+  { stage: 3, pattern: /launch|go[\s-]?live|rollout|deploy|activation|marketing|sales|operations|execution/i },
+  { stage: 4, pattern: /optimi[sz]|scale|stabil|continuous improvement|hypercare/i },
+];
+
+function inferStage(workstream: Workstream): number {
+  const text = `${workstream.name || ''} ${workstream.description || ''}`;
+  for (const matcher of STAGE_PATTERNS) {
+    if (matcher.pattern.test(text)) return matcher.stage;
+  }
+  return 2;
+}
 
 function clampDueMonth(dueMonth: number, startMonth: number, endMonth: number): number {
   if (!Number.isFinite(dueMonth)) return endMonth;
   return Math.min(endMonth, Math.max(startMonth, dueMonth));
 }
 
-function findWindow(workstreams: Workstream[], pattern: RegExp): { ids: Set<string>; start: number; end: number } | null {
-  const matches = workstreams.filter((ws) => pattern.test(ws.name));
-  if (matches.length === 0) return null;
+function normalizeWorkstream(workstream: Workstream): Workstream {
+  const startMonth = Number.isFinite(workstream.startMonth) ? workstream.startMonth : 0;
+  const endMonthRaw = Number.isFinite(workstream.endMonth) ? workstream.endMonth : startMonth;
+  const endMonth = Math.max(startMonth, endMonthRaw);
+  const dependencies = Array.isArray(workstream.dependencies)
+    ? [...new Set(workstream.dependencies.filter((depId) => typeof depId === 'string' && depId !== workstream.id))]
+    : [];
 
   return {
-    ids: new Set(matches.map((ws) => ws.id)),
-    start: Math.min(...matches.map((ws) => ws.startMonth)),
-    end: Math.max(...matches.map((ws) => ws.endMonth)),
+    ...workstream,
+    startMonth,
+    endMonth,
+    dependencies,
   };
 }
 
-function isRestaurantLike(contextText: string, workstreams: Workstream[]): boolean {
-  if (RESTAURANT_DOMAIN_RE.test(contextText)) return true;
-  return workstreams.some((ws) => RESTAURANT_DOMAIN_RE.test(ws.name));
-}
+function applyStageOrderAdjustments(workstreams: Workstream[], stageById: Map<string, number>): Workstream[] {
+  const earliestStartByStage = new Map<number, number>();
+  for (const ws of workstreams) {
+    const stage = stageById.get(ws.id) || 0;
+    const current = earliestStartByStage.get(stage);
+    earliestStartByStage.set(stage, current === undefined ? ws.startMonth : Math.min(current, ws.startMonth));
+  }
 
-export function enforceDomainSequencing(
-  workstreams: Workstream[],
-  contextText = ''
-): Workstream[] {
-  if (!Array.isArray(workstreams) || workstreams.length === 0) return workstreams;
-  if (!isRestaurantLike(contextText, workstreams)) return workstreams;
+  const stageShift = new Map<number, number>();
+  for (let stage = 0; stage <= 4; stage += 1) {
+    stageShift.set(stage, 0);
+  }
 
-  const construction = findWindow(workstreams, CONSTRUCTION_RE);
-  if (!construction) return workstreams;
-
-  const constructionStart = construction.start;
-  const constructionEnd = construction.end;
-  const constructionIds = construction.ids;
+  for (let stage = 0; stage < 4; stage += 1) {
+    const currentStart = earliestStartByStage.get(stage);
+    const nextStart = earliestStartByStage.get(stage + 1);
+    if (currentStart === undefined || nextStart === undefined) continue;
+    if (currentStart > nextStart) {
+      const existing = stageShift.get(stage) || 0;
+      stageShift.set(stage, Math.max(existing, currentStart - nextStart));
+    }
+  }
 
   return workstreams.map((ws) => {
-    const name = ws.name || '';
+    const stage = stageById.get(ws.id) || 0;
+    const shift = stageShift.get(stage) || 0;
+    if (shift <= 0) return ws;
+
     const duration = Math.max(1, ws.endMonth - ws.startMonth);
-    let startMonth = ws.startMonth;
-    let endMonth = ws.endMonth;
-    let dependencies = Array.isArray(ws.dependencies) ? [...ws.dependencies] : [];
-
-    if (COMPLIANCE_RE.test(name) && startMonth > constructionEnd) {
-      // Compliance must start no later than construction completion.
-      startMonth = constructionEnd;
-      endMonth = startMonth + duration;
-      dependencies = dependencies.filter((depId) => !constructionIds.has(depId));
-    }
-
-    if (TECHNOLOGY_RE.test(name) && startMonth < constructionStart) {
-      startMonth = constructionStart;
-      endMonth = startMonth + duration;
-    }
-
-    if (STAFF_RE.test(name) && startMonth < constructionStart) {
-      startMonth = constructionStart;
-      endMonth = startMonth + duration;
-    }
-
-    if (MARKETING_RE.test(name) && startMonth < constructionStart) {
-      startMonth = constructionStart;
-      endMonth = startMonth + duration;
-    }
-
-    if (startMonth === ws.startMonth && endMonth === ws.endMonth && dependencies.length === ws.dependencies.length) {
-      return ws;
-    }
+    const startMonth = Math.max(0, ws.startMonth - shift);
+    const endMonth = startMonth + duration;
 
     return {
       ...ws,
       startMonth,
       endMonth,
-      dependencies,
       deliverables: Array.isArray(ws.deliverables)
         ? ws.deliverables.map((deliverable) => ({
             ...deliverable,
@@ -87,5 +80,47 @@ export function enforceDomainSequencing(
           }))
         : [],
     };
+  });
+}
+
+export function enforceDomainSequencing(
+  workstreams: Workstream[],
+  _contextText = ''
+): Workstream[] {
+  if (!Array.isArray(workstreams) || workstreams.length === 0) return workstreams;
+
+  const normalized = workstreams.map(normalizeWorkstream);
+  const byId = new Map(normalized.map((ws) => [ws.id, ws]));
+  const stageById = new Map(normalized.map((ws) => [ws.id, inferStage(ws)]));
+
+  const sanitized = normalized.map((ws) => {
+    const wsStage = stageById.get(ws.id) || 0;
+    const dependencies = (ws.dependencies || []).filter((depId) => {
+      const dep = byId.get(depId);
+      if (!dep) return false;
+      const depStage = stageById.get(depId) || 0;
+      return depStage <= wsStage;
+    });
+
+    return {
+      ...ws,
+      dependencies: [...new Set(dependencies)],
+    };
+  });
+
+  const staged = applyStageOrderAdjustments(sanitized, stageById);
+  return staged;
+}
+
+export function inferSequencingStage(name: string, description = ''): number {
+  return inferStage({
+    id: 'temp',
+    name,
+    description,
+    deliverables: [],
+    startMonth: 0,
+    endMonth: 0,
+    dependencies: [],
+    confidence: 1,
   });
 }

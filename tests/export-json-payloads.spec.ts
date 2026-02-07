@@ -186,21 +186,21 @@ describe('Export JSON payload normalization', () => {
     expect(timeline.criticalPath).toEqual(['WS001', 'WS006', 'WS003', 'WS005']);
   });
 
-  it('normalizes restaurant compliance sequencing in EPM payload', () => {
+  it('normalizes sequencing inversions in EPM payload regardless of domain', () => {
     const payload = buildEpmJsonPayload({
       program: {
         workstreams: [
           {
             id: 'WS001',
-            name: 'Site Construction & Facilities Setup',
-            startMonth: 0,
-            endMonth: 1,
+            name: 'Core Platform Build',
+            startMonth: 1,
+            endMonth: 4,
             dependencies: [],
             deliverables: [{ id: 'D1', dueMonth: 1 }],
           },
           {
-            id: 'WS006',
-            name: 'Food Safety and Regulatory Compliance for Quick Thai Cafe',
+            id: 'WS002',
+            name: 'Requirements Discovery and Analysis',
             startMonth: 2,
             endMonth: 3,
             dependencies: ['WS001'],
@@ -211,10 +211,9 @@ describe('Export JSON payload normalization', () => {
       assignments: [],
     });
 
-    const compliance = payload.workstreams.find((ws: any) => ws.id === 'WS006');
-    expect(compliance.startMonth).toBe(1);
-    expect(compliance.endMonth).toBe(2);
-    expect(compliance.dependencies).toEqual([]);
-    expect(compliance.deliverables[0].dueMonth).toBe(2);
+    const discovery = payload.workstreams.find((ws: any) => ws.id === 'WS002');
+    expect(discovery.dependencies).toEqual([]);
+    expect(discovery.startMonth).toBeLessThanOrEqual(1);
+    expect(discovery.deliverables[0].dueMonth).toBeLessThanOrEqual(discovery.endMonth);
   });
 });

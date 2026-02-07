@@ -372,6 +372,26 @@ function computeLongestDependencyChain(workstreams: any[]): string[] {
   return path.reverse();
 }
 
+function inferWorkstreamStage(workstream: any): number {
+  const text = `${workstream?.name || ''} ${workstream?.description || ''}`;
+  if (/discover|research|analysis|assess|diagnos|requirement|planning|plan|scope|governance|compliance|legal|permit|approval|design|architecture|procurement/i.test(text)) {
+    return 0;
+  }
+  if (/build|develop|implementation|implement|configure|configuration|setup|construction|integrat|migration|infrastructure/i.test(text)) {
+    return 1;
+  }
+  if (/test|qa|validation|pilot|train|training|recruit|hiring|onboard|enablement/i.test(text)) {
+    return 2;
+  }
+  if (/launch|go[\s-]?live|rollout|deploy|activation|marketing|sales|operations|execution/i.test(text)) {
+    return 3;
+  }
+  if (/optimi[sz]|scale|stabil|continuous improvement|hypercare/i.test(text)) {
+    return 4;
+  }
+  return 2;
+}
+
 export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAcceptanceReport {
   const criticalIssues: AcceptanceIssue[] = [];
   const warnings: AcceptanceIssue[] = [];
@@ -597,60 +617,44 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
     }
   }
 
-  // Restaurant/cafe domain sequencing checks.
-  const domainText = [
-    strategyData?.understanding?.initiativeType,
-    strategyData?.understanding?.userInput,
-    ...workstreams.map((ws: any) => ws?.name),
-  ].filter((v) => typeof v === 'string').join(' ');
-  if (/restaurant|cafe|café|kitchen|food|hospitality/i.test(domainText)) {
-    const findWindow = (pattern: RegExp) => {
-      const matches = workstreams.filter((ws: any) => pattern.test(String(ws?.name || '')));
-      if (matches.length === 0) return null;
-      return {
-        start: Math.min(...matches.map((ws: any) => Number(ws?.startMonth) || 0)),
-        end: Math.max(...matches.map((ws: any) => Number(ws?.endMonth) || 0)),
-      };
-    };
+  // Generic sequencing integrity checks (domain-agnostic).
+  const workstreamById = new Map<string, any>();
+  const stageById = new Map<string, number>();
+  for (const ws of workstreams) {
+    if (typeof ws?.id !== 'string') continue;
+    workstreamById.set(ws.id, ws);
+    stageById.set(ws.id, inferWorkstreamStage(ws));
+  }
 
-    const construction = findWindow(/construction|build|setup|fit[\s-]?out|infrastructure|kitchen/i);
-    const compliance = findWindow(/regulatory|compliance|license|licensing|permit|food safety|health/i);
-    const technology = findWindow(/technology|digital|pos|ordering|system/i);
-    const staff = findWindow(/staff|hr|training|recruit|talent/i);
-    const marketing = findWindow(/marketing|brand|campaign|sales|promotion/i);
+  const stageInversions: Array<{ workstreamId: string; dependencyId: string; workstreamStage: number; dependencyStage: number }> = [];
+  for (const ws of workstreams) {
+    if (typeof ws?.id !== 'string') continue;
+    const wsStage = stageById.get(ws.id) ?? 2;
+    for (const depId of Array.isArray(ws?.dependencies) ? ws.dependencies : []) {
+      if (typeof depId !== 'string') continue;
+      if (!workstreamById.has(depId)) continue;
+      const depStage = stageById.get(depId) ?? 2;
+      if (depStage > wsStage) {
+        stageInversions.push({
+          workstreamId: ws.id,
+          dependencyId: depId,
+          workstreamStage: wsStage,
+          dependencyStage: depStage,
+        });
+      }
+    }
+  }
 
-    if (construction && compliance && compliance.start > construction.end) {
-      criticalIssues.push({
-        severity: 'critical',
-        code: 'DOMAIN_SEQUENCE_COMPLIANCE_LATE',
-        message: 'Compliance work starts after construction completes in a restaurant/cafe plan',
-        details: { constructionEnd: construction.end, complianceStart: compliance.start },
-      });
-    }
-    if (construction && technology && technology.start < construction.start) {
-      criticalIssues.push({
-        severity: 'critical',
-        code: 'DOMAIN_SEQUENCE_TECH_TOO_EARLY',
-        message: 'Technology work starts before construction starts in a restaurant/cafe plan',
-        details: { constructionStart: construction.start, technologyStart: technology.start },
-      });
-    }
-    if (construction && staff && staff.start < construction.start) {
-      criticalIssues.push({
-        severity: 'critical',
-        code: 'DOMAIN_SEQUENCE_STAFF_TOO_EARLY',
-        message: 'Staff/training starts before construction starts in a restaurant/cafe plan',
-        details: { constructionStart: construction.start, staffStart: staff.start },
-      });
-    }
-    if (construction && marketing && marketing.start < construction.start) {
-      criticalIssues.push({
-        severity: 'critical',
-        code: 'DOMAIN_SEQUENCE_MARKETING_TOO_EARLY',
-        message: 'Marketing starts before construction starts in a restaurant/cafe plan',
-        details: { constructionStart: construction.start, marketingStart: marketing.start },
-      });
-    }
+  if (stageInversions.length > 0) {
+    criticalIssues.push({
+      severity: 'critical',
+      code: 'SEQUENCING_DEPENDENCY_INVERSION',
+      message: 'Workstream depends on a task that appears to be in a later execution stage',
+      details: {
+        inversions: stageInversions.slice(0, 10),
+        total: stageInversions.length,
+      },
+    });
   }
 
   // Validate assignment month ranges against workstream bounds when month columns are present in CSV.

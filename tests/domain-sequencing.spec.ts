@@ -30,32 +30,27 @@ function ws(
 }
 
 describe('enforceDomainSequencing', () => {
-  it('moves compliance earlier for restaurant-like plans and removes blocking construction dependency', () => {
+  it('removes dependencies that point to later-stage workstreams', () => {
     const workstreams: Workstream[] = [
-      ws('WS001', 'Cafe Construction and Fit-Out', 2, 4),
-      ws('WS002', 'Food Safety Compliance and Licensing', 6, 8, ['WS001']),
-      ws('WS003', 'Restaurant Technology and POS Setup', 0, 1),
-      ws('WS004', 'Staff Hiring and Training', 1, 2),
+      ws('WS001', 'Core Platform Build', 1, 4),
+      ws('WS002', 'Requirements Discovery and Analysis', 2, 3, ['WS001']),
+      ws('WS003', 'Launch Readiness and Rollout', 5, 6, ['WS001']),
     ];
 
-    const updated = enforceDomainSequencing(workstreams, 'Open a Thai cafe in Dubai mall');
+    const updated = enforceDomainSequencing(workstreams, 'Build SaaS workflow tooling');
 
-    const compliance = updated.find((item) => item.id === 'WS002')!;
-    const tech = updated.find((item) => item.id === 'WS003')!;
-    const staff = updated.find((item) => item.id === 'WS004')!;
+    const discovery = updated.find((item) => item.id === 'WS002')!;
+    const launch = updated.find((item) => item.id === 'WS003')!;
 
-    expect(compliance.startMonth).toBe(4);
-    expect(compliance.endMonth).toBe(6);
-    expect(compliance.dependencies).toEqual([]);
-    expect(compliance.deliverables[0].dueMonth).toBe(6);
-    expect(tech.startMonth).toBe(2);
-    expect(staff.startMonth).toBe(2);
+    expect(discovery.dependencies).toEqual([]);
+    expect(discovery.startMonth).toBeLessThanOrEqual(launch.startMonth);
+    expect(discovery.deliverables[0].dueMonth).toBeLessThanOrEqual(discovery.endMonth);
   });
 
-  it('does not modify non-restaurant plans', () => {
+  it('keeps already coherent dependency sequencing unchanged', () => {
     const workstreams: Workstream[] = [
-      ws('WS001', 'Cloud platform migration', 0, 2),
-      ws('WS002', 'Security compliance', 4, 6, ['WS001']),
+      ws('WS001', 'Discovery and Requirements', 0, 1),
+      ws('WS002', 'Implementation Build', 2, 4, ['WS001']),
     ];
 
     const updated = enforceDomainSequencing(workstreams, 'Migrate enterprise ERP to cloud');

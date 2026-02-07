@@ -217,22 +217,22 @@ describe('Export acceptance gates', () => {
     expect(report.criticalIssues.some((i) => i.code === 'ASSIGNMENT_RANGE_INVALID')).toBe(true);
   });
 
-  it('fails restaurant sequencing when compliance starts after construction ends', () => {
+  it('fails when dependencies point from earlier-stage work to later-stage prerequisites', () => {
     const epm = JSON.parse(buildValidEpmJson());
     epm.workstreams = [
-      { id: 'WS001', name: 'Kitchen Construction', startMonth: 0, endMonth: 2, dependencies: [], deliverables: [] },
-      { id: 'WS002', name: 'Food Safety Compliance', startMonth: 4, endMonth: 5, dependencies: [], deliverables: [] },
-      { id: 'WS003', name: 'Staff Training', startMonth: 2, endMonth: 4, dependencies: ['WS001'], deliverables: [] },
+      { id: 'WS001', name: 'Core Platform Build', startMonth: 1, endMonth: 4, dependencies: [], deliverables: [] },
+      { id: 'WS002', name: 'Requirements Discovery and Analysis', startMonth: 0, endMonth: 2, dependencies: ['WS001'], deliverables: [] },
+      { id: 'WS003', name: 'Launch Readiness', startMonth: 5, endMonth: 6, dependencies: ['WS001'], deliverables: [] },
     ];
     epm.program.timeline = {
       totalMonths: 6,
       phases: [{ phase: 1, name: 'P1', startMonth: 0, endMonth: 6, keyMilestones: [], workstreamIds: ['WS001', 'WS002', 'WS003'] }],
-      criticalPath: ['WS001', 'WS003'],
+      criticalPath: ['WS002', 'WS001', 'WS003'],
     };
 
     const report = validateExportAcceptance({
       strategyJson: JSON.stringify({
-        understanding: { userInput: 'Open a cafe restaurant in an industrial zone' },
+        understanding: { userInput: 'Build a new internal SaaS platform' },
         journeySession: { journeyType: 'business_model_innovation' },
         frameworks: ['five_whys', 'bmc'],
         whysPath: ['A', 'B', 'C', 'D'],
@@ -246,7 +246,7 @@ describe('Export acceptance gates', () => {
     });
 
     expect(report.passed).toBe(false);
-    expect(report.criticalIssues.some((i) => i.code === 'DOMAIN_SEQUENCE_COMPLIANCE_LATE')).toBe(true);
+    expect(report.criticalIssues.some((i) => i.code === 'SEQUENCING_DEPENDENCY_INVERSION')).toBe(true);
   });
 
   it('fails when placeholder corruption is present in report content', () => {
