@@ -99,6 +99,8 @@ export async function generateFullPassExport(
     resourcesCsv,
     risksCsv,
     benefitsCsv,
+    reportMarkdown: markdown,
+    reportHtml: html,
   });
   if (!acceptanceReport.passed) {
     acceptanceReport.criticalIssues.forEach((issue) => {

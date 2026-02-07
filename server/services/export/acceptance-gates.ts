@@ -24,6 +24,8 @@ interface ExportAcceptanceInput {
   resourcesCsv?: string | null;
   risksCsv?: string | null;
   benefitsCsv?: string | null;
+  reportMarkdown?: string | null;
+  reportHtml?: string | null;
 }
 
 const FRAMEWORK_ALIASES: Record<string, string> = {
@@ -122,6 +124,112 @@ function countCsvRows(csv: string | null | undefined): number {
   const records = splitCsvRecords(csv);
   if (records.length === 0) return 0;
   return Math.max(0, records.length - 1);
+}
+
+function splitCsvFields(record: string): string[] {
+  const fields: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < record.length; i += 1) {
+    const ch = record[i];
+    if (ch === '"') {
+      const next = record[i + 1];
+      if (inQuotes && next === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (ch === ',' && !inQuotes) {
+      fields.push(current);
+      current = '';
+      continue;
+    }
+
+    current += ch;
+  }
+
+  fields.push(current);
+  return fields.map((value) => value.trim());
+}
+
+function parseCsvTable(csv: string | null | undefined): Array<Record<string, string>> {
+  if (!csv || csv.trim().length === 0) return [];
+  const records = splitCsvRecords(csv);
+  if (records.length < 2) return [];
+
+  const header = splitCsvFields(records[0]);
+  const rows: Array<Record<string, string>> = [];
+
+  for (const record of records.slice(1)) {
+    const values = splitCsvFields(record);
+    const row: Record<string, string> = {};
+    for (let i = 0; i < header.length; i += 1) {
+      const key = header[i];
+      row[key] = values[i] ?? '';
+    }
+    rows.push(row);
+  }
+
+  return rows;
+}
+
+function normalizeColumnName(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+function pickColumn(row: Record<string, string>, candidates: string[]): string | null {
+  const normalizedMap = new Map<string, string>();
+  for (const [key, value] of Object.entries(row)) {
+    normalizedMap.set(normalizeColumnName(key), value);
+  }
+
+  for (const candidate of candidates) {
+    const hit = normalizedMap.get(normalizeColumnName(candidate));
+    if (hit !== undefined && hit !== null && `${hit}`.trim().length > 0) {
+      return hit;
+    }
+  }
+
+  return null;
+}
+
+function parseMonthValue(value: string | null): number | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return null;
+  if (/^-?\d+$/.test(trimmed)) return Number(trimmed);
+
+  const monthMatch = trimmed.match(/month\s*(-?\d+)/i);
+  if (monthMatch) return Number(monthMatch[1]);
+
+  return null;
+}
+
+function containsPlaceholderCorruption(value: string): boolean {
+  return /\bundefined\b|\[object Object\]|\bNaN\b/.test(value);
+}
+
+function isAnswerLikeWhyStep(step: any): boolean {
+  if (typeof step === 'string') {
+    return !/^why\b/i.test(step.trim());
+  }
+
+  if (!step || typeof step !== 'object') return false;
+
+  if (typeof step.answer === 'string' && step.answer.trim().length > 0) return true;
+  if (typeof step.option === 'string' && step.option.trim().length > 0 && !/^why\b/i.test(step.option.trim())) {
+    return true;
+  }
+  if (typeof step.value === 'string' && step.value.trim().length > 0 && !/^why\b/i.test(step.value.trim())) {
+    return true;
+  }
+
+  return false;
 }
 
 function deriveExpectedFrameworks(strategyData: any): string[] {
@@ -295,6 +403,29 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
     });
   }
 
+  const includesFiveWhys = expectedFrameworks.includes('five_whys') || actualFrameworks.includes('five_whys');
+  if (includesFiveWhys) {
+    const whysPath = Array.isArray(strategyData.whysPath) ? strategyData.whysPath : [];
+    if (whysPath.length < 4) {
+      criticalIssues.push({
+        severity: 'critical',
+        code: 'WHYS_PATH_INCOMPLETE',
+        message: 'whysPath must include at least 4 steps for Five Whys journeys',
+        details: { length: whysPath.length },
+      });
+    } else {
+      const answerLikeCount = whysPath.filter((step: any) => isAnswerLikeWhyStep(step)).length;
+      if (answerLikeCount < Math.ceil(whysPath.length / 2)) {
+        criticalIssues.push({
+          severity: 'critical',
+          code: 'WHYS_PATH_QUESTION_HEAVY',
+          message: 'whysPath appears question-heavy; expected mostly answer/root-cause statements',
+          details: { length: whysPath.length, answerLikeCount },
+        });
+      }
+    }
+  }
+
   if (!input.epmJson) {
     warnings.push({
       severity: 'warning',
@@ -373,6 +504,14 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
     const startMonth = Number(ws?.startMonth);
     const endMonth = Number(ws?.endMonth);
 
+    if (startMonth === 0 && endMonth === 0) {
+      criticalIssues.push({
+        severity: 'critical',
+        code: 'ZERO_TIMELINE',
+        message: `Workstream "${wsName}" has startMonth=0 and endMonth=0`,
+      });
+    }
+
     if (!Number.isFinite(startMonth) || !Number.isFinite(endMonth) || endMonth < startMonth) {
       criticalIssues.push({
         severity: 'critical',
@@ -418,6 +557,17 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
       )
     : 0;
   const totalMonths = Number(timeline?.totalMonths) || 0;
+  if (totalMonths > 0 && phaseMaxEnd > 0 && totalMonths !== phaseMaxEnd) {
+    criticalIssues.push({
+      severity: 'critical',
+      code: 'TIMELINE_TOTALMONTHS_MISMATCH',
+      message: 'timeline.totalMonths must match the end month of the last phase',
+      details: {
+        totalMonths,
+        phaseMaxEnd,
+      },
+    });
+  }
   if (maxWorkstreamEnd > 0 && (phaseMaxEnd < maxWorkstreamEnd || totalMonths < maxWorkstreamEnd)) {
     criticalIssues.push({
       severity: 'critical',
@@ -429,6 +579,127 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
         maxWorkstreamEnd,
       },
     });
+  }
+
+  const dependentWorkstreams = workstreams.filter((ws: any) => Array.isArray(ws.dependencies) && ws.dependencies.length > 0).length;
+  const dependencyRatio = workstreams.length > 0 ? dependentWorkstreams / workstreams.length : 0;
+  if (workstreams.length > 0 && !(dependencyRatio >= 0.4 || dependentWorkstreams >= 2)) {
+    const issue: AcceptanceIssue = {
+      severity: workstreams.length >= 8 ? 'critical' : 'warning',
+      code: 'DEPENDENCY_RICHNESS_LOW',
+      message: 'Dependency graph is too sparse for a realistic execution plan',
+      details: { workstreamCount: workstreams.length, dependentWorkstreams, dependencyRatio },
+    };
+    if (issue.severity === 'critical') {
+      criticalIssues.push(issue);
+    } else {
+      warnings.push(issue);
+    }
+  }
+
+  // Restaurant/cafe domain sequencing checks.
+  const domainText = [
+    strategyData?.understanding?.initiativeType,
+    strategyData?.understanding?.userInput,
+    ...workstreams.map((ws: any) => ws?.name),
+  ].filter((v) => typeof v === 'string').join(' ');
+  if (/restaurant|cafe|café|kitchen|food|hospitality/i.test(domainText)) {
+    const findWindow = (pattern: RegExp) => {
+      const matches = workstreams.filter((ws: any) => pattern.test(String(ws?.name || '')));
+      if (matches.length === 0) return null;
+      return {
+        start: Math.min(...matches.map((ws: any) => Number(ws?.startMonth) || 0)),
+        end: Math.max(...matches.map((ws: any) => Number(ws?.endMonth) || 0)),
+      };
+    };
+
+    const construction = findWindow(/construction|build|setup|fit[\s-]?out|infrastructure|kitchen/i);
+    const compliance = findWindow(/regulatory|compliance|license|licensing|permit|food safety|health/i);
+    const technology = findWindow(/technology|digital|pos|ordering|system/i);
+    const staff = findWindow(/staff|hr|training|recruit|talent/i);
+    const marketing = findWindow(/marketing|brand|campaign|sales|promotion/i);
+
+    if (construction && compliance && compliance.start > construction.end) {
+      criticalIssues.push({
+        severity: 'critical',
+        code: 'DOMAIN_SEQUENCE_COMPLIANCE_LATE',
+        message: 'Compliance work starts after construction completes in a restaurant/cafe plan',
+        details: { constructionEnd: construction.end, complianceStart: compliance.start },
+      });
+    }
+    if (construction && technology && technology.start < construction.start) {
+      criticalIssues.push({
+        severity: 'critical',
+        code: 'DOMAIN_SEQUENCE_TECH_TOO_EARLY',
+        message: 'Technology work starts before construction starts in a restaurant/cafe plan',
+        details: { constructionStart: construction.start, technologyStart: technology.start },
+      });
+    }
+    if (construction && staff && staff.start < construction.start) {
+      criticalIssues.push({
+        severity: 'critical',
+        code: 'DOMAIN_SEQUENCE_STAFF_TOO_EARLY',
+        message: 'Staff/training starts before construction starts in a restaurant/cafe plan',
+        details: { constructionStart: construction.start, staffStart: staff.start },
+      });
+    }
+    if (construction && marketing && marketing.start < construction.start) {
+      criticalIssues.push({
+        severity: 'critical',
+        code: 'DOMAIN_SEQUENCE_MARKETING_TOO_EARLY',
+        message: 'Marketing starts before construction starts in a restaurant/cafe plan',
+        details: { constructionStart: construction.start, marketingStart: marketing.start },
+      });
+    }
+  }
+
+  // Validate assignment month ranges against workstream bounds when month columns are present in CSV.
+  const assignmentRows = parseCsvTable(input.assignmentsCsv || null);
+  if (assignmentRows.length > 0) {
+    const csvWorkstreamRanges = new Map<string, { start: number; end: number }>();
+    const workstreamRows = parseCsvTable(input.workstreamsCsv || null);
+    for (const row of workstreamRows) {
+      const wsId = pickColumn(row, ['Workstream ID', 'workstreamId', 'id']);
+      const start = parseMonthValue(pickColumn(row, ['Start Date', 'Start Month']));
+      const end = parseMonthValue(pickColumn(row, ['End Date', 'End Month']));
+      if (wsId && start !== null && end !== null) {
+        csvWorkstreamRanges.set(wsId, { start, end });
+      }
+    }
+
+    if (csvWorkstreamRanges.size === 0) {
+      for (const ws of workstreams) {
+        if (typeof ws?.id !== 'string') continue;
+        const start = Number(ws?.startMonth);
+        const end = Number(ws?.endMonth);
+        if (Number.isFinite(start) && Number.isFinite(end)) {
+          csvWorkstreamRanges.set(ws.id, { start, end });
+        }
+      }
+    }
+
+    let assignmentRangeViolations = 0;
+    for (const row of assignmentRows) {
+      const wsId = pickColumn(row, ['Workstream ID', 'workstreamId']);
+      const start = parseMonthValue(pickColumn(row, ['Start Month', 'Start Date']));
+      const end = parseMonthValue(pickColumn(row, ['End Month', 'End Date']));
+      if (!wsId || start === null || end === null) continue;
+      const wsRange = csvWorkstreamRanges.get(wsId);
+      if (!wsRange) continue;
+
+      if (start < wsRange.start || end > wsRange.end || end < start) {
+        assignmentRangeViolations += 1;
+      }
+    }
+
+    if (assignmentRangeViolations > 0) {
+      criticalIssues.push({
+        severity: 'critical',
+        code: 'ASSIGNMENT_RANGE_INVALID',
+        message: 'Assignment months fall outside their workstream ranges',
+        details: { violations: assignmentRangeViolations },
+      });
+    }
   }
 
   const hasDependencies = workstreams.some((ws: any) => Array.isArray(ws.dependencies) && ws.dependencies.length > 0);
@@ -451,6 +722,23 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
     });
   }
 
+  const usesProgressField = workstreams.some((ws: any) => ws?.progress !== undefined);
+  const hasConfidenceField = workstreams.every((ws: any) => ws?.confidence !== undefined);
+  if (usesProgressField) {
+    warnings.push({
+      severity: 'warning',
+      code: 'PROGRESS_SEMANTICS_UNCLEAR',
+      message: 'Workstreams include progress values without explicit date-based validation context',
+    });
+  }
+  if (!hasConfidenceField) {
+    warnings.push({
+      severity: 'warning',
+      code: 'CONFIDENCE_FIELD_MISSING',
+      message: 'One or more workstreams are missing confidence values',
+    });
+  }
+
   if (Array.isArray(workstreams) && workstreams.length > 0 && timeline && stageGates) {
     const report = qualityGateRunner.runQualityGate(
       JSON.parse(JSON.stringify(workstreams)),
@@ -466,6 +754,25 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
         message: `Quality gate found ${report.errorCount} error-level issues`,
       });
     }
+  }
+
+  const textArtifacts = [
+    input.strategyJson,
+    input.epmJson || '',
+    input.assignmentsCsv || '',
+    input.workstreamsCsv || '',
+    input.resourcesCsv || '',
+    input.risksCsv || '',
+    input.benefitsCsv || '',
+    input.reportMarkdown || '',
+    input.reportHtml || '',
+  ];
+  if (textArtifacts.some((value) => containsPlaceholderCorruption(value))) {
+    criticalIssues.push({
+      severity: 'critical',
+      code: 'PLACEHOLDER_CORRUPTION',
+      message: 'Export contains placeholder/corruption tokens (undefined, [object Object], or NaN)',
+    });
   }
 
   return {
