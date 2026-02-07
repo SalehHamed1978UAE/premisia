@@ -678,6 +678,74 @@ async function processEPMGeneration(
       }
     );
 
+    // VALIDATION GATE: Validate EPM output before saving
+    console.log('[EPM Generation] 🔍 Running quality validation...');
+    try {
+      const { EPMPackageValidator } = await import('../../scripts/validate-export-package');
+      const validator = new EPMPackageValidator();
+
+      // Create a temporary package for validation
+      const tempPackage = {
+        workstreams: epmProgram.workstreams,
+        timeline: epmProgram.timeline,
+        resources: epmProgram.resourcePlan,
+        stageGates: epmProgram.stageGates,
+        metadata: {
+          sessionId: version.sessionId,
+          generatedAt: new Date().toISOString(),
+          domain: namingContext?.businessSector || 'general',
+          businessType: namingContext?.businessName || 'unknown',
+        }
+      };
+
+      // Write temp file for validation
+      const tempPath = `/tmp/epm-validation-${Date.now()}.json`;
+      const fs = await import('fs');
+      fs.writeFileSync(tempPath, JSON.stringify(tempPackage, null, 2));
+
+      // Run validation
+      const validationResult = validator.validate(tempPath);
+
+      // Clean up temp file
+      fs.unlinkSync(tempPath);
+
+      // Check validation result
+      if (!validationResult.isValid) {
+        console.error('[EPM Generation] ❌ VALIDATION FAILED:');
+        validationResult.errors.forEach(e => console.error(`  - ${e}`));
+
+        // Send validation failure to SSE stream
+        sendSSEEvent(progressId, {
+          type: 'validation_failed',
+          errors: validationResult.errors,
+          warnings: validationResult.warnings,
+          score: validationResult.score,
+          message: `Quality validation failed (score: ${validationResult.score}/100). Please review and try again.`
+        });
+
+        throw new Error(`EPM quality validation failed with ${validationResult.errors.length} errors. Score: ${validationResult.score}/100`);
+      }
+
+      // Log warnings if any
+      if (validationResult.warnings.length > 0) {
+        console.warn('[EPM Generation] ⚠️  Validation warnings:');
+        validationResult.warnings.forEach(w => console.warn(`  - ${w}`));
+      }
+
+      console.log(`[EPM Generation] ✅ Validation passed (score: ${validationResult.score}/100)`);
+
+    } catch (validationError: any) {
+      // If validation itself fails (not just validation checks), log but continue
+      // This ensures we don't break existing flows while rolling out validation
+      if (validationError.message?.includes('validation failed')) {
+        // This is an actual validation failure, re-throw it
+        throw validationError;
+      } else {
+        // This is an error in the validation process itself, log and continue
+        console.error('[EPM Generation] ⚠️  Validation process error (continuing):', validationError.message);
+      }
+    }
+
     // Extract component-level confidence scores
     const componentConfidence = extractComponentConfidence(epmProgram);
     const finalConfidence = boostConfidenceWithDecisions(componentConfidence, userDecisions);

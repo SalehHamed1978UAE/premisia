@@ -95,21 +95,49 @@ export class WorkstreamGenerator implements IWorkstreamGenerator {
       
       console.log('\n[WorkstreamGenerator] Step 4: Converting WBS workstreams to EPM format...');
       const workstreams: Workstream[] = wbs.workstreams.map((ws, index) => {
-        const deliverables: Deliverable[] = ws.deliverables.map((delivName, delIndex) => ({
-          id: `${ws.id}-D${delIndex + 1}`,
-          name: delivName,
-          description: delivName,
-          dueMonth: 0,
-          effort: '1 person-month',
-        }));
-        
+        // Calculate timeline based on workstream position and dependencies
+        const baseDuration = 3; // Base duration in months for each workstream
+        const overlapFactor = 0.5; // 50% overlap between dependent workstreams
+
+        // Calculate start month based on dependencies
+        let startMonth = 1; // Default start
+        if (ws.dependencies.length > 0) {
+          // Find the latest end month of dependencies
+          const depWorkstreams = wbs.workstreams.filter(w =>
+            ws.dependencies.includes(w.id)
+          );
+          if (depWorkstreams.length > 0) {
+            const depIndex = wbs.workstreams.indexOf(depWorkstreams[depWorkstreams.length - 1]);
+            startMonth = Math.max(1, depIndex * baseDuration * overlapFactor + 1);
+          }
+        } else {
+          // No dependencies, calculate based on index with overlap
+          startMonth = Math.max(1, Math.floor(index * baseDuration * overlapFactor) + 1);
+        }
+
+        const endMonth = startMonth + baseDuration - 1;
+
+        // Calculate deliverable due months spread across the workstream duration
+        const deliverables: Deliverable[] = ws.deliverables.map((delivName, delIndex) => {
+          const progress = (delIndex + 1) / ws.deliverables.length;
+          const dueMonth = Math.floor(startMonth + (endMonth - startMonth) * progress);
+
+          return {
+            id: `${ws.id}-D${delIndex + 1}`,
+            name: delivName,
+            description: delivName,
+            dueMonth,
+            effort: '1 person-month',
+          };
+        });
+
         return {
           id: ws.id,
           name: ws.name,
           description: ws.description,
           deliverables,
-          startMonth: 0,
-          endMonth: 0,
+          startMonth,
+          endMonth,
           dependencies: ws.dependencies,
           confidence: ws.confidence,
         };
