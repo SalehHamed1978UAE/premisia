@@ -421,8 +421,18 @@ class EPMPackageValidator {
   }
 }
 
-// CLI execution
-if (require.main === module) {
+// CLI execution (ESM-safe)
+const isMain = (() => {
+  try {
+    const invoked = process.argv[1] ? path.resolve(process.argv[1]) : null;
+    const current = path.resolve(new URL(import.meta.url).pathname);
+    return Boolean(invoked && invoked === current);
+  } catch {
+    return false;
+  }
+})();
+
+if (isMain) {
   const args = process.argv.slice(2);
 
   if (args.length === 0) {
@@ -437,4 +447,5 @@ if (require.main === module) {
   process.exit(result.isValid ? 0 : 1);
 }
 
-export { EPMPackageValidator, ValidationResult };
+export { EPMPackageValidator };
+export type { ValidationResult };
