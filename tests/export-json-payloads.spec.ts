@@ -78,6 +78,27 @@ describe('Export JSON payload normalization', () => {
     expect(payload.frameworks).toEqual(['five_whys', 'bmc']);
   });
 
+  it('uses journey definition frameworks over contaminated metadata frameworks', () => {
+    const payload = buildStrategyJsonPayload({
+      understanding: { id: 'u6' },
+      journeySession: {
+        journeyType: 'business_model_innovation',
+        metadata: {
+          frameworks: ['five_whys', 'bmc', 'porters'],
+        },
+      },
+      strategyVersion: {
+        id: 'sv6',
+        analysisData: {
+          frameworks: ['five_whys', 'bmc', 'porters'],
+        },
+      },
+      decisions: [],
+    });
+
+    expect(payload.frameworks).toEqual(['five_whys', 'bmc']);
+  });
+
   it('uses custom journey metadata frameworks when provided', () => {
     const payload = buildStrategyJsonPayload({
       understanding: { id: 'u4' },
@@ -136,5 +157,32 @@ describe('Export JSON payload normalization', () => {
     expect(payload.risks).toHaveLength(1);
     expect(payload.benefits).toHaveLength(1);
     expect(payload.assignments).toHaveLength(1);
+  });
+
+  it('normalizes timeline coverage and critical path from workstream data', () => {
+    const payload = buildEpmJsonPayload({
+      program: {
+        timeline: {
+          totalMonths: 8,
+          phases: [
+            { phase: 1, name: 'P1', startMonth: 0, endMonth: 4 },
+            { phase: 2, name: 'P2', startMonth: 5, endMonth: 8 },
+          ],
+          criticalPath: ['WS005'],
+        },
+        workstreams: [
+          { id: 'WS001', startMonth: 0, endMonth: 3, dependencies: [] },
+          { id: 'WS006', startMonth: 4, endMonth: 7, dependencies: ['WS001'] },
+          { id: 'WS003', startMonth: 8, endMonth: 10, dependencies: ['WS006'] },
+          { id: 'WS005', startMonth: 11, endMonth: 13, dependencies: ['WS003'] },
+        ],
+      },
+      assignments: [],
+    });
+
+    const timeline = payload.program.timeline;
+    expect(timeline.totalMonths).toBe(13);
+    expect(timeline.phases[timeline.phases.length - 1].endMonth).toBe(13);
+    expect(timeline.criticalPath).toEqual(['WS001', 'WS006', 'WS003', 'WS005']);
   });
 });

@@ -126,24 +126,27 @@ function countCsvRows(csv: string | null | undefined): number {
 
 function deriveExpectedFrameworks(strategyData: any): string[] {
   const journeySession = strategyData?.journeySession || {};
-  const metadata = parseJson(journeySession.metadata) || {};
+  const journeyType = typeof journeySession.journeyType === 'string'
+    ? journeySession.journeyType
+    : null;
+  if (journeyType) {
+    try {
+      const journey = getJourney(journeyType as any);
+      if (journey && Array.isArray(journey.frameworks)) {
+        const fromJourney = normalizeFrameworkList(journey.frameworks);
+        if (fromJourney.length > 0) return fromJourney;
+      }
+    } catch {
+      // Fall through to metadata fallback.
+    }
+  }
 
+  const metadata = parseJson(journeySession.metadata) || {};
   if (Array.isArray(metadata.frameworks)) {
     return normalizeFrameworkList(metadata.frameworks);
   }
 
-  const journeyType = typeof journeySession.journeyType === 'string'
-    ? journeySession.journeyType
-    : null;
-  if (!journeyType) return [];
-
-  try {
-    const journey = getJourney(journeyType as any);
-    if (!journey || !Array.isArray(journey.frameworks)) return [];
-    return normalizeFrameworkList(journey.frameworks);
-  } catch {
-    return [];
-  }
+  return [];
 }
 
 function arraysEqualStrict(a: string[], b: string[]): boolean {
@@ -404,6 +407,30 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
 
   const timeline = parseJson(epmData.program?.timeline) || epmData.program?.timeline || {};
   const stageGates = parseJson(epmData.program?.stageGates) || epmData.program?.stageGates || { gates: [] };
+  const maxWorkstreamEnd = workstreams.reduce(
+    (max: number, ws: any) => Math.max(max, Number(ws?.endMonth) || 0),
+    0
+  );
+  const phaseMaxEnd = Array.isArray(timeline?.phases)
+    ? timeline.phases.reduce(
+        (max: number, phase: any) => Math.max(max, Number(phase?.endMonth) || 0),
+        0
+      )
+    : 0;
+  const totalMonths = Number(timeline?.totalMonths) || 0;
+  if (maxWorkstreamEnd > 0 && (phaseMaxEnd < maxWorkstreamEnd || totalMonths < maxWorkstreamEnd)) {
+    criticalIssues.push({
+      severity: 'critical',
+      code: 'TIMELINE_PHASE_COVERAGE',
+      message: 'Timeline phases/total months do not cover full workstream span',
+      details: {
+        totalMonths,
+        phaseMaxEnd,
+        maxWorkstreamEnd,
+      },
+    });
+  }
+
   const hasDependencies = workstreams.some((ws: any) => Array.isArray(ws.dependencies) && ws.dependencies.length > 0);
   const expectedCriticalPath = computeLongestDependencyChain(workstreams);
   const actualCriticalPath = normalizeCriticalPathToIds(Array.isArray(timeline?.criticalPath) ? timeline.criticalPath : [], workstreams);

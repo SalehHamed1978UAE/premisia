@@ -137,4 +137,23 @@ describe('Export acceptance gates', () => {
       )
     ).toBe(true);
   });
+
+  it('fails when timeline phase coverage does not span all workstreams', () => {
+    const epm = JSON.parse(buildValidEpmJson());
+    epm.program.timeline.totalMonths = 8;
+    epm.program.timeline.phases = [
+      { phase: 1, name: 'P1', startMonth: 0, endMonth: 4, keyMilestones: [], workstreamIds: ['WS001'] },
+      { phase: 2, name: 'P2', startMonth: 5, endMonth: 8, keyMilestones: [], workstreamIds: ['WS002'] },
+    ];
+    epm.workstreams[2].endMonth = 13;
+
+    const report = validateExportAcceptance({
+      strategyJson: buildValidStrategyJson(),
+      epmJson: JSON.stringify(epm),
+      ...validCsvs(),
+    });
+
+    expect(report.passed).toBe(false);
+    expect(report.criticalIssues.some((i) => i.code === 'TIMELINE_PHASE_COVERAGE')).toBe(true);
+  });
 });

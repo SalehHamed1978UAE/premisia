@@ -45,4 +45,26 @@ describe('TimelineCalculator critical path', () => {
     expect(criticalPath.length).toBe(1);
     expect(['WS001', 'WS002']).toContain(criticalPath[0]);
   });
+
+  it('uses workstream span to set total months and phase coverage', async () => {
+    const calculator = new TimelineCalculator();
+    const workstreams: Workstream[] = [
+      ws('WS001', 0, 3, []),
+      ws('WS002', 4, 8, ['WS001']),
+      ws('WS003', 9, 13, ['WS002']),
+    ];
+
+    const timeline = await calculator.calculate(
+      {
+        frameworkType: 'test',
+        insights: [],
+        marketContext: { urgency: 'Normal' },
+      } as any,
+      workstreams
+    );
+
+    const phaseMaxEnd = timeline.phases.reduce((max, phase) => Math.max(max, phase.endMonth), 0);
+    expect(timeline.totalMonths).toBeGreaterThanOrEqual(13);
+    expect(phaseMaxEnd).toBeGreaterThanOrEqual(13);
+  });
 });
