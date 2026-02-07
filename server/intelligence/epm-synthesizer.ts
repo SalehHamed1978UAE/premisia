@@ -67,6 +67,7 @@ import {
   normalizeRole,
   ensureResourceExists,
 } from './epm';
+import { enforceDomainSequencing } from './epm/domain-sequencing';
 
 export { ContextBuilder } from './epm';
 
@@ -250,6 +251,13 @@ export class EPMSynthesizer {
       insights.frameworkType || 'strategy_workspace',
       userContext?.sessionId
     );
+    const domainContextText = [
+      planningContext.business.industry,
+      planningContext.business.description,
+      planningContext.business.initiativeType,
+    ]
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      .join(' ');
 
     console.log(`[EPM Synthesis] ✓ Planning context: Scale=${planningContext.business.scale}, Timeline=${planningContext.execution.timeline.min}-${planningContext.execution.timeline.max}mo`);
 
@@ -279,10 +287,11 @@ export class EPMSynthesizer {
 
       // CRITICAL: Extract workstreams from program object, not from non-existent planningResult.workstreams
       const scheduledWorkstreams = planningResult.program?.workstreams || workstreams;
+      const sequencedWorkstreams = enforceDomainSequencing(scheduledWorkstreams, domainContextText);
 
       return await this.buildFullProgram(
         insights,
-        scheduledWorkstreams,
+        sequencedWorkstreams,
         planningContext,
         userContext,
         namingContext,
@@ -315,13 +324,14 @@ export class EPMSynthesizer {
       // Assign default timings based on workstream position when intelligent planning fails
       // This ensures timeline calculator gets proper duration data
       const timedWorkstreams = this.assignDefaultTimings(workstreams, planningContext);
-      timedWorkstreams.forEach((ws, i) => {
+      const sequencedTimedWorkstreams = enforceDomainSequencing(timedWorkstreams, domainContextText);
+      sequencedTimedWorkstreams.forEach((ws, i) => {
         console.log(`[EPM Synthesis]     ${i + 1}. ${ws.name} (M${ws.startMonth}-M${ws.endMonth}, ${ws.deliverables?.length || 0} deliverables)`);
       });
 
       return await this.buildFullProgram(
         insights,
-        timedWorkstreams, // Use WBS Builder workstreams with default timings
+        sequencedTimedWorkstreams, // Use WBS Builder workstreams with domain sequencing guardrails
         planningContext,
         userContext,
         namingContext,
