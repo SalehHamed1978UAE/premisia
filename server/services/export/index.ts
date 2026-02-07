@@ -65,8 +65,11 @@ export async function generateFullPassExport(
   
   console.log('[Export Service] Generating JSON and CSV exports...');
   const strategyJson = JSON.stringify(buildStrategyJsonPayload(exportPackage.strategy), null, 2);
-  const epmJson = exportPackage.epm?.program
-    ? JSON.stringify(buildEpmJsonPayload(exportPackage.epm), null, 2)
+  const normalizedEpmPayload = exportPackage.epm?.program
+    ? buildEpmJsonPayload(exportPackage.epm)
+    : null;
+  const epmJson = normalizedEpmPayload
+    ? JSON.stringify(normalizedEpmPayload, null, 2)
     : null;
   
   const parseField = (field: any) => {
@@ -75,19 +78,20 @@ export async function generateFullPassExport(
     try { return JSON.parse(field); } catch { return null; }
   };
   
-  const workstreams = parseField(exportPackage.epm?.program?.workstreams);
-  const assignmentsCsv = exportPackage.epm?.assignments
-    ? generateAssignmentsCsv(exportPackage.epm.assignments, workstreams || [])
+  const workstreams = normalizedEpmPayload?.workstreams || parseField(exportPackage.epm?.program?.workstreams);
+  const assignments = normalizedEpmPayload?.assignments || exportPackage.epm?.assignments || [];
+  const assignmentsCsv = assignments.length > 0
+    ? generateAssignmentsCsv(assignments, workstreams || [])
     : null;
   const workstreamsCsv = workstreams && workstreams.length > 0 ? generateWorkstreamsCsv(workstreams) : null;
   
-  const resourcePlan = parseField(exportPackage.epm?.program?.resourcePlan);
-  const resourcesCsv = resourcePlan ? generateResourcesCsv(resourcePlan, exportPackage.epm?.assignments || []) : null;
+  const resourcePlan = normalizedEpmPayload?.resourcePlan || parseField(exportPackage.epm?.program?.resourcePlan);
+  const resourcesCsv = resourcePlan ? generateResourcesCsv(resourcePlan, assignments) : null;
   
-  const riskRegister = parseField(exportPackage.epm?.program?.riskRegister);
+  const riskRegister = normalizedEpmPayload?.riskRegister || parseField(exportPackage.epm?.program?.riskRegister);
   const risksCsv = riskRegister ? generateRisksCsv(riskRegister) : null;
   
-  const benefitsRealization = parseField(exportPackage.epm?.program?.benefitsRealization);
+  const benefitsRealization = normalizedEpmPayload?.benefitsRealization || parseField(exportPackage.epm?.program?.benefitsRealization);
   const benefitsCsv = benefitsRealization ? generateBenefitsCsv(benefitsRealization) : null;
 
   console.log('[Export Service] Running acceptance gates...');

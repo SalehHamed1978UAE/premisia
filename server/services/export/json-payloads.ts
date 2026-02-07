@@ -228,6 +228,97 @@ function deriveBenefitList(benefitsRealization: any): any[] {
   return [];
 }
 
+const RESTAURANT_RE = /restaurant|cafe|café|kitchen|food|hospitality/i;
+const CONSTRUCTION_RE = /construction|design|build|fit[\s-]?out|infrastructure|kitchen|renovat|site\s*prep|site\s*preparation/i;
+const COMPLIANCE_RE = /regulatory|compliance|license|licensing|permit|food safety|health/i;
+const TECH_RE = /technology|digital|pos|ordering|system/i;
+const STAFF_RE = /staff|hr|training|recruit|talent|onboarding/i;
+const MARKETING_RE = /marketing|brand|campaign|sales|promotion|audience/i;
+
+function normalizeMonth(value: any, fallback = 0): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function clampDueMonth(dueMonth: any, startMonth: number, endMonth: number): number {
+  const parsed = normalizeMonth(dueMonth, endMonth);
+  return Math.min(endMonth, Math.max(startMonth, parsed));
+}
+
+function normalizeRestaurantSequencing(workstreams: any[]): any[] {
+  if (!Array.isArray(workstreams) || workstreams.length === 0) return [];
+
+  const isRestaurantLike = workstreams.some((ws) => RESTAURANT_RE.test(String(ws?.name || '')));
+  if (!isRestaurantLike) return workstreams;
+
+  const constructionWorkstreams = workstreams.filter((ws) => CONSTRUCTION_RE.test(String(ws?.name || '')));
+  if (constructionWorkstreams.length === 0) return workstreams;
+
+  const constructionStart = Math.min(...constructionWorkstreams.map((ws) => normalizeMonth(ws?.startMonth, 0)));
+  const constructionEnd = Math.max(...constructionWorkstreams.map((ws) => normalizeMonth(ws?.endMonth, 0)));
+  const constructionIds = new Set(
+    constructionWorkstreams
+      .map((ws) => ws?.id)
+      .filter((id): id is string => typeof id === 'string')
+  );
+
+  return workstreams.map((ws) => {
+    const name = String(ws?.name || '');
+    const baseStart = normalizeMonth(ws?.startMonth, 0);
+    const baseEnd = normalizeMonth(ws?.endMonth, baseStart);
+    const duration = Math.max(1, baseEnd - baseStart);
+
+    let startMonth = baseStart;
+    let endMonth = baseEnd;
+    let dependencies = Array.isArray(ws?.dependencies)
+      ? ws.dependencies.filter((dep: any): dep is string => typeof dep === 'string')
+      : [];
+    let changed = false;
+
+    if (COMPLIANCE_RE.test(name) && startMonth > constructionEnd) {
+      startMonth = constructionEnd;
+      endMonth = startMonth + duration;
+      dependencies = dependencies.filter((depId) => !constructionIds.has(depId));
+      changed = true;
+    }
+
+    if (TECH_RE.test(name) && startMonth < constructionStart) {
+      startMonth = constructionStart;
+      endMonth = startMonth + duration;
+      changed = true;
+    }
+
+    if (STAFF_RE.test(name) && startMonth < constructionStart) {
+      startMonth = constructionStart;
+      endMonth = startMonth + duration;
+      changed = true;
+    }
+
+    if (MARKETING_RE.test(name) && startMonth < constructionStart) {
+      startMonth = constructionStart;
+      endMonth = startMonth + duration;
+      changed = true;
+    }
+
+    if (!changed) return ws;
+
+    const deliverables = Array.isArray(ws?.deliverables)
+      ? ws.deliverables.map((deliverable: any) => ({
+          ...deliverable,
+          dueMonth: clampDueMonth(deliverable?.dueMonth ?? deliverable?.due_month, startMonth, endMonth),
+        }))
+      : [];
+
+    return {
+      ...ws,
+      startMonth,
+      endMonth,
+      dependencies,
+      deliverables,
+    };
+  });
+}
+
 function computeLongestDependencyChain(workstreams: any[]): string[] {
   if (!Array.isArray(workstreams) || workstreams.length === 0) return [];
 
@@ -386,7 +477,8 @@ export function buildStrategyJsonPayload(strategy: StrategyPayload): Record<stri
 
 export function buildEpmJsonPayload(epm: EpmPayload): Record<string, any> {
   const program = epm.program || {};
-  const workstreams = parseMaybeJson<any[]>(program.workstreams) || [];
+  const rawWorkstreams = parseMaybeJson<any[]>(program.workstreams) || [];
+  const workstreams = normalizeRestaurantSequencing(rawWorkstreams);
   const timeline = normalizeTimeline(program, workstreams);
   const resourcePlan = parseMaybeJson<any>(program.resourcePlan);
   const riskRegister = parseMaybeJson<any>(program.riskRegister);
