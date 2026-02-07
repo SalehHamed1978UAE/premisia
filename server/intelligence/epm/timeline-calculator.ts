@@ -124,26 +124,90 @@ export class TimelineCalculator implements ITimelineCalculator {
    */
   identifyCriticalPath(workstreams: Workstream[]): string[] {
     if (workstreams.length === 0) return [];
-    
-    const pathLengths = workstreams.map(w => {
-      let length = w.endMonth - w.startMonth;
-      let current = w;
-      
-      while (current.dependencies.length > 0) {
-        const dep = workstreams.find(ws => ws.id === current.dependencies[0]);
-        if (dep) {
-          length += dep.endMonth - dep.startMonth;
-          current = dep;
-        } else {
-          break;
+
+    const byId = new Map(workstreams.map((ws) => [ws.id, ws]));
+    const inDegree = new Map<string, number>();
+    const dependents = new Map<string, string[]>();
+
+    for (const ws of workstreams) {
+      inDegree.set(ws.id, 0);
+      dependents.set(ws.id, []);
+    }
+
+    for (const ws of workstreams) {
+      for (const depId of ws.dependencies || []) {
+        if (!byId.has(depId)) continue;
+        inDegree.set(ws.id, (inDegree.get(ws.id) || 0) + 1);
+        dependents.get(depId)?.push(ws.id);
+      }
+    }
+
+    const queue: string[] = workstreams
+      .filter((ws) => (inDegree.get(ws.id) || 0) === 0)
+      .map((ws) => ws.id);
+    const topo: string[] = [];
+
+    while (queue.length > 0) {
+      const id = queue.shift() as string;
+      topo.push(id);
+
+      for (const dependentId of dependents.get(id) || []) {
+        const nextDegree = (inDegree.get(dependentId) || 0) - 1;
+        inDegree.set(dependentId, nextDegree);
+        if (nextDegree === 0) queue.push(dependentId);
+      }
+    }
+
+    // Cyclic dependencies should already be handled upstream; degrade gracefully here.
+    if (topo.length !== workstreams.length) {
+      const longest = [...workstreams].sort(
+        (a, b) => (b.endMonth - b.startMonth) - (a.endMonth - a.startMonth)
+      )[0];
+      return longest ? [longest.id] : [];
+    }
+
+    const scoreById = new Map<string, number>();
+    const predecessorById = new Map<string, string | null>();
+
+    for (const id of topo) {
+      const ws = byId.get(id)!;
+      const duration = Math.max(1, ws.endMonth - ws.startMonth + 1);
+
+      let bestPredecessor: string | null = null;
+      let bestPredecessorScore = 0;
+
+      for (const depId of ws.dependencies || []) {
+        const depScore = scoreById.get(depId);
+        if (depScore === undefined) continue;
+        if (depScore > bestPredecessorScore) {
+          bestPredecessorScore = depScore;
+          bestPredecessor = depId;
         }
       }
-      
-      return { workstream: w, length };
+
+      scoreById.set(id, duration + bestPredecessorScore);
+      predecessorById.set(id, bestPredecessor);
+    }
+
+    let criticalEndId: string | null = null;
+    let maxScore = -1;
+    scoreById.forEach((score, id) => {
+      if (score > maxScore) {
+        maxScore = score;
+        criticalEndId = id;
+      }
     });
 
-    const longest = pathLengths.sort((a, b) => b.length - a.length)[0];
-    return [longest.workstream.id];
+    if (!criticalEndId) return [];
+
+    const path: string[] = [];
+    let cursor: string | null = criticalEndId;
+    while (cursor) {
+      path.push(cursor);
+      cursor = predecessorById.get(cursor) || null;
+    }
+
+    return path.reverse();
   }
 }
 

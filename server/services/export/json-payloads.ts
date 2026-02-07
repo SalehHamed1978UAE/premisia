@@ -1,4 +1,5 @@
 import type { FullExportPackage } from '../../types/interfaces';
+import { getJourney } from '../../journey/journey-registry';
 
 type StrategyPayload = FullExportPackage['strategy'];
 type EpmPayload = NonNullable<FullExportPackage['epm']>;
@@ -57,41 +58,56 @@ function uniqueNonEmpty(values: Array<string | null | undefined>): string[] {
   return out;
 }
 
+function normalizeFrameworkList(values: any[]): string[] {
+  return uniqueNonEmpty(
+    values.map((value: any) => (typeof value === 'string' ? normalizeFrameworkName(value) : null))
+  );
+}
+
+function deriveAuthoritativeFrameworks(strategy: StrategyPayload): string[] {
+  const journeySession = strategy.journeySession || {};
+  const metadata = parseMaybeJson<Record<string, any>>(journeySession.metadata) || {};
+
+  const fromMetadata = Array.isArray(metadata.frameworks)
+    ? normalizeFrameworkList(metadata.frameworks)
+    : [];
+  if (fromMetadata.length > 0) return fromMetadata;
+
+  const journeyType = typeof journeySession.journeyType === 'string'
+    ? journeySession.journeyType
+    : null;
+  if (!journeyType) return [];
+
+  try {
+    const journey = getJourney(journeyType as any);
+    if (!journey || !Array.isArray(journey.frameworks)) return [];
+    return normalizeFrameworkList(journey.frameworks);
+  } catch {
+    return [];
+  }
+}
+
 function deriveFrameworks(
   strategy: StrategyPayload,
   analysisData: Record<string, any>,
 ): string[] {
-  // AUTHORITATIVE: Use journey definition if available
-  const journeyType = strategy.journeySession?.journeyType;
-  if (journeyType) {
-    // Import journey registry to get authoritative framework list
-    const { journeyRegistry } = require('../../journey/journey-registry');
-    const journeyDef = journeyRegistry.getJourney(journeyType);
-    if (journeyDef && journeyDef.frameworks) {
-      // Return ONLY the frameworks defined for this journey
-      return journeyDef.frameworks;
-    }
+  const authoritative = deriveAuthoritativeFrameworks(strategy);
+  if (authoritative.length > 0) {
+    return authoritative;
   }
 
-  // FALLBACK: If no journey definition, derive from data (old behavior)
   const fromAnalysisArray = Array.isArray(analysisData.frameworks)
-    ? analysisData.frameworks
-        .map((f: any) => (typeof f === 'string' ? normalizeFrameworkName(f) : null))
+    ? normalizeFrameworkList(analysisData.frameworks)
     : [];
-
-  const fromAnalysisKeys = Object.keys(analysisData)
-    .map((k) => normalizeFrameworkName(k));
 
   const fromJourneySession = Array.isArray(strategy.journeySession?.completedFrameworks)
-    ? strategy.journeySession?.completedFrameworks
-        .map((f: any) => (typeof f === 'string' ? normalizeFrameworkName(f) : null))
+    ? normalizeFrameworkList(strategy.journeySession?.completedFrameworks)
     : [];
 
-  return uniqueNonEmpty([
-    ...fromAnalysisArray,
-    ...fromJourneySession,
-    ...fromAnalysisKeys,
-  ]);
+  if (fromJourneySession.length > 0) return fromJourneySession;
+  if (fromAnalysisArray.length > 0) return fromAnalysisArray;
+
+  return [];
 }
 
 function getFiveWhys(analysisData: Record<string, any>): Record<string, any> {
