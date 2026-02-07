@@ -7,7 +7,7 @@
  * It implements the 10-point validation checklist to ensure quality.
  *
  * Usage:
- *   ts-node scripts/validate-export-package.ts <path-to-epm-package.json>
+ *   node --import tsx scripts/validate-export-package.ts <path-to-epm-package.json>
  *
  * Exit codes:
  *   0 - Validation passed
@@ -16,6 +16,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 
 interface ValidationResult {
   isValid: boolean;
@@ -421,12 +422,22 @@ class EPMPackageValidator {
   }
 }
 
-// CLI execution
-if (require.main === module) {
+// CLI execution (ESM-safe)
+const isMain = (() => {
+  try {
+    const invoked = process.argv[1] ? path.resolve(process.argv[1]) : null;
+    const current = path.resolve(fileURLToPath(import.meta.url));
+    return Boolean(invoked && invoked === current);
+  } catch {
+    return false;
+  }
+})();
+
+if (isMain) {
   const args = process.argv.slice(2);
 
   if (args.length === 0) {
-    console.error('Usage: ts-node scripts/validate-export-package.ts <path-to-epm-package.json>');
+    console.error('Usage: node --import tsx scripts/validate-export-package.ts <path-to-epm-package.json>');
     process.exit(1);
   }
 
@@ -437,4 +448,5 @@ if (require.main === module) {
   process.exit(result.isValid ? 0 : 1);
 }
 
-export { EPMPackageValidator, ValidationResult };
+export { EPMPackageValidator };
+export type { ValidationResult };
