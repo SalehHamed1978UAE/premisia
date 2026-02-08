@@ -1293,6 +1293,47 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
       rootCausePreview: rootCause?.slice(0, 120),
     });
 
+    const understanding = await db.query.strategicUnderstanding.findFirst({
+      where: eq(strategicUnderstanding.sessionId, sessionId),
+    });
+
+    let linkedJourneySession = null;
+    let latestFiveWhysTree: any = null;
+
+    if (understanding?.id) {
+      linkedJourneySession = await db.query.journeySessions.findFirst({
+        where: eq(journeySessions.understandingId, understanding.id),
+      });
+
+      if (linkedJourneySession?.id) {
+        const recentFiveWhysInsights = await db.select()
+          .from(frameworkInsights)
+          .where(
+            and(
+              eq(frameworkInsights.sessionId, linkedJourneySession.id),
+              eq(frameworkInsights.frameworkName, 'five_whys')
+            )
+          )
+          .orderBy(desc(frameworkInsights.createdAt))
+          .limit(20);
+
+        for (const row of recentFiveWhysInsights) {
+          let payload: any = row.insights;
+          if (typeof row.insights === 'string') {
+            try {
+              payload = JSON.parse(row.insights as any);
+            } catch {
+              payload = null;
+            }
+          }
+          if (payload?.tree) {
+            latestFiveWhysTree = payload.tree;
+            break;
+          }
+        }
+      }
+    }
+
     const insights = await whysTreeGenerator.analyzePathInsights(
       input,
       normalizedPath.map((option: string, index: number) => ({
@@ -1359,22 +1400,25 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
       porters_analysis: null,
     };
 
+    if (latestFiveWhysTree && normalizedPath.length > 0) {
+      const { reconcileTreeWithPath } = await import('../services/export/tree-path-reconciler');
+      latestFiveWhysTree = reconcileTreeWithPath(latestFiveWhysTree, normalizedPath);
+      console.log('[FiveWhys] Reconciled tree with chosen path');
+    }
+
+    if (latestFiveWhysTree) {
+      (analysisData as any).five_whys.tree = latestFiveWhysTree;
+    }
+
     let version;
     const userId = (req.user as any)?.claims?.sub || null;
 
     // Determine target version number (authoritative: journey session if available)
     let targetVersionNumber: number | undefined = versionNumber;
 
-    const understanding = await db.query.strategicUnderstanding.findFirst({
-      where: eq(strategicUnderstanding.sessionId, sessionId),
-    });
-
     if (understanding?.id) {
-      const journeySession = await db.query.journeySessions.findFirst({
-        where: eq(journeySessions.understandingId, understanding.id),
-      });
-      if (journeySession?.versionNumber) {
-        targetVersionNumber = journeySession.versionNumber;
+      if (linkedJourneySession?.versionNumber) {
+        targetVersionNumber = linkedJourneySession.versionNumber;
         console.log(`[FiveWhys] Using journey session versionNumber=${targetVersionNumber} (authoritative)`);
       }
     }
@@ -1436,53 +1480,26 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
 
     // Persist to frameworkInsights for export/report consistency
     try {
-      if (understanding?.id) {
-        const journeySession = await db.query.journeySessions.findFirst({
-          where: eq(journeySessions.understandingId, understanding.id),
-        });
-        if (journeySession?.id) {
-          // First, fetch the original tree from existing framework insights
-          const [existingInsight] = await db.select()
-            .from(frameworkInsights)
-            .where(
-              and(
-                eq(frameworkInsights.sessionId, journeySession.id),
-                eq(frameworkInsights.frameworkName, 'five_whys')
-              )
-            )
-            .orderBy(desc(frameworkInsights.createdAt))
-            .limit(1);
+      if (understanding?.id && linkedJourneySession?.id) {
+        const syncedInsights: any = {
+          whysPath: normalizedPath,
+          rootCauses: rootCause ? [rootCause] : [],
+          strategicImplications: insights.strategic_implications || [],
+          strategicFocus,
+        };
 
-          let originalTree = null;
-          if (existingInsight?.insights) {
-            const insights = typeof existingInsight.insights === 'string'
-              ? JSON.parse(existingInsight.insights)
-              : existingInsight.insights;
-            originalTree = insights.tree;
-          }
-
-          // If we have a tree, reconcile it with the chosen path
-          let reconciledTree = originalTree;
-          if (originalTree && normalizedPath.length > 0) {
-            const { reconcileTreeWithPath } = await import('../services/export/tree-path-reconciler');
-            reconciledTree = reconcileTreeWithPath(originalTree, normalizedPath);
-            console.log('[FiveWhys] Reconciled tree with chosen path');
-          }
-
-          // Update framework insights with reconciled tree and chosen path
-          await db.insert(frameworkInsights).values({
-            sessionId: journeySession.id,
-            frameworkName: 'five_whys',
-            insights: {
-              whysPath: normalizedPath,
-              rootCauses: rootCause ? [rootCause] : [],
-              strategicImplications: insights.strategic_implications || [],
-              tree: reconciledTree, // Include the reconciled tree
-              strategicFocus: strategicFocus, // Strategic focus for BMC
-            },
-          });
-          console.log('[FiveWhys] Persisted reconciled tree and path to frameworkInsights');
+        if (latestFiveWhysTree) {
+          syncedInsights.tree = latestFiveWhysTree;
         }
+
+        await db.insert(frameworkInsights).values({
+          understandingId: understanding.id,
+          sessionId: linkedJourneySession.id,
+          frameworkName: 'five_whys',
+          frameworkVersion: '1.0',
+          insights: syncedInsights,
+        });
+        console.log('[FiveWhys] Persisted synced tree/path to frameworkInsights');
       }
     } catch (insightsError: any) {
       console.warn('[FiveWhys] Failed to persist frameworkInsights:', insightsError?.message || insightsError);

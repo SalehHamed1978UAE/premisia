@@ -14,6 +14,97 @@ import { normalizeWhysPath, pickCanonicalWhysPath } from './whys-utils';
 
 export type { ExportRequest, FullExportPackage, ExportResult, IExporter };
 
+interface FiveWhysInsightCandidate {
+  tree: any;
+  whysPath: string[];
+}
+
+function normalizeWhyComparisonText(value: any): string {
+  if (typeof value !== 'string') return '';
+  return value.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function areWhyPathsEquivalent(left: string[], right: string[]): boolean {
+  if (left.length === 0 || right.length === 0 || left.length !== right.length) return false;
+  return left.every((step, index) => normalizeWhyComparisonText(step) === normalizeWhyComparisonText(right[index]));
+}
+
+function collectTreeNodeTexts(node: any, out: string[]): void {
+  if (!node || typeof node !== 'object') return;
+  const candidates = [node.option, node.answer, node.label, node.text, node.reason, node.question];
+  for (const candidate of candidates) {
+    const normalized = normalizeWhyComparisonText(candidate);
+    if (normalized.length > 0) out.push(normalized);
+  }
+  if (Array.isArray(node.branches)) {
+    for (const child of node.branches) {
+      collectTreeNodeTexts(child, out);
+    }
+  }
+}
+
+function treeContainsCanonicalPath(tree: any, whysPath: string[]): boolean {
+  if (!tree || !Array.isArray(whysPath) || whysPath.length === 0) return false;
+  const treeTexts: string[] = [];
+
+  if (Array.isArray(tree.branches)) {
+    for (const branch of tree.branches) {
+      collectTreeNodeTexts(branch, treeTexts);
+    }
+  } else {
+    collectTreeNodeTexts(tree, treeTexts);
+  }
+
+  if (treeTexts.length === 0) return false;
+  return whysPath.every((step) => {
+    const normalizedStep = normalizeWhyComparisonText(step);
+    if (!normalizedStep) return false;
+    return treeTexts.some((nodeText) => nodeText.includes(normalizedStep) || normalizedStep.includes(nodeText));
+  });
+}
+
+function parseFiveWhysInsight(insightRow: any): FiveWhysInsightCandidate | null {
+  if (!insightRow?.insights) return null;
+  let payload: any = insightRow.insights;
+  if (typeof insightRow.insights === 'string') {
+    try {
+      payload = JSON.parse(insightRow.insights);
+    } catch {
+      return null;
+    }
+  }
+  const tree = payload?.tree;
+  const whysPath = normalizeWhysPath(payload?.whysPath);
+  if (!tree && whysPath.length === 0) return null;
+  return { tree, whysPath };
+}
+
+function selectAlignedFiveWhysTree(
+  analysisTree: any,
+  insightCandidates: FiveWhysInsightCandidate[],
+  canonicalWhysPath: string[]
+): any | undefined {
+  if (analysisTree && (canonicalWhysPath.length === 0 || treeContainsCanonicalPath(analysisTree, canonicalWhysPath))) {
+    return analysisTree;
+  }
+
+  if (canonicalWhysPath.length > 0) {
+    const exactPathMatch = insightCandidates.find((candidate) =>
+      candidate.tree && areWhyPathsEquivalent(candidate.whysPath, canonicalWhysPath)
+    );
+    if (exactPathMatch?.tree) return exactPathMatch.tree;
+
+    const treeContentMatch = insightCandidates.find((candidate) =>
+      candidate.tree && treeContainsCanonicalPath(candidate.tree, canonicalWhysPath)
+    );
+    if (treeContentMatch?.tree) return treeContentMatch.tree;
+
+    return undefined;
+  }
+
+  return insightCandidates.find((candidate) => !!candidate.tree)?.tree;
+}
+
 export abstract class BaseExporter implements IExporter {
   abstract readonly name: string;
   abstract readonly format: string;
@@ -108,11 +199,10 @@ export async function loadExportData(
     }));
   }
 
-  console.log('[Export Service] loadExportData - Fetching Five Whys tree from framework_insights...');
-  let fiveWhysTree;
-  let frameworkInsightWhysPath: any[] = [];
+  console.log('[Export Service] loadExportData - Fetching Five Whys insights from framework_insights...');
+  let insightCandidates: FiveWhysInsightCandidate[] = [];
   if (journeySession) {
-    const [fiveWhysInsight] = await db.select()
+    const fiveWhysInsights = await db.select()
       .from(frameworkInsights)
       .where(
         and(
@@ -121,28 +211,28 @@ export async function loadExportData(
         )
       )
       .orderBy(desc(frameworkInsights.createdAt))
-      .limit(1);
-    
-    if (fiveWhysInsight?.insights) {
-      const insights = typeof fiveWhysInsight.insights === 'string' 
-        ? JSON.parse(fiveWhysInsight.insights) 
-        : fiveWhysInsight.insights;
-      fiveWhysTree = insights.tree;
-      frameworkInsightWhysPath = Array.isArray(insights.whysPath) ? insights.whysPath : [];
-      console.log('[Export Service] Five Whys tree loaded:', fiveWhysTree ? 'Yes' : 'No');
-      console.log('[Export Service] Five Whys path loaded:', frameworkInsightWhysPath.length, 'steps');
-    }
+      .limit(20);
+
+    insightCandidates = fiveWhysInsights
+      .map((row) => parseFiveWhysInsight(row))
+      .filter((candidate): candidate is FiveWhysInsightCandidate => !!candidate);
+    console.log('[Export Service] Five Whys insight candidates loaded:', insightCandidates.length);
   }
 
   let analysisWhysPath: any[] = [];
+  let analysisFiveWhysTree: any;
   if (strategyVersion?.analysisData) {
     const analysisData = typeof strategyVersion.analysisData === 'string'
       ? JSON.parse(strategyVersion.analysisData as any)
       : strategyVersion.analysisData;
     const fiveWhys = analysisData?.five_whys || analysisData?.fiveWhys;
     analysisWhysPath = Array.isArray(fiveWhys?.whysPath) ? fiveWhys.whysPath : [];
+    analysisFiveWhysTree = fiveWhys?.tree;
     if (analysisWhysPath.length > 0) {
       console.log('[Export Service] Five Whys path candidate from strategyVersion.analysisData:', analysisWhysPath.length);
+    }
+    if (analysisFiveWhysTree) {
+      console.log('[Export Service] Five Whys tree candidate from strategyVersion.analysisData: Yes');
     }
   }
   // Authoritative precedence:
@@ -150,12 +240,23 @@ export async function loadExportData(
   // 2) framework_insights fallback (when analysisData is absent)
   // 3) best-available canonical fallback.
   const normalizedAnalysisPath = normalizeWhysPath(analysisWhysPath);
-  const normalizedInsightPath = normalizeWhysPath(frameworkInsightWhysPath);
+  const normalizedInsightPath = pickCanonicalWhysPath(insightCandidates.map((candidate) => candidate.whysPath));
   const whysPath = normalizedAnalysisPath.length > 0
     ? normalizedAnalysisPath
     : (normalizedInsightPath.length > 0
       ? normalizedInsightPath
-      : pickCanonicalWhysPath([frameworkInsightWhysPath, analysisWhysPath]));
+      : pickCanonicalWhysPath([analysisWhysPath]));
+
+  const fiveWhysTree = selectAlignedFiveWhysTree(analysisFiveWhysTree, insightCandidates, whysPath);
+  if (fiveWhysTree && whysPath.length > 0 && !treeContainsCanonicalPath(fiveWhysTree, whysPath)) {
+    console.warn('[Export Service] Five Whys tree did not align with canonical path; suppressing tree in export');
+  }
+
+  const alignedTree = fiveWhysTree && (whysPath.length === 0 || treeContainsCanonicalPath(fiveWhysTree, whysPath))
+    ? fiveWhysTree
+    : undefined;
+
+  console.log('[Export Service] Five Whys tree selected for export:', alignedTree ? 'Yes' : 'No');
   console.log('[Export Service] Canonical Five Whys path selected:', whysPath.length, 'steps');
 
   console.log('[Export Service] loadExportData - Fetching clarifications from strategic understanding...');
@@ -272,7 +373,7 @@ export async function loadExportData(
       journeySession,
       strategyVersion,
       decisions,
-      fiveWhysTree,
+      fiveWhysTree: alignedTree,
       whysPath,
       clarifications,
     },
