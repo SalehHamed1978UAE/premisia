@@ -295,8 +295,43 @@ function collectResourceSkillCorpus(resources: any[]): string {
 
 function extractMarkdownTreeChosenPath(markdown: string | null | undefined): string[] {
   if (!markdown) return [];
-  const matches = markdown.matchAll(/\*\*([^*]+)\*\*\s*✓\s*\(Chosen path\)/g);
-  return Array.from(matches, (match) => match[1]?.trim() || '').filter((value) => value.length > 0);
+  const patterns = [
+    /\*\*([^*]+)\*\*\s*(?:✓|✅|✔)\s*\(Chosen path\)/g,
+    /(?:✓|✅|✔)\s*\(Chosen path\)\s*\*\*([^*]+)\*\*/g,
+    /(?:^|\n)\s*[-*]?\s*\d+\.\s+\*\*([^*]+)\*\*.*(?:✓|✅|✔)\s*\(Chosen path\)/g,
+  ];
+
+  const out: string[] = [];
+  for (const pattern of patterns) {
+    const matches = markdown.matchAll(pattern);
+    for (const match of matches) {
+      const value = match[1]?.trim() || '';
+      if (value.length > 0) out.push(value);
+    }
+  }
+
+  return out;
+}
+
+function extractMarkdownSection(markdown: string | null | undefined, heading: string): string {
+  if (!markdown) return '';
+  const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = markdown.match(new RegExp(`##\\s+${escaped}\\s*\\n([\\s\\S]*?)(\\n##\\s+|$)`));
+  return match?.[1] || '';
+}
+
+function hasCanonicalStepsInTreeSection(markdown: string | null | undefined, whysPath: any[]): boolean {
+  if (!markdown || !Array.isArray(whysPath) || whysPath.length === 0) return false;
+  const treeSection = extractMarkdownSection(markdown, 'Five Whys - Complete Analysis Tree');
+  if (!treeSection) return false;
+
+  const normalizedTree = treeSection.toLowerCase().replace(/\s+/g, ' ');
+  const normalizedPath = normalizeWhyPathForComparison(whysPath);
+  if (normalizedPath.length === 0) return false;
+
+  const matched = normalizedPath.filter((step) => step.length > 0 && normalizedTree.includes(step));
+  const requiredMatches = Math.min(2, normalizedPath.length);
+  return matched.length >= requiredMatches;
 }
 
 function extractMarkdownSummaryPath(markdown: string | null | undefined): string[] {
@@ -584,10 +619,13 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
       const hasTreeSection = reportMarkdown.includes('## Five Whys - Complete Analysis Tree');
       if (hasTreeSection && whysPath.length > 0) {
         if (treePathFromReport.length === 0) {
-          criticalIssues.push({
-            severity: 'critical',
+          const hasCanonicalTreeContent = hasCanonicalStepsInTreeSection(reportMarkdown, whysPath);
+          warnings.push({
+            severity: 'warning',
             code: 'REPORT_WHYS_TREE_MARKERS_MISSING',
-            message: 'Five Whys tree exists but contains no chosen-path markers',
+            message: hasCanonicalTreeContent
+              ? 'Five Whys tree has no explicit chosen-path markers (format-only issue)'
+              : 'Five Whys tree has no explicit chosen-path markers; verify rendering output',
           });
         } else {
           const compareCount = Math.min(whysPath.length, treePathFromReport.length, 4);

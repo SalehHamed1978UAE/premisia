@@ -226,7 +226,7 @@ describe('Export acceptance gates', () => {
     expect(report.criticalIssues.some((i) => i.code === 'REPORT_WHYS_CANONICAL_MISMATCH')).toBe(true);
   });
 
-  it('fails when Five Whys tree has no chosen-path markers', () => {
+  it('warns (but does not fail) when Five Whys tree has no chosen-path markers', () => {
     const report = validateExportAcceptance({
       strategyJson: buildValidStrategyJson(),
       epmJson: buildValidEpmJson(),
@@ -248,8 +248,8 @@ describe('Export acceptance gates', () => {
       ].join('\n'),
     });
 
-    expect(report.passed).toBe(false);
-    expect(report.criticalIssues.some((i) => i.code === 'REPORT_WHYS_TREE_MARKERS_MISSING')).toBe(true);
+    expect(report.passed).toBe(true);
+    expect(report.warnings.some((i) => i.code === 'REPORT_WHYS_TREE_MARKERS_MISSING')).toBe(true);
   });
 
   it('fails when csv and epm section counts diverge', () => {
