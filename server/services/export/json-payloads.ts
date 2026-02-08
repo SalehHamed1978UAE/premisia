@@ -134,10 +134,13 @@ function deriveWhysPath(
   const nestedParsed = parseMaybeJson<any[]>(fiveWhys.whysPath);
   const nested = Array.isArray(nestedParsed) ? nestedParsed : [];
 
-  // Canonical source-of-truth rule:
-  // 1) prefer strategy.whysPath (user-selected/finalized path from framework insights),
-  // 2) fall back to analysisData.five_whys.whysPath for legacy sessions.
-  if (topLevel.length > 0) return topLevel;
+  // Canonical source-of-truth rule with resilience:
+  // 1) prefer finalized top-level path when complete (>=4),
+  // 2) otherwise fall back to nested complete path (legacy compatibility),
+  // 3) if neither is complete, choose the richer available path.
+  if (topLevel.length >= 4) return topLevel;
+  if (nested.length >= 4) return nested;
+  if (topLevel.length >= nested.length) return topLevel;
   return nested;
 }
 
@@ -408,13 +411,19 @@ export function buildStrategyJsonPayload(strategy: StrategyPayload): Record<stri
   const rootCause = deriveRootCause(fiveWhys, parsedAnalysisData);
   const strategicImplications = deriveStrategicImplications(fiveWhys, parsedAnalysisData);
 
-  // Auto-heal legacy mismatch: keep nested five_whys.whysPath aligned with canonical path.
+  // Auto-heal legacy mismatch: keep nested paths aligned with canonical path.
   const canonicalizedAnalysisData = { ...parsedAnalysisData };
   const nestedFiveWhysRaw = parseMaybeJson<Record<string, any>>(canonicalizedAnalysisData.five_whys);
   const nestedFiveWhys = nestedFiveWhysRaw || {};
+  const camelFiveWhysRaw = parseMaybeJson<Record<string, any>>(canonicalizedAnalysisData.fiveWhys);
+  const camelFiveWhys = camelFiveWhysRaw || {};
   if (whysPath.length > 0) {
     canonicalizedAnalysisData.five_whys = {
       ...nestedFiveWhys,
+      whysPath,
+    };
+    canonicalizedAnalysisData.fiveWhys = {
+      ...camelFiveWhys,
       whysPath,
     };
   }
