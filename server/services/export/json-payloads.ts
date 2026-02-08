@@ -464,6 +464,77 @@ function normalizeWorkstreamsForExport(workstreams: any[]): any[] {
   });
 }
 
+function enforceDependencyTimingForExport(workstreams: any[]): any[] {
+  const normalized = workstreams.map((ws: any) => ({
+    ...ws,
+    dependencies: Array.isArray(ws?.dependencies)
+      ? ws.dependencies.filter((depId: any) => typeof depId === 'string' && depId !== ws?.id)
+      : [],
+  }));
+
+  const byId = new Map<string, any>();
+  for (const ws of normalized) {
+    if (typeof ws?.id === 'string') byId.set(ws.id, ws);
+  }
+
+  // Iteratively shift dependent workstreams until all dependency windows are valid.
+  const maxPasses = Math.max(1, normalized.length * 2);
+  for (let pass = 0; pass < maxPasses; pass++) {
+    let changed = false;
+
+    for (const ws of normalized) {
+      const start = Number(ws?.startMonth);
+      const end = Number(ws?.endMonth);
+      if (!Number.isFinite(start) || !Number.isFinite(end)) continue;
+
+      const duration = Math.max(1, end - start + 1);
+      let requiredStart = start;
+
+      for (const depId of ws.dependencies || []) {
+        const dep = byId.get(depId);
+        if (!dep) continue;
+        const depEnd = Number(dep?.endMonth);
+        if (Number.isFinite(depEnd)) {
+          requiredStart = Math.max(requiredStart, depEnd + 1);
+        }
+      }
+
+      if (requiredStart > start) {
+        ws.startMonth = requiredStart;
+        ws.endMonth = requiredStart + duration - 1;
+        changed = true;
+      }
+    }
+
+    if (!changed) break;
+  }
+
+  // Remove impossible dependency links that still violate timing (typically cycle artifacts).
+  for (const ws of normalized) {
+    const wsStart = Number(ws?.startMonth);
+    if (!Number.isFinite(wsStart)) continue;
+    ws.dependencies = (ws.dependencies || []).filter((depId: string) => {
+      const dep = byId.get(depId);
+      if (!dep) return false;
+      const depEnd = Number(dep?.endMonth);
+      return Number.isFinite(depEnd) ? depEnd < wsStart : false;
+    });
+
+    if (Array.isArray(ws?.deliverables)) {
+      ws.deliverables = ws.deliverables.map((deliverable: any) => {
+        const due = Number(deliverable?.dueMonth);
+        if (!Number.isFinite(due)) return deliverable;
+        return {
+          ...deliverable,
+          dueMonth: Math.max(Number(ws.startMonth), Math.min(Number(ws.endMonth), due)),
+        };
+      });
+    }
+  }
+
+  return normalized;
+}
+
 export function buildStrategyJsonPayload(strategy: StrategyPayload): Record<string, any> {
   const parsedAnalysisData = parseMaybeJson<Record<string, any>>(strategy.strategyVersion?.analysisData) || {};
   const fiveWhys = getFiveWhys(parsedAnalysisData);
@@ -535,7 +606,8 @@ export function buildEpmJsonPayload(epm: EpmPayload, strategy?: StrategyPayload)
   const domain = inferStrategyDomain(strategy);
   const rawWorkstreams = parseMaybeJson<any[]>(program.workstreams) || [];
   const sequencedWorkstreams = enforceDomainSequencing(rawWorkstreams as any[]);
-  const workstreams = normalizeWorkstreamsForExport(sequencedWorkstreams as any[]);
+  const normalizedWorkstreams = normalizeWorkstreamsForExport(sequencedWorkstreams as any[]);
+  const workstreams = enforceDependencyTimingForExport(normalizedWorkstreams as any[]);
   const timeline = normalizeTimeline(program, workstreams);
   const rawResourcePlan = parseMaybeJson<any>(program.resourcePlan);
   const resourcePlan = sanitizeResourcePlanForDomain(rawResourcePlan, domain);

@@ -221,4 +221,41 @@ describe('Export JSON payload normalization', () => {
     expect(discovery.startMonth).toBeLessThanOrEqual(1);
     expect(discovery.deliverables[0].dueMonth).toBeLessThanOrEqual(discovery.endMonth);
   });
+
+  it('shifts dependent workstreams forward when dependency timing is invalid', () => {
+    const payload = buildEpmJsonPayload({
+      program: {
+        workstreams: [
+          {
+            id: 'WS001',
+            name: 'Foundation',
+            startMonth: 1,
+            endMonth: 3,
+            dependencies: [],
+            deliverables: [{ id: 'D1', dueMonth: 2 }],
+          },
+          {
+            id: 'WS002',
+            name: 'Execution',
+            startMonth: 2,
+            endMonth: 4,
+            dependencies: ['WS001'],
+            deliverables: [{ id: 'D2', dueMonth: 2 }],
+          },
+        ],
+        timeline: {
+          totalMonths: 4,
+          phases: [{ phase: 1, name: 'Execution', startMonth: 1, endMonth: 4 }],
+        },
+      },
+      assignments: [],
+    });
+
+    const foundation = payload.workstreams.find((ws: any) => ws.id === 'WS001');
+    const execution = payload.workstreams.find((ws: any) => ws.id === 'WS002');
+    expect(execution.startMonth).toBeGreaterThan(foundation.endMonth);
+    expect(execution.dependencies).toEqual(['WS001']);
+    expect(execution.deliverables[0].dueMonth).toBeGreaterThanOrEqual(execution.startMonth);
+    expect(payload.program.timeline.totalMonths).toBeGreaterThanOrEqual(execution.endMonth);
+  });
 });
