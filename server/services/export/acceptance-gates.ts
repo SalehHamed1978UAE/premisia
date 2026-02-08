@@ -211,7 +211,63 @@ function parseMonthValue(value: string | null): number | null {
 }
 
 function containsPlaceholderCorruption(value: string): boolean {
-  return /\bundefined\b|\[object Object\]|\bNaN\b/.test(value);
+  // Always corruption - these should never appear
+  if (/\[object Object\]/.test(value)) return true;
+  if (/\bNaN\b/.test(value)) return true;
+
+  // Check for JavaScript-style undefined (corruption)
+  // But allow business prose like "terms undefined", "models undefined", "remains undefined"
+
+  // Patterns that indicate corruption (JavaScript undefined):
+  const corruptionPatterns = [
+    /^undefined$/,                    // Standalone undefined
+    /\bundefined\s*[,;\]\}]/,         // undefined followed by punctuation (JS syntax)
+    /[\[\{]\s*undefined\b/,           // undefined in array/object context
+    /=\s*undefined\b/,                // assignment to undefined
+    /:\s*undefined\b/,                // property value undefined
+    /\bundefined\s+undefined\b/,      // repeated undefined
+    /\bnull\s+undefined\b/,           // null undefined pattern
+    /\bundefined\s+null\b/,           // undefined null pattern
+  ];
+
+  // Check if any corruption pattern matches
+  for (const pattern of corruptionPatterns) {
+    if (pattern.test(value)) return true;
+  }
+
+  // Patterns that indicate legitimate business prose:
+  const legitimatePatterns = [
+    /\b(terms?|models?|parameters?|values?|strategies?|approaches?|methods?|policies?|rules?|requirements?|specifications?|criteria|metrics?|goals?|objectives?|targets?|scope|boundaries|limits?)\s+undefined\b/i,
+    /\b(remains?|stayed?|left|kept|still|currently|presently|yet|continues?\s+to\s+be)\s+undefined\b/i,
+    /\bundefined\s+(despite|although|even\s+though|but|however|yet)/i,
+    /\b(clearly|explicitly|well|poorly|loosely|strictly|formally|properly)\s+undefined\b/i,
+    /\b(leave|leaves|leaving|left)\s+\w+\s+undefined\b/i,
+  ];
+
+  // If it matches a legitimate pattern, it's NOT corruption
+  for (const pattern of legitimatePatterns) {
+    if (pattern.test(value)) return false;
+  }
+
+  // Check if undefined appears in a way we haven't categorized
+  // Be conservative - only flag if it looks like JavaScript undefined
+  if (/\bundefined\b/.test(value)) {
+    // Check context around undefined
+    const undefinedMatches = value.match(/.{0,30}\bundefined\b.{0,30}/gi) || [];
+
+    for (const match of undefinedMatches) {
+      // If it looks like it's in a sentence with normal words, it's probably legitimate
+      const hasNormalWords = /\b(the|and|or|is|are|was|were|be|been|being|have|has|had|do|does|did|will|would|could|should|may|might|must|shall|can|cannot)\b/i.test(match);
+
+      // If surrounded by normal prose, likely legitimate
+      if (hasNormalWords) continue;
+
+      // If we can't determine it's legitimate, flag as potential corruption
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function isAnswerLikeWhyStep(step: any): boolean {
@@ -1046,50 +1102,38 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
   const corruptedArtifacts: string[] = [];
   for (const artifact of textArtifacts) {
     if (containsPlaceholderCorruption(artifact.value)) {
-      // Clean the artifact value before checking
-      const cleanedValue = artifact.value.replace(/\[object Object\]/g, '[Object]');
+      corruptedArtifacts.push(artifact.name);
+      console.error(`[Export Validation] PLACEHOLDER_CORRUPTION found in ${artifact.name}`);
 
-      // Check if it's still corrupted after cleaning
-      if (containsPlaceholderCorruption(cleanedValue)) {
-        corruptedArtifacts.push(artifact.name);
-        console.error(`[Export Validation] PLACEHOLDER_CORRUPTION found in ${artifact.name}`);
-
-        // Log specific corruption details
-        if (artifact.value.includes('[object Object]')) {
-          const idx = artifact.value.indexOf('[object Object]');
-          const context = artifact.value.substring(Math.max(0, idx - 50), Math.min(artifact.value.length, idx + 65));
-          console.error(`[Export Validation] [object Object] found at position ${idx}: ...${context}...`);
-        }
-        if (artifact.value.includes('undefined')) {
-          const idx = artifact.value.indexOf('undefined');
+      // Log specific corruption details for debugging
+      if (artifact.value.includes('[object Object]')) {
+        const idx = artifact.value.indexOf('[object Object]');
+        const context = artifact.value.substring(Math.max(0, idx - 50), Math.min(artifact.value.length, idx + 65));
+        console.error(`[Export Validation] [object Object] found at position ${idx}: ...${context}...`);
+      }
+      // Only log actual JavaScript-style undefined, not business prose
+      const jsUndefinedPattern = /^undefined$|[\[\{=:]\s*undefined\b|\bundefined\s*[,;\]\}]/;
+      if (jsUndefinedPattern.test(artifact.value)) {
+        const idx = artifact.value.search(jsUndefinedPattern);
+        if (idx !== -1) {
           const context = artifact.value.substring(Math.max(0, idx - 50), Math.min(artifact.value.length, idx + 59));
-          console.error(`[Export Validation] undefined found at position ${idx}: ...${context}...`);
+          console.error(`[Export Validation] JavaScript undefined found at position ${idx}: ...${context}...`);
         }
-        if (artifact.value.includes('NaN')) {
-          const idx = artifact.value.indexOf('NaN');
-          const context = artifact.value.substring(Math.max(0, idx - 50), Math.min(artifact.value.length, idx + 53));
-          console.error(`[Export Validation] NaN found at position ${idx}: ...${context}...`);
-        }
-      } else {
-        console.warn(`[Export Validation] ${artifact.name} had [object Object] but was cleaned successfully`);
+      }
+      if (artifact.value.includes('NaN')) {
+        const idx = artifact.value.indexOf('NaN');
+        const context = artifact.value.substring(Math.max(0, idx - 50), Math.min(artifact.value.length, idx + 53));
+        console.error(`[Export Validation] NaN found at position ${idx}: ...${context}...`);
       }
     }
   }
 
   if (corruptedArtifacts.length > 0) {
-    // Temporarily downgrade to warning to allow export to proceed
-    console.error('[Export Validation] PLACEHOLDER_CORRUPTION detected but allowing export with warning');
-    warnings.push({
-      severity: 'warning',
-      code: 'PLACEHOLDER_CORRUPTION_CLEANED',
-      message: `Export contained placeholder tokens that were cleaned in: ${corruptedArtifacts.join(', ')}`,
+    criticalIssues.push({
+      severity: 'critical',
+      code: 'PLACEHOLDER_CORRUPTION',
+      message: `Export contains placeholder/corruption tokens in: ${corruptedArtifacts.join(', ')}`,
     });
-    // Don't add to criticalIssues to allow export to proceed
-    // criticalIssues.push({
-    //   severity: 'critical',
-    //   code: 'PLACEHOLDER_CORRUPTION',
-    //   message: `Export contains placeholder/corruption tokens in: ${corruptedArtifacts.join(', ')}`,
-    // });
   }
 
   return {

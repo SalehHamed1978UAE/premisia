@@ -108,24 +108,17 @@ export async function generateFullPassExport(
   const benefitsRealization = normalizedEpmPayload?.benefitsRealization || parseField(exportPackage.epm?.program?.benefitsRealization);
   const benefitsCsv = benefitsRealization ? generateBenefitsCsv(benefitsRealization) : null;
 
-  // Clean any [object Object] corruption before validation
-  const cleanCorruption = (str: string | null): string => {
-    if (!str) return '';
-    // Replace [object Object] with a safe placeholder
-    return str.replace(/\[object Object\]/g, '');
-  };
-
   console.log('[Export Service] Running acceptance gates...');
   const acceptanceReport = validateExportAcceptance({
-    strategyJson: cleanCorruption(strategyJson),
-    epmJson: cleanCorruption(epmJson),
-    assignmentsCsv: cleanCorruption(assignmentsCsv),
-    workstreamsCsv: cleanCorruption(workstreamsCsv),
-    resourcesCsv: cleanCorruption(resourcesCsv),
-    risksCsv: cleanCorruption(risksCsv),
-    benefitsCsv: cleanCorruption(benefitsCsv),
-    reportMarkdown: cleanCorruption(markdown),
-    reportHtml: cleanCorruption(html),
+    strategyJson,
+    epmJson,
+    assignmentsCsv,
+    workstreamsCsv,
+    resourcesCsv,
+    risksCsv,
+    benefitsCsv,
+    reportMarkdown: markdown,
+    reportHtml: html,
   });
   if (!acceptanceReport.passed) {
     acceptanceReport.criticalIssues.forEach((issue) => {
@@ -205,14 +198,13 @@ export async function generateFullPassExport(
   
   const includedFiles: string[] = [];
   
-  // Clean all text artifacts before archiving
-  archive.append(cleanCorruption(markdown), { name: 'report.md' });
+  archive.append(markdown, { name: 'report.md' });
   includedFiles.push('report.md');
 
   archive.append(docx, { name: 'report.docx' });
   includedFiles.push('report.docx');
 
-  archive.append(cleanCorruption(uiHtml), { name: 'report-ui.html' });
+  archive.append(uiHtml, { name: 'report-ui.html' });
   includedFiles.push('report-ui.html');
 
   archive.append(uiDocx, { name: 'report-ui.docx' });
@@ -228,32 +220,32 @@ export async function generateFullPassExport(
     includedFiles.push('report-ui.pdf');
   }
   
-  archive.append(cleanCorruption(strategyJson), { name: 'data/strategy.json' });
+  archive.append(strategyJson, { name: 'data/strategy.json' });
   includedFiles.push('data/strategy.json');
 
   if (epmJson) {
     console.log('[Export Service] Adding EPM data...');
-    archive.append(cleanCorruption(epmJson), { name: 'data/epm.json' });
+    archive.append(epmJson, { name: 'data/epm.json' });
     includedFiles.push('data/epm.json');
   }
   if (assignmentsCsv) {
-    archive.append(cleanCorruption(assignmentsCsv), { name: 'data/assignments.csv' });
+    archive.append(assignmentsCsv, { name: 'data/assignments.csv' });
     includedFiles.push('data/assignments.csv');
   }
   if (workstreamsCsv) {
-    archive.append(cleanCorruption(workstreamsCsv), { name: 'data/workstreams.csv' });
+    archive.append(workstreamsCsv, { name: 'data/workstreams.csv' });
     includedFiles.push('data/workstreams.csv');
   }
   if (resourcesCsv) {
-    archive.append(cleanCorruption(resourcesCsv), { name: 'data/resources.csv' });
+    archive.append(resourcesCsv, { name: 'data/resources.csv' });
     includedFiles.push('data/resources.csv');
   }
   if (risksCsv) {
-    archive.append(cleanCorruption(risksCsv), { name: 'data/risks.csv' });
+    archive.append(risksCsv, { name: 'data/risks.csv' });
     includedFiles.push('data/risks.csv');
   }
   if (benefitsCsv) {
-    archive.append(cleanCorruption(benefitsCsv), { name: 'data/benefits.csv' });
+    archive.append(benefitsCsv, { name: 'data/benefits.csv' });
     includedFiles.push('data/benefits.csv');
   }
   
