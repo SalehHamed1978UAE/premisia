@@ -174,10 +174,36 @@ export class InitiativeClassifier {
     console.log('[INITIATIVE-CLASSIFIER] Using fallback keyword-based classification');
     
     const input = userInput.toLowerCase();
-    
+
+    // Service launch indicators (check first for hybrid businesses)
+    const serviceKeywords = ['service', 'consulting', 'agency', 'rental', 'subscription', 'marketplace'];
+    const physicalKeywords = ['boutique', 'store', 'shop', 'location', 'outlet', 'branch'];
+    const hasServiceIndicators = serviceKeywords.some(kw => input.includes(kw));
+    const hasPhysicalIndicators = physicalKeywords.some(kw => input.includes(kw));
+
+    // Hybrid service/retail business (like fashion rental with boutique)
+    if (hasServiceIndicators && hasPhysicalIndicators) {
+      return {
+        initiativeType: 'service_launch',
+        description: 'Service business launch with physical presence',
+        confidence: 0.7,
+        reasoning: 'Keyword-based fallback classification (hybrid service/retail indicators detected)'
+      };
+    }
+
+    // Pure service business
+    if (hasServiceIndicators) {
+      return {
+        initiativeType: 'service_launch',
+        description: 'Service or marketplace business launch',
+        confidence: 0.6,
+        reasoning: 'Keyword-based fallback classification (service business indicators detected)'
+      };
+    }
+
     // Physical business indicators
-    const physicalKeywords = ['open', 'launch', 'store', 'shop', 'restaurant', 'cafe', 'coffee', 'retail', 'gym', 'office', 'location'];
-    if (physicalKeywords.some(kw => input.includes(kw))) {
+    const strongPhysicalKeywords = ['open', 'launch', 'restaurant', 'cafe', 'coffee', 'retail', 'gym', 'office'];
+    if (strongPhysicalKeywords.some(kw => input.includes(kw)) || hasPhysicalIndicators) {
       return {
         initiativeType: 'physical_business_launch',
         description: 'Physical business or location launch',
@@ -185,15 +211,33 @@ export class InitiativeClassifier {
         reasoning: 'Keyword-based fallback classification (physical business indicators detected)'
       };
     }
-    
-    // Software development indicators
-    const softwareKeywords = ['app', 'software', 'platform', 'saas', 'website', 'system', 'code', 'develop', 'build', 'api', 'mobile'];
-    if (softwareKeywords.some(kw => input.includes(kw))) {
+
+    // Software development indicators (check after service to avoid misclassification)
+    const softwareKeywords = ['app', 'software', 'saas', 'website', 'system', 'code', 'develop', 'build', 'api', 'mobile'];
+    const hasSoftwareIndicators = softwareKeywords.some(kw => input.includes(kw));
+
+    // Check for platform in non-software context
+    const hasPlatformKeyword = input.includes('platform');
+
+    // Only classify as software if it has software indicators AND either:
+    // 1. No service indicators, OR
+    // 2. Platform is mentioned WITH other software keywords
+    if (hasSoftwareIndicators && !hasServiceIndicators) {
       return {
         initiativeType: 'software_development',
         description: 'Software or technical product development',
         confidence: 0.6,
         reasoning: 'Keyword-based fallback classification (software development indicators detected)'
+      };
+    }
+
+    // Platform alone without other software keywords -> likely a marketplace/service
+    if (hasPlatformKeyword && !hasSoftwareIndicators) {
+      return {
+        initiativeType: 'service_launch',
+        description: 'Platform or marketplace service',
+        confidence: 0.5,
+        reasoning: 'Keyword-based fallback classification (platform service indicators detected)'
       };
     }
     

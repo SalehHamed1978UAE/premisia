@@ -70,9 +70,10 @@ export function generateFiveWhysTreeMarkdown(tree: any, whysPath?: any[]): strin
   
   const renderNode = (node: any, level: number): void => {
     const indent = '  '.repeat(level);
-    const isChosen = isNodeInPath(node.option, node.question);
+    // Check both: reconciled tree marker (isChosen) and path matching
+    const isChosen = node.isChosen || isNodeInPath(node.option, node.question);
     const chosenMarker = isChosen ? ' ✓ (Chosen path)' : '';
-    
+
     lines.push(`${indent}${level + 1}. **${node.option}**${chosenMarker}`);
     
     if (node.supporting_evidence && node.supporting_evidence.length > 0) {

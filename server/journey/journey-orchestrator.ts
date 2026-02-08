@@ -933,23 +933,47 @@ export class JourneyOrchestrator {
     const rootCauses: string[] = [];
     const whysPath: string[] = [];
     
-    // Extract from each branch - for now, take first branch to build a path
+    // Note: This generates a placeholder path for initial storage
+    // The actual user-selected path will be saved during finalization
     if (whysTree.branches && whysTree.branches.length > 0) {
+      // Use the highest-scoring/deepest branch instead of always first
+      const selectBestBranch = (branches: any[]): any => {
+        if (!branches || branches.length === 0) return null;
+
+        // Score based on depth and evidence
+        const scoreBranch = (branch: any): number => {
+          let score = 0;
+          if (branch.supporting_evidence?.length > 0) score += branch.supporting_evidence.length;
+          if (branch.option?.length > 50) score += 1; // Prefer detailed answers
+          if (branch.branches?.length > 0) {
+            const maxChildScore = Math.max(...branch.branches.map(scoreBranch));
+            score += maxChildScore;
+          }
+          return score;
+        };
+
+        return branches.reduce((best, branch) => {
+          return scoreBranch(branch) > scoreBranch(best) ? branch : best;
+        }, branches[0]);
+      };
+
       let currentLevel = whysTree.branches;
-      
-      // Traverse the first branch to build a complete path
+
+      // Traverse the best-scoring branch to build a path
       while (currentLevel && currentLevel.length > 0) {
-        const node = currentLevel[0];
+        const node = selectBestBranch(currentLevel);
+        if (!node) break;
+
         const stepText = node.option || (node as any).answer || node.question || '';
         if (typeof stepText === 'string' && stepText.trim().length > 0) {
           whysPath.push(stepText);
         }
-        
+
         // If we're at a leaf node (deepest level), this is a root cause
         if (!node.branches || node.branches.length === 0) {
           rootCauses.push(node.option || node.question);
         }
-        
+
         currentLevel = node.branches || [];
       }
       

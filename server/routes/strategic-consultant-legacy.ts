@@ -17,7 +17,7 @@ import { unlink } from 'fs/promises';
 import { refreshTokenProactively } from '../replitAuth';
 import { db } from '../db';
 import { strategicUnderstanding, journeySessions, strategyVersions, epmPrograms, bmcAnalyses, strategicEntities, strategicRelationships, frameworkInsights } from '@shared/schema';
-import { eq, and, inArray } from 'drizzle-orm';
+import { eq, and, inArray, desc } from 'drizzle-orm';
 import { strategicUnderstandingService } from '../strategic-understanding-service';
 import { JourneyOrchestrator } from '../journey/journey-orchestrator';
 import { journeyRegistry } from '../journey/journey-registry';
@@ -1424,6 +1424,35 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
           where: eq(journeySessions.understandingId, understanding.id),
         });
         if (journeySession?.id) {
+          // First, fetch the original tree from existing framework insights
+          const [existingInsight] = await db.select()
+            .from(frameworkInsights)
+            .where(
+              and(
+                eq(frameworkInsights.sessionId, journeySession.id),
+                eq(frameworkInsights.frameworkName, 'five_whys')
+              )
+            )
+            .orderBy(desc(frameworkInsights.createdAt))
+            .limit(1);
+
+          let originalTree = null;
+          if (existingInsight?.insights) {
+            const insights = typeof existingInsight.insights === 'string'
+              ? JSON.parse(existingInsight.insights)
+              : existingInsight.insights;
+            originalTree = insights.tree;
+          }
+
+          // If we have a tree, reconcile it with the chosen path
+          let reconciledTree = originalTree;
+          if (originalTree && normalizedPath.length > 0) {
+            const { reconcileTreeWithPath } = await import('../services/export/tree-path-reconciler');
+            reconciledTree = reconcileTreeWithPath(originalTree, normalizedPath);
+            console.log('[FiveWhys] Reconciled tree with chosen path');
+          }
+
+          // Update framework insights with reconciled tree and chosen path
           await db.insert(frameworkInsights).values({
             sessionId: journeySession.id,
             frameworkName: 'five_whys',
@@ -1431,8 +1460,10 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
               whysPath: normalizedPath,
               rootCauses: rootCause ? [rootCause] : [],
               strategicImplications: insights.strategic_implications || [],
+              tree: reconciledTree, // Include the reconciled tree
             },
           });
+          console.log('[FiveWhys] Persisted reconciled tree and path to frameworkInsights');
         }
       }
     } catch (insightsError: any) {
