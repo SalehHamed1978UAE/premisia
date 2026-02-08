@@ -58,7 +58,7 @@ export function addFrameworkResult(
       updatedContext.insights = {
         ...updatedContext.insights,
         businessModelGaps: result.data.criticalGaps || [],
-        bmcBlocks: result.data.blocks || {},
+        bmcBlocks: result.data.blocks || [], // Fix: blocks is an array, not an object
         bmcContradictions: result.data.contradictions || [],
       };
       break;

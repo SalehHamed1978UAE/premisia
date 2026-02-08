@@ -18,10 +18,14 @@ export class BMCExecutor implements FrameworkExecutor {
   async execute(context: StrategicContext): Promise<any> {
     console.log('[BMC Executor] Starting Business Model Canvas research...');
 
-    // CRITICAL: Verify Five Whys is finalized before running BMC
-    if (!context.insights?.whysPath || context.insights.whysPath.length === 0) {
-      console.error('[BMC Executor] ERROR: Five Whys not finalized - BMC cannot run without root cause analysis');
-      throw new Error('BMC requires Five Whys to be completed and finalized first. User must select their path through Five Whys before BMC can run.');
+    // If Five Whys was part of this journey, verify it's finalized
+    // Only check if completedFrameworks includes five_whys
+    if (context.completedFrameworks?.includes('five_whys')) {
+      if (!context.insights?.whysPath || context.insights.whysPath.length === 0) {
+        console.error('[BMC Executor] ERROR: Five Whys was run but not finalized - BMC needs the selected path');
+        throw new Error('Five Whys must be completed and finalized before BMC can use its insights.');
+      }
+      console.log('[BMC Executor] Five Whys is complete, will use its insights');
     }
 
     // Extract strategic focus from Five Whys (if available)
@@ -73,7 +77,7 @@ export class BMCExecutor implements FrameworkExecutor {
       strategicFocus
     );
     
-    console.log(`[BMC Executor] Completed - generated ${Object.keys(bmcResults.blocks || {}).length} blocks`);
+    console.log(`[BMC Executor] Completed - generated ${(bmcResults.blocks || []).length} blocks`);
     
     // Persist references to database for provenance tracking
     if (bmcResults.references && bmcResults.references.length > 0) {
