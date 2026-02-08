@@ -136,14 +136,42 @@ function detectDomainKey(context?: BusinessContext): DomainKey {
     context?.programName,
   ].filter(Boolean).join(' ').toLowerCase();
 
+  // Check for service/consulting businesses first
   if (/(service_launch|consult(ing|ancy)?|agency|professional services|implementation service|advisory)/.test(corpus)) {
     return 'professional_services';
   }
-  if (/(restaurant|cafe|food|culinary|dining|hospitality)/.test(corpus)) return 'food_service';
-  if (/(retail|store|e-?commerce|shopping)/.test(corpus)) return 'retail';
+
+  // Check for technology/software businesses
   if (/(saas|software|technology|tech|application development|product engineering|product platform)/.test(corpus)) {
     return 'technology';
   }
+
+  // For food-related businesses, be more specific to avoid false positives
+  // Only match if it's actually a restaurant/cafe, not a supplier TO restaurants
+  const isActualRestaurant =
+    // Direct restaurant/cafe indicators
+    /(^|\s)(restaurant|cafe|coffee shop|bistro|diner|pizzeria|bakery)($|\s)/.test(corpus) ||
+    // Food service business indicators
+    /(catering business|food service operation|dining establishment)/.test(corpus) ||
+    // Specific patterns that indicate running a restaurant
+    /(open a restaurant|launch a cafe|start a coffee)/.test(corpus);
+
+  const isSupplierToRestaurants =
+    /(supply.*restaurant|supplier.*restaurant|farm.*restaurant|b2b.*restaurant)/.test(corpus) ||
+    /(vertical farm|agricultural|farming|produce.*supply)/.test(corpus);
+
+  if (isActualRestaurant && !isSupplierToRestaurants) {
+    return 'food_service';
+  }
+
+  // Check for retail businesses
+  if (/(retail|store|e-?commerce|shopping|boutique)/.test(corpus)) return 'retail';
+
+  // For agricultural/farming businesses, return generic (not food_service)
+  if (/(farm|agricultural|agtech|hydropon|vertical.*farm|produce.*supply)/.test(corpus)) {
+    return 'generic';
+  }
+
   return 'generic';
 }
 
@@ -507,8 +535,9 @@ REVIEW THESE QUALITY DIMENSIONS:
    - NOT OK: Operations Manager owns Construction, Marketing, AND Technology workstreams
 
 4. MISSING FUNCTIONS: For this business type, are any critical functions missing?
-   - Cafe/Restaurant typically needs: Operations, Construction/Design, Compliance, Marketing, HR/Training
-   - Tech typically needs: Engineering, Product, Marketing, Operations, Compliance
+   - Consider what functions are critical for a ${businessContext.businessType || 'business'} in the ${businessContext.industry || 'industry'} sector
+   - Common functions: Operations, Technology/Systems, Marketing, Compliance, HR/Training, Finance
+   - Specialized functions depend on the specific business model and industry
 
 Return ONLY valid JSON:
 {
