@@ -43,6 +43,7 @@ import type {
 import { replaceTimelineGeneration } from '../../src/lib/intelligent-planning/epm-integration';
 import type { PlanningContext, BusinessScale } from '../../src/lib/intelligent-planning/types';
 import { aiClients } from '../ai-clients';
+import type { ValidationResult as ValidatorValidationResult } from '../types/interfaces';
 
 import {
   ContextBuilder,
@@ -68,6 +69,7 @@ import {
   ensureResourceExists,
 } from './epm';
 import { enforceDomainSequencing } from './epm/domain-sequencing';
+import { qualityGateRunner } from './epm/validators/quality-gate-runner';
 
 export { ContextBuilder } from './epm';
 
@@ -78,6 +80,16 @@ interface SynthesisOptions {
   forceIntelligentPlanning?: boolean;
   onProgress?: (event: any) => void;
   initiativeType?: string;
+  qualityPasses?: number;
+}
+
+interface AdversarialQualityRefinementResult {
+  timeline: Timeline;
+  stageGates: StageGates;
+  validationResult: ValidatorValidationResult;
+  planningGrid: { conflicts: string[]; maxUtilization: number; totalTasks: number };
+  qualityWarnings: string[];
+  passesExecuted: number;
 }
 
 /**
@@ -177,7 +189,8 @@ export class EPMSynthesizer {
         userContext,
         namingContext,
         onProgress,
-        startTime
+        startTime,
+        options?.qualityPasses
       );
       
       const elapsedSeconds = Math.round((Date.now() - startTime) / 1000);
@@ -219,7 +232,8 @@ export class EPMSynthesizer {
     userContext?: UserContext,
     namingContext?: any,
     onProgress?: (event: any) => void,
-    startTime?: number
+    startTime?: number,
+    qualityPasses?: number
   ): Promise<EPMProgram> {
     const processStartTime = startTime || Date.now();
 
@@ -293,11 +307,13 @@ export class EPMSynthesizer {
         insights,
         sequencedWorkstreams,
         planningContext,
+        domainContextText,
         userContext,
         namingContext,
         strategicContext,
         onProgress,
-        processStartTime
+        processStartTime,
+        qualityPasses
       );
     } else {
       // CRITICAL FIX: Intelligent planning failed (timeout, validation, etc.)
@@ -333,11 +349,13 @@ export class EPMSynthesizer {
         insights,
         sequencedTimedWorkstreams, // Use WBS Builder workstreams with domain sequencing guardrails
         planningContext,
+        domainContextText,
         userContext,
         namingContext,
         strategicContext,
         onProgress,
-        processStartTime
+        processStartTime,
+        qualityPasses
       );
     }
   }
@@ -547,11 +565,13 @@ export class EPMSynthesizer {
     insights: StrategyInsights,
     workstreams: Workstream[],
     planningContext: PlanningContext,
+    domainContextText: string,
     userContext?: UserContext,
     namingContext?: any,
     strategicContext?: { decisions: any[]; swotData: any },
     onProgress?: (event: any) => void,
-    startTime?: number
+    startTime?: number,
+    qualityPasses?: number
   ): Promise<EPMProgram> {
     const processStartTime = startTime || Date.now();
     
@@ -572,7 +592,7 @@ export class EPMSynthesizer {
       elapsedSeconds: Math.round((Date.now() - processStartTime) / 1000)
     });
     
-    const timeline = await this.timelineCalculator.calculate(insights, workstreams, userContext);
+    let timeline = await this.timelineCalculator.calculate(insights, workstreams, userContext);
     console.log(`[EPM Synthesis] ✓ Timeline: ${timeline.totalMonths} months, ${timeline.phases.length} phases`);
     
     onProgress?.({
@@ -645,7 +665,7 @@ export class EPMSynthesizer {
     };
     console.log('[EPM Synthesis] ✓ Assigned risk owners (buildV2Program):', risksWithOwners.map(r => ({ id: r.id, owner: r.owner })));
     
-    const stageGates = await this.stageGateGenerator.generate(timeline, riskRegister);
+    let stageGates = await this.stageGateGenerator.generate(timeline, riskRegister);
     
     onProgress?.({
       type: 'step-start',
@@ -655,7 +675,25 @@ export class EPMSynthesizer {
     });
     
     const businessContext = insights.marketContext?.industry || '';
-    const validationResult = this.validator.validate(workstreams, timeline, stageGates, businessContext);
+    const refinement = await this.runAdversarialQualityRefinement(
+      insights,
+      workstreams,
+      timeline,
+      stageGates,
+      riskRegister,
+      businessContext,
+      domainContextText,
+      userContext,
+      onProgress,
+      processStartTime,
+      qualityPasses
+    );
+    timeline = refinement.timeline;
+    stageGates = refinement.stageGates;
+    const validationResult = refinement.validationResult;
+    const planningGrid = refinement.planningGrid;
+    const qualityLoopWarnings = refinement.qualityWarnings;
+
     if (validationResult.errors.length > 0) {
       console.log(`[EPM Synthesis] ⚠️ Validation found ${validationResult.errors.length} errors, auto-corrected`);
       validationResult.corrections.forEach(c => console.log(`    - ${c}`));
@@ -664,8 +702,6 @@ export class EPMSynthesizer {
       console.log(`[EPM Synthesis] ⚠️ Validation warnings: ${validationResult.warnings.length}`);
       validationResult.warnings.forEach(w => console.log(`    - ${w}`));
     }
-    
-    const planningGrid = this.validator.analyzePlanningGrid(workstreams, timeline);
     if (planningGrid.conflicts.length > 0) {
       console.log(`[EPM Synthesis] ⚠️ Planning grid conflicts: ${planningGrid.conflicts.length}`);
     }
@@ -737,7 +773,8 @@ export class EPMSynthesizer {
       stageGates,
       validationResult,
       planningGrid,
-      roleValidationWarnings
+      roleValidationWarnings,
+      qualityLoopWarnings
     );
     
     const confidences = [
@@ -821,7 +858,7 @@ export class EPMSynthesizer {
       workstreams.push(...this.workstreamGenerator.generateDefaultWorkstreams(3 - workstreams.length));
     }
     
-    const timeline = await this.timelineCalculator.calculate(insights, workstreams, userContext);
+    let timeline = await this.timelineCalculator.calculate(insights, workstreams, userContext);
     const resourcePlan = await this.resourceAllocator.allocate(insights, workstreams, userContext);
     
     const [
@@ -848,12 +885,26 @@ export class EPMSynthesizer {
     };
     console.log('[EPM Synthesis] ✓ Assigned risk owners (legacy):', risksWithOwners2.map(r => ({ id: r.id, owner: r.owner })));
     
-    const stageGates = await this.stageGateGenerator.generate(timeline, riskRegister);
+    let stageGates = await this.stageGateGenerator.generate(timeline, riskRegister);
     
     const businessContext = insights.marketContext?.industry || '';
-    const validationResult = this.validator.validate(workstreams, timeline, stageGates, businessContext);
-    const planningGrid = this.validator.analyzePlanningGrid(workstreams, timeline);
-    
+    const fallbackDomainContext = this.buildFallbackDomainContext(insights, businessContext);
+    const refinement = await this.runAdversarialQualityRefinement(
+      insights,
+      workstreams,
+      timeline,
+      stageGates,
+      riskRegister,
+      businessContext,
+      fallbackDomainContext,
+      userContext
+    );
+    timeline = refinement.timeline;
+    stageGates = refinement.stageGates;
+    const validationResult = refinement.validationResult;
+    const planningGrid = refinement.planningGrid;
+    const qualityLoopWarnings = refinement.qualityWarnings;
+
     if (validationResult.warnings.length > 0) {
       console.log(`[EPM Synthesis] ⚠️ Validation warnings: ${validationResult.warnings.length}`);
       validationResult.warnings.forEach(w => console.log(`    - ${w}`));
@@ -896,7 +947,9 @@ export class EPMSynthesizer {
       timeline,
       stageGates,
       validationResult,
-      planningGrid
+      planningGrid,
+      [],
+      qualityLoopWarnings
     );
     
     const confidences = [
@@ -944,21 +997,210 @@ export class EPMSynthesizer {
   }
 
   /**
+   * Derive fallback domain context text when planning context is unavailable.
+   */
+  private buildFallbackDomainContext(insights: StrategyInsights, businessContext: string): string {
+    return [
+      businessContext,
+      insights.marketContext?.targetMarket,
+      insights.marketContext?.competitiveEnvironment,
+      insights.frameworkType,
+      insights.insights.slice(0, 3).map((insight) => insight.content).join(' '),
+    ]
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      .join(' ');
+  }
+
+  /**
+   * Bound adversarial quality passes to 2-3 rounds.
+   */
+  private resolveQualityPassTarget(requestedPasses?: number): number {
+    const envCandidate = Number(process.env.EPM_ADVERSARIAL_PASSES || process.env.EPM_QUALITY_PASSES || '');
+    const baseCandidate = Number.isFinite(requestedPasses as number)
+      ? Number(requestedPasses)
+      : Number.isFinite(envCandidate)
+        ? envCandidate
+        : 3;
+
+    return Math.max(2, Math.min(3, Math.round(baseCandidate)));
+  }
+
+  /**
+   * Build a deterministic signature to detect whether additional refinement still changes output.
+   */
+  private buildRefinementSignature(
+    workstreams: Workstream[],
+    timeline: Timeline,
+    stageGates: StageGates
+  ): string {
+    const workstreamSignature = [...workstreams]
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .map((ws) => ({
+        id: ws.id,
+        start: ws.startMonth,
+        end: ws.endMonth,
+        dependencies: [...(ws.dependencies || [])].sort(),
+        deliverables: [...(ws.deliverables || [])]
+          .map((deliverable) => ({ id: deliverable.id, dueMonth: deliverable.dueMonth }))
+          .sort((a, b) => a.id.localeCompare(b.id)),
+      }));
+
+    const phaseSignature = (timeline?.phases || []).map((phase) => ({
+      phase: phase.phase,
+      start: phase.startMonth,
+      end: phase.endMonth,
+    }));
+
+    const gateSignature = (stageGates?.gates || []).map((gate) => ({
+      gate: gate.gate,
+      month: gate.month,
+    }));
+
+    return JSON.stringify({
+      workstreams: workstreamSignature,
+      timeline: {
+        totalMonths: timeline?.totalMonths,
+        phases: phaseSignature,
+        criticalPath: timeline?.criticalPath || [],
+      },
+      stageGates: gateSignature,
+    });
+  }
+
+  /**
+   * Run two to three adversarial quality-control passes after draft generation.
+   */
+  private async runAdversarialQualityRefinement(
+    insights: StrategyInsights,
+    workstreams: Workstream[],
+    timeline: Timeline,
+    stageGates: StageGates,
+    riskRegister: RiskRegister,
+    businessContext: string,
+    domainContextText: string,
+    userContext?: UserContext,
+    onProgress?: (event: any) => void,
+    processStartTime?: number,
+    qualityPasses?: number
+  ): Promise<AdversarialQualityRefinementResult> {
+    let currentTimeline = timeline;
+    let currentStageGates = stageGates;
+    let latestValidation: ValidatorValidationResult = this.validator.validate(
+      workstreams,
+      currentTimeline,
+      currentStageGates,
+      businessContext
+    );
+    let latestPlanningGrid = this.validator.analyzePlanningGrid(workstreams, currentTimeline);
+
+    const warningSet = new Set<string>();
+    const targetPasses = this.resolveQualityPassTarget(qualityPasses);
+    let executedPasses = 0;
+
+    console.log(`[EPM Synthesis] 🛡️ Starting adversarial QC loop (${targetPasses} passes target)`);
+
+    for (let pass = 1; pass <= targetPasses; pass += 1) {
+      executedPasses = pass;
+      onProgress?.({
+        type: 'step-start',
+        step: `quality-pass-${pass}`,
+        description: `Running adversarial quality pass ${pass}/${targetPasses}`,
+        elapsedSeconds: processStartTime ? Math.round((Date.now() - processStartTime) / 1000) : undefined,
+      });
+
+      const beforeSignature = this.buildRefinementSignature(workstreams, currentTimeline, currentStageGates);
+
+      const sequenced = enforceDomainSequencing(workstreams, domainContextText || businessContext);
+      workstreams.splice(0, workstreams.length, ...sequenced);
+
+      latestValidation = this.validator.validate(workstreams, currentTimeline, currentStageGates, businessContext);
+      const qualityReport = qualityGateRunner.runQualityGate(
+        workstreams,
+        currentTimeline,
+        currentStageGates,
+        businessContext
+      );
+      const qualityErrorMessages: string[] = [];
+
+      for (const correction of qualityReport.corrections) {
+        if (!latestValidation.corrections.includes(correction)) {
+          latestValidation.corrections.push(correction);
+        }
+      }
+
+      for (const result of qualityReport.validatorResults) {
+        for (const issue of result.issues) {
+          const normalizedIssue = `[${issue.code}] ${issue.message}`;
+          if (issue.severity === 'error') {
+            const errorMessage = `Quality gate ${result.validatorName}: ${normalizedIssue}`;
+            qualityErrorMessages.push(errorMessage);
+          } else {
+            warningSet.add(`Quality gate ${result.validatorName}: ${normalizedIssue}`);
+          }
+        }
+      }
+
+      currentTimeline = await this.timelineCalculator.calculate(insights, workstreams, userContext);
+      currentStageGates = await this.stageGateGenerator.generate(currentTimeline, riskRegister);
+      latestValidation = this.validator.validate(workstreams, currentTimeline, currentStageGates, businessContext);
+      latestPlanningGrid = this.validator.analyzePlanningGrid(workstreams, currentTimeline);
+      qualityErrorMessages.forEach((errorMessage) => {
+        if (!latestValidation.errors.includes(errorMessage)) {
+          latestValidation.errors.push(errorMessage);
+        }
+      });
+
+      latestValidation.warnings.forEach((warning) => warningSet.add(warning));
+      latestPlanningGrid.conflicts.forEach((conflict) => warningSet.add(conflict));
+
+      const afterSignature = this.buildRefinementSignature(workstreams, currentTimeline, currentStageGates);
+      const hasBlockingErrors = latestValidation.errors.length > 0;
+      const hasCorrections = latestValidation.corrections.length > 0 || qualityReport.corrections.length > 0;
+      const hasPlanningConflicts = latestPlanningGrid.conflicts.length > 0;
+      const stabilized = beforeSignature === afterSignature;
+
+      console.log(
+        `[EPM Synthesis] QC pass ${pass}/${targetPasses}: ` +
+        `errors=${latestValidation.errors.length}, warnings=${warningSet.size}, ` +
+        `corrections=${latestValidation.corrections.length + qualityReport.corrections.length}, ` +
+        `conflicts=${latestPlanningGrid.conflicts.length}, stabilized=${stabilized}`
+      );
+
+      if (pass >= 2 && stabilized && !hasBlockingErrors && !hasCorrections && !hasPlanningConflicts) {
+        console.log(`[EPM Synthesis] QC stabilized after pass ${pass}; stopping early`);
+        break;
+      }
+    }
+
+    return {
+      timeline: currentTimeline,
+      stageGates: currentStageGates,
+      validationResult: latestValidation,
+      planningGrid: latestPlanningGrid,
+      qualityWarnings: Array.from(warningSet),
+      passesExecuted: executedPasses,
+    };
+  }
+
+  /**
    * Build validation report from validation results
    */
   private buildValidationReport(
     workstreams: Workstream[],
     timeline: Timeline,
     stageGates: StageGates,
-    validationResult: { errors: string[]; corrections: string[] },
+    validationResult: ValidatorValidationResult,
     planningGrid: { conflicts: string[]; maxUtilization: number; totalTasks: number },
-    roleValidationWarnings: string[] = []
+    roleValidationWarnings: string[] = [],
+    qualityLoopWarnings: string[] = []
   ): EPMValidationReport {
-    // Combine all warnings: validation errors + planning conflicts + role validation
+    // Combine all warnings from validator findings, planning conflicts, role checks, and QC passes.
     const allWarnings = [
       ...validationResult.errors,
+      ...validationResult.warnings,
       ...planningGrid.conflicts,
       ...roleValidationWarnings,
+      ...qualityLoopWarnings,
     ];
 
     return {
