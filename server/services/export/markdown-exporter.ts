@@ -237,7 +237,13 @@ export function generateMarkdownReport(pkg: FullExportPackage): string {
     const insights = deriveInsights(pkg, parseField);
     
     if (pkg.strategy.fiveWhysTree) {
-      const treeMarkdown = generateFiveWhysTreeMarkdown(pkg.strategy.fiveWhysTree, insights.whysPath);
+      // Extract raw answers from formatted path for tree marker matching
+      const rawWhysPath = insights.whysPath?.map((step: any) => {
+        if (typeof step === 'string') return step;
+        return step?.answer || step?.option || step?.label || '';
+      }).filter((s: string) => s.length > 0);
+
+      const treeMarkdown = generateFiveWhysTreeMarkdown(pkg.strategy.fiveWhysTree, rawWhysPath);
       if (treeMarkdown) {
         lines.push(treeMarkdown);
       }
