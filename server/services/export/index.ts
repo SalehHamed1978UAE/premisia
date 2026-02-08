@@ -127,8 +127,9 @@ export async function generateFullPassExport(
         console.error('[Export Acceptance] Details:', issue.details);
       }
     });
+    const issueCodes = acceptanceReport.criticalIssues.map((issue) => issue.code).join(', ');
     throw new Error(
-      `Export acceptance gates failed with ${acceptanceReport.criticalIssues.length} critical issue(s)`
+      `Export acceptance gates failed with ${acceptanceReport.criticalIssues.length} critical issue(s): ${issueCodes}`
     );
   }
   console.log('[Export Service] Acceptance gates passed');
