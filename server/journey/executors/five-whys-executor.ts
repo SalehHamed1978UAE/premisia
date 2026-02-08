@@ -26,7 +26,7 @@ export class FiveWhysExecutor implements FrameworkExecutor {
     console.log(`[FiveWhys Executor] Generated tree with ${whysTree.branches.length} root branches`);
 
     // CRITICAL: Only use user-finalized data, NEVER generate fake paths
-    let whysPath: string[] = [];
+    let whysPath: any[] = [];  // Can be string[] (legacy) or {question, answer, depth}[] (canonical)
     let rootCauses: string[] = [];
     let strategicImplications: string[] = [];
     let strategicFocus = null;
@@ -59,16 +59,24 @@ export class FiveWhysExecutor implements FrameworkExecutor {
           console.log('[FiveWhys Executor] ✓ Found user-finalized path');
 
           // Handle both canonical (Q/A) and legacy (string[]) formats
-          whysPath = fiveWhys.whysPath;
+          const rawWhysPath = fiveWhys.whysPath;
 
-          // If legacy format (string array), convert to canonical
-          if (typeof whysPath[0] === 'string') {
+          // Convert to canonical format if needed
+          if (typeof rawWhysPath[0] === 'string') {
             console.log('[FiveWhys Executor] Converting legacy string[] to canonical format');
-            whysPath = whysPath.map((answer: string, i: number) => ({
+            // For legacy format, create canonical with placeholder questions
+            whysPath = rawWhysPath.map((answer: string, i: number) => ({
               question: `Why ${i + 1}?`,
               answer,
               depth: i
             }));
+          } else if (rawWhysPath[0]?.answer) {
+            console.log('[FiveWhys Executor] Using existing canonical format');
+            // Already in canonical format
+            whysPath = rawWhysPath;
+          } else {
+            console.log('[FiveWhys Executor] Unknown format, using as-is');
+            whysPath = rawWhysPath;
           }
 
           // Extract root cause from last step
