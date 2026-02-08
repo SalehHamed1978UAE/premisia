@@ -472,32 +472,46 @@ export function buildStrategyJsonPayload(strategy: StrategyPayload): Record<stri
   const rootCause = deriveRootCause(fiveWhys, parsedAnalysisData, whysPath);
   const strategicImplications = deriveStrategicImplications(fiveWhys, parsedAnalysisData);
 
-  // Normalize whysPath to strings for JSON export to avoid serialization issues
-  // Convert canonical format {question, answer} back to simple strings (answers only)
-  const normalizedWhysPath = whysPath.map((step: any) => {
-    if (typeof step === 'string') {
-      return step;
-    } else if (step && typeof step === 'object') {
-      return step.answer || step.option || step.label || '';
-    }
-    return '';
-  }).filter((s: string) => s.length > 0);
+  // For JSON export, we need to handle both canonical and legacy formats
+  // Check if whysPath is already in a clean format
+  let exportWhysPath = whysPath;
+  let isCanonicalFormat = false;
 
-  // Auto-heal legacy mismatch: keep nested paths aligned with canonical path.
+  // Check if we have canonical format with questions
+  if (whysPath.length > 0 && whysPath[0]?.question && whysPath[0]?.answer) {
+    isCanonicalFormat = true;
+    // Keep canonical format for better data preservation
+    exportWhysPath = whysPath.map((step: any) => ({
+      question: step.question || `Why ${step.depth || 1}?`,
+      answer: step.answer || '',
+      depth: step.depth
+    }));
+  } else if (whysPath.length > 0 && typeof whysPath[0] !== 'string') {
+    // If we have objects but not proper canonical format, normalize to strings
+    exportWhysPath = whysPath.map((step: any) => {
+      if (typeof step === 'string') return step;
+      if (step && typeof step === 'object') {
+        return step.answer || step.option || step.label || '';
+      }
+      return '';
+    }).filter((s: string) => s.length > 0);
+  }
+
+  // Auto-heal legacy mismatch: keep nested paths aligned
   const canonicalizedAnalysisData = { ...parsedAnalysisData };
   const nestedFiveWhysRaw = parseMaybeJson<Record<string, any>>(canonicalizedAnalysisData.five_whys);
   const nestedFiveWhys = nestedFiveWhysRaw || {};
   const camelFiveWhysRaw = parseMaybeJson<Record<string, any>>(canonicalizedAnalysisData.fiveWhys);
   const camelFiveWhys = camelFiveWhysRaw || {};
 
-  if (normalizedWhysPath.length > 0) {
+  if (exportWhysPath.length > 0) {
     canonicalizedAnalysisData.five_whys = {
       ...nestedFiveWhys,
-      whysPath: normalizedWhysPath,
+      whysPath: exportWhysPath,
     };
     canonicalizedAnalysisData.fiveWhys = {
       ...camelFiveWhys,
-      whysPath: normalizedWhysPath,
+      whysPath: exportWhysPath,
     };
   }
 
@@ -510,7 +524,7 @@ export function buildStrategyJsonPayload(strategy: StrategyPayload): Record<stri
         }
       : strategy.strategyVersion,
     frameworks,
-    whysPath: normalizedWhysPath,
+    whysPath: exportWhysPath,
     rootCause,
     strategicImplications,
   };
