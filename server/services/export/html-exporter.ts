@@ -255,12 +255,28 @@ export function generateUiStyledHtml(pkg: FullExportPackage): string {
             <div class="mb-4">
               <h3>Analysis Path</h3>
               <ol>
-                ${insights.whysPath.map((step: any, idx: number) => `
-                  <li class="mb-2">
-                    <strong>Why?</strong> ${escapeHtml(step.question || step.why || 'Not specified')}
-                    <br><strong>Answer:</strong> ${escapeHtml(step.answer || 'Not specified')}
-                  </li>
-                `).join('')}
+                ${insights.whysPath.map((step: any, idx: number) => {
+                  if (typeof step === 'string') {
+                    // Legacy format: just the answer string
+                    return `
+                      <li class="mb-2">
+                        <strong>Why ${idx + 1}?</strong>
+                        <br><strong>Answer:</strong> ${escapeHtml(step)}
+                      </li>
+                    `;
+                  } else if (step && typeof step === 'object') {
+                    // Canonical format: {question, answer} object
+                    const question = step.question || step.why || `Why ${idx + 1}?`;
+                    const answer = step.answer || step.option || step.label || 'Not specified';
+                    return `
+                      <li class="mb-2">
+                        <strong>Why?</strong> ${escapeHtml(question)}
+                        <br><strong>Answer:</strong> ${escapeHtml(answer)}
+                      </li>
+                    `;
+                  }
+                  return '';
+                }).join('')}
               </ol>
             </div>
             ` : ''}

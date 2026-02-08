@@ -150,8 +150,18 @@ function deriveRootCause(
   canonicalWhysPath: any[],
 ): string | null {
   const finalPathStep = canonicalWhysPath[canonicalWhysPath.length - 1];
+
+  // Handle string format (legacy)
   if (typeof finalPathStep === 'string' && finalPathStep.trim().length > 0) {
     return finalPathStep;
+  }
+
+  // Handle object format (canonical)
+  if (finalPathStep && typeof finalPathStep === 'object') {
+    const answer = finalPathStep.answer || finalPathStep.option || finalPathStep.label || '';
+    if (answer && answer.trim().length > 0) {
+      return answer;
+    }
   }
 
   const candidates = [

@@ -258,10 +258,14 @@ export function generateMarkdownReport(pkg: FullExportPackage): string {
         insights.whysPath.forEach((step: any, idx: number) => {
           if (typeof step === 'string') {
             lines.push(`${idx + 1}. ${step}`);
-          } else {
-            lines.push(`${idx + 1}. **Why?** ${step.question || step.why || step}`);
-            if (step.answer) {
-              lines.push(`   **Answer:** ${step.answer}\n`);
+          } else if (step && typeof step === 'object') {
+            // Handle canonical format {question, answer} objects
+            const question = step.question || step.why || `Why ${idx + 1}?`;
+            const answer = step.answer || step.option || step.label || '';
+
+            lines.push(`${idx + 1}. **Why?** ${question}`);
+            if (answer) {
+              lines.push(`   **Answer:** ${answer}\n`);
             }
           }
         });
