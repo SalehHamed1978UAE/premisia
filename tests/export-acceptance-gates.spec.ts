@@ -226,6 +226,39 @@ describe('Export acceptance gates', () => {
     expect(report.criticalIssues.some((i) => i.code === 'REPORT_WHYS_CANONICAL_MISMATCH')).toBe(true);
   });
 
+  it('fails when report uses placeholder Why N? questions despite canonical questions', () => {
+    const canonicalWhysPath = [
+      { question: 'Why are Gen-Z trial users dropping after day 2?', answer: 'Onboarding requests too much personal financial data upfront', depth: 0 },
+      { question: 'Why is early data collection causing churn?', answer: 'Users do not trust unknown brands before experiencing value', depth: 1 },
+      { question: 'Why is trust not established before the data ask?', answer: 'The product demo appears after consent screens rather than before', depth: 2 },
+      { question: 'Why is demo sequencing inverted?', answer: 'The current flow was optimized for compliance review speed, not user confidence', depth: 3 },
+    ];
+
+    const report = validateExportAcceptance({
+      strategyJson: JSON.stringify({
+        journeySession: { journeyType: 'business_model_innovation' },
+        frameworks: ['five_whys', 'bmc'],
+        whysPath: canonicalWhysPath,
+      }),
+      epmJson: buildValidEpmJson(),
+      ...validCsvs(),
+      reportMarkdown: [
+        '## Five Whys - Chosen Path Summary',
+        '1. **Why?** Why 1?',
+        '   **Answer:** Onboarding requests too much personal financial data upfront',
+        '2. **Why?** Why 2?',
+        '   **Answer:** Users do not trust unknown brands before experiencing value',
+        '3. **Why?** Why 3?',
+        '   **Answer:** The product demo appears after consent screens rather than before',
+        '4. **Why?** Why 4?',
+        '   **Answer:** The current flow was optimized for compliance review speed, not user confidence',
+      ].join('\n'),
+    });
+
+    expect(report.passed).toBe(false);
+    expect(report.criticalIssues.some((i) => i.code === 'REPORT_WHYS_PLACEHOLDER_QUESTIONS')).toBe(true);
+  });
+
   it('warns (but does not fail) when Five Whys tree has no chosen-path markers', () => {
     const report = validateExportAcceptance({
       strategyJson: buildValidStrategyJson(),

@@ -12,6 +12,7 @@ export default defineConfig({
       'tests/domain-sequencing.spec.ts',
       'tests/five-whys-executor.spec.ts',
       'tests/strategy-signal-extractor.spec.ts',
+      'tests/whys-utils.spec.ts',
     ],
     testTimeout: 30000,
   },

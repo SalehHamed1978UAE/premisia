@@ -213,6 +213,17 @@ export async function loadExportData(
     console.error('[Export Service] WARNING: whysPath still contains [object Object] after cleaning!');
   }
 
+  // Force tree/path consistency at export time to prevent stale tree markers.
+  if (fiveWhysTree && Array.isArray(whysPath) && whysPath.length > 0) {
+    try {
+      const { reconcileTreeWithPath } = await import('./tree-path-reconciler.js');
+      fiveWhysTree = reconcileTreeWithPath(fiveWhysTree, whysPath);
+      console.log('[Export Service] Reconciled Five Whys tree with canonical chosen path');
+    } catch (reconcileError) {
+      console.warn('[Export Service] Failed to reconcile Five Whys tree/path:', reconcileError);
+    }
+  }
+
   console.log('[Export Service] loadExportData - Fetching clarifications from strategic understanding...');
   let clarifications;
   if (understanding) {

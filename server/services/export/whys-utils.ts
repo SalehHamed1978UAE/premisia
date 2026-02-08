@@ -29,6 +29,17 @@ function toAnswerText(step: any): string {
   return '';
 }
 
+function isCanonicalStep(step: any): boolean {
+  return !!(
+    step &&
+    typeof step === 'object' &&
+    typeof step.question === 'string' &&
+    step.question.trim().length > 0 &&
+    typeof step.answer === 'string' &&
+    step.answer.trim().length > 0
+  );
+}
+
 export function normalizeWhysPath(path: any): string[] {
   if (!Array.isArray(path)) return [];
 
@@ -80,7 +91,26 @@ export function preserveCanonicalWhysPath(path: any): any[] {
   }).filter(step => step !== null);
 }
 
-export function pickCanonicalWhysPath(candidates: any[]): string[] {
+function scoreCanonicalPath(path: any[]): number {
+  const canonicalSteps = path.filter((step) => isCanonicalStep(step)).length;
+  return canonicalSteps * 100 + path.length;
+}
+
+export function pickCanonicalWhysPath(candidates: any[]): any[] {
+  const preserved = candidates
+    .map((candidate) => preserveCanonicalWhysPath(candidate))
+    .filter((candidate) => Array.isArray(candidate) && candidate.length > 0);
+
+  const canonical = preserved.filter((candidate) => candidate.some((step) => isCanonicalStep(step)));
+  if (canonical.length > 0) {
+    const canonicalComplete = canonical.filter((candidate) => candidate.length >= 4);
+    const pool = canonicalComplete.length > 0 ? canonicalComplete : canonical;
+    return pool.reduce((best, candidate) => {
+      if (scoreCanonicalPath(candidate) > scoreCanonicalPath(best)) return candidate;
+      return best;
+    }, pool[0]);
+  }
+
   const normalized = candidates
     .map((candidate) => normalizeWhysPath(candidate))
     .filter((candidate) => candidate.length > 0);
@@ -151,8 +181,8 @@ export function pickCanonicalWhysPathWithQuestions(candidates: any[]): any[] {
 export function normalizeWhysPathForReport(path: any): Array<{ question: string; answer: string }> {
   // If already in canonical format with questions, use directly
   if (Array.isArray(path) && path.length > 0 && path[0]?.question) {
-    return path.map((step: any) => ({
-      question: step.question || `Why ${step.depth + 1}?`,
+    return path.map((step: any, index: number) => ({
+      question: step.question || `Why ${index + 1}?`,
       answer: step.answer || ''
     }));
   }
@@ -165,9 +195,11 @@ export function normalizeWhysPathForReport(path: any): Array<{ question: string;
   }));
 }
 
-export function pickRootCause(canonicalWhysPath: string[], rootCandidates: any[]): string | null {
+export function pickRootCause(canonicalWhysPath: any[], rootCandidates: any[]): string | null {
   if (canonicalWhysPath.length > 0) {
-    return canonicalWhysPath[canonicalWhysPath.length - 1];
+    const lastStep = canonicalWhysPath[canonicalWhysPath.length - 1];
+    const fromPath = toAnswerText(lastStep);
+    if (fromPath.length > 0) return fromPath;
   }
 
   for (const candidate of rootCandidates) {

@@ -399,6 +399,19 @@ function extractMarkdownSummaryPath(markdown: string | null | undefined): string
   return Array.from(answerMatches, (match) => (match[1] || '').trim()).filter((value) => value.length > 0);
 }
 
+function extractMarkdownSummaryQuestions(markdown: string | null | undefined): string[] {
+  if (!markdown) return [];
+  const sectionSplit = markdown.split('## Five Whys - Chosen Path Summary');
+  if (sectionSplit.length < 2) return [];
+  const summary = sectionSplit[1];
+  const questionMatches = summary.matchAll(/^\s*\d+\.\s+\*\*Why\?\*\*\s*(.+)$/gm);
+  return Array.from(questionMatches, (match) => (match[1] || '').trim()).filter((value) => value.length > 0);
+}
+
+function isPlaceholderWhyQuestion(question: string): boolean {
+  return /^why(?:\s+\d+)?\?$/i.test(question.trim());
+}
+
 function deriveExpectedFrameworks(strategyData: any): string[] {
   const journeySession = strategyData?.journeySession || {};
   const journeyType = typeof journeySession.journeyType === 'string'
@@ -678,6 +691,26 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
             details: {
               canonicalPreview: normalizeWhyPathForComparison(whysPath).slice(0, 4),
               summaryPreview: normalizeWhyPathForComparison(summaryPathFromReport).slice(0, 4),
+            },
+          });
+        }
+      }
+
+      const canonicalQuestions = whysPath
+        .map((step: any) => (step && typeof step === 'object' ? String(step.question || '').trim() : ''))
+        .filter((value: string) => value.length > 0);
+      const hasCanonicalQuestions = canonicalQuestions.some((question: string) => !isPlaceholderWhyQuestion(question));
+      if (hasCanonicalQuestions) {
+        const summaryQuestions = extractMarkdownSummaryQuestions(reportMarkdown);
+        const placeholderQuestions = summaryQuestions.filter((question: string) => isPlaceholderWhyQuestion(question));
+        if (summaryQuestions.length > 0 && placeholderQuestions.length > 0) {
+          criticalIssues.push({
+            severity: 'critical',
+            code: 'REPORT_WHYS_PLACEHOLDER_QUESTIONS',
+            message: 'Report uses placeholder Why N? questions despite canonical questions being available',
+            details: {
+              placeholderCount: placeholderQuestions.length,
+              canonicalPreview: canonicalQuestions.slice(0, 2),
             },
           });
         }
