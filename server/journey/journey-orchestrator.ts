@@ -931,7 +931,7 @@ export class JourneyOrchestrator {
     // Extract root causes and paths from the tree
     // Navigate through branches to find deepest answers (root causes)
     const rootCauses: string[] = [];
-    const whysPath: string[] = [whysTree.rootQuestion];
+    const whysPath: string[] = [];
     
     // Extract from each branch - for now, take first branch to build a path
     if (whysTree.branches && whysTree.branches.length > 0) {
@@ -940,7 +940,10 @@ export class JourneyOrchestrator {
       // Traverse the first branch to build a complete path
       while (currentLevel && currentLevel.length > 0) {
         const node = currentLevel[0];
-        whysPath.push(node.question);
+        const stepText = node.option || (node as any).answer || node.question || '';
+        if (typeof stepText === 'string' && stepText.trim().length > 0) {
+          whysPath.push(stepText);
+        }
         
         // If we're at a leaf node (deepest level), this is a root cause
         if (!node.branches || node.branches.length === 0) {

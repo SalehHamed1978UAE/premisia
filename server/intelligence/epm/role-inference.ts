@@ -51,22 +51,47 @@ interface BusinessContext {
 // In-memory cache for role inference (persists for session)
 const roleCache: Map<string, InferredOwner> = new Map();
 
-// Category to skills mapping for resource plan integration
-const CATEGORY_SKILLS: Record<string, string[]> = {
-  construction: ['fit-out', 'build-out', 'interior design', 'renovation'],
-  design: ['interior design', 'space planning', 'architecture'],
-  technology: ['POS systems', 'IT infrastructure', 'digital integration'],
-  tech: ['POS systems', 'IT infrastructure', 'software implementation'],
-  hr: ['recruitment', 'training', 'onboarding', 'staff management'],
-  training: ['staff training', 'skills development', 'certification'],
-  marketing: ['launch campaigns', 'social media', 'brand building', 'PR'],
-  community: ['community engagement', 'local partnerships', 'events'],
-  compliance: ['regulatory compliance', 'food safety', 'licensing', 'permits'],
-  licensing: ['permits', 'regulatory approval', 'health inspection'],
-  operations: ['operational setup', 'process design', 'supply chain'],
-  supply_chain: ['vendor management', 'inventory', 'logistics'],
-  finance: ['financial planning', 'budgeting', 'cost control'],
-  culinary: ['menu development', 'food quality', 'recipe standardization'],
+type DomainKey = 'generic' | 'food_service' | 'retail' | 'technology';
+
+// Domain-aware category-to-skills mapping for resource plan integration.
+const CATEGORY_SKILLS_BY_DOMAIN: Record<DomainKey, Record<string, string[]>> = {
+  generic: {
+    construction: ['delivery planning', 'implementation management', 'quality assurance'],
+    design: ['solution design', 'service design', 'documentation'],
+    technology: ['platform engineering', 'systems integration', 'software implementation'],
+    tech: ['platform engineering', 'systems integration', 'software implementation'],
+    hr: ['recruitment', 'training', 'onboarding', 'team development'],
+    training: ['skills development', 'enablement planning', 'certification'],
+    marketing: ['go-to-market planning', 'campaign execution', 'brand messaging'],
+    community: ['stakeholder engagement', 'partnerships', 'events'],
+    compliance: ['regulatory compliance', 'policy controls', 'audit readiness'],
+    licensing: ['regulatory approvals', 'policy compliance', 'documentation'],
+    operations: ['operational setup', 'process design', 'service delivery'],
+    supply_chain: ['vendor management', 'inventory planning', 'logistics'],
+    finance: ['financial planning', 'budgeting', 'cost control'],
+    culinary: ['product quality', 'service standards', 'process consistency'],
+  },
+  food_service: {
+    technology: ['POS systems', 'IT infrastructure', 'digital integration'],
+    tech: ['POS systems', 'IT infrastructure', 'software implementation'],
+    compliance: ['regulatory compliance', 'food safety', 'licensing', 'permits'],
+    licensing: ['permits', 'regulatory approval', 'health inspection'],
+    operations: ['operational setup', 'process design', 'supply chain'],
+    culinary: ['menu development', 'food quality', 'recipe standardization'],
+  },
+  retail: {
+    technology: ['POS systems', 'e-commerce integration', 'inventory systems'],
+    tech: ['POS systems', 'retail systems', 'software implementation'],
+    operations: ['store operations', 'process design', 'inventory flow'],
+    compliance: ['regulatory compliance', 'consumer protection', 'audit readiness'],
+  },
+  technology: {
+    technology: ['software architecture', 'platform engineering', 'systems integration'],
+    tech: ['software architecture', 'systems integration', 'automation'],
+    compliance: ['data governance', 'security controls', 'regulatory compliance'],
+    licensing: ['contract compliance', 'data policy alignment', 'audit documentation'],
+    operations: ['service operations', 'process automation', 'delivery management'],
+  },
 };
 
 /**
@@ -94,9 +119,26 @@ function getCacheKey(businessType: string, workstreamName: string): string {
 /**
  * Infer skills from category
  */
-export function inferSkillsFromCategory(category: string): string[] {
+function detectDomainKey(context?: BusinessContext): DomainKey {
+  const corpus = [
+    context?.industry,
+    context?.businessType,
+    context?.initiativeType,
+    context?.programName,
+  ].filter(Boolean).join(' ').toLowerCase();
+
+  if (/(restaurant|cafe|food|culinary|dining|hospitality)/.test(corpus)) return 'food_service';
+  if (/(retail|store|e-?commerce|shopping)/.test(corpus)) return 'retail';
+  if (/(saas|software|technology|tech|ai|platform|digital)/.test(corpus)) return 'technology';
+  return 'generic';
+}
+
+export function inferSkillsFromCategory(category: string, businessContext?: BusinessContext): string[] {
   const normalized = category.toLowerCase().replace(/[^a-z_]/g, '');
-  return CATEGORY_SKILLS[normalized] || ['general management'];
+  const domain = detectDomainKey(businessContext);
+  return CATEGORY_SKILLS_BY_DOMAIN[domain][normalized]
+    || CATEGORY_SKILLS_BY_DOMAIN.generic[normalized]
+    || ['general management'];
 }
 
 export class RoleInferenceService {
@@ -204,7 +246,7 @@ Return ONLY valid JSON (no markdown, no explanation):
   "owners": [
     {
       "workstream_id": "WS001",
-      "role_title": "Cafe Design & Build Lead",
+      "role_title": "Implementation Lead",
       "category": "construction",
       "rationale": "Reason referencing context",
       "confidence": 0.9
@@ -225,7 +267,7 @@ RULES:
    - Supply Chain/Inventory workstream → "Supply Chain Manager"
 3. Category must be ONE of: construction, design, technology, hr, training, marketing, community, compliance, licensing, operations, supply_chain, finance, culinary
 4. Only consolidate roles if workstreams are genuinely similar (e.g., two marketing workstreams can share one Marketing Manager)
-5. Match role titles to the actual business type - a cafe should NOT have "Catering Operations Manager"
+5. Match role titles to the actual business type and avoid cross-domain terms that don't fit
 6. Return an owner for EVERY workstream ID listed above
 7. AIM FOR DIVERSITY: If you have 6 workstreams, you should have 4-6 different role titles, not 2-3`;
 
@@ -581,7 +623,8 @@ Return ONLY valid JSON:
 export function ensureResourceExists(
   roleTitle: string,
   resourcePlan: ResourcePlan,
-  category: string
+  category: string,
+  businessContext?: BusinessContext
 ): void {
   const normalizedRole = normalizeRole(roleTitle);
 
@@ -596,7 +639,7 @@ export function ensureResourceExists(
       role: normalizedRole,
       allocation: 1.0, // 100% allocation
       months: 6, // Default 6 months duration
-      skills: inferSkillsFromCategory(category),
+      skills: inferSkillsFromCategory(category, businessContext),
       justification: `Added by LLM role inference for ${category} workstreams`,
     });
   }

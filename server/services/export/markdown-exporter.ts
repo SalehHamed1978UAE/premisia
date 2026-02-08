@@ -219,7 +219,7 @@ export function generateMarkdownReport(pkg: FullExportPackage): string {
     const insights = deriveInsights(pkg, parseField);
     
     if (pkg.strategy.fiveWhysTree) {
-      const treeMarkdown = generateFiveWhysTreeMarkdown(pkg.strategy.fiveWhysTree, pkg.strategy.whysPath);
+      const treeMarkdown = generateFiveWhysTreeMarkdown(pkg.strategy.fiveWhysTree, insights.whysPath);
       if (treeMarkdown) {
         lines.push(treeMarkdown);
       }

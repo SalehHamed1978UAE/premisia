@@ -28,11 +28,19 @@ const normalizeKey = (value?: string) =>
     .replace(/\s+/g, '_')
     .replace(/[^a-z0-9_]/g, '');
 
-const toArray = (value: any): any[] => {
-  if (!value) return [];
-  if (Array.isArray(value)) return value;
-  return [value];
-};
+const normalizeWhysPathForReport = (rawPath: any[]): Array<{ question: string; answer: string }> =>
+  rawPath.map((step: any, idx: number) => {
+    if (typeof step === 'string') {
+      return { question: `Why ${idx + 1}?`, answer: step };
+    }
+    if (step && typeof step === 'object') {
+      return {
+        question: step.question || `Why ${idx + 1}?`,
+        answer: step.answer || step.option || step.label || step.why || '',
+      };
+    }
+    return { question: `Why ${idx + 1}?`, answer: String(step || '') };
+  });
 
 const buildBmcBlocksFromList = (blocks: any[]): Record<string, any> => {
   const output: Record<string, any> = {};
@@ -66,21 +74,19 @@ export const deriveInsights = (pkg: FullExportPackage, parseField: (v: any) => a
     }
   }
 
+  // Canonical path source for reporting:
+  // prefer export-level strategy.whysPath (finalized selected path) when available.
+  if (Array.isArray(pkg.strategy.whysPath) && pkg.strategy.whysPath.length > 0) {
+    insights.whysPath = normalizeWhysPathForReport(pkg.strategy.whysPath);
+  }
+
   const sv = pkg.strategy.strategyVersion as any;
   const analysisData = sv ? parseField(sv.analysisData) : null;
 
   const five = analysisData?.five_whys || analysisData?.fiveWhys;
   if (five) {
     if (!insights.whysPath && Array.isArray(five.whysPath)) {
-      insights.whysPath = five.whysPath.map((step: any, idx: number) => {
-        if (typeof step === 'string') {
-          return { question: `Why ${idx + 1}?`, answer: step };
-        }
-        if (step && typeof step === 'object') {
-          return { question: step.question || `Why ${idx + 1}?`, answer: step.answer || step.option || step.label || '' };
-        }
-        return { question: `Why ${idx + 1}?`, answer: String(step || '') };
-      });
+      insights.whysPath = normalizeWhysPathForReport(five.whysPath);
     }
     if (!insights.rootCauses) {
       const root = five.root_cause || five.rootCause || '';

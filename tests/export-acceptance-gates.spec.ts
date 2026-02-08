@@ -127,6 +127,60 @@ describe('Export acceptance gates', () => {
     expect(report.criticalIssues.some((i) => i.code === 'WHYS_PATH_INCOMPLETE')).toBe(true);
   });
 
+  it('fails when top-level and nested five-whys paths diverge', () => {
+    const report = validateExportAcceptance({
+      strategyJson: JSON.stringify({
+        journeySession: { journeyType: 'business_model_innovation' },
+        frameworks: ['five_whys', 'bmc'],
+        whysPath: [
+          'canonical step 1',
+          'canonical step 2',
+          'canonical step 3',
+          'canonical step 4',
+        ],
+        strategyVersion: {
+          analysisData: {
+            five_whys: {
+              whysPath: [
+                'drift step 1',
+                'drift step 2',
+                'drift step 3',
+                'drift step 4',
+              ],
+            },
+          },
+        },
+      }),
+      epmJson: buildValidEpmJson(),
+      ...validCsvs(),
+    });
+
+    expect(report.passed).toBe(false);
+    expect(report.criticalIssues.some((i) => i.code === 'WHYS_PATH_SOURCE_MISMATCH')).toBe(true);
+  });
+
+  it('fails when report tree chosen path and summary path diverge', () => {
+    const report = validateExportAcceptance({
+      strategyJson: buildValidStrategyJson(),
+      epmJson: buildValidEpmJson(),
+      ...validCsvs(),
+      reportMarkdown: [
+        '## Five Whys - Complete Analysis Tree',
+        '1. **tree_step_1** ✓ (Chosen path)',
+        '2. **tree_step_2** ✓ (Chosen path)',
+        '',
+        '## Five Whys - Chosen Path Summary',
+        '1. **Why?** Why 1?',
+        '   **Answer:** summary_step_1',
+        '2. **Why?** Why 2?',
+        '   **Answer:** summary_step_2',
+      ].join('\n'),
+    });
+
+    expect(report.passed).toBe(false);
+    expect(report.criticalIssues.some((i) => i.code === 'REPORT_WHYS_PATH_MISMATCH')).toBe(true);
+  });
+
   it('fails when csv and epm section counts diverge', () => {
     const report = validateExportAcceptance({
       strategyJson: buildValidStrategyJson(),
@@ -259,5 +313,30 @@ describe('Export acceptance gates', () => {
 
     expect(report.passed).toBe(false);
     expect(report.criticalIssues.some((i) => i.code === 'PLACEHOLDER_CORRUPTION')).toBe(true);
+  });
+
+  it('fails when technology programs include restaurant-only resource skills', () => {
+    const epm = JSON.parse(buildValidEpmJson());
+    epm.resources = [
+      { id: 'R1', role: 'AI Compliance Lead', skills: ['food safety', 'policy controls'] },
+    ];
+
+    const report = validateExportAcceptance({
+      strategyJson: JSON.stringify({
+        understanding: {
+          title: 'Launch AI Automation Platform',
+          initiativeDescription: 'Build agentic AI platform for enterprise workflows',
+          userInput: 'Start AI SaaS for workflow automation',
+        },
+        journeySession: { journeyType: 'business_model_innovation' },
+        frameworks: ['five_whys', 'bmc'],
+        whysPath: ['A', 'B', 'C', 'D'],
+      }),
+      epmJson: JSON.stringify(epm),
+      ...validCsvs(),
+    });
+
+    expect(report.passed).toBe(false);
+    expect(report.criticalIssues.some((i) => i.code === 'DOMAIN_SKILL_LEAKAGE')).toBe(true);
   });
 });

@@ -133,25 +133,11 @@ function deriveWhysPath(
   const nestedParsed = parseMaybeJson<any[]>(fiveWhys.whysPath);
   const nested = Array.isArray(nestedParsed) ? nestedParsed : [];
 
-  if (topLevel.length === 0) return nested;
-  if (nested.length === 0) return topLevel;
-
-  // Prefer the richer path for downstream automation:
-  // 1) longer path wins, 2) if equal length, prefer steps with structured answer data.
-  if (nested.length > topLevel.length) return nested;
-  if (topLevel.length > nested.length) return topLevel;
-
-  const structuredScore = (path: any[]) =>
-    path.reduce((score, step) => {
-      if (!step || typeof step !== 'object') return score;
-      let s = score;
-      if (typeof step.answer === 'string' && step.answer.trim().length > 0) s += 3;
-      if (typeof step.question === 'string' && step.question.trim().length > 0) s += 2;
-      if (typeof step.option === 'string' && step.option.trim().length > 0) s += 1;
-      return s;
-    }, 0);
-
-  return structuredScore(nested) > structuredScore(topLevel) ? nested : topLevel;
+  // Canonical source-of-truth rule:
+  // 1) prefer strategy.whysPath (user-selected/finalized path from framework insights),
+  // 2) fall back to analysisData.five_whys.whysPath for legacy sessions.
+  if (topLevel.length > 0) return topLevel;
+  return nested;
 }
 
 function deriveRootCause(

@@ -232,6 +232,75 @@ function isAnswerLikeWhyStep(step: any): boolean {
   return false;
 }
 
+function normalizeWhyStepForComparison(step: any): string {
+  const value = typeof step === 'string'
+    ? step
+    : (step?.answer || step?.option || step?.label || step?.value || step?.why || step?.question || '');
+  return String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function normalizeWhyPathForComparison(path: any[]): string[] {
+  return path
+    .map((step) => normalizeWhyStepForComparison(step))
+    .filter((value) => value.length > 0);
+}
+
+function areWhyPathsEquivalent(left: any[], right: any[]): boolean {
+  const a = normalizeWhyPathForComparison(left);
+  const b = normalizeWhyPathForComparison(right);
+  if (a.length !== b.length) return false;
+  return a.every((value, index) => value === b[index]);
+}
+
+type StrategyDomain = 'food_service' | 'technology' | 'retail' | 'generic';
+
+function inferStrategyDomain(strategyData: any): StrategyDomain {
+  const text = [
+    strategyData?.understanding?.title,
+    strategyData?.understanding?.initiativeDescription,
+    strategyData?.understanding?.userInput,
+    strategyData?.strategyVersion?.inputSummary,
+  ]
+    .filter((value) => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+    .toLowerCase();
+
+  if (/(restaurant|cafe|food|culinary|dining|menu|kitchen|hospitality)/.test(text)) return 'food_service';
+  if (/(retail|store|e-?commerce|shopping)/.test(text)) return 'retail';
+  if (/(ai|saas|software|technology|tech|platform|automation|agentic)/.test(text)) return 'technology';
+  return 'generic';
+}
+
+function collectResourceSkillCorpus(resources: any[]): string {
+  return resources
+    .flatMap((resource: any) => {
+      const fragments: string[] = [];
+      if (Array.isArray(resource?.skills)) fragments.push(resource.skills.join(' '));
+      if (typeof resource?.skills === 'string') fragments.push(resource.skills);
+      if (typeof resource?.requirements === 'string') fragments.push(resource.requirements);
+      if (typeof resource?.description === 'string') fragments.push(resource.description);
+      if (typeof resource?.justification === 'string') fragments.push(resource.justification);
+      return fragments;
+    })
+    .join(' ')
+    .toLowerCase();
+}
+
+function extractMarkdownTreeChosenPath(markdown: string | null | undefined): string[] {
+  if (!markdown) return [];
+  const matches = markdown.matchAll(/\*\*([^*]+)\*\*\s*✓\s*\(Chosen path\)/g);
+  return Array.from(matches, (match) => match[1]?.trim() || '').filter((value) => value.length > 0);
+}
+
+function extractMarkdownSummaryPath(markdown: string | null | undefined): string[] {
+  if (!markdown) return [];
+  const sectionSplit = markdown.split('## Five Whys - Chosen Path Summary');
+  if (sectionSplit.length < 2) return [];
+  const summary = sectionSplit[1];
+  const answerMatches = summary.matchAll(/\*\*Answer:\*\*\s*(.+)/g);
+  return Array.from(answerMatches, (match) => (match[1] || '').trim()).filter((value) => value.length > 0);
+}
+
 function deriveExpectedFrameworks(strategyData: any): string[] {
   const journeySession = strategyData?.journeySession || {};
   const journeyType = typeof journeySession.journeyType === 'string'
@@ -444,6 +513,42 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
         });
       }
     }
+
+    const parsedAnalysisData = parseJson(strategyData?.strategyVersion?.analysisData) || strategyData?.strategyVersion?.analysisData || {};
+    const fiveWhysData = parsedAnalysisData?.five_whys || parsedAnalysisData?.fiveWhys || {};
+    const nestedWhysPath = Array.isArray(fiveWhysData?.whysPath) ? fiveWhysData.whysPath : [];
+    if (whysPath.length > 0 && nestedWhysPath.length > 0 && !areWhyPathsEquivalent(whysPath, nestedWhysPath)) {
+      criticalIssues.push({
+        severity: 'critical',
+        code: 'WHYS_PATH_SOURCE_MISMATCH',
+        message: 'Five Whys path diverges across sources; expected one canonical chosen path',
+        details: {
+          topLevelLength: whysPath.length,
+          nestedLength: nestedWhysPath.length,
+          topLevelPreview: normalizeWhyPathForComparison(whysPath).slice(0, 2),
+          nestedPreview: normalizeWhyPathForComparison(nestedWhysPath).slice(0, 2),
+        },
+      });
+    }
+
+    const treePathFromReport = extractMarkdownTreeChosenPath(input.reportMarkdown);
+    const summaryPathFromReport = extractMarkdownSummaryPath(input.reportMarkdown);
+    if (treePathFromReport.length > 0 && summaryPathFromReport.length > 0) {
+      const compareCount = Math.min(treePathFromReport.length, summaryPathFromReport.length, 4);
+      const treeSlice = treePathFromReport.slice(0, compareCount);
+      const summarySlice = summaryPathFromReport.slice(0, compareCount);
+      if (!areWhyPathsEquivalent(treeSlice, summarySlice)) {
+        criticalIssues.push({
+          severity: 'critical',
+          code: 'REPORT_WHYS_PATH_MISMATCH',
+          message: 'Report tree chosen-path markers diverge from chosen-path summary',
+          details: {
+            treePreview: normalizeWhyPathForComparison(treeSlice),
+            summaryPreview: normalizeWhyPathForComparison(summarySlice),
+          },
+        });
+      }
+    }
   }
 
   if (!input.epmJson) {
@@ -508,6 +613,36 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
         code: 'CSV_JSON_COUNT_MISMATCH',
         message: `${check.name} count mismatch between epm.json and CSV`,
         details: { jsonCount: check.jsonCount, csvRows },
+      });
+    }
+  }
+
+  const strategyDomain = inferStrategyDomain(strategyData);
+  const resources = Array.isArray(epmData.resources) ? epmData.resources : [];
+  const resourceSkillCorpus = collectResourceSkillCorpus(resources);
+  if (strategyDomain === 'technology' && resourceSkillCorpus.length > 0) {
+    const leakedTerms = [
+      /\bfood safety\b/i,
+      /\bhealth inspection\b/i,
+      /\bhaccp\b/i,
+      /\bmenu\b/i,
+      /\bkitchen\b/i,
+      /\bchef\b/i,
+      /\bcafe\b/i,
+      /\brestaurant\b/i,
+      /\bpos systems?\b/i,
+    ].filter((pattern) => pattern.test(resourceSkillCorpus))
+      .map((pattern) => pattern.source.replace(/\\b/g, ''));
+
+    if (leakedTerms.length > 0) {
+      criticalIssues.push({
+        severity: 'critical',
+        code: 'DOMAIN_SKILL_LEAKAGE',
+        message: 'Resource skills include cross-domain terms inconsistent with technology program context',
+        details: {
+          domain: strategyDomain,
+          leakedTerms: leakedTerms.slice(0, 5),
+        },
       });
     }
   }

@@ -1053,7 +1053,7 @@ export class EPMSynthesizer {
         };
 
         // Ensure the role exists in the resource plan
-        ensureResourceExists(inferred.roleTitle, resourcePlan, inferred.category);
+        ensureResourceExists(inferred.roleTitle, resourcePlan, inferred.category, businessContext);
 
         console.log(`[EPM Synthesis]   ${ws.name} → ${ws.owner} (${inferred.category})`);
       } else {
