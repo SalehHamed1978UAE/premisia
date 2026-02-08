@@ -10,7 +10,7 @@ import {
 } from '@shared/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import type { IExporter, ExportResult, FullExportPackage, ExportRequest } from '../../types/interfaces';
-import { pickCanonicalWhysPath } from './whys-utils';
+import { normalizeWhysPath, pickCanonicalWhysPath } from './whys-utils';
 
 export type { ExportRequest, FullExportPackage, ExportResult, IExporter };
 
@@ -145,7 +145,17 @@ export async function loadExportData(
       console.log('[Export Service] Five Whys path candidate from strategyVersion.analysisData:', analysisWhysPath.length);
     }
   }
-  const whysPath = pickCanonicalWhysPath([frameworkInsightWhysPath, analysisWhysPath]);
+  // Authoritative precedence:
+  // 1) Finalized strategyVersion.analysisData.five_whys.whysPath (user-selected canonical path)
+  // 2) framework_insights fallback (when analysisData is absent)
+  // 3) best-available canonical fallback.
+  const normalizedAnalysisPath = normalizeWhysPath(analysisWhysPath);
+  const normalizedInsightPath = normalizeWhysPath(frameworkInsightWhysPath);
+  const whysPath = normalizedAnalysisPath.length > 0
+    ? normalizedAnalysisPath
+    : (normalizedInsightPath.length > 0
+      ? normalizedInsightPath
+      : pickCanonicalWhysPath([frameworkInsightWhysPath, analysisWhysPath]));
   console.log('[Export Service] Canonical Five Whys path selected:', whysPath.length, 'steps');
 
   console.log('[Export Service] loadExportData - Fetching clarifications from strategic understanding...');

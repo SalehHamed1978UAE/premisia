@@ -80,10 +80,11 @@ Platform Development Needed: ${strategyProfile.needsPlatform ? 'YES' : 'NO'}
 Recommended Tech Role: ${strategyProfile.technologyRoleOverride || 'To be determined'}
 
 CRITICAL: The BMC analysis has determined that this business should follow a ${strategyProfile.archetype} model.
-This means the strategy RECOMMENDS ${strategyProfile.needsPlatform ? 'building platform/technology capabilities' : 'minimal technology focus'}.
+This means the strategy RECOMMENDS ${strategyProfile.needsPlatform ? 'meaningful technology capability investment' : 'minimal technology focus'}.
 
-You MUST respect the strategic recommendations above. If BMC says platform development is needed,
-then technology is a strategic enabler regardless of the base business type.
+Use this as a directional signal, not a forced reclassification.
+IMPORTANT: classify as software_development ONLY when the product sold to customers is software/platform itself.
+If technology primarily enables delivery of a service or physical business, prefer operational_tool and non-software initiative types.
 `;
     }
     

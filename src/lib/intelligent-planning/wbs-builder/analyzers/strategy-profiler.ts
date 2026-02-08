@@ -57,17 +57,18 @@ export class StrategyProfiler {
    * Assess if platform development is needed
    */
   private static assessPlatformNeed(signals: StrategySignals): boolean {
-    // Explicit platform mentions
+    // Strong product/platform build evidence
     if (signals.platformNeeds.length > 0) return true;
     
-    // Multiple digital signals indicate platform need
-    const digitalSignalCount = 
-      signals.digitalChannels.length +
-      signals.digitalValueProps.length +
-      signals.techRevenue.length +
-      signals.customerTech.length;
-    
-    return digitalSignalCount >= 3 || signals.digitalIntensity >= 40;
+    // Only infer platform builds from high-confidence converging signals.
+    const ambiguousMentions = signals.platformAmbiguousSignals?.length || 0;
+    const commercialTechSignals = signals.techRevenue.length + signals.techResources.length;
+    const channelSignals = signals.digitalChannels.length + signals.customerTech.length;
+
+    return ambiguousMentions >= 2
+      && signals.digitalIntensity >= 70
+      && commercialTechSignals >= 2
+      && channelSignals >= 2;
   }
   
   /**

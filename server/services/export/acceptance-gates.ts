@@ -252,22 +252,29 @@ function areWhyPathsEquivalent(left: any[], right: any[]): boolean {
   return a.every((value, index) => value === b[index]);
 }
 
-type StrategyDomain = 'food_service' | 'technology' | 'retail' | 'generic';
+type StrategyDomain = 'food_service' | 'technology' | 'retail' | 'professional_services' | 'generic';
 
 function inferStrategyDomain(strategyData: any): StrategyDomain {
+  const initiativeType = String(strategyData?.understanding?.initiativeType || '').toLowerCase();
   const text = [
     strategyData?.understanding?.title,
     strategyData?.understanding?.initiativeDescription,
     strategyData?.understanding?.userInput,
     strategyData?.strategyVersion?.inputSummary,
+    initiativeType,
   ]
     .filter((value) => typeof value === 'string' && value.trim().length > 0)
     .join(' ')
     .toLowerCase();
 
+  if (/(service_launch|consult(ing|ancy)?|agency|professional services|implementation service|advisory)/.test(text)) {
+    return 'professional_services';
+  }
   if (/(restaurant|cafe|food|culinary|dining|menu|kitchen|hospitality)/.test(text)) return 'food_service';
   if (/(retail|store|e-?commerce|shopping)/.test(text)) return 'retail';
-  if (/(ai|saas|software|technology|tech|platform|automation|agentic)/.test(text)) return 'technology';
+  if (/(software_development|saas_platform|saas|software product|application development|product platform|platform product|technology platform)/.test(text)) {
+    return 'technology';
+  }
   return 'generic';
 }
 
@@ -699,6 +706,26 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
   }
 
   const workstreams = Array.isArray(epmData.workstreams) ? epmData.workstreams : [];
+  if (strategyDomain === 'professional_services' || strategyDomain === 'generic') {
+    const buildProductSignals = workstreams
+      .map((ws: any) => `${ws?.name || ''} ${ws?.description || ''}`.toLowerCase())
+      .filter((text: string) =>
+        /(build|develop|engineer|launch)\s+.*(saas|software product|platform product|application platform)/.test(text)
+      );
+
+    if (buildProductSignals.length > 0) {
+      criticalIssues.push({
+        severity: 'critical',
+        code: 'DOMAIN_WORKSTREAM_DRIFT',
+        message: 'Workstream set implies software-product build for a non-product/service context',
+        details: {
+          domain: strategyDomain,
+          examples: buildProductSignals.slice(0, 3),
+        },
+      });
+    }
+  }
+
   const byId = new Map<string, any>();
   for (const ws of workstreams) {
     if (typeof ws?.id === 'string') byId.set(ws.id, ws);

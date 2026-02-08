@@ -410,4 +410,37 @@ describe('Export acceptance gates', () => {
     expect(report.passed).toBe(false);
     expect(report.criticalIssues.some((i) => i.code === 'DOMAIN_SKILL_LEAKAGE')).toBe(true);
   });
+
+  it('fails when service/generic initiatives drift into software-product build workstreams', () => {
+    const epm = JSON.parse(buildValidEpmJson());
+    epm.workstreams = [
+      { id: 'WS001', name: 'Build SaaS Platform Product Core', startMonth: 1, endMonth: 3, dependencies: [], deliverables: [] },
+      { id: 'WS002', name: 'Launch Application Platform to Market', startMonth: 4, endMonth: 6, dependencies: ['WS001'], deliverables: [] },
+    ];
+    epm.program.timeline = {
+      totalMonths: 6,
+      phases: [
+        { phase: 1, name: 'P1', startMonth: 1, endMonth: 3, keyMilestones: [], workstreamIds: ['WS001'] },
+        { phase: 2, name: 'P2', startMonth: 4, endMonth: 6, keyMilestones: [], workstreamIds: ['WS002'] },
+      ],
+      criticalPath: ['WS001', 'WS002'],
+    };
+
+    const report = validateExportAcceptance({
+      strategyJson: JSON.stringify({
+        understanding: {
+          initiativeType: 'service_launch',
+          userInput: 'Launch an AI transformation agency for mid-market clients',
+        },
+        journeySession: { journeyType: 'business_model_innovation' },
+        frameworks: ['five_whys', 'bmc'],
+        whysPath: ['s1', 's2', 's3', 's4'],
+      }),
+      epmJson: JSON.stringify(epm),
+      ...validCsvs(),
+    });
+
+    expect(report.passed).toBe(false);
+    expect(report.criticalIssues.some((i) => i.code === 'DOMAIN_WORKSTREAM_DRIFT')).toBe(true);
+  });
 });

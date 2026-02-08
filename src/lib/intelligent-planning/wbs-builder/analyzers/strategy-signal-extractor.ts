@@ -4,7 +4,9 @@
  */
 
 export interface StrategySignals {
-  platformNeeds: string[];        // Evidence of platform/technology requirements
+  platformNeeds: string[];        // Strong evidence of product/platform build requirements
+  platformOperationalSignals: string[]; // Platform/software mentions used as delivery tools
+  platformAmbiguousSignals: string[];   // Ambiguous mentions (neither clearly product nor clearly tool)
   digitalChannels: string[];      // Online channels, digital touchpoints
   digitalValueProps: string[];    // Technology-enabled value propositions
   techRevenue: string[];          // Tech-enabled revenue streams
@@ -15,14 +17,46 @@ export interface StrategySignals {
 }
 
 export class StrategySignalExtractor {
+  private static hasSoftwareProductSignal(content: string): boolean {
+    return /(build|develop|create|engineer|design|ship|offer)\s+.*(saas|software|application|app|platform product|platform solution)/.test(content)
+      || /launch\s+(an?\s+)?(saas|software|application|app|platform product)/.test(content)
+      || /(saas\s+platform|software\s+product|ai\s+platform|digital\s+product|productized\s+software)/.test(content);
+  }
+
+  private static hasOperationalTechSignal(content: string): boolean {
+    return /(pos|point of sale|crm|erp|inventory|booking|scheduling|automation tool|internal system|workflow tool|implementation tooling)/.test(content)
+      || /(internal|delivery|operations)\s+.*(software|platform|application|app|tool)/.test(content)
+      || /(support|enable|optimiz|streamlin|automate)\s+.*(operations|delivery|service|workflow|process)/.test(content);
+  }
+
+  private static isServiceLaunchContext(context?: { business?: { type?: string; industry?: string; description?: string; initiativeType?: string } }): boolean {
+    const corpus = [
+      context?.business?.type,
+      context?.business?.industry,
+      context?.business?.description,
+      context?.business?.initiativeType,
+    ]
+      .filter((value) => typeof value === 'string' && value.trim().length > 0)
+      .join(' ')
+      .toLowerCase();
+
+    if (!corpus) return false;
+    return /(service_launch|consult(ing|ancy)?|agency|advisory|professional service|implementation service)/.test(corpus);
+  }
+
   /**
    * Extract digital transformation signals from BMC insights
    */
-  static extract(insights: any): StrategySignals {
+  static extract(
+    insights: any,
+    context?: { business?: { type?: string; industry?: string; description?: string; initiativeType?: string } },
+  ): StrategySignals {
     console.log('[Strategy Signal Extractor] Analyzing BMC insights for digital signals...');
     
     const signals: StrategySignals = {
       platformNeeds: [],
+      platformOperationalSignals: [],
+      platformAmbiguousSignals: [],
       digitalChannels: [],
       digitalValueProps: [],
       techRevenue: [],
@@ -58,7 +92,13 @@ export class StrategySignalExtractor {
         content.includes('software') ||
         content.includes('saas')
       ) {
-        signals.platformNeeds.push(insight.content);
+        if (this.hasSoftwareProductSignal(content)) {
+          signals.platformNeeds.push(insight.content);
+        } else if (this.hasOperationalTechSignal(content) || this.isServiceLaunchContext(context)) {
+          signals.platformOperationalSignals.push(insight.content);
+        } else {
+          signals.platformAmbiguousSignals.push(insight.content);
+        }
       }
       
       // Digital channel signals (from Channels block)
@@ -132,7 +172,9 @@ export class StrategySignalExtractor {
     signals.digitalIntensity = this.calculateDigitalIntensity(signals);
     
     console.log(`[Strategy Signal Extractor] Digital intensity: ${signals.digitalIntensity}%`);
-    console.log(`[Strategy Signal Extractor] Platform needs: ${signals.platformNeeds.length}`);
+    console.log(`[Strategy Signal Extractor] Platform needs (strong): ${signals.platformNeeds.length}`);
+    console.log(`[Strategy Signal Extractor] Platform needs (operational): ${signals.platformOperationalSignals.length}`);
+    console.log(`[Strategy Signal Extractor] Platform needs (ambiguous): ${signals.platformAmbiguousSignals.length}`);
     console.log(`[Strategy Signal Extractor] Digital channels: ${signals.digitalChannels.length}`);
     
     return signals;
@@ -146,6 +188,8 @@ export class StrategySignalExtractor {
     
     // Each category contributes to digital intensity
     if (signals.platformNeeds.length > 0) score += 25;
+    if (signals.platformAmbiguousSignals.length >= 2) score += 10;
+    if (signals.platformOperationalSignals.length > 0) score += 5;
     if (signals.digitalChannels.length > 0) score += 20;
     if (signals.digitalValueProps.length > 0) score += 15;
     if (signals.techRevenue.length > 0) score += 15;
@@ -160,7 +204,16 @@ export class StrategySignalExtractor {
    * Determine if strategy recommends platform development
    */
   static needsPlatform(signals: StrategySignals): boolean {
-    return signals.platformNeeds.length > 0 || signals.digitalIntensity >= 40;
+    if (signals.platformNeeds.length > 0) return true;
+
+    const ambiguous = signals.platformAmbiguousSignals.length;
+    const reinforcementSignals =
+      signals.techRevenue.length +
+      signals.techResources.length +
+      signals.customerTech.length +
+      signals.digitalChannels.length;
+
+    return ambiguous >= 2 && signals.digitalIntensity >= 60 && reinforcementSignals >= 3;
   }
   
   /**

@@ -10,6 +10,8 @@ export default defineConfig({
       'tests/export-acceptance-gates.spec.ts',
       'tests/timeline-calculator.spec.ts',
       'tests/domain-sequencing.spec.ts',
+      'tests/five-whys-executor.spec.ts',
+      'tests/strategy-signal-extractor.spec.ts',
     ],
     testTimeout: 30000,
   },

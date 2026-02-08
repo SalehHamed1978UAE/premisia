@@ -44,7 +44,7 @@ export class WBSBuilder implements IWBSBuilder {
         const { StrategySignalExtractor } = await import('../analyzers/strategy-signal-extractor');
         const { StrategyProfiler } = await import('../analyzers/strategy-profiler');
         
-        const signals = StrategySignalExtractor.extract(insights);
+        const signals = StrategySignalExtractor.extract(insights, context);
         strategyProfile = StrategyProfiler.buildProfile(signals);
         
         console.log('[WBS Builder] Strategy profile extracted:');

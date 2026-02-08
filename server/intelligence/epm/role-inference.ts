@@ -51,7 +51,7 @@ interface BusinessContext {
 // In-memory cache for role inference (persists for session)
 const roleCache: Map<string, InferredOwner> = new Map();
 
-type DomainKey = 'generic' | 'food_service' | 'retail' | 'technology';
+type DomainKey = 'generic' | 'food_service' | 'retail' | 'technology' | 'professional_services';
 
 // Domain-aware category-to-skills mapping for resource plan integration.
 const CATEGORY_SKILLS_BY_DOMAIN: Record<DomainKey, Record<string, string[]>> = {
@@ -92,6 +92,15 @@ const CATEGORY_SKILLS_BY_DOMAIN: Record<DomainKey, Record<string, string[]>> = {
     licensing: ['contract compliance', 'data policy alignment', 'audit documentation'],
     operations: ['service operations', 'process automation', 'delivery management'],
   },
+  professional_services: {
+    technology: ['workflow automation', 'delivery tooling', 'systems integration'],
+    tech: ['implementation tooling', 'automation support', 'client systems integration'],
+    operations: ['client delivery', 'engagement management', 'service quality'],
+    compliance: ['contract compliance', 'governance controls', 'audit readiness'],
+    marketing: ['demand generation', 'thought leadership', 'pipeline development'],
+    training: ['capability development', 'methodology enablement', 'knowledge transfer'],
+    finance: ['project financial planning', 'margin management', 'forecasting'],
+  },
 };
 
 /**
@@ -127,9 +136,14 @@ function detectDomainKey(context?: BusinessContext): DomainKey {
     context?.programName,
   ].filter(Boolean).join(' ').toLowerCase();
 
+  if (/(service_launch|consult(ing|ancy)?|agency|professional services|implementation service|advisory)/.test(corpus)) {
+    return 'professional_services';
+  }
   if (/(restaurant|cafe|food|culinary|dining|hospitality)/.test(corpus)) return 'food_service';
   if (/(retail|store|e-?commerce|shopping)/.test(corpus)) return 'retail';
-  if (/(saas|software|technology|tech|ai|platform|digital)/.test(corpus)) return 'technology';
+  if (/(saas|software|technology|tech|application development|product engineering|product platform)/.test(corpus)) {
+    return 'technology';
+  }
   return 'generic';
 }
 

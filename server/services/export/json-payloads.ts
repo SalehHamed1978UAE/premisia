@@ -4,7 +4,7 @@ import { enforceDomainSequencing } from '../../intelligence/epm/domain-sequencin
 
 type StrategyPayload = FullExportPackage['strategy'];
 type EpmPayload = NonNullable<FullExportPackage['epm']>;
-type StrategyDomain = 'food_service' | 'technology' | 'retail' | 'generic';
+type StrategyDomain = 'food_service' | 'technology' | 'retail' | 'professional_services' | 'generic';
 
 const FRAMEWORK_ALIASES: Record<string, string> = {
   five_whys: 'five_whys',
@@ -227,19 +227,26 @@ function deriveBenefitList(benefitsRealization: any): any[] {
 
 function inferStrategyDomain(strategy?: StrategyPayload): StrategyDomain {
   if (!strategy) return 'generic';
+  const initiativeType = String(strategy?.understanding?.initiativeType || '').toLowerCase();
   const text = [
     strategy?.understanding?.title,
     strategy?.understanding?.initiativeDescription,
     strategy?.understanding?.userInput,
     strategy?.strategyVersion?.inputSummary,
+    initiativeType,
   ]
     .filter((value) => typeof value === 'string' && value.trim().length > 0)
     .join(' ')
     .toLowerCase();
 
+  if (/(service_launch|consult(ing|ancy)?|agency|professional services|implementation service|advisory)/.test(text)) {
+    return 'professional_services';
+  }
   if (/(restaurant|cafe|food|culinary|dining|menu|kitchen|hospitality)/.test(text)) return 'food_service';
   if (/(retail|store|e-?commerce|shopping)/.test(text)) return 'retail';
-  if (/(ai|saas|software|technology|tech|platform|automation|agentic)/.test(text)) return 'technology';
+  if (/(software_development|saas_platform|saas|software product|application development|product platform|platform product|technology platform)/.test(text)) {
+    return 'technology';
+  }
   return 'generic';
 }
 
@@ -249,13 +256,22 @@ function normalizeSkillsForDomain(skills: any, domain: StrategyDomain): any {
     .filter((value) => typeof value === 'string' && value.trim().length > 0)
     .map((value: string) => value.trim());
 
-  if (domain !== 'technology') return normalized;
+  if (domain !== 'technology' && domain !== 'professional_services') return normalized;
 
   const isLeaked = (value: string) =>
     /\bfood safety\b|\bhealth inspection\b|\bhaccp\b|\bmenu\b|\bkitchen\b|\bchef\b|\bcafe\b|\brestaurant\b|\bpos systems?\b/i.test(value);
 
-  const filtered = normalized.filter((value) => !isLeaked(value));
+  const isProductBuildOnly = (value: string) =>
+    /\bsoftware architecture\b|\bplatform engineering\b|\bproduct engineering\b/i.test(value);
+
+  const filtered = normalized.filter((value) =>
+    !isLeaked(value) && (domain !== 'professional_services' || !isProductBuildOnly(value))
+  );
   if (filtered.length > 0) return filtered;
+
+  if (domain === 'professional_services') {
+    return ['client delivery', 'implementation planning', 'change management'];
+  }
 
   return ['platform engineering', 'systems integration', 'delivery management'];
 }

@@ -21,31 +21,16 @@ export class FiveWhysExecutor implements FrameworkExecutor {
     
     console.log(`[FiveWhys Executor] Generated tree with ${whysTree.branches.length} root branches`);
     
-    // Extract root causes and paths from the tree
+    const selectedPath = this.normalizePath(context?.insights?.whysPath);
+    const whysPath = selectedPath.length > 0
+      ? selectedPath
+      : this.extractCanonicalPathFromTree(whysTree);
+
     const rootCauses: string[] = [];
-    const whysPath: string[] = [];
-    
-    // Extract from each branch
+    if (whysPath.length > 0) {
+      rootCauses.push(whysPath[whysPath.length - 1]);
+    }
     if (whysTree.branches && whysTree.branches.length > 0) {
-      let currentLevel = whysTree.branches;
-      
-      // Traverse the first branch to build a complete path
-      while (currentLevel && currentLevel.length > 0) {
-        const node = currentLevel[0];
-        const stepText = node.option || (node as any).answer || node.question || '';
-        if (typeof stepText === 'string' && stepText.trim().length > 0) {
-          whysPath.push(stepText);
-        }
-        
-        // If we're at a leaf node (deepest level), this is a root cause
-        if (!node.branches || node.branches.length === 0) {
-          rootCauses.push(node.option || node.question);
-        }
-        
-        currentLevel = node.branches || [];
-      }
-      
-      // Collect root causes from other branches
       for (const branch of whysTree.branches) {
         const deepestAnswer = this.findDeepestAnswer(branch);
         if (deepestAnswer && !rootCauses.includes(deepestAnswer)) {
@@ -72,7 +57,8 @@ export class FiveWhysExecutor implements FrameworkExecutor {
    */
   private findDeepestAnswer(branch: any): string | null {
     if (!branch.branches || branch.branches.length === 0) {
-      return branch.option || branch.question;
+      const text = this.extractNodeText(branch);
+      return text || null;
     }
     
     for (const childBranch of branch.branches) {
@@ -81,5 +67,79 @@ export class FiveWhysExecutor implements FrameworkExecutor {
     }
     
     return null;
+  }
+
+  private normalizePath(path: any): string[] {
+    if (!Array.isArray(path)) return [];
+    return path
+      .map((step) => {
+        if (typeof step === 'string') return step.trim();
+        if (!step || typeof step !== 'object') return '';
+        return String(
+          step.answer
+          || step.option
+          || step.label
+          || step.reason
+          || step.text
+          || step.question
+          || ''
+        ).trim();
+      })
+      .filter((step) => step.length > 0);
+  }
+
+  private extractNodeText(node: any): string {
+    if (!node || typeof node !== 'object') return '';
+    const value = node.option || node.answer || node.label || node.reason || node.text || node.question || '';
+    return String(value).trim();
+  }
+
+  private computeBranchDepth(node: any): number {
+    if (!node?.branches || !Array.isArray(node.branches) || node.branches.length === 0) return 1;
+    return 1 + Math.max(...node.branches.map((branch: any) => this.computeBranchDepth(branch)));
+  }
+
+  private scoreNode(node: any): number {
+    const text = this.extractNodeText(node).toLowerCase();
+    let score = this.computeBranchDepth(node) * 100;
+
+    const evidenceCount = Array.isArray(node?.supporting_evidence) ? node.supporting_evidence.length : 0;
+    score += Math.min(10, evidenceCount);
+
+    if (node?.isVerified) score += 5;
+    if (text.length >= 12) score += 2;
+    if (!/^why\b/.test(text)) score += 2;
+
+    return score;
+  }
+
+  private chooseBestNode(nodes: any[]): any | null {
+    if (!Array.isArray(nodes) || nodes.length === 0) return null;
+    return nodes
+      .slice()
+      .sort((a, b) => this.scoreNode(b) - this.scoreNode(a))[0] || null;
+  }
+
+  private extractCanonicalPathFromTree(whysTree: any): string[] {
+    if (!whysTree?.branches || !Array.isArray(whysTree.branches) || whysTree.branches.length === 0) {
+      return [];
+    }
+
+    const path: string[] = [];
+    let currentLevel = whysTree.branches;
+    let depth = 0;
+
+    while (Array.isArray(currentLevel) && currentLevel.length > 0 && depth < 5) {
+      const node = this.chooseBestNode(currentLevel);
+      if (!node) break;
+
+      const step = this.extractNodeText(node);
+      if (step.length > 0) path.push(step);
+
+      currentLevel = Array.isArray(node.branches) ? node.branches : [];
+      depth += 1;
+    }
+
+    return path;
   }
 }
