@@ -50,6 +50,7 @@ export function addFrameworkResult(
         rootCauses: result.data.rootCauses || [result.data.rootCause],
         whysPath: result.data.whysPath || result.data.selectedPath,
         strategicImplications: result.data.strategicImplications || [],
+        strategicFocus: result.data.strategicFocus, // Pass strategic focus for BMC
       };
       break;
 

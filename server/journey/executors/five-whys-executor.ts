@@ -12,19 +12,63 @@ export class FiveWhysExecutor implements FrameworkExecutor {
 
   async execute(context: StrategicContext): Promise<any> {
     console.log('[FiveWhys Executor] Starting Five Whys analysis...');
-    
+
     // Generate the complete Five Whys tree
     const whysTree = await this.generator.generateTree(
       context.userInput,
       context.sessionId
     );
-    
+
     console.log(`[FiveWhys Executor] Generated tree with ${whysTree.branches.length} root branches`);
-    
-    const selectedPath = this.normalizePath(context?.insights?.whysPath);
-    const whysPath = selectedPath.length > 0
-      ? selectedPath
-      : this.extractCanonicalPathFromTree(whysTree);
+
+    // CRITICAL FIX: Check if user has already finalized a path
+    // This ensures BMC gets the user-selected path, not auto-generated
+    let whysPath: string[] = [];
+    let strategicFocus = null;
+
+    try {
+      // Import necessary modules
+      const { db } = await import('../../db.js');
+      const { strategyVersions } = await import('@shared/schema.js');
+      const { eq, and, desc } = await import('drizzle-orm');
+
+      // Try to get the finalized path from storage
+      const [latestVersion] = await db
+        .select()
+        .from(strategyVersions)
+        .where(and(
+          eq(strategyVersions.sessionId, context.sessionId),
+          eq(strategyVersions.status, 'active')
+        ))
+        .orderBy(desc(strategyVersions.versionNumber))
+        .limit(1);
+
+      if (latestVersion?.analysisData) {
+        const analysisData = typeof latestVersion.analysisData === 'string'
+          ? JSON.parse(latestVersion.analysisData as any)
+          : latestVersion.analysisData;
+
+        const finalizedPath = analysisData?.five_whys?.whysPath;
+        const finalizedFocus = analysisData?.five_whys?.strategicFocus;
+
+        if (Array.isArray(finalizedPath) && finalizedPath.length > 0) {
+          console.log('[FiveWhys Executor] Found user-finalized path, using it for BMC bridge');
+          whysPath = finalizedPath;
+          strategicFocus = finalizedFocus;
+        }
+      }
+    } catch (error) {
+      console.log('[FiveWhys Executor] Could not check for finalized path:', error);
+    }
+
+    // If no finalized path, use auto-generated path as fallback
+    if (whysPath.length === 0) {
+      console.log('[FiveWhys Executor] No finalized path found, using auto-generated best path');
+      const selectedPath = this.normalizePath(context?.insights?.whysPath);
+      whysPath = selectedPath.length > 0
+        ? selectedPath
+        : this.extractCanonicalPathFromTree(whysTree);
+    }
 
     const rootCauses: string[] = [];
     if (whysPath.length > 0) {
@@ -49,6 +93,7 @@ export class FiveWhysExecutor implements FrameworkExecutor {
       whysPath,
       strategicImplications,
       tree: whysTree,
+      strategicFocus, // Include strategic focus for BMC bridge
     };
   }
 
