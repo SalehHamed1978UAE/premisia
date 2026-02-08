@@ -96,6 +96,58 @@ export function pickCanonicalWhysPath(candidates: any[]): string[] {
   }, pool[0]);
 }
 
+// New function that preserves canonical format with questions
+export function pickCanonicalWhysPathWithQuestions(candidates: any[]): any[] {
+  // First, find candidates that have the canonical format with questions
+  const canonicalCandidates = candidates.filter((candidate) => {
+    return Array.isArray(candidate) &&
+           candidate.length > 0 &&
+           candidate[0]?.question &&
+           candidate[0]?.answer;
+  });
+
+  // If we have canonical format candidates, pick the best one
+  if (canonicalCandidates.length > 0) {
+    // Prefer longer paths (more complete analysis)
+    const complete = canonicalCandidates.filter((candidate) => candidate.length >= 4);
+    const pool = complete.length > 0 ? complete : canonicalCandidates;
+
+    return pool.reduce((best, candidate) => {
+      if (candidate.length > best.length) return candidate;
+      return best;
+    }, pool[0]);
+  }
+
+  // Fallback: Try to reconstruct canonical format from string arrays
+  const normalized = candidates
+    .filter((candidate) => Array.isArray(candidate) && candidate.length > 0);
+
+  if (normalized.length === 0) return [];
+
+  // Pick the best string array
+  const bestStringArray = normalized.reduce((best, candidate) => {
+    const bestLength = Array.isArray(best) ? best.length : 0;
+    const candidateLength = Array.isArray(candidate) ? candidate.length : 0;
+    return candidateLength > bestLength ? candidate : best;
+  }, normalized[0]);
+
+  // If it's already canonical, return it
+  if (bestStringArray[0]?.question) {
+    return bestStringArray;
+  }
+
+  // If it's strings, convert to canonical with placeholders (last resort)
+  if (typeof bestStringArray[0] === 'string') {
+    return bestStringArray.map((answer: string, index: number) => ({
+      question: `Why ${index + 1}?`,
+      answer,
+      depth: index
+    }));
+  }
+
+  return [];
+}
+
 export function normalizeWhysPathForReport(path: any): Array<{ question: string; answer: string }> {
   // If already in canonical format with questions, use directly
   if (Array.isArray(path) && path.length > 0 && path[0]?.question) {

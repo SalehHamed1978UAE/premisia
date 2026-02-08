@@ -1136,6 +1136,39 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
     });
   }
 
+  // GATE 10: Check for placeholder Five Whys questions when canonical format exists
+  // If strategy JSON has real questions, the report must not have "Why 1?" style placeholders
+  if (input.strategyJson) {
+    try {
+      const strategy = JSON.parse(input.strategyJson);
+      const hasCanonicalQuestions = strategy.whysPath &&
+        Array.isArray(strategy.whysPath) &&
+        strategy.whysPath.length > 0 &&
+        strategy.whysPath[0]?.question &&
+        !strategy.whysPath[0].question.match(/^Why \d+\?$/);
+
+      if (hasCanonicalQuestions && input.reportMarkdown) {
+        // Check if markdown has placeholder questions
+        const placeholderPattern = /\*\*Why\?\*\*\s+Why \d+\?/g;
+        const placeholderMatches = input.reportMarkdown.match(placeholderPattern);
+
+        if (placeholderMatches && placeholderMatches.length > 0) {
+          criticalIssues.push({
+            severity: 'critical',
+            code: 'PLACEHOLDER_QUESTIONS',
+            message: `Report contains ${placeholderMatches.length} placeholder questions (Why 1?, Why 2?, etc.) despite canonical questions being available in strategy data`,
+            details: {
+              firstCanonicalQuestion: strategy.whysPath[0].question.substring(0, 100),
+              placeholdersFound: placeholderMatches.slice(0, 3),
+            },
+          });
+        }
+      }
+    } catch (e) {
+      // If we can't parse strategy JSON, that's already caught elsewhere
+    }
+  }
+
   return {
     passed: criticalIssues.length === 0,
     criticalIssues,

@@ -3,6 +3,7 @@ import {
   normalizeWhysPath,
   normalizeWhysPathForReport,
   pickCanonicalWhysPath,
+  pickCanonicalWhysPathWithQuestions,
   pickRootCause,
 } from './whys-utils';
 
@@ -74,19 +75,26 @@ export const deriveInsights = (pkg: FullExportPackage, parseField: (v: any) => a
   const analysisData = sv ? parseField(sv.analysisData) : null;
 
   const five = analysisData?.five_whys || analysisData?.fiveWhys;
-  const canonicalWhysPath = pickCanonicalWhysPath([
+  // Use the new function that preserves canonical format with questions
+  const canonicalWhysPath = pickCanonicalWhysPathWithQuestions([
     pkg.strategy.whysPath,
     contextWhysPath,
     five?.whysPath,
   ]);
+
   if (canonicalWhysPath.length > 0) {
+    // Pass the canonical path directly - normalizeWhysPathForReport handles both formats
     insights.whysPath = normalizeWhysPathForReport(canonicalWhysPath);
   } else if (Array.isArray(insights.whysPath)) {
     const normalizedContextPath = normalizeWhysPath(insights.whysPath);
     insights.whysPath = normalizeWhysPathForReport(normalizedContextPath);
   }
 
-  const rootCause = pickRootCause(canonicalWhysPath, [
+  // For pickRootCause, we still need string array format
+  const stringPath = canonicalWhysPath.map((step: any) =>
+    typeof step === 'string' ? step : step.answer || ''
+  );
+  const rootCause = pickRootCause(stringPath, [
     ...(Array.isArray(insights.rootCauses) ? insights.rootCauses : []),
     analysisData?.root_cause,
     analysisData?.rootCause,
