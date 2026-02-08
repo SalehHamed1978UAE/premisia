@@ -1032,21 +1032,47 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
   }
 
   const textArtifacts = [
-    input.strategyJson,
-    input.epmJson || '',
-    input.assignmentsCsv || '',
-    input.workstreamsCsv || '',
-    input.resourcesCsv || '',
-    input.risksCsv || '',
-    input.benefitsCsv || '',
-    input.reportMarkdown || '',
-    input.reportHtml || '',
+    { name: 'strategyJson', value: input.strategyJson || '' },
+    { name: 'epmJson', value: input.epmJson || '' },
+    { name: 'assignmentsCsv', value: input.assignmentsCsv || '' },
+    { name: 'workstreamsCsv', value: input.workstreamsCsv || '' },
+    { name: 'resourcesCsv', value: input.resourcesCsv || '' },
+    { name: 'risksCsv', value: input.risksCsv || '' },
+    { name: 'benefitsCsv', value: input.benefitsCsv || '' },
+    { name: 'reportMarkdown', value: input.reportMarkdown || '' },
+    { name: 'reportHtml', value: input.reportHtml || '' },
   ];
-  if (textArtifacts.some((value) => containsPlaceholderCorruption(value))) {
+
+  const corruptedArtifacts: string[] = [];
+  for (const artifact of textArtifacts) {
+    if (containsPlaceholderCorruption(artifact.value)) {
+      corruptedArtifacts.push(artifact.name);
+      console.error(`[Export Validation] PLACEHOLDER_CORRUPTION found in ${artifact.name}`);
+
+      // Log specific corruption details
+      if (artifact.value.includes('[object Object]')) {
+        const idx = artifact.value.indexOf('[object Object]');
+        const context = artifact.value.substring(Math.max(0, idx - 50), Math.min(artifact.value.length, idx + 65));
+        console.error(`[Export Validation] [object Object] found at position ${idx}: ...${context}...`);
+      }
+      if (artifact.value.includes('undefined')) {
+        const idx = artifact.value.indexOf('undefined');
+        const context = artifact.value.substring(Math.max(0, idx - 50), Math.min(artifact.value.length, idx + 59));
+        console.error(`[Export Validation] undefined found at position ${idx}: ...${context}...`);
+      }
+      if (artifact.value.includes('NaN')) {
+        const idx = artifact.value.indexOf('NaN');
+        const context = artifact.value.substring(Math.max(0, idx - 50), Math.min(artifact.value.length, idx + 53));
+        console.error(`[Export Validation] NaN found at position ${idx}: ...${context}...`);
+      }
+    }
+  }
+
+  if (corruptedArtifacts.length > 0) {
     criticalIssues.push({
       severity: 'critical',
       code: 'PLACEHOLDER_CORRUPTION',
-      message: 'Export contains placeholder/corruption tokens (undefined, [object Object], or NaN)',
+      message: `Export contains placeholder/corruption tokens in: ${corruptedArtifacts.join(', ')}`,
     });
   }
 

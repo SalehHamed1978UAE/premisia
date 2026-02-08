@@ -70,11 +70,21 @@ export function generateFiveWhysTreeMarkdown(tree: any, whysPath?: any[]): strin
   
   const renderNode = (node: any, level: number): void => {
     const indent = '  '.repeat(level);
+    // Ensure node.option is a string, not an object
+    const nodeOption = typeof node.option === 'string'
+      ? node.option
+      : (node.option?.text || node.option?.value || node.option?.label || String(node.option || ''));
+
+    // Ensure node.question is a string for path matching
+    const nodeQuestion = typeof node.question === 'string'
+      ? node.question
+      : (node.question?.text || node.question?.value || String(node.question || ''));
+
     // Check both: reconciled tree marker (isChosen) and path matching
-    const isChosen = node.isChosen || isNodeInPath(node.option, node.question);
+    const isChosen = node.isChosen || isNodeInPath(nodeOption, nodeQuestion);
     const chosenMarker = isChosen ? ' ✓ (Chosen path)' : '';
 
-    lines.push(`${indent}${level + 1}. **${node.option}**${chosenMarker}`);
+    lines.push(`${indent}${level + 1}. **${nodeOption}**${chosenMarker}`);
     
     if (node.supporting_evidence && node.supporting_evidence.length > 0) {
       lines.push(`${indent}   - **Supporting Evidence:**`);
@@ -91,11 +101,17 @@ export function generateFiveWhysTreeMarkdown(tree: any, whysPath?: any[]): strin
     }
     
     if (node.consideration) {
-      lines.push(`${indent}   - **Consideration:** ${node.consideration}`);
+      const consideration = typeof node.consideration === 'string'
+        ? node.consideration
+        : (node.consideration?.text || String(node.consideration || ''));
+      lines.push(`${indent}   - **Consideration:** ${consideration}`);
     }
-    
+
     if (node.question && node.branches && node.branches.length > 0) {
-      lines.push(`${indent}   - **Next Question:** ${node.question}\n`);
+      const question = typeof node.question === 'string'
+        ? node.question
+        : (node.question?.text || node.question?.value || String(node.question || ''));
+      lines.push(`${indent}   - **Next Question:** ${question}\n`);
     }
     
     lines.push('');
