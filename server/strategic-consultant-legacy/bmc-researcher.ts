@@ -147,9 +147,10 @@ export class BMCResearcher {
   }
 
   async conductBMCResearch(
-    input: string, 
+    input: string,
     sessionId?: string,
-    sink?: ResearchStreamSink
+    sink?: ResearchStreamSink,
+    strategicFocus?: any // Strategic focus from Five Whys
   ): Promise<BMCResearchResult> {
     // Define total steps for progress tracking
     const TOTAL_STEPS = 8;
@@ -162,17 +163,31 @@ export class BMCResearcher {
     };
     
     // Step 1: Extract understanding from user input using knowledge graph
-    
+
     const effectiveSessionId = sessionId || `bmc-${Date.now()}`;
     console.log(`[BMCResearcher] Using StrategicUnderstandingService for session: ${effectiveSessionId}`);
-    
+
+    // If strategic focus from Five Whys is provided, enhance the input
+    let enhancedInput = input;
+    if (strategicFocus) {
+      console.log('[BMCResearcher] Using strategic focus from Five Whys:', {
+        problemStatement: strategicFocus.problemStatement,
+        constraintsCount: strategicFocus.constraints?.length,
+        prioritiesCount: Object.keys(strategicFocus.researchPriorities || {}).length
+      });
+
+      // Create enhanced input with Five Whys insights
+      const { createEnhancedBMCPrompt } = await import('../journey/integrations/five-whys-to-bmc.js');
+      enhancedInput = createEnhancedBMCPrompt(input, strategicFocus);
+    }
+
     // Emit context preview at the start
-    sink?.emitContext(input.slice(0, 200));
+    sink?.emitContext(enhancedInput.slice(0, 200));
     emitProgress('Extracting strategic understanding from input');
-    
+
     const { understandingId, entities } = await strategicUnderstandingService.extractUnderstanding({
       sessionId: effectiveSessionId,
-      userInput: input,
+      userInput: enhancedInput,
     });
     console.log(`[BMCResearcher] Extracted ${entities.length} entities (knowledge graph replaces AssumptionExtractor)`);
     console.log(`[BMCResearcher] Understanding ID: ${understandingId}`);
@@ -181,9 +196,9 @@ export class BMCResearcher {
     const assumptions = this.entitiesToAssumptions(entities);
     console.log(`[BMCResearcher] Converted to ${assumptions.length} assumptions for BMC flow`);
 
-    // Step 2: Generate BMC block queries
+    // Step 2: Generate BMC block queries (use enhanced input if available)
     emitProgress(`Generating search queries for all 9 BMC blocks`);
-    const querySet = await this.queryGenerator.generateQueriesForAllBlocks(input);
+    const querySet = await this.queryGenerator.generateQueriesForAllBlocks(enhancedInput);
 
     // Step 3: Generate assumption-specific queries
     emitProgress(`Generating assumption validation queries (${assumptions.length} assumptions)`);

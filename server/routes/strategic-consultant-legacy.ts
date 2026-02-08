@@ -1303,6 +1303,21 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
       isLeaf: false,
     })));
 
+    // Generate strategic focus for BMC
+    const { generateStrategicFocus } = await import('../journey/integrations/five-whys-to-bmc.js');
+    const strategicFocus = generateStrategicFocus(
+      input,
+      normalizedPath,
+      rootCause,
+      insights.strategic_implications
+    );
+
+    console.log('[FiveWhys] Generated strategic focus for BMC:', {
+      problemStatement: strategicFocus.problemStatement,
+      constraintsCount: strategicFocus.constraints.length,
+      metricsCount: strategicFocus.successMetrics.length
+    });
+
     // Structure Five Whys data to match FiveWhysAnalysis interface expected by renderer
     // Renderer expects: why_1.question, why_1.answer, etc.
     const analysisData = {
@@ -1334,6 +1349,8 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
         whysPath: normalizedPath,
         recommendedActions: insights.recommended_actions,
         framework: 'five_whys',
+        // Strategic focus for BMC integration
+        strategicFocus: strategicFocus,
       },
       // Add fields expected by downstream pages to prevent crashes
       recommended_approaches: [],
@@ -1461,6 +1478,7 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
               rootCauses: rootCause ? [rootCause] : [],
               strategicImplications: insights.strategic_implications || [],
               tree: reconciledTree, // Include the reconciled tree
+              strategicFocus: strategicFocus, // Strategic focus for BMC
             },
           });
           console.log('[FiveWhys] Persisted reconciled tree and path to frameworkInsights');

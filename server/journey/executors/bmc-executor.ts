@@ -17,25 +17,54 @@ export class BMCExecutor implements FrameworkExecutor {
 
   async execute(context: StrategicContext): Promise<any> {
     console.log('[BMC Executor] Starting Business Model Canvas research...');
-    
-    // Extract BMC constraints from context (if provided by Five Whys)
-    // Use optional chaining for null-safety - insights may not be populated by all bridges
-    const constraints = context.insights?.bmcDesignConstraints;
-    
-    if (constraints) {
-      console.log('[BMC Executor] Using Five Whys constraints:', {
-        problems: constraints.problemsToSolve?.length ?? 0,
-        capabilities: constraints.mustHaveCapabilities?.length ?? 0,
-        principles: constraints.designPrinciples?.length ?? 0,
-      });
+
+    // Extract strategic focus from Five Whys (if available)
+    let strategicFocus = null;
+
+    // Try to get strategic focus from context
+    if (context.insights?.strategicFocus) {
+      strategicFocus = context.insights.strategicFocus;
+      console.log('[BMC Executor] Found strategic focus from Five Whys in context');
     } else {
-      console.log('[BMC Executor] No Five Whys constraints available, proceeding with standard BMC research');
+      // Try to retrieve from analysisData if we have the journey session
+      try {
+        const [session] = await db
+          .select({ analysisData: journeySessions.accumulatedContext })
+          .from(journeySessions)
+          .where(eq(journeySessions.id, context.sessionId))
+          .limit(1);
+
+        if (session?.analysisData) {
+          const analysisData = typeof session.analysisData === 'string'
+            ? JSON.parse(session.analysisData as any)
+            : session.analysisData;
+
+          strategicFocus = analysisData?.five_whys?.strategicFocus;
+          if (strategicFocus) {
+            console.log('[BMC Executor] Retrieved strategic focus from journey session');
+          }
+        }
+      } catch (error) {
+        console.log('[BMC Executor] Could not retrieve strategic focus:', error);
+      }
     }
 
-    // Conduct BMC research
+    if (strategicFocus) {
+      console.log('[BMC Executor] Using Five Whys strategic focus:', {
+        problemStatement: strategicFocus.problemStatement?.slice(0, 100),
+        constraintsCount: strategicFocus.constraints?.length ?? 0,
+        metricsCount: strategicFocus.successMetrics?.length ?? 0,
+      });
+    } else {
+      console.log('[BMC Executor] No Five Whys strategic focus available, proceeding with standard BMC research');
+    }
+
+    // Conduct BMC research with strategic focus
     const bmcResults = await this.researcher.conductBMCResearch(
       context.userInput,
-      context.sessionId
+      context.sessionId,
+      undefined, // sink parameter
+      strategicFocus
     );
     
     console.log(`[BMC Executor] Completed - generated ${Object.keys(bmcResults.blocks || {}).length} blocks`);
