@@ -183,14 +183,30 @@ export async function loadExportData(
   const cleanedAnalysisPath = cleanWhysPath(analysisWhysPath);
   const cleanedInsightPath = cleanWhysPath(frameworkInsightWhysPath);
 
-  const normalizedAnalysisPath = normalizeWhysPath(cleanedAnalysisPath);
-  const normalizedInsightPath = normalizeWhysPath(cleanedInsightPath);
-  const whysPath = normalizedAnalysisPath.length > 0
-    ? normalizedAnalysisPath
-    : (normalizedInsightPath.length > 0
-      ? normalizedInsightPath
+  // Import the function to preserve Q/A format
+  const { preserveCanonicalWhysPath } = await import('./whys-utils.js');
+
+  // Preserve canonical format with questions if available
+  const canonicalAnalysisPath = preserveCanonicalWhysPath(cleanedAnalysisPath);
+  const canonicalInsightPath = preserveCanonicalWhysPath(cleanedInsightPath);
+
+  // Use canonical format if available, otherwise fall back to string array
+  const whysPath = canonicalAnalysisPath.length > 0
+    ? canonicalAnalysisPath
+    : (canonicalInsightPath.length > 0
+      ? canonicalInsightPath
       : pickCanonicalWhysPath([cleanedInsightPath, cleanedAnalysisPath]));
   console.log('[Export Service] Canonical Five Whys path selected:', whysPath.length, 'steps');
+
+  // Log format type
+  if (whysPath.length > 0) {
+    const firstStep = whysPath[0];
+    if (typeof firstStep === 'object' && firstStep.question) {
+      console.log('[Export Service] Using canonical format with questions preserved');
+    } else {
+      console.log('[Export Service] Using legacy string format (questions will be placeholders)');
+    }
+  }
 
   // Log if we detected corruption
   if (whysPath.some(step => typeof step === 'string' && step.includes('[object Object]'))) {
