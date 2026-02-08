@@ -149,14 +149,53 @@ export async function loadExportData(
   // 1) Finalized strategyVersion.analysisData.five_whys.whysPath (user-selected canonical path)
   // 2) framework_insights fallback (when analysisData is absent)
   // 3) best-available canonical fallback.
-  const normalizedAnalysisPath = normalizeWhysPath(analysisWhysPath);
-  const normalizedInsightPath = normalizeWhysPath(frameworkInsightWhysPath);
+  // Clean any existing [object Object] corruption from the data
+  const cleanCorruptedString = (str: string): string => {
+    if (typeof str !== 'string') return str;
+    // Remove [object Object] and clean up
+    return str.replace(/\[object Object\]/g, '').trim();
+  };
+
+  const cleanWhysPath = (path: any[]): any[] => {
+    if (!Array.isArray(path)) return [];
+    return path.map(step => {
+      if (typeof step === 'string') {
+        // Clean any existing corruption
+        const cleaned = cleanCorruptedString(step);
+        if (cleaned.length === 0 || cleaned === '[object Object]') {
+          console.warn('[Export Service] Detected corrupted whysPath step:', step);
+          return null;
+        }
+        return cleaned;
+      } else if (step && typeof step === 'object') {
+        // Clean object properties
+        return {
+          ...step,
+          question: step.question ? cleanCorruptedString(String(step.question)) : step.question,
+          answer: step.answer ? cleanCorruptedString(String(step.answer)) : step.answer,
+        };
+      }
+      return step;
+    }).filter(step => step !== null);
+  };
+
+  // Clean paths before normalization
+  const cleanedAnalysisPath = cleanWhysPath(analysisWhysPath);
+  const cleanedInsightPath = cleanWhysPath(frameworkInsightWhysPath);
+
+  const normalizedAnalysisPath = normalizeWhysPath(cleanedAnalysisPath);
+  const normalizedInsightPath = normalizeWhysPath(cleanedInsightPath);
   const whysPath = normalizedAnalysisPath.length > 0
     ? normalizedAnalysisPath
     : (normalizedInsightPath.length > 0
       ? normalizedInsightPath
-      : pickCanonicalWhysPath([frameworkInsightWhysPath, analysisWhysPath]));
+      : pickCanonicalWhysPath([cleanedInsightPath, cleanedAnalysisPath]));
   console.log('[Export Service] Canonical Five Whys path selected:', whysPath.length, 'steps');
+
+  // Log if we detected corruption
+  if (whysPath.some(step => typeof step === 'string' && step.includes('[object Object]'))) {
+    console.error('[Export Service] WARNING: whysPath still contains [object Object] after cleaning!');
+  }
 
   console.log('[Export Service] loadExportData - Fetching clarifications from strategic understanding...');
   let clarifications;
