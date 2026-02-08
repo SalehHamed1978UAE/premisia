@@ -66,7 +66,7 @@ export async function generateFullPassExport(
   console.log('[Export Service] Generating JSON and CSV exports...');
   const strategyJson = JSON.stringify(buildStrategyJsonPayload(exportPackage.strategy), null, 2);
   const baseNormalizedEpmPayload = exportPackage.epm?.program
-    ? buildEpmJsonPayload(exportPackage.epm)
+    ? buildEpmJsonPayload(exportPackage.epm, exportPackage.strategy)
     : null;
   const normalizedEpmPayload = baseNormalizedEpmPayload
     ? {

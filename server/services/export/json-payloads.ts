@@ -4,6 +4,7 @@ import { enforceDomainSequencing } from '../../intelligence/epm/domain-sequencin
 
 type StrategyPayload = FullExportPackage['strategy'];
 type EpmPayload = NonNullable<FullExportPackage['epm']>;
+type StrategyDomain = 'food_service' | 'technology' | 'retail' | 'generic';
 
 const FRAMEWORK_ALIASES: Record<string, string> = {
   five_whys: 'five_whys',
@@ -215,6 +216,57 @@ function deriveBenefitList(benefitsRealization: any): any[] {
   return [];
 }
 
+function inferStrategyDomain(strategy?: StrategyPayload): StrategyDomain {
+  if (!strategy) return 'generic';
+  const text = [
+    strategy?.understanding?.title,
+    strategy?.understanding?.initiativeDescription,
+    strategy?.understanding?.userInput,
+    strategy?.strategyVersion?.inputSummary,
+  ]
+    .filter((value) => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+    .toLowerCase();
+
+  if (/(restaurant|cafe|food|culinary|dining|menu|kitchen|hospitality)/.test(text)) return 'food_service';
+  if (/(retail|store|e-?commerce|shopping)/.test(text)) return 'retail';
+  if (/(ai|saas|software|technology|tech|platform|automation|agentic)/.test(text)) return 'technology';
+  return 'generic';
+}
+
+function normalizeSkillsForDomain(skills: any, domain: StrategyDomain): any {
+  if (!Array.isArray(skills)) return skills;
+  const normalized = skills
+    .filter((value) => typeof value === 'string' && value.trim().length > 0)
+    .map((value: string) => value.trim());
+
+  if (domain !== 'technology') return normalized;
+
+  const isLeaked = (value: string) =>
+    /\bfood safety\b|\bhealth inspection\b|\bhaccp\b|\bmenu\b|\bkitchen\b|\bchef\b|\bcafe\b|\brestaurant\b|\bpos systems?\b/i.test(value);
+
+  const filtered = normalized.filter((value) => !isLeaked(value));
+  if (filtered.length > 0) return filtered;
+
+  return ['platform engineering', 'systems integration', 'delivery management'];
+}
+
+function sanitizeResourcePlanForDomain(resourcePlan: any, domain: StrategyDomain): any {
+  if (!resourcePlan || typeof resourcePlan !== 'object') return resourcePlan;
+
+  const normalizeList = (items: any[]) =>
+    items.map((item: any) => ({
+      ...item,
+      skills: normalizeSkillsForDomain(item?.skills, domain),
+    }));
+
+  return {
+    ...resourcePlan,
+    internalTeam: Array.isArray(resourcePlan.internalTeam) ? normalizeList(resourcePlan.internalTeam) : resourcePlan.internalTeam,
+    externalResources: Array.isArray(resourcePlan.externalResources) ? normalizeList(resourcePlan.externalResources) : resourcePlan.externalResources,
+  };
+}
+
 function computeLongestDependencyChain(workstreams: any[]): string[] {
   if (!Array.isArray(workstreams) || workstreams.length === 0) return [];
 
@@ -356,12 +408,23 @@ export function buildStrategyJsonPayload(strategy: StrategyPayload): Record<stri
   const rootCause = deriveRootCause(fiveWhys, parsedAnalysisData);
   const strategicImplications = deriveStrategicImplications(fiveWhys, parsedAnalysisData);
 
+  // Auto-heal legacy mismatch: keep nested five_whys.whysPath aligned with canonical path.
+  const canonicalizedAnalysisData = { ...parsedAnalysisData };
+  const nestedFiveWhysRaw = parseMaybeJson<Record<string, any>>(canonicalizedAnalysisData.five_whys);
+  const nestedFiveWhys = nestedFiveWhysRaw || {};
+  if (whysPath.length > 0) {
+    canonicalizedAnalysisData.five_whys = {
+      ...nestedFiveWhys,
+      whysPath,
+    };
+  }
+
   return {
     ...strategy,
     strategyVersion: strategy.strategyVersion
       ? {
           ...strategy.strategyVersion,
-          analysisData: parsedAnalysisData,
+          analysisData: canonicalizedAnalysisData,
         }
       : strategy.strategyVersion,
     frameworks,
@@ -371,12 +434,14 @@ export function buildStrategyJsonPayload(strategy: StrategyPayload): Record<stri
   };
 }
 
-export function buildEpmJsonPayload(epm: EpmPayload): Record<string, any> {
+export function buildEpmJsonPayload(epm: EpmPayload, strategy?: StrategyPayload): Record<string, any> {
   const program = epm.program || {};
+  const domain = inferStrategyDomain(strategy);
   const rawWorkstreams = parseMaybeJson<any[]>(program.workstreams) || [];
   const workstreams = enforceDomainSequencing(rawWorkstreams as any[]);
   const timeline = normalizeTimeline(program, workstreams);
-  const resourcePlan = parseMaybeJson<any>(program.resourcePlan);
+  const rawResourcePlan = parseMaybeJson<any>(program.resourcePlan);
+  const resourcePlan = sanitizeResourcePlanForDomain(rawResourcePlan, domain);
   const riskRegister = parseMaybeJson<any>(program.riskRegister);
   const benefitsRealization = parseMaybeJson<any>(program.benefitsRealization);
   const stageGates = parseMaybeJson<any>(program.stageGates);

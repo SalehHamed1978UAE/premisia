@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { validateExportAcceptance } from '../server/services/export/acceptance-gates';
+import { buildStrategyJsonPayload } from '../server/services/export/json-payloads';
 
 function buildValidStrategyJson(): string {
   return JSON.stringify({
@@ -157,6 +158,28 @@ describe('Export acceptance gates', () => {
 
     expect(report.passed).toBe(false);
     expect(report.criticalIssues.some((i) => i.code === 'WHYS_PATH_SOURCE_MISMATCH')).toBe(true);
+  });
+
+  it('auto-heals nested five-whys path to canonical top-level path in strategy payload build', () => {
+    const payload = buildStrategyJsonPayload({
+      journeySession: { journeyType: 'business_model_innovation' },
+      whysPath: ['canon 1', 'canon 2', 'canon 3', 'canon 4'],
+      strategyVersion: {
+        analysisData: {
+          five_whys: {
+            whysPath: ['drift 1', 'drift 2', 'drift 3', 'drift 4'],
+          },
+        },
+      },
+    } as any);
+
+    expect(payload.whysPath).toEqual(['canon 1', 'canon 2', 'canon 3', 'canon 4']);
+    expect(payload.strategyVersion.analysisData.five_whys.whysPath).toEqual([
+      'canon 1',
+      'canon 2',
+      'canon 3',
+      'canon 4',
+    ]);
   });
 
   it('fails when report tree chosen path and summary path diverge', () => {
