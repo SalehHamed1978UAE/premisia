@@ -22,7 +22,7 @@ function clampDueMonth(dueMonth: number, startMonth: number, endMonth: number): 
 }
 
 function normalizeWorkstream(workstream: Workstream): Workstream {
-  const startMonth = Number.isFinite(workstream.startMonth) ? workstream.startMonth : 0;
+  const startMonth = Math.max(1, Number.isFinite(workstream.startMonth) ? workstream.startMonth : 1);
   const endMonthRaw = Number.isFinite(workstream.endMonth) ? workstream.endMonth : startMonth;
   const endMonth = Math.max(startMonth, endMonthRaw);
   const dependencies = Array.isArray(workstream.dependencies)
@@ -66,7 +66,7 @@ function applyStageOrderAdjustments(workstreams: Workstream[], stageById: Map<st
     if (shift <= 0) return ws;
 
     const duration = Math.max(1, ws.endMonth - ws.startMonth);
-    const startMonth = Math.max(0, ws.startMonth - shift);
+    const startMonth = Math.max(1, ws.startMonth - shift);
     const endMonth = startMonth + duration;
 
     return {

@@ -36,15 +36,33 @@ export function generateFiveWhysTreeMarkdown(tree: any, whysPath?: any[]): strin
   lines.push(`**Root Question:** ${tree.rootQuestion}\n`);
   lines.push(`**Maximum Depth:** ${tree.maxDepth} levels\n`);
   
+  const normalizeText = (value: any): string =>
+    typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().toLowerCase() : '';
+
   const isNodeInPath = (nodeOption: string, nodeQuestion?: string): boolean => {
     if (!whysPath || whysPath.length === 0) return false;
-    
+
+    const optionNorm = normalizeText(nodeOption);
+    const questionNorm = normalizeText(nodeQuestion);
+
     return whysPath.some((pathStep: any) => {
       if (typeof pathStep === 'string') {
-        return pathStep === nodeOption || pathStep === nodeQuestion;
+        const stepNorm = normalizeText(pathStep);
+        return stepNorm.length > 0 && (stepNorm === optionNorm || stepNorm === questionNorm);
       } else if (pathStep && typeof pathStep === 'object') {
-        const stepText = pathStep.option || pathStep.question || pathStep.why || pathStep.answer || '';
-        return stepText === nodeOption || stepText === nodeQuestion;
+        const candidateValues = [
+          pathStep.answer,
+          pathStep.option,
+          pathStep.label,
+          pathStep.why,
+          pathStep.reason,
+          pathStep.text,
+          pathStep.question,
+        ];
+        return candidateValues.some((candidate) => {
+          const candidateNorm = normalizeText(candidate);
+          return candidateNorm.length > 0 && (candidateNorm === optionNorm || candidateNorm === questionNorm);
+        });
       }
       return false;
     });
@@ -770,7 +788,9 @@ export function generateMarkdownReport(pkg: FullExportPackage): string {
       const gates = stageGates.gates || stageGates;
       if (Array.isArray(gates) && gates.length > 0) {
         gates.forEach((gate: any, idx: number) => {
-          lines.push(`### Gate ${idx + 1}: ${gate.name || gate.title}\n`);
+          const rawLabel = String(gate.name || gate.title || `Gate ${idx + 1}`).trim();
+          const normalizedLabel = rawLabel.replace(/^Gate\s+\d+\s*:\s*/i, '').trim() || rawLabel;
+          lines.push(`### Gate ${idx + 1}: ${normalizedLabel}\n`);
           if (gate.timing) lines.push(`**Timing:** ${gate.timing}`);
           if (gate.criteria && gate.criteria.length > 0) {
             lines.push('\n**Approval Criteria:**');

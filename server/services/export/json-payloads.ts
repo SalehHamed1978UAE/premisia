@@ -147,7 +147,13 @@ function deriveWhysPath(
 function deriveRootCause(
   fiveWhys: Record<string, any>,
   analysisData: Record<string, any>,
+  canonicalWhysPath: any[],
 ): string | null {
+  const finalPathStep = canonicalWhysPath[canonicalWhysPath.length - 1];
+  if (typeof finalPathStep === 'string' && finalPathStep.trim().length > 0) {
+    return finalPathStep;
+  }
+
   const candidates = [
     analysisData.root_cause,
     analysisData.rootCause,
@@ -380,7 +386,7 @@ function normalizeTimeline(program: any, workstreams: any[]): any {
     phases.push({
       phase: 1,
       name: 'Execution',
-      startMonth: 0,
+      startMonth: 1,
       endMonth: maxWorkstreamEnd,
       description: 'Program execution',
       keyMilestones: [],
@@ -403,12 +409,41 @@ function normalizeTimeline(program: any, workstreams: any[]): any {
   };
 }
 
+function normalizeWorkstreamsForExport(workstreams: any[]): any[] {
+  return workstreams.map((ws: any) => {
+    const rawStart = Number(ws?.startMonth);
+    const rawEnd = Number(ws?.endMonth);
+    const startMonth = Math.max(1, Number.isFinite(rawStart) ? rawStart : 1);
+    const endMonth = Math.max(startMonth, Number.isFinite(rawEnd) ? rawEnd : startMonth);
+
+    const deliverables = Array.isArray(ws?.deliverables)
+      ? ws.deliverables.map((deliverable: any) => {
+          const due = Number(deliverable?.dueMonth);
+          const dueMonth = Number.isFinite(due)
+            ? Math.min(endMonth, Math.max(startMonth, due))
+            : endMonth;
+          return {
+            ...deliverable,
+            dueMonth,
+          };
+        })
+      : ws?.deliverables;
+
+    return {
+      ...ws,
+      startMonth,
+      endMonth,
+      deliverables,
+    };
+  });
+}
+
 export function buildStrategyJsonPayload(strategy: StrategyPayload): Record<string, any> {
   const parsedAnalysisData = parseMaybeJson<Record<string, any>>(strategy.strategyVersion?.analysisData) || {};
   const fiveWhys = getFiveWhys(parsedAnalysisData);
   const frameworks = deriveFrameworks(strategy, parsedAnalysisData);
   const whysPath = deriveWhysPath(strategy, fiveWhys);
-  const rootCause = deriveRootCause(fiveWhys, parsedAnalysisData);
+  const rootCause = deriveRootCause(fiveWhys, parsedAnalysisData, whysPath);
   const strategicImplications = deriveStrategicImplications(fiveWhys, parsedAnalysisData);
 
   // Auto-heal legacy mismatch: keep nested paths aligned with canonical path.
@@ -447,7 +482,8 @@ export function buildEpmJsonPayload(epm: EpmPayload, strategy?: StrategyPayload)
   const program = epm.program || {};
   const domain = inferStrategyDomain(strategy);
   const rawWorkstreams = parseMaybeJson<any[]>(program.workstreams) || [];
-  const workstreams = enforceDomainSequencing(rawWorkstreams as any[]);
+  const sequencedWorkstreams = enforceDomainSequencing(rawWorkstreams as any[]);
+  const workstreams = normalizeWorkstreamsForExport(sequencedWorkstreams as any[]);
   const timeline = normalizeTimeline(program, workstreams);
   const rawResourcePlan = parseMaybeJson<any>(program.resourcePlan);
   const resourcePlan = sanitizeResourcePlanForDomain(rawResourcePlan, domain);

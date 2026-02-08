@@ -503,9 +503,9 @@ export class EPMSynthesizer {
           .map((depId) => endMonthById.get(depId))
           .filter((month): month is number => month !== undefined);
         const maxDepEnd = depEndMonths.length > 0 ? Math.max(...depEndMonths) : 0;
-        startMonth = maxDepEnd + 1;
+        startMonth = Math.max(1, maxDepEnd + 1);
       } else {
-        startMonth = Math.floor(independentCursor * baseDurationMonths * overlapFactor);
+        startMonth = Math.max(1, Math.floor(independentCursor * baseDurationMonths * overlapFactor) + 1);
         independentCursor += 1;
       }
 

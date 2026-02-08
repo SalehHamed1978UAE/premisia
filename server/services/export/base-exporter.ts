@@ -10,6 +10,7 @@ import {
 } from '@shared/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import type { IExporter, ExportResult, FullExportPackage, ExportRequest } from '../../types/interfaces';
+import { pickCanonicalWhysPath } from './whys-utils';
 
 export type { ExportRequest, FullExportPackage, ExportResult, IExporter };
 
@@ -109,7 +110,7 @@ export async function loadExportData(
 
   console.log('[Export Service] loadExportData - Fetching Five Whys tree from framework_insights...');
   let fiveWhysTree;
-  let whysPath;
+  let frameworkInsightWhysPath: any[] = [];
   if (journeySession) {
     const [fiveWhysInsight] = await db.select()
       .from(frameworkInsights)
@@ -127,23 +128,25 @@ export async function loadExportData(
         ? JSON.parse(fiveWhysInsight.insights) 
         : fiveWhysInsight.insights;
       fiveWhysTree = insights.tree;
-      whysPath = insights.whysPath || [];
+      frameworkInsightWhysPath = Array.isArray(insights.whysPath) ? insights.whysPath : [];
       console.log('[Export Service] Five Whys tree loaded:', fiveWhysTree ? 'Yes' : 'No');
-      console.log('[Export Service] Five Whys path loaded:', whysPath?.length || 0, 'steps');
+      console.log('[Export Service] Five Whys path loaded:', frameworkInsightWhysPath.length, 'steps');
     }
   }
 
-  // Fallback: derive whysPath from strategyVersion.analysisData if missing
-  if ((!whysPath || whysPath.length === 0) && strategyVersion?.analysisData) {
+  let analysisWhysPath: any[] = [];
+  if (strategyVersion?.analysisData) {
     const analysisData = typeof strategyVersion.analysisData === 'string'
       ? JSON.parse(strategyVersion.analysisData as any)
       : strategyVersion.analysisData;
     const fiveWhys = analysisData?.five_whys || analysisData?.fiveWhys;
-    if (fiveWhys?.whysPath && Array.isArray(fiveWhys.whysPath)) {
-      whysPath = fiveWhys.whysPath;
-      console.log('[Export Service] Five Whys path loaded from strategyVersion.analysisData:', whysPath.length);
+    analysisWhysPath = Array.isArray(fiveWhys?.whysPath) ? fiveWhys.whysPath : [];
+    if (analysisWhysPath.length > 0) {
+      console.log('[Export Service] Five Whys path candidate from strategyVersion.analysisData:', analysisWhysPath.length);
     }
   }
+  const whysPath = pickCanonicalWhysPath([frameworkInsightWhysPath, analysisWhysPath]);
+  console.log('[Export Service] Canonical Five Whys path selected:', whysPath.length, 'steps');
 
   console.log('[Export Service] loadExportData - Fetching clarifications from strategic understanding...');
   let clarifications;

@@ -15,7 +15,12 @@ describe('Export JSON payload normalization', () => {
           frameworks: [],
           five_whys: {
             root_cause: 'Low repeat visits due to poor in-store experience',
-            whysPath: ['why 1', 'why 2', 'why 3', 'why 4'],
+            whysPath: [
+              'Shoppers do not return after first visit',
+              'In-store journey is confusing and inconsistent',
+              'Store operations are not standardized',
+              'Low repeat visits due to poor in-store experience',
+            ],
             strategic_implications: ['Fix store operations before paid growth'],
           },
         },
@@ -43,7 +48,7 @@ describe('Export JSON payload normalization', () => {
         analysisData: {
           five_whys: {
             root_cause: 'True root cause',
-            whysPath: ['step 1', 'step 2', 'step 3', 'step 4'],
+            whysPath: ['step 1', 'step 2', 'step 3', 'True root cause'],
           },
         },
       },
@@ -52,7 +57,7 @@ describe('Export JSON payload normalization', () => {
     });
 
     expect(payload.whysPath).toHaveLength(4);
-    expect(payload.whysPath).toEqual(['step 1', 'step 2', 'step 3', 'step 4']);
+    expect(payload.whysPath).toEqual(['step 1', 'step 2', 'step 3', 'True root cause']);
     expect(payload.rootCause).toBe('True root cause');
   });
 
@@ -165,13 +170,13 @@ describe('Export JSON payload normalization', () => {
         timeline: {
           totalMonths: 8,
           phases: [
-            { phase: 1, name: 'P1', startMonth: 0, endMonth: 4 },
+            { phase: 1, name: 'P1', startMonth: 1, endMonth: 4 },
             { phase: 2, name: 'P2', startMonth: 5, endMonth: 8 },
           ],
           criticalPath: ['WS005'],
         },
         workstreams: [
-          { id: 'WS001', startMonth: 0, endMonth: 3, dependencies: [] },
+          { id: 'WS001', startMonth: 1, endMonth: 3, dependencies: [] },
           { id: 'WS006', startMonth: 4, endMonth: 7, dependencies: ['WS001'] },
           { id: 'WS003', startMonth: 8, endMonth: 10, dependencies: ['WS006'] },
           { id: 'WS005', startMonth: 11, endMonth: 13, dependencies: ['WS003'] },

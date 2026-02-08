@@ -531,22 +531,73 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
       });
     }
 
-    const treePathFromReport = extractMarkdownTreeChosenPath(input.reportMarkdown);
-    const summaryPathFromReport = extractMarkdownSummaryPath(input.reportMarkdown);
-    if (treePathFromReport.length > 0 && summaryPathFromReport.length > 0) {
-      const compareCount = Math.min(treePathFromReport.length, summaryPathFromReport.length, 4);
-      const treeSlice = treePathFromReport.slice(0, compareCount);
-      const summarySlice = summaryPathFromReport.slice(0, compareCount);
-      if (!areWhyPathsEquivalent(treeSlice, summarySlice)) {
+    const rootCauseCandidate = typeof strategyData?.rootCause === 'string'
+      ? strategyData.rootCause
+      : (typeof strategyData?.root_cause === 'string' ? strategyData.root_cause : '');
+    if (whysPath.length > 0 && rootCauseCandidate.trim().length > 0) {
+      const canonicalRootFromPath = normalizeWhyStepForComparison(whysPath[whysPath.length - 1]);
+      const normalizedRootCause = normalizeWhyStepForComparison(rootCauseCandidate);
+      if (canonicalRootFromPath.length > 0 && normalizedRootCause.length > 0 && canonicalRootFromPath !== normalizedRootCause) {
         criticalIssues.push({
           severity: 'critical',
-          code: 'REPORT_WHYS_PATH_MISMATCH',
-          message: 'Report tree chosen-path markers diverge from chosen-path summary',
+          code: 'ROOT_CAUSE_PATH_MISMATCH',
+          message: 'rootCause does not align with the final step of canonical whysPath',
           details: {
-            treePreview: normalizeWhyPathForComparison(treeSlice),
-            summaryPreview: normalizeWhyPathForComparison(summarySlice),
+            rootCause: normalizedRootCause,
+            pathFinalStep: canonicalRootFromPath,
           },
         });
+      }
+    }
+
+    if (typeof input.reportMarkdown === 'string' && input.reportMarkdown.trim().length > 0) {
+      const reportMarkdown = input.reportMarkdown;
+      const treePathFromReport = extractMarkdownTreeChosenPath(reportMarkdown);
+      const summaryPathFromReport = extractMarkdownSummaryPath(reportMarkdown);
+      if (whysPath.length > 0) {
+        if (summaryPathFromReport.length === 0) {
+          criticalIssues.push({
+            severity: 'critical',
+            code: 'REPORT_WHYS_SUMMARY_MISSING',
+            message: 'Report is missing the Five Whys chosen-path summary answers',
+          });
+        } else if (!areWhyPathsEquivalent(summaryPathFromReport, whysPath)) {
+          criticalIssues.push({
+            severity: 'critical',
+            code: 'REPORT_WHYS_CANONICAL_MISMATCH',
+            message: 'Report chosen-path summary does not match canonical strategy whysPath',
+            details: {
+              canonicalPreview: normalizeWhyPathForComparison(whysPath).slice(0, 4),
+              summaryPreview: normalizeWhyPathForComparison(summaryPathFromReport).slice(0, 4),
+            },
+          });
+        }
+      }
+
+      const hasTreeSection = reportMarkdown.includes('## Five Whys - Complete Analysis Tree');
+      if (hasTreeSection && whysPath.length > 0) {
+        if (treePathFromReport.length === 0) {
+          criticalIssues.push({
+            severity: 'critical',
+            code: 'REPORT_WHYS_TREE_MARKERS_MISSING',
+            message: 'Five Whys tree exists but contains no chosen-path markers',
+          });
+        } else {
+          const compareCount = Math.min(whysPath.length, treePathFromReport.length, 4);
+          const treeSlice = treePathFromReport.slice(0, compareCount);
+          const canonicalSlice = whysPath.slice(0, compareCount);
+          if (!areWhyPathsEquivalent(treeSlice, canonicalSlice)) {
+            criticalIssues.push({
+              severity: 'critical',
+              code: 'REPORT_WHYS_PATH_MISMATCH',
+              message: 'Report tree chosen-path markers diverge from canonical whysPath',
+              details: {
+                treePreview: normalizeWhyPathForComparison(treeSlice),
+                canonicalPreview: normalizeWhyPathForComparison(canonicalSlice),
+              },
+            });
+          }
+        }
       }
     }
   }
@@ -664,6 +715,15 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
         severity: 'critical',
         code: 'ZERO_TIMELINE',
         message: `Workstream "${wsName}" has startMonth=0 and endMonth=0`,
+      });
+    }
+
+    if (Number.isFinite(startMonth) && Number.isFinite(endMonth) && (startMonth < 1 || endMonth < 1)) {
+      criticalIssues.push({
+        severity: 'critical',
+        code: 'INVALID_MONTH_BASE',
+        message: `Workstream "${wsName}" uses month 0 or negative month values; expected 1-based months`,
+        details: { startMonth, endMonth },
       });
     }
 

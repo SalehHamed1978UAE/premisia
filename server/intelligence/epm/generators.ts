@@ -957,7 +957,7 @@ export class StageGateGenerator {
   async generate(timeline: Timeline, riskRegister: RiskRegister): Promise<StageGates> {
     const gates = timeline.phases.map((phase, idx) => ({
       gate: idx + 1,
-      name: `Gate ${idx + 1}: ${phase.name} Complete`,
+      name: `${phase.name} Complete`,
       month: phase.endMonth,
       goCriteria: [
         `All ${phase.name} deliverables completed`,

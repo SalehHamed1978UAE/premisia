@@ -54,6 +54,11 @@ describe('enforceDomainSequencing', () => {
     ];
 
     const updated = enforceDomainSequencing(workstreams, 'Migrate enterprise ERP to cloud');
-    expect(updated).toEqual(workstreams);
+    expect(updated).toHaveLength(2);
+    expect(updated[0].id).toBe('WS001');
+    expect(updated[1].id).toBe('WS002');
+    expect(updated[1].dependencies).toEqual(['WS001']);
+    expect(updated[0].startMonth).toBe(1);
+    expect(updated[0].endMonth).toBe(1);
   });
 });

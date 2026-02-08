@@ -124,7 +124,7 @@ export function transformToGanttData(
   // Transform stage gates
   const gates: GanttStageGate[] = stageGates.gates.map(g => ({
     gate: g.gate,
-    name: g.name,
+    name: String(g.name || `Gate ${g.gate}`).replace(/^Gate\s+\d+\s*:\s*/i, '').trim(),
     month: g.month,
     color: getGateColor(g.gate)
   }));

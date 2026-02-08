@@ -24,7 +24,7 @@ function buildValidEpmJson(overrides: Record<string, any> = {}): string {
       timeline: {
         totalMonths: 6,
         phases: [
-          { phase: 1, name: 'P1', startMonth: 0, endMonth: 3, keyMilestones: [], workstreamIds: ['WS001', 'WS002'] },
+          { phase: 1, name: 'P1', startMonth: 1, endMonth: 3, keyMilestones: [], workstreamIds: ['WS001', 'WS002'] },
           { phase: 2, name: 'P2', startMonth: 4, endMonth: 6, keyMilestones: [], workstreamIds: ['WS003'] },
         ],
         criticalPath: ['WS001', 'WS002', 'WS003'],
@@ -42,28 +42,28 @@ function buildValidEpmJson(overrides: Record<string, any> = {}): string {
         id: 'WS001',
         name: 'Foundation',
         description: 'Setup',
-        startMonth: 0,
-        endMonth: 1,
+        startMonth: 1,
+        endMonth: 2,
         dependencies: [],
-        deliverables: [{ id: 'D1', name: 'Plan', dueMonth: 1 }],
+        deliverables: [{ id: 'D1', name: 'Plan', dueMonth: 2 }],
       },
       {
         id: 'WS002',
         name: 'Build',
         description: 'Build core',
-        startMonth: 2,
-        endMonth: 3,
+        startMonth: 3,
+        endMonth: 4,
         dependencies: ['WS001'],
-        deliverables: [{ id: 'D2', name: 'Build Complete', dueMonth: 3 }],
+        deliverables: [{ id: 'D2', name: 'Build Complete', dueMonth: 4 }],
       },
       {
         id: 'WS003',
         name: 'Launch',
         description: 'Go live',
-        startMonth: 4,
-        endMonth: 5,
+        startMonth: 5,
+        endMonth: 6,
         dependencies: ['WS002'],
-        deliverables: [{ id: 'D3', name: 'Launch Complete', dueMonth: 5 }],
+        deliverables: [{ id: 'D3', name: 'Launch Complete', dueMonth: 6 }],
       },
     ],
     resources: [{ id: 'R1' }],
@@ -204,6 +204,54 @@ describe('Export acceptance gates', () => {
     expect(report.criticalIssues.some((i) => i.code === 'REPORT_WHYS_PATH_MISMATCH')).toBe(true);
   });
 
+  it('fails when report chosen-path summary diverges from canonical strategy whysPath', () => {
+    const report = validateExportAcceptance({
+      strategyJson: buildValidStrategyJson(),
+      epmJson: buildValidEpmJson(),
+      ...validCsvs(),
+      reportMarkdown: [
+        '## Five Whys - Chosen Path Summary',
+        '1. **Why?** Why 1?',
+        '   **Answer:** drift_step_1',
+        '2. **Why?** Why 2?',
+        '   **Answer:** drift_step_2',
+        '3. **Why?** Why 3?',
+        '   **Answer:** drift_step_3',
+        '4. **Why?** Why 4?',
+        '   **Answer:** drift_step_4',
+      ].join('\n'),
+    });
+
+    expect(report.passed).toBe(false);
+    expect(report.criticalIssues.some((i) => i.code === 'REPORT_WHYS_CANONICAL_MISMATCH')).toBe(true);
+  });
+
+  it('fails when Five Whys tree has no chosen-path markers', () => {
+    const report = validateExportAcceptance({
+      strategyJson: buildValidStrategyJson(),
+      epmJson: buildValidEpmJson(),
+      ...validCsvs(),
+      reportMarkdown: [
+        '## Five Whys - Complete Analysis Tree',
+        '1. **Workers lack high-quality meal options near shifts**',
+        '2. **Remote location reduces quality food access**',
+        '',
+        '## Five Whys - Chosen Path Summary',
+        '1. **Why?** Why 1?',
+        '   **Answer:** Workers lack high-quality meal options near shifts',
+        '2. **Why?** Why 2?',
+        '   **Answer:** Remote location reduces quality food access',
+        '3. **Why?** Why 3?',
+        '   **Answer:** Existing cafeterias prioritize volume over quality',
+        '4. **Why?** Why 4?',
+        '   **Answer:** No focused operator serves this segment with Thai menu fit',
+      ].join('\n'),
+    });
+
+    expect(report.passed).toBe(false);
+    expect(report.criticalIssues.some((i) => i.code === 'REPORT_WHYS_TREE_MARKERS_MISSING')).toBe(true);
+  });
+
   it('fails when csv and epm section counts diverge', () => {
     const report = validateExportAcceptance({
       strategyJson: buildValidStrategyJson(),
@@ -218,7 +266,7 @@ describe('Export acceptance gates', () => {
 
   it('fails when dependency timing or critical path is invalid', () => {
     const epm = JSON.parse(buildValidEpmJson());
-    epm.workstreams[1].startMonth = 1; // overlaps dependency WS001 ending at M1
+    epm.workstreams[1].startMonth = 2; // overlaps dependency WS001 ending at M2
     epm.program.timeline.criticalPath = ['WS002']; // incomplete chain
 
     const report = validateExportAcceptance({
@@ -238,9 +286,9 @@ describe('Export acceptance gates', () => {
 
   it('fails when timeline phase coverage does not span all workstreams', () => {
     const epm = JSON.parse(buildValidEpmJson());
-    epm.program.timeline.totalMonths = 8;
+    epm.program.timeline.totalMonths = 9;
     epm.program.timeline.phases = [
-      { phase: 1, name: 'P1', startMonth: 0, endMonth: 4, keyMilestones: [], workstreamIds: ['WS001'] },
+      { phase: 1, name: 'P1', startMonth: 1, endMonth: 4, keyMilestones: [], workstreamIds: ['WS001'] },
       { phase: 2, name: 'P2', startMonth: 5, endMonth: 8, keyMilestones: [], workstreamIds: ['WS002'] },
     ];
     epm.workstreams[2].endMonth = 13;
@@ -276,14 +324,14 @@ describe('Export acceptance gates', () => {
       epmJson: buildValidEpmJson(),
       assignmentsCsv: [
         'Task ID,Workstream ID,Start Month,End Month',
-        'WS001-D1,WS001,Month 0,Month 4',
-        'WS002-D1,WS002,Month 2,Month 3',
+        'WS001-D1,WS001,Month 1,Month 5',
+        'WS002-D1,WS002,Month 3,Month 4',
       ].join('\n'),
       workstreamsCsv: [
         'Workstream ID,Start Date,End Date',
-        'WS001,Month 0,Month 1',
-        'WS002,Month 2,Month 3',
-        'WS003,Month 4,Month 5',
+        'WS001,Month 1,Month 2',
+        'WS002,Month 3,Month 4',
+        'WS003,Month 5,Month 6',
       ].join('\n'),
       resourcesCsv: 'ID\nR1\n',
       risksCsv: 'ID\nK1\n',
@@ -298,12 +346,12 @@ describe('Export acceptance gates', () => {
     const epm = JSON.parse(buildValidEpmJson());
     epm.workstreams = [
       { id: 'WS001', name: 'Core Platform Build', startMonth: 1, endMonth: 4, dependencies: [], deliverables: [] },
-      { id: 'WS002', name: 'Requirements Discovery and Analysis', startMonth: 0, endMonth: 2, dependencies: ['WS001'], deliverables: [] },
+      { id: 'WS002', name: 'Requirements Discovery and Analysis', startMonth: 1, endMonth: 2, dependencies: ['WS001'], deliverables: [] },
       { id: 'WS003', name: 'Launch Readiness', startMonth: 5, endMonth: 6, dependencies: ['WS001'], deliverables: [] },
     ];
     epm.program.timeline = {
       totalMonths: 6,
-      phases: [{ phase: 1, name: 'P1', startMonth: 0, endMonth: 6, keyMilestones: [], workstreamIds: ['WS001', 'WS002', 'WS003'] }],
+      phases: [{ phase: 1, name: 'P1', startMonth: 1, endMonth: 6, keyMilestones: [], workstreamIds: ['WS001', 'WS002', 'WS003'] }],
       criticalPath: ['WS002', 'WS001', 'WS003'],
     };
 

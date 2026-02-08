@@ -64,5 +64,25 @@ describe('Export report whys-path consistency', () => {
     expect(html).toContain('<strong>Answer:</strong> CANON_STEP_1');
     expect(html).not.toContain('<strong>Answer:</strong> DRIFT_STEP_1');
   });
-});
 
+  it('does not duplicate stage gate numbering in markdown headings', () => {
+    const pkg = buildPackage() as any;
+    pkg.epm = {
+      program: {
+        status: 'finalized',
+        frameworkType: 'bmc',
+        overallConfidence: '0.8',
+        stageGates: {
+          gates: [
+            { gate: 1, name: 'Gate 1: Planning & Foundation Complete', deliverables: ['WS001'] },
+          ],
+        },
+      },
+      assignments: [],
+    };
+
+    const markdown = generateMarkdownReport(pkg);
+    expect(markdown).toContain('### Gate 1: Planning & Foundation Complete');
+    expect(markdown).not.toContain('### Gate 1: Gate 1: Planning & Foundation Complete');
+  });
+});

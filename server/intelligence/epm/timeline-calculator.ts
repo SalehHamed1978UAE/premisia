@@ -38,9 +38,8 @@ export class TimelineCalculator implements ITimelineCalculator {
       maxWorkstreamEnd = Math.max(...workstreams.map(w => w.endMonth));
     }
 
-    // Use actual workstream duration if available, otherwise fall back to baseMonths
-    // Add buffer for stabilization phase (at least 1 month after last workstream)
-    const effectiveDuration = maxWorkstreamEnd > 0 ? maxWorkstreamEnd + 1 : baseMonths;
+    // Use 1-based month indexing: if workstreams end at M8, program duration is 8 months.
+    const effectiveDuration = maxWorkstreamEnd > 0 ? maxWorkstreamEnd : baseMonths;
     const totalMonths = Math.max(effectiveDuration, 3); // Minimum 3 months for meaningful phases
     
     console.log(`[TimelineCalculator] 📊 Timeline calculation:`);
@@ -90,14 +89,13 @@ export class TimelineCalculator implements ITimelineCalculator {
     const phases: TimelinePhase[] = [];
 
     for (let i = 0; i < phaseCount; i++) {
-      const phaseStart = i * phaseDuration;
+      const phaseStart = i * phaseDuration + 1;
       const phaseEnd = Math.min((i + 1) * phaseDuration, totalMonths);
       const config = phaseConfigs[i] || phaseConfigs[phaseConfigs.length - 1];
 
-      // Assign workstreams that EXECUTE during this phase (any overlap counts)
-      // A workstream executes during a phase if: ws.startMonth < phaseEnd AND ws.endMonth >= phaseStart
+      // Assign workstreams that execute during this phase (any overlap counts).
       const phaseWorkstreams = workstreams.filter(w =>
-        w.startMonth < phaseEnd && w.endMonth >= phaseStart
+        w.startMonth <= phaseEnd && w.endMonth >= phaseStart
       );
 
       phases.push({
