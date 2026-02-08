@@ -18,6 +18,12 @@ export class BMCExecutor implements FrameworkExecutor {
   async execute(context: StrategicContext): Promise<any> {
     console.log('[BMC Executor] Starting Business Model Canvas research...');
 
+    // CRITICAL: Verify Five Whys is finalized before running BMC
+    if (!context.insights?.whysPath || context.insights.whysPath.length === 0) {
+      console.error('[BMC Executor] ERROR: Five Whys not finalized - BMC cannot run without root cause analysis');
+      throw new Error('BMC requires Five Whys to be completed and finalized first. User must select their path through Five Whys before BMC can run.');
+    }
+
     // Extract strategic focus from Five Whys (if available)
     let strategicFocus = null;
 

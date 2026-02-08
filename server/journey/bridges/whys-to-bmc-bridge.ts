@@ -124,6 +124,12 @@ export function applyWhysToBMCBridge(context: StrategicContext): {
   const whysPath = context.insights.whysPath || [];
   const strategicImplications = context.insights.strategicImplications || [];
 
+  // CRITICAL: Check if Five Whys is actually finalized
+  if (whysPath.length === 0) {
+    console.error('[WhysToBMC Bridge] ERROR: Five Whys not finalized - cannot proceed to BMC');
+    throw new Error('Five Whys must be completed and finalized before BMC can run');
+  }
+
   // Transform to BMC constraints
   const bmcConstraints = transformWhysToBMC({
     rootCauses,
