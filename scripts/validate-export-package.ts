@@ -26,6 +26,7 @@ interface ValidationResult {
 }
 
 interface EPMPackage {
+  program?: any;
   workstreams?: any[];
   timeline?: any;
   resources?: any;
@@ -161,22 +162,57 @@ class EPMPackageValidator {
     });
   }
 
+  private resolveResourcePlan(pkg: EPMPackage): any | null {
+    if (pkg.program?.resourcePlan && typeof pkg.program.resourcePlan === 'object') return pkg.program.resourcePlan;
+    const legacy = (pkg as any).resourcePlan;
+    if (legacy && typeof legacy === 'object') return legacy;
+    return null;
+  }
+
+  private resolveFinancialPlan(pkg: EPMPackage): any | null {
+    if (pkg.program?.financialPlan && typeof pkg.program.financialPlan === 'object') return pkg.program.financialPlan;
+    const legacy = (pkg as any).financialPlan;
+    if (legacy && typeof legacy === 'object') return legacy;
+    return null;
+  }
+
+  private resolveStageGates(pkg: EPMPackage): any[] {
+    const programStageGates = pkg.program?.stageGates;
+    if (Array.isArray(programStageGates)) return programStageGates;
+    if (programStageGates && Array.isArray(programStageGates.gates)) return programStageGates.gates;
+
+    if (Array.isArray(pkg.stageGates)) return pkg.stageGates;
+    if (pkg.stageGates && Array.isArray((pkg.stageGates as any).gates)) return (pkg.stageGates as any).gates;
+
+    return [];
+  }
+
   /**
    * Check 4: Resource allocation
    */
   private check4_ResourceAllocation(pkg: EPMPackage): void {
     console.log('✓ Check 4: Resource Allocation');
 
-    if (!pkg.resources) {
+    const resourcePlan = this.resolveResourcePlan(pkg);
+    const financialPlan = this.resolveFinancialPlan(pkg);
+    const resourcesArray = Array.isArray(pkg.resources) ? pkg.resources : [];
+
+    if (!resourcePlan && resourcesArray.length === 0) {
       this.addWarning('No resource plan found');
       return;
     }
 
-    if (!pkg.resources.totalBudget || pkg.resources.totalBudget === 0) {
+    const totalBudget = financialPlan?.totalBudget;
+    if (!totalBudget || Number(totalBudget) === 0) {
       this.addWarning('No budget allocated');
     }
 
-    if (!pkg.resources.allocations || pkg.resources.allocations.length === 0) {
+    const hasTeamAllocations = Boolean(
+      (Array.isArray(resourcePlan?.internalTeam) && resourcePlan.internalTeam.length > 0) ||
+      (Array.isArray(resourcePlan?.externalResources) && resourcePlan.externalResources.length > 0) ||
+      resourcesArray.length > 0
+    );
+    if (!hasTeamAllocations) {
       this.addWarning('No resource allocations defined');
     }
   }
@@ -187,13 +223,14 @@ class EPMPackageValidator {
   private check5_MilestoneSequencing(pkg: EPMPackage): void {
     console.log('✓ Check 5: Milestone Sequencing');
 
-    if (!pkg.stageGates || pkg.stageGates.length === 0) {
+    const stageGates = this.resolveStageGates(pkg);
+    if (stageGates.length === 0) {
       this.addWarning('No stage gates/milestones defined');
       return;
     }
 
     // Check milestone ordering
-    const sorted = [...pkg.stageGates].sort((a, b) => a.month - b.month);
+    const sorted = [...stageGates].sort((a, b) => a.month - b.month);
     for (let i = 0; i < sorted.length - 1; i++) {
       if (sorted[i].month === sorted[i + 1].month) {
         this.addWarning(`Multiple milestones at month ${sorted[i].month}`);
