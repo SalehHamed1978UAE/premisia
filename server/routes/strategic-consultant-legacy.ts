@@ -1277,13 +1277,22 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
       });
     }
 
-    const normalizedPath: string[] = (selectedPath || []).map((step: any) => {
-      if (typeof step === 'string') return step;
-      if (step?.answer) return step.answer;
-      if (step?.option) return step.option;
-      if (step?.label) return step.label;
-      return '';
-    }).filter((s: string) => s && s.trim().length > 0);
+    // Preserve question/answer structure for canonical storage
+    const canonicalPath = (selectedPath || []).map((step: any, index: number) => {
+      const answer = typeof step === 'string' ? step :
+        (step?.answer || step?.option || step?.label || '');
+      const question = step?.question || `Why ${index + 1}?`;
+
+      return {
+        question,
+        answer,
+        depth: index,
+        nodeId: step?.nodeId || `node-${index}`
+      };
+    }).filter((s: any) => s.answer && s.answer.trim().length > 0);
+
+    // Legacy string array for backward compatibility
+    const normalizedPath: string[] = canonicalPath.map(step => step.answer);
 
     console.log('[FiveWhys] Finalize received:', {
       sessionId,
@@ -1324,29 +1333,31 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
       five_whys: {
         problem_statement: input,
         why_1: {
-          question: "Why is this happening?",
-          answer: normalizedPath[0] || ""
+          question: canonicalPath[0]?.question || "Why is this happening?",
+          answer: canonicalPath[0]?.answer || ""
         },
         why_2: {
-          question: "Why does that occur?",
-          answer: normalizedPath[1] || ""
+          question: canonicalPath[1]?.question || "Why does that occur?",
+          answer: canonicalPath[1]?.answer || ""
         },
         why_3: {
-          question: "Why is that the case?",
-          answer: normalizedPath[2] || ""
+          question: canonicalPath[2]?.question || "Why is that the case?",
+          answer: canonicalPath[2]?.answer || ""
         },
         why_4: {
-          question: "Why does that matter?",
-          answer: normalizedPath[3] || ""
+          question: canonicalPath[3]?.question || "Why does that matter?",
+          answer: canonicalPath[3]?.answer || ""
         },
         why_5: {
-          question: "What's the underlying cause?",
-          answer: normalizedPath[4] || ""
+          question: canonicalPath[4]?.question || "What's the underlying cause?",
+          answer: canonicalPath[4]?.answer || ""
         },
         root_cause: rootCause,
         strategic_implications: insights.strategic_implications,
-        // Keep whysPath for backward compatibility
-        whysPath: normalizedPath,
+        // Store canonical path with Q/A structure
+        whysPath: canonicalPath,
+        // Keep legacy string array for backward compatibility
+        whysPathLegacy: normalizedPath,
         recommendedActions: insights.recommended_actions,
         framework: 'five_whys',
         // Strategic focus for BMC integration
@@ -1463,9 +1474,10 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
 
           // If we have a tree, reconcile it with the chosen path
           let reconciledTree = originalTree;
-          if (originalTree && normalizedPath.length > 0) {
+          if (originalTree && canonicalPath.length > 0) {
             const { reconcileTreeWithPath } = await import('../services/export/tree-path-reconciler');
-            reconciledTree = reconcileTreeWithPath(originalTree, normalizedPath);
+            // Pass canonical path for better matching with questions
+            reconciledTree = reconcileTreeWithPath(originalTree, canonicalPath);
             console.log('[FiveWhys] Reconciled tree with chosen path');
           }
 
@@ -1474,7 +1486,8 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
             sessionId: journeySession.id,
             frameworkName: 'five_whys',
             insights: {
-              whysPath: normalizedPath,
+              whysPath: canonicalPath, // Store canonical path with Q/A structure
+              whysPathLegacy: normalizedPath, // Keep legacy for compatibility
               rootCauses: rootCause ? [rootCause] : [],
               strategicImplications: insights.strategic_implications || [],
               tree: reconciledTree, // Include the reconciled tree

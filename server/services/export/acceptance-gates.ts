@@ -537,6 +537,17 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
   const includesFiveWhys = expectedFrameworks.includes('five_whys') || actualFrameworks.includes('five_whys');
   if (includesFiveWhys) {
     const whysPath = Array.isArray(strategyData.whysPath) ? strategyData.whysPath : [];
+
+    // Check for legacy format (string array instead of Q/A objects)
+    if (whysPath.length > 0 && typeof whysPath[0] === 'string') {
+      warnings.push({
+        severity: 'warning',
+        code: 'WHYS_PATH_LEGACY_FORMAT',
+        message: 'Five Whys path is using legacy string[] format. Should be {question, answer}[] for complete reporting',
+        details: { format: 'string[]', expected: '{question, answer}[]' },
+      });
+    }
+
     if (whysPath.length < 4) {
       criticalIssues.push({
         severity: 'critical',

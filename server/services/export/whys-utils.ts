@@ -31,6 +31,15 @@ function toAnswerText(step: any): string {
 
 export function normalizeWhysPath(path: any): string[] {
   if (!Array.isArray(path)) return [];
+
+  // Handle canonical format (Q/A objects)
+  if (path.length > 0 && path[0]?.answer !== undefined) {
+    return path
+      .map((step) => step.answer || '')
+      .filter((step) => step.length > 0);
+  }
+
+  // Handle legacy format (strings or other objects)
   return path
     .map((step) => toAnswerText(step))
     .filter((step) => step.length > 0);
@@ -53,9 +62,18 @@ export function pickCanonicalWhysPath(candidates: any[]): string[] {
 }
 
 export function normalizeWhysPathForReport(path: any): Array<{ question: string; answer: string }> {
+  // If already in canonical format with questions, use directly
+  if (Array.isArray(path) && path.length > 0 && path[0]?.question) {
+    return path.map((step: any) => ({
+      question: step.question || `Why ${step.depth + 1}?`,
+      answer: step.answer || ''
+    }));
+  }
+
+  // Legacy format: array of strings (answers only)
   const answers = normalizeWhysPath(path);
   return answers.map((answer, index) => ({
-    question: `Why ${index + 1}?`,
+    question: `Why ${index + 1}?`, // Placeholder for legacy format
     answer,
   }));
 }

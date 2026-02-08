@@ -9,7 +9,7 @@
  * @param chosenPath Array of chosen answer strings
  * @returns Tree with chosen path marked
  */
-export function markChosenPathInTree(tree: any, chosenPath: string[]): any {
+export function markChosenPathInTree(tree: any, chosenPath: any[]): any {
   if (!tree || !Array.isArray(chosenPath) || chosenPath.length === 0) {
     return tree;
   }
@@ -22,24 +22,44 @@ export function markChosenPathInTree(tree: any, chosenPath: string[]): any {
     return (text || '').toLowerCase().replace(/\s+/g, ' ').trim();
   };
 
-  // Normalize the chosen path
-  const normalizedPath = chosenPath.map(step => normalizeText(step));
+  // Normalize the chosen path - handle both string[] and canonical format
+  const normalizedPath = chosenPath.map(step => {
+    if (typeof step === 'string') {
+      return { answer: normalizeText(step), question: null };
+    } else if (step?.answer !== undefined) {
+      return {
+        answer: normalizeText(step.answer || ''),
+        question: step.question ? normalizeText(step.question) : null
+      };
+    }
+    return { answer: '', question: null };
+  });
 
   // Recursive function to mark nodes
-  const markNode = (node: any, depth: number): boolean => {
+  const markNode = (node: any, depth: number, parentQuestion?: string): boolean => {
     if (!node || depth >= normalizedPath.length) return false;
 
     const nodeText = normalizeText(
-      node.option || node.answer || node.label || node.question || ''
+      node.option || node.answer || node.label || ''
     );
+    const nodeQuestion = normalizeText(node.question || '');
 
     // Check if this node matches the current path step
     const pathStep = normalizedPath[depth];
-    const isMatch = nodeText.length > 0 && (
-      nodeText === pathStep ||
-      nodeText.includes(pathStep) ||
-      pathStep.includes(nodeText)
+
+    // Match by answer text
+    const answerMatch = nodeText.length > 0 && pathStep.answer && (
+      nodeText === pathStep.answer ||
+      nodeText.includes(pathStep.answer) ||
+      pathStep.answer.includes(nodeText)
     );
+
+    // If we have a question in the path, try to match it too for better accuracy
+    const questionMatch = !pathStep.question ||
+      (parentQuestion && normalizeText(parentQuestion).includes(pathStep.question)) ||
+      nodeQuestion.includes(pathStep.question || '');
+
+    const isMatch = answerMatch && questionMatch;
 
     if (isMatch) {
       // Mark this node as chosen
@@ -48,8 +68,10 @@ export function markChosenPathInTree(tree: any, chosenPath: string[]): any {
 
       // Continue marking in children
       if (Array.isArray(node.branches) && node.branches.length > 0) {
+        // Pass the current node's question as parent question to children
+        const childQuestion = node.nextQuestion || node.question || nodeText;
         for (const branch of node.branches) {
-          if (markNode(branch, depth + 1)) {
+          if (markNode(branch, depth + 1, childQuestion)) {
             return true; // Path continues through this branch
           }
         }
@@ -119,22 +141,10 @@ export function extractChosenPathFromTree(tree: any): string[] {
  * @returns Reconciled tree with chosen path marked
  */
 export function reconcileTreeWithPath(tree: any, chosenPath: any[]): any {
-  // Normalize the path to string array
-  const normalizedPath: string[] = [];
-
-  for (const step of chosenPath || []) {
-    if (typeof step === 'string') {
-      normalizedPath.push(step);
-    } else if (step && typeof step === 'object') {
-      const text = step.answer || step.option || step.label || step.why || step.text || '';
-      if (text) normalizedPath.push(text);
-    }
-  }
-
-  if (normalizedPath.length === 0) {
+  if (!chosenPath || chosenPath.length === 0) {
     return tree; // No path to reconcile
   }
 
-  // Mark the chosen path in the tree
-  return markChosenPathInTree(tree, normalizedPath);
+  // Pass the path as-is to markChosenPathInTree, which now handles both formats
+  return markChosenPathInTree(tree, chosenPath);
 }

@@ -58,9 +58,23 @@ export class FiveWhysExecutor implements FrameworkExecutor {
         if (fiveWhys?.whysPath && Array.isArray(fiveWhys.whysPath) && fiveWhys.whysPath.length > 0) {
           console.log('[FiveWhys Executor] ✓ Found user-finalized path');
 
-          // Use REAL user data
+          // Handle both canonical (Q/A) and legacy (string[]) formats
           whysPath = fiveWhys.whysPath;
-          rootCauses = [fiveWhys.root_cause || whysPath[whysPath.length - 1]];
+
+          // If legacy format (string array), convert to canonical
+          if (typeof whysPath[0] === 'string') {
+            console.log('[FiveWhys Executor] Converting legacy string[] to canonical format');
+            whysPath = whysPath.map((answer: string, i: number) => ({
+              question: `Why ${i + 1}?`,
+              answer,
+              depth: i
+            }));
+          }
+
+          // Extract root cause from last step
+          const lastStep = whysPath[whysPath.length - 1];
+          const lastAnswer = typeof lastStep === 'string' ? lastStep : lastStep.answer;
+          rootCauses = [fiveWhys.root_cause || lastAnswer];
           strategicImplications = fiveWhys.strategic_implications || [];
           strategicFocus = fiveWhys.strategicFocus;
         } else {

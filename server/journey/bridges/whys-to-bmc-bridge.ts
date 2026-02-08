@@ -10,7 +10,7 @@ import { StrategicContext } from '@shared/journey-types';
 
 export interface WhysToBMCBridgeInput {
   rootCauses: string[];
-  whysPath: string[];
+  whysPath: any[]; // Can be string[] (legacy) or {question, answer}[] (canonical)
   strategicImplications: string[];
   userInput: string;
 }
@@ -28,6 +28,16 @@ export interface BMCDesignConstraints {
 export function transformWhysToBMC(input: WhysToBMCBridgeInput): BMCDesignConstraints {
   const { rootCauses, whysPath, strategicImplications, userInput } = input;
 
+  // Normalize whysPath to string array (handle both canonical and legacy formats)
+  const normalizedPath: string[] = whysPath.map(step => {
+    if (typeof step === 'string') {
+      return step;
+    } else if (step?.answer) {
+      return step.answer;
+    }
+    return '';
+  }).filter(s => s.length > 0);
+
   // Convert root causes into problems the business model must solve
   const problemsToSolve = rootCauses.map(cause => {
     // Frame each root cause as a problem statement
@@ -38,7 +48,7 @@ export function transformWhysToBMC(input: WhysToBMCBridgeInput): BMCDesignConstr
   });
 
   // Extract must-have capabilities from the analysis path
-  const mustHaveCapabilities = extractCapabilities(whysPath, strategicImplications);
+  const mustHaveCapabilities = extractCapabilities(normalizedPath, strategicImplications);
 
   // Convert strategic implications into design principles
   const designPrinciples = strategicImplications.map(implication => {
@@ -54,7 +64,7 @@ export function transformWhysToBMC(input: WhysToBMCBridgeInput): BMCDesignConstr
 Original Challenge: ${userInput}
 
 Root Cause Analysis:
-${whysPath.map((why, i) => `Level ${i + 1}: ${why}`).join('\n')}
+${normalizedPath.map((why, i) => `Level ${i + 1}: ${why}`).join('\n')}
 
 Identified Root Causes:
 ${rootCauses.map((cause, i) => `${i + 1}. ${cause}`).join('\n')}
