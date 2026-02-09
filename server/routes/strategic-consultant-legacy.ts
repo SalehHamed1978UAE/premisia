@@ -32,6 +32,7 @@ import { buildStrategicSummary } from '../services/strategic-summary-builder';
 import { referenceService } from '../services/reference-service';
 import { journeySummaryService } from '../services/journey-summary-service';
 import { decryptKMS } from '../utils/kms-encryption';
+import { buildLinearWhysTree, normalizeWhysPathSteps, whysPathToText } from '../utils/whys-path';
 
 const router = Router();
 const upload = multer({ 
@@ -1277,31 +1278,30 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
       });
     }
 
-    const normalizedPath: string[] = (selectedPath || []).map((step: any) => {
-      if (typeof step === 'string') return step;
-      if (step?.answer) return step.answer;
-      if (step?.option) return step.option;
-      if (step?.label) return step.label;
-      return '';
-    }).filter((s: string) => s && s.trim().length > 0);
+    const canonicalPath = normalizeWhysPathSteps(selectedPath || []);
+    const whysPathText = whysPathToText(canonicalPath);
+    const canonicalTree = buildLinearWhysTree(canonicalPath);
 
     console.log('[FiveWhys] Finalize received:', {
       sessionId,
       versionNumber,
       selectedPathLength: Array.isArray(selectedPath) ? selectedPath.length : 0,
-      normalizedPathLength: normalizedPath.length,
+      normalizedPathLength: canonicalPath.length,
       rootCausePreview: rootCause?.slice(0, 120),
     });
 
     const insights = await whysTreeGenerator.analyzePathInsights(
       input,
-      normalizedPath.map((option: string, index: number) => ({
+      whysPathText.map((option: string, index: number) => ({
         id: `node-${index}`,
-        question: '',
-      option,
-      depth: index + 1,
-      isLeaf: false,
-    })));
+        question: canonicalPath[index]?.question || '',
+        option,
+        depth: index + 1,
+        isLeaf: false,
+        supporting_evidence: [],
+        counter_arguments: [],
+        consideration: '',
+      })));
 
     // Structure Five Whys data to match FiveWhysAnalysis interface expected by renderer
     // Renderer expects: why_1.question, why_1.answer, etc.
@@ -1309,29 +1309,30 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
       five_whys: {
         problem_statement: input,
         why_1: {
-          question: "Why is this happening?",
-          answer: normalizedPath[0] || ""
+          question: canonicalPath[0]?.question || "Why is this happening?",
+          answer: canonicalPath[0]?.answer || ""
         },
         why_2: {
-          question: "Why does that occur?",
-          answer: normalizedPath[1] || ""
+          question: canonicalPath[1]?.question || "Why does that occur?",
+          answer: canonicalPath[1]?.answer || ""
         },
         why_3: {
-          question: "Why is that the case?",
-          answer: normalizedPath[2] || ""
+          question: canonicalPath[2]?.question || "Why is that the case?",
+          answer: canonicalPath[2]?.answer || ""
         },
         why_4: {
-          question: "Why does that matter?",
-          answer: normalizedPath[3] || ""
+          question: canonicalPath[3]?.question || "Why does that matter?",
+          answer: canonicalPath[3]?.answer || ""
         },
         why_5: {
-          question: "What's the underlying cause?",
-          answer: normalizedPath[4] || ""
+          question: canonicalPath[4]?.question || "What's the underlying cause?",
+          answer: canonicalPath[4]?.answer || ""
         },
         root_cause: rootCause,
         strategic_implications: insights.strategic_implications,
         // Keep whysPath for backward compatibility
-        whysPath: normalizedPath,
+        whysPath: canonicalPath,
+        tree: canonicalTree,
         recommendedActions: insights.recommended_actions,
         framework: 'five_whys',
       },
@@ -1425,12 +1426,14 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
         });
         if (journeySession?.id) {
           await db.insert(frameworkInsights).values({
+            understandingId: understanding.id,
             sessionId: journeySession.id,
             frameworkName: 'five_whys',
             insights: {
-              whysPath: normalizedPath,
+              whysPath: canonicalPath,
               rootCauses: rootCause ? [rootCause] : [],
               strategicImplications: insights.strategic_implications || [],
+              tree: canonicalTree,
             },
           });
         }
@@ -1469,7 +1472,7 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
 
     res.json({
       rootCause,
-      fullPath: normalizedPath,
+      fullPath: canonicalPath,
       strategicImplication: insights.strategic_implications.join('; '),
       versionNumber: version.versionNumber,
     });
@@ -1549,6 +1552,7 @@ router.get('/research/stream/:sessionId', async (req: Request, res: Response) =>
   const sessionId = req.params.sessionId;
   const rootCause = req.query.rootCause as string;
   const whysPath = JSON.parse(req.query.whysPath as string || '[]');
+  const whysPathText = whysPathToText(whysPath);
   const input = req.query.input as string;
   const versionNumber = req.query.versionNumber ? parseInt(req.query.versionNumber as string) : undefined;
 
@@ -1563,7 +1567,7 @@ router.get('/research/stream/:sessionId', async (req: Request, res: Response) =>
 
     res.write(`data: ${JSON.stringify({ type: 'progress', message: 'Generating research queries...', progress: 10 })}\n\n`);
 
-    const queries = await marketResearcher.generateResearchQueries(rootCause, input, whysPath);
+    const queries = await marketResearcher.generateResearchQueries(rootCause, input, whysPathText);
     
     res.write(`data: ${JSON.stringify({ type: 'progress', message: `Generated ${queries.length} research queries`, progress: 20 })}\n\n`);
 

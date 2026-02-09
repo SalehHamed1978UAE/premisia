@@ -4,6 +4,7 @@ import { parseAIJson } from '../utils/parse-ai-json';
 import type { RawReference } from '../intelligence/types';
 import { researchCaptureWrapper, type CaptureContext } from '../services/research-capture-wrapper.js';
 import pLimit from 'p-limit';
+import { whysPathToText } from '../utils/whys-path';
 
 const API_BASE = process.env.API_BASE_URL || 'http://localhost:5000';
 
@@ -98,10 +99,11 @@ export class MarketResearcher {
     sessionId: string,
     rootCause: string,
     input: string,
-    whysPath: string[],
+    whysPath: any[],
     captureContext?: CaptureContext
   ): Promise<ResearchFindings> {
-    const queries = await this.generateResearchQueries(rootCause, input, whysPath);
+    const whysText = whysPathToText(whysPath);
+    const queries = await this.generateResearchQueries(rootCause, input, whysText);
     
     const searchResults = await this.performWebSearch(queries, captureContext);
     
@@ -112,7 +114,7 @@ export class MarketResearcher {
     const findings = await this.synthesizeFindings(
       rootCause,
       input,
-      whysPath,
+      whysText,
       searchResults,
       topSources,
       sourceContents
@@ -406,7 +408,7 @@ Example for "Arabic language differentiates our enterprise software in UAE":
   async synthesizeFindingsPublic(
     rootCause: string,
     input: string,
-    whysPath: string[],
+    whysPath: any[],
     searchResults: any[],
     topSources: Source[],
     sourceContents: Map<string, string>
@@ -443,11 +445,12 @@ Example for "Arabic language differentiates our enterprise software in UAE":
   private async synthesizeFindings(
     rootCause: string,
     input: string,
-    whysPath: string[],
+    whysPath: any[],
     searchResults: any[],
     topSources: Source[],
     sourceContents: Map<string, string>
   ): Promise<ResearchFindings> {
+    const whysText = whysPathToText(whysPath);
     const searchSummary = searchResults.map(sr => 
       `Query: ${sr.query}\nResults: ${sr.results?.map((r: any) => `- ${r.title}: ${r.snippet}`).join('\n') || 'No results'}`
     ).join('\n\n');
@@ -480,7 +483,7 @@ ORIGINAL INPUT:
 ${input.substring(0, 1500)}
 
 ANALYSIS PATH:
-${whysPath.map((w, i) => `${i + 1}. ${w}`).join('\n')}
+${whysText.map((w, i) => `${i + 1}. ${w}`).join('\n')}
 
 SEARCH RESULTS SNIPPETS:
 ${searchSummary}

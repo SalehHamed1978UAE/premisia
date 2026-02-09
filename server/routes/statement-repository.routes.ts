@@ -5,6 +5,7 @@ import { strategicUnderstanding, frameworkInsights, strategicEntities, strategyV
 import { eq, desc, sql, inArray, and } from 'drizzle-orm';
 import { getStrategicUnderstanding } from '../services/secure-data-service';
 import { decryptKMS } from '../utils/kms-encryption';
+import { whysPathToText } from '../utils/whys-path';
 
 const router = Router();
 
@@ -495,7 +496,7 @@ router.get('/statements/:understandingId', async (req, res) => {
         
         // Extract key findings from whysPath
         if (fiveWhysData.whysPath && Array.isArray(fiveWhysData.whysPath)) {
-          keyFindings.push(...fiveWhysData.whysPath.slice(0, 3));
+          keyFindings.push(...whysPathToText(fiveWhysData.whysPath).slice(0, 3));
         }
 
         groupedAnalyses[framework].push({

@@ -11,6 +11,7 @@
  */
 
 import type { StrategicContext } from '@shared/journey-types';
+import { whysPathToText } from '../../utils/whys-path';
 
 export interface WhysToSwotEnhancement {
   suggestedWeaknesses: Array<{
@@ -58,6 +59,7 @@ export function transformWhysToSwot(rawWhysOutput: any, context?: StrategicConte
   const rootCauses = whysOutput.rootCauses || whysOutput.root_causes || [];
   const counterMeasures = whysOutput.counterMeasures || whysOutput.counter_measures || whysOutput.countermeasures || [];
   const whysPath = whysOutput.whysPath || whysOutput.whys_path || whysOutput.analysis_path || [];
+  const whysText = whysPathToText(whysPath);
 
   // Root causes become weaknesses (internal problems identified)
   for (const rc of rootCauses) {
@@ -108,7 +110,7 @@ export function transformWhysToSwot(rawWhysOutput: any, context?: StrategicConte
   }
 
   // Build context summary
-  result.rootCauseContext = buildRootCauseContext(whysPath, rootCauses);
+  result.rootCauseContext = buildRootCauseContext(whysText, rootCauses);
   result.fiveWhysConfidence = whysOutput.confidence || 'medium';
 
   console.log(`[Bridge] whys-to-swot: Transformed ${rootCauses.length} root causes → ${result.suggestedWeaknesses.length} weaknesses, ${result.suggestedThreats.length} threats`);

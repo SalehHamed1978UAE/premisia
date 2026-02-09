@@ -1,5 +1,6 @@
 import type { FullExportPackage } from '../../types/interfaces';
 import { getJourney } from '../../journey/journey-registry';
+import { normalizeWhysPathSteps } from '../../utils/whys-path';
 
 type StrategyPayload = FullExportPackage['strategy'];
 type EpmPayload = NonNullable<FullExportPackage['epm']>;
@@ -128,29 +129,12 @@ function deriveWhysPath(
   strategy: StrategyPayload,
   fiveWhys: Record<string, any>,
 ): any[] {
-  const topLevel = Array.isArray(strategy.whysPath) ? strategy.whysPath : [];
   const nestedParsed = parseMaybeJson<any[]>(fiveWhys.whysPath);
-  const nested = Array.isArray(nestedParsed) ? nestedParsed : [];
+  const nestedNormalized = normalizeWhysPathSteps(Array.isArray(nestedParsed) ? nestedParsed : []);
+  if (nestedNormalized.length > 0) return nestedNormalized;
 
-  if (topLevel.length === 0) return nested;
-  if (nested.length === 0) return topLevel;
-
-  // Prefer the richer path for downstream automation:
-  // 1) longer path wins, 2) if equal length, prefer steps with structured answer data.
-  if (nested.length > topLevel.length) return nested;
-  if (topLevel.length > nested.length) return topLevel;
-
-  const structuredScore = (path: any[]) =>
-    path.reduce((score, step) => {
-      if (!step || typeof step !== 'object') return score;
-      let s = score;
-      if (typeof step.answer === 'string' && step.answer.trim().length > 0) s += 3;
-      if (typeof step.question === 'string' && step.question.trim().length > 0) s += 2;
-      if (typeof step.option === 'string' && step.option.trim().length > 0) s += 1;
-      return s;
-    }, 0);
-
-  return structuredScore(nested) > structuredScore(topLevel) ? nested : topLevel;
+  const topLevel = Array.isArray(strategy.whysPath) ? normalizeWhysPathSteps(strategy.whysPath) : [];
+  return topLevel;
 }
 
 function deriveRootCause(

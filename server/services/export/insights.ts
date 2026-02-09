@@ -1,4 +1,5 @@
 import type { FullExportPackage } from '../../types/interfaces';
+import { normalizeWhysPathSteps } from '../../utils/whys-path';
 
 type ExportInsights = {
   whysPath?: Array<any>;
@@ -72,15 +73,7 @@ export const deriveInsights = (pkg: FullExportPackage, parseField: (v: any) => a
   const five = analysisData?.five_whys || analysisData?.fiveWhys;
   if (five) {
     if (!insights.whysPath && Array.isArray(five.whysPath)) {
-      insights.whysPath = five.whysPath.map((step: any, idx: number) => {
-        if (typeof step === 'string') {
-          return { question: `Why ${idx + 1}?`, answer: step };
-        }
-        if (step && typeof step === 'object') {
-          return { question: step.question || `Why ${idx + 1}?`, answer: step.answer || step.option || step.label || '' };
-        }
-        return { question: `Why ${idx + 1}?`, answer: String(step || '') };
-      });
+      insights.whysPath = normalizeWhysPathSteps(five.whysPath);
     }
     if (!insights.rootCauses) {
       const root = five.root_cause || five.rootCause || '';
