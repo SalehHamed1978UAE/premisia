@@ -345,6 +345,76 @@ function normalizeTimeline(program: any, workstreams: any[]): any {
   };
 }
 
+function buildDeliverableLookup(workstreams: any[]): Record<string, { workstreamId?: string; startMonth?: number; endMonth?: number }> {
+  const lookup: Record<string, { workstreamId?: string; startMonth?: number; endMonth?: number }> = {};
+  workstreams.forEach((ws: any) => {
+    const wsId = ws.id;
+    const wsStart = ws.startMonth;
+    const wsEnd = ws.endMonth;
+    (ws.deliverables || []).forEach((d: any) => {
+      const taskId = d.id || d.taskId || d.name;
+      if (!taskId) return;
+      const dueMonth = d.dueMonth ?? d.due_month;
+      lookup[taskId] = {
+        workstreamId: wsId,
+        startMonth: wsStart,
+        endMonth: dueMonth ?? wsEnd ?? wsStart,
+      };
+    });
+  });
+  return lookup;
+}
+
+function parseTaskIdWorkstream(taskId?: string): string | null {
+  if (!taskId) return null;
+  const match = taskId.match(/^(WS\\d+)/i);
+  return match ? match[1] : null;
+}
+
+function monthOffset(from: Date, base: Date): number {
+  const delta = from.getTime() - base.getTime();
+  return Math.max(0, Math.round(delta / (1000 * 60 * 60 * 24 * 30)));
+}
+
+function normalizeAssignments(assignments: any[], workstreams: any[]): any[] {
+  if (!Array.isArray(assignments)) return [];
+
+  const deliverableLookup = buildDeliverableLookup(workstreams);
+  const minAssignedFrom = assignments
+    .map((a) => a.assignedFrom || a.assigned_from)
+    .filter(Boolean)
+    .map((d: any) => new Date(d))
+    .sort((a, b) => a.getTime() - b.getTime())[0];
+
+  return assignments.map((assignment) => {
+    const taskId = assignment.taskId || assignment.task_id;
+    const lookup = taskId ? deliverableLookup[taskId] || {} : {};
+    const existingWorkstreamId = assignment.workstreamId || assignment.workstream_id;
+    const existingStartMonth = assignment.startMonth ?? assignment.start_month;
+    const existingEndMonth = assignment.endMonth ?? assignment.end_month;
+
+    let workstreamId = existingWorkstreamId || lookup.workstreamId || parseTaskIdWorkstream(taskId);
+    let startMonth = existingStartMonth ?? lookup.startMonth;
+    let endMonth = existingEndMonth ?? lookup.endMonth;
+
+    const assignedFrom = assignment.assignedFrom || assignment.assigned_from;
+    const assignedTo = assignment.assignedTo || assignment.assigned_to;
+    if ((startMonth === undefined || endMonth === undefined) && assignedFrom && assignedTo && minAssignedFrom) {
+      const startDate = new Date(assignedFrom);
+      const endDate = new Date(assignedTo);
+      startMonth = startMonth ?? monthOffset(startDate, minAssignedFrom);
+      endMonth = endMonth ?? monthOffset(endDate, minAssignedFrom);
+    }
+
+    return {
+      ...assignment,
+      workstreamId: workstreamId ?? null,
+      startMonth: startMonth ?? null,
+      endMonth: endMonth ?? null,
+    };
+  });
+}
+
 export function buildStrategyJsonPayload(strategy: StrategyPayload): Record<string, any> {
   const parsedAnalysisData = parseMaybeJson<Record<string, any>>(strategy.strategyVersion?.analysisData) || {};
   const fiveWhys = getFiveWhys(parsedAnalysisData);
@@ -386,8 +456,19 @@ export function buildEpmJsonPayload(epm: EpmPayload): Record<string, any> {
     stageGates: stageGates || program.stageGates,
   };
 
+  const assignments = normalizeAssignments(epm.assignments || [], workstreams);
+  const metadata = epm.metadata || {
+    programId: program.id ?? null,
+    strategyVersionId: program.strategyVersionId ?? null,
+    userId: program.userId ?? null,
+    status: program.status ?? null,
+    createdAt: program.createdAt ?? null,
+    updatedAt: program.updatedAt ?? null,
+  };
+
   return {
     ...epm,
+    metadata,
     program: normalizedProgram,
     workstreams,
     resourcePlan,
@@ -396,5 +477,6 @@ export function buildEpmJsonPayload(epm: EpmPayload): Record<string, any> {
     risks: deriveRiskList(riskRegister),
     benefitsRealization,
     benefits: deriveBenefitList(benefitsRealization),
+    assignments,
   };
 }
