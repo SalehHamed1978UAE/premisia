@@ -5,11 +5,11 @@ import {
   journeySessions,
   epmPrograms,
   taskAssignments,
-  frameworkInsights,
   strategyDecisions,
 } from '@shared/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import type { IExporter, ExportResult, FullExportPackage, ExportRequest } from '../../types/interfaces';
+import { buildLinearWhysTree, normalizeWhysPathSteps } from '../../utils/whys-path';
 
 export type { ExportRequest, FullExportPackage, ExportResult, IExporter };
 
@@ -107,41 +107,24 @@ export async function loadExportData(
     }));
   }
 
-  console.log('[Export Service] loadExportData - Fetching Five Whys tree from framework_insights...');
-  let fiveWhysTree;
-  let whysPath;
-  if (journeySession) {
-    const [fiveWhysInsight] = await db.select()
-      .from(frameworkInsights)
-      .where(
-        and(
-          eq(frameworkInsights.sessionId, journeySession.id),
-          eq(frameworkInsights.frameworkName, 'five_whys')
-        )
-      )
-      .orderBy(desc(frameworkInsights.createdAt))
-      .limit(1);
-    
-    if (fiveWhysInsight?.insights) {
-      const insights = typeof fiveWhysInsight.insights === 'string' 
-        ? JSON.parse(fiveWhysInsight.insights) 
-        : fiveWhysInsight.insights;
-      fiveWhysTree = insights.tree;
-      whysPath = insights.whysPath || [];
-      console.log('[Export Service] Five Whys tree loaded:', fiveWhysTree ? 'Yes' : 'No');
-      console.log('[Export Service] Five Whys path loaded:', whysPath?.length || 0, 'steps');
-    }
-  }
-
-  // Fallback: derive whysPath from strategyVersion.analysisData if missing
-  if ((!whysPath || whysPath.length === 0) && strategyVersion?.analysisData) {
+  console.log('[Export Service] loadExportData - Using canonical Five Whys from analysisData...');
+  let fiveWhysTree: any;
+  let whysPath: Array<{ question: string; answer: string }> = [];
+  if (strategyVersion?.analysisData) {
     const analysisData = typeof strategyVersion.analysisData === 'string'
       ? JSON.parse(strategyVersion.analysisData as any)
       : strategyVersion.analysisData;
     const fiveWhys = analysisData?.five_whys || analysisData?.fiveWhys;
     if (fiveWhys?.whysPath && Array.isArray(fiveWhys.whysPath)) {
-      whysPath = fiveWhys.whysPath;
-      console.log('[Export Service] Five Whys path loaded from strategyVersion.analysisData:', whysPath.length);
+      whysPath = normalizeWhysPathSteps(fiveWhys.whysPath);
+      console.log('[Export Service] Five Whys path loaded from analysisData:', whysPath.length);
+    } else {
+      whysPath = [];
+    }
+    if (fiveWhys?.tree) {
+      fiveWhysTree = fiveWhys.tree;
+    } else if (whysPath.length > 0) {
+      fiveWhysTree = buildLinearWhysTree(whysPath);
     }
   }
 

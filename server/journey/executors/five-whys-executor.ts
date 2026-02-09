@@ -23,22 +23,26 @@ export class FiveWhysExecutor implements FrameworkExecutor {
     
     // Extract root causes and paths from the tree
     const rootCauses: string[] = [];
-    const whysPath: string[] = [whysTree.rootQuestion];
+    const whysPath: Array<{ question: string; answer: string }> = [];
     
     // Extract from each branch
     if (whysTree.branches && whysTree.branches.length > 0) {
       let currentLevel = whysTree.branches;
+      let currentQuestion = whysTree.rootQuestion;
       
       // Traverse the first branch to build a complete path
       while (currentLevel && currentLevel.length > 0) {
         const node = currentLevel[0];
-        whysPath.push(node.question);
+        const answer = node.option || node.question || '';
+        if (answer) {
+          whysPath.push({ question: currentQuestion, answer });
+        }
         
         // If we're at a leaf node (deepest level), this is a root cause
         if (!node.branches || node.branches.length === 0) {
           rootCauses.push(node.option || node.question);
         }
-        
+        currentQuestion = node.question || currentQuestion;
         currentLevel = node.branches || [];
       }
       
