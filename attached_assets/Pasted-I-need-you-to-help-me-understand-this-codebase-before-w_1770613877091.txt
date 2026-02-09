@@ -1,0 +1,30 @@
+I need you to help me understand this codebase before we make any changes. Do NOT modify any files. Just answer my questions by reading the existing code. Confirm you understand before proceeding.
+
+Answer each section below in order:
+
+## 1. Architecture & Structure
+- Show me the full project directory tree. For each major folder, explain what it contains and its role in the app. Don't skip config files.
+- What framework and language is this built with? What are the key dependencies and their purpose?
+- Where is the entry point of the app? Walk me through what happens when a user first loads it.
+
+## 2. Data Flow
+- Where is the database? List every table/collection, its fields, and the actual schema file or migration files — not a summary.
+- How does data flow from the frontend to the database? Show me the full path using a specific example from the existing code: user action → component → API call → backend handler → database write.
+- Where are API keys, environment variables, and secrets stored? List every env var the app uses and what it's for.
+
+## 3. Program/Project Output
+- Where in the codebase is the program or project output generated? Show me the exact file and function that produces the final deliverable the user sees.
+- What format is the output currently in? Show me the actual data structure of a completed program — a real example from the code or a sample output object.
+- If I wanted to add an export function that takes this output and converts it to a different format, which file, which function, and what's the insertion point?
+
+## 4. State Management & User Flow
+- Walk me through the full user journey end to end. What are all the screens/pages and the routing structure?
+- Where is state managed? Global store, context, or local component state? Where do the framework outputs (Porter's, SWOT, PESTLE, etc.) get stored during a session?
+- When a user completes a strategic journey, where does the final output object live before it's displayed?
+
+## 5. Existing Integrations & Auth
+- Is there any existing export functionality? CSV, PDF, download, email — anything?
+- How does authentication work? What's the auth provider and where is it configured?
+- Are there any existing API endpoints that return program data in JSON format?
+
+Remember: read only, no changes. Give me the answers and then wait for my next instruction.
