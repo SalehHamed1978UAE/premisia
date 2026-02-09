@@ -1,0 +1,477 @@
+import { useState, useEffect } from 'react';
+import { useParams, useLocation } from 'wouter';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
+import { CheckCircle2, AlertCircle, Loader2, ArrowRight, Info } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AppLayout } from '@/components/layout/AppLayout';
+import { queryClient } from '@/lib/queryClient';
+
+interface ClassificationData {
+  initiativeType: string;
+  description: string;
+  confidence: number;
+  reasoning: string;
+  userConfirmed: boolean;
+}
+
+const INITIATIVE_TYPE_LABELS: Record<string, string> = {
+  physical_business_launch: 'Physical Business Launch',
+  software_development: 'Software Development',
+  digital_transformation: 'Digital Transformation',
+  market_expansion: 'Market Expansion',
+  product_launch: 'Product Launch',
+  service_launch: 'Service Launch',
+  process_improvement: 'Process Improvement',
+  other: 'Other',
+};
+
+const INITIATIVE_TYPE_DESCRIPTIONS: Record<string, string> = {
+  physical_business_launch: 'Opening physical locations such as stores, restaurants, offices, or warehouses',
+  software_development: 'Building software products, apps, platforms, or technical systems',
+  digital_transformation: 'Modernizing existing business with digital capabilities',
+  market_expansion: 'Entering new markets, regions, or customer segments',
+  product_launch: 'Introducing new physical or digital products',
+  service_launch: 'Introducing new service offerings',
+  process_improvement: 'Optimizing operations, workflows, or efficiency',
+  other: 'General initiative that doesn\'t fit other categories',
+};
+
+// Map framework keys to their route paths for custom journeys
+// Some frameworks have dedicated pages, others use the generic FrameworkInsightPage
+function getFrameworkRoute(frameworkKey: string, understandingId: string, journeySessionId: string): string {
+  // Special handling for frameworks with dedicated pages
+  switch (frameworkKey) {
+    case 'five_whys':
+      return `/strategic-consultant/whys-tree/${understandingId}?journeySession=${journeySessionId}`;
+    case 'pestle':
+      return `/strategic-consultant/trend-analysis/${journeySessionId}/1`;
+    case 'segment_discovery':
+      return `/marketing-consultant?journeySession=${journeySessionId}`;
+    default:
+      // For other frameworks, use the FrameworkInsightPage which reads from framework_insights
+      return `/strategic-consultant/framework-insight/${journeySessionId}?framework=${frameworkKey}`;
+  }
+}
+
+export default function ClassificationPage() {
+  const { understandingId } = useParams<{ understandingId: string }>();
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+
+  // Check for templateId or journeyType in URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const templateId = urlParams.get('templateId');
+  const journeyTypeParam = urlParams.get('journeyType');
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [classification, setClassification] = useState<ClassificationData | null>(null);
+  const [selectedType, setSelectedType] = useState<string>('');
+  const [hasChanged, setHasChanged] = useState(false);
+  const [templateData, setTemplateData] = useState<{ steps: Array<{ frameworkKey: string; name: string }> } | null>(null);
+
+  useEffect(() => {
+    loadClassification();
+  }, [understandingId]);
+
+  // Load template data if templateId is present
+  useEffect(() => {
+    if (!templateId) {
+      console.log('[ClassificationPage] No templateId in URL');
+      return;
+    }
+    
+    console.log('[ClassificationPage] Loading template data for templateId:', templateId);
+    
+    const loadTemplate = async () => {
+      try {
+        const response = await fetch(`/api/journey-builder/templates/${templateId}`);
+        if (response.ok) {
+          const data = await response.json();
+          console.log('[ClassificationPage] Template loaded:', data.template?.name, 'Steps:', data.template?.steps?.length);
+          setTemplateData(data.template);
+        } else {
+          console.error('[ClassificationPage] Failed to load template, status:', response.status);
+        }
+      } catch (error) {
+        console.error('[ClassificationPage] Error loading template:', error);
+      }
+    };
+    
+    loadTemplate();
+  }, [templateId]);
+
+  const loadClassification = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(`/api/strategic-consultant/understanding/${understandingId}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to load classification');
+      }
+      
+      const data = await response.json();
+      
+      const classificationData: ClassificationData = {
+        initiativeType: data.initiativeType || 'other',
+        description: data.initiativeDescription || 'Initiative classification',
+        confidence: parseFloat(data.classificationConfidence || '0.5'),
+        reasoning: '',
+        userConfirmed: data.userConfirmed || false,
+      };
+      
+      setClassification(classificationData);
+      setSelectedType(classificationData.initiativeType);
+    } catch (error: any) {
+      console.error('Error loading classification:', error);
+      toast({
+        title: 'Failed to load classification',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleTypeChange = (newType: string) => {
+    setSelectedType(newType);
+    setHasChanged(newType !== classification?.initiativeType);
+  };
+
+  const handleConfirm = async () => {
+    try {
+      setIsUpdating(true);
+      
+      const response = await fetch('/api/strategic-consultant/classification', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          understandingId,
+          initiativeType: selectedType,
+          userConfirmed: true,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || 'Failed to update classification');
+      }
+      
+      const result = await response.json();
+      console.log('[ClassificationPage] Update successful:', result);
+      
+      toast({
+        title: 'Classification confirmed',
+        description: hasChanged 
+          ? 'Your correction has been saved and will guide the analysis.'
+          : 'Classification confirmed and saved.',
+      });
+      
+      // Route based on entry point:
+      // 1. Custom journey (templateId) - start custom journey directly
+      // 2. Pre-selected journey from JourneyHub (journeyTypeParam) - execute journey directly, skip selection
+      // 3. Standard flow (neither) - go to journey selection page
+      console.log('[ClassificationPage] handleConfirm - templateId:', templateId, 'journeyTypeParam:', journeyTypeParam);
+
+      setTimeout(async () => {
+        if (templateId) {
+          // CASE 1: Custom journey from Journey Builder
+          console.log('[ClassificationPage] Custom journey detected, starting execution...');
+          try {
+            const startResponse = await fetch('/api/journey-builder/start-custom-journey', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                understandingId,
+                templateId,
+              }),
+            });
+
+            if (startResponse.ok) {
+              const { journeySessionId, firstFramework } = await startResponse.json();
+              console.log('[ClassificationPage] Custom journey started - sessionId:', journeySessionId, 'firstFramework:', firstFramework);
+
+              // Trigger journey execution in background
+              console.log('[ClassificationPage] Triggering custom journey execution for session:', journeySessionId);
+              fetch(`/api/strategic-consultant/journeys/${journeySessionId}/execute`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+              }).catch(err => console.error('[ClassificationPage] Execution trigger failed:', err));
+
+              // Navigate to the first framework in the custom journey
+              const frameworkRoute = getFrameworkRoute(firstFramework, understandingId!, journeySessionId);
+              console.log('[ClassificationPage] Navigating to:', frameworkRoute);
+              setLocation(frameworkRoute);
+            } else {
+              const errorData = await startResponse.json().catch(() => ({}));
+              console.error('[ClassificationPage] Failed to start custom journey:', errorData);
+              setLocation(`/strategic-consultant/journey-selection/${understandingId}`);
+            }
+          } catch (error) {
+            console.error('[ClassificationPage] Error starting custom journey:', error);
+            setLocation(`/strategic-consultant/journey-selection/${understandingId}`);
+          }
+        } else if (journeyTypeParam) {
+          // CASE 2: Pre-selected journey from JourneyHub - skip journey selection page
+          console.log('[ClassificationPage] Journey pre-selected from JourneyHub:', journeyTypeParam);
+          console.log('[ClassificationPage] Executing journey directly, skipping selection page...');
+
+          try {
+            const payload = {
+              journeyType: journeyTypeParam,
+              understandingId,
+            };
+
+            const response = await fetch('/api/strategic-consultant/journeys/execute', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+              const error = await response.json();
+              throw new Error(error.error || 'Journey execution failed');
+            }
+
+            const result = await response.json();
+
+            // Store journey type and version number in localStorage for downstream pages
+            localStorage.setItem(`journey-type-${result.sessionId}`, journeyTypeParam);
+            if (result.versionNumber) {
+              localStorage.setItem(`journey-version-${result.sessionId}`, String(result.versionNumber));
+              if (result.journeySessionId) {
+                localStorage.setItem(`journey-version-${result.journeySessionId}`, String(result.versionNumber));
+              }
+              console.log(`[ClassificationPage] Stored version ${result.versionNumber} for session`);
+            }
+
+            // Invalidate session context cache
+            queryClient.invalidateQueries({ queryKey: ["/api/session-context"] });
+
+            toast({
+              title: "Journey started!",
+              description: result.message,
+            });
+
+            // Navigate directly to first page in the journey
+            console.log('[ClassificationPage] Navigating to:', result.navigationUrl);
+            setLocation(result.navigationUrl);
+
+          } catch (error: any) {
+            console.error('[ClassificationPage] Journey execution failed:', error);
+            toast({
+              title: "Journey execution failed",
+              description: error.message,
+              variant: "destructive",
+            });
+            // Fallback to journey selection on error
+            setLocation(`/strategic-consultant/journey-selection/${understandingId}?journeyType=${journeyTypeParam}`);
+          }
+        } else {
+          // CASE 3: Standard flow - go to journey selection page
+          console.log('[ClassificationPage] No pre-selection, going to journey selection page');
+          setLocation(`/strategic-consultant/journey-selection/${understandingId}`);
+        }
+      }, 500);
+      
+    } catch (error: any) {
+      console.error('[ClassificationPage] Error updating classification:', error);
+      toast({
+        title: 'Update failed',
+        description: error.message || 'An unexpected error occurred. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <AppLayout title="Classification" subtitle="Loading...">
+        <div className="max-w-4xl mx-auto">
+          <Card>
+            <CardContent className="p-12 flex flex-col items-center justify-center">
+              <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+              <p className="text-muted-foreground">Loading classification...</p>
+            </CardContent>
+          </Card>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (!classification) {
+    return (
+      <AppLayout title="Classification" subtitle="Error loading">
+        <div className="max-w-4xl mx-auto space-y-4">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Classification data not found. Please try again.
+            </AlertDescription>
+          </Alert>
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setLocation('/strategic-consultant/input')}
+              data-testid="button-back-to-input"
+            >
+              Back to Input
+            </Button>
+            <Button
+              onClick={loadClassification}
+              data-testid="button-retry"
+            >
+              Retry Loading
+            </Button>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  const confidencePercentage = Math.round(classification.confidence * 100);
+  const confidenceColor = classification.confidence >= 0.8 ? 'text-green-600' : 
+                          classification.confidence >= 0.6 ? 'text-yellow-600' : 
+                          'text-orange-600';
+
+  return (
+    <AppLayout title="Confirm Initiative Type" subtitle="Review and confirm the AI classification">
+      <div className="max-w-4xl mx-auto space-y-6">
+        {/* AI Classification Card */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between">
+              <div>
+                <CardTitle className="text-2xl">AI Classification</CardTitle>
+                <CardDescription className="mt-2">
+                  {classification.description}
+                </CardDescription>
+              </div>
+              <Badge 
+                variant="outline" 
+                className={`${confidenceColor} border-current`}
+                data-testid="badge-confidence"
+              >
+                {confidencePercentage}% confidence
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Classified Type Display */}
+            <div className="p-4 bg-primary/5 rounded-lg border border-primary/20">
+              <p className="text-sm text-muted-foreground mb-2">Detected Initiative Type:</p>
+              <p className="text-xl font-semibold text-primary" data-testid="text-detected-type">
+                {INITIATIVE_TYPE_LABELS[classification.initiativeType]}
+              </p>
+            </div>
+
+            {/* Low confidence warning */}
+            {classification.confidence < 0.7 && (
+              <Alert data-testid="alert-low-confidence">
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  The AI has moderate confidence in this classification. 
+                  Please review carefully and correct if needed.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Selection */}
+            <div className="space-y-3">
+              <Label htmlFor="initiative-type" className="text-base font-medium">
+                Confirm or Correct Initiative Type
+              </Label>
+              <Select value={selectedType} onValueChange={handleTypeChange}>
+                <SelectTrigger id="initiative-type" data-testid="select-initiative-type" className="h-auto min-h-[40px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(INITIATIVE_TYPE_LABELS).map(([value, label]) => (
+                    <SelectItem 
+                      key={value} 
+                      value={value}
+                      data-testid={`select-option-${value}`}
+                    >
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedType && (
+                <p className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-md">
+                  {INITIATIVE_TYPE_DESCRIPTIONS[selectedType]}
+                </p>
+              )}
+            </div>
+
+            {/* Change indicator */}
+            {hasChanged && (
+              <Alert data-testid="alert-changed">
+                <CheckCircle2 className="h-4 w-4" />
+                <AlertDescription>
+                  You've changed the classification. This will help improve the accuracy 
+                  of the strategic analysis.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Confirm Button */}
+            <Button
+              onClick={handleConfirm}
+              disabled={isUpdating}
+              className="w-full font-semibold text-base shadow-md hover:shadow-lg"
+              size="lg"
+              data-testid="button-confirm"
+            >
+              {isUpdating ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  Confirm and Continue
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Info Card */}
+        <Card className="bg-muted/50">
+          <CardContent className="pt-6">
+            <div className="flex gap-3">
+              <Info className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  <strong>Why does this matter?</strong> The initiative type helps our AI 
+                  provide more accurate strategic analysis, appropriate resource planning, 
+                  and realistic timelines for your specific type of project.
+                </p>
+                <p>
+                  If the AI got it wrong, please correct it. Your input helps the system 
+                  learn and improve future classifications.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </AppLayout>
+  );
+}

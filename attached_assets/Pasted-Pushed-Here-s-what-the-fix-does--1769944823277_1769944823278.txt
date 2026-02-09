@@ -1,0 +1,40 @@
+Pushed. Here's what the fix does:                                             
+                                                                                
+  Context Bleed Fix                                                             
+                                                                                
+  Problem: Coffee shop getting "Catering Operations Manager" because            
+  getRolesFromContext() was never called.                                       
+                                                                                
+  Fix:                                                                          
+  Before:                                                                       
+    allocate() → generateInternalTeam() → LLM (wrong roles) → fallback templates
+                                                                                
+  After:                                                                        
+    allocate(strategyContext) → getRolesFromContext() → ROLE_TEMPLATES          
+                                        ↓                                       
+                           food_beverage.cafe_coffee_shop:                      
+                           - Cafe Manager                                       
+                           - Head Barista                                       
+                           - Shift Supervisor                                   
+                           - Barista                                            
+                           - Kitchen Staff                                      
+                                                                                
+  Expected Results for Coffee Shop:                                             
+  ┌─────────────────────────────┬──────────────────┐                            
+  │           Before            │      After       │                            
+  ├─────────────────────────────┼──────────────────┤                            
+  │ Catering Operations Manager │ Cafe Manager     │                            
+  ├─────────────────────────────┼──────────────────┤                            
+  │ Executive Chef              │ Head Barista     │                            
+  ├─────────────────────────────┼──────────────────┤                            
+  │ Event Coordinator           │ Shift Supervisor │                            
+  └─────────────────────────────┴──────────────────┘                            
+  Replit needs to:                                                              
+  1. git pull origin main                                                       
+  2. Restart server (critical!)                                                 
+  3. Run new coffee shop journey                                                
+                                                                                
+  The logs should now show:                                                     
+  [EPM Synthesis] ✓ Strategy context: food_beverage/cafe_coffee_shop            
+  [ResourceAllocator] ✅ Using context-aware ROLE_TEMPLATES                     
+  [RoleTemplates] Using exact subcategory match: food_beverage.cafe_coffee_sho

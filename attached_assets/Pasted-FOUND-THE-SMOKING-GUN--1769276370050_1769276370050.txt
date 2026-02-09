@@ -1,0 +1,89 @@
+FOUND THE SMOKING GUN!                                                        
+                                                                                
+  Look at server/vite.ts lines 33-37:                                           
+                                                                                
+  customLogger: {                                                               
+    ...viteLogger,                                                              
+    error: (msg, options) => {                                                  
+      viteLogger.error(msg, options);                                           
+      process.exit(1);  // <-- THIS KILLS THE PROCESS!                          
+    },                                                                          
+  },                                                                            
+                                                                                
+  If Vite encounters ANY error, it calls process.exit(1) which immediately      
+  terminates the Node.js process. This bypasses global error handlers because   
+  process.exit() is a hard shutdown.                                            
+                                                                                
+  Let me check for other process.exit calls:                                    
+                                                                                
+⏺ Search(pattern: "process\.exit", path: "~/Downloads/Premisia                  
+        24Jan2026/server", output_mode: "content")                              
+  ⎿  Found 48 lines (ctrl+o to expand)                                          
+                                                                                
+⏺ ROOT CAUSE FOUND                                                              
+                                                                                
+  The crash is caused by server/vite.ts line 36 - the Vite custom logger has a  
+  hardcoded process.exit(1):                                                    
+                                                                                
+  customLogger: {                                                               
+    ...viteLogger,                                                              
+    error: (msg, options) => {                                                  
+      viteLogger.error(msg, options);                                           
+      process.exit(1);  // <-- KILLS THE ENTIRE SERVER ON ANY VITE ERROR        
+    },                                                                          
+  },                                                                            
+                                                                                
+  What's happening:                                                             
+  1. During EPM generation (heavy server load with 6 sequential LLM calls)      
+  2. Something triggers a Vite error (HMR hiccup, file system event, memory     
+  pressure)                                                                     
+  3. The Vite error handler calls process.exit(1)                               
+  4. Node.js dies immediately - global error handlers are bypassed              
+  5. Browser sees [vite] server connection lost                                 
+  6. Replit restarts the server                                                 
+                                                                                
+  ---                                                                           
+  THE FIX                                                                       
+                                                                                
+  Tell Replit to change server/vite.ts lines 33-37:                             
+                                                                                
+  FROM:                                                                         
+  customLogger: {                                                               
+    ...viteLogger,                                                              
+    error: (msg, options) => {                                                  
+      viteLogger.error(msg, options);                                           
+      process.exit(1);  // REMOVE THIS                                          
+    },                                                                          
+  },                                                                            
+                                                                                
+  TO:                                                                           
+  customLogger: {                                                               
+    ...viteLogger,                                                              
+    error: (msg, options) => {                                                  
+      // Log the error but DON'T kill the process                               
+      console.error('[Vite Error]', msg);                                       
+      viteLogger.error(msg, options);                                           
+      // DO NOT call process.exit(1) - keep server alive                        
+    },                                                                          
+  },                                                                            
+                                                                                
+  ---                                                                           
+  Why this was missed:                                                          
+                                                                                
+  The global error handlers in server/index.ts (lines 17-29) only catch:        
+  - unhandledRejection - Promise rejections                                     
+  - uncaughtException - JavaScript exceptions                                   
+                                                                                
+  But process.exit(1) is not an error - it's an intentional shutdown command. It
+   bypasses all error handlers.                                                 
+                                                                                
+  ---                                                                           
+  Verification:                                                                 
+                                                                                
+  After the fix, if Vite has an error:                                          
+  1. The error will be logged to console                                        
+  2. The server will keep running                                               
+  3. EPM generation will complete                                               
+  4. HMR might be broken for that session, but a page refresh will fix it       
+                                                                                
+  The EPM generation should no longer crash the server.   

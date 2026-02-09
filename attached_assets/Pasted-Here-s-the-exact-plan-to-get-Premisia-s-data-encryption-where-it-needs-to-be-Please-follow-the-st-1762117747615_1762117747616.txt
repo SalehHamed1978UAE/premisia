@@ -1,0 +1,92 @@
+Here’s the exact plan to get Premisia’s data encryption where it needs to be.
+  Please follow the steps in order and don’t skip the testing/verification—we
+  want this to be airtight.
+
+  ———
+
+  ## Phase 1 – Inventory & Secure Access
+
+  1. Classify sensitive fields
+     Produce docs/security/data-classification.md listing every column that
+     holds user-generated or AI-derived content. At minimum include:
+      - strategic_understanding: userInput, initiativeDescription, title
+      - journey_sessions: accumulatedContext, new summary
+      - strategy_versions: analysisData, decisionsData, programStructure,
+        inputSummary
+      - framework_insights: insights
+      - references: description, extractedQuotes
+      - Any other table that stores journey outputs, exports, or strategic text.
+  2. Enforce the secure data service
+      - Audit the codebase for direct Drizzle queries touching the fields above.
+      - Wrap all reads/writes through server/services/secure-data-service.ts.
+      - Add helper functions if they don’t exist (e.g., getJourneySessionSecure,
+        updateStrategyVersionSecure).
+      - After this step, no route, orchestrator, or background job should read
+        raw encrypted columns—only the secure service should decrypt.
+  3. Add integration tests (before moving on)
+      - For each table, write a test that inserts plaintext via the secure
+        service, verifies the DB layer contains ciphertext (no plaintext
+        substring), and confirms the API returns the original plaintext.
+      - Fail the test if plaintext is detected in the database query result.
+
+  ———
+
+  ## Phase 2 – KMS-backed Envelope Encryption
+
+  4. Provision a managed key
+      - Create an AWS KMS CMK (or equivalent) dedicated to Premisia.
+      - Restrict the key policy so only the application runtime role (NOT any
+        human IAM user) can call Decrypt.
+      - Enable CloudTrail logging for all KMS decrypt operations.
+  5. Implement envelope encryption
+      - For each record: generate a random 256-bit data key; encrypt it with the
+        KMS CMK; store the encrypted data key alongside the record.
+      - Use the plaintext data key only to encrypt the payload (prefer AES-256-
+        GCM). Immediately zero it out after use.
+      - Update the secure data service to unwrap the data key via KMS on reads,
+        decrypt in memory, and zero the key afterward.
+  6. Update persistence flows
+      - Journey Summary Service, orchestrator, research persistence, exports—
+        everything that writes strategic content must call the secure service so
+        it automatically runs the KMS envelope logic.
+
+  ———
+
+  ## Phase 3 – Migration & Verification
+
+  7. Encrypt existing rows
+      - Write a migration script that reads each sensitive record, encrypts it
+        with the new KMS-backed helpers, and writes it back.
+      - Log progress and handle large data cautiously (batch updates).
+  8. Add a security audit CLI
+      - pnpm security:audit should read a sample row via raw SQL and print
+        whether the column is encrypted (no plaintext). This makes it easy to
+        verify before deployments.
+  9. Document the process
+      - docs/security/encryption.md: describe the architecture, which fields are
+        encrypted, how KMS is configured, and the key rotation process.
+      - docs/security/runbook.md: steps for running the migration, verifying
+        encryption, rotating keys, and troubleshooting.
+  10. Manual QA
+
+  - Run BMI to completion, inspect the DB with psql and confirm ciphertext.
+  - Use the secure service/API to read the same record; ensure the UI still
+    shows plaintext.
+  - Repeat for strategy versions, references, and summaries.
+  - Capture screenshots/log snippets for audit.
+
+  ———
+
+  ## Acceptance Criteria
+
+  - Sensitive fields stored only as ciphertext; no plaintext visible to DB
+    admins.
+  - Application seamlessly decrypts via the secure service (UI unchanged).
+  - Automated tests fail if plaintext is stored.
+  - Managed key policy prevents humans from decrypting without assuming the
+    app role.
+  - Audit documentation and CLI command exist for ongoing verification.
+
+  Please implement these steps, keep me updated as you finish each phase, and
+  attach evidence (test output, audit CLI results, QA screenshots).
+

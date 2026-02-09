@@ -1,0 +1,49 @@
+claude code said: Still broken. It's routing to "Select Your Journey" instead of SWOT.          
+                                                                                
+  Replit's fix didn't work. The custom journey flow is still falling back to the
+   pre-built journey selection page instead of continuing to the next step      
+  (SWOT) in your custom journey.                                                
+                                                                                
+  Tell Replit:                                                                  
+                                                                                
+  The fix didn't work. After completing Strategic Understanding on my custom    
+  journey "test 2" (Strategic Understanding → SWOT → Strategic Decisions), it   
+  still routes to "Select Your Journey" page instead of proceeding to SWOT.     
+                                                                                
+  The ClassificationPage is not detecting that this is a custom journey with a  
+  templateId, or the routing logic is still falling through to the default      
+  journey-selection path.                                                       
+                                                                                
+  Check:                                                                        
+  1. Is templateId being passed in the URL to ClassificationPage?               
+  2. Is ClassificationPage actually calling start-custom-journey endpoint?      
+  3. Is the response returning firstFramework: 'swot'?                          
+  4. Is getFrameworkRoute('swot', ...) being called?                            
+                                                                                
+  Add console.logs to trace the flow and find where it's going wrong. 
+
+  codex said: The fix isn’t fully wired yet—the custom journey still falls back to the
+  legacy “Select Your Journey” screen after Strategic Understanding. That means
+  the template ID isn’t being preserved through the intake flow, so
+  ClassificationPage never calls the new execution API and just routes to the
+  standard selector.
+
+  Replit needs to check:
+
+  1. URL propagation – When clicking “Start Journey” on your custom template,
+     the router must include ?templateId=… in the strategic consultant URL. If
+     that parameter is missing, the classification page won’t know you’re
+     running a custom journey.
+  2. ClassificationPage logic – In ClassificationPage.tsx, ensure the template
+     ID is read from window.location.search, fetched via /api/journey-builder/
+     templates/:id, and after confirmation it calls /api/journey-builder/start-
+     custom-journey and the new /journeys/:sessionId/execute endpoint. If any of
+     those fail, it falls back to /journey-selection.
+  3. Error handling – Log any fetch failure in the browser console so we can see
+     why it’s defaulting back to journey selection instead of navigating to the
+     first framework.
+
+  Until the template ID survives intake and the execution endpoint is triggered,
+  custom journeys will keep landing on the template selector regardless of the
+  backend work.
+

@@ -1,0 +1,79 @@
+{
+    "strategic_approaches": {
+        "cost_leadership": {
+            "label": "Cost Leadership",
+            "requires": ["operational_excellence", "scale", "process_optimization"],
+            "implies": { "volume": "high", "margins": "low", "focus": "efficiency" },
+            "workstreams": {
+                "operations": 40,
+                "supply_chain": 20,
+                "technology": 20,
+                "sales": 15,
+                "admin": 5
+            },
+            "cost_range": { "min": 1000000, "max": 2500000 },
+            "timeline_months": { "min": 12, "max": 18 }
+        },
+        "differentiation_service": {
+            "label": "Differentiation - Service Excellence",
+            "requires": ["customer_success_team", "premium_positioning"],
+            "workstreams": {
+                "customer_success": 30,
+                "product": 25,
+                "marketing": 20,
+                "sales": 15,
+                "operations": 10
+            },
+            "cost_range": { "min": 2000000, "max": 4000000 },
+            "timeline_months": { "min": 6, "max": 12 }
+        },
+        "blue_ocean": {
+            "label": "Blue Ocean - Create New Market",
+            "requires": ["market_research", "innovation", "customer_development"],
+            "workstreams": {
+                "research_development": 35,
+                "market_testing": 25,
+                "product": 20,
+                "operations": 15,
+                "admin": 5
+            },
+            "cost_range": { "min": 3000000, "max": 6000000 },
+            "timeline_months": { "min": 18, "max": 24 }
+        }
+    },
+    "market_contexts": {
+        "uae": {
+            "label": "United Arab Emirates",
+            "requirements": ["trade_license_ded", "local_sponsor", "bank_account"],
+            "mandatory_workstreams": ["legal_regulatory"],
+            "setup_timeline_months": { "min": 3, "max": 6 },
+            "setup_cost": { "min": 50000, "max": 150000 }
+        },
+        "usa": {
+            "label": "United States",
+            "requirements": ["business_entity", "ein", "state_registration"],
+            "setup_timeline_months": { "min": 1, "max": 3 },
+            "setup_cost": { "min": 5000, "max": 25000 }
+        }
+    },
+    "frameworks": {
+        "porters_five_forces": {
+            "label": "Porter's Five Forces",
+            "analysis_areas": ["competitive_rivalry", "supplier_power", "buyer_power", "threat_of_substitution", "threat_of_new_entry"]
+        },
+        "five_whys": {
+            "label": "5 Whys Root Cause Analysis",
+            "purpose": "Find root problem being solved"
+        }
+    },
+    "decision_rules": [
+        {
+            "if": { "approach": "cost_leadership", "market": "uae" },
+            "then": { "priority_workstream": "operations", "cost_adjustment": -0.15 }
+        },
+        {
+            "if": { "approach": "differentiation_service", "industry": "saas" },
+            "then": { "mandatory_workstream": "customer_success", "min_allocation": 30 }
+        }
+    ]
+}

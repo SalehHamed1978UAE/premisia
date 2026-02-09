@@ -1,0 +1,62 @@
+The keyword validation is broken. Replace it with LLM-based validation immediately.
+
+HERE'S THE IMPLEMENTATION:
+
+1. In server/strategic-consultant/whys-tree-generator.ts, REPLACE the entire validateRootCause function:
+
+async function validateRootCause(rootCause: string): Promise<{
+  isValid: boolean;
+  message?: string;
+}> {
+  const prompt = `
+    Determine if this root cause addresses BUSINESS/OPERATIONAL factors or merely describes CULTURAL observations.
+    
+    Root cause: "${rootCause}"
+    
+    VALID root causes address:
+    - Market dynamics, competition, pricing power
+    - Customer behavior, loyalty, acquisition costs
+    - Product/service differentiation, quality
+    - Operational efficiency, cost structures
+    - Technology capabilities, innovation
+    - Financial models, unit economics
+    
+    INVALID root causes that are just cultural observations:
+    - Cultural norms without business impact
+    - Geographic stereotypes
+    - Social traditions as endpoints
+    - Organizational culture without operational link
+    
+    Respond with JSON only:
+    {
+      "isValid": boolean,
+      "reason": "brief explanation"
+    }
+  `;
+
+  try {
+    const response = await generateContent(prompt, 'json_object');
+    const validation = JSON.parse(response);
+    
+    return {
+      isValid: validation.isValid,
+      message: validation.isValid ? undefined : 
+        `This appears to be a cultural observation rather than a business root cause. ${validation.reason}`
+    };
+  } catch (error) {
+    // If LLM fails, allow it through rather than blocking
+    console.error('LLM validation failed, allowing root cause:', error);
+    return { isValid: true };
+  }
+}
+
+2. DELETE the entire culturalKeywords array and keyword checking logic.
+
+3. Test with Brooklyn coffee shop to verify:
+   - "Customer loyalty creates competitive moats" → PASSES
+   - "Cultural preference for tea over coffee" → FAILS
+   - "Brand differentiation justifies premium pricing" → PASSES
+
+This fixes the validation properly using AI understanding, not dumb pattern matching.
+
+BUILD IT NOW.

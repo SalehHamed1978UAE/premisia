@@ -1,0 +1,155 @@
+ Build a Versioned Golden Path Recording System
+
+  We need an in-product “golden record” feature so every successful journey run
+  is captured, versioned, and diffable. This becomes our source of truth for
+  regressions and design decisions.
+
+  ———
+
+  ### 1. Data Model & Storage
+
+  - Create a golden_records table (append-only, versioned):
+
+    id UUID PK
+    journey_type TEXT
+    version INT             -- monotonically increasing per journey_type
+    parent_version INT NULL -- previous version if cloned/promoted
+    is_current BOOLEAN      -- true for the active baseline
+    metadata JSONB          -- titles, journey config snapshot, environment
+    created_at TIMESTAMPTZ
+    created_by TEXT         -- user id / agent
+    notes TEXT
+    steps JSONB[]           -- array of step descriptors (see below)
+  - Each steps element should store:
+
+    {
+      "stepName": "...",
+      "expectedUrl": "...",
+      "screenshotPath": "...",       // S3/local path
+      "requestPayload": {...},       // sanitized
+      "responsePayload": {...},      // sanitized
+      "dbSnapshot": {...},           // subset of rows/fields
+      "observations": "summary text"
+    }
+  - No updates in place; new versions are inserted. Use DB constraints/trigger
+    to auto-increment version per journey_type.
+
+  ———
+
+  ### 2. API Contracts
+
+  Create admin-only endpoints (protect via existing auth middleware + feature
+  flag if needed):
+
+  - POST /api/admin/golden-records
+      - payload: { journeyType, notes, steps, metadata, promoteAsCurrent:
+        boolean, parentVersion?: number }
+      - creates new version, optionally marks as current.
+  - GET /api/admin/golden-records
+      - query params: journeyType, includeHistory.
+      - returns paginated list with version info and isCurrent.
+  - GET /api/admin/golden-records/:journeyType/:version
+      - returns full payload for detailed view/diff.
+  - POST /api/admin/golden-records/:journeyType/:version/promote
+      - marks version as current (set is_current true, unset others).
+  - POST /api/admin/golden-records/:journeyType/:version/compare
+      - body includes { compareToVersion }.
+      - returns diff summary (per step: URL delta, payload field differences, DB
+        snapshots differences).
+
+  ———
+
+  ### 3. Capture Hooks & Tooling
+
+  - After a journey completes successfully, offer an admin action “Save as
+    Golden Record”. Hook into the orchestrator or the final page (Decision
+    Summary/EPM completion) to gather:
+      - current URL, request/response payloads (sanitized), strategy version ID,
+        top-level analysis data, key DB rows.
+      - prompt operator to upload screenshots (store path in record).
+  - Add a small backend utility (scripts/capture-golden-record.ts) that can run
+    headless for automation (CLI that takes sessionId/version, fetches data,
+    writes record).
+  - Sanitize sensitive fields before persistence (e.g., redact personal info).
+    Use KMS helpers where needed.
+
+  ———
+
+  ### 4. Admin UI
+
+  - Add an “Admin ▸ Golden Records” section (protected route).
+  - Views:
+      1. Journey list – cards per journey type showing current version, last
+         updated, number of versions.
+      2. Version timeline – for a journey, list versions with tags (v1, v2…),
+         notes, created_by; highlight the current one.
+      3. Version detail – show steps with embedded screenshots, URLs, payload
+         excerpts, DB diffs.
+      4. Compare view – side-by-side diff between two versions (highlight
+         changed steps, new/removed fields).
+  - Include buttons:
+      - “Set as Current” (promote).
+      - “Clone Version” (prefill metadata to capture a new one).
+      - “Download snapshot” (JSON export for offline backup).
+
+  ———
+
+  ### 5. Regression Workflow
+
+  - Provide a CLI/automation (scripts/journey-golden-check.ts) that:
+      1. Runs a journey end-to-end (or consumes an existing sessionId).
+      2. Compares outputs step-by-step against the current golden record.
+      3. Emits a pass/fail report with detailed diffs; exit code 1 on mismatch.
+  - Document how to integrate it into CI (e.g., npm run verify:journey --
+    --journey business_model_innovation).
+  - Store comparison results (maybe a simple golden_record_checks table) so we
+    have audit logs.
+
+  ———
+
+  ### 6. Version Management Rules
+
+  - Only one is_current version per journey.
+  - Allow older versions to remain for historical reference; don’t delete them
+    automatically.
+  - Support rollback: admin can promote an older version, which becomes the
+    new baseline.
+  - Record parent_version when cloning to keep lineage.
+
+  ———
+
+  ### 7. Security & Privacy
+
+  - Ensure stored payloads are sanitized before saving (drop tokens, redact
+    personal data).
+  - Access restricted to admin roles only.
+  - For screenshots, use existing asset storage (S3/Bucket) with signed URLs.
+  - Honor KMS encryption for sensitive fields in golden_records table if
+    applicable.
+
+  ———
+
+  ### 8. Initial Deliverable
+
+  1. Implement schema migration + API + admin UI skeleton.
+  2. Wire the BMI journey to capture a golden record once the feature is ready;
+     create the first baseline (v1).
+  3. Provide docs in docs/GOLDEN_RECORDS.md covering:
+      - How to capture a new version.
+      - How to compare/rollback.
+      - CLI usage.
+
+  ———
+
+  ### 9. Testing
+
+  - Unit tests for the API endpoints (create, list, promote, compare).
+  - Integration test that captures a mock golden record and performs a diff.
+  - UI tests (at minimum, manual QA checklist for admin pages).
+  - Ensure smoke/regression script runs in CI with feature flag off/on.
+
+  ———
+
+  Please send a short design/RFC before implementing (schema, API signatures, UI
+  mock/wireframes, diff algorithm approach). Once approved, proceed with build
+  and capture the BMI journey as our first golden record.

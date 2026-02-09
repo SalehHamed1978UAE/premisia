@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{TITLE}} - Qgentic Strategic Analysis Report</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    :root {
+      --background: hsl(210 40% 98%);
+      --foreground: hsl(222 47% 11%);
+      --card: hsl(0 0% 100%);
+      --card-foreground: hsl(222 47% 11%);
+      --primary: hsl(221 83% 53%);
+      --primary-foreground: hsl(0 0% 100%);
+      --secondary: hsl(210 40% 96%);
+      --secondary-foreground: hsl(222 47% 11%);
+      --muted: hsl(210 40% 96%);
+      --muted-foreground: hsl(215 16% 47%);
+      --accent: hsl(142 76% 36%);
+      --accent-foreground: hsl(0 0% 100%);
+      --destructive: hsl(0 84% 60%);
+      --destructive-foreground: hsl(0 0% 100%);
+      --border: hsl(214 32% 91%);
+      --success: hsl(142 76% 36%);
+      --warning: hsl(38 92% 50%);
+      --info: hsl(217 91% 60%);
+      --radius: 0.5rem;
+    }
+    
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background-color: hsl(var(--background));
+      color: hsl(var(--foreground));
+      line-height: 1.6;
+      padding: 2rem 1rem;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .header {
+      margin-bottom: 2rem;
+    }
+    
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      color: hsl(var(--foreground));
+    }
+    
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid hsl(var(--border));
+      color: hsl(var(--foreground));
+    }
+    
+    h3 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: hsl(var(--foreground));
+    }
+    
+    .subtitle {
+      color: hsl(var(--muted-foreground));
+      font-size: 0.875rem;
+    }
+    
+    .card {
+      background: hsl(var(--card));
+      border: 1px solid hsl(var(--border));
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+    }
+    
+    .card-header {
+      margin-bottom: 1rem;
+    }
+    
+    .card-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+    
+    .card-description {
+      color: hsl(var(--muted-foreground));
+      font-size: 0.875rem;
+    }
+    
+    .card-content {
+      color: hsl(var(--card-foreground));
+    }
+    
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      white-space: nowrap;
+      margin: 0.25rem;
+    }
+    
+    .badge-default {
+      background: hsl(var(--primary));
+      color: hsl(var(--primary-foreground));
+    }
+    
+    .badge-secondary {
+      background: hsl(var(--secondary));
+      color: hsl(var(--secondary-foreground));
+    }
+    
+    .badge-success {
+      background: hsl(var(--success) / 0.1);
+      color: hsl(var(--success));
+    }
+    
+    .badge-destructive {
+      background: hsl(var(--destructive) / 0.1);
+      color: hsl(var(--destructive));
+    }
+    
+    .badge-warning {
+      background: hsl(var(--warning) / 0.1);
+      color: hsl(var(--warning));
+    }
+    
+    .badge-outline {
+      background: transparent;
+      border: 1px solid hsl(var(--border));
+      color: hsl(var(--foreground));
+    }
+    
+    .alert {
+      padding: 1rem;
+      border-radius: var(--radius);
+      margin-bottom: 1rem;
+      border: 1px solid hsl(var(--border));
+    }
+    
+    .alert-info {
+      background: hsl(var(--info) / 0.1);
+      border-color: hsl(var(--info) / 0.3);
+      color: hsl(var(--info));
+    }
+    
+    .alert-warning {
+      background: hsl(var(--warning) / 0.1);
+      border-color: hsl(var(--warning) / 0.3);
+      color: hsl(var(--warning));
+    }
+    
+    .alert-destructive {
+      background: hsl(var(--destructive) / 0.1);
+      border-color: hsl(var(--destructive) / 0.3);
+      color: hsl(var(--destructive));
+    }
+    
+    .alert-success {
+      background: hsl(var(--success) / 0.1);
+      border-color: hsl(var(--success) / 0.3);
+      color: hsl(var(--success));
+    }
+    
+    .grid {
+      display: grid;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    
+    .grid-cols-2 {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .grid-cols-3 {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+    }
+    
+    th {
+      background: hsl(var(--muted));
+      padding: 0.75rem 1rem;
+      text-align: left;
+      font-weight: 600;
+      border: 1px solid hsl(var(--border));
+      font-size: 0.875rem;
+    }
+    
+    td {
+      padding: 0.75rem 1rem;
+      border: 1px solid hsl(var(--border));
+      font-size: 0.875rem;
+    }
+    
+    ul, ol {
+      margin: 0.5rem 0 0.5rem 1.5rem;
+    }
+    
+    li {
+      margin: 0.25rem 0;
+      font-size: 0.875rem;
+    }
+    
+    .text-lg {
+      font-size: 1.125rem;
+    }
+    
+    .text-xl {
+      font-size: 1.25rem;
+    }
+    
+    .text-2xl {
+      font-size: 1.5rem;
+    }
+    
+    .text-3xl {
+      font-size: 1.875rem;
+    }
+    
+    .font-bold {
+      font-weight: 700;
+    }
+    
+    .font-semibold {
+      font-weight: 600;
+    }
+    
+    .text-muted {
+      color: hsl(var(--muted-foreground));
+    }
+    
+    .mb-1 { margin-bottom: 0.25rem; }
+    .mb-2 { margin-bottom: 0.5rem; }
+    .mb-3 { margin-bottom: 0.75rem; }
+    .mb-4 { margin-bottom: 1rem; }
+    .mb-6 { margin-bottom: 1.5rem; }
+    
+    .mt-2 { margin-top: 0.5rem; }
+    .mt-4 { margin-top: 1rem; }
+    
+    .p-4 { padding: 1rem; }
+    
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+    
+    .confidence-display {
+      text-align: right;
+    }
+    
+    .confidence-number {
+      font-size: 2rem;
+      font-weight: 700;
+      color: hsl(var(--primary));
+    }
+    
+    .key-value {
+      display: flex;
+      margin-bottom: 0.5rem;
+    }
+    
+    .key-value-label {
+      font-weight: 600;
+      min-width: 150px;
+      color: hsl(var(--foreground));
+    }
+    
+    .key-value-value {
+      color: hsl(var(--muted-foreground));
+    }
+    
+    /* Gantt Chart Styles */
+    .gantt-chart {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      background: hsl(var(--muted) / 0.3);
+      border-radius: var(--radius);
+    }
+    
+    .gantt-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+    
+    .gantt-label {
+      width: 180px;
+      flex-shrink: 0;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: hsl(var(--foreground));
+      padding-right: 1rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .gantt-bar-track {
+      flex: 1;
+      height: 28px;
+      background: hsl(var(--border));
+      border-radius: 4px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .gantt-bar {
+      position: absolute;
+      top: 4px;
+      height: 20px;
+      border-radius: 3px;
+      background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.8) 100%);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      transition: all 0.2s ease;
+    }
+    
+    .gantt-bar.critical {
+      background: linear-gradient(135deg, hsl(var(--destructive)) 0%, hsl(var(--destructive) / 0.8) 100%);
+    }
+    
+    .gantt-bar-label {
+      position: absolute;
+      left: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.75rem;
+      color: white;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    
+    .gantt-axis {
+      display: flex;
+      margin-top: 0.5rem;
+      padding-left: 180px;
+    }
+    
+    .gantt-axis-tick {
+      flex: 1;
+      text-align: center;
+      font-size: 0.75rem;
+      color: hsl(var(--muted-foreground));
+      border-left: 1px solid hsl(var(--border));
+      padding-top: 0.25rem;
+    }
+    
+    .gantt-axis-tick:last-child {
+      border-right: 1px solid hsl(var(--border));
+    }
+
+    @media print {
+      body {
+        background: white;
+        padding: 0;
+      }
+      
+      .card {
+        box-shadow: none;
+        page-break-inside: avoid;
+      }
+      
+      h2 {
+        page-break-after: avoid;
+      }
+      
+      .gantt-chart {
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    {{CONTENT}}
+  </div>
+</body>
+</html>

@@ -1,0 +1,60 @@
+I pulled the flow apart and found why the questions start drifting.
+
+  • Server – WhysTreeGenerator.generateLevelInParallel (server/strategic-
+  consultant/whys-tree-generator.ts:95-190) only sends the answers from
+  earlier steps (context.previousAnswers) to the LLM. It doesn’t include the
+  question that was asked, so the model has no grounding when it writes the
+  next next_question. That’s why it jumps around—it’s missing the chain of Q →
+  A pairs.
+
+  • Front end – WhysTreePage keeps the path as [{ nodeId, option, depth }] (see
+  client/src/pages/strategic-consultant/WhysTreePage.tsx:55,363). Again, we lose
+  the question text, so when the UI posts selectedPath back to the API (expand/
+  finalize routes), it’s just a list of answers.
+
+  • API – /whys-tree/expand and /whys-tree/finalize (routes file around lines
+  860 and 900) expect selectedPath: string[]. Everything downstream assumes
+  “path = answers only”.
+
+  Because of this, the prompt for each level ends up like:
+
+  The question we're asking now: <current question>
+  Here's the path we've taken so far:
+  1. "High commercial rents…"
+  2. "Long lease commitments…"
+
+  The LLM isn’t told what question those answers relate to, so it invents a new
+  angle every time.
+
+  ———
+
+  ### Fix outline
+
+  1. Track question+answer pairs
+      - Change selectedPath state to { nodeId, question, answer, depth }.
+      - When you select an option, store the current question (e.g., root
+        question or the currentOption.question) alongside the answer.
+      - When the UI calls /whys-tree/expand or /whys-tree/finalize, send
+        selectedPath.map(({question, answer}) => ({ question, answer })).
+  2. Update the backend to accept the richer path
+      - In whys-tree-generator.ts, replace previousAnswers: string[] with
+        history: Array<{question: string; answer: string}>.
+      - Adjust the prompt text so it renders the path as:
+
+        We've explored so far:
+        1. Q: …?
+           A: …
+      - Update generateTree and expandBranch to pass the full history (root step
+        + branch history).
+      - Keep compatibility: if the old array-of-strings arrives, wrap each
+        answer with a placeholder question so nothing breaks during rollout.
+  3. Finalization and insights
+      - /whys-tree/finalize: normalize selectedPath so analyzePathInsights
+        receives nodes with both question and answer.
+      - In analyzePathInsights, include the question when it summarizes the
+        path.
+
+  With those changes, each new question is forced to build on the specific
+  answer that preceded it, and the history survives all the way down. No more
+  out-of-context jumps.
+

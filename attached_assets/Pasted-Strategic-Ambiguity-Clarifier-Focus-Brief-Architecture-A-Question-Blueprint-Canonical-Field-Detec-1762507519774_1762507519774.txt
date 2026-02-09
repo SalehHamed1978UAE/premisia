@@ -1,0 +1,824 @@
+Strategic Ambiguity Clarifier & Focus Brief Architecture
+A. Question Blueprint
+Canonical Field Detection & Mapping
+javascriptconst canonicalFields = {
+  actorType: {
+    field: "actorType",
+    triggers: ["organization", "entity", "who", "department"],
+    alreadyExists: (input) => /\b(startup|ministry|swf|sovereign|corporate|ngo|division)\b/i.test(input),
+    question: {
+      type: "single-select",
+      prompt: "What type of organization is driving this initiative?",
+      options: [
+        { value: "sovereign_wealth_fund", label: "Sovereign Wealth Fund", aliases: ["SWF", "sovereign fund"] },
+        { value: "startup", label: "Startup/New Venture", aliases: ["new company", "spinoff"] },
+        { value: "ministry", label: "Government Ministry/Agency", aliases: ["department", "authority"] },
+        { value: "corporate_division", label: "Corporate Division/Unit", aliases: ["business unit", "team"] },
+        { value: "portfolio_company", label: "Portfolio Company", aliases: ["subsidiary", "investee"] },
+        { value: "ngo", label: "NGO/Non-Profit", aliases: ["foundation", "charity"] }
+      ]
+    },
+    jsonMapping: (answer) => ({ 
+      actorType: answer.value,
+      actorLabel: answer.label,
+      organizationalContext: deriveContext(answer.value) // e.g., "government-backed", "private-sector"
+    })
+  },
+
+  missionIntent: {
+    field: "missionIntent",
+    triggers: ["build", "acquire", "launch", "develop", "create", "establish"],
+    alreadyExists: (input) => /\b(build|acquire|partner|reform|invest|incubate)\b/i.test(input),
+    question: {
+      type: "multi-select",
+      prompt: "What is the primary execution strategy? (Select all that apply)",
+      options: [
+        { value: "build_internal", label: "Build Internally", description: "Develop capability in-house" },
+        { value: "acquire", label: "Acquire/M&A", description: "Purchase existing companies/assets" },
+        { value: "strategic_partnership", label: "Strategic Partnership", description: "Joint ventures, alliances" },
+        { value: "invest_minority", label: "Minority Investment", description: "Take stakes without control" },
+        { value: "policy_reform", label: "Policy/Regulatory Reform", description: "Change laws or regulations" },
+        { value: "incubate", label: "Incubate/Accelerate", description: "Support external innovation" },
+        { value: "platform_ecosystem", label: "Platform/Ecosystem", description: "Build marketplace or network" }
+      ]
+    },
+    jsonMapping: (answers) => ({
+      primaryIntent: answers[0]?.value,
+      executionStrategies: answers.map(a => a.value),
+      hybridApproach: answers.length > 1,
+      intentComplexity: calculateComplexity(answers)
+    })
+  },
+
+  customerBeneficiary: {
+    field: "customerBeneficiary",
+    triggers: ["customer", "user", "beneficiary", "serve", "target"],
+    alreadyExists: (input) => /\b(customers?|users?|citizens?|businesses?|government|b2b|b2c|b2g)\b/i.test(input),
+    question: {
+      type: "structured-text",
+      prompt: "Who are the primary beneficiaries or customers?",
+      subQuestions: [
+        { key: "primary", prompt: "Primary segment (e.g., 'SME manufacturers')" },
+        { key: "secondary", prompt: "Secondary segment (optional)" },
+        { key: "scale", prompt: "Estimated scale (e.g., '10,000 businesses', 'national population')" }
+      ]
+    },
+    jsonMapping: (answers) => ({
+      primaryBeneficiary: answers.primary,
+      secondaryBeneficiary: answers.secondary || null,
+      beneficiaryScale: parseScale(answers.scale),
+      marketSegment: deriveSegment(answers.primary) // B2B, B2C, B2G, etc.
+    })
+  },
+
+  deliveryMode: {
+    field: "deliveryMode",
+    triggers: ["platform", "service", "product", "digital", "physical"],
+    alreadyExists: (input) => /\b(digital|physical|platform|software|hardware|hybrid)\b/i.test(input),
+    question: {
+      type: "single-select",
+      prompt: "What is the primary delivery mode?",
+      options: [
+        { value: "pure_digital", label: "Pure Digital (SaaS, Platform, API)" },
+        { value: "physical_product", label: "Physical Product/Infrastructure" },
+        { value: "hybrid_phygital", label: "Hybrid Physical-Digital" },
+        { value: "professional_services", label: "Professional Services" },
+        { value: "managed_services", label: "Managed Services/Operations" }
+      ]
+    },
+    jsonMapping: (answer) => ({
+      deliveryMode: answer.value,
+      infrastructureRequirements: deriveInfraReqs(answer.value),
+      scalabilityProfile: deriveScalability(answer.value)
+    })
+  },
+
+  marketScope: {
+    field: "marketScope",
+    triggers: ["market", "geography", "region", "global", "local"],
+    alreadyExists: (input) => /\b(global|regional|national|uae|gcc|mena|international)\b/i.test(input),
+    question: {
+      type: "hierarchical-select",
+      prompt: "What is the geographic/market scope?",
+      options: [
+        { value: "hyperlocal", label: "Single City/Emirate", examples: ["Abu Dhabi only"] },
+        { value: "national", label: "National (UAE)", examples: ["All seven emirates"] },
+        { value: "gcc", label: "GCC Regional", examples: ["UAE, KSA, Qatar, Kuwait, Bahrain, Oman"] },
+        { value: "mena", label: "MENA Regional", examples: ["Middle East & North Africa"] },
+        { value: "emerging_markets", label: "Emerging Markets", examples: ["BRICS, Southeast Asia, Africa"] },
+        { value: "global", label: "Global", examples: ["Worldwide operations"] }
+      ]
+    },
+    jsonMapping: (answer) => ({
+      geographicScope: answer.value,
+      primaryMarkets: deriveMarkets(answer.value),
+      regulatoryComplexity: deriveRegComplexity(answer.value),
+      expansionPathway: suggestExpansion(answer.value)
+    })
+  },
+
+  keyConstraints: {
+    field: "keyConstraints",
+    triggers: ["constraint", "limitation", "requirement", "compliance", "budget"],
+    alreadyExists: (input) => /\b(budget|timeline|regulatory|compliance|resource)\b/i.test(input),
+    question: {
+      type: "constraint-builder",
+      prompt: "What are the key constraints?",
+      categories: [
+        { 
+          key: "regulatory",
+          prompt: "Regulatory/Compliance requirements",
+          examples: ["GDPR", "Banking regulations", "Healthcare compliance"],
+          freeText: true
+        },
+        {
+          key: "budget",
+          prompt: "Budget constraints",
+          options: ["<$1M", "$1-10M", "$10-50M", "$50-100M", ">$100M", "Undefined"]
+        },
+        {
+          key: "timeline",
+          prompt: "Timeline constraints",
+          options: ["3 months", "6 months", "12 months", "24 months", ">24 months"]
+        },
+        {
+          key: "resources",
+          prompt: "Resource constraints",
+          multiSelect: ["Talent", "Technology", "Infrastructure", "Partnerships", "Data"]
+        }
+      ]
+    },
+    jsonMapping: (answers) => ({
+      regulatoryConstraints: parseRegulatory(answers.regulatory),
+      budgetRange: answers.budget,
+      timelineMonths: parseTimeline(answers.timeline),
+      resourceGaps: answers.resources,
+      riskProfile: calculateRiskProfile(answers)
+    })
+  },
+
+  successMetrics: {
+    field: "successMetrics",
+    triggers: ["success", "kpi", "metric", "goal", "objective", "measure"],
+    alreadyExists: (input) => /\b(revenue|growth|users|market share|roi|impact)\b/i.test(input),
+    question: {
+      type: "metric-builder",
+      prompt: "How will success be measured?",
+      categories: [
+        {
+          key: "quantitative",
+          prompt: "Quantitative KPIs (add up to 3)",
+          structured: [
+            { metric: "text", target: "text", timeframe: "select" }
+          ],
+          examples: ["$10M revenue by Q4", "10,000 active users", "15% market share"]
+        },
+        {
+          key: "qualitative",
+          prompt: "Qualitative goals",
+          freeText: true,
+          examples: ["Market leadership", "Digital transformation", "Innovation ecosystem"]
+        },
+        {
+          key: "impact",
+          prompt: "Strategic impact areas",
+          multiSelect: ["Financial Returns", "Market Position", "Capability Building", 
+                       "Ecosystem Development", "Social Impact", "Digital Sovereignty"]
+        }
+      ]
+    },
+    jsonMapping: (answers) => ({
+      quantitativeKPIs: answers.quantitative.map(kpi => ({
+        metric: kpi.metric,
+        target: parseTarget(kpi.target),
+        timeframe: kpi.timeframe,
+        measurable: true
+      })),
+      qualitativeGoals: answers.qualitative,
+      strategicImpact: answers.impact,
+      northStarMetric: deriveNorthStar(answers)
+    })
+  }
+};
+B. Flow Diagram & Sequence
+mermaidgraph TD
+    A[User Input: Raw Strategic Text] --> B{Ambiguity Detector}
+    B -->|Fields Missing| C[Question Generator]
+    B -->|Complete| J[Build Focus Brief]
+    
+    C --> D[Progressive Questionnaire]
+    D --> E[Answer Collection UI]
+    E --> F{Validate Answers}
+    F -->|Invalid| G[Clarification Request]
+    F -->|Valid| H[Update Understanding]
+    G --> E
+    H --> I{All Fields Complete?}
+    I -->|No| C
+    I -->|Yes| J
+    
+    J --> K[Generate JSON Structure]
+    K --> L[Store in strategyMetadata]
+    L --> M[Broadcast Event]
+    
+    M --> N1[Five Whys Generator]
+    M --> N2[Five Whys Validator]
+    M --> N3[Research Streamer]
+    M --> N4[WBS Builder]
+    M --> N5[EPM Synthesizer]
+    
+    N1 --> O[Enriched Prompts]
+    N2 --> P[Alignment Validation]
+    N3 --> Q[Focused Research]
+    N4 --> R[Contextual WBS]
+    N5 --> S[Strategic Synthesis]
+Detailed Sequence
+typescriptclass StrategicClarifierFlow {
+  async processInput(rawInput: string): Promise<FocusBrief> {
+    // Step 1: Initial Analysis
+    const existingFields = this.detectExistingFields(rawInput);
+    const missingFields = this.identifyGaps(existingFields);
+    
+    // Step 2: Progressive Clarification
+    const clarificationSession = {
+      id: generateId(),
+      originalInput: rawInput,
+      extractedContext: existingFields,
+      questionsAsked: [],
+      answersCollected: {},
+      sessionMetadata: {
+        startTime: Date.now(),
+        userContext: getUserContext(),
+        domainHints: extractDomainHints(rawInput)
+      }
+    };
+    
+    // Step 3: Dynamic Question Generation
+    for (const field of missingFields) {
+      const question = this.generateContextualQuestion(
+        field,
+        clarificationSession.answersCollected,
+        rawInput
+      );
+      
+      const answer = await this.askQuestion(question);
+      
+      if (answer) {
+        clarificationSession.answersCollected[field] = answer;
+        // Update context for next questions
+        this.updateQuestionContext(clarificationSession, field, answer);
+      }
+    }
+    
+    // Step 4: Build Focus Brief
+    const focusBrief = {
+      version: "1.0",
+      timestamp: Date.now(),
+      originalStatement: rawInput,
+      canonicalUnderstanding: this.mergeUnderstanding(
+        existingFields,
+        clarificationSession.answersCollected
+      ),
+      strategyMetadata: this.buildStrategyJSON(
+        clarificationSession.answersCollected
+      ),
+      confidenceScores: this.calculateConfidence(clarificationSession),
+      derivedContext: {
+        strategicArchetype: this.deriveArchetype(clarificationSession),
+        complexityTier: this.assessComplexity(clarificationSession),
+        riskProfile: this.assessRisk(clarificationSession)
+      }
+    };
+    
+    // Step 5: Persist and Broadcast
+    await this.persistFocusBrief(focusBrief);
+    await this.broadcastToDownstream(focusBrief);
+    
+    return focusBrief;
+  }
+}
+C. Prompt Injection Specification
+Five Whys Generator
+typescriptconst fiveWhysGeneratorPrompt = `
+<strategic_context>
+${JSON.stringify(focusBrief.strategyMetadata, null, 2)}
+</strategic_context>
+
+<focus_brief>
+Organization Type: ${focusBrief.canonicalUnderstanding.actorType.label}
+Mission Intent: ${focusBrief.canonicalUnderstanding.missionIntent.executionStrategies.join(', ')}
+Target Beneficiary: ${focusBrief.canonicalUnderstanding.customerBeneficiary.primaryBeneficiary}
+Geographic Scope: ${focusBrief.canonicalUnderstanding.marketScope.geographicScope}
+Key Constraints: ${summarizeConstraints(focusBrief.canonicalUnderstanding.keyConstraints)}
+Success Metrics: ${focusBrief.canonicalUnderstanding.successMetrics.northStarMetric}
+</focus_brief>
+
+Generate a Five Whys analysis for: "${focusBrief.originalStatement}"
+
+CRITICAL REQUIREMENTS:
+1. Every "Why" must explicitly reference the actor type (${focusBrief.canonicalUnderstanding.actorType.label})
+2. Align with the mission intent of ${focusBrief.canonicalUnderstanding.missionIntent.primaryIntent}
+3. Consider the ${focusBrief.canonicalUnderstanding.deliveryMode.deliveryMode} delivery model
+4. Account for ${focusBrief.canonicalUnderstanding.marketScope.geographicScope} market dynamics
+5. Each level must build toward the success metrics defined
+
+Format each Why as:
+- Why[N]: [Question that references the strategic context]
+- Because[N]: [Answer that aligns with the focus brief]
+`;
+Five Whys Validator
+typescriptconst fiveWhysValidatorPrompt = `
+<focus_brief>
+${JSON.stringify(focusBrief.strategyMetadata, null, 2)}
+</focus_brief>
+
+<five_whys_submission>
+${userSubmission}
+</five_whys_submission>
+
+<validation_criteria>
+1. Actor Alignment: Does each Why reference "${focusBrief.canonicalUnderstanding.actorType.label}"?
+2. Mission Coherence: Do answers align with "${focusBrief.canonicalUnderstanding.missionIntent.primaryIntent}"?
+3. Beneficiary Focus: Is "${focusBrief.canonicalUnderstanding.customerBeneficiary.primaryBeneficiary}" considered?
+4. Constraint Awareness: Are the constraints acknowledged?
+5. Metric Progression: Does the chain lead toward "${focusBrief.canonicalUnderstanding.successMetrics.northStarMetric}"?
+</validation_criteria>
+
+Validate each Why against the focus brief:
+- Calculate semantic alignment score (0-100)
+- Flag any drift from strategic context
+- Suggest corrections that realign with brief
+- Mark as PASS only if alignment > 80%
+
+Return structured validation:
+{
+  "overallAlignment": number,
+  "perWhyScores": [...],
+  "driftDetected": [...],
+  "suggestedCorrections": [...],
+  "passValidation": boolean
+}
+`;
+Research SSE Streamer
+typescriptconst researchStreamerContext = `
+<research_focus>
+Actor: ${focusBrief.canonicalUnderstanding.actorType.label}
+Domain: ${focusBrief.canonicalUnderstanding.missionIntent.primaryIntent}
+Market: ${focusBrief.canonicalUnderstanding.marketScope.primaryMarkets.join(', ')}
+Constraints: ${focusBrief.canonicalUnderstanding.keyConstraints.regulatoryConstraints.join(', ')}
+</research_focus>
+
+<research_boundaries>
+- ONLY research relevant to ${focusBrief.canonicalUnderstanding.actorType.organizationalContext}
+- Focus on ${focusBrief.canonicalUnderstanding.deliveryMode.deliveryMode} delivery models
+- Prioritize ${focusBrief.canonicalUnderstanding.marketScope.geographicScope} market data
+- Weight sources by relevance to ${focusBrief.canonicalUnderstanding.customerBeneficiary.marketSegment}
+</research_boundaries>
+
+Stream research chunks that:
+1. Directly support the initiative: "${focusBrief.originalStatement}"
+2. Provide evidence for ${focusBrief.canonicalUnderstanding.successMetrics.strategicImpact.join(', ')}
+3. Address ${focusBrief.canonicalUnderstanding.keyConstraints.resourceGaps.join(', ')} gaps
+`;
+WBS Builder Context
+typescriptconst wbsBuilderContext = `
+<wbs_parameters>
+Organization: ${focusBrief.canonicalUnderstanding.actorType}
+Execution Strategy: ${focusBrief.canonicalUnderstanding.missionIntent}
+Delivery Mode: ${focusBrief.canonicalUnderstanding.deliveryMode}
+Timeline: ${focusBrief.canonicalUnderstanding.keyConstraints.timelineMonths} months
+Budget Range: ${focusBrief.canonicalUnderstanding.keyConstraints.budgetRange}
+</wbs_parameters>
+
+<wbs_structure_rules>
+- L1: Strategic initiative phases aligned with ${focusBrief.canonicalUnderstanding.missionIntent.primaryIntent}
+- L2: Workstreams specific to ${focusBrief.canonicalUnderstanding.actorType.label} governance
+- L3: Deliverables supporting ${focusBrief.canonicalUnderstanding.successMetrics.quantitativeKPIs}
+- L4: Tasks respecting ${focusBrief.canonicalUnderstanding.keyConstraints.resourceGaps}
+</wbs_structure_rules>
+
+Generate WBS for: "${focusBrief.originalStatement}"
+Ensure every work package explicitly supports the strategic focus brief.
+`;
+D. Validation Rules
+typescriptclass FocusBriefValidator {
+  validateAlignment(response: any, focusBrief: FocusBrief): ValidationResult {
+    const validators = {
+      // Semantic Alignment
+      semanticAlignment: () => {
+        const embedding1 = getEmbedding(response.text);
+        const embedding2 = getEmbedding(focusBrief.originalStatement);
+        const similarity = cosineSimilarity(embedding1, embedding2);
+        return {
+          score: similarity,
+          pass: similarity > 0.7,
+          feedback: similarity < 0.7 ? "Response drifts from original strategic intent" : null
+        };
+      },
+      
+      // Actor Type Validation
+      actorValidation: () => {
+        const actorMentions = countMentions(
+          response.text,
+          focusBrief.canonicalUnderstanding.actorType.aliases
+        );
+        const expectedMentions = response.text.split('.').length / 3; // Every 3rd sentence
+        return {
+          score: Math.min(actorMentions / expectedMentions, 1),
+          pass: actorMentions >= expectedMentions * 0.6,
+          feedback: actorMentions < expectedMentions * 0.6 ? 
+            `Insufficient reference to ${focusBrief.canonicalUnderstanding.actorType.label} context` : null
+        };
+      },
+      
+      // Mission Intent Coherence
+      missionCoherence: () => {
+        const intentKeywords = extractIntentKeywords(
+          focusBrief.canonicalUnderstanding.missionIntent.primaryIntent
+        );
+        const keywordDensity = calculateKeywordDensity(response.text, intentKeywords);
+        return {
+          score: keywordDensity,
+          pass: keywordDensity > 0.05, // 5% keyword density
+          feedback: keywordDensity < 0.05 ?
+            `Missing alignment with ${focusBrief.canonicalUnderstanding.missionIntent.primaryIntent} strategy` : null
+        };
+      },
+      
+      // Constraint Compliance
+      constraintCompliance: () => {
+        const violations = [];
+        
+        // Budget compliance
+        if (response.estimatedCost) {
+          const budgetMax = parseBudget(focusBrief.canonicalUnderstanding.keyConstraints.budgetRange);
+          if (response.estimatedCost > budgetMax) {
+            violations.push(`Budget violation: ${response.estimatedCost} exceeds ${budgetMax}`);
+          }
+        }
+        
+        // Timeline compliance
+        if (response.estimatedTimeline) {
+          if (response.estimatedTimeline > focusBrief.canonicalUnderstanding.keyConstraints.timelineMonths) {
+            violations.push(`Timeline violation: ${response.estimatedTimeline} exceeds constraint`);
+          }
+        }
+        
+        // Regulatory compliance
+        const regulatoryTerms = focusBrief.canonicalUnderstanding.keyConstraints.regulatoryConstraints;
+        const missingCompliance = regulatoryTerms.filter(term => 
+          !response.text.toLowerCase().includes(term.toLowerCase())
+        );
+        if (missingCompliance.length > 0) {
+          violations.push(`Missing regulatory considerations: ${missingCompliance.join(', ')}`);
+        }
+        
+        return {
+          score: Math.max(0, 1 - (violations.length * 0.25)),
+          pass: violations.length === 0,
+          violations: violations
+        };
+      },
+      
+      // Success Metric Alignment
+      metricAlignment: () => {
+        const northStar = focusBrief.canonicalUnderstanding.successMetrics.northStarMetric;
+        const kpis = focusBrief.canonicalUnderstanding.successMetrics.quantitativeKPIs;
+        
+        let alignmentScore = 0;
+        let totalWeight = 0;
+        
+        // Check north star metric reference
+        if (response.text.includes(northStar) || 
+            semanticMatch(response.objectives, northStar) > 0.8) {
+          alignmentScore += 0.5;
+        }
+        totalWeight += 0.5;
+        
+        // Check KPI alignment
+        kpis.forEach(kpi => {
+          const mentioned = response.text.includes(kpi.metric) ||
+                          response.metrics?.some(m => semanticMatch(m, kpi.metric) > 0.7);
+          if (mentioned) {
+            alignmentScore += 0.5 / kpis.length;
+          }
+          totalWeight += 0.5 / kpis.length;
+        });
+        
+        return {
+          score: alignmentScore / totalWeight,
+          pass: (alignmentScore / totalWeight) > 0.6,
+          feedback: (alignmentScore / totalWeight) <= 0.6 ?
+            "Insufficient alignment with defined success metrics" : null
+        };
+      }
+    };
+    
+    // Run all validators
+    const results = {};
+    let totalScore = 0;
+    let validatorCount = 0;
+    
+    for (const [name, validator] of Object.entries(validators)) {
+      results[name] = validator();
+      totalScore += results[name].score;
+      validatorCount++;
+    }
+    
+    return {
+      overallScore: totalScore / validatorCount,
+      pass: totalScore / validatorCount > 0.75,
+      details: results,
+      recommendations: this.generateRecommendations(results)
+    };
+  }
+  
+  generateRecommendations(validationResults: any): string[] {
+    const recommendations = [];
+    
+    Object.entries(validationResults).forEach(([validator, result]) => {
+      if (!result.pass) {
+        switch(validator) {
+          case 'semanticAlignment':
+            recommendations.push("Refocus response on original strategic statement");
+            break;
+          case 'actorValidation':
+            recommendations.push(`Explicitly reference the ${focusBrief.canonicalUnderstanding.actorType.label} perspective throughout`);
+            break;
+          case 'missionCoherence':
+            recommendations.push(`Align recommendations with ${focusBrief.canonicalUnderstanding.missionIntent.primaryIntent} approach`);
+            break;
+          case 'constraintCompliance':
+            result.violations.forEach(v => recommendations.push(`Address: ${v}`));
+            break;
+          case 'metricAlignment':
+            recommendations.push("Explicitly connect outputs to defined KPIs and success metrics");
+            break;
+        }
+      }
+    });
+    
+    return recommendations;
+  }
+}
+E. Fallback & Telemetry
+typescriptclass ClarifierTelemetry {
+  private telemetryEndpoint = '/api/telemetry/clarifier';
+  private alertThresholds = {
+    unansweredQuestions: 3,
+    validationFailures: 5,
+    driftScore: 0.3,
+    sessionTimeout: 300000 // 5 minutes
+  };
+  
+  // Fallback Strategies
+  handleMissingAnswers(field: string, context: any): any {
+    const fallbackStrategies = {
+      actorType: () => {
+        // Infer from domain signals
+        if (context.originalInput.includes('ministry') || 
+            context.originalInput.includes('government')) {
+          return { value: 'ministry', confidence: 0.6, inferred: true };
+        }
+        if (context.originalInput.includes('fund') || 
+            context.originalInput.includes('investment')) {
+          return { value: 'sovereign_wealth_fund', confidence: 0.7, inferred: true };
+        }
+        // Default to most common
+        return { value: 'corporate_division', confidence: 0.3, inferred: true };
+      },
+      
+      missionIntent: () => {
+        // Analyze verb patterns
+        const verbs = extractVerbs(context.originalInput);
+        if (verbs.includes('build') || verbs.includes('develop')) {
+          return { value: 'build_internal', confidence: 0.7, inferred: true };
+        }
+        if (verbs.includes('acquire') || verbs.includes('buy')) {
+          return { value: 'acquire', confidence: 0.8, inferred: true };
+        }
+        return { value: 'strategic_partnership', confidence: 0.4, inferred: true };
+      },
+      
+      marketScope: () => {
+        // Default based on actor type
+        if (context.actorType?.value === 'sovereign_wealth_fund') {
+          return { value: 'national', confidence: 0.6, inferred: true };
+        }
+        return { value: 'gcc', confidence: 0.5, inferred: true };
+      },
+      
+      // Critical fields - no default
+      customerBeneficiary: () => null,
+      successMetrics: () => null,
+      keyConstraints: () => ({
+        budgetRange: 'Undefined',
+        timelineMonths: 24,
+        regulatoryConstraints: [],
+        inferred: true,
+        confidence: 0.2
+      })
+    };
+    
+    const fallback = fallbackStrategies[field]?.();
+    
+    // Log fallback usage
+    this.logEvent({
+      event: 'fallback_used',
+      field: field,
+      fallbackValue: fallback,
+      context: {
+        sessionId: context.sessionId,
+        originalInput: context.originalInput,
+        timestamp: Date.now()
+      }
+    });
+    
+    return fallback;
+  }
+  
+  // Drift Detection & Alerting
+  monitorDrift(response: any, focusBrief: FocusBrief): void {
+    const driftMetrics = {
+      semanticDrift: this.calculateSemanticDrift(response, focusBrief),
+      scopeCreep: this.detectScopeCreep(response, focusBrief),
+      metricDrift: this.calculateMetricDrift(response, focusBrief)
+    };
+    
+    const overallDrift = Object.values(driftMetrics).reduce((a, b) => a + b, 0) / 
+                         Object.keys(driftMetrics).length;
+    
+    if (overallDrift > this.alertThresholds.driftScore) {
+      this.sendAlert({
+        type: 'high_drift',
+        severity: 'warning',
+        metrics: driftMetrics,
+        focusBriefId: focusBrief.id,
+        responseId: response.id,
+        recommendations: [
+          'Review downstream prompt injection',
+          'Validate focus brief completeness',
+          'Check for model degradation'
+        ]
+      });
+    }
+    
+    // Log metrics
+    this.logMetrics({
+      event: 'drift_measurement',
+      focusBriefId: focusBrief.id,
+      metrics: driftMetrics,
+      timestamp: Date.now()
+    });
+  }
+  
+  // Session Tracking
+  trackClarificationSession(session: any): void {
+    const sessionMetrics = {
+      questionsAsked: session.questionsAsked.length,
+      questionsAnswered: Object.keys(session.answersCollected).length,
+      sessionDuration: Date.now() - session.sessionMetadata.startTime,
+      completionRate: Object.keys(session.answersCollected).length / 7, // 7 canonical fields
+      inferredFields: Object.values(session.answersCollected)
+        .filter(a => a.inferred).length,
+      userAbandoned: false
+    };
+    
+    // Check for session timeout
+    if (sessionMetrics.sessionDuration > this.alertThresholds.sessionTimeout && 
+        sessionMetrics.completionRate < 1) {
+      sessionMetrics.userAbandoned = true;
+      this.sendAlert({
+        type: 'session_timeout',
+        severity: 'info',
+        sessionId: session.id,
+        completionRate: sessionMetrics.completionRate,
+        missingFields: this.identifyMissingFields(session)
+      });
+    }
+    
+    // Check for high inference rate
+    if (sessionMetrics.inferredFields / sessionMetrics.questionsAnswered > 0.5) {
+      this.sendAlert({
+        type: 'high_inference_rate',
+        severity: 'warning',
+        sessionId: session.id,
+        inferenceRate: sessionMetrics.inferredFields / sessionMetrics.questionsAnswered
+      });
+    }
+    
+    this.logMetrics({
+      event: 'session_complete',
+      metrics: sessionMetrics,
+      timestamp: Date.now()
+    });
+  }
+  
+  // Validation Failure Tracking
+  trackValidationFailures(validator: string, failures: any[]): void {
+    const failurePatterns = this.analyzeFailurePatterns(failures);
+    
+    if (failures.length > this.alertThresholds.validationFailures) {
+      this.sendAlert({
+        type: 'validation_failure_spike',
+        severity: 'critical',
+        validator: validator,
+        failureCount: failures.length,
+        patterns: failurePatterns,
+        recommendations: [
+          'Review validator thresholds',
+          'Check focus brief quality',
+          'Analyze prompt effectiveness'
+        ]
+      });
+    }
+    
+    // Track patterns for ML training
+    this.logEvent({
+      event: 'validation_failures',
+      validator: validator,
+      failures: failures,
+      patterns: failurePatterns,
+      timestamp: Date.now()
+    });
+  }
+  
+  // Performance Monitoring
+  monitorPerformance(): void {
+    setInterval(() => {
+      const metrics = {
+        clarificationSuccessRate: this.getSuccessRate('clarification'),
+        validationPassRate: this.getSuccessRate('validation'),
+        averageSessionDuration: this.getAverageMetric('session_duration'),
+        averageDriftScore: this.getAverageMetric('drift_score'),
+        systemHealth: this.calculateSystemHealth()
+      };
+      
+      this.logMetrics({
+        event: 'performance_snapshot',
+        metrics: metrics,
+        timestamp: Date.now()
+      });
+      
+      // Alert on degradation
+      if (metrics.systemHealth < 0.7) {
+        this.sendAlert({
+          type: 'system_degradation',
+          severity: 'critical',
+          health: metrics.systemHealth,
+          metrics: metrics
+        });
+      }
+    }, 60000); // Every minute
+  }
+}
+Integration Architecture Summary
+yamlclarifier_system:
+  components:
+    question_engine:
+      - Dynamic question generation
+      - Context-aware follow-ups
+      - Answer validation
+      
+    focus_brief_builder:
+      - JSON structure generation
+      - Human-readable summaries
+      - Confidence scoring
+      
+    injection_layer:
+      - Prompt enrichment
+      - Context broadcasting
+      - Version management
+      
+    validation_engine:
+      - Semantic alignment checking
+      - Constraint compliance
+      - Drift detection
+      
+    telemetry_system:
+      - Fallback handling
+      - Performance monitoring
+      - Alert generation
+  
+  data_flow:
+    input: Raw strategic text
+    processing:
+      - Ambiguity detection
+      - Progressive clarification
+      - Structure generation
+    storage:
+      format: strategic_understanding.strategyMetadata
+      persistence: Real-time + versioned
+    distribution:
+      method: Event-driven broadcast
+      consumers: [five_whys, research, wbs, epm]
+    validation:
+      type: Continuous alignment checking
+      feedback: Real-time correction suggestions
+  
+  benefits:
+    - Universal applicability across organization types
+    - Consistent downstream alignment
+    - Reduced strategic drift
+    - Measurable coherence metrics
+    - Self-improving through telemetry
+This architecture ensures that every strategic initiative, regardless of origin (SWF, ministry, startup), gets properly clarified, structured, and maintains alignment throughout all downstream AI-powered processes in your platform.

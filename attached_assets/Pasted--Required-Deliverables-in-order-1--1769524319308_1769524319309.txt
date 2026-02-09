@@ -1,0 +1,29 @@
+ Required Deliverables (in order):                                             
+  #: 1                                                                          
+  Deliverable: module-registry.md                                               
+  Must Show: All 18 modules with exact input/output types                       
+  ────────────────────────────────────────                                      
+  #: 2                                                                          
+  Deliverable: journey-registry.md                                              
+  Must Show: All journeys with module sequences                                 
+  ────────────────────────────────────────                                      
+  #: 3                                                                          
+  Deliverable: transition-matrix.md                                             
+  Must Show: Every A→B transition with required bridge records                  
+  ────────────────────────────────────────                                      
+  #: 4                                                                          
+  Deliverable: regression-test.ts                                               
+  Must Show: Automated test that can run all transitions                        
+  ────────────────────────────────────────                                      
+  #: 5                                                                          
+  Deliverable: Baseline test run                                                
+  Must Show: Screenshot/output showing current pass/fail status                 
+  Only after we see #5 do we discuss code changes.                              
+                                                                                
+  The baseline test run is critical - it tells us:                              
+  - What currently works (must not break)                                       
+  - What currently fails (what we're fixing)                                    
+  - The exact scope of the problem                                              
+                                                                                
+  If Replit skips any of these steps, we'll end up firefighting again. Hold them
+   to completing all 5 before any orchestrator changes.

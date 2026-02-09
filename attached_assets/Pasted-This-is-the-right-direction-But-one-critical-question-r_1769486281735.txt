@@ -1,0 +1,37 @@
+This is the right direction. But one critical question remains unanswered:    
+                                                                                
+  What Actually Broke?                                                          
+                                                                                
+  Replit said the SSE progress events showed real workstream names like "Office 
+  Site Selection..." - this means the WBS Builder was producing good output     
+  during execution. Then something happened between progress events and the     
+  final save.                                                                   
+                                                                                
+  The task list shows "Fix builder failing during processing" but that's still  
+  vague. Before they start coding, they need to identify:                       
+  Question: What exception was thrown at line 134?                              
+  Why It Matters: This tells us what actually failed                            
+  ────────────────────────────────────────                                      
+  Question: At what point in the pipeline did it fail?                          
+  Why It Matters: Validation? Serialization? Database insert?                   
+  ────────────────────────────────────────                                      
+  Question: Why did progress events get good data but final output didn't?      
+  Why It Matters: Are these separate code paths? Race condition?                
+  Ask Replit to run a debug session with the Gaming Cafe session data (session  
+  ID: ab28cdd6-df7b-4e26-a590-f10db973d54f) and actually capture:               
+                                                                                
+  1. The full stack trace when WBS Builder fails                                
+  2. What data wbsBuilder.generate() returns vs what gets saved                 
+  3. Where the divergence between SSE data and saved data occurs                
+                                                                                
+  Without knowing the actual failure, they're just adding logging and removing  
+  fallbacks - which is good hygiene but doesn't fix the underlying bug. The WBS 
+  Builder will still fail, it'll just fail loudly instead of silently.          
+                                                                                
+  The systematic approach is:                                                   
+  1. Diagnose (find the actual exception/failure point)                         
+  2. Fix (address root cause)                                                   
+  3. Harden (remove fallbacks, add validation)                                  
+  4. Verify (automated E2E test)                                                
+                                                                                
+  Right now they're jumping to step 3 without completing steps 1-2. 

@@ -1,0 +1,74 @@
+**Codex is correct.** Let me validate:
+
+## Why Inlining is Wrong
+
+| Problem | Consequence |
+|---------|-------------|
+| **DRY violation** | Two copies of same logic = two places to maintain/fix bugs |
+| **Test coverage gap** | Our unit tests cover the module, not inline code |
+| **Inconsistent fixes** | If we update the normalizer later, the converter won't get the fix |
+
+## The Correct Approach
+
+Replit said the normalizers directory "doesn't exist" — but that just means it needs to be **created**, not bypassed.
+
+### Step 1: Create the normalizer file (if missing)
+
+```bash
+mkdir -p server/intelligence/normalizers
+```
+
+Create `server/intelligence/normalizers/fte-normalizer.ts`:
+```typescript
+export function normalizeFTE(value: number): number {
+  if (value > 10) return Math.round((value / 100) * 100) / 100;
+  if (value > 1.0) return 1.0;
+  if (value < 0) return 0;
+  return Math.round(value * 100) / 100;
+}
+
+export function normalizeResourceFTEs(
+  resources: Array<{ role: string; fteAllocation: number; [key: string]: any }>
+) {
+  const fixes: string[] = [];
+  const normalized = resources.map(r => {
+    const fixed = normalizeFTE(r.fteAllocation);
+    if (r.fteAllocation !== fixed) {
+      fixes.push(`${r.role}: ${r.fteAllocation} → ${fixed}`);
+    }
+    return { ...r, fteAllocation: fixed };
+  });
+  return { normalized, fixes, hasIssues: fixes.length > 0 };
+}
+```
+
+### Step 2: Import in epm-converter.ts
+
+```typescript
+import { normalizeResourceFTEs } from '../intelligence/normalizers/fte-normalizer';
+```
+
+### Step 3: Use it before serialization
+
+```typescript
+// After building resourcePlan.internalTeam:
+const { normalized, fixes } = normalizeResourceFTEs(
+  resourcePlan.internalTeam.map(r => ({ 
+    role: r.role, 
+    fteAllocation: r.allocation,  // Map 'allocation' to 'fteAllocation'
+    ...r 
+  }))
+);
+if (fixes.length) console.log('[EPM Converter] FTE fixes:', fixes);
+resourcePlan.internalTeam = normalized;
+```
+
+## Verification for Replit
+
+Before proceeding, confirm:
+- [ ] `server/intelligence/normalizers/fte-normalizer.ts` exists
+- [ ] It exports both `normalizeFTE` and `normalizeResourceFTEs`
+- [ ] `epm-converter.ts` imports from that file
+- [ ] No inline normalization logic in the converter
+
+**Do NOT proceed to benefits/confidence/quality-gates until FTE normalizer is wired correctly via import.**

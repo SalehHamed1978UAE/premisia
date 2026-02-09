@@ -1,0 +1,51 @@
+Here’s how the pieces fit together, along with the checks Replit should run:
+
+  • Two IDs are returned from /api/strategic-consultant/journeys/execute, and
+  they serve different purposes.
+
+  – sessionId (the session–… string) is the strategic-understanding session.
+  Every downstream endpoint that touches versions, research, or decisions
+  is keyed off this value. You can see it stored when the understanding
+  is created (storage.createStrategyVersion(...) writes it into the
+  strategy_versions.session_id column), and it’s the parameter the research SSE
+  calls use.
+
+  – journeySessionId is the UUID primary key in journey_sessions. The journey
+  orchestrator uses it when updating progress, marking completion, etc.
+  Endpoints such as /api/strategic-consultant/journeys/:journeySessionId/results
+  expect this UUID.
+
+  These two identifiers are not intended to match and they coexist
+  intentionally.
+
+  • Because research is based on the strategic-understanding session, the SSE
+  endpoints must continue to receive the session-… value. If we swap them to
+  look up journey sessions we’ll break the text-only flow (and any existing
+  saved analyses) because the strategy_versions table has no knowledge of the
+  journey-session UUID.
+
+  • What to verify:
+
+  1. In ResearchPage (and any other route that hits the SSE), confirm
+     that the :sessionId segment in the URL is still the understanding’s
+     session-… value. If the upload flow changed the navigation so the UUID
+     is passed instead, update the routing logic so /strategic-consultant/
+     research/:sessionId still carries the strategic ID.
+     – Quick check on the server: inside router.get('/research/
+     stream/:sessionId', …) add a temporary log console.log('research session',
+     sessionId). Run both the text-only and document flows and compare the
+     values.
+  2. Make sure version creation succeeds for the uploaded case. Right after the
+     analysis completes, versionManager.createVersion should write a row with
+     that same session-… id. Use storage.getStrategyVersionsBySession(sessionId)
+     (or a quick SQL query) to confirm the version exists before the research
+     call. If it’s missing, the analysis isn’t persisting correctly and the
+     research endpoint will 404.
+  3. Remove any code changes that tried to look up journey sessions by
+     sessionId. Those snapshots will never match because they are different
+     ID spaces.
+
+  Once you’ve verified that the research SSE is still being called with the
+  strategic session ID and that a strategy version exists for that ID, the
+  research call should behave the same whether the input came from a pasted
+  statement or an uploaded document.

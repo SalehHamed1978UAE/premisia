@@ -1,0 +1,57 @@
+Fix List (6 Fixes)                                               
+                                                                                
+  Fix 4 FIRST (Root Cause)                                                      
+                                                                                
+  Business context not flowing to prompts                                       
+  - Solve this first — it likely fixes Fix 1 and Fix 2 automatically            
+  - Ensure user input, business name, industry, and location flow into all      
+  generators                                                                    
+                                                                                
+  ---                                                                           
+  Then in order:                                                                
+  Fix: 1                                                                        
+  Problem: "Unnamed Business" everywhere                                        
+  Test: Zero "Unnamed Business" in workstreams.csv                              
+  ────────────────────────────────────────                                      
+  Fix: 2                                                                        
+  Problem: "general industry/sector"                                            
+  Test: Zero generic industry references                                        
+  ────────────────────────────────────────                                      
+  Fix: 3                                                                        
+  Problem: Benefits: wrong field mapping (name/target don't exist)              
+  Test: Benefits have short names + measurable targets                          
+  ────────────────────────────────────────                                      
+  Fix: 5a                                                                       
+  Problem: Resource skills/responsibilities all "-"                             
+  Test: Each role has brief description                                         
+  ────────────────────────────────────────                                      
+  Fix: 5b                                                                       
+  Problem: Workstream owners all "-"                                            
+  Test: Each workstream assigned to a resource role                             
+  ---                                                                           
+  Fix 5b Logic (Owner Assignment)                                               
+                                                                                
+  Match workstream category to resource:                                        
+  Supply Chain workstream    → Supply Chain Manager                             
+  Financial workstream       → Financial Performance Manager                    
+  Customer/Marketing         → Customer Experience Analyst                      
+  Technology/Data           → Data Integration Specialist                       
+  Talent/HR                 → (HR Lead or default)                              
+  Default                   → Retail Strategy Director                          
+                                                                                
+  ---                                                                           
+  Final Priority Order                                                          
+                                                                                
+  Fix 4 (root cause) → Fix 1 → Fix 2 → Fix 3 → Fix 5a → Fix 5b                  
+                                                                                
+  ---                                                                           
+  After All Fixes, Verify:                                                      
+                                                                                
+  - Business name appears in workstreams (not "Unnamed Business")               
+  - Industry-specific language (not "general industry")                         
+  - Benefits have short names and measurable targets                            
+  - Resources have skills/responsibilities (not "-")                            
+  - Workstreams have owners (not "-")                                           
+  - Zero food contamination (already fixed)                                     
+  - FTE as decimals (already fixed)                                             
+  - Confidence varies (already fixed)   

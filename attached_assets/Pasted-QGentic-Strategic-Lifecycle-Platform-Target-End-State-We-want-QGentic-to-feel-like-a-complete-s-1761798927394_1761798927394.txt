@@ -1,0 +1,111 @@
+QGentic Strategic Lifecycle Platform – Target End State
+
+  We want QGentic to feel like a complete strategic operations cockpit. Every
+  initiative is a living strategic asset that users can explore, refine, and
+  scale—all with full provenance and automated execution. Here’s the end state
+  we’re aiming for:
+
+  ———
+
+  ### 1. One Place to Manage Strategic Initiatives
+
+  - A “Strategies” tab shows every initiative (formerly “understanding”), each
+    with:
+      - A human-friendly title, journey count, reference count, and linked
+        programs.
+      - Status (active, draft, archived), last update, and quick actions
+        (rename, archive, export).
+  - Users can click any strategy to open a Strategy Hub page where everything
+    related to that initiative lives:
+      - Original strategic input and clarified statements.
+      - A chronological journey timeline (versioned) showing each analysis run:
+        start/end times, frameworks included, completion status, and references
+        added.
+      - Linked EPM programs generated from that initiative.
+      - Totals for knowledge-graph entities, references, and journeys.
+      - A “Start New Journey” button to branch into additional analyses without
+        losing context.
+
+  ———
+
+  ### 2. Research & Reference Provenance, End to End
+
+  - Every analyzer (Five Whys, BMC, Porters, PESTLE, Trend, etc.) records the
+    research sources it uses: title, URL, confidence score, topics, snippets,
+    and where it was applied.
+  - A dedicated Research Library displays all references across journeys and
+    programs with groupings, filters, and search. Each reference shows:
+      - How confident we are in the source.
+      - Which elements (e.g., BMC Value Proposition, PESTLE Political) relied
+        on it.
+      - Buttons to jump directly to the frameworks or program sections it
+        supports.
+  - Knowledge graph entities link back to their sources, and the UI makes it
+    easy to trace a claim → entity → source.
+  - Exports (PDF/Word/Markdown/UI-styled) include a references section,
+    footnotes, references.json, and references.csv. Claims in the reports link
+    back to their source entries.
+
+  ———
+
+  ### 3. Iterative Journeys with Background Execution
+
+  - When users want to run another analysis (or add a single framework), the
+    system checks whether everything needed is already in the knowledge graph
+    and reference library.
+      - If yes, it offers a “Run in background” option that queues the journey
+        as a background job and sends notifications when done.
+      - If not, it lists what’s missing (e.g., “need pricing references” or
+        “clarify problem statement”) and provides buttons to collect that input.
+  - The “Start Journey” dialog clearly shows what existing work will be reused
+    (e.g., number of entities, references, previous frameworks).
+  - The background job service handles these journeys just like EPM generation—
+    users can close the page and a notification tells them when the new analysis
+    is ready, including a summary of new references added.
+
+  ———
+
+  ### 4. Tight Integration with Knowledge Graph
+
+  - Document uploads, strategic analysis, and journeys all feed the knowledge
+    graph automatically. Each new insight is saved with provenance and
+    confidence.
+  - A “Knowledge Graph” view (accessible from the Strategy Hub) lets users see
+    every entity extracted from their inputs and documents, grouped by type
+    and source. They can explore relationships, mark validations, and see how
+    entities fuel future analyses.
+  - When a new journey begins, the analyzers inherit the existing knowledge
+    graph and reference library, so they avoid redundant research and build on
+    what’s already known.
+
+  ———
+
+  ### 5. Seamless Navigation & Exports
+
+  - Breadcrumbs follow the user: Strategies > Initiative > Journey 2 > Porter's
+    > Buyer Power.
+  - Shared UI components (journey timeline, research lists, program lists) mean
+    there’s no more jumping between unrelated tabs to understand an initiative.
+  - Exports share a consistent structure: standard data outputs + UI-styled
+    reports that mirror the app and carry full references.
+  - Everything is ready to show to stakeholders: full context, traceable
+    sources, and execution-ready plans.
+
+  ———
+
+  ### 6. Reliable Infrastructure & Messaging
+
+  - Back-end data structures persist everything we’ve mentioned (journey
+    versions, references, knowledge entities, job states).
+  - Metrics help us see the strategic lifecycle evolve (total references,
+    references by confidence, time saved by background execution).
+  - User-facing copy makes it clear what the AI is doing, why, and how to supply
+    missing info when needed.
+
+  ———
+
+  In short:
+  QGentic becomes the single source of truth for every strategic initiative.
+  Users can upload documents, run initial analyses, trigger new journeys in
+  seconds (even in the background), and review the complete evidence trail that
+  underpins their decisions and EPM programs—all without ever losing context.

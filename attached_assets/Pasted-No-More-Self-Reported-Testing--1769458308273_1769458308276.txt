@@ -1,0 +1,180 @@
+No More Self-Reported Testing                                                 
+                                                                                
+  I don't trust "I tested it" anymore. You need to provide proof.               
+                                                                                
+  Create this file: scripts/e2e-journey-test.ts                                 
+                                                                                
+  #!/usr/bin/env npx ts-node                                                    
+  /**                                                                           
+   * E2E Journey Test                                                           
+   *                                                                            
+   * This script tests the ACTUAL flow, not mocks.                              
+   * Run: npx ts-node scripts/e2e-journey-test.ts                               
+   *                                                                            
+   * EXIT CODE 0 = All tests passed                                             
+   * EXIT CODE 1 = Tests failed                                                 
+   */                                                                           
+                                                                                
+  import { db } from '../server/db';                                            
+  import { frameworkInsights, strategyVersions, journeySessions, epmPrograms }  
+  from '@shared/schema';                                                        
+  import { eq, desc } from 'drizzle-orm';                                       
+                                                                                
+  async function main() {                                                       
+                                                                                
+  console.log('╔════════════════════════════════════════════════════════════╗');
+    console.log('║           E2E JOURNEY TEST                                   
+  ║');                                                                          
+    console.log('║           ' + new Date().toISOString() + '              ║'); 
+    console.log('╚════════════════════════════════════════════════════════════╝\
+  n');                                                                          
+                                                                                
+    let passed = 0;                                                             
+    let failed = 0;                                                             
+                                                                                
+    // Get the most recent journey session                                      
+    const [latestSession] = await db.select()                                   
+      .from(journeySessions)                                                    
+      .orderBy(desc(journeySessions.createdAt))                                 
+      .limit(1);                                                                
+                                                                                
+    if (!latestSession) {                                                       
+      console.log('❌ No journey sessions found');                              
+      process.exit(1);                                                          
+    }                                                                           
+                                                                                
+    const sessionId = latestSession.understandingId || latestSession.id;        
+    console.log(`Testing session: ${sessionId}\n`);                             
+                                                                                
+    // TEST 1: Journey session exists                                           
+    console.log('TEST 1: Journey session exists');                              
+    if (latestSession) {                                                        
+      console.log(`  ✓ Session found: ${latestSession.id}`);                    
+      console.log(`  ✓ Status: ${latestSession.status}`);                       
+      console.log(`  ✓ Current step: ${latestSession.currentStepIndex}`);       
+      passed++;                                                                 
+    } else {                                                                    
+      console.log('  ✗ No session found');                                      
+      failed++;                                                                 
+    }                                                                           
+                                                                                
+    // TEST 2: Framework insights exist                                         
+    console.log('\nTEST 2: Framework insights exist');                          
+    const insights = await db.select()                                          
+      .from(frameworkInsights)                                                  
+      .where(eq(frameworkInsights.sessionId, sessionId));                       
+                                                                                
+    if (insights.length > 0) {                                                  
+      console.log(`  ✓ Found ${insights.length} framework insight(s):`);        
+      insights.forEach(i => console.log(`    - ${i.frameworkName} (${i.id})`)); 
+      passed++;                                                                 
+    } else {                                                                    
+      console.log('  ✗ No framework insights found');                           
+      console.log(`    Query: SELECT * FROM framework_insights WHERE session_id 
+  = '${sessionId}'`);                                                           
+      failed++;                                                                 
+    }                                                                           
+                                                                                
+    // TEST 3: Strategy version exists                                          
+    console.log('\nTEST 3: Strategy version exists');                           
+    const [version] = await db.select()                                         
+      .from(strategyVersions)                                                   
+      .where(eq(strategyVersions.sessionId, sessionId))                         
+      .limit(1);                                                                
+                                                                                
+    if (version) {                                                              
+      console.log(`  ✓ Version found: ${version.id}`);                          
+      console.log(`  ✓ Version number: ${version.versionNumber}`);              
+      passed++;                                                                 
+    } else {                                                                    
+      console.log('  ✗ No strategy version found');                             
+      console.log(`    Query: SELECT * FROM strategy_versions WHERE session_id =
+   '${sessionId}'`);                                                            
+      failed++;                                                                 
+    }                                                                           
+                                                                                
+    // TEST 4: EPM program exists (if journey completed)                        
+    console.log('\nTEST 4: EPM program exists');                                
+    if (version) {                                                              
+      const [epm] = await db.select()                                           
+        .from(epmPrograms)                                                      
+        .where(eq(epmPrograms.strategyVersionId, version.id))                   
+        .limit(1);                                                              
+                                                                                
+      if (epm) {                                                                
+        console.log(`  ✓ EPM program found: ${epm.id}`);                        
+        console.log(`  ✓ Status: ${epm.status}`);                               
+        console.log(`  ✓ Has workstreams: ${!!epm.workstreams}`);               
+        passed++;                                                               
+      } else {                                                                  
+        console.log('  ⚠ No EPM program yet (may still be generating)');        
+        console.log(`    Query: SELECT * FROM epm_programs WHERE                
+  strategy_version_id = '${version.id}'`);                                      
+      }                                                                         
+    } else {                                                                    
+      console.log('  ⚠ Skipped (no version)');                                  
+    }                                                                           
+                                                                                
+    // TEST 5: Check for errors in logs                                         
+    console.log('\nTEST 5: Data consistency');                                  
+    const sessionIds = new Set([                                                
+      latestSession.id,                                                         
+      latestSession.understandingId,                                            
+      ...insights.map(i => i.sessionId),                                        
+      version?.sessionId,                                                       
+    ].filter(Boolean));                                                         
+                                                                                
+    if (sessionIds.size <= 2) {                                                 
+      console.log(`  ✓ Consistent session IDs: ${[...sessionIds].join(', ')}`); 
+      passed++;                                                                 
+    } else {                                                                    
+      console.log(`  ✗ INCONSISTENT session IDs detected:`);                    
+      console.log(`    ${[...sessionIds].join(', ')}`);                         
+      failed++;                                                                 
+    }                                                                           
+                                                                                
+    // Summary                                                                  
+                                                                                
+  console.log('\n════════════════════════════════════════════════════════════');
+    console.log(`RESULTS: ${passed} passed, ${failed} failed`);                 
+                                                                                
+  console.log('════════════════════════════════════════════════════════════\n');
+                                                                                
+    if (failed > 0) {                                                           
+      console.log('EXIT CODE: 1 (TESTS FAILED)');                               
+      process.exit(1);                                                          
+    } else {                                                                    
+      console.log('EXIT CODE: 0 (ALL TESTS PASSED)');                           
+      process.exit(0);                                                          
+    }                                                                           
+  }                                                                             
+                                                                                
+  main().catch(err => {                                                         
+    console.error('Test error:', err);                                          
+    process.exit(1);                                                            
+  });                                                                           
+                                                                                
+  ---                                                                           
+  After ANY change, you MUST:                                                   
+                                                                                
+  1. Run a journey manually through the UI                                      
+  2. Run npx ts-node scripts/e2e-journey-test.ts                                
+  3. Show me the FULL output - copy/paste the entire terminal output            
+  4. If any test fails, do not declare done                                     
+                                                                                
+  ---                                                                           
+  Right now, for the hanging EPM:                                               
+                                                                                
+  Run these commands and paste the full output:                                 
+                                                                                
+  # Check what data exists for the hanging session                              
+  psql -c "SELECT framework_name, session_id, created_at FROM framework_insights
+   WHERE session_id = 'b5e923bc-176c-4e80-bf3e-2f6d75cacbff';"                  
+                                                                                
+  psql -c "SELECT id, session_id, version_number FROM strategy_versions WHERE   
+  session_id = 'b5e923bc-176c-4e80-bf3e-2f6d75cacbff';"                         
+                                                                                
+  # Check server logs for errors                                                
+  grep -i "error\|exception\|failed" logs/server.log | tail -50                 
+                                                                                
+  Paste. The. Output.   

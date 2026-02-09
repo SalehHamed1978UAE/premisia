@@ -1,0 +1,639 @@
+{
+  "program_id": "1da7c88d-dbc5-4525-900c-6716353d2514",
+  "session_id": "session-1769971525846-w0j7vr",
+  "created_at": "2026-02-01T18:50:50.225801",
+  "status": "finalized",
+  "overall_confidence": 0.77,
+  "executive_summary": {
+    "title": "Opening Traditional Cafe in Dubai Business District",
+    "confidence": 0.9,
+    "riskSummary": "9 risks identified, with 9 high-priority risks requiring immediate mitigation.",
+    "expectedOutcomes": "Growing Coffee Culture; Digital Ordering and Delivery; Corporate Catering Contracts",
+    "keySuccessFactors": [
+      "Capitalize on: Growing Coffee Culture",
+      "Capitalize on: Digital Ordering and Delivery",
+      "Capitalize on: Corporate Catering Contracts",
+      "Capitalize on: Cultural Tourism Growth"
+    ],
+    "marketOpportunity": "Strategic opportunity identified through framework analysis",
+    "investmentRequired": "$500k - $1.5M",
+    "strategicImperatives": []
+  },
+  "workstreams": [
+    {
+      "id": "WS001",
+      "name": "Cafe Design & Build Out",
+      "owner": "Cafe Build-out Manager",
+      "endMonth": 1,
+      "metadata": {
+        "ownerCategory": "construction",
+        "ownerRationale": "Specialized role to oversee physical space design, construction, and kitchen setup specific to traditional cafe requirements in Dubai"
+      },
+      "confidence": 0.97,
+      "startMonth": 0,
+      "description": "This workstream involves designing and constructing the physical space for the traditional cafe in the Dubai Business District. It focuses on creating a culturally authentic and appealing environment that aligns with traditional cafe aesthetics and functional needs specific to the Food & Beverage industry. This includes space layout, kitchen setup, customer seating arrangements, and interior decor to enhance customer experience and operational efficiency.",
+      "deliverables": [
+        {
+          "id": "WS001-D1",
+          "name": "Completed architectural and interior design plans integrating traditional design elements and efficient kitchen workflows.",
+          "effort": "1 person-month",
+          "dueMonth": 1,
+          "description": "Completed architectural and interior design plans integrating traditional design elements and efficient kitchen workflows."
+        },
+        {
+          "id": "WS001-D2",
+          "name": "Secured building permits and approvals for construction in accordance with local regulations in Dubai.",
+          "effort": "1 person-month",
+          "dueMonth": 1,
+          "description": "Secured building permits and approvals for construction in accordance with local regulations in Dubai."
+        },
+        {
+          "id": "WS001-D3",
+          "name": "Constructed kitchen and service areas equipped with necessary food preparation and storage equipment specific to traditional cafes, such as a tea and coffee station, pastry display, and seating arrangements.",
+          "effort": "1 person-month",
+          "dueMonth": 1,
+          "description": "Constructed kitchen and service areas equipped with necessary food preparation and storage equipment specific to traditional cafes, such as a tea and coffee station, pastry display, and seating arrangements."
+        },
+        {
+          "id": "WS001-D4",
+          "name": "Installed and tested utilities including plumbing, gas, and electricity tailored for a food service environment.",
+          "effort": "1 person-month",
+          "dueMonth": 1,
+          "description": "Installed and tested utilities including plumbing, gas, and electricity tailored for a food service environment."
+        },
+        {
+          "id": "WS001-D5",
+          "name": "Finished interior decor that reflects the cultural and aesthetic aspects of a traditional cafe atmosphere.",
+          "effort": "1 person-month",
+          "dueMonth": 1,
+          "description": "Finished interior decor that reflects the cultural and aesthetic aspects of a traditional cafe atmosphere."
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "WS002",
+      "name": "Cafe Technology Infrastructure Setup",
+      "owner": "Digital Systems Manager",
+      "endMonth": 1,
+      "metadata": {
+        "ownerCategory": "technology",
+        "ownerRationale": "Dedicated technology specialist to implement POS systems, Wi-Fi infrastructure, and inventory management systems tailored for cafe operations"
+      },
+      "confidence": 0.85,
+      "startMonth": 0,
+      "description": "This workstream focuses on the design and implementation of an efficient and secure technology infrastructure tailored for the operation and management of a traditional cafe in the fast-paced Dubai Business District. It entails selecting and deploying industry-specific technologies that streamline customer service, enhance operational efficiency, and adhere to regional business regulations. Key areas include POS systems optimized for fast-paced service environments, robust Wi-Fi for customer convenience, and a secure inventory management system to maintain precise stock levels.",
+      "deliverables": [
+        {
+          "id": "WS002-D1",
+          "name": "Deployment of a POS system integrated with restaurant management software to streamline order processing, billing, and daily reports specifically tailored for cafe operations.",
+          "effort": "1 person-month",
+          "dueMonth": 1,
+          "description": "Deployment of a POS system integrated with restaurant management software to streamline order processing, billing, and daily reports specifically tailored for cafe operations."
+        },
+        {
+          "id": "WS002-D2",
+          "name": "Establishing a secure, customer-friendly Wi-Fi network that meets UAE regulatory standards, including a system for customer login and data protection measures.",
+          "effort": "1 person-month",
+          "dueMonth": 1,
+          "description": "Establishing a secure, customer-friendly Wi-Fi network that meets UAE regulatory standards, including a system for customer login and data protection measures."
+        },
+        {
+          "id": "WS002-D3",
+          "name": "Implementation of a digital inventory management system that provides real-time tracking of stock levels, supplier management, and waste reduction analytics.",
+          "effort": "1 person-month",
+          "dueMonth": 1,
+          "description": "Implementation of a digital inventory management system that provides real-time tracking of stock levels, supplier management, and waste reduction analytics."
+        },
+        {
+          "id": "WS002-D4",
+          "name": "Setup of a digital menu system that supports quick updates and displays nutritional information, allergen details, and regional promotion offerings.",
+          "effort": "1 person-month",
+          "dueMonth": 1,
+          "description": "Setup of a digital menu system that supports quick updates and displays nutritional information, allergen details, and regional promotion offerings."
+        },
+        {
+          "id": "WS002-D5",
+          "name": "Installation of security cameras with remote monitoring capability to ensure safety and compliance with local security regulations.",
+          "effort": "1 person-month",
+          "dueMonth": 1,
+          "description": "Installation of security cameras with remote monitoring capability to ensure safety and compliance with local security regulations."
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "WS003",
+      "name": "Operational Setup & Streamlined Logistics for Cafe Launch",
+      "owner": "Operations Manager",
+      "endMonth": 5,
+      "metadata": {
+        "ownerCategory": "operations",
+        "ownerRationale": "Operations expert to establish kitchen processes, supplier relationships, and logistics framework for daily cafe operations"
+      },
+      "confidence": 0.96,
+      "startMonth": 4,
+      "description": "This workstream focuses on establishing an efficient operations framework for the traditional cafe to ensure a successful launch in the Dubai Business District. It involves setting up kitchen processes, sourcing suppliers for quality ingredients, and establishing logistics to support daily operations, tailored for the Food & Beverage industry. This initiative is aimed at achieving a seamless flow from procurement to serving, ensuring high standards are maintained and customer satisfaction is maximized.",
+      "deliverables": [
+        {
+          "id": "WS003-D1",
+          "name": "Detailed Supplier Contract Agreements for Fresh and Local Produce",
+          "effort": "1 person-month",
+          "dueMonth": 4,
+          "description": "Detailed Supplier Contract Agreements for Fresh and Local Produce"
+        },
+        {
+          "id": "WS003-D2",
+          "name": "Comprehensive Kitchen Operations Manual Including Food Safety Protocols",
+          "effort": "1 person-month",
+          "dueMonth": 4,
+          "description": "Comprehensive Kitchen Operations Manual Including Food Safety Protocols"
+        },
+        {
+          "id": "WS003-D3",
+          "name": "Logistics Plan for Daily Deliveries to Ensure Freshness and Quality",
+          "effort": "1 person-month",
+          "dueMonth": 4,
+          "description": "Logistics Plan for Daily Deliveries to Ensure Freshness and Quality"
+        },
+        {
+          "id": "WS003-D4",
+          "name": "Training Program for Staff on Operational Procedures and Service Standards",
+          "effort": "1 person-month",
+          "dueMonth": 4,
+          "description": "Training Program for Staff on Operational Procedures and Service Standards"
+        },
+        {
+          "id": "WS003-D5",
+          "name": "Inventory Management System Customized for Cafe Needs",
+          "effort": "1 person-month",
+          "dueMonth": 4,
+          "description": "Inventory Management System Customized for Cafe Needs"
+        }
+      ],
+      "dependencies": [
+        "WS001",
+        "WS002",
+        "WS006"
+      ]
+    },
+    {
+      "id": "WS004",
+      "name": "Staff Recruitment & Training Program",
+      "owner": "Hr & Training Coordinator",
+      "endMonth": 5,
+      "metadata": {
+        "ownerCategory": "hr",
+        "ownerRationale": "Human resources specialist focused on recruiting cafe staff and developing training programs for traditional food service excellence"
+      },
+      "confidence": 0.91,
+      "startMonth": 4,
+      "description": "This workstream focuses on the recruitment and training of staff essential for a traditional cafe operating in the competitive Dubai Business District. The goal is to secure talented individuals with a passion for exceptional service and knowledge in the food & beverage industry, and to equip them with the necessary skills and knowledge to maintain high standards of customer service and traditional food preparation.",
+      "deliverables": [
+        {
+          "id": "WS004-D1",
+          "name": "Comprehensive Recruitment Plan: A detailed strategy outlining sourcing channels, recruitment timelines, and criteria to identify candidates with relevant experience in traditional cafes or similar environments.",
+          "effort": "1 person-month",
+          "dueMonth": 4,
+          "description": "Comprehensive Recruitment Plan: A detailed strategy outlining sourcing channels, recruitment timelines, and criteria to identify candidates with relevant experience in traditional cafes or similar environments."
+        },
+        {
+          "id": "WS004-D2",
+          "name": "Staff Training Curriculum: A tailored training program covering customer service protocols, traditional beverage preparation techniques, and safety and hygiene standards specific to the food & beverage industry in Dubai.",
+          "effort": "1 person-month",
+          "dueMonth": 4,
+          "description": "Staff Training Curriculum: A tailored training program covering customer service protocols, traditional beverage preparation techniques, and safety and hygiene standards specific to the food & beverage industry in Dubai."
+        },
+        {
+          "id": "WS004-D3",
+          "name": "Orientation and Onboarding Checklist: A step-by-step guide to ensure new hires are effectively integrated into the cafe's operations and culture, including critical areas such as understanding menu items, technology systems used in the cafe, and emergency procedures.",
+          "effort": "1 person-month",
+          "dueMonth": 4,
+          "description": "Orientation and Onboarding Checklist: A step-by-step guide to ensure new hires are effectively integrated into the cafe's operations and culture, including critical areas such as understanding menu items, technology systems used in the cafe, and emergency procedures."
+        },
+        {
+          "id": "WS004-D4",
+          "name": "Staff Performance and Development Metrics: A set of measurable KPIs and evaluation tools designed to assess staff performance and highlight areas for ongoing professional development specific to the roles in a traditional cafe setting.",
+          "effort": "1 person-month",
+          "dueMonth": 4,
+          "description": "Staff Performance and Development Metrics: A set of measurable KPIs and evaluation tools designed to assess staff performance and highlight areas for ongoing professional development specific to the roles in a traditional cafe setting."
+        },
+        {
+          "id": "WS004-D5",
+          "name": "Certification in Food Safety Standards: Successful certification of all staff in accordance with Dubai's municipal food safety regulations, ensuring compliance and enhancing the cafe's reputation for hygiene and safety.",
+          "effort": "1 person-month",
+          "dueMonth": 4,
+          "description": "Certification in Food Safety Standards: Successful certification of all staff in accordance with Dubai's municipal food safety regulations, ensuring compliance and enhancing the cafe's reputation for hygiene and safety."
+        }
+      ],
+      "dependencies": [
+        "WS001",
+        "WS002",
+        "WS006"
+      ]
+    },
+    {
+      "id": "WS005",
+      "name": "Launch Marketing & Sales Strategy for Traditional Cafe",
+      "owner": "Marketing Manager",
+      "endMonth": 7,
+      "metadata": {
+        "ownerCategory": "marketing",
+        "ownerRationale": "Marketing specialist to develop brand positioning and execute targeted campaigns for Dubai Business District audience"
+      },
+      "confidence": 0.91,
+      "startMonth": 6,
+      "description": "Develop and execute a targeted marketing and sales strategy to establish the cafe's presence in the Dubai Business District, leveraging both traditional and modern marketing techniques specific to the food and beverage industry. This workstream focuses on engaging local business clients, professionals, and residents through tailored campaigns that highlight the unique offerings of a traditional cafe experience.",
+      "deliverables": [
+        {
+          "id": "WS005-D1",
+          "name": "Market Research Report: A comprehensive analysis of the Dubai Business District demographics, competitive landscape, and consumer preferences specific to cafes, highlighting key opportunities and challenges.",
+          "effort": "1 person-month",
+          "dueMonth": 6,
+          "description": "Market Research Report: A comprehensive analysis of the Dubai Business District demographics, competitive landscape, and consumer preferences specific to cafes, highlighting key opportunities and challenges."
+        },
+        {
+          "id": "WS005-D2",
+          "name": "Brand Identity & Positioning Plan: A detailed plan defining the cafe's unique value propositions, brand story, and positioning strategy tailored to attract the target audience in the food and beverage sector.",
+          "effort": "1 person-month",
+          "dueMonth": 6,
+          "description": "Brand Identity & Positioning Plan: A detailed plan defining the cafe's unique value propositions, brand story, and positioning strategy tailored to attract the target audience in the food and beverage sector."
+        },
+        {
+          "id": "WS005-D3",
+          "name": "Digital Marketing Campaign: Design and launch a digital marketing campaign utilizing social media, search engine optimization, and email marketing to create awareness and drive footfall to the cafe.",
+          "effort": "1 person-month",
+          "dueMonth": 6,
+          "description": "Digital Marketing Campaign: Design and launch a digital marketing campaign utilizing social media, search engine optimization, and email marketing to create awareness and drive footfall to the cafe."
+        },
+        {
+          "id": "WS005-D4",
+          "name": "Partnership & Collaboration Agreements: Establish agreements with local businesses for cross-promotions or event hosting to enhance visibility and customer base.",
+          "effort": "1 person-month",
+          "dueMonth": 6,
+          "description": "Partnership & Collaboration Agreements: Establish agreements with local businesses for cross-promotions or event hosting to enhance visibility and customer base."
+        },
+        {
+          "id": "WS005-D5",
+          "name": "Sales Outreach Strategy: Develop and implement a direct sales tactic focused on corporate clients and nearby office buildings, promoting catering services or business lunch specials.",
+          "effort": "1 person-month",
+          "dueMonth": 6,
+          "description": "Sales Outreach Strategy: Develop and implement a direct sales tactic focused on corporate clients and nearby office buildings, promoting catering services or business lunch specials."
+        }
+      ],
+      "dependencies": [
+        "WS003",
+        "WS004"
+      ]
+    },
+    {
+      "id": "WS006",
+      "name": "Regulatory Compliance for Traditional Cafe in Dubai",
+      "owner": "Compliance Specialist",
+      "endMonth": 3,
+      "metadata": {
+        "ownerCategory": "compliance",
+        "ownerRationale": "Regulatory expert to navigate Dubai F&B licensing, food safety certifications, and municipality approvals"
+      },
+      "confidence": 0.95,
+      "startMonth": 2,
+      "description": "This workstream ensures that the traditional cafe being opened in the Dubai Business District complies with all local legal and regulatory requirements specific to the Food & Beverage industry. The focus will be on obtaining necessary permits and licenses, adhering to food safety standards, and ensuring compliance with industry regulations applicable in Dubai. The goal is to avoid legal issues and align operations with established guidelines to avoid penalties and ensure smooth operation.",
+      "deliverables": [
+        {
+          "id": "WS006-D1",
+          "name": "Food Safety & Hygiene Certification: Obtain all necessary food safety and hygiene certifications that confirm the cafe meets local F&B handling and preparation standards.",
+          "effort": "1 person-month",
+          "dueMonth": 3,
+          "description": "Food Safety & Hygiene Certification: Obtain all necessary food safety and hygiene certifications that confirm the cafe meets local F&B handling and preparation standards."
+        },
+        {
+          "id": "WS006-D2",
+          "name": "Business and Trade Licenses: Acquire necessary business and trade licenses from the Dubai Department of Economic Development specifically for operating a mid-market cafe.",
+          "effort": "1 person-month",
+          "dueMonth": 3,
+          "description": "Business and Trade Licenses: Acquire necessary business and trade licenses from the Dubai Department of Economic Development specifically for operating a mid-market cafe."
+        },
+        {
+          "id": "WS006-D3",
+          "name": "Municipality Food Control Approval: Secure approvals from local municipality food control for layout plans, food storage, preparation areas, and ventilation systems as per the food safety regulations.",
+          "effort": "1 person-month",
+          "dueMonth": 3,
+          "description": "Municipality Food Control Approval: Secure approvals from local municipality food control for layout plans, food storage, preparation areas, and ventilation systems as per the food safety regulations."
+        },
+        {
+          "id": "WS006-D4",
+          "name": "Employee Health Cards: Ensure all staff handling food have valid Emirates ID and undergo medical examinations to obtain health cards, minimizing the risk of contamination.",
+          "effort": "1 person-month",
+          "dueMonth": 3,
+          "description": "Employee Health Cards: Ensure all staff handling food have valid Emirates ID and undergo medical examinations to obtain health cards, minimizing the risk of contamination."
+        },
+        {
+          "id": "WS006-D5",
+          "name": "Fire & Safety Compliance Report: Complete a fire and safety compliance audit ensuring the cafe meets all requirements for emergency preparedness and risk management in the Food & Beverage sector.",
+          "effort": "1 person-month",
+          "dueMonth": 3,
+          "description": "Fire & Safety Compliance Report: Complete a fire and safety compliance audit ensuring the cafe meets all requirements for emergency preparedness and risk management in the Food & Beverage sector."
+        }
+      ],
+      "dependencies": []
+    }
+  ],
+  "financial_plan": {
+    "cashFlow": [
+      {
+        "amount": -920000,
+        "quarter": 1,
+        "cumulative": -920000
+      },
+      {
+        "amount": -690000,
+        "quarter": 2,
+        "cumulative": -1610000
+      },
+      {
+        "amount": -460000,
+        "quarter": 3,
+        "cumulative": -2070000
+      },
+      {
+        "amount": -230000,
+        "quarter": 4,
+        "cumulative": -2300000
+      }
+    ],
+    "confidence": 0.55,
+    "assumptions": [
+      "FTE cost: $150k/year",
+      "12 FTEs for 12 months",
+      "15% overhead for infrastructure and support",
+      "10% contingency for risks and unknowns"
+    ],
+    "contingency": 230000,
+    "totalBudget": 2530000,
+    "costBreakdown": [
+      {
+        "amount": 1800000,
+        "category": "Personnel",
+        "percentage": 78.26086956521739,
+        "description": "Internal team costs"
+      },
+      {
+        "amount": 200000,
+        "category": "External Resources",
+        "percentage": 8.695652173913043,
+        "description": "Consultants, software, services"
+      },
+      {
+        "amount": 300000,
+        "category": "Overhead",
+        "percentage": 13.043478260869565,
+        "description": "Infrastructure, admin, facilities"
+      }
+    ],
+    "contingencyPercentage": 10
+  },
+  "risk_register": {
+    "risks": [
+      {
+        "id": "R001",
+        "owner": "Cafe Operations Manager",
+        "impact": "Low",
+        "category": "Strategic",
+        "severity": 3,
+        "confidence": 0.85,
+        "mitigation": "Review strategy quarterly with leadership, maintain scenario plans, and track leading indicators",
+        "contingency": "Escalate to governance if probability exceeds 50%",
+        "description": "Internal weakness: Limited Brand Recognition",
+        "probability": 30
+      },
+      {
+        "id": "R002",
+        "owner": "Head Barista",
+        "impact": "High",
+        "category": "Financial",
+        "severity": 12,
+        "confidence": 0.85,
+        "mitigation": "Establish contingency reserve (15% of budget), implement monthly cost reviews, and identify cost reduction levers",
+        "contingency": "Escalate to governance if probability exceeds 60%",
+        "description": "Internal weakness: High Operating Costs",
+        "probability": 40
+      },
+      {
+        "id": "R003",
+        "owner": "Cafe Operations Manager",
+        "impact": "Low",
+        "category": "Resource",
+        "severity": 4,
+        "confidence": 0.85,
+        "mitigation": "Establish contingency reserve (15% of budget), implement monthly cost reviews, and identify cost reduction levers",
+        "contingency": "Escalate to governance if probability exceeds 61%",
+        "description": "Internal weakness: Limited Financial Resources",
+        "probability": 41
+      },
+      {
+        "id": "R004",
+        "owner": "Cafe Design & Construction Lead",
+        "impact": "Low",
+        "category": "Strategic",
+        "severity": 3,
+        "confidence": 0.85,
+        "mitigation": "Review strategy quarterly with leadership, maintain scenario plans, and track leading indicators",
+        "contingency": "Escalate to governance if probability exceeds 51%",
+        "description": "Internal weakness: Dependence on Local Management",
+        "probability": 31
+      },
+      {
+        "id": "R005",
+        "owner": "Technology & Systems Specialist",
+        "impact": "Low",
+        "category": "Market",
+        "severity": 5,
+        "confidence": 0.85,
+        "mitigation": "Develop competitive differentiation strategy and monitor competitor movements weekly",
+        "contingency": "Escalate to governance if probability exceeds 74%",
+        "description": "External threat: Intense Competition from Chains",
+        "probability": 54
+      },
+      {
+        "id": "R006",
+        "owner": "HR & Training Coordinator",
+        "impact": "Low",
+        "category": "Financial",
+        "severity": 3,
+        "confidence": 0.85,
+        "mitigation": "Monitor market indicators monthly, develop scenario-based contingency plans, and maintain pricing flexibility",
+        "contingency": "Escalate to governance if probability exceeds 54%",
+        "description": "External threat: Economic Volatility",
+        "probability": 34
+      },
+      {
+        "id": "R007",
+        "owner": "Marketing & Community Manager",
+        "impact": "Low",
+        "category": "Financial",
+        "severity": 3,
+        "confidence": 0.85,
+        "mitigation": "Establish contingency reserve (15% of budget), implement monthly cost reviews, and identify cost reduction levers",
+        "contingency": "Escalate to governance if probability exceeds 50%",
+        "description": "External threat: Rising Labor Costs",
+        "probability": 30
+      },
+      {
+        "id": "R008",
+        "owner": "Compliance & Licensing Specialist",
+        "impact": "Low",
+        "category": "Strategic",
+        "severity": 3,
+        "confidence": 0.85,
+        "mitigation": "Review strategy quarterly with leadership, maintain scenario plans, and track leading indicators",
+        "contingency": "Escalate to governance if probability exceeds 54%",
+        "description": "External threat: Changing Work Patterns",
+        "probability": 34
+      },
+      {
+        "id": "R009",
+        "owner": "Cafe Operations Manager",
+        "impact": "Low",
+        "category": "Operational",
+        "severity": 3,
+        "confidence": 0.85,
+        "mitigation": "Diversify supplier base and maintain 30-day inventory buffer for critical materials",
+        "contingency": "Escalate to governance if probability exceeds 51%",
+        "description": "External threat: Supply Chain Disruptions",
+        "probability": 31
+      }
+    ],
+    "topRisks": [
+      {
+        "id": "R002",
+        "owner": "Head Barista",
+        "impact": "High",
+        "category": "Financial",
+        "severity": 12,
+        "confidence": 0.85,
+        "mitigation": "Establish contingency reserve (15% of budget), implement monthly cost reviews, and identify cost reduction levers",
+        "contingency": "Escalate to governance if probability exceeds 60%",
+        "description": "Internal weakness: High Operating Costs",
+        "probability": 40
+      },
+      {
+        "id": "R005",
+        "owner": "Technology & Systems Specialist",
+        "impact": "Low",
+        "category": "Market",
+        "severity": 5,
+        "confidence": 0.85,
+        "mitigation": "Develop competitive differentiation strategy and monitor competitor movements weekly",
+        "contingency": "Escalate to governance if probability exceeds 74%",
+        "description": "External threat: Intense Competition from Chains",
+        "probability": 54
+      },
+      {
+        "id": "R003",
+        "owner": "Cafe Operations Manager",
+        "impact": "Low",
+        "category": "Resource",
+        "severity": 4,
+        "confidence": 0.85,
+        "mitigation": "Establish contingency reserve (15% of budget), implement monthly cost reviews, and identify cost reduction levers",
+        "contingency": "Escalate to governance if probability exceeds 61%",
+        "description": "Internal weakness: Limited Financial Resources",
+        "probability": 41
+      },
+      {
+        "id": "R001",
+        "owner": "Cafe Operations Manager",
+        "impact": "Low",
+        "category": "Strategic",
+        "severity": 3,
+        "confidence": 0.85,
+        "mitigation": "Review strategy quarterly with leadership, maintain scenario plans, and track leading indicators",
+        "contingency": "Escalate to governance if probability exceeds 50%",
+        "description": "Internal weakness: Limited Brand Recognition",
+        "probability": 30
+      },
+      {
+        "id": "R004",
+        "owner": "Cafe Design & Construction Lead",
+        "impact": "Low",
+        "category": "Strategic",
+        "severity": 3,
+        "confidence": 0.85,
+        "mitigation": "Review strategy quarterly with leadership, maintain scenario plans, and track leading indicators",
+        "contingency": "Escalate to governance if probability exceeds 51%",
+        "description": "Internal weakness: Dependence on Local Management",
+        "probability": 31
+      }
+    ],
+    "confidence": 0.8,
+    "mitigationBudget": 225000
+  },
+  "kpis": {
+    "kpis": [
+      {
+        "id": "KPI001",
+        "name": "Leverage prime location and",
+        "target": "+15% improvement vs current state",
+        "baseline": "Current state",
+        "category": "Strategic",
+        "frequency": "Quarterly",
+        "confidence": 0.8,
+        "measurement": "Market share percentage (quarterly)",
+        "linkedBenefitIds": [
+          "BEN-01"
+        ]
+      },
+      {
+        "id": "KPI002",
+        "name": "Prioritize digital ordering platform,",
+        "target": "+5% market share gain",
+        "baseline": "Current state",
+        "category": "Strategic",
+        "frequency": "Quarterly",
+        "confidence": 0.8,
+        "measurement": "Market share percentage (quarterly)",
+        "linkedBenefitIds": [
+          "BEN-02"
+        ]
+      },
+      {
+        "id": "KPI003",
+        "name": "Diversify revenue streams through",
+        "target": "+15% year-over-year",
+        "baseline": "Current state",
+        "category": "Strategic",
+        "frequency": "Quarterly",
+        "confidence": 0.8,
+        "measurement": "Revenue growth rate (monthly)",
+        "linkedBenefitIds": [
+          "BEN-03"
+        ]
+      },
+      {
+        "id": "KPI004",
+        "name": "Pursue rapid expansion of",
+        "target": "+5% market share gain",
+        "baseline": "Current state",
+        "category": "Strategic",
+        "frequency": "Quarterly",
+        "confidence": 0.8,
+        "measurement": "Market share percentage (quarterly)",
+        "linkedBenefitIds": [
+          "BEN-04"
+        ]
+      },
+      {
+        "id": "KPI005",
+        "name": "Program Progress",
+        "target": "100%",
+        "baseline": "0%",
+        "category": "Operational",
+        "frequency": "Monthly",
+        "confidence": 0.95,
+        "measurement": "Percentage of deliverables completed",
+        "linkedBenefitIds": []
+      }
+    ],
+    "confidence": 0.75
+  }
+}

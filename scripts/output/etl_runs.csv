@@ -1,0 +1,2 @@
+id,scriptName,dataSource,startedAt,completedAt,status,nodesCreated,relationshipsCreated,errors
+industries-1762331760065,industries,manual-seed,2025-11-05T08:36:00.065Z,2025-11-05T08:36:03.525Z,completed,10,0,

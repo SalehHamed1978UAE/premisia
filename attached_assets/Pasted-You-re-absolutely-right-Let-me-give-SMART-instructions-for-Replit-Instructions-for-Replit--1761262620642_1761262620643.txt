@@ -1,0 +1,62 @@
+You're absolutely right! Let me give SMART instructions for Replit:
+
+## **Instructions for Replit**
+
+### **You will receive a bunch of files. Here's how to organize them:**
+
+### **Step 1: Create the target directory**
+```bash
+mkdir -p src/lib/intelligent-planning
+```
+
+### **Step 2: Identify and place files**
+
+**Find the main entry point:**
+- Look for the file containing `createPlanningSystem` function → save as `src/lib/intelligent-planning/index.ts`
+
+**Find the types file:**
+- Look for the file that starts with `export type TaskId` or has mostly type/interface definitions → save as `src/lib/intelligent-planning/types.ts`
+
+**Find and rename the core modules:**
+- File containing `class CPMScheduler` → save as `src/lib/intelligent-planning/scheduler.ts`
+- File containing `class ResourceManager` → save as `src/lib/intelligent-planning/resource-manager.ts`
+- File containing `class LLMTaskExtractor` → save as `src/lib/intelligent-planning/task-extractor.ts`
+- File containing `class LLMValidator` → save as `src/lib/intelligent-planning/validator.ts`
+- File containing `class AIOptimizer` → save as `src/lib/intelligent-planning/optimizer.ts`
+- File containing `class OpenAIProvider` → save as `src/lib/intelligent-planning/llm-provider.ts`
+- File containing `replaceTimelineGeneration` → save as `src/lib/intelligent-planning/epm-integration.ts`
+- File containing `class RetryHandler` → save as `src/lib/intelligent-planning/retry-handler.ts`
+- File containing `class InMemoryCache` → save as `src/lib/intelligent-planning/cache.ts`
+- File containing all interfaces (`IScheduler`, `IOptimizer`, etc.) → save as `src/lib/intelligent-planning/interfaces.ts`
+- File containing `createOrchestrator` or `ProjectPlanningOrchestrator` → save as `src/lib/intelligent-planning/orchestrator.ts`
+
+**Skip these files (don't need them yet):**
+- Any `.sql` files
+- Any file containing database/repository code
+- Any `.tsx` files (React components)
+- Any file with "test" in the name
+
+### **Step 3: Fix all imports**
+Since everything is now in one flat folder, replace all imports:
+- Any import with `../` → change to `./`
+- Example: `from '../types'` → `from './types'`
+- Example: `from '../schedulers/cpm'` → `from './scheduler'`
+
+### **Step 4: Add to package.json**
+```json
+"openai": "^4.28.0",
+"p-queue": "^8.0.1",
+"node-cache": "^5.1.2"
+```
+
+### **Step 5: Add integration point**
+In the existing EPM generation code, add:
+```typescript
+import { replaceTimelineGeneration } from '@/lib/intelligent-planning/epm-integration';
+
+if (process.env.INTELLIGENT_PLANNING_ENABLED === 'true') {
+  return await replaceTimelineGeneration(epmProgram, businessContext);
+}
+```
+
+That's it - Replit can figure out which file is which by looking at the content!

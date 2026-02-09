@@ -1,0 +1,56 @@
+This is good documentation. The transition matrix clearly identifies the      
+  problem:                                                                      
+                                                                                
+  🔴 SWOT → Decisions (CRITICAL)                                                
+  Root Cause: Frontend navigates before DecisionGenerator completes             
+  Timing: DecisionGenerator takes ~50 seconds, redirect happens immediately     
+                                                                                
+  Now we have clarity. Before code changes, we need:                            
+                                                                                
+  Step 4: Regression Test Script                                                
+                                                                                
+  Tell Replit to create scripts/regression-test.ts that tests each transition:  
+                                                                                
+  // Test structure for each transition                                         
+  interface TransitionTest {                                                    
+    name: string;                                                               
+    fromModule: string;                                                         
+    toModule: string;                                                           
+    setup: () => Promise<void>;      // Create prerequisite data                
+    execute: () => Promise<void>;    // Trigger transition                      
+    validate: () => Promise<boolean>; // Check bridge record exists             
+  }                                                                             
+                                                                                
+  const tests: TransitionTest[] = [                                             
+    {                                                                           
+      name: 'SWOT → Decisions',                                                 
+      fromModule: 'swot-analyzer',                                              
+      toModule: 'strategic-decisions',                                          
+      validate: async () => {                                                   
+        // Check strategy_versions exists                                       
+        const result = await db.query(                                          
+          'SELECT 1 FROM strategy_versions WHERE session_id = $1',              
+          [testSessionId]                                                       
+        );                                                                      
+        return result.rows.length > 0;                                          
+      }                                                                         
+    },                                                                          
+    // ... one test per transition                                              
+  ];                                                                            
+                                                                                
+  Step 5: Run Baseline                                                          
+                                                                                
+  Run the tests and show results:                                               
+  ┌──────┬──────────────────┬─────────┬─────────────────────────────┐           
+  │ Test │    From → To     │ Status  │            Notes            │           
+  ├──────┼──────────────────┼─────────┼─────────────────────────────┤           
+  │ T001 │ SWOT → Decisions │ ❌ FAIL │ strategy_versions not found │           
+  ├──────┼──────────────────┼─────────┼─────────────────────────────┤           
+  │ T002 │ Decisions → EPM  │ ✅ PASS │                             │           
+  ├──────┼──────────────────┼─────────┼─────────────────────────────┤           
+  │ ...  │                  │         │                             │           
+  └──────┴──────────────────┴─────────┴─────────────────────────────┘           
+  This baseline tells us exactly what's broken and what we must not break when  
+  we fix it.                                                                    
+                                                                                
+  Only after seeing the baseline test results do we approve code changes. 

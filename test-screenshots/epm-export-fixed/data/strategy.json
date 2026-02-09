@@ -1,0 +1,405 @@
+{
+  "understanding": null,
+  "journeySession": {
+    "id": "2bcadcce-9c7e-42c5-adc1-efdb2eb58380",
+    "understandingId": "890c3ced-6aec-4b98-a392-a368f89ec3c5",
+    "userId": "47253622",
+    "journeyType": "custom",
+    "status": "paused",
+    "currentFrameworkIndex": 1,
+    "completedFrameworks": [
+      "swot"
+    ],
+    "accumulatedContext": {
+      "dataKeyCiphertext": "AQIDAHhCoyD7wwRHoM+bHL7p6+jZDgTGSd6nMgipbBMxeAVdhgHi42QuQGrieGv+NoU7OzlyAAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQMYUCzSvtNJdjfK6KfAgEQgDvrH38Kya0X/9nQhLVbrYhAzYYRXxBdW2+K3GjIcLlab3NZEdaLsPpr0Cyl2NMPV3Kkqu5Xyadd0+pVNQ==",
+      "iv": "C5yMP24Yp+BXBAkLnXlUHw==",
+      "authTag": "Dx3WoOBytYtYjBBDyFB3Kw==",
+      "ciphertext": "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"
+    },
+    "versionNumber": 1,
+    "startedAt": "2026-01-27T04:20:43.973Z",
+    "background": false,
+    "metadata": {
+      "frameworks": [
+        "swot",
+        "strategic_decisions"
+      ],
+      "templateId": "ce8880f3-3816-4cb1-9517-e34a80fe43f0",
+      "isCustomJourney": true,
+      "nextStepRedirectUrl": "/strategic-consultant/decisions/890c3ced-6aec-4b98-a392-a368f89ec3c5/1",
+      "executableFrameworks": [
+        "swot"
+      ]
+    },
+    "createdAt": "2026-01-27T04:20:43.802Z",
+    "updatedAt": "2026-01-27T04:22:33.127Z",
+    "completedAt": null,
+    "summary": null
+  },
+  "strategyVersion": {
+    "id": "5d1800aa-c705-4df9-a737-2240329358d6",
+    "userId": null,
+    "sessionId": "890c3ced-6aec-4b98-a392-a368f89ec3c5",
+    "versionNumber": 1,
+    "versionLabel": "Strategic Decisions v1",
+    "inputSummary": null,
+    "analysisData": null,
+    "decisionsData": {
+      "decisions": [
+        {
+          "id": "decision_1",
+          "title": "Strategic Direction Priority",
+          "context": "With Dubai's explosive MENA esports market growth (25% annually) and our premium mall location strength, we must choose between aggressive expansion leveraging opportunities versus defensive positioning against increasing competition and economic threats that could impact our tourism-dependent revenue model.",
+          "options": [
+            {
+              "id": "option_1",
+              "cons": [
+                "High dependency on tourism fluctuations remains",
+                "Significant upfront investment adds to already high capital requirements",
+                "Vulnerable to economic recession impact on entertainment spending"
+              ],
+              "pros": [
+                "Capitalizes on explosive MENA esports growth (25% CAGR)",
+                "Leverages premium mall location for high visibility",
+                "Aligns with Dubai's Vision 2071 digital transformation",
+                "Creates differentiation from 200% increase in gaming cafe competition"
+              ],
+              "label": "SO Strategy - Esports Tournament Hub",
+              "reasoning": "Best alignment with our core strengths (premium location, high-end hardware, diverse customer base) while capturing the highest growth opportunity in MENA esports market, creating sustainable competitive moats against increasing competition",
+              "description": "Leverage premium location and hardware to become the premier MENA esports tournament venue, partnering with Dubai Tourism for gaming tourism packages and hosting major regional championships",
+              "recommended": true,
+              "estimated_cost": {
+                "max": 400000,
+                "min": 200000
+              },
+              "estimated_timeline_months": 8
+            },
+            {
+              "id": "option_2",
+              "cons": [
+                "Doesn't fully leverage premium gaming hardware advantage",
+                "Limited differentiation from competitors",
+                "Slower growth potential compared to esports market"
+              ],
+              "pros": [
+                "Reduces dependency on tourism fluctuations",
+                "Taps into Dubai's $500M corporate team building market",
+                "Creates recurring revenue streams",
+                "Lower investment risk"
+              ],
+              "label": "WO Strategy - Corporate Partnership Focus",
+              "reasoning": "While addressing key weakness, doesn't maximize our premium location and hardware strengths or capture the explosive esports opportunity",
+              "description": "Address tourism dependency weakness by developing B2B corporate partnerships, team building services, and stable membership programs targeting Dubai's expat professional community",
+              "recommended": false,
+              "estimated_cost": {
+                "max": 150000,
+                "min": 50000
+              },
+              "estimated_timeline_months": 6
+            },
+            {
+              "id": "option_3",
+              "cons": [
+                "Smaller addressable market",
+                "Still dependent on tourism for growth",
+                "Limited scalability potential",
+                "Higher per-customer acquisition costs"
+              ],
+              "pros": [
+                "Leverages high-end gaming hardware strength",
+                "Creates differentiation from increasing competition",
+                "Less vulnerable to economic downturns",
+                "Builds influencer partnerships"
+              ],
+              "label": "ST Strategy - Premium Niche Positioning",
+              "reasoning": "Defensive approach that doesn't capture the massive esports growth opportunity or fully utilize our diverse international customer base advantage",
+              "description": "Use high-end gaming setup to create exclusive content creation studios and professional gaming services, differentiating from mass market competitors through premium offerings",
+              "recommended": false,
+              "estimated_cost": {
+                "max": 250000,
+                "min": 100000
+              },
+              "estimated_timeline_months": 4
+            }
+          ],
+          "question": "Which strategic approach should we prioritize to maximize our competitive advantage while managing market risks?",
+          "impact_areas": [
+            "Market Position",
+            "Revenue Growth",
+            "Competitive Advantage"
+          ]
+        },
+        {
+          "id": "decision_2",
+          "title": "Revenue Model Structure",
+          "context": "Given our high mall rental costs (150-400 AED/sqft) and dependency on tourism fluctuations, we need a revenue structure that can weather economic downturns while capitalizing on the growing gaming market and our premium positioning.",
+          "options": [
+            {
+              "id": "option_1",
+              "cons": [
+                "Higher dependency on event success",
+                "Seasonal tournament variations",
+                "Requires significant marketing investment"
+              ],
+              "pros": [
+                "Maximizes MENA esports market opportunity",
+                "Creates recurring tournament revenue",
+                "Attracts sponsorship deals",
+                "Builds strong gaming community"
+              ],
+              "label": "Tournament-Centric Hybrid Model",
+              "reasoning": "Aligns with our SO strategy and leverages the explosive esports growth while our premium mall location provides ideal tournament venue advantage",
+              "description": "Primary focus on esports tournaments and events (40% revenue) with gaming hours, corporate bookings, and F&B as supporting streams, leveraging our premium location for major events",
+              "recommended": true,
+              "estimated_cost": {
+                "max": 300000,
+                "min": 150000
+              },
+              "estimated_timeline_months": 6
+            },
+            {
+              "id": "option_2",
+              "cons": [
+                "Dilutes focus from core gaming strengths",
+                "May not capture full esports opportunity",
+                "Complex operational management"
+              ],
+              "pros": [
+                "Reduces dependency on any single revenue stream",
+                "More stable during economic fluctuations",
+                "Addresses tourism dependency weakness"
+              ],
+              "label": "Diversified Equal Revenue Streams",
+              "reasoning": "While risk-averse, doesn't maximize our competitive advantages or the explosive esports market opportunity",
+              "description": "Balanced approach with gaming hours (30%), corporate events (25%), tournaments (25%), and F&B/merchandise (20%) to minimize risk across multiple revenue sources",
+              "recommended": false,
+              "estimated_cost": {
+                "max": 200000,
+                "min": 100000
+              },
+              "estimated_timeline_months": 4
+            },
+            {
+              "id": "option_3",
+              "cons": [
+                "Limited growth potential",
+                "Doesn't leverage tournament hosting capabilities",
+                "May not attract tourist customers effectively"
+              ],
+              "pros": [
+                "Predictable recurring revenue",
+                "Reduces tourism fluctuation impact",
+                "Lower operational complexity",
+                "Strong customer retention"
+              ],
+              "label": "Membership-First Model",
+              "reasoning": "Too conservative and doesn't capitalize on our premium location advantage or the growing esports tournament market",
+              "description": "Focus on premium membership subscriptions (50% revenue) with exclusive access, corporate partnerships, and gaming hours as secondary streams to ensure predictable income",
+              "recommended": false,
+              "estimated_cost": {
+                "max": 150000,
+                "min": 75000
+              },
+              "estimated_timeline_months": 3
+            }
+          ],
+          "question": "How should we structure our revenue model to balance growth opportunities with risk mitigation?",
+          "impact_areas": [
+            "Revenue Stability",
+            "Growth Potential",
+            "Risk Management"
+          ]
+        },
+        {
+          "id": "decision_3",
+          "title": "Technology Investment Strategy",
+          "context": "Gaming hardware requires upgrades every 2-3 years, and with cloud gaming growing 45% annually, we must balance maintaining our high-end gaming hardware advantage against technology obsolescence and rising operational costs in Dubai's expensive market.",
+          "options": [
+            {
+              "id": "option_1",
+              "cons": [
+                "Higher ongoing operational costs",
+                "Dependency on supplier relationships",
+                "Less ownership flexibility"
+              ],
+              "pros": [
+                "Maintains high-end gaming hardware strength",
+                "Spreads technology refresh costs",
+                "Ensures latest equipment for tournaments",
+                "Reduces capital expenditure pressure"
+              ],
+              "label": "Premium Hardware Partnership Model",
+              "reasoning": "Maintains our premium hardware competitive advantage essential for esports tournaments while addressing the weakness of rapid technology obsolescence through partnership risk sharing",
+              "description": "Establish strategic partnerships with hardware suppliers for equipment leasing and regular refresh cycles, maintaining cutting-edge RTX 4080+ setups while spreading costs",
+              "recommended": true,
+              "estimated_cost": {
+                "max": 350000,
+                "min": 200000
+              },
+              "estimated_timeline_months": 3
+            },
+            {
+              "id": "option_2",
+              "cons": [
+                "May compromise premium gaming experience",
+                "Internet dependency increases operational risk",
+                "Reduces differentiation from competitors"
+              ],
+              "pros": [
+                "Adapts to cloud gaming trend threat",
+                "Reduces hardware obsolescence risk",
+                "Lower total technology investment",
+                "Offers diverse gaming options"
+              ],
+              "label": "Hybrid Cloud-Physical Setup",
+              "reasoning": "Compromises our key strength of high-end gaming hardware that's essential for serious gamers and tournament hosting",
+              "description": "Combine premium physical gaming stations (60%) with cloud gaming solutions (40%) to offer flexibility while reducing hardware investment and adapting to cloud gaming trends",
+              "recommended": false,
+              "estimated_cost": {
+                "max": 250000,
+                "min": 150000
+              },
+              "estimated_timeline_months": 5
+            },
+            {
+              "id": "option_3",
+              "cons": [
+                "Loses high-end gaming hardware competitive advantage",
+                "Cannot attract serious gamers or host premium tournaments",
+                "Vulnerable to competition with better equipment"
+              ],
+              "pros": [
+                "Lower capital investment",
+                "Predictable refresh timeline",
+                "Reduces financial pressure from mall rental costs"
+              ],
+              "label": "Conservative Refresh Cycle",
+              "reasoning": "Undermines our core strength of premium gaming hardware that differentiates us from the 200% increase in gaming cafe competition",
+              "description": "Purchase mid-range gaming equipment with planned 4-year refresh cycles to minimize technology investment while maintaining adequate gaming experience",
+              "recommended": false,
+              "estimated_cost": {
+                "max": 180000,
+                "min": 100000
+              },
+              "estimated_timeline_months": 2
+            }
+          ],
+          "question": "How should we approach technology investments to maintain competitive advantage while managing rapid obsolescence risks?",
+          "impact_areas": [
+            "Competitive Advantage",
+            "Cost Management",
+            "Technology Leadership"
+          ]
+        },
+        {
+          "id": "decision_4",
+          "title": "Risk Mitigation Priority",
+          "context": "With Dubai's entertainment sector experiencing 45% revenue drops during recessions and 200% increase in gaming cafe competition, we must choose our primary risk mitigation focus while maintaining growth trajectory in the expanding esports market.",
+          "options": [
+            {
+              "id": "option_1",
+              "cons": [
+                "May limit aggressive growth in esports opportunity",
+                "Requires significant cash reserves",
+                "Slower market expansion"
+              ],
+              "pros": [
+                "Addresses economic recession threat directly",
+                "Reduces tourism dependency weakness",
+                "Creates stable revenue base",
+                "Provides operational flexibility"
+              ],
+              "label": "Economic Resilience Focus",
+              "reasoning": "While important, overly defensive approach that may miss the explosive MENA esports growth opportunity",
+              "description": "Build financial reserves, flexible cost structures, and recession-proof revenue streams through corporate partnerships and membership models to weather economic downturns",
+              "recommended": false,
+              "estimated_cost": {
+                "max": 200000,
+                "min": 100000
+              },
+              "estimated_timeline_months": 6
+            },
+            {
+              "id": "option_2",
+              "cons": [
+                "Higher investment risk during economic uncertainty",
+                "Dependent on successful execution",
+                "Vulnerable to economic downturns"
+              ],
+              "pros": [
+                "Leverages premium location and hardware strengths",
+                "Creates barriers against increasing competition",
+                "Capitalizes on esports market growth",
+                "Builds brand recognition"
+              ],
+              "label": "Competitive Differentiation Focus",
+              "reasoning": "Best utilizes our strengths to create sustainable competitive advantages while capturing the high-growth esports opportunity, addressing the most immediate threat of increasing competition",
+              "description": "Invest heavily in unique value propositions through exclusive tournaments, premium experiences, and strategic partnerships to create competitive moats against increasing competition",
+              "recommended": true,
+              "estimated_cost": {
+                "max": 300000,
+                "min": 150000
+              },
+              "estimated_timeline_months": 8
+            },
+            {
+              "id": "option_3",
+              "cons": [
+                "Doesn't address competitive threats",
+                "Limited growth potential",
+                "May compromise customer experience",
+                "Misses esports opportunity"
+              ],
+              "pros": [
+                "Addresses high rental cost weakness",
+                "Improves profit margins",
+                "Increases operational resilience",
+                "Lower investment requirement"
+              ],
+              "label": "Operational Efficiency Focus",
+              "reasoning": "Too focused on cost-cutting without leveraging our competitive strengths or capturing market opportunities",
+              "description": "Optimize costs, automate operations, and improve margins to maintain profitability despite high mall rental costs and competitive pressure",
+              "recommended": false,
+              "estimated_cost": {
+                "max": 120000,
+                "min": 50000
+              },
+              "estimated_timeline_months": 4
+            }
+          ],
+          "question": "Which risk mitigation approach should we prioritize given Dubai's economic volatility and competitive market dynamics?",
+          "impact_areas": [
+            "Business Resilience",
+            "Market Position",
+            "Financial Stability"
+          ]
+        }
+      ],
+      "decision_flow": "These decisions follow a strategic hierarchy: first establishing our SO strategy focus on esports tournaments, then building supporting revenue and technology models, and finally implementing competitive differentiation as our primary risk mitigation approach. This sequence maximizes our strengths while capturing the explosive MENA esports opportunity.",
+      "estimated_completion_time_minutes": 8
+    },
+    "selectedDecisions": {
+      "decision_1": "option_1",
+      "decision_2": "option_1",
+      "decision_3": "option_1",
+      "decision_4": "option_1"
+    },
+    "strategicApproach": null,
+    "marketContext": null,
+    "costMin": null,
+    "costMax": null,
+    "timelineMonths": null,
+    "teamSizeMin": null,
+    "teamSizeMax": null,
+    "decisions": [],
+    "programStructure": {},
+    "status": "in_review",
+    "convertedProgramId": null,
+    "finalizedAt": null,
+    "archived": false,
+    "createdAt": "2026-01-27T04:22:32.558Z",
+    "updatedAt": "2026-01-27T04:22:50.438Z",
+    "createdBy": "system"
+  },
+  "decisions": []
+}

@@ -1,0 +1,66 @@
+these are the 6 journeys we have planned at the moment:
+
+Yes, I have the 6 journeys mapped out from our previous discussion:
+Journey Catalog (6 Journeys Planned)
+
+Market Entry Journey
+
+PESTLE → Trend Analysis → BMC → Five Whys
+
+
+Business Model Innovation Journey
+
+Five Whys → BMC → Blue Ocean
+
+
+Competitive Strategy Journey
+
+Porter's → SWOT → Blue Ocean
+
+
+Digital Transformation Journey
+
+Trend Analysis → BMC → SWOT
+
+
+Crisis Recovery Journey
+
+Five Whys → SWOT → BMC
+
+
+Growth Strategy Journey
+
+BMC → Porter's → Trend Analysis
+
+
+
+Each journey represents a specific sequence of frameworks tailored to different strategic challenges. The idea was that the Strategic Consultant would analyze the user's input and intelligently route them to the appropriate journey.
+
+Looking back at our discussions, we talked about the Strategic Consultant having intelligent routing logic but didn't detail the specific decision criteria. Here's what we established:
+Journey Selection Logic (Conceptual)
+The Strategic Consultant would analyze the user's input to determine:
+1. Problem Type Detection
+
+Market Entry signals: "launch in", "enter market", "expand to", geographic references
+Business Model signals: "revenue model", "value proposition", "customer segments", "pricing"
+Competitive signals: "competitors", "market share", "differentiation", "competitive advantage"
+Digital/Tech signals: "digital transformation", "AI", "automation", "technology"
+Crisis signals: "urgent", "declining", "crisis", "turnaround", "survival"
+Growth signals: "scale", "expand", "growth", "increase revenue"
+
+2. Urgency Assessment
+
+Crisis Recovery for urgent/survival situations
+Other journeys for strategic planning timeframes
+
+3. Current State vs Future State
+
+Where they are now vs where they want to be
+Transformation need vs optimization need
+
+What Replit Actually Built:
+According to Replit's document, there IS framework selection logic but it's using "simple heuristics" (placeholder) rather than full AI:
+G. Intelligent Framework Selection
+- AI analyzes user input
+- Routes between BMC and Porter's Five Forces  
+- Currently uses "simple heuristics" (placeholder for full AI)

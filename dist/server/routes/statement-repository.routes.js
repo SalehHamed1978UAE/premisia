@@ -1,0 +1,492 @@
+import { Router } from 'express';
+import { db } from '../db';
+import { storage } from '../storage';
+import { strategicUnderstanding, frameworkInsights, strategicEntities, strategyVersions, journeySessions, epmPrograms, references, strategyDecisions } from '@shared/schema';
+import { eq, desc, sql, inArray, and } from 'drizzle-orm';
+import { getStrategicUnderstanding } from '../services/secure-data-service';
+import { decryptKMS } from '../utils/kms-encryption';
+const router = Router();
+router.get('/statements', async (req, res) => {
+    try {
+        const userId = req.user?.claims?.sub;
+        if (!userId) {
+            return res.status(401).json({ error: 'Authentication required' });
+        }
+        // Join with journeySessions to filter by userId (matches dashboard logic)
+        const rawStatements = await db
+            .selectDistinct({
+            understandingId: strategicUnderstanding.id,
+            sessionId: strategicUnderstanding.sessionId,
+            statement: strategicUnderstanding.userInput,
+            title: strategicUnderstanding.title,
+            createdAt: strategicUnderstanding.createdAt,
+        })
+            .from(strategicUnderstanding)
+            .innerJoin(journeySessions, eq(strategicUnderstanding.id, journeySessions.understandingId))
+            .where(and(eq(journeySessions.userId, userId), eq(strategicUnderstanding.archived, false)))
+            .orderBy(desc(strategicUnderstanding.createdAt));
+        // Decrypt userInput for each statement
+        const statements = await Promise.all(rawStatements.map(async (stmt) => ({
+            ...stmt,
+            statement: (await decryptKMS(stmt.statement)) || stmt.statement,
+        })));
+        const enrichedStatements = await Promise.all(statements.map(async (stmt) => {
+            // Get old PESTLE analyses from frameworkInsights
+            const oldAnalyses = await db
+                .select({
+                frameworkName: frameworkInsights.frameworkName,
+                frameworkVersion: frameworkInsights.frameworkVersion,
+                createdAt: frameworkInsights.createdAt,
+            })
+                .from(frameworkInsights)
+                .where(eq(frameworkInsights.understandingId, stmt.understandingId))
+                .orderBy(desc(frameworkInsights.createdAt));
+            // Get new analyses from strategyVersions (decrypted via storage layer)
+            const newAnalyses = await storage.getStrategyVersionsBySession(stmt.sessionId);
+            const analysisSummary = {};
+            let latestActivity = stmt.createdAt || new Date();
+            // Process old analyses
+            oldAnalyses.forEach((analysis) => {
+                const framework = analysis.frameworkName;
+                if (!analysisSummary[framework]) {
+                    analysisSummary[framework] = {
+                        count: 0,
+                        latestVersion: analysis.frameworkVersion || '1.0',
+                    };
+                }
+                analysisSummary[framework].count++;
+                if (analysis.createdAt && analysis.createdAt > latestActivity) {
+                    latestActivity = analysis.createdAt;
+                }
+            });
+            // Process new analyses from strategy versions
+            newAnalyses.forEach((version) => {
+                const data = version.analysisData;
+                // Check for BMC
+                if (data?.bmc_research) {
+                    const framework = 'Business Model Canvas';
+                    if (!analysisSummary[framework]) {
+                        analysisSummary[framework] = { count: 0, latestVersion: `v${version.versionNumber}` };
+                    }
+                    analysisSummary[framework].count++;
+                    if (version.createdAt && version.createdAt > latestActivity) {
+                        latestActivity = version.createdAt;
+                    }
+                }
+                // Check for Five Whys (support both new nested structure and old root-level structure)
+                const fiveWhysData = data?.five_whys || (data?.rootCause && data?.framework === 'five_whys' ? data : null);
+                if (fiveWhysData && (fiveWhysData.rootCause || fiveWhysData.whysPath)) {
+                    const framework = 'Five Whys';
+                    if (!analysisSummary[framework]) {
+                        analysisSummary[framework] = { count: 0, latestVersion: `v${version.versionNumber}` };
+                    }
+                    analysisSummary[framework].count++;
+                    if (version.createdAt && version.createdAt > latestActivity) {
+                        latestActivity = version.createdAt;
+                    }
+                }
+                // Check for Porter's Five Forces
+                if (data?.porters_five_forces) {
+                    const framework = "Porter's Five Forces";
+                    if (!analysisSummary[framework]) {
+                        analysisSummary[framework] = { count: 0, latestVersion: `v${version.versionNumber}` };
+                    }
+                    analysisSummary[framework].count++;
+                    if (version.createdAt && version.createdAt > latestActivity) {
+                        latestActivity = version.createdAt;
+                    }
+                }
+            });
+            const totalAnalyses = oldAnalyses.length + newAnalyses.length;
+            return {
+                understandingId: stmt.understandingId,
+                sessionId: stmt.sessionId,
+                statement: stmt.statement,
+                title: stmt.title,
+                createdAt: stmt.createdAt,
+                analyses: analysisSummary,
+                totalAnalyses,
+                lastActivity: latestActivity,
+            };
+        }));
+        res.json(enrichedStatements);
+    }
+    catch (error) {
+        console.error('Error fetching statements:', error);
+        res.status(500).json({ error: 'Failed to fetch statements' });
+    }
+});
+router.delete('/statements/:understandingId', async (req, res) => {
+    try {
+        const { understandingId } = req.params;
+        // First check if the statement exists
+        const [understanding] = await db
+            .select()
+            .from(strategicUnderstanding)
+            .where(eq(strategicUnderstanding.id, understandingId));
+        if (!understanding) {
+            return res.status(404).json({ error: 'Statement not found' });
+        }
+        // Delete all related framework insights
+        await db
+            .delete(frameworkInsights)
+            .where(eq(frameworkInsights.understandingId, understandingId));
+        // Delete all related strategic entities
+        await db
+            .delete(strategicEntities)
+            .where(eq(strategicEntities.understandingId, understandingId));
+        // Delete the strategic understanding record
+        await db
+            .delete(strategicUnderstanding)
+            .where(eq(strategicUnderstanding.id, understandingId));
+        res.json({ success: true, message: 'Statement and all analyses deleted successfully' });
+    }
+    catch (error) {
+        console.error('Error deleting statement:', error);
+        res.status(500).json({ error: 'Failed to delete statement' });
+    }
+});
+router.delete('/analyses/:analysisId', async (req, res) => {
+    try {
+        const { analysisId } = req.params;
+        // First check if the analysis exists
+        const [analysis] = await db
+            .select()
+            .from(frameworkInsights)
+            .where(eq(frameworkInsights.id, analysisId));
+        if (!analysis) {
+            return res.status(404).json({ error: 'Analysis not found' });
+        }
+        // Delete the analysis - this will cascade delete related data
+        await db
+            .delete(frameworkInsights)
+            .where(eq(frameworkInsights.id, analysisId));
+        res.json({ success: true, message: 'Analysis deleted successfully' });
+    }
+    catch (error) {
+        console.error('Error deleting analysis:', error);
+        res.status(500).json({ error: 'Failed to delete analysis' });
+    }
+});
+router.get('/statements/:understandingId', async (req, res) => {
+    try {
+        const { understandingId } = req.params;
+        // Use the decryption service to get decrypted data
+        const understanding = await getStrategicUnderstanding(understandingId);
+        if (!understanding) {
+            return res.status(404).json({ error: 'Statement not found' });
+        }
+        // Query old PESTLE analyses from frameworkInsights table
+        const oldAnalyses = await db
+            .select({
+            id: frameworkInsights.id,
+            frameworkName: frameworkInsights.frameworkName,
+            frameworkVersion: frameworkInsights.frameworkVersion,
+            insights: frameworkInsights.insights,
+            telemetry: frameworkInsights.telemetry,
+            createdAt: frameworkInsights.createdAt,
+        })
+            .from(frameworkInsights)
+            .where(eq(frameworkInsights.understandingId, understandingId))
+            .orderBy(desc(frameworkInsights.createdAt));
+        // Query new Strategy Workspace analyses from strategyVersions table (decrypted)
+        // Find all versions associated with this understanding's session
+        const newAnalyses = await storage.getStrategyVersionsBySession(understanding.sessionId);
+        const groupedAnalyses = {};
+        // Process old PESTLE analyses
+        oldAnalyses.forEach((analysis) => {
+            const framework = analysis.frameworkName;
+            if (!groupedAnalyses[framework]) {
+                groupedAnalyses[framework] = [];
+            }
+            let summary = '';
+            let keyFindings = [];
+            if (framework === 'PESTLE' && analysis.insights) {
+                const insights = analysis.insights;
+                if (insights.synthesis?.executiveSummary) {
+                    summary = insights.synthesis.executiveSummary.substring(0, 200) + '...';
+                }
+                if (insights.synthesis?.keyFindings) {
+                    keyFindings = insights.synthesis.keyFindings.slice(0, 3);
+                }
+            }
+            groupedAnalyses[framework].push({
+                id: analysis.id,
+                frameworkName: analysis.frameworkName,
+                version: analysis.frameworkVersion || '1.0',
+                createdAt: analysis.createdAt,
+                duration: analysis.telemetry?.totalLatencyMs,
+                summary,
+                keyFindings,
+            });
+        });
+        // Process new Strategy Workspace analyses (BMC, Five Whys, Porter's)
+        newAnalyses.forEach((version) => {
+            const analysisData = version.analysisData;
+            // Check for BMC analysis
+            if (analysisData?.bmc_research) {
+                const bmcData = analysisData.bmc_research;
+                const framework = 'Business Model Canvas';
+                if (!groupedAnalyses[framework]) {
+                    groupedAnalyses[framework] = [];
+                }
+                let summary = '';
+                let keyFindings = [];
+                // Extract insights from BMC blocks
+                if (bmcData.blocks && Array.isArray(bmcData.blocks)) {
+                    const allImplications = bmcData.blocks
+                        .map((block) => block.strategicImplications)
+                        .filter(Boolean);
+                    if (allImplications.length > 0) {
+                        summary = allImplications.slice(0, 2).join(' ').substring(0, 200) + '...';
+                        keyFindings = allImplications.slice(0, 3);
+                    }
+                }
+                groupedAnalyses[framework].push({
+                    id: version.id,
+                    frameworkName: framework,
+                    version: `v${version.versionNumber}`,
+                    versionNumber: version.versionNumber,
+                    createdAt: version.createdAt,
+                    summary,
+                    keyFindings,
+                });
+            }
+            // Check for Five Whys analysis (support both new nested and old root-level structure)
+            const fiveWhysData = analysisData?.five_whys || (analysisData?.rootCause && analysisData?.framework === 'five_whys' ? analysisData : null);
+            if (fiveWhysData && (fiveWhysData.rootCause || fiveWhysData.whysPath)) {
+                const framework = 'Five Whys';
+                if (!groupedAnalyses[framework]) {
+                    groupedAnalyses[framework] = [];
+                }
+                const rootCause = fiveWhysData.rootCause || '';
+                const summary = rootCause.substring(0, 200) + (rootCause.length > 200 ? '...' : '');
+                const keyFindings = [];
+                // Extract key findings from whysPath
+                if (fiveWhysData.whysPath && Array.isArray(fiveWhysData.whysPath)) {
+                    keyFindings.push(...fiveWhysData.whysPath.slice(0, 3));
+                }
+                groupedAnalyses[framework].push({
+                    id: version.id,
+                    frameworkName: framework,
+                    version: `v${version.versionNumber}`,
+                    versionNumber: version.versionNumber,
+                    createdAt: version.createdAt,
+                    summary,
+                    keyFindings,
+                });
+            }
+            // Check for Porter's Five Forces analysis
+            if (analysisData?.porters_five_forces) {
+                const portersData = analysisData.porters_five_forces;
+                const framework = "Porter's Five Forces";
+                if (!groupedAnalyses[framework]) {
+                    groupedAnalyses[framework] = [];
+                }
+                let summary = '';
+                let keyFindings = [];
+                // Extract insights from Porter's forces
+                if (portersData.forces && Array.isArray(portersData.forces)) {
+                    const allImplications = portersData.forces
+                        .map((force) => force.strategicImplication)
+                        .filter(Boolean);
+                    if (allImplications.length > 0) {
+                        summary = allImplications.slice(0, 2).join(' ').substring(0, 200) + '...';
+                        keyFindings = allImplications.slice(0, 3);
+                    }
+                }
+                groupedAnalyses[framework].push({
+                    id: version.id,
+                    frameworkName: framework,
+                    version: `v${version.versionNumber}`,
+                    versionNumber: version.versionNumber,
+                    createdAt: version.createdAt,
+                    summary,
+                    keyFindings,
+                });
+            }
+        });
+        res.json({
+            understandingId: understanding.id,
+            sessionId: understanding.sessionId,
+            statement: understanding.userInput,
+            title: understanding.title,
+            companyContext: understanding.companyContext,
+            createdAt: understanding.createdAt,
+            analyses: groupedAnalyses,
+        });
+    }
+    catch (error) {
+        console.error('Error fetching statement detail:', error);
+        res.status(500).json({ error: 'Failed to fetch statement detail' });
+    }
+});
+// Get deletion preview - shows what will be deleted
+router.get('/:id/deletion-preview', async (req, res) => {
+    try {
+        const understandingId = req.params.id;
+        // Get understanding with sessionId
+        const [understanding] = await db
+            .select({ sessionId: strategicUnderstanding.sessionId })
+            .from(strategicUnderstanding)
+            .where(eq(strategicUnderstanding.id, understandingId));
+        if (!understanding) {
+            return res.status(404).json({ error: 'Analysis not found' });
+        }
+        const sessionId = understanding.sessionId;
+        // Count journey sessions
+        const [journeyCount] = await db
+            .select({ count: sql `COUNT(*)` })
+            .from(journeySessions)
+            .where(eq(journeySessions.understandingId, understandingId));
+        // Count strategy versions
+        const [versionCount] = sessionId
+            ? await db
+                .select({ count: sql `COUNT(*)` })
+                .from(strategyVersions)
+                .where(eq(strategyVersions.sessionId, sessionId))
+            : [{ count: 0 }];
+        // Count EPM programs (via strategy versions)
+        const [epmCount] = sessionId
+            ? await db
+                .select({ count: sql `COUNT(DISTINCT ${epmPrograms.id})` })
+                .from(epmPrograms)
+                .innerJoin(strategyVersions, eq(epmPrograms.strategyVersionId, strategyVersions.id))
+                .where(eq(strategyVersions.sessionId, sessionId))
+            : [{ count: 0 }];
+        // Count references
+        const [refCount] = await db
+            .select({ count: sql `COUNT(*)` })
+            .from(references)
+            .where(eq(references.understandingId, understandingId));
+        res.json({
+            journeys: journeyCount?.count || 0,
+            versions: versionCount?.count || 0,
+            epmPrograms: epmCount?.count || 0,
+            references: refCount?.count || 0,
+        });
+    }
+    catch (error) {
+        console.error('Error fetching deletion preview:', error);
+        res.status(500).json({ error: 'Failed to fetch deletion preview' });
+    }
+});
+// Batch operations
+router.post('/batch-delete', async (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ error: 'Invalid request: ids array is required' });
+        }
+        // Get sessionIds for these understandings before deletion
+        const understandings = await db
+            .select({ sessionId: strategicUnderstanding.sessionId })
+            .from(strategicUnderstanding)
+            .where(inArray(strategicUnderstanding.id, ids));
+        const sessionIds = understandings
+            .map(u => u.sessionId)
+            .filter((id) => id !== null);
+        // CASCADE DELETE in proper order:
+        // 1. Delete journey_sessions (references understanding_id with CASCADE)
+        await db.delete(journeySessions).where(inArray(journeySessions.understandingId, ids));
+        // 2. Delete references (references understanding_id with CASCADE)
+        await db.delete(references).where(inArray(references.understandingId, ids));
+        // 3. Delete old framework insights
+        await db.delete(frameworkInsights).where(inArray(frameworkInsights.understandingId, ids));
+        // 4. Delete strategic entities and relationships (CASCADE handles relationships)
+        await db.delete(strategicEntities).where(inArray(strategicEntities.understandingId, ids));
+        // 5. Delete strategy versions and their dependencies
+        if (sessionIds.length > 0) {
+            // Get all strategy version IDs
+            const versions = await db
+                .select({ id: strategyVersions.id })
+                .from(strategyVersions)
+                .where(inArray(strategyVersions.sessionId, sessionIds));
+            const versionIds = versions.map(v => v.id);
+            if (versionIds.length > 0) {
+                // First, clear foreign key references
+                await db
+                    .update(strategyVersions)
+                    .set({ convertedProgramId: null })
+                    .where(inArray(strategyVersions.id, versionIds));
+                // Delete EPM programs (CASCADE from strategy_versions)
+                await db.delete(epmPrograms).where(inArray(epmPrograms.strategyVersionId, versionIds));
+                // Delete strategy decisions (CASCADE from strategy_versions)
+                await db.delete(strategyDecisions).where(inArray(strategyDecisions.strategyVersionId, versionIds));
+            }
+            // Delete strategy versions
+            await db.delete(strategyVersions).where(inArray(strategyVersions.sessionId, sessionIds));
+        }
+        // 6. Finally delete the strategic understanding root
+        await db.delete(strategicUnderstanding).where(inArray(strategicUnderstanding.id, ids));
+        res.json({ success: true, count: ids.length });
+    }
+    catch (error) {
+        console.error('Error batch deleting statements:', error);
+        res.status(500).json({ error: 'Failed to delete statements' });
+    }
+});
+router.post('/batch-archive', async (req, res) => {
+    try {
+        const { ids, archive = true } = req.body;
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ error: 'Invalid request: ids array is required' });
+        }
+        // Get the sessionIds for these understandings
+        const understandings = await db
+            .select({ sessionId: strategicUnderstanding.sessionId })
+            .from(strategicUnderstanding)
+            .where(inArray(strategicUnderstanding.id, ids));
+        const sessionIds = understandings
+            .map(u => u.sessionId)
+            .filter((id) => id !== null);
+        // Archive the strategic understanding records
+        await db
+            .update(strategicUnderstanding)
+            .set({ archived: archive, updatedAt: new Date() })
+            .where(inArray(strategicUnderstanding.id, ids));
+        // CASCADE: Archive all related strategyVersions
+        if (sessionIds.length > 0) {
+            await db
+                .update(strategyVersions)
+                .set({ archived: archive, updatedAt: new Date() })
+                .where(inArray(strategyVersions.sessionId, sessionIds));
+        }
+        res.json({ success: true, count: ids.length, archived: archive });
+    }
+    catch (error) {
+        console.error('Error batch archiving statements:', error);
+        res.status(500).json({ error: 'Failed to archive statements' });
+    }
+});
+router.post('/batch-export', async (req, res) => {
+    try {
+        const { ids } = req.body;
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ error: 'Invalid request: ids array is required' });
+        }
+        const statements = await db
+            .select()
+            .from(strategicUnderstanding)
+            .where(inArray(strategicUnderstanding.id, ids));
+        const exportData = await Promise.all(statements.map(async (stmt) => {
+            const analyses = await db
+                .select()
+                .from(frameworkInsights)
+                .where(eq(frameworkInsights.understandingId, stmt.id));
+            const versions = await storage.getStrategyVersionsBySession(stmt.sessionId);
+            return {
+                statement: stmt,
+                oldAnalyses: analyses,
+                newAnalyses: versions,
+            };
+        }));
+        res.json({ success: true, data: exportData });
+    }
+    catch (error) {
+        console.error('Error batch exporting statements:', error);
+        res.status(500).json({ error: 'Failed to export statements' });
+    }
+});
+export default router;
+//# sourceMappingURL=statement-repository.routes.js.map

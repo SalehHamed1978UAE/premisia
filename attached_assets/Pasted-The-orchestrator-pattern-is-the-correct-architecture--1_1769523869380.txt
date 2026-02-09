@@ -1,0 +1,95 @@
+The orchestrator pattern is the correct architecture:
+                                                                                
+  Current (Broken) Architecture                                                 
+                                                                                
+  Module A ──────────────► Module B ──────────────► Module C                    
+    (SWOT)    direct nav     (Decisions)  direct nav    (EPM)                   
+                                                                                
+  Problem: Each module assumes the previous one finished                        
+           No validation, no gates, race conditions                             
+                                                                                
+  Correct Architecture: Central Orchestrator                                    
+                                                                                
+                      ┌─────────────────┐                                       
+                      │   ORCHESTRATOR  │                                       
+                      │                 │                                       
+                      │  - Journey State│                                       
+                      │  - Module Queue │                                       
+                      │  - Validation   │                                       
+                      │  - Navigation   │                                       
+                      └────────┬────────┘                                       
+                               │                                                
+           ┌───────────────────┼───────────────────┐                            
+           │                   │                   │                            
+           ▼                   ▼                   ▼                            
+      ┌─────────┐         ┌─────────┐         ┌─────────┐                       
+      │ Module A│         │ Module B│         │ Module C│                       
+      │  (SWOT) │         │(Decisions)        │  (EPM)  │                       
+      └─────────┘         └─────────┘         └─────────┘                       
+                                                                                
+      Modules ONLY talk to orchestrator                                         
+      Modules don't know about each other                                       
+      Orchestrator controls ALL transitions                                     
+                                                                                
+  Orchestrator Responsibilities                                                 
+  Responsibility: State Management                                              
+  What It Does: Tracks current step, completed modules, journey context         
+  ────────────────────────────────────────                                      
+  Responsibility: Validation Gate                                               
+  What It Does: Before advancing: queries DB to confirm output exists           
+  ────────────────────────────────────────                                      
+  Responsibility: Bridge Creation                                               
+  What It Does: Creates any records next module needs (e.g., strategy_versions) 
+  ────────────────────────────────────────                                      
+  Responsibility: Navigation Control                                            
+  What It Does: ONLY the orchestrator triggers page navigation                  
+  ────────────────────────────────────────                                      
+  Responsibility: Error Handling                                                
+  What It Does: If validation fails, stays on current step, shows error         
+  Module Contract                                                               
+                                                                                
+  Every module:                                                                 
+  interface Module {                                                            
+    // Called by orchestrator to execute                                        
+    execute(input: ModuleInput): Promise<ModuleOutput>;                         
+                                                                                
+    // Module reports completion to orchestrator                                
+    // Does NOT navigate, does NOT call next module                             
+  }                                                                             
+                                                                                
+  Modules are dumb workers. They:                                               
+  - Receive input from orchestrator                                             
+  - Do their job                                                                
+  - Return output to orchestrator                                               
+  - Know nothing about other modules or navigation                              
+                                                                                
+  For Replit                                                                    
+                                                                                
+  Create server/journey/orchestrator.ts:                                        
+                                                                                
+  class JourneyOrchestrator {                                                   
+    async advanceToNextStep(sessionId: string): Promise<void> {                 
+      const journey = await this.getJourneyState(sessionId);                    
+      const currentModule = this.getModule(journey.currentStep);                
+      const nextModule = this.getModule(journey.currentStep + 1);               
+                                                                                
+      // 1. Validate current module output exists                               
+      const outputExists = await this.validateModuleOutput(sessionId,           
+  currentModule);                                                               
+      if (!outputExists) {                                                      
+        throw new Error(`Cannot advance: ${currentModule.id} output not found`);
+      }                                                                         
+                                                                                
+      // 2. Create bridge records for next module                               
+      await this.prepareBridgeRecords(sessionId, nextModule);                   
+                                                                                
+      // 3. Update journey state                                                
+      await this.updateJourneyState(sessionId, { currentStep:                   
+  journey.currentStep + 1 });                                                   
+                                                                                
+      // 4. Return next page path (frontend handles navigation)                 
+      return nextModule.pagePath;                                               
+    }                                                                           
+  }                                                                             
+                                                                                
+  No module-to-module communication. Everything goes through the orchestrator.

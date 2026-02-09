@@ -1,0 +1,115 @@
+### Layer 1 – Raw Research Capture
+
+  Goal: Make sure every call to Brave/web-search produces a durable raw record
+  before we stream anything to the UI.
+
+  1. Capture raw payloads
+      - Inside MarketResearcher.performSingleWebSearch and fetchSourceContent,
+        wrap every request in a logging helper.
+      - Persist each response as a “raw research batch” row:
+
+        interface ResearchBatch {
+          id: uuid;
+          sessionId: string;    // journey session UUID
+          understandingId: string;
+          journeyType: string;
+          requestedAt: Date;
+          query: string;
+          rawDataPath: string;  // stored JSON blob path
+          status: 'captured' | 'enriched';
+        }
+      - Use the existing storage/S3 or local filesystem (storage/research/
+        {sessionId}/{timestamp}.json) to store the JSON.
+  2. Telemetry
+      - Log researchBatchId, query, and size (KB). Include Brave API errors
+        for troubleshooting.
+
+  Test Script
+
+  - Run BMC research once.
+  - Query the new research_batches table or list the directory; ensure every
+    query generates a JSON file and a metadata record.
+
+  ———
+
+  ### Layer 2 – Background Enrichment Job
+
+  Goal: Move formatting/enrichment out of the SSE handler so it can’t block or
+  fail silently.
+
+  1. Job schema
+      - Reuse the existing background jobs system (background_jobs table). Add a
+        new jobType: 'research_enrichment'.
+      - Payload includes researchBatchId, sessionId, journeyType.
+  2. Job runner
+      - Create ResearchEnrichmentWorker (similar to document enrichment). Steps:
+          1. Load raw JSON.
+          2. Normalize into a canonical structure (title, snippet, publication
+             date, key quote).
+          3. Group findings by category (e.g., market dynamics, buyer behavior).
+          4. Extract citations/quotes (truncate to 300 chars, include URL).
+          5. Write back to:
+              - strategy_versions.analysisData.research
+              - references table (origin: 'web_search')
+          6. Mark research_batches.status = 'enriched', attach summary stats
+             (#sources, tokens).
+          7. Emit job notification (researchEnrichmentCompleted).
+      - Set the worker to run in the same background dispatcher we already start
+        in server/index.ts.
+  3. Decouple SSE
+      - SSE endpoints (/bmc-research/stream, /research/stream) now:
+          - Kick off the job after capturing raw data.
+          - Stream progress (queries, partial findings) to the UI, but rely on
+            the job to handle persistence.
+          - Return an interim summary (so the user sees something immediately).
+
+  Test Script
+
+  - Clear all research output.
+  - Run a BMC journey.
+  - Verify: SSE finishes quickly; within a few seconds the background job logs
+    completion.
+  - Inspect the version record; enriched research exists, references created,
+    and the job entry marked completed.
+
+  ———
+
+  ### Layer 3 – Strategy Integration & UI refresh
+
+  Goal: Ensure the Strategy Hub observes the enriched results and that raw
+  batches are accessible for audit.
+
+  1. Strategy Hub updates
+      - After enrichment, invalidate caches for /api/strategies/:id.
+      - In the timeline card, display “Research updated (12 sources, 3 min ago)”
+        using data from journey_sessions.accumulatedContext.researchSummary.
+      - Add a “Download raw research” link pointing to the latest batch (admin
+        feature).
+  2. Research library
+      - Add a new section showing raw vs. enriched status: list raw batches with
+        timestamps, status, and a link to view the enriched summary.
+  3. Audit tooling
+      - Provide an admin endpoint GET /api/research-batches/:id to fetch the raw
+        JSON for debugging.
+
+  Test Script
+
+  - After running a journey, open Strategy Hub → Research tab.
+  - Confirm the new research entry appears with counts and a timestamp.
+  - Click the “Download raw research” link; verify the JSON matches what the
+    job processed.
+  - Check the background job notification: it reports the same stats.
+
+  ———
+
+  ### Rollout Steps
+
+  1. Implement Layer 1 + tests (backend only).
+  2. Add the enrichment worker and wire SSE → job handoff (Layer 2).
+  3. Update the UI and audit endpoints (Layer 3).
+  4. Once all three layers pass their tests, we revisit strategic insights
+     (graph work).
+
+  With this pipeline, we capture every shred of research, enrich it via a
+  controlled job, and present it cleanly in the UI—all while keeping the main
+  SSE responsive.

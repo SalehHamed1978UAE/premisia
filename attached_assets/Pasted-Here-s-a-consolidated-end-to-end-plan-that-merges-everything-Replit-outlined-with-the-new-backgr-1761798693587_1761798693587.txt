@@ -1,0 +1,243 @@
+Here’s a consolidated, end‑to‑end plan that merges everything Replit outlined
+  with the new “background journey” capability we just discussed. Treat it as
+  the blueprint for turning QGentic into a full strategic lifecycle platform
+  with provenance, iteration, and automated reruns.
+
+  ———
+
+  ## Phase 1 – Data Foundations & Reference Tracking
+
+  ### 1. Schema updates
+
+  - strategic_understanding
+      - Add title (editable initiative name).
+  - journey_sessions
+      - Add versionNumber, startedAt, completedAt, status (in_progress,
+        completed, failed, queued), background (boolean).
+  - references (new table)
+      - id, understandingId, sessionId, programId
+      - Metadata: sourceType, title, url, description, topics[], confidence,
+        origin, lastValidated
+      - Usage: usedInComponents[], extractedQuotes (JSON)
+      - Timestamps + indexes on understandingId, sessionId, sourceType.
+  - Optional: journey_inputs table to capture manual inputs/clarifications that
+    can be reused.
+
+  ### 2. Reference extraction service
+
+  - Extend existing analyzers (MarketResearcher, BMC, Porters, PESTLE, trend
+    agents) to return normalized references[] alongside their results.
+  - Deduplicate references by URL/title across runs.
+  - When strategicUnderstandingService.extractUnderstanding() saves entities,
+    upsert associated references with component mapping.
+
+  ### 3. Metadata cache for readiness checks
+
+  Maintain a lightweight strategy_metadata (or JSON column) that tracks which
+  knowledge-graph entities, references, or clarifications already exist,
+  plus their confidence levels. Update it every time a journey completes or a
+  document is ingested.
+
+  ———
+
+  ## Phase 2 – Strategy Hub & Unified Navigation
+
+  ### 1. Strategies list page (/strategies)
+
+  - Show all initiatives (understandingId, title, journey count, reference
+    count, EPM count, last updated, status).
+  - Inline rename, archive, delete, export controls.
+  - Filters (active/archived, date range) and search.
+
+  ### 2. Strategy Hub page (/strategies/:understandingId)
+
+  - Sections:
+      - Strategic Understanding summary (with “view full input”).
+      - Journey timeline (chronological list with version numbers, framework
+        badges, status).
+      - Quick stats (total references, total journeys, linked EPM programs).
+      - “Start new journey” launcher.
+      - Link to Research Library, Programs, Knowledge Graph.
+  - Breadcrumbs: Strategies > [Initiative] > Journey N > Framework
+
+  ### 3. Journey timeline component
+
+  - Show duration, frameworks completed, references added, status badges (in
+    progress, queued, completed).
+  - “View results” and “View research” links per journey.
+
+  ### 4. Navigation updates
+
+  - Add “Strategies” to main sidebar (under Strategic Consultant).
+  - Ensure all existing pages (analysis repository, EPM view) gain breadcrumb
+    context when accessed from a strategy.
+
+  ———
+
+  ## Phase 3 – Research & Provenance UI
+
+  ### 1. Research library page (/strategies/:id/research)
+
+  - Aggregate references across all journeys/EPMs.
+  - Filters: source type, confidence, topic, journey.
+  - Grouping options: by component, journey, topic.
+  - Show badges (confidence, topics).
+    “View source” (open in new tab) and “See usage” (jump to specific framework/
+    EPM section).
+
+  ### 2. Inline citations
+
+  - Modify framework result pages and EPM view to display citations next to
+    claims.
+  - Hover reveals snippet + metadata; clicking opens the reference detail panel.
+
+  ### 3. Exports
+
+  - Update Markdown, PDF (both standard and UI-styled), DOCX, JSON, CSV exports
+    to include:
+      - References section with footnotes.
+      - references.json and references.csv in the ZIP.
+      - Link each claim in the report to its source.
+
+  ———
+
+  ## Phase 4 – Journey Iteration & Context Reuse
+
+  ### 1. Journey readiness evaluator
+
+  - Map each framework’s required inputs (knowledge entities, references,
+    clarifications, manual inputs).
+  - Maintain the metadata cache (Phase 1).
+  - API: POST /api/journeys/check-readiness → returns ready flag and missing[].
+    Accepts understandingId + journeyType or frameworkName.
+
+  ### 2. Journey launcher modal
+
+  - Show what’s available: “47 entities in KG, 23 references, previous
+    frameworks…”
+  - Run readiness check:
+      - Ready → “Start in background” option.
+      - Not ready → list missing inputs with links (upload doc, run
+        clarifications).
+  - Provide journey type selector and confirm button.
+
+  ### 3. Context inheritance service
+
+  - On journey start, hydrate analyzers with:
+      - Prior KG entities and clarifications.
+      - Reference cache (so we don’t re-query duplicated sources).
+      - Prior framework outputs as context input.
+  - Track reused vs newly added references for analytics.
+
+  ———
+
+  ## Phase 5 – Background Execution & Notifications
+
+  ### 1. Background job integration
+
+  - Extend the existing job system (backgroundJobs, backgroundJobService) with a
+    new job type journey_execution.
+  - When the user selects “Start in background,” enqueue a job referencing
+    journeySessionId.
+  - Worker reuses current JourneyOrchestrator flow but runs off-thread.
+
+  ### 2. Timing & states
+
+  - On enqueue: mark journey_sessions.status = 'queued', startedAt = now.
+  - Worker updates status to in_progress, completed, or failed and records
+    completedAt.
+    Also log references added per run.
+
+  ### 3. Notifications & UI
+
+  - Reuse useJobNotifications (or create a specialized hook) to show background
+    journey progress.
+    Example: “Journey 2 (Competitive Strategy) is running…”, “Journey 2
+    completed – 7 new references added.”
+  - For analysis repository & programs lists, show a spinner or “in progress”
+    badge while the job runs.
+
+  ### 4. Document enrichment integration
+
+  - Connect the journey flow’s /extract-file → /understanding path to the same
+    document enrichment job used by /analyze.
+  - After ingestion, hit the references service to persist newly derived
+    references, then update metadata cache.
+  - Trigger the existing knowledge-graph notification toast (“Extracted 4
+    insights from MarketReport.pdf — view details”).
+
+  ———
+
+  ## Phase 6 – Knowledge Graph & Reference Surfacing
+
+  ### 1. Knowledge graph panel
+
+  - In Strategy Hub (and short-cut in Session Context), include a “Knowledge
+    Graph” tab:
+      - Show entities grouped by type, confidence, source.
+      - Highlight new entities from the latest journey.
+      - Provide quick actions (edit, retire, mark validated).
+
+  ### 2. Relationships & usage mapping
+
+  - Optionally extend to show strategic_relationships between entities.
+  - Allow jumping from entity → frameworks/components referencing it.
+
+  ### 3. Audit/history
+
+  - Log who/what added each reference/entity (journey session, upload) for audit
+    use.
+
+  ———
+
+  ## Phase 7 – Quality Assurance & Rollout
+
+  ### 1. Migrations & backfill
+
+  - Create migration scripts for new tables/columns.
+  - Backfill existing journeys/programs with default titles and version numbers.
+  - Build a script to reprocess existing references if necessary.
+
+  ### 2. Testing
+
+  - Unit tests: reference normalization, readiness evaluator, analytics dedupe.
+  - Integration tests: full journey start/complete (manual + background) with
+    references + exports.
+  - Regression tests: ensure existing flows (analysis, EPM generation) still
+    work.
+
+  ### 3. Monitoring / logging
+
+  - Add structured logging around journey background jobs, reference ingestion,
+    and readiness decisions.
+  - Dashboards for “reference count per journey/program,” “background job queue
+    length,” etc.
+
+  ### 4. Documentation & onboarding
+
+  - Update user onboarding to highlight:
+      - Strategies tab.
+      - Research & reference explorer.
+      - Background journey option.
+      - Export provenance (footnotes, reference files).
+
+  ———
+
+  ## Implementation Milestones (suggested order)
+
+  1. Schema + reference service (Phase 1).
+  2. Strategies list + Strategy Hub scaffold (Phase 2).
+  3. Research library & inline citations (Phase 3).
+  4. Journey readiness + launcher + context reuse (Phase 4).
+  5. Background job execution + notifications (Phase 5).
+  6. Knowledge graph UI enhancements (Phase 6).
+  7. Exports + QA + documentation (Phase 7).
+
+  Each milestone is shippable and adds immediate value.
+
+  ———
+
+  With this plan, QGentic becomes a full strategic lifecycle platform: every
+  initiative tracked end-to-end, every claim linked to a source, and every new
+  analysis or journey runnable with one click (even in the background) if enough
+  knowledge already exists.

@@ -1,0 +1,38 @@
+Replit's approach is exactly right. The execution plan is solid:              
+  Step: Set up data storage helpers                                             
+  What: BaseRepository with CRUD                                                
+  Why: Foundation for all repos                                                 
+  ────────────────────────────────────────                                      
+  Step: Add program and work storage                                            
+  What: EPMRepository                                                           
+  Why: Recently refactored, good test case                                      
+  ────────────────────────────────────────                                      
+  Step: Add journey and session storage                                         
+  What: JourneyRepository                                                       
+  Why: Handles session lifecycle                                                
+  ────────────────────────────────────────                                      
+  Step: Add strategy and decision storage                                       
+  What: StrategyRepository                                                      
+  Why: Tightly coupled to EPM flow                                              
+  ────────────────────────────────────────                                      
+  Step: Connect all storage tools                                               
+  What: Register in DI container                                                
+  Why: Single source of instances                                               
+  ────────────────────────────────────────                                      
+  Step: Use new program storage                                                 
+  What: Migrate routes to use repos                                             
+  Why: Replace direct db. calls                                                 
+  ────────────────────────────────────────                                      
+  Step: Check program creation works                                            
+  What: End-to-end EPM test                                                     
+  Why: Verify no regressions                                                    
+  Key Principles Replit Mentioned                                               
+                                                                                
+  - Thin repositories - just data access, no business logic                     
+  - Reuse Drizzle schema types - type safety without duplication                
+  - Incremental migration - verify after each conversion                        
+                                                                                
+  This is the right approach. They can proceed.                                 
+                                                                                
+  If they hit any issues or need specific interface definitions for a           
+  repository, let me know.    

@@ -1,0 +1,14 @@
+{
+  "journeyType": "business_model_innovation",
+  "sessionId": "e02d8708-a3cc-4385-ba1e-2a2c7742342b",
+  "understandingId": "0d175971-2746-49ee-a424-5f24d02ae7aa",
+  "versionNumber": 2,
+  "steps": [],
+  "metadata": {
+    "initiativeType": "physical_business_launch",
+    "completedAt": "2025-11-03T14:01:17.213Z",
+    "frameworks": []
+  },
+  "notes": "Baseline BMI - canonical golden record",
+  "capturedAt": "2025-11-03T14:11:04.553Z"
+}

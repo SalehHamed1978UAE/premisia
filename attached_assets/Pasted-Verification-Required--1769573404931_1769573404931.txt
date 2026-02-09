@@ -1,0 +1,31 @@
+Verification Required                                                         
+                                                                                
+  The validation gates have been added, but we need manual E2E proof that the   
+  404 is fixed.                                                                 
+                                                                                
+  Test Steps:                                                                   
+                                                                                
+  1. Start a new custom journey                                                 
+  2. Enter business details                                                     
+  3. Complete SWOT analysis                                                     
+  4. Wait for transition to Decisions                                           
+  5. Expected: Decisions page loads (no 404)                                    
+                                                                                
+  Evidence Required from Replit:                                                
+  Evidence: Server logs                                                         
+  What to Show: Show [VALIDATION] strategy_versions verified log entry          
+  ────────────────────────────────────────                                      
+  Evidence: Database query                                                      
+  What to Show: SELECT id FROM strategy_versions WHERE session_id =             
+    '<session_id>' returns 1 row                                                
+  ────────────────────────────────────────                                      
+  Evidence: Screenshot                                                          
+  What to Show: Decisions page loaded successfully                              
+  If it still 404s:                                                             
+  - Show the logs from the validation gate                                      
+  - Show what sessionId was used                                                
+  - Show the actual database state                                              
+                                                                                
+  This is the final verification. The code looks right, but we need to see it   
+  work in practice. Ask Replit to run a real journey and show all 3 pieces of   
+  evidence.    

@@ -1,0 +1,49 @@
+ This is revealing. There are two separate fallback paths, and we only removed 
+  one:                                                                          
+                                                                                
+  WBS Builder → Generates 6 real workstreams ✅                                 
+          ↓                                                                     
+  Intelligent Planning (Task Extraction) → Times out after 66s ❌               
+          ↓                                                                     
+  "FORCING SUCCESS for testing" ⚠️  ← This is a hack someone added              
+          ↓                                                                     
+  Falls back to "legacy synthesis path"                                         
+          ↓                                                                     
+  Legacy path REGENERATES workstreams from scratch                              
+          ↓                                                                     
+  "Capitalize on:" garbage overwrites the good WBS output                       
+                                                                                
+  The problem: WBS Builder output is being thrown away when a later step fails. 
+                                                                                
+  Why this happened: Someone added FORCING SUCCESS for testing which masks the  
+  failure but then triggers the legacy path anyway. This is technical debt from 
+  testing that was never cleaned up.                                            
+                                                                                
+  The fix is straightforward:                                                   
+                                                                                
+  1. Preserve WBS Builder output - Store it before intelligent planning runs    
+  2. If planning fails, use WBS workstreams anyway - Skip timeline optimization,
+   but keep real workstreams                                                    
+  3. Remove the legacy regeneration path entirely - It should never regenerate  
+  workstreams from scratch                                                      
+                                                                                
+  Tell Replit: Yes, fix this. But make sure they:                               
+                                                                                
+  1. Delete the "FORCING SUCCESS for testing" hack - this is hiding real        
+  failures                                                                      
+  2. Delete the legacy synthesis path that regenerates workstreams - it's the   
+  source of garbage                                                             
+  3. Ensure WBS Builder output flows through regardless of planning step success
+                                                                                
+  The architecture should be:                                                   
+  WBS Builder → workstreams (saved)                                             
+          ↓                                                                     
+  Intelligent Planning → timeline/dependencies (optional enhancement)           
+          ↓                                                                     
+  If planning fails → use workstreams as-is, log warning                        
+          ↓                                                                     
+  Save workstreams (never regenerate)                                           
+                                                                                
+  The fact that it was "the fastest journey" suggests the timeout is happening  
+  quickly and falling back immediately, rather than actually running the full   
+  pipeline.     

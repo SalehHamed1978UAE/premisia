@@ -1,0 +1,73 @@
+Final EPM Fix: Benefit Names & Targets
+Problem: Benefits have long narrative names and vague targets. The good generation logic exists in legacy epm-converter.ts but the new path (generators.ts) doesn't use it.
+
+Step 1: Add helper functions to server/intelligence/epm/generators.ts
+Add these methods to the BenefitsGenerator class:
+typescriptprivate generateBenefitName(content: string, category: string, index: number): string {
+  const lower = content.toLowerCase();
+
+  if (lower.includes('revenue')) return 'Revenue Growth';
+  if (lower.includes('cost') || lower.includes('efficiency')) return 'Cost Optimization';
+  if (lower.includes('customer') || lower.includes('satisfaction')) return 'Customer Experience';
+  if (lower.includes('market') || lower.includes('share')) return 'Market Position';
+  if (lower.includes('brand') || lower.includes('awareness')) return 'Brand Awareness';
+  if (lower.includes('risk')) return 'Risk Reduction';
+  if (lower.includes('time') || lower.includes('speed')) return 'Time-to-Value';
+  if (lower.includes('quality')) return 'Quality Improvement';
+  if (lower.includes('expansion') || lower.includes('segment')) return 'Market Expansion';
+
+  return `${category} Benefit`;
+}
+
+private generateBenefitTarget(content: string, category: string): string {
+  const lower = content.toLowerCase();
+
+  if (lower.includes('revenue')) return '+15% revenue increase';
+  if (lower.includes('cost')) return '-15% cost reduction';
+  if (lower.includes('customer')) return '+10 NPS points';
+  if (lower.includes('market') || lower.includes('share')) return '+10% market share';
+  if (lower.includes('brand') || lower.includes('awareness')) return '+20% brand awareness';
+  if (lower.includes('efficiency')) return '+20% efficiency gain';
+  if (lower.includes('risk')) return '-25% risk exposure';
+
+  if (category === 'Financial') return '+15% financial improvement';
+  if (category === 'Operational') return '+20% operational efficiency';
+
+  return '+10% performance improvement';
+}
+
+Step 2: Update benefit creation (around line 156-164)
+Find where benefits are created and update to use the new helpers:
+typescriptconst benefits: Benefit[] = benefitInsights.map((insight, idx) => {
+  const category = this.categorizeBenefit(insight.content);
+  return {
+    id: `B${String(idx + 1).padStart(3, '0')}`,
+    category: category as any,
+    name: this.generateBenefitName(insight.content, category, idx),  // ADD THIS
+    description: insight.content,
+    realizationMonth: Math.min(timeline.totalMonths - 2 + idx, timeline.totalMonths + 6),
+    estimatedValue: this.estimateBenefitValue(insight),
+    measurement: this.generateMeasurement(insight.content),
+    target: this.generateBenefitTarget(insight.content, category),  // ADD THIS
+    confidence: insight.confidence,
+  };
+});
+
+Step 3: Update Benefit interface if needed
+In server/intelligence/types.ts, ensure Benefit has:
+typescriptexport interface Benefit {
+  id: string;
+  category: 'Financial' | 'Strategic' | 'Operational' | 'Risk Mitigation';
+  name: string;           // ADD if missing
+  description: string;
+  realizationMonth: number;
+  estimatedValue?: number;
+  measurement: string;
+  target: string;         // ADD if missing
+  confidence: number;
+  responsibleParty?: string;
+}
+
+Verification
+Run "Premium Sneaker Shop in Dubai" and check benefits.csv:
+FieldBeforeAfterBenefit Name"Strategic benefit: Dubai's sneaker market demands...""Brand Awareness"Target"+10% performance improvement""+20% brand awareness"

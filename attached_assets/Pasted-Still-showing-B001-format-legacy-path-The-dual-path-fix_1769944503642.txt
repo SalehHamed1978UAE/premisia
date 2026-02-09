@@ -1,0 +1,39 @@
+Still showing B001 format = legacy path. The dual-path fix isn't being used.  
+                                                                                
+  Summary of this export:                                                       
+  ┌──────────────────┬─────────┬───────────────────────────────────────────────┐
+  │      Aspect      │ Status  │                     Notes                     │
+  ├──────────────────┼─────────┼───────────────────────────────────────────────┤
+  │ Gantt Chart      │ ✅ Good │ 6 workstreams, 4 months, proper sequencing    │
+  ├──────────────────┼─────────┼───────────────────────────────────────────────┤
+  │ Workstreams      │ ✅ Good │ Coffee-specific: Shop Design, POS,            │
+  │                  │         │ Compliance, Staff, Marketing                  │
+  ├──────────────────┼─────────┼───────────────────────────────────────────────┤
+  │ Owners           │ ✅ Good │ Catering Operations Manager, Marketing        │
+  │                  │         │ Specialist                                    │
+  ├──────────────────┼─────────┼───────────────────────────────────────────────┤
+  │ Benefits IDs     │ ❌      │ B001 not BEN-01                               │
+  │                  │ Legacy  │                                               │
+  ├──────────────────┼─────────┼───────────────────────────────────────────────┤
+  │ Benefit          │ ❌      │ "Corporate Catering Expansion" instead of     │
+  │ Descriptions     │ Short   │ full paragraph                                │
+  └──────────────────┴─────────┴───────────────────────────────────────────────┘
+  The fix code is there but not executing. This means one of:                   
+                                                                                
+  1. Server not restarted after git pull                                        
+  2. frameworkInsights query returning empty (no strategic_decisions stored for 
+  Market Entry journeys)                                                        
+                                                                                
+  Replit needs to check server logs for these lines during EPM generation:      
+  [EPM Generation] Legacy decisionsData empty, checking Journey Builder path... 
+                                                                                
+  If that line doesn't appear → server wasn't restarted.                        
+  If it appears but no "Found decisions" → Journey Builder isn't storing        
+  decisions in frameworkInsights.                                               
+                                                                                
+  Quick diagnostic: Can Replit add this temporary log at the START of the EPM   
+  route and run one more journey?                                               
+                                                                                
+  console.log('[EPM DEBUG] Route hit - code version: dual-path-v2');            
+                                                                                
+  If that log doesn't appear in console, the new code isn't running.  

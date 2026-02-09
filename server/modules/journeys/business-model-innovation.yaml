@@ -1,0 +1,78 @@
+id: business_model_innovation
+name: Business Model Innovation
+version: "1.0.0"
+description: >-
+  Reimagine your business model by identifying root causes of problems, 
+  then designing innovative value propositions, revenue streams, and partnerships.
+  This journey guides you through Five Whys analysis to uncover strategic problems,
+  followed by Business Model Canvas design with research-backed insights.
+
+modules:
+  - id: input-processor
+    config:
+      enableGeographicDisambiguation: true
+      extractEntities: true
+  - id: five-whys-analyzer
+    config:
+      interactiveMode: true
+      maxDepth: 5
+  - id: bmc-analyzer
+    config:
+      enableResearch: true
+      validateCrossBlock: true
+      detectContradictions: true
+  - id: epm-generator
+    config:
+      generateTimeline: true
+      generateResources: true
+
+page_sequence:
+  - path: /strategic-consultant/input
+    module: input-processor
+    condition: null
+  - path: /strategic-consultant/whys-tree/:understandingId
+    module: five-whys-analyzer
+    condition: null
+  - path: /strategic-consultant/research/:sessionId
+    module: bmc-analyzer
+    condition: null
+  - path: /strategy-workspace/decisions/:sessionId/:versionNumber
+    module: epm-generator
+    condition: requiresDecisions
+  - path: /strategy-workspace/prioritization/:sessionId/:versionNumber
+    module: epm-generator
+    condition: hasMultipleDecisions
+
+transitions:
+  - from: input-processor
+    to: five-whys-analyzer
+    condition: null
+  - from: five-whys-analyzer
+    to: bmc-analyzer
+    condition: rootCauseIdentified
+  - from: bmc-analyzer
+    to: epm-generator
+    condition: analysisComplete
+
+estimated_duration: "30-35 minutes"
+available: true
+summary_builder: fiveWhysBmc
+
+default_readiness:
+  min_references: 0
+  min_entities: 0
+  required_modules:
+    - five-whys-analyzer
+    - bmc-analyzer
+
+insights_config:
+  requires_five_whys: true
+  requires_bmc: true
+  requires_porters: false
+  requires_pestle: false
+
+tags:
+  - business-model
+  - innovation
+  - root-cause
+  - strategic-analysis

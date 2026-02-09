@@ -1,0 +1,101 @@
+  ### 1. Fix the “Run Additional Analysis” button & modal behavior
+
+  - Keep the button labeled “Run Additional Analysis.” It must only open the
+    Journey Launcher modal—no navigation.
+  - In the modal, when the user selects a journey/framework, run the readiness
+    check (POST /api/journeys/check-readiness).
+  - Interpret the readiness response correctly:
+      - If backgroundReady === true:
+        The system has everything required to run the journey/framework end-to-
+        end without asking for more input. In this case:
+          - Enable Start in Background (existing behavior).
+          - Implement Run Now to immediately call a new interactive execution
+            endpoint (see next section). Do not navigate to /journey-selection;
+            just run it and refresh the timeline when done.
+      - If backgroundReady === false:
+        Show the missing inputs (clarifications, references, etc.). Keep the
+        “Continue in Journey Builder” button, which should route to /strategic-
+        consultant/journey-selection/${understandingId} with existing context
+        preloaded.
+
+  ### 2. Add interactive journey execution endpoint
+
+  - Create a new endpoint (e.g., POST /api/strategic-consultant/journeys/
+    run-now) that takes { understandingId, journeyType? | templateId?,
+    frameworks? }.
+  - It should invoke the same orchestrator logic as the “interactive” path today
+    and return success once the journey finishes.
+  - The modal’s Run Now button should call this endpoint whenever
+    backgroundReady === true. Show a progress state while it runs, then close
+    the modal and refresh the Strategy Hub timeline.
+
+  ### 3. Implement the dependency intelligence layer
+
+  Build the backend foundation that lets readiness checks answer, “Can this
+  framework/journey run to completion with the data we have?”
+
+  - Contracts (config):
+    Define, for each journey/framework:
+      - Inputs it requires (e.g., BMC segments, pricing references,
+        clarifications).
+      - Outputs it produces.
+      - Whether it has interactive steps.
+        Store these contracts centrally so adding a new journey just means
+        updating config, not code.
+  - Dependency graph:
+    Maintain a cache (extend strategy_metadata or use a dedicated table) that
+    records, for each strategy, which outputs are present, their confidence, and
+    what’s missing.
+  - Recomputation triggers:
+    Recompute the dependency cache whenever:
+      - A journey/framework completes.
+      - New docs are ingested into the knowledge graph.
+      - A journey/framework contract changes (new journey added, config
+        updated).
+  - Readiness API changes:
+    POST /api/journeys/check-readiness should now read the dependency cache
+    and return:
+
+    {
+      "backgroundReady": true/false,
+      "missing": [
+        { "type": "clarification", "id": "pricing", "description": "Pricing
+  assumptions not captured" }
+      ],
+      "contextSummary": { … }   // optional overview for the UI
+    }
+
+  ### 4. Journey Builder wizard adjustments
+
+  - When the user is sent to /strategic-consultant/journey-
+    selection/:understandingId from the modal (because input is missing), the
+    page already knows the journey/framework the user picked.
+  - Skip the selection screen and jump straight into collecting the missing
+    inputs. Once gathered, run the journey automatically.
+
+  ### 5. Modal polish & dynamic data
+
+  - The modal should continue fetching journeys/templates dynamically (already
+    implemented).
+  - Ensure unavailable journeys are greyed out (“Coming Soon”), available ones
+    clickable.
+  - Make sure the close (“X”) and “Cancel” buttons both call onClose.
+
+  ———
+
+  ### Summary of tasks
+
+  1. Add the new interactive execution endpoint (run-now).
+  2. Update handleRunNow in the modal to call it when backgroundReady === true
+     (no redirects).
+  3. Redefine readiness (backgroundReady) to be based on real dependency data;
+     rework the readiness API and metadata cache accordingly.
+  4. Implement the dependency contracts and recomputation logic so new journeys/
+     frameworks automatically participate.
+  5. Adjust the journey-selection wizard so, when launched with an
+     understandingId and specific journey/framework, it collects only the
+     missing pieces and runs the journey without reselecting it.
+
+  Once these changes are in, “Run Additional Analysis” will behave correctly:
+  we reuse context automatically, only drop into the wizard when new input is
+  required, and keep the user inside the Strategy Hub when everything is ready.

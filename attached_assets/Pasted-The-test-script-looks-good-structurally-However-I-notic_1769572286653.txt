@@ -1,0 +1,27 @@
+The test script looks good structurally. However, I notice that T002 doesn't  
+  actually test the race condition - it creates data synchronously in setup(),  
+  which will always pass.                                                       
+                                                                                
+  The real test for T002 should be:                                             
+  1. Trigger the actual journey transition (call the journey executor)          
+  2. Wait for the redirect URL to be returned                                   
+  3. Check if strategy_versions exists at that moment                           
+                                                                                
+  But this is a good starting baseline for schema validation. Let's proceed:    
+                                                                                
+  Ask Replit to:                                                                
+                                                                                
+  1. Write the file to disk - Create scripts/regression-test.ts                 
+  2. Run it - npx tsx scripts/regression-test.ts                                
+  3. Show the output - Screenshot or paste the terminal output                  
+                                                                                
+  We should see all 3 tests pass (since we're testing setup, not the actual     
+  async flow). This confirms:                                                   
+  - Database schema is correct                                                  
+  - Relationships work                                                          
+  - We have a working test infrastructure                                       
+                                                                                
+  Then we can add a T002-async test that actually triggers the journey flow and 
+  exposes the race condition. That test should FAIL, proving the bug exists     
+  before we fix it.                                                             
+                        

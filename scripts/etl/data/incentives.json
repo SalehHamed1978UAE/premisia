@@ -1,0 +1,64 @@
+[
+  {
+    "sourceKey": "added-innovate",
+    "name": "ADDED Innovate Program",
+    "provider": "Abu Dhabi Department of Economic Development",
+    "description": "Financial support for innovative businesses in Abu Dhabi",
+    "eligibilitySummary": "Tech startups and innovative businesses operating in Abu Dhabi",
+    "benefits": ["Up to AED 500,000 funding", "Mentorship support", "Office space subsidies"],
+    "url": "https://added.gov.ae/en/Pages/Innovate.aspx",
+    "jurisdictionId": "jur-abu-dhabi-mainland"
+  },
+  {
+    "sourceKey": "adio-rebate",
+    "name": "ADIO Investment Rebate Program",
+    "provider": "Abu Dhabi Investment Office",
+    "description": "Cash rebate on qualifying business costs for investors in Abu Dhabi",
+    "eligibilitySummary": "Companies investing over AED 1M in priority sectors",
+    "benefits": ["Up to 30% rebate on costs", "Fast-track licensing", "Visa support"],
+    "url": "https://www.investinabudhabi.ae/incentives",
+    "jurisdictionId": "jur-abu-dhabi-mainland"
+  },
+  {
+    "sourceKey": "ded-traders-license",
+    "name": "Dubai Traders License",
+    "provider": "Dubai Department of Economic Development",
+    "description": "Flexible license for e-commerce and digital businesses",
+    "eligibilitySummary": "E-commerce businesses operating from Dubai",
+    "benefits": ["No physical office required", "Lower fees", "Multiple activities allowed"],
+    "url": "https://www.dubaided.gov.ae/",
+    "jurisdictionId": "jur-dubai-mainland"
+  },
+  {
+    "sourceKey": "dmcc-startup",
+    "name": "DMCC Startup Hub",
+    "provider": "Dubai Multi Commodities Centre",
+    "description": "Support program for early-stage startups in DMCC",
+    "eligibilitySummary": "Startups in commodities, trade, and tech sectors",
+    "benefits": ["Discounted license fees", "Co-working spaces", "Networking events"],
+    "url": "https://www.dmcc.ae/business-setup/startup-hub",
+    "jurisdictionId": "jur-dmcc"
+  },
+  {
+    "sourceKey": "difc-fintech-hive",
+    "name": "DIFC FinTech Hive",
+    "provider": "Dubai International Financial Centre",
+    "description": "Accelerator program for fintech companies",
+    "eligibilitySummary": "Fintech startups targeting financial services",
+    "benefits": ["12-week accelerator", "Mentorship", "Access to investors"],
+    "url": "https://www.difc.ae/business/fintech-hive/",
+    "jurisdictionId": "jur-difc",
+    "industryId": "ind-fintech"
+  },
+  {
+    "sourceKey": "masdar-cleantech",
+    "name": "Masdar City Clean Tech Incentives",
+    "provider": "Masdar City",
+    "description": "Support for clean technology and renewable energy companies",
+    "eligibilitySummary": "Companies in renewable energy and sustainability sectors",
+    "benefits": ["Subsidized workspace", "R&D funding support", "Sustainability certifications"],
+    "url": "https://www.masdar.ae/",
+    "jurisdictionId": "jur-masdar",
+    "industryId": "ind-renewable"
+  }
+]

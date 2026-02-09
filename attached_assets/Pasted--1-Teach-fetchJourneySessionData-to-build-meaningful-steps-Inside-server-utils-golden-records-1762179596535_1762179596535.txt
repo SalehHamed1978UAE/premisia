@@ -1,0 +1,105 @@
+### 1. Teach fetchJourneySessionData to build meaningful steps
+
+  Inside server/utils/golden-records-service.ts (the new service layer), update
+  the BMI branch to populate explicit steps using the data we already store:
+
+  const steps: GoldenRecordStep[] = [];
+
+  // Step 1: Five Whys (look in accumulatedContext or analysisData)
+  if (session.completedFrameworks?.includes('five_whys')) {
+    const fiveWhys = session.accumulatedContext?.insights?.fiveWhys
+      ?? versions[0]?.analysisData?.five_whys;
+
+    steps.push({
+      stepName: 'five_whys',
+      frameworkType: 'five_whys',
+      expectedUrl: `/strategic-consultant/whys-tree/${session.id}`,
+      responsePayload: fiveWhys ? { rootCause: fiveWhys?.root_cause } :
+  undefined,
+      observations: fiveWhys ? 'Five Whys completed' : 'Five Whys framework
+  executed',
+      completedAt: session.completedAt ?? versions[0]?.createdAt ?? undefined,
+    });
+  }
+
+  // Step 2: BMC Research
+  const latestVersion = versions[0];
+  if (latestVersion?.analysisData?.bmc_research) {
+    steps.push({
+      stepName: 'bmc_research',
+      frameworkType: 'bmc',
+      expectedUrl: `/strategic-consultant/research/${session.id}`,
+      responsePayload: {
+        keyInsights: latestVersion.analysisData.bmc_research.keyInsights,
+        criticalGaps: latestVersion.analysisData.bmc_research.criticalGaps,
+      },
+      observations: 'BMC research stream completed',
+      completedAt: latestVersion.updatedAt ?? latestVersion.createdAt ??
+  undefined,
+    });
+  }
+
+  // Step 3: Strategic Decisions
+  if (latestVersion?.decisionsData?.decisions?.length) {
+    steps.push({
+      stepName: 'strategic_decisions',
+      expectedUrl: `/strategy-workspace/decisions/${session.id}/
+  ${latestVersion.versionNumber}`,
+      responsePayload: latestVersion.decisionsData.decisions.map(d => ({
+        id: d.id,
+        title: d.title,
+        options: d.options?.length ?? 0,
+      })),
+      observations: 'Decisions generated and ready for prioritization',
+    });
+
+    if (latestVersion?.selectedDecisions) {
+      steps.push({
+        stepName: 'prioritization',
+        expectedUrl: `/strategy-workspace/prioritization/${session.id}/
+  ${latestVersion.versionNumber}`,
+        responsePayload: latestVersion.selectedDecisions,
+        observations: 'Prioritized initiatives saved',
+      });
+    }
+  }
+
+  // Step 4: EPM Program
+  if (epmProgramRow) {
+    steps.push({
+      stepName: 'epm_generation',
+      expectedUrl: `/strategy-workspace/epm/${epmProgramRow.id}`,
+      responsePayload: {
+        programId: epmProgramRow.id,
+        status: epmProgramRow.status,
+        workstreams: Array.isArray(epmProgramRow.workstreams)
+          ? epmProgramRow.workstreams.length
+          : 0,
+      },
+      observations: 'EPM program generated successfully',
+      completedAt: epmProgramRow.createdAt ?? undefined,
+    });
+  }
+
+  Keep the old general logic as a fallback (other journeys can still rely on
+  completedFrameworks, etc.), but BMI must explicitly produce the five steps
+  above.
+
+  ### 2. Re-run capture after the fix
+
+  Once this change is in, rerun the capture script for the same BMI session to
+  overwrite v2 (or capture v3) so that the new snapshot contains all steps:
+
+  npx tsx scripts/golden-record-capture.ts --sessionId=<session_id> --notes="BMI
+  baseline with framework steps" --promote
+
+  Alternatively, delete the bad record in /admin/golden-records and let auto-
+  capture re-run after the patch.
+
+  ———
+
+  This will give us a golden record with the full journey progression (Five Whys
+  → BMC → Decisions → Prioritization → EPM), so future compares will actually
+  detect regressions. Let me know once Replit patches the service and recaptures
+  the run; we’ll check the admin UI to confirm you see five steps instead of
+  zero.

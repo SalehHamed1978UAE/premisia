@@ -1,0 +1,76 @@
+Analysis & Solution for Intelligent Planning Scale Problem
+What We Discovered:
+The intelligent planning system works perfectly from a technical perspective:
+
+✅ Makes real OpenAI API calls (30-50 seconds)
+✅ Extracts tasks using AI
+✅ Runs CPM scheduling
+✅ Validates and optimizes
+
+But it has a fundamental context problem: It generated a 166-month (14-year) timeline for a Brooklyn coffee shop. This is because the AI has no understanding of what it's planning for.
+Root Cause:
+The intelligent planning receives workstreams but NO business context. It doesn't know if it's planning for:
+
+A local coffee shop (6-12 months reasonable)
+NASA Mars mission (10+ years reasonable)
+Enterprise software (2-3 years reasonable)
+
+Without context, GPT-4 defaults to conservative/enterprise-scale estimates.
+What We're Trying to Achieve:
+An intelligent system that:
+
+Understands business scale from context
+Generates appropriate timelines based on business type
+Self-calibrates without hard-coded rules
+Works for ANY business - coffee shops to space programs
+
+The Solution:
+Step 1: Pass existing context to intelligent planning
+typescript// In buildWithIntelligentPlanning(), before calling intelligent planning:
+const planningContext = {
+  businessName: insights.businessName,
+  businessModel: insights.businessModel,
+  industryContext: insights.context,
+  businessDescription: insights.description,
+  // This context already exists in insights!
+};
+
+// Pass to replaceTimelineGeneration
+const result = await replaceTimelineGeneration(program, planningContext);
+Step 2: Use context in task extraction
+typescript// In task-extractor.ts
+const prompt = `
+You are planning for: ${context.businessName}
+Type: ${context.businessModel}
+Description: ${context.businessDescription}
+
+This is a ${this.inferScale(context)} project.
+Generate task durations appropriate for this business scale.
+`;
+Step 3: Add scale inference
+typescriptinferScale(context) {
+  // Let AI infer from context
+  if (context.businessModel.includes('shop') || 
+      context.businessModel.includes('restaurant')) {
+    return 'small business (typical timeline: 6-12 months)';
+  }
+  if (context.businessModel.includes('platform') || 
+      context.businessModel.includes('enterprise')) {
+    return 'enterprise (typical timeline: 12-36 months)';
+  }
+  return 'standard business (typical timeline: 9-18 months)';
+}
+Why This Fixes Everything:
+
+Coffee shop → AI knows it's small business → 6-12 month timeline
+Tech platform → AI knows it's complex → 18-36 month timeline
+No hard-coding specific cases
+Works for any business type
+
+Implementation:
+
+Pass the existing business context to intelligent planning
+Include context in ALL prompts to OpenAI
+Let AI scale appropriately based on understanding the business
+
+The context already exists in insights - we just need to pass it through to the intelligent planning system instead of leaving it blind.

@@ -1,0 +1,41 @@
+The DecisionGenerator already exists at                                       
+  server/strategic-consultant/decision-generator.ts                             
+                                                                                
+  It has these methods:                                                         
+  - generateDecisions(analysis, originalInput) - for Five Whys/strategy analysis
+  - generateDecisionsWithResearch(...) - adds Porter's and research             
+  - generateDecisionsFromBMC(bmcResult, originalInput) - for BMC output         
+                                                                                
+  Replit needs to add a new method:                                             
+                                                                                
+  async generateDecisionsFromSWOT(                                              
+    swotOutput: SWOTOutput,                                                     
+    businessContext: string                                                     
+  ): Promise<GeneratedDecisions>                                                
+                                                                                
+  This method should:                                                           
+  1. Take the real SWOT output (strengths, weaknesses, opportunities, threats,  
+  strategicOptions)                                                             
+  2. Call AI to generate 2-4 decision points based on that analysis             
+  3. Return decisions with pros/cons that reference the actual SWOT findings    
+                                                                                
+  Then in custom-journey-executor.ts:                                           
+                                                                                
+  Replace generatePlaceholderDecisions() with:                                  
+                                                                                
+  const decisionGenerator = new DecisionGenerator();                            
+  const decisions = await decisionGenerator.generateDecisionsFromSWOT(          
+    swotOutput,                                                                 
+    execution.inputData?.businessContext || ''                                  
+  );                                                                            
+                                                                                
+  This connects the real SWOT analysis to real AI-generated decisions. The full 
+  chain becomes:                                                                
+                                                                                
+  Business Input → SWOT Analyzer (real AI) → framework_insights                 
+                                          ↓                                     
+                DecisionGenerator.generateDecisionsFromSWOT (real AI)           
+                                          ↓                                     
+                            DecisionPage (shows real options)                   
+                                          ↓                                     
+                                 User selects → EPM        

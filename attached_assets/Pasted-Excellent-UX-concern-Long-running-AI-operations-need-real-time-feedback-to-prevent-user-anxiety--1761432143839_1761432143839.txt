@@ -1,0 +1,573 @@
+Excellent UX concern! Long-running AI operations need real-time feedback
+  to prevent user anxiety. Here's a comprehensive solution:
+
+  ---
+  🎯 Solution: Real-Time Progress Tracker
+
+  Visual Concept
+
+  ┌─────────────────────────────────────────────┐
+  │  Creating Your Program Plan                 │
+  │  ━━━━━━━━━━━━━━━░░░░░░░░░░ 60%            │
+  │                                             │
+  │  ✅ 1. Extracting tasks (12s)               │
+  │  ✅ 2. Building schedule (8s)               │
+  │  🔄 3. Allocating resources (in progress)   │
+  │  ⏳ 4. Optimizing timeline                  │
+  │  ⏳ 5. Final validation                     │
+  │                                             │
+  │  Current: Analyzing resource availability   │
+  │  and matching skills to workstreams...      │
+  │                                             │
+  │  This usually takes 2-3 minutes             │
+  └─────────────────────────────────────────────┘
+
+  ---
+  🏗️ Implementation (Use Existing SSE Pattern)
+
+  The orchestrator already emits events! We just need to expose them via
+  SSE.
+
+  Step 1: Add SSE Endpoint for Planning Progress
+
+  File: server/routes/strategy-workspace.ts (or wherever EPM generation is
+  triggered)
+
+  // Add SSE endpoint for intelligent planning progress
+  router.get('/epm/:programId/planning-progress', async (req: Request, res:
+  Response) => {
+    const { programId } = req.params;
+
+    // Set up SSE headers
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    // Keep connection alive
+    const keepAliveInterval = setInterval(() => {
+      res.write(': keepalive\n\n');
+    }, 15000);
+
+    // Clean up on close
+    req.on('close', () => {
+      clearInterval(keepAliveInterval);
+      res.end();
+    });
+
+    // Send initial message
+    res.write(`data: ${JSON.stringify({ 
+      type: 'started',
+      message: 'Starting intelligent planning...',
+      estimatedTimeSeconds: 180
+    })}\n\n`);
+
+    // Note: Actual progress events will be sent from the planning 
+  orchestrator
+    // This endpoint stays open to receive them
+  });
+
+  Step 2: Hook Orchestrator Events to SSE
+
+  File: src/lib/intelligent-planning/epm-integration.ts
+
+  Find where planner is created (around line 130-147):
+
+  // Build planning request
+  const planner = createPlanningSystem({
+    openaiApiKey: process.env.OPENAI_API_KEY!,
+    maxIterations: parseInt(process.env.MAX_PLANNING_ITERATIONS || '10'),
+    targetScore: parseInt(process.env.TARGET_PLANNING_SCORE || '85')
+  });
+
+  // Subscribe to progress events for logging
+  planner.on('step-start', (step) => {
+    console.log(`Planning step started: ${step.name}`);
+  });
+
+  planner.on('step-complete', (step) => {
+    console.log(`Planning step completed: ${step.name}`);
+  });
+
+  planner.on('error', (error) => {
+    console.error(`Planning error: ${error.message}`);
+  });
+
+  Enhance to stream via SSE:
+
+  // NEW: Accept SSE response object
+  export async function replaceTimelineGeneration(
+    epmProgram: any,
+    planningContext: PlanningContext,
+    config?: {
+      maxDuration?: number;
+      budget?: number;
+      teamSize?: number;
+    },
+    sseResponse?: any  // NEW: Optional SSE stream
+  ): Promise<{...}> {
+
+    const planner = createPlanningSystem({
+      openaiApiKey: process.env.OPENAI_API_KEY!,
+      maxIterations: parseInt(process.env.MAX_PLANNING_ITERATIONS || '10'),
+      targetScore: parseInt(process.env.TARGET_PLANNING_SCORE || '85')
+    });
+
+    // Progress tracking
+    const steps = [
+      { id: 'extract-tasks', name: 'Extracting Tasks', description:
+  'Breaking down workstreams into detailed tasks' },
+      { id: 'schedule', name: 'Building Schedule', description: 'Creating 
+  timeline with Critical Path Method' },
+      { id: 'allocate-resources', name: 'Allocating Resources', description:
+   'Matching skills to tasks and checking availability' },
+      { id: 'level-resources', name: 'Optimizing Resources', description:
+  'Resolving conflicts and leveling workload' },
+      { id: 'optimize', name: 'AI Optimization', description: 'Using AI to 
+  improve timeline and efficiency' },
+      { id: 'validate', name: 'Final Validation', description: 'Checking for
+   issues and calculating confidence' }
+    ];
+
+    let currentStepIndex = 0;
+    const startTime = Date.now();
+
+    // Helper to send SSE message
+    const sendProgress = (data: any) => {
+      if (sseResponse && !sseResponse.writableEnded) {
+        sseResponse.write(`data: ${JSON.stringify(data)}\n\n`);
+      }
+    };
+
+    // Subscribe to orchestrator events
+    planner.on('step-start', (step) => {
+      const stepInfo = steps.find(s => s.id === step.name);
+      if (stepInfo) {
+        currentStepIndex++;
+        const progress = Math.round((currentStepIndex / steps.length) *
+  100);
+
+        sendProgress({
+          type: 'step-start',
+          step: step.name,
+          stepNumber: currentStepIndex,
+          totalSteps: steps.length,
+          progress,
+          name: stepInfo.name,
+          description: stepInfo.description,
+          elapsedSeconds: Math.round((Date.now() - startTime) / 1000)
+        });
+      }
+      console.log(`Planning step started: ${step.name}`);
+    });
+
+    planner.on('step-complete', (step) => {
+      const stepInfo = steps.find(s => s.id === step.name);
+      const duration = step.endTime && step.startTime
+        ? Math.round((step.endTime.getTime() - step.startTime.getTime()) /
+  1000)
+        : 0;
+
+      sendProgress({
+        type: 'step-complete',
+        step: step.name,
+        stepNumber: currentStepIndex,
+        totalSteps: steps.length,
+        name: stepInfo?.name,
+        durationSeconds: duration
+      });
+
+      console.log(`Planning step completed: ${step.name} (${duration}s)`);
+    });
+
+    planner.on('error', (error) => {
+      sendProgress({
+        type: 'error',
+        message: error.message
+      });
+      console.error(`Planning error: ${error.message}`);
+    });
+
+    // ... rest of planning logic
+
+    // At the end, send completion
+    sendProgress({
+      type: 'complete',
+      totalDurationSeconds: Math.round((Date.now() - startTime) / 1000)
+    });
+
+    return result;
+  }
+
+  ---
+  Step 3: Update EPM Generation Endpoint to Use SSE
+
+  File: server/routes/strategy-workspace.ts
+
+  Find the EPM generation endpoint (probably POST /generate-epm or similar)
+
+  Modify to support SSE:
+
+  router.post('/generate-epm', async (req: Request, res: Response) => {
+    const { versionId, useIntelligentPlanning } = req.body;
+
+    if (useIntelligentPlanning) {
+      // Set up SSE for progress streaming
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+
+      try {
+        // Start generation with SSE response
+        const result = await generateEPMWithProgress(versionId, res);
+
+        // Send final result
+        res.write(`data: ${JSON.stringify({ 
+          type: 'complete',
+          program: result 
+        })}\n\n`);
+        res.end();
+
+      } catch (error) {
+        res.write(`data: ${JSON.stringify({ 
+          type: 'error',
+          message: error.message 
+        })}\n\n`);
+        res.end();
+      }
+    } else {
+      // Regular non-streaming response
+      // ... existing logic
+    }
+  });
+
+  ---
+  Step 4: Create Progress Tracker UI Component
+
+  Create file:
+  client/src/components/intelligent-planning/PlanningProgressTracker.tsx
+
+  import { useEffect, useState } from 'react';
+  import { Card, CardContent, CardHeader, CardTitle } from
+  '@/components/ui/card';
+  import { Progress } from '@/components/ui/progress';
+  import { CheckCircle2, Clock, Loader2, AlertCircle } from 'lucide-react';
+  import { Alert, AlertDescription } from '@/components/ui/alert';
+
+  interface PlanningStep {
+    id: string;
+    name: string;
+    description: string;
+    status: 'pending' | 'in-progress' | 'complete' | 'error';
+    durationSeconds?: number;
+  }
+
+  interface PlanningProgressTrackerProps {
+    programId?: string;
+    onComplete?: (result: any) => void;
+    onError?: (error: string) => void;
+  }
+
+  export function PlanningProgressTracker({ 
+    programId, 
+    onComplete, 
+    onError 
+  }: PlanningProgressTrackerProps) {
+    const [progress, setProgress] = useState(0);
+    const [currentStep, setCurrentStep] = useState<string>('');
+    const [steps, setSteps] = useState<PlanningStep[]>([
+      { id: 'extract-tasks', name: 'Extracting Tasks', description:
+  'Breaking down workstreams into detailed tasks', status: 'pending' },
+      { id: 'schedule', name: 'Building Schedule', description: 'Creating 
+  timeline with Critical Path Method', status: 'pending' },
+      { id: 'allocate-resources', name: 'Allocating Resources', description:
+   'Matching skills to tasks', status: 'pending' },
+      { id: 'optimize', name: 'AI Optimization', description: 'Optimizing 
+  timeline and efficiency', status: 'pending' },
+      { id: 'validate', name: 'Final Validation', description: 'Quality 
+  checks and confidence scoring', status: 'pending' }
+    ]);
+    const [elapsedTime, setElapsedTime] = useState(0);
+    const [estimatedTotal, setEstimatedTotal] = useState(180); // 3 minutes
+
+    useEffect(() => {
+      if (!programId) return;
+
+      // Connect to SSE endpoint
+      const eventSource = new
+  EventSource(`/api/strategy-workspace/epm/${programId}/planning-progress`);
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+
+          switch (data.type) {
+            case 'started':
+              setEstimatedTotal(data.estimatedTimeSeconds || 180);
+              break;
+
+            case 'step-start':
+              setProgress(data.progress);
+              setCurrentStep(data.description);
+              setElapsedTime(data.elapsedSeconds);
+
+              setSteps(prev => prev.map(step =>
+                step.id === data.step
+                  ? { ...step, status: 'in-progress' }
+                  : step.status === 'in-progress'
+                  ? { ...step, status: 'complete' }
+                  : step
+              ));
+              break;
+
+            case 'step-complete':
+              setSteps(prev => prev.map(step =>
+                step.id === data.step
+                  ? { ...step, status: 'complete', durationSeconds:
+  data.durationSeconds }
+                  : step
+              ));
+              break;
+
+            case 'complete':
+              setProgress(100);
+              setSteps(prev => prev.map(step => ({ ...step, status:
+  'complete' })));
+              if (onComplete) onComplete(data.program);
+              eventSource.close();
+              break;
+
+            case 'error':
+              setSteps(prev => prev.map(step =>
+                step.status === 'in-progress'
+                  ? { ...step, status: 'error' }
+                  : step
+              ));
+              if (onError) onError(data.message);
+              eventSource.close();
+              break;
+          }
+        } catch (error) {
+          console.error('Error parsing SSE message:', error);
+        }
+      };
+
+      eventSource.onerror = () => {
+        console.error('SSE connection error');
+        eventSource.close();
+      };
+
+      return () => {
+        eventSource.close();
+      };
+    }, [programId, onComplete, onError]);
+
+    const getStepIcon = (status: string) => {
+      switch (status) {
+        case 'complete':
+          return <CheckCircle2 className="h-5 w-5 text-green-600" />;
+        case 'in-progress':
+          return <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />;
+        case 'error':
+          return <AlertCircle className="h-5 w-5 text-red-600" />;
+        default:
+          return <Clock className="h-5 w-5 text-gray-400" />;
+      }
+    };
+
+    return (
+      <Card className="w-full max-w-2xl">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Creating Your Program Plan
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+
+          {/* Progress Bar */}
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Overall
+  Progress</span>
+              <span className="font-medium">{progress}%</span>
+            </div>
+            <Progress value={progress} className="h-2" />
+            <div className="flex justify-between text-xs 
+  text-muted-foreground">
+              <span>{elapsedTime}s elapsed</span>
+              <span>~{estimatedTotal}s total</span>
+            </div>
+          </div>
+
+          {/* Current Activity */}
+          {currentStep && (
+            <Alert>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <AlertDescription>
+                <strong>Current:</strong> {currentStep}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Step List */}
+          <div className="space-y-3">
+            {steps.map((step, index) => (
+              <div
+                key={step.id}
+                className={`flex items-start gap-3 p-3 rounded-lg 
+  transition-colors ${
+                  step.status === 'in-progress' ? 'bg-blue-50 
+  dark:bg-blue-950/20' :
+                  step.status === 'complete' ? 'bg-green-50 
+  dark:bg-green-950/20' :
+                  step.status === 'error' ? 'bg-red-50 dark:bg-red-950/20' :
+                  'bg-gray-50 dark:bg-gray-900'
+                }`}
+              >
+                <div className="mt-0.5">
+                  {getStepIcon(step.status)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium text-sm">
+                      {index + 1}. {step.name}
+                    </p>
+                    {step.durationSeconds && (
+                      <span className="text-xs text-muted-foreground 
+  whitespace-nowrap">
+                        {step.durationSeconds}s
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {step.description}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Info Box */}
+          <Alert>
+            <AlertDescription className="text-xs">
+              <strong>Why does this take time?</strong> We're using AI to
+  optimize your timeline,
+              match resources to tasks, and validate the entire plan. This
+  ensures you get a
+              realistic, executable program.
+            </AlertDescription>
+          </Alert>
+
+        </CardContent>
+      </Card>
+    );
+  }
+
+  ---
+  Step 5: Use Progress Tracker in Your Page
+
+  File: Wherever EPM generation is triggered (probably EPMProgramView.tsx or
+   PrioritizationPage.tsx)
+
+  import { PlanningProgressTracker } from
+  '@/components/intelligent-planning/PlanningProgressTracker';
+
+  // In your component
+  const [showProgressTracker, setShowProgressTracker] = useState(false);
+  const [programId, setProgramId] = useState<string>();
+
+  const handleGenerateEPM = async () => {
+    setShowProgressTracker(true);
+
+    // Start generation (which will trigger SSE)
+    const result = await fetch('/api/strategy-workspace/generate-epm', {
+      method: 'POST',
+      body: JSON.stringify({ versionId, useIntelligentPlanning: true })
+    });
+
+    setProgramId(result.programId);
+  };
+
+  // In render
+  {showProgressTracker && (
+    <PlanningProgressTracker 
+      programId={programId}
+      onComplete={(program) => {
+        setShowProgressTracker(false);
+        // Handle completion
+      }}
+      onError={(error) => {
+        setShowProgressTracker(false);
+        toast({ title: 'Error', description: error, variant: 'destructive'
+  });
+      }}
+    />
+  )}
+
+  ---
+  🎨 Enhanced UX Features
+
+  Option 1: Educational Tips (While Waiting)
+
+  const tips = [
+    "💡 The Critical Path Method identifies which tasks are most important 
+  for your timeline",
+    "🎯 AI optimization can reduce your timeline by 15-30% through better 
+  task scheduling",
+    "👥 Resource leveling prevents team burnout by balancing workload across
+   time",
+    "📊 We validate over 20 different constraints to ensure your plan is 
+  realistic",
+    "🔍 Confidence scoring helps you identify which parts of the plan need 
+  more attention"
+  ];
+
+  // Rotate tips every 10 seconds
+
+  Option 2: Animated Visualization
+
+  Show a mini Gantt chart being built in real-time as tasks are scheduled.
+
+  Option 3: Time Estimates Per Step
+
+  const stepEstimates = {
+    'extract-tasks': '15-30 seconds',
+    'schedule': '20-40 seconds',
+    'allocate-resources': '30-60 seconds',
+    'optimize': '45-90 seconds',
+    'validate': '10-20 seconds'
+  };
+
+  ---
+  ✅ Benefits
+
+  1. Transparency - User sees exactly what's happening
+  2. Progress - Visual feedback prevents anxiety
+  3. Education - Explains why it takes time (adds value)
+  4. Confidence - Professional, polished experience
+  5. Debugging - If it gets stuck, you know which step
+
+  ---
+  🚀 Quick Win Alternative (If SSE is Too Much Work)
+
+  Simpler polling-based approach:
+
+  // Client polls for status every 2 seconds
+  const pollStatus = async () => {
+    const response = await fetch(`/api/planning-status/${jobId}`);
+    const { currentStep, progress } = await response.json();
+    setProgress(progress);
+    setCurrentStep(currentStep);
+  };
+
+  useEffect(() => {
+    const interval = setInterval(pollStatus, 2000);
+    return () => clearInterval(interval);
+  }, [jobId]);
+
+  But SSE is better because it's real-time and doesn't waste requests.
+
+  ---
+  Recommendation: Implement the SSE-based progress tracker. It's the best UX
+   and you already have the infrastructure (orchestrator events exist, just
+  need to expose them).

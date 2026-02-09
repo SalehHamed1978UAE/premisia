@@ -1,0 +1,138 @@
+Five Whys Coaching for User Responses
+
+  ### Goal
+
+  Ensure every user-entered or selected “Why” is valid, causal, and relevant
+  before we let the ladder continue. If the statement is vague, circular,
+  speculative, or just a symptom, the user should be prompted to clarify (with
+  guidance) instead of letting an off-track branch propagate.
+
+  ### High-Level Flow
+
+  1. After the user selects or types a “Why” for a level, send that candidate
+     statement to a new back-end service for evaluation (along with the root
+     question and any previous answers).
+  2. The service returns a verdict:
+      - acceptable – proceed.
+      - needs_clarification – let the user continue but warn them and capture
+        the doubt.
+      - invalid – prevent progress and guide the user through a mini-coaching
+        flow to revise the answer.
+  3. For needs_clarification or invalid:
+      - Show a modal or side panel with the issues, suggested follow-up
+        questions, and a coaching chat (LLM-backed) to help the user improve
+        the answer.
+      - Once the user revises the statement and it passes the evaluation,
+        continue the ladder.
+
+  ———
+
+  ### Step-by-Step Implementation
+
+  #### 1. Add a Five Whys Coach service (server)
+
+  Create server/services/five-whys-coach.ts (or similar) that exposes a
+  function:
+
+  interface WhyCandidate {
+    level: number;
+    candidate: string;
+    previousWhys: string[];
+    rootQuestion: string;
+    sessionContext: any; // optional context
+  }
+
+  interface WhyEvaluation {
+    verdict: 'acceptable' | 'needs_clarification' | 'invalid';
+    issues: Array<{ type: string; message: string }>;
+    followUpQuestions: string[];
+    improvedSuggestion?: string;
+  }
+
+  The service should call an LLM with a prompt that evaluates the candidate
+  against:
+
+  - Causality focus (is this a root cause vs. restating the problem or jumping
+    to a solution?).
+  - Relevance to the root question and previous answers.
+  - Specificity (avoid vague statements).
+  - Evidence/grounding (flag speculation).
+  - Duplication (repeat of earlier “Why” levels).
+  - Consistency (contradictions vs. past answers).
+
+  Include instructions to return JSON only. Example prompt snippet:
+
+  Given the root problem "{rootQuestion}" and prior answers {previousWhys},
+  analyze this candidate response for the next "Why":
+
+  "{candidate}"
+
+  Classify as:
+  - "acceptable" if it advances the root cause analysis.
+  - "needs_clarification" if it can work with more detail/evidence.
+  - "invalid" if it's off-topic, speculative, or contradicts prior answers.
+
+  Provide issues, follow-up questions to ask the user, and an improved
+  suggestion if possible.
+
+  Return JSON { verdict, issues, followUpQuestions, improvedSuggestion }
+
+  #### 2. Add API endpoints
+
+  Add to server/routes/strategic-consultant.ts (or create a new route):
+
+  - POST /api/five-whys/validate
+    Inputs: { sessionId, rootQuestion, previousWhys[], candidate, level }
+    Output: WhyEvaluation JSON.
+  - Optionally POST /api/five-whys/coach for the chat-style guidance (gives back
+    model’s conversational responses to user follow-ups).
+
+  #### 3. Update Five Whys front-end component
+
+  In client/src/components/frameworks/FiveWhysRenderer.tsx (or wherever Five
+  Whys is rendered):
+
+  - Every time the user selects a branch or submits a custom “Why”:
+      1. Call POST /api/five-whys/validate.
+      2. If verdict === 'acceptable': proceed as usual.
+      3. If verdict === 'needs_clarification' or 'invalid':
+          - Open a modal/panel showing:
+              - Issue messages.
+              - Suggested follow-up questions.
+              - Optional improved suggestion.
+              - Buttons to edit the answer, ask follow-up questions, or override
+                (if you want to allow overrides with an explicit confirmation).
+          - Prevent continuing until the user either revises the answer and re-
+            validates to acceptable, or acknowledges the risks.
+
+  #### 4. Add a coaching conversation (optional but useful)
+
+  When the user wants more help, let them ask the follow-up questions through a
+  mini chat:
+
+  - Add UI to submit a question back to /api/five-whys/coach, which returns the
+    LLM’s guidance.
+  - Keep the conversation context minimal (root question + previous whys +
+    candidate) to avoid long prompts.
+
+  #### 5. Logging / telemetry
+
+  - Store evaluation results along with the Five Whys session (e.g., whether any
+    levels needed coaching). This helps in reporting and future fine-tuning.
+
+  ———
+
+  ### Workflow Summary
+
+  1. User enters/selects a “Why”.
+  2. Front-end calls /api/five-whys/validate.
+  3. Response:
+      - Acceptable → continue.
+      - Needs Clarification / Invalid → show messaging + guidance (issues,
+        follow-up questions, improved suggestion).
+  4. User edits answer or consults the coach.
+  5. Evaluate again until “acceptable”.
+  6. Continue to the next “Why”.
+
+  This gives users a “Five Whys coach” that keeps the analysis honest and
+  structured, preventing poor inputs from derailing the root-cause ladder.

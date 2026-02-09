@@ -1,0 +1,1114 @@
+ REPLIT: Complete Module System Fix - Final Instructions                       
+                                                                                
+  Overview                                                                      
+                                                                                
+  Complete these 4 tasks in order. Do not skip any steps.                       
+                                                                                
+  ---                                                                           
+  Task 1: Normalize Analysis Data for EPM (CRITICAL)                            
+                                                                                
+  The EPM generator currently fails with "No BMC analysis found" for non-BMC    
+  journeys. Fix this by reading ALL available analyses from the database.       
+                                                                                
+  1.1 Update Types                                                              
+                                                                                
+  File: server/intelligence/types.ts                                            
+                                                                                
+  Find StrategyInsights interface and update the frameworkType union:           
+  frameworkType: 'bmc' | 'porters' | 'pestle' | 'swot';                         
+                                                                                
+  Add SWOT types (before Porter's types section):                               
+  //                                                                            
+  ============================================================================  
+  // SWOT-Specific Types                                                        
+  //                                                                            
+  ============================================================================  
+                                                                                
+  export interface SWOTFactor {                                                 
+    factor: string;                                                             
+    impact: 'high' | 'medium' | 'low';                                          
+    description?: string;                                                       
+  }                                                                             
+                                                                                
+  export interface SWOTResults {                                                
+    strengths: SWOTFactor[] | string[];                                         
+    weaknesses: SWOTFactor[] | string[];                                        
+    opportunities: SWOTFactor[] | string[];                                     
+    threats: SWOTFactor[] | string[];                                           
+    strategicOptions?: {                                                        
+      so?: string[];                                                            
+      wo?: string[];                                                            
+      st?: string[];                                                            
+      wt?: string[];                                                            
+    };                                                                          
+  }                                                                             
+                                                                                
+  1.2 Create SWOT Analyzer                                                      
+                                                                                
+  File: server/intelligence/swot-analyzer.ts (CREATE NEW)                       
+                                                                                
+  /**                                                                           
+   * SWOT Analyzer                                                              
+   * Converts SWOT analysis into normalized StrategyInsights for EPM generation.
+   */                                                                           
+                                                                                
+  import type {                                                                 
+    FrameworkAnalyzer,                                                          
+    SWOTResults,                                                                
+    SWOTFactor,                                                                 
+    StrategyInsights,                                                           
+    StrategyInsight,                                                            
+  } from './types';                                                             
+                                                                                
+  export class SWOTAnalyzer implements FrameworkAnalyzer<SWOTResults> {         
+                                                                                
+    async analyze(frameworkResults: SWOTResults): Promise<StrategyInsights> {   
+      const insights: StrategyInsight[] = [];                                   
+                                                                                
+      insights.push(...this.extractFromStrengths(frameworkResults.strengths));  
+      insights.push(...this.extractFromWeaknesses(frameworkResults.weaknesses));
+      insights.push(...this.extractFromOpportunities(frameworkResults.opportunit
+  ies));                                                                        
+      insights.push(...this.extractFromThreats(frameworkResults.threats));      
+                                                                                
+      if (frameworkResults.strategicOptions) {                                  
+        insights.push(...this.extractStrategicOptions(frameworkResults.strategic
+  Options));                                                                    
+      }                                                                         
+                                                                                
+      insights.push(this.inferTimeline(frameworkResults));                      
+                                                                                
+      return {                                                                  
+        frameworkType: 'swot',                                                  
+        frameworkRunId: 'swot-run-id',                                          
+        insights,                                                               
+        references: [],                                                         
+        marketContext: {                                                        
+          urgency: this.inferUrgency(frameworkResults),                         
+          riskTolerance: this.inferRiskTolerance(frameworkResults),             
+        },                                                                      
+        overallConfidence: this.calculateConfidence(insights),                  
+      };                                                                        
+    }                                                                           
+                                                                                
+    private normalizeFactor(factor: SWOTFactor | string): SWOTFactor {          
+      if (typeof factor === 'string') {                                         
+        return { factor, impact: 'medium' };                                    
+      }                                                                         
+      return { factor: factor.factor || String(factor), impact: factor.impact ||
+   'medium' };                                                                  
+    }                                                                           
+                                                                                
+    private extractFromStrengths(strengths: SWOTFactor[] | string[]):           
+  StrategyInsight[] {                                                           
+      if (!strengths?.length) return [];                                        
+      return strengths.map((s, idx) => {                                        
+        const factor = this.normalizeFactor(s);                                 
+        return {                                                                
+          type: 'resource' as const,                                            
+          source: `SWOT.strengths[${idx}]`,                                     
+          content: factor.factor,                                               
+          confidence: 0.85,                                                     
+          reasoning: 'Strength indicates existing capability',                  
+          metadata: { impact: factor.impact },                                  
+        };                                                                      
+      });                                                                       
+    }                                                                           
+                                                                                
+    private extractFromWeaknesses(weaknesses: SWOTFactor[] | string[]):         
+  StrategyInsight[] {                                                           
+      if (!weaknesses?.length) return [];                                       
+      return weaknesses.map((w, idx) => {                                       
+        const factor = this.normalizeFactor(w);                                 
+        return {                                                                
+          type: 'risk' as const,                                                
+          source: `SWOT.weaknesses[${idx}]`,                                    
+          content: `Internal weakness: ${factor.factor}`,                       
+          confidence: 0.85,                                                     
+          reasoning: 'Weakness indicates internal risk',                        
+          metadata: { severity: factor.impact === 'high' ? 'High' : 'Medium',   
+  category: 'Internal' },                                                       
+        };                                                                      
+      });                                                                       
+    }                                                                           
+                                                                                
+    private extractFromOpportunities(opportunities: SWOTFactor[] | string[]):   
+  StrategyInsight[] {                                                           
+      if (!opportunities?.length) return [];                                    
+      return opportunities.flatMap((o, idx) => {                                
+        const factor = this.normalizeFactor(o);                                 
+        return [                                                                
+          {                                                                     
+            type: 'workstream' as const,                                        
+            source: `SWOT.opportunities[${idx}]`,                               
+            content: `Capitalize on: ${factor.factor}`,                         
+            confidence: 0.80,                                                   
+            reasoning: 'Opportunity suggests strategic initiative',             
+            metadata: { category: 'Growth', priority: factor.impact },          
+          },                                                                    
+          {                                                                     
+            type: 'benefit' as const,                                           
+            source: `SWOT.opportunities[${idx}]`,                               
+            content: factor.factor,                                             
+            confidence: 0.75,                                                   
+            reasoning: 'Opportunity represents potential value',                
+            metadata: { category: 'Strategic' },                                
+          },                                                                    
+        ];                                                                      
+      });                                                                       
+    }                                                                           
+                                                                                
+    private extractFromThreats(threats: SWOTFactor[] | string[]):               
+  StrategyInsight[] {                                                           
+      if (!threats?.length) return [];                                          
+      return threats.map((t, idx) => {                                          
+        const factor = this.normalizeFactor(t);                                 
+        return {                                                                
+          type: 'risk' as const,                                                
+          source: `SWOT.threats[${idx}]`,                                       
+          content: `External threat: ${factor.factor}`,                         
+          confidence: 0.85,                                                     
+          reasoning: 'Threat indicates external risk',                          
+          metadata: { severity: factor.impact === 'high' ? 'High' : 'Medium',   
+  category: 'External' },                                                       
+        };                                                                      
+      });                                                                       
+    }                                                                           
+                                                                                
+    private extractStrategicOptions(options: SWOTResults['strategicOptions']):  
+  StrategyInsight[] {                                                           
+      if (!options) return [];                                                  
+      const insights: StrategyInsight[] = [];                                   
+                                                                                
+      const addOptions = (arr: string[] | undefined, source: string, reasoning: 
+  string, priority: string) => {                                                
+        arr?.forEach((strategy, idx) => {                                       
+          insights.push({                                                       
+            type: 'workstream',                                                 
+            source: `SWOT.strategicOptions.${source}[${idx}]`,                  
+            content: strategy,                                                  
+            confidence: 0.80,                                                   
+            reasoning,                                                          
+            metadata: { category: 'Strategic', priority },                      
+          });                                                                   
+        });                                                                     
+      };                                                                        
+                                                                                
+      addOptions(options.so, 'SO', 'Leverage strengths to pursue opportunities',
+   'high');                                                                     
+      addOptions(options.wo, 'WO', 'Address weaknesses to pursue opportunities',
+   'medium');                                                                   
+      addOptions(options.st, 'ST', 'Use strengths to mitigate threats',         
+  'medium');                                                                    
+      addOptions(options.wt, 'WT', 'Minimize weaknesses and avoid threats',     
+  'low');                                                                       
+                                                                                
+      return insights;                                                          
+    }                                                                           
+                                                                                
+    private inferTimeline(results: SWOTResults): StrategyInsight {              
+      const totalFactors = (results.strengths?.length || 0) +                   
+  (results.weaknesses?.length || 0) +                                           
+                           (results.opportunities?.length || 0) +               
+  (results.threats?.length || 0);                                               
+      const months = totalFactors > 16 ? 18 : totalFactors < 8 ? 6 : 12;        
+                                                                                
+      return {                                                                  
+        type: 'timeline',                                                       
+        source: 'SWOT.inference',                                               
+        content: `Recommended timeline: ${months} months`,                      
+        confidence: 0.70,                                                       
+        reasoning: `Based on ${totalFactors} strategic factors`,                
+        metadata: { estimatedMonths: months },                                  
+      };                                                                        
+    }                                                                           
+                                                                                
+    private inferUrgency(results: SWOTResults): 'ASAP' | 'Strategic' |          
+  'Exploratory' {                                                               
+      const highThreats = (results.threats || []).filter(t =>                   
+        this.normalizeFactor(t).impact === 'high'                               
+      ).length;                                                                 
+      if (highThreats > 2) return 'ASAP';                                       
+      if (highThreats > 0) return 'Strategic';                                  
+      return 'Exploratory';                                                     
+    }                                                                           
+                                                                                
+    private inferRiskTolerance(results: SWOTResults): 'Conservative' |          
+  'Moderate' | 'Aggressive' {                                                   
+      const strengths = results.strengths?.length || 0;                         
+      const risks = (results.weaknesses?.length || 0) + (results.threats?.length
+   || 0);                                                                       
+      if (risks > strengths + 3) return 'Conservative';                         
+      if (strengths > risks + 2) return 'Aggressive';                           
+      return 'Moderate';                                                        
+    }                                                                           
+                                                                                
+    calculateConfidence(insights: StrategyInsight[]): number {                  
+      if (!insights.length) return 0.5;                                         
+      const avg = insights.reduce((sum, i) => sum + i.confidence, 0) /          
+  insights.length;                                                              
+      return Math.max(0.5, Math.min(0.95, avg));                                
+    }                                                                           
+                                                                                
+    async extractWorkstreams(r: SWOTResults) { return                           
+  this.extractFromOpportunities(r.opportunities).filter(i => i.type ===         
+  'workstream'); }                                                              
+    async extractResources(r: SWOTResults) { return                             
+  this.extractFromStrengths(r.strengths); }                                     
+    async extractRisks(r: SWOTResults) { return                                 
+  [...this.extractFromWeaknesses(r.weaknesses),                                 
+  ...this.extractFromThreats(r.threats)]; }                                     
+    async extractStakeholders() { return []; }                                  
+    async extractBenefits(r: SWOTResults) { return                              
+  this.extractFromOpportunities(r.opportunities).filter(i => i.type ===         
+  'benefit'); }                                                                 
+    async extractCosts() { return []; }                                         
+    async inferTimelineInsight(r: SWOTResults) { return this.inferTimeline(r); }
+  }                                                                             
+                                                                                
+  1.3 Export SWOT Analyzer                                                      
+                                                                                
+  File: server/intelligence/index.ts                                            
+                                                                                
+  Add:                                                                          
+  export { SWOTAnalyzer } from './swot-analyzer';                               
+                                                                                
+  1.4 Create Analysis Aggregator Function                                       
+                                                                                
+  File: server/intelligence/analysis-aggregator.ts (CREATE NEW)                 
+                                                                                
+  This reads ALL analyses from framework_insights table for a session:          
+                                                                                
+  /**                                                                           
+   * Analysis Aggregator                                                        
+   * Reads all framework insights for a session and normalizes them into        
+  StrategyInsights.                                                             
+   */                                                                           
+                                                                                
+  import { db } from '../db';                                                   
+  import { frameworkInsights } from '@shared/schema';                           
+  import { eq } from 'drizzle-orm';                                             
+  import { decryptJSONKMS } from '../services/encryption'; // adjust import path
+   as needed                                                                    
+  import { BMCAnalyzer, SWOTAnalyzer, PortersAnalyzer, PESTLEAnalyzer } from    
+  './index';                                                                    
+  import type { StrategyInsights, StrategyInsight } from './types';             
+                                                                                
+  const bmcAnalyzer = new BMCAnalyzer();                                        
+  const swotAnalyzer = new SWOTAnalyzer();                                      
+  const portersAnalyzer = new PortersAnalyzer();                                
+  const pestleAnalyzer = new PESTLEAnalyzer();                                  
+                                                                                
+  export interface AggregatedAnalysis {                                         
+    insights: StrategyInsights | null;                                          
+    availableFrameworks: string[];                                              
+    primaryFramework: string | null;                                            
+  }                                                                             
+                                                                                
+  /**                                                                           
+   * Get all available analyses for a session and normalize to StrategyInsights 
+   */                                                                           
+  export async function getAggregatedAnalysis(sessionId: string):               
+  Promise<AggregatedAnalysis> {                                                 
+    console.log(`[AnalysisAggregator] Fetching insights for session:            
+  ${sessionId}`);                                                               
+                                                                                
+    // Fetch all framework insights for this session                            
+    const insights = await db.select()                                          
+      .from(frameworkInsights)                                                  
+      .where(eq(frameworkInsights.sessionId, sessionId));                       
+                                                                                
+    if (!insights || insights.length === 0) {                                   
+      console.log('[AnalysisAggregator] No framework insights found');          
+      return { insights: null, availableFrameworks: [], primaryFramework: null  
+  };                                                                            
+    }                                                                           
+                                                                                
+    // Decrypt and organize by framework                                        
+    const analyses: Record<string, any> = {};                                   
+    const availableFrameworks: string[] = [];                                   
+                                                                                
+    for (const insight of insights) {                                           
+      try {                                                                     
+        const decrypted = await decryptJSONKMS(insight.insights);               
+        const data = decrypted?.output || decrypted;                            
+        const frameworkName = insight.frameworkName.toLowerCase();              
+                                                                                
+        analyses[frameworkName] = data;                                         
+        availableFrameworks.push(frameworkName);                                
+        console.log(`[AnalysisAggregator] Found ${frameworkName} analysis`);    
+      } catch (err) {                                                           
+        console.error(`[AnalysisAggregator] Failed to decrypt                   
+  ${insight.frameworkName}:`, err);                                             
+      }                                                                         
+    }                                                                           
+                                                                                
+    if (availableFrameworks.length === 0) {                                     
+      return { insights: null, availableFrameworks: [], primaryFramework: null  
+  };                                                                            
+    }                                                                           
+                                                                                
+    // Determine primary framework and normalize                                
+    let normalizedInsights: StrategyInsights | null = null;                     
+    let primaryFramework: string | null = null;                                 
+                                                                                
+    // Priority: BMC > SWOT > Porters > PESTLE (BMC has most business context)  
+    if (analyses.bmc || analyses.business_model_canvas) {                       
+      const bmcData = analyses.bmc || analyses.business_model_canvas;           
+      normalizedInsights = await normalizeBMC(bmcData);                         
+      primaryFramework = 'bmc';                                                 
+    } else if (analyses.swot) {                                                 
+      normalizedInsights = await normalizeSWOT(analyses.swot);                  
+      primaryFramework = 'swot';                                                
+    } else if (analyses.porters || analyses.porters_five_forces) {              
+      const portersData = analyses.porters || analyses.porters_five_forces;     
+      normalizedInsights = await portersAnalyzer.analyze(portersData);          
+      primaryFramework = 'porters';                                             
+    } else if (analyses.pestle) {                                               
+      normalizedInsights = await pestleAnalyzer.analyze(analyses.pestle);       
+      primaryFramework = 'pestle';                                              
+    } else {                                                                    
+      // Use first available                                                    
+      const firstKey = availableFrameworks[0];                                  
+      primaryFramework = firstKey;                                              
+      // Create minimal insights                                                
+      normalizedInsights = createMinimalInsights(analyses[firstKey], firstKey); 
+    }                                                                           
+                                                                                
+    // Merge insights from other frameworks                                     
+    if (normalizedInsights && availableFrameworks.length > 1) {                 
+      normalizedInsights = await mergeAdditionalInsights(normalizedInsights,    
+  analyses, primaryFramework!);                                                 
+    }                                                                           
+                                                                                
+    console.log(`[AnalysisAggregator] Primary framework: ${primaryFramework},   
+  total frameworks: ${availableFrameworks.length}`);                            
+                                                                                
+    return {                                                                    
+      insights: normalizedInsights,                                             
+      availableFrameworks,                                                      
+      primaryFramework,                                                         
+    };                                                                          
+  }                                                                             
+                                                                                
+  async function normalizeBMC(bmcData: any): Promise<StrategyInsights> {        
+    const blocks = bmcData.blocks || [];                                        
+    const findBlock = (name: string) => blocks.find((b: any) =>                 
+      b.blockName?.toLowerCase().includes(name.toLowerCase())                   
+    )?.description || '';                                                       
+                                                                                
+    const bmcResults = {                                                        
+      customerSegments: findBlock('Customer Segments'),                         
+      valuePropositions: findBlock('Value Propositions'),                       
+      channels: findBlock('Channels'),                                          
+      customerRelationships: findBlock('Customer Relationships'),               
+      revenueStreams: findBlock('Revenue Streams'),                             
+      keyActivities: findBlock('Key Activities'),                               
+      keyResources: findBlock('Key Resources'),                                 
+      keyPartnerships: findBlock('Key Partnerships'),                           
+      costStructure: findBlock('Cost Structure'),                               
+      contradictions: bmcData.contradictions || [],                             
+      recommendations: bmcData.recommendations || [],                           
+      executiveSummary: (bmcData.keyInsights || []).join('. '),                 
+    };                                                                          
+                                                                                
+    return bmcAnalyzer.analyze(bmcResults);                                     
+  }                                                                             
+                                                                                
+  async function normalizeSWOT(swotData: any): Promise<StrategyInsights> {      
+    const data = swotData.output || swotData;                                   
+    const swotResults = {                                                       
+      strengths: data.strengths || [],                                          
+      weaknesses: data.weaknesses || [],                                        
+      opportunities: data.opportunities || [],                                  
+      threats: data.threats || [],                                              
+      strategicOptions: data.strategicOptions || data.strategic_options,        
+    };                                                                          
+                                                                                
+    return swotAnalyzer.analyze(swotResults);                                   
+  }                                                                             
+                                                                                
+  function createMinimalInsights(data: any, frameworkName: string):             
+  StrategyInsights {                                                            
+    return {                                                                    
+      frameworkType: 'swot', // default                                         
+      frameworkRunId: `${frameworkName}-run`,                                   
+      insights: [{                                                              
+        type: 'other',                                                          
+        source: frameworkName,                                                  
+        content: JSON.stringify(data).substring(0, 500),                        
+        confidence: 0.6,                                                        
+        reasoning: `Extracted from ${frameworkName} analysis`,                  
+      }],                                                                       
+      references: [],                                                           
+      marketContext: {                                                          
+        urgency: 'Strategic',                                                   
+      },                                                                        
+      overallConfidence: 0.6,                                                   
+    };                                                                          
+  }                                                                             
+                                                                                
+  async function mergeAdditionalInsights(                                       
+    primary: StrategyInsights,                                                  
+    analyses: Record<string, any>,                                              
+    primaryFramework: string                                                    
+  ): Promise<StrategyInsights> {                                                
+    // Add insights from other frameworks                                       
+    for (const [framework, data] of Object.entries(analyses)) {                 
+      if (framework === primaryFramework) continue;                             
+                                                                                
+      try {                                                                     
+        let additionalInsights: StrategyInsight[] = [];                         
+                                                                                
+        if (framework === 'swot' && data) {                                     
+          const swotInsights = await normalizeSWOT(data);                       
+          additionalInsights = swotInsights.insights.slice(0, 5); // Take top 5 
+        } else if ((framework === 'porters' || framework ===                    
+  'porters_five_forces') && data) {                                             
+          const portersInsights = await portersAnalyzer.analyze(data);          
+          additionalInsights = portersInsights.insights.filter(i => i.type ===  
+  'risk').slice(0, 3);                                                          
+        } else if (framework === 'pestle' && data) {                            
+          const pestleInsights = await pestleAnalyzer.analyze(data);            
+          additionalInsights = pestleInsights.insights.filter(i => i.type ===   
+  'risk').slice(0, 3);                                                          
+        }                                                                       
+                                                                                
+        // Mark as supplementary                                                
+        additionalInsights.forEach(i => {                                       
+          i.source = `[Supplementary:${framework}] ${i.source}`;                
+          i.confidence = i.confidence * 0.9; // Slight reduction for non-primary
+        });                                                                     
+                                                                                
+        primary.insights.push(...additionalInsights);                           
+      } catch (err) {                                                           
+        console.error(`[AnalysisAggregator] Failed to merge ${framework}:`,     
+  err);                                                                         
+      }                                                                         
+    }                                                                           
+                                                                                
+    return primary;                                                             
+  }                                                                             
+                                                                                
+  1.5 Update EPM Generation to Use Aggregator                                   
+                                                                                
+  Find where EPM generation happens (likely server/routes/strategy-workspace.ts 
+  or CustomJourneyExecutor).                                                    
+                                                                                
+  Replace the hard-coded BMC check with:                                        
+                                                                                
+  import { getAggregatedAnalysis } from '../intelligence/analysis-aggregator';  
+                                                                                
+  // Instead of:                                                                
+  // const bmcAnalysis = analysisData?.bmc_research;                            
+  // if (!bmcAnalysis) throw new Error('No BMC analysis found');                
+                                                                                
+  // Use:                                                                       
+  const { insights, availableFrameworks, primaryFramework } = await             
+  getAggregatedAnalysis(sessionId);                                             
+                                                                                
+  if (!insights) {                                                              
+    throw new Error('No strategic analysis available. Run at least one framework
+   (SWOT, BMC, Porters, or PESTLE) before generating EPM.');                    
+  }                                                                             
+                                                                                
+  console.log(`[EPM Generation] Using ${primaryFramework} as primary, with      
+  ${availableFrameworks.length} total frameworks`);                             
+                                                                                
+  // Now pass insights to EPM synthesizer                                       
+  const epmProgram = await epmSynthesizer.synthesize(insights,                  
+  decisionsWithPriority, namingContext, options);                               
+                                                                                
+  Also update the database save to use the actual framework:                    
+  frameworkType: primaryFramework || 'swot',  // instead of hardcoded 'bmc'     
+                                                                                
+  ---                                                                           
+  Task 2: ID Mapping File                                                       
+                                                                                
+  File: server/modules/id-mapping.ts (CREATE NEW)                               
+                                                                                
+  /**                                                                           
+   * Framework Key to Module ID Mapping                                         
+   *                                                                            
+   * Registry uses keys like 'swot', manifests use IDs like 'swot-analyzer'.    
+   * This file is the single source of truth for this mapping.                  
+   */                                                                           
+                                                                                
+  export const FRAMEWORK_KEY_TO_MODULE_ID: Record<string, string> = {           
+    // User Input Modules                                                       
+    'strategic_understanding': 'strategic-understanding',                       
+    'strategic_decisions': 'strategic-decisions',                               
+                                                                                
+    // AI Analyzer Modules                                                      
+    'swot': 'swot-analyzer',                                                    
+    'business_model_canvas': 'bmc-analyzer',                                    
+    'bmc': 'bmc-analyzer',                                                      
+    'porters_five_forces': 'porters-analyzer',                                  
+    'porters': 'porters-analyzer',                                              
+    'pestle': 'pestle-analyzer',                                                
+    'five_whys': 'five-whys-analyzer',                                          
+    'ansoff': 'ansoff-analyzer',                                                
+    'blue_ocean': 'blue-ocean-analyzer',                                        
+    'ocean_strategy': 'ocean-strategy-analyzer',                                
+    'bcg_matrix': 'bcg-matrix-analyzer',                                        
+    'value_chain': 'value-chain-analyzer',                                      
+    'vrio': 'vrio-analyzer',                                                    
+    'scenario_planning': 'scenario-planning-analyzer',                          
+    'jobs_to_be_done': 'jobs-to-be-done-analyzer',                              
+    'competitive_positioning': 'competitive-positioning-analyzer',              
+    'segment_discovery': 'segment-discovery-analyzer',                          
+                                                                                
+    // Generator Modules                                                        
+    'epm': 'epm-generator',                                                     
+    'okr': 'okr-generator',                                                     
+  };                                                                            
+                                                                                
+  export const MODULE_ID_TO_FRAMEWORK_KEY: Record<string, string> =             
+  Object.fromEntries(                                                           
+    Object.entries(FRAMEWORK_KEY_TO_MODULE_ID).map(([k, v]) => [v, k])          
+  );                                                                            
+                                                                                
+  export function getModuleId(frameworkKey: string): string {                   
+    return FRAMEWORK_KEY_TO_MODULE_ID[frameworkKey] || frameworkKey;            
+  }                                                                             
+                                                                                
+  export function getFrameworkKey(moduleId: string): string {                   
+    return MODULE_ID_TO_FRAMEWORK_KEY[moduleId] || moduleId;                    
+  }                                                                             
+                                                                                
+  Use this mapping in CustomJourneyExecutor and anywhere else that looks up     
+  modules by framework key.                                                     
+                                                                                
+  ---                                                                           
+  Task 3: Seed All 19 Frameworks                                                
+                                                                                
+  File: server/journey-builder-seed.ts                                          
+                                                                                
+  Ensure FRAMEWORKS array has ALL 19 modules:                                   
+                                                                                
+  const FRAMEWORKS = [                                                          
+    // === USER INPUT MODULES ===                                               
+    {                                                                           
+      frameworkKey: 'strategic_understanding',                                  
+      name: 'Strategic Understanding',                                          
+      description: 'Capture business context and strategic goals',              
+      category: 'Foundation',                                                   
+      estimatedDuration: 5,                                                     
+      difficulty: 'beginner' as const,                                          
+      requiredInputs: [],                                                       
+      providedOutputs: ['strategic_context'],                                   
+      processorPath: '/api/frameworks/strategic-understanding',                 
+    },                                                                          
+    {                                                                           
+      frameworkKey: 'strategic_decisions',                                      
+      name: 'Strategic Decisions',                                              
+      description: 'Make key strategic decisions based on analysis',            
+      category: 'Decision',                                                     
+      estimatedDuration: 10,                                                    
+      difficulty: 'intermediate' as const,                                      
+      requiredInputs: ['strategic_analysis'],                                   
+      providedOutputs: ['strategic_decisions'],                                 
+      processorPath: '/api/frameworks/strategic-decisions',                     
+    },                                                                          
+                                                                                
+    // === CORE ANALYZERS ===                                                   
+    {                                                                           
+      frameworkKey: 'swot',                                                     
+      name: 'SWOT Analysis',                                                    
+      description: 'Analyze Strengths, Weaknesses, Opportunities, and Threats', 
+      category: 'Strategy',                                                     
+      estimatedDuration: 8,                                                     
+      difficulty: 'beginner' as const,                                          
+      requiredInputs: ['strategic_context'],                                    
+      providedOutputs: ['swot_output'],                                         
+      processorPath: '/api/frameworks/swot',                                    
+    },                                                                          
+    {                                                                           
+      frameworkKey: 'business_model_canvas',                                    
+      name: 'Business Model Canvas',                                            
+      description: 'Map your business model across 9 building blocks',          
+      category: 'Strategy',                                                     
+      estimatedDuration: 12,                                                    
+      difficulty: 'intermediate' as const,                                      
+      requiredInputs: ['strategic_context'],                                    
+      providedOutputs: ['bmc_output'],                                          
+      processorPath: '/api/frameworks/bmc',                                     
+    },                                                                          
+    {                                                                           
+      frameworkKey: 'porters_five_forces',                                      
+      name: "Porter's Five Forces",                                             
+      description: 'Analyze competitive forces in your industry',               
+      category: 'Competition',                                                  
+      estimatedDuration: 10,                                                    
+      difficulty: 'intermediate' as const,                                      
+      requiredInputs: ['strategic_context'],                                    
+      providedOutputs: ['porters_output'],                                      
+      processorPath: '/api/frameworks/porters',                                 
+    },                                                                          
+    {                                                                           
+      frameworkKey: 'pestle',                                                   
+      name: 'PESTLE Analysis',                                                  
+      description: 'Analyze Political, Economic, Social, Technological, Legal,  
+  Environmental factors',                                                       
+      category: 'External',                                                     
+      estimatedDuration: 10,                                                    
+      difficulty: 'intermediate' as const,                                      
+      requiredInputs: ['strategic_context'],                                    
+      providedOutputs: ['pestle_output'],                                       
+      processorPath: '/api/frameworks/pestle',                                  
+    },                                                                          
+    {                                                                           
+      frameworkKey: 'five_whys',                                                
+      name: 'Five Whys Analysis',                                               
+      description: 'Root cause analysis through iterative questioning',         
+      category: 'Problem Solving',                                              
+      estimatedDuration: 8,                                                     
+      difficulty: 'beginner' as const,                                          
+      requiredInputs: ['strategic_context'],                                    
+      providedOutputs: ['five_whys_output'],                                    
+      processorPath: '/api/frameworks/five-whys',                               
+    },                                                                          
+                                                                                
+    // === GROWTH & INNOVATION ===                                              
+    {                                                                           
+      frameworkKey: 'ansoff',                                                   
+      name: 'Ansoff Matrix',                                                    
+      description: 'Analyze growth strategies: market penetration, development, 
+  product development, diversification',                                        
+      category: 'Growth',                                                       
+      estimatedDuration: 8,                                                     
+      difficulty: 'intermediate' as const,                                      
+      requiredInputs: ['strategic_context'],                                    
+      providedOutputs: ['ansoff_output'],                                       
+      processorPath: '/api/frameworks/ansoff',                                  
+    },                                                                          
+    {                                                                           
+      frameworkKey: 'blue_ocean',                                               
+      name: 'Blue Ocean Strategy',                                              
+      description: 'Identify uncontested market space and create new demand',   
+      category: 'Innovation',                                                   
+      estimatedDuration: 10,                                                    
+      difficulty: 'advanced' as const,                                          
+      requiredInputs: ['strategic_context'],                                    
+      providedOutputs: ['blue_ocean_output'],                                   
+      processorPath: '/api/frameworks/blue-ocean',                              
+    },                                                                          
+    {                                                                           
+      frameworkKey: 'ocean_strategy',                                           
+      name: 'Ocean Strategy',                                                   
+      description: 'Comprehensive red ocean vs blue ocean strategic analysis',  
+      category: 'Innovation',                                                   
+      estimatedDuration: 12,                                                    
+      difficulty: 'advanced' as const,                                          
+      requiredInputs: ['strategic_context', 'swot_output'],                     
+      providedOutputs: ['ocean_strategy_output'],                               
+      processorPath: '/api/frameworks/ocean-strategy',                          
+    },                                                                          
+                                                                                
+    // === PORTFOLIO & RESOURCES ===                                            
+    {                                                                           
+      frameworkKey: 'bcg_matrix',                                               
+      name: 'BCG Matrix',                                                       
+      description: 'Portfolio analysis: Stars, Cash Cows, Question Marks, Dogs',
+      category: 'Portfolio',                                                    
+      estimatedDuration: 8,                                                     
+      difficulty: 'intermediate' as const,                                      
+      requiredInputs: ['strategic_context'],                                    
+      providedOutputs: ['bcg_matrix_output'],                                   
+      processorPath: '/api/frameworks/bcg-matrix',                              
+    },                                                                          
+    {                                                                           
+      frameworkKey: 'value_chain',                                              
+      name: 'Value Chain Analysis',                                             
+      description: 'Analyze primary and support activities that create value',  
+      category: 'Operations',                                                   
+      estimatedDuration: 10,                                                    
+      difficulty: 'intermediate' as const,                                      
+      requiredInputs: ['strategic_context'],                                    
+      providedOutputs: ['value_chain_output'],                                  
+      processorPath: '/api/frameworks/value-chain',                             
+    },                                                                          
+    {                                                                           
+      frameworkKey: 'vrio',                                                     
+      name: 'VRIO Analysis',                                                    
+      description: 'Assess resources: Valuable, Rare, Imitable, Organized',     
+      category: 'Resources',                                                    
+      estimatedDuration: 8,                                                     
+      difficulty: 'intermediate' as const,                                      
+      requiredInputs: ['strategic_context'],                                    
+      providedOutputs: ['vrio_output'],                                         
+      processorPath: '/api/frameworks/vrio',                                    
+    },                                                                          
+                                                                                
+    // === PLANNING & CUSTOMER ===                                              
+    {                                                                           
+      frameworkKey: 'scenario_planning',                                        
+      name: 'Scenario Planning',                                                
+      description: 'Explore multiple future scenarios and strategic responses', 
+      category: 'Planning',                                                     
+      estimatedDuration: 15,                                                    
+      difficulty: 'advanced' as const,                                          
+      requiredInputs: ['strategic_context', 'pestle_output'],                   
+      providedOutputs: ['scenario_planning_output'],                            
+      processorPath: '/api/frameworks/scenario-planning',                       
+    },                                                                          
+    {                                                                           
+      frameworkKey: 'jobs_to_be_done',                                          
+      name: 'Jobs-to-be-Done',                                                  
+      description: 'Understand customer needs, motivations, and desired         
+  outcomes',                                                                    
+      category: 'Customer',                                                     
+      estimatedDuration: 10,                                                    
+      difficulty: 'intermediate' as const,                                      
+      requiredInputs: ['strategic_context'],                                    
+      providedOutputs: ['jtbd_output'],                                         
+      processorPath: '/api/frameworks/jtbd',                                    
+    },                                                                          
+    {                                                                           
+      frameworkKey: 'competitive_positioning',                                  
+      name: 'Competitive Positioning',                                          
+      description: 'Define market position and differentiation strategy',       
+      category: 'Competition',                                                  
+      estimatedDuration: 10,                                                    
+      difficulty: 'intermediate' as const,                                      
+      requiredInputs: ['strategic_context', 'porters_output'],                  
+      providedOutputs: ['competitive_positioning_output'],                      
+      processorPath: '/api/frameworks/competitive-positioning',                 
+    },                                                                          
+    {                                                                           
+      frameworkKey: 'segment_discovery',                                        
+      name: 'Market Segmentation',                                              
+      description: 'Discover and validate customer segments',                   
+      category: 'Customer',                                                     
+      estimatedDuration: 5,                                                     
+      difficulty: 'beginner' as const,                                          
+      requiredInputs: ['strategic_context'],                                    
+      providedOutputs: ['segment_output'],                                      
+      processorPath: '/api/marketing-consultant/discovery',                     
+    },                                                                          
+                                                                                
+    // === GENERATORS ===                                                       
+    {                                                                           
+      frameworkKey: 'okr',                                                      
+      name: 'OKR Generator',                                                    
+      description: 'Generate Objectives and Key Results from strategic          
+  analysis',                                                                    
+      category: 'Execution',                                                    
+      estimatedDuration: 8,                                                     
+      difficulty: 'intermediate' as const,                                      
+      requiredInputs: ['strategic_analysis'],                                   
+      providedOutputs: ['okr_output'],                                          
+      processorPath: '/api/frameworks/okr',                                     
+    },                                                                          
+    {                                                                           
+      frameworkKey: 'epm',                                                      
+      name: 'EPM Program Generator',                                            
+      description: 'Generate Enterprise Program Management structures',         
+      category: 'Execution',                                                    
+      estimatedDuration: 10,                                                    
+      difficulty: 'advanced' as const,                                          
+      requiredInputs: ['strategic_analysis', 'strategic_decisions'],            
+      providedOutputs: ['epm_program'],                                         
+      processorPath: '/api/frameworks/epm',                                     
+    },                                                                          
+  ];                                                                            
+                                                                                
+  ---                                                                           
+  Task 4: CLI Scaffolder                                                        
+                                                                                
+  File: scripts/create-module.ts (CREATE NEW)                                   
+                                                                                
+  #!/usr/bin/env npx ts-node                                                    
+  /**                                                                           
+   * Module Factory CLI                                                         
+   * Creates all required files for a new module.                               
+   *                                                                            
+   * Usage: npm run create-module                                               
+   */                                                                           
+                                                                                
+  import * as fs from 'fs';                                                     
+  import * as path from 'path';                                                 
+  import * as readline from 'readline';                                         
+                                                                                
+  const rl = readline.createInterface({                                         
+    input: process.stdin,                                                       
+    output: process.stdout,                                                     
+  });                                                                           
+                                                                                
+  function ask(question: string): Promise<string> {                             
+    return new Promise((resolve) => rl.question(question, resolve));            
+  }                                                                             
+                                                                                
+  function toCamelCase(str: string): string {                                   
+    return str.replace(/-([a-z])/g, (g) => g[1].toUpperCase());                 
+  }                                                                             
+                                                                                
+  function toPascalCase(str: string): string {                                  
+    const camel = toCamelCase(str);                                             
+    return camel.charAt(0).toUpperCase() + camel.slice(1);                      
+  }                                                                             
+                                                                                
+  function toSnakeCase(str: string): string {                                   
+    return str.replace(/-/g, '_');                                              
+  }                                                                             
+                                                                                
+  async function main() {                                                       
+    console.log('\n🔧 Module Factory - Create a New Strategic Module\n');       
+    console.log('================================================\n');          
+                                                                                
+    const moduleId = await ask('Module ID (kebab-case, e.g.,                    
+  "market-analysis-analyzer"): ');                                              
+    const displayName = await ask('Display Name (e.g., "Market Analysis"): ');  
+    const description = await ask('Description: ');                             
+    const category = await ask('Category                                        
+  (Strategy/Growth/Competition/Customer/Operations/Execution): ');              
+    const duration = await ask('Estimated Duration (minutes): ');               
+    const difficulty = await ask('Difficulty (beginner/intermediate/advanced):  
+  ');                                                                           
+    const moduleType = await ask('Module Type                                   
+  (ai_analyzer/user-input/generator): ');                                       
+                                                                                
+    const basePath = path.resolve(__dirname, '..');                             
+    const frameworkKey = toSnakeCase(moduleId.replace(/-analyzer$/,             
+  '').replace(/-generator$/, ''));                                              
+                                                                                
+    // 1. Create manifest                                                       
+    const manifestContent = `/**                                                
+   * ${displayName} Manifest                                                    
+   * Auto-generated by Module Factory - ${new Date().toISOString()}             
+   */                                                                           
+                                                                                
+  import type { ModuleManifest } from '../manifest';                            
+                                                                                
+  export const ${toCamelCase(moduleId)}Manifest: ModuleManifest = {             
+    id: '${moduleId}',                                                          
+    name: '${displayName}',                                                     
+    version: '1.0.0',                                                           
+    description: '${description}',                                              
+    moduleType: '${moduleType}',                                                
+    category: '${category}',                                                    
+    icon: 'chart-bar',                                                          
+    status: 'implemented',                                                      
+    inputs: [                                                                   
+      {                                                                         
+        id: 'context',                                                          
+        name: 'strategicContext',                                               
+        type: 'strategic_context',                                              
+        required: true,                                                         
+        description: 'Strategic context from previous steps',                   
+      },                                                                        
+    ],                                                                          
+    outputs: [                                                                  
+      {                                                                         
+        id: 'output',                                                           
+        name: '${toCamelCase(moduleId)}Output',                                 
+        type: '${frameworkKey}_output',                                         
+        required: true,                                                         
+        description: '${displayName} results',                                  
+      },                                                                        
+    ],                                                                          
+    requires: [],                                                               
+    estimatedDuration: ${duration},                                             
+    difficulty: '${difficulty}',                                                
+    isActive: true,                                                             
+  };                                                                            
+  `;                                                                            
+                                                                                
+    const manifestDir = path.join(basePath, 'server/modules/manifests');        
+    if (!fs.existsSync(manifestDir)) fs.mkdirSync(manifestDir, { recursive: true
+   });                                                                          
+                                                                                
+    const manifestPath = path.join(manifestDir, `${moduleId}.ts`);              
+    fs.writeFileSync(manifestPath, manifestContent);                            
+    console.log(`✓ Created manifest: ${manifestPath}`);                         
+                                                                                
+    // 2. Create implementation (for ai_analyzer type)                          
+    if (moduleType === 'ai_analyzer') {                                         
+      const implContent = `/**                                                  
+   * ${displayName}                                                             
+   * Auto-generated by Module Factory - ${new Date().toISOString()}             
+   */                                                                           
+                                                                                
+  import { aiClients } from '../ai-clients';                                    
+                                                                                
+  export class ${toPascalCase(moduleId)} {                                      
+    async analyze(input: { context: any }): Promise<any> {                      
+      console.log('[${moduleId}] Starting analysis...');                        
+                                                                                
+      const prompt = \`                                                         
+  Analyze the following strategic context using ${displayName} methodology:     
+                                                                                
+  \${JSON.stringify(input.context, null, 2)}                                    
+                                                                                
+  Return a structured JSON analysis with relevant insights.                     
+      \`;                                                                       
+                                                                                
+      const response = await aiClients.callWithFallback({                       
+        systemPrompt: 'You are a strategic analysis expert specializing in      
+  ${displayName}. Return only valid JSON.',                                     
+        userMessage: prompt,                                                    
+        maxTokens: 4000,                                                        
+      });                                                                       
+                                                                                
+      const result = JSON.parse(response.content);                              
+      console.log('[${moduleId}] Analysis complete');                           
+      return result;                                                            
+    }                                                                           
+  }                                                                             
+                                                                                
+  export const ${toCamelCase(moduleId)} = new ${toPascalCase(moduleId)}();      
+  `;                                                                            
+                                                                                
+      const implDir = path.join(basePath, 'server/intelligence');               
+      if (!fs.existsSync(implDir)) fs.mkdirSync(implDir, { recursive: true });  
+                                                                                
+      const implPath = path.join(implDir, `${moduleId}.ts`);                    
+      fs.writeFileSync(implPath, implContent);                                  
+      console.log(`✓ Created implementation: ${implPath}`);                     
+    }                                                                           
+                                                                                
+    // 3. Update manifest index                                                 
+    const indexPath = path.join(basePath, 'server/modules/manifests/index.ts'); 
+    if (fs.existsSync(indexPath)) {                                             
+      let indexContent = fs.readFileSync(indexPath, 'utf-8');                   
+                                                                                
+      const importLine = `import { ${toCamelCase(moduleId)}Manifest } from      
+  './${moduleId}';`;                                                            
+      if (!indexContent.includes(importLine)) {                                 
+        // Add import at the top                                                
+        const lines = indexContent.split('\n');                                 
+        const lastImportIdx = lines.findLastIndex(l => l.startsWith('import')); 
+        lines.splice(lastImportIdx + 1, 0, importLine);                         
+        indexContent = lines.join('\n');                                        
+      }                                                                         
+                                                                                
+      // Add to allManifests array                                              
+      if (!indexContent.includes(`${toCamelCase(moduleId)}Manifest`)) {         
+        indexContent = indexContent.replace(                                    
+          /export const allManifests\s*=\s*\[/,                                 
+          `export const allManifests = [\n  ${toCamelCase(moduleId)}Manifest,`  
+        );                                                                      
+      }                                                                         
+                                                                                
+      fs.writeFileSync(indexPath, indexContent);                                
+      console.log(`✓ Updated manifest index: ${indexPath}`);                    
+    }                                                                           
+                                                                                
+    // 4. Update ID mapping                                                     
+    const mappingPath = path.join(basePath, 'server/modules/id-mapping.ts');    
+    if (fs.existsSync(mappingPath)) {                                           
+      let mappingContent = fs.readFileSync(mappingPath, 'utf-8');               
+                                                                                
+      const mappingLine = `  '${frameworkKey}': '${moduleId}',`;                
+      if (!mappingContent.includes(mappingLine)) {                              
+        mappingContent = mappingContent.replace(                                
+          /export const FRAMEWORK_KEY_TO_MODULE_ID[^{]*{/,                      
+          `export const FRAMEWORK_KEY_TO_MODULE_ID: Record<string, string> =    
+  {\n${mappingLine}`                                                            
+        );                                                                      
+        fs.writeFileSync(mappingPath, mappingContent);                          
+        console.log(`✓ Updated ID mapping: ${mappingPath}`);                    
+      }                                                                         
+    }                                                                           
+                                                                                
+    // 5. Add to seed (print instruction)                                       
+    console.log(`\n⚠️  Manual step required:`);                                 
+    console.log(`   Add this entry to FRAMEWORKS array in                       
+  server/journey-builder-seed.ts:\n`);                                          
+    console.log(`  {                                                            
+      frameworkKey: '${frameworkKey}',                                          
+      name: '${displayName}',                                                   
+      description: '${description}',                                            
+      category: '${category}',                                                  
+      estimatedDuration: ${duration},                                           
+      difficulty: '${difficulty}' as const,                                     
+      requiredInputs: ['strategic_context'],                                    
+      providedOutputs: ['${frameworkKey}_output'],                              
+      processorPath: '/api/frameworks/${moduleId}',                             
+    },`);                                                                       
+                                                                                
+    console.log('\n✅ Module scaffolding complete!\n');                         
+    console.log('Next steps:');                                                 
+    console.log(`  1. ${moduleType === 'ai_analyzer' ? `Implement analyze() in  
+  server/intelligence/${moduleId}.ts` : 'Create the UI component'}`);           
+    console.log('  2. Add the entry to journey-builder-seed.ts (shown above)'); 
+    console.log('  3. Run: npm run seed:journey-builder');                      
+    console.log('  4. Run: npm run validate-modules');                          
+    console.log('  5. Restart the server\n');                                   
+                                                                                
+    rl.close();                                                                 
+  }                                                                             
+                                                                                
+  main().catch((err) => {                                                       
+    console.error('Error:', err);                                               
+    rl.close();                                                                 
+    process.exit(1);                                                            
+  });                                                                           
+                                                                                
+  Add to package.json scripts:                                                  
+  "create-module": "ts-node scripts/create-module.ts"                           
+                                                                                
+  ---                                                                           
+  Task 5: Hook Validation into Server Startup                                   
+                                                                                
+  File: server/index.ts                                                         
+                                                                                
+  Find where the server starts and add:                                         
+                                                                                
+  import { validateOnStartup } from './modules/validate-modules';               
+                                                                                
+  // After database connection, before app.listen():                            
+  async function startServer() {                                                
+    // ... existing code ...                                                    
+                                                                                
+    // Connect to database                                                      
+    await connectToDatabase();                                                  
+                                                                                
+    // Validate module system - fail fast if misconfigured                      
+    console.log('[Server] Validating module system...');                        
+    await validateOnStartup();                                                  
+                                                                                
+    // ... rest of startup ...                                                  
+    app.listen(PORT, () => {                                                    
+      console.log(`Server running on port ${PORT}`);                            
+    });                                                                         
+  }                                                                             
+                                                                                
+  ---                                                                           
+  Task 6: Run Database Seed and Verify                                          
+                                                                                
+  After all files are created/updated:                                          
+                                                                                
+  # Run the seed                                                                
+  npm run seed:journey-builder                                                  
+  # or                                                                          
+  npx ts-node server/journey-builder-seed.ts                                    
+                                                                                
+  # Verify via SQL                                                              
+  psql -c "SELECT framework_key FROM framework_registry ORDER BY framework_key;"
+  # Should show all 19 framework keys                                           
+                                                                                
+  ---                                                                           
+  Verification Checklist                                                        
+                                                                                
+  After completing all tasks:                                                   
+                                                                                
+  1. Validation passes:                                                         
+  npm run validate-modules                                                      
+  # Should show: 20 passed, 0 failed                                            
+  2. Server starts clean:                                                       
+  npm run dev                                                                   
+  # Should see: "[Server] Validating module system..." then "All checks passed" 
+  3. All modules in registry:                                                   
+  SELECT COUNT(*) FROM framework_registry;                                      
+  -- Should return 19                                                           
+  4. Test SWOT-only journey:                                                    
+    - Create journey: Strategic Understanding → SWOT → Strategic Decisions → EPM
+    - Run through completion                                                    
+    - EPM should generate WITHOUT "No BMC analysis found" error                 
+  5. Test BMC journey (regression):                                             
+    - Create journey with BMC                                                   
+    - Should still work as before                                               
+                                                                                
+  ---                                                                           
+  Do all 6 tasks. Do not skip any. Do not defer any.   

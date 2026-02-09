@@ -1,0 +1,75 @@
+ ## 1. Wrap the new pipeline behind a feature flag
+
+  Goal: FEATURE_JOURNEY_REGISTRY_V2 (default false) controls all new registry +
+  summary behavior.
+
+  1. Config
+      - Add FEATURE_JOURNEY_REGISTRY_V2=false to .env.example, .env.development,
+        and server config loader.
+      - Create a helper (isJourneyRegistryV2Enabled()) in a shared config
+        module.
+  2. Server gating
+      - In journey-orchestrator, only call JourneySummaryService (save +
+        baseline load) when the flag is true.
+      - In readiness endpoint (/api/strategic-consultant/journeys/check-
+        readiness), use registry thresholds only if the flag is true; otherwise
+        fall back to the legacy inline defaults (existing behavior).
+      - For any new summary/insights endpoints you added, either guard them
+        entirely or return HTTP 404/empty when the flag is off.
+  3. Client gating
+      - Journey selection components (JourneySelectionPage,
+        JourneyLauncherModal): only fetch summaries / show new registry-driven
+        UI when the feature flag is enabled (expose it via existing config/
+        hook).
+      - Strategy Hub modal: same gating—fallback to legacy copy when the flag
+        is off.
+
+  After this step we must be able to turn the flag off and see the old behavior
+  with zero runtime errors.
+
+  ———
+
+  ## 2. Automated smoke test
+
+  Add a Jest (or existing test harness) spec that verifies the new pipeline when
+  the flag is on. Suggested test: tests/journey-registry.smoke.spec.ts.
+
+  - Arrange: enable the flag in the test env; seed a fake strategic
+    understanding + journey session (using secure data service helpers) and run
+    a BMI execution through journeyOrchestrator.
+  - Assert:
+      1. A summary is saved (JourneySummaryService.getLatestSummary returns data
+         for BMI and not for other journey types).
+      2. Readiness endpoint pulls BMI thresholds from the registry when
+         flag=true and the legacy default when flag=false.
+  - Ensure the test runs in CI. Document the command in README (e.g., pnpm test
+    --journey-registry).
+
+  ———
+
+  ## 3. Manual QA checklist
+
+  Before we mark the pipeline done, you must run the following with flag ON and
+  OFF and post screenshots/logs:
+
+  1. Flag OFF
+      - Strategic Consultant wizard shows the legacy journey list.
+      - Strategy Hub “Run Additional Analysis” shows the legacy list with no
+        summary snippet.
+      - Readiness behaves exactly as today (BMI allowed with 0/0).
+      - Follow-on run executes without touching summaries.
+  2. Flag ON
+      - Strategic Consultant & Strategy Hub load journeys from updated registry.
+      - Summary preview appears (for BMI with existing session).
+      - Follow-on BMI run reuses the stored summary (verify via console log
+        or API).
+      - Readiness endpoint reports values from registry (call it via Thunder
+        Client/Postman or curl).
+
+  Provide brief notes + outputs for each step so we can confirm before
+  continuing.
+
+  ———
+
+  Once the flag, automated test, and manual checklist are in place (and
+  verified), you can resume task 6 onward.

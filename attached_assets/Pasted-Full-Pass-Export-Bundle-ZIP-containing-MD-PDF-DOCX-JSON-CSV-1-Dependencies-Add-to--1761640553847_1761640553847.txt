@@ -1,0 +1,97 @@
+Full-Pass Export Bundle (ZIP containing MD, PDF, DOCX, JSON, CSV)
+
+  1. Dependencies
+      - Add to package.json (install using npm install):
+
+        npm install archiver docx puppeteer marked
+        (If you prefer to avoid Chromium, replace puppeteer with a different PDF
+        renderer, but make sure you explain the alternative.)
+  2. Export service
+      - Create server/services/export-service.ts that:
+          - Accepts { sessionId, versionNumber?, programId?, userId }.
+          - Loads strategic understanding, journey session, strategy version,
+            decisions, EPM program, and task assignments using existing storage/
+            secure-data helpers.
+          - Builds a FullExportPackage object with strategy + EPM data and
+            metadata.
+          - Generates:
+              - Markdown summary (use headings, tables, and sectioning similar
+                to the spec).
+              - HTML from Markdown using marked (instead of simple .replace).
+              - PDF via Puppeteer (page.pdf with sensible margins, --no-sandbox
+                args).
+              - DOCX via docx package (Packer.toBuffer(doc)).
+              - JSON strings for strategy and EPM.
+              - CSVs for assignments and workstreams (escape double quotes and
+                commas).
+          - Streams a ZIP using archiver (structure below) into the provided
+            writable stream.
+
+        ZIP structure:
+
+        qgentic-export-{sessionId}-v{version}.zip
+        ├── report.md
+        ├── report.pdf
+        ├── report.docx
+        └── data/
+            ├── strategy.json
+            ├── epm.json
+            ├── assignments.csv
+            └── workstreams.csv
+  3. Export route
+      - Add server/routes/exports.ts:
+
+        router.get('/full-pass', async (req, res) => {
+          const { sessionId, versionNumber, programId } = req.query;
+          const userId = (req.user as any)?.id;
+          // 401 if not authenticated, 400 if sessionId missing.
+          // Verify ownership (compare userId with session/ program owner).
+          const filename = `qgentic-export-${sessionId}-v${versionNumber ||
+  'latest'}.zip`;
+          res.setHeader('Content-Type', 'application/zip');
+          res.setHeader('Content-Disposition', `attachment;
+  filename="${filename}"`);
+          await exportService.generateFullPassExport(
+            { sessionId: sessionId as string, versionNumber: versionNumber ?
+  +versionNumber : undefined, programId: programId as string | undefined,
+  userId },
+            res
+          );
+        });
+      - Register it in server/routes.ts:
+
+        import exportsRouter from './routes/exports';
+        app.use('/api/exports', exportsRouter);
+  4. Client download button
+      - Create client/src/components/epm/ExportFullReportButton.tsx with a
+        button that calls /api/exports/full-pass and streams the ZIP to the
+        user (use fetch with credentials: 'include', then create an <a> with
+        URL.createObjectURL(blob) to trigger the download).
+      - Show a loading state (disabled={isExporting}) and reuse toast
+        notifications for success/failure.
+      - Insert the button in:
+          - client/src/pages/strategy-workspace/EPMProgramView.tsx header.
+          - client/src/pages/strategic-consultant/StrategyResultsPage.tsx.
+  5. Testing checklist
+      - Schedule analyzer: teams vs individuals behave as expected.
+      - Export:
+          - Download completes; ZIP contains report.md, report.pdf, report.docx,
+            and data files.
+          - PDF and DOCX open with clean formatting.
+          - JSON/CSV contain the expected data.
+          - Unauthorized users get 401/403.
+          - UI shows progress and error handling correctly.
+
+  ———
+
+  ### Notes & Reminders for Replit
+
+  - Use marked (or similar) to convert Markdown to HTML properly—do not replace
+    \n with <br>.
+  - Escape CSV values to handle commas/quotes.
+  - Puppeteer needs args: ['--no-sandbox', '--disable-setuid-sandbox'].
+  - For DOCX, import Packer and call await Packer.toBuffer(doc).
+  - Replace the TODO in the route with a real ownership check using existing
+    storage helpers.
+  - Ensure archiver finalizes before ending the response; handle warning and
+    error events.

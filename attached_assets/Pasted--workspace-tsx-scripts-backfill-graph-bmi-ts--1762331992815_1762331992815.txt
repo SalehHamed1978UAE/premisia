@@ -1,0 +1,100 @@
+~/workspace$ tsx scripts/backfill/graph-bmi.ts
+================================================================================
+📊 Knowledge Graph Backfill - BMI Journey Sessions
+================================================================================
+
+✓ Knowledge Graph enabled and configured
+
+📋 Querying database for completed BMI journey sessions...
+
+Found 6 completed BMI journey sessions
+
+🔄 Processing sessions...
+
+[1/6] Session: 4b4114de-0498-4f7c-a710-f3ccabaafb5c
+[Neo4j] Driver initialized
+
+  📊 Processing session: 4b4114de-0498-4f7c-a710-f3ccabaafb5c
+    Journey Type: business_model_innovation, Status: completed
+    Trying legacy flow with understanding session ID: session-1762243534990-e1y5on
+    Found: 2 versions, 0 decisions, 1 programs
+    Creating JourneySession node...
+[KG Service] Upserted 1 JourneySession nodes
+    Creating 1 EPM programs...
+[KG Service] Upserted 1 Program nodes
+[KG Service] Upserted 1 relationships
+    ✅ Successfully synced session 4b4114de-0498-4f7c-a710-f3ccabaafb5c
+[2/6] Session: 84e0345c-e0e4-4bf3-8153-315934e38d97
+
+  📊 Processing session: 84e0345c-e0e4-4bf3-8153-315934e38d97
+    Journey Type: business_model_innovation, Status: completed
+    Trying legacy flow with understanding session ID: session-1762249620034-dvj5p7
+    Found: 1 versions, 0 decisions, 1 programs
+    Creating JourneySession node...
+[KG Service] Upserted 1 JourneySession nodes
+    Creating 1 EPM programs...
+[KG Service] Upserted 1 Program nodes
+[KG Service] Upserted 1 relationships
+    ✅ Successfully synced session 84e0345c-e0e4-4bf3-8153-315934e38d97
+[3/6] Session: ecd12c63-b624-4639-93b2-cea6c2d4b117
+
+  📊 Processing session: ecd12c63-b624-4639-93b2-cea6c2d4b117
+    Journey Type: business_model_innovation, Status: completed
+    Trying legacy flow with understanding session ID: session-1762259633465-80seou
+    Found: 1 versions, 0 decisions, 1 programs
+    Creating JourneySession node...
+[KG Service] Upserted 1 JourneySession nodes
+    Creating 1 EPM programs...
+[KG Service] Upserted 1 Program nodes
+[KG Service] Upserted 1 relationships
+    ✅ Successfully synced session ecd12c63-b624-4639-93b2-cea6c2d4b117
+[4/6] Session: cba3a27b-89ee-4cae-9a50-6a5ae0a5a6f1
+
+  📊 Processing session: cba3a27b-89ee-4cae-9a50-6a5ae0a5a6f1
+    Journey Type: business_model_innovation, Status: completed
+    Trying legacy flow with understanding session ID: session-1762276107197-1w42dk
+    Found: 2 versions, 0 decisions, 1 programs
+    Creating JourneySession node...
+[KG Service] Upserted 1 JourneySession nodes
+    Creating 1 EPM programs...
+[KG Service] Upserted 1 Program nodes
+[KG Service] Upserted 1 relationships
+    ✅ Successfully synced session cba3a27b-89ee-4cae-9a50-6a5ae0a5a6f1
+[5/6] Session: d9eea37a-19a6-4e33-bb0d-6b01f316cee9
+
+  📊 Processing session: d9eea37a-19a6-4e33-bb0d-6b01f316cee9
+    Journey Type: business_model_innovation, Status: completed
+    Trying legacy flow with understanding session ID: session-1762282914425-ioccdq
+    Found: 1 versions, 0 decisions, 1 programs
+    Creating JourneySession node...
+[KG Service] Upserted 1 JourneySession nodes
+    Creating 1 EPM programs...
+[KG Service] Upserted 1 Program nodes
+[KG Service] Upserted 1 relationships
+    ✅ Successfully synced session d9eea37a-19a6-4e33-bb0d-6b01f316cee9
+[6/6] Session: a9e2e7ff-2c70-40c7-9e69-671a9c40827b
+
+  📊 Processing session: a9e2e7ff-2c70-40c7-9e69-671a9c40827b
+    Journey Type: business_model_innovation, Status: completed
+    Trying legacy flow with understanding session ID: session-1762325576148-jclqwm
+    Found: 1 versions, 0 decisions, 1 programs
+    Creating JourneySession node...
+[KG Service] Upserted 1 JourneySession nodes
+    Creating 1 EPM programs...
+[KG Service] Upserted 1 Program nodes
+[KG Service] Upserted 1 relationships
+    ✅ Successfully synced session a9e2e7ff-2c70-40c7-9e69-671a9c40827b
+
+================================================================================
+✅ Backfill Complete
+================================================================================
+  Total sessions: 6
+  Processed: 6
+  Already synced: 0
+  Skipped: 0
+  Errors: 0
+  Duration: 10.37s
+================================================================================
+
+[Neo4j] Driver closed
+🔌 Neo4j driver closed

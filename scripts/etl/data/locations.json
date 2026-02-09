@@ -1,0 +1,71 @@
+[
+  {
+    "id": "loc-uae",
+    "name": "United Arab Emirates",
+    "type": "country",
+    "aliases": ["UAE", "Emirates"]
+  },
+  {
+    "id": "loc-abu-dhabi-emirate",
+    "name": "Abu Dhabi",
+    "type": "emirate",
+    "parentId": "loc-uae",
+    "aliases": ["Abu Dhabi Emirate"]
+  },
+  {
+    "id": "loc-dubai-emirate",
+    "name": "Dubai",
+    "type": "emirate",
+    "parentId": "loc-uae",
+    "aliases": ["Dubai Emirate"]
+  },
+  {
+    "id": "loc-abu-dhabi-city",
+    "name": "Abu Dhabi City",
+    "type": "city",
+    "parentId": "loc-abu-dhabi-emirate",
+    "lat": 24.4539,
+    "lng": 54.3773
+  },
+  {
+    "id": "loc-al-ain",
+    "name": "Al Ain",
+    "type": "city",
+    "parentId": "loc-abu-dhabi-emirate",
+    "lat": 24.2075,
+    "lng": 55.7447
+  },
+  {
+    "id": "loc-dubai-city",
+    "name": "Dubai City",
+    "type": "city",
+    "parentId": "loc-dubai-emirate",
+    "lat": 25.2048,
+    "lng": 55.2708
+  },
+  {
+    "id": "loc-downtown-dubai",
+    "name": "Downtown Dubai",
+    "type": "district",
+    "parentId": "loc-dubai-city"
+  },
+  {
+    "id": "loc-business-bay",
+    "name": "Business Bay",
+    "type": "district",
+    "parentId": "loc-dubai-city"
+  },
+  {
+    "id": "loc-jlt",
+    "name": "Jumeirah Lakes Towers",
+    "type": "district",
+    "parentId": "loc-dubai-city",
+    "aliases": ["JLT"]
+  },
+  {
+    "id": "loc-deira",
+    "name": "Deira",
+    "type": "district",
+    "parentId": "loc-dubai-city"
+  }
+]

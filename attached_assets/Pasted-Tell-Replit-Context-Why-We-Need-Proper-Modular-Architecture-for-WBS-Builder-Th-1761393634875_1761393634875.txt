@@ -1,0 +1,110 @@
+Tell Replit:
+
+---
+
+## **Context: Why We Need Proper Modular Architecture for WBS Builder**
+
+### **The Current Situation**
+
+We discovered the root cause of our 22-month coffee shop timeline: The BMC analyzer blindly adds "Technology Platform Development" workstream whenever it sees any technology mentioned. It can't distinguish between:
+- **Building technology** (SaaS company building software)
+- **Using technology** (Coffee shop using a POS system)
+
+This isn't just a bug - it's an architectural failure. The system lacks semantic understanding at the work breakdown structure level.
+
+### **Why NOT Quick Fixes**
+
+I know you might want to patch the BMC analyzer or add some if-statements to fix the coffee shop case. But:
+
+1. **We already have too much technical debt** - The user explicitly said "I have enough technical debt as it is"
+2. **This problem will repeat** - Every new journey type will have similar issues
+3. **The current architecture doesn't scale** - Hardcoded patterns for each business type = unmaintainable
+4. **No semantic validation** - The system can't tell if its output makes logical sense
+
+### **Why Modular Architecture NOW**
+
+**Benefits of the pipeline/plugin approach:**
+- **Testable** - Each component can be unit tested independently
+- **Extensible** - Add new initiative patterns without touching core code
+- **Debuggable** - Clear stages show exactly where things fail
+- **Reusable** - Components can be used by other modules
+- **Maintainable** - Single responsibility = easier to fix bugs
+
+**Example:** When we later add a "Digital Transformation" journey, we just:
+1. Create a new pattern plugin
+2. Register it
+3. Done - no core code changes
+
+### **What We Expect You to Build**
+
+**Directory structure:** Create the full structure with separate folders for analyzers, validators, optimizers, patterns.
+
+**Core components:**
+1. **Pipeline system** - Processes stages in sequence
+2. **Business analyzer** - Understands what the business actually does
+3. **Pattern registry** - Extensible pattern system
+4. **Semantic validator** - Ensures output makes logical sense
+5. **Pattern plugins** - At least 2 (business_launch, software_development)
+
+**Integration requirements:**
+- Replace `generateWorkstreams()` in EPM synthesizer
+- Use dependency injection pattern
+- All LLM calls should include semantic context
+- Must validate semantic coherence before returning
+
+### **Success Criteria**
+
+**Test Case 1: Brooklyn Coffee Shop**
+```
+Input: "Open a coffee shop in Brooklyn"
+Expected:
+- Identifies as 'business_launch'
+- ~35% physical infrastructure
+- ~10% technology systems (POS, ordering)
+- Total timeline: 6-12 months
+- NO "Platform Development" workstream
+```
+
+**Test Case 2: SaaS Platform**
+```
+Input: "Build a project management SaaS"
+Expected:
+- Identifies as 'software_development'
+- ~60% technology systems
+- ~5% physical infrastructure
+- Has "Platform Development" workstream
+```
+
+### **Why This Matters**
+
+This WBS Builder will be the foundation for ALL future journeys:
+- Business Model Innovation (current)
+- Digital Transformation (planned)
+- Market Expansion (planned)
+- M&A Integration (planned)
+- Crisis Turnaround (planned)
+
+If we don't build it right now, every new journey will compound the technical debt.
+
+### **Implementation Approach**
+
+1. **Start with interfaces** - Define all contracts first
+2. **Build the pipeline** - Get the orchestration working
+3. **Implement analyzers** - Business understanding
+4. **Add patterns** - Start with 2, make extensible
+5. **Semantic validation** - Ensure coherence
+6. **Integration** - Replace existing workstream generation
+
+**Don't:**
+- Put everything in one file
+- Hardcode business rules
+- Skip the validation layer
+- Mix concerns (analysis with optimization)
+
+**Do:**
+- Keep classes small and focused
+- Use dependency injection
+- Add comprehensive logging
+- Make it truly extensible
+
+The goal is a WBS Builder that's smart enough to understand ANY business initiative and generate appropriate work streams with correct proportions, validated for semantic coherence.

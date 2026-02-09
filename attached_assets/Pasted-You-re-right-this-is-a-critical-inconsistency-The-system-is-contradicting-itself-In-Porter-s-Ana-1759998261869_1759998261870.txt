@@ -1,0 +1,45 @@
+You're right - this is a critical inconsistency.
+The system is contradicting itself:
+In Porter's Analysis (working correctly):
+
+"Contested research suggests... 95%... though this data is disputed and may not reflect current market conditions"
+
+In Decision Recommendations (broken):
+
+"❌ Not Recommended - High risk approach - contradicts research showing 95% of generative AI pilots fail"
+
+This is using contested, weak evidence as authoritative proof to reject an entire strategic option.
+
+Tell Replit:
+"There's a critical bug in decision generation. The system correctly identifies the '95% AI pilots fail' claim as contested/weak in Porter's analysis, but then uses that SAME weak claim as definitive evidence to mark 'Broad AI Capabilities Platform' as ❌ Not Recommended.
+The problem:
+
+Validation system marks claim as 🔴 WEAK
+Porter's analysis correctly qualifies it as "disputed"
+BUT decision generator treats it as 🟢 STRONG evidence to reject strategies
+
+Fix required:
+The decision generator must respect validation results. When generating decisions:
+typescript// WRONG (current):
+if (finding.mentions('95% failure')) {
+  markAsNotRecommended('High risk - research shows 95% fail');
+}
+
+// CORRECT:
+if (finding.mentions('95% failure') && finding.validation.strength === 'WEAK') {
+  // Don't use weak evidence as basis for rejection
+  // Or qualify it: 'Some contested research suggests high risk, but evidence is disputed'
+}
+The decision logic should:
+
+Check validation strength before using claims as evidence
+🟢 STRONG claims → use as primary evidence
+🟡 MODERATE claims → use with caveats
+🔴 WEAK claims → DO NOT use as primary rejection criteria
+
+Expected behavior for this case:
+Since the 95% claim is WEAK/contested, the decision should say:
+'Broad AI Capabilities Platform: ⚠️ Approach with caution
+While some research suggests high AI pilot failure rates, this data is contested and may reflect poor implementation rather than inherent risk. Success depends on: [factors]'
+NOT: '❌ Not Recommended - contradicts research showing 95% fail'
+The system is validating claims correctly but then ignoring its own validation when making recommendations. This undermines the entire validation system.

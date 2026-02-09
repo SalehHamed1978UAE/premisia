@@ -1,0 +1,35 @@
+Replit’s diagnosis (“resources lack IDs, so assignments can’t resolve”)
+    is off. server/intelligence/epm-synthesizer.ts#L2156 already generates a
+    synthetic resourceId (member.id || internal-${index}), and the UI mirrors
+    the same fallback (client/src/components/epm/AssignmentsPanel.tsx#L77-L92).
+    Even without IDs in the stored resource plan, the front end can still map
+    those assignments—so this isn’t why the critical path shows “Unassigned”.
+  - The real blocker sits in src/lib/intelligent-planning/resource-
+    manager.ts. findBestResources demands an exact, case-sensitive skill
+    hit (r.skills.includes(requirement.skill)), and many tasks coming out
+    of intelligent planning either (a) have no requirements array or (b) use
+    phrasing that doesn’t exactly match the skill strings in the resource plan.
+    The loop returns an empty array, so task.assignedResources stays blank and
+    the Gantt/critical-path panels fall back to the literal string “Unassigned”.
+    Over-allocation warnings then cite “Unassigned” because no actual resource
+    was attached.
+  - What Replit should implement:
+      1. In resource-manager.ts, make the allocator tolerant: treat missing
+         requirements as a generic need, compare skills case-insensitively / by
+         substring, and when there’s still no match, fall back to the cheapest
+         available resource so every task gets at least one assignment.
+      2. Still in assignResources, stash both the resource IDs and the display
+         names (e.g., task.assignedResourceNames) while assigning; this keeps
+         downstream consumers from losing the person’s name.
+      3. In src/lib/intelligent-planning/epm-integration.ts, keep propagating
+         those IDs/names when transforming the validated schedule—set owner,
+         assignedResourceIds, and assignedResourceNames from the task so the
+         timeline/critical-path UI sees real people instead of “Unassigned”.
+      4. Update the client type (client/src/types/intelligence.ts) if needed to
+         include the optional assignedResourceIds / assignedResourceNames fields
+         so TypeScript stays happy.
+  - After the code changes, rerun intelligent planning for a sample program and
+    confirm that Gantt/Critical Path and the schedule issue warnings list the
+    actual resource names (e.g., “Operations Manager”) instead of “Unassigned”,
+    and that overlapping-task alerts reference those names.
+

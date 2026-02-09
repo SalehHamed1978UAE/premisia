@@ -1,0 +1,57 @@
+Looking at your results, there's major progress but still significant issues:
+What Improved:
+
+Timeline reduced from 166 months to 22 months (much better!)
+Context is flowing through: Business context: general_business (smb), Timeline range: 6-12 months
+Real AI calls happening (33s + 16s + 18s etc)
+
+The New Problems:
+1. Still Too Long:
+Generated 22 months when told 6-12 months range
+2. Wrong Type of Tasks:
+The AI thinks you're building SOFTWARE for a coffee shop, not OPENING a coffee shop:
+
+"Inventory Management System Design"
+"Staff Scheduling System Development"
+"CRM System Implementation"
+"Technology Platform Development"
+
+These are IT projects, not coffee shop opening tasks!
+3. Bizarre Overlaps:
+The Gantt shows 7000% confidence on overlapping critical tasks that make no logical sense
+The Root Cause:
+The AI is misunderstanding the fundamental business case. It thinks:
+
+❌ "Build software systems for coffee shops"
+✅ Should be: "Open a coffee shop in Brooklyn"
+
+Tell Replit:
+
+The context is working but the AI misunderstands the business case
+Progress made:
+
+22 months instead of 166 ✅
+Context propagation working ✅
+
+New problem:
+The AI thinks we're building SOFTWARE for coffee shops, not OPENING a coffee shop. That's why all tasks are "System Design" and "System Development".
+The fix:
+In the prompt, be explicit about what's being planned:
+typescript// In task-extractor.ts
+const prompt = `
+You are planning to: ${context.business.description || 'OPEN and OPERATE a coffee shop'}
+This is about LAUNCHING the business, not building software for it.
+...
+`;
+Also check:
+Why is it showing "general_business" instead of detecting "coffee_shop" or "retail_food_service"?
+The 22-month timeline makes sense if you're building 5 software systems. But for opening a coffee shop, it should be:
+
+Location scouting (1-2 months)
+Permits & licensing (2-3 months)
+Build-out & equipment (2-3 months)
+Hiring & training (1 month)
+Soft opening (1 month)
+Total: 6-9 months
+
+The context detection needs to be clearer about the actual business objective.

@@ -1,0 +1,27 @@
+1. Check what generatePlaceholderDecisions does                               
+  Is it generating REAL decisions based on the SWOT output, or just             
+  placeholder/mock decisions? The DecisionPage should show AI-generated options 
+  based on the actual analysis.                                                 
+                                                                                
+  2. Verify results are in frameworkInsights                                    
+  After SWOT runs, check:                                                       
+  SELECT * FROM framework_insights ORDER BY created_at DESC LIMIT 5;            
+  The SWOT output should be saved there, not just in aggregatedOutputs.         
+                                                                                
+  3. Data flow concern                                                          
+  Replit created strategy_versions records to satisfy DecisionPage. This works, 
+  but means we now have data in TWO places:                                     
+  - customJourneyExecutions.aggregatedOutputs (SWOT output)                     
+  - strategy_versions (created for DecisionPage)                                
+                                                                                
+  Long-term this should be unified, but for now it's acceptable as a workaround.
+                                                                                
+  4. Ask Replit to confirm:                                                     
+  - Does the DecisionPage show REAL decision options based on SWOT analysis?    
+  - Or is it showing placeholder/mock decisions?                                
+                                                                                
+  The goal is: SWOT analysis → feeds into → AI-generated decision options → user
+   selects → feeds into EPM.                                                    
+                                                                                
+  If generatePlaceholderDecisions is just creating fake data, we need to wire up
+   the actual DecisionGenerator to create options from the SWOT output. 

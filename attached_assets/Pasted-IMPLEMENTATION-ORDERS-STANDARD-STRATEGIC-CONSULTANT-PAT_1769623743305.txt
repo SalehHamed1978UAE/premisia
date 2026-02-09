@@ -1,0 +1,39 @@
+IMPLEMENTATION ORDERS – STANDARD (STRATEGIC CONSULTANT) PATH
+
+  We (Claude Code, Codex, and Claude) are all aligned. The following items must
+  be completed before any further work proceeds:
+
+  1. Add `transformResourcesToResourcePlan()` inside `server/strategic-
+  consultant/epm-converter.ts`.
+     - Transform the standard-path `resources[]` (headcounts) into the same
+  `resourcePlan.internalTeam[]` structure that the exporter uses.
+     - Rule: `count <= 10 ? count : count / 100` before normalization (so
+  headcounts stay 1.0/2.0/etc., large numbers become percentages).
+     - Call `normalizeResourceFTEs` on the transformed array to ensure decimal
+  allocations (1.0, 0.8, etc).
+     - Log any fixes so we can see the helper is being used.
+
+  2. RUN A STANDARD (Strategic Consultant) JOURNEY TO CAPTURE EVIDENCE.
+     After the transform is in place, run a fresh standard-path journey and
+  attach:
+     a. `resources.csv` showing decimal FTEs (1.0, 2.0…) instead of 100/80/75.
+     b. Console log snippet showing `[EPM Converter] FTE normalization
+  fixes: ...` (if any) and `[EPM Converter] Quality Gate Results: ...`.
+     c. `benefits.csv` showing populated names and measurable targets (no
+  “Unnamed” or “-”).
+     d. JSON snippet or screenshot showing varied confidence values for the
+  workstreams (not all 0.85).
+     e. Confirmation that the quality gate logs appear in the console for the
+  standard journey.
+
+  3. DO NOT MOVE FORWARD UNTIL ALL OF THE ABOVE ARTIFACTS ARE PROVIDED.
+     These evidence items are the gate for Tasks 3-5 on the standard path.
+
+  Summary of Missing Evidence:
+  - `resources.csv` (standard journey) with decimal FTEs   [REQUIRED]
+  - Console log showing normalization + quality gate result [REQUIRED]
+  - `benefits.csv` with names/targets (standard journey)    [REQUIRED]
+  - Confidence variation proof (standard journey)          [REQUIRED]
+  - Quality gate log from the standard journey             [REQUIRED]
+
+  Report back ONLY when all of these have been implemented and attached.

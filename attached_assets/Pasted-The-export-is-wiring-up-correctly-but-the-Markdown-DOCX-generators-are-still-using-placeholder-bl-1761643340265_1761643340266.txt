@@ -1,0 +1,73 @@
+The export is wiring up correctly, but the Markdown/DOCX generators are still
+  using placeholder blocks—so you end up with a header, a couple of fields, and
+  nothing else. Also, the ZIP/file names stay generic (qgentic-export-session-…)
+  instead of using the artifact title. Please ask Replit to make the following
+  adjustments:
+
+  ———
+
+  ### 1. Populate the Markdown report with full content
+
+  In generateMarkdown:
+
+  - Pull data from the export package and render the full set of sections. At
+    minimum:
+      - Executive summary (objectives, success factors, confidence).
+      - Strategic analysis (framework type, insights, contradictions, decisions,
+        maybe trend analysis if present).
+      - Workstreams & deliverables (loop through pkg.epm.program.workstreams
+        with start/end months, deliverables).
+      - Timeline (total months, critical path list, stage gates).
+      - Resource plan (internal team, external resources, critical skills).
+      - Financial plan (total budget, breakdown, cash flow).
+      - Benefits, risks, KPIs, stakeholders, governance, QA plan, procurement,
+        exit strategy—pull these from the corresponding properties in the JSON.
+      - Task assignments (table from pkg.epm.assignments).
+  - Use Markdown tables where appropriate (risks, assignments), and guard
+    everything with optional chaining so missing sections are handled
+    gracefully.
+  - If there’s no EPM program (analysis only), omit the EPM sections but still
+    render the strategic summary.
+
+  The JSON already has the data, so this is just formatting it into Markdown
+  instead of leaving placeholders.
+
+  ### 2. Generate DOCX from the same content
+
+  Currently generateDOCX only writes the title and short summary. Either:
+
+  - Compose DOCX sections programmatically using the same loops as in Markdown,
+    or
+  - Use a helper (e.g. markdown-to-docx) to convert the Markdown string into a
+    DOCX document.
+
+  Whichever route they choose, the entire report should be represented—the DOCX
+  shouldn’t stop after the executive summary.
+
+  ### 3. PDF from Markdown/HTML
+
+  If they aren’t already, convert Markdown to HTML with a parser
+  (marked.parse(markdown) or similar) before feeding it to Puppeteer. That
+  ensures headings, bold text, and tables render correctly. (Simple string
+  replacement of \n with <br> won’t work.)
+
+  ### 4. Name the output files based on the artifact
+
+  - When a program is available, use the program’s name (sanitized for
+    filenames) plus version for the ZIP and inside files (e.g. coffee-shop-
+    launch-v1/report.pdf).
+  - When exporting only the analysis, use the strategic understanding title or
+    session name.
+  - Update the download logic in ExportFullReportButton so the suggested
+    filename matches the artifact title (not the session ID).
+
+  ### 5. Verify
+
+  Ask Replit to run an export on a program and confirm:
+
+  - report.md contains all sections with real data (not just the intro).
+  - report.docx mirrors the same content (open it in Word/Google Docs to
+    confirm).
+  - report.pdf shows headings, tables, and section bodies.
+  - JSON/CSV already look correct, so those should remain unchanged.
+  - The ZIP and file names reflect the artifact’s name/version.

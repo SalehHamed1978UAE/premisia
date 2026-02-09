@@ -1,0 +1,43 @@
+### Objective
+
+  Only real locations should be sent to the disambiguation UI. Strings like
+  “open”, “cafe”, “open cafe” must never reach the geocoder or the UI. Use
+  the geocoder’s confidence scoring to filter aggressively and deduplicate
+  overlapping matches.
+
+  ### Implementation Steps
+
+  1. Generate candidate phrases
+      - Use contiguous windows of 1–4 words.
+      - Skip any window containing non-alphabetic characters ([^a-zA-Z\s]).
+      - Skip windows shorter than 3 characters.
+      - Optional: a small connector whitelist (al, de, la, los, etc.).
+  2. Normalize before lookup
+      - Title-case each candidate (e.g., “madinat al riyadh” → “Madinat Al
+        Riyadh”) but keep the original string for reference.
+  3. Run through the geocoder
+      - Query the geocoder for each candidate.
+      - If no results or the best score < 0.6 (configurable), discard the
+        candidate immediately.
+      - Keep only the top result per unique phrase.
+  4. Merge and deduplicate
+      - If two candidates overlap (“open cafe”, “cafe”), keep the one with
+        higher geocoder score; discard the others.
+      - Deduplicate identical names in the UI so “Paris” only appears once.
+  5. Minimum collection
+      - If fewer than two valid candidates remain, skip the disambiguation
+        prompt entirely (the resolver can auto-select the best match).
+  6. Fuzzy fallback (optional)
+      - If no candidate survives, do a fuzzy geocoder lookup with a tight
+        tolerance. Present those as “Did you mean…” suggestions if necessary.
+  7. Update the UI contract
+      - Show a block only when you have 2–3 distinct high-confidence options
+        to present.
+      - Include the original normalized phrase in the prompt for clarity.
+  8. Testing
+      - Provide test cases:
+          - “Paris” → single block with actual Paris choices.
+          - “Open cafe in Paris” → one block for “Paris” only; nothing else.
+          - “Madinat al riyadh” → normalized to “Madinat Al Riyadh” with correct
+            disambiguation options.
+          - Non-place sentences (“focuses on growth…”) → no disambiguation.

@@ -1,0 +1,66 @@
+You’re both raising the right risks, so here’s the plan I suggest we hand to
+  Replit that keeps the LLM benefits while controlling cost and consistency:
+
+  ———
+
+  ### 1. Batch the inference (Performance / Cost)
+
+  - Instead of one call per workstream, send a single prompt listing all
+    workstreams for the program.
+  - Ask the LLM to return an array of { workstreamId, roleTitle, rationale }.
+    That keeps token cost and latency roughly the same as a single call.
+
+  ### 2. Normalize & cache the results (Consistency / “role explosion”)
+
+  - After we get the roles, run a simple normalization pass (trim, Title Case,
+    collapse duplicate whitespace).
+  - Maintain a map per run (and optionally persist simple cache keyed by
+    businessType + normalizedWorkstreamName) so repeat runs reuse the same
+    title.
+  - If two workstreams produce the same title but we only want one person, we
+    can detect duplicates and merge them or append “(Lead)” vs “(Support)”
+    depending on team size.
+
+  ### 3. Respect team size constraints (Realism)
+
+  - Include in the prompt the expected team size or resource limits. Example:
+    “This launch team should have at most 4 unique roles. If you need more than
+    4, combine responsibilities.”
+  - In the output, track how many unique titles we’re adding. If it exceeds a
+    threshold, either ask the LLM to consolidate or automatically merge lesser-
+    priority roles into broader ones.
+
+  ### 4. Integrate with the resource plan (Compatibility)
+
+  - As soon as we accept a role title, insert or update it in
+    resourcePlan.internalTeam so the assignment generator, exports, etc., see
+    the same role metadata.
+  - If a generated role already exists (case-insensitive match), reuse it
+    instead of creating duplicates.
+  - Optionally add a short description or list of skills (they can come from the
+    LLM response or a simple heuristic) so downstream modules know what the role
+    covers.
+
+  ### 5. Fallback & logging
+
+  - If the batch LLM call fails, fall back to the template-based owner
+    assignment for the whole run so we never break synthesis.
+  - Log the prompt + response (or at least the rationale) so we can audit how
+    roles were chosen.
+
+  ### 6. Optional: Simple classification layer
+
+  - Even before CF integration, we can capture the “category” (construction,
+    tech, HR, marketing, compliance) by having the LLM include it in the JSON.
+    That gives us a stable classification for analytics, even if the title text
+    varies.
+
+  ———
+
+  This lets us move forward with dynamic, context-aware owners without spiraling
+  into manual keyword tweaks. Later, when we bring Context Foundry online, we
+  can reuse the same interface and swap the backend.
+
+
+  Let me know if you’d like me to write the exact batch prompt + JSON schema so
+  Replit can implement it directly.

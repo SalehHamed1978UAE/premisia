@@ -1,0 +1,124 @@
+PROBLEM STATEMENT:
+
+  Critical path tasks show "Unassigned" in the UI, and over-allocation
+  warnings reference "Unassigned" instead of actual resource names.
+
+  ROOT CAUSE (identified by codezx):
+
+  The issue is NOT missing resource IDs. The real problem is in
+  src/lib/intelligent-planning/resource-manager.ts:
+
+  1. findBestResources() uses exact, case-sensitive skill matching:
+  r.skills.includes(requirement.skill)
+  2. Many tasks from intelligent planning either:
+    - Have no requirements array, OR
+    - Use skill phrasing that doesn't exactly match resource skill strings
+  3. This causes findBestResources() to return empty arrays
+  4. Tasks end up with task.assignedResources = []
+  5. UI defaults to showing "Unassigned"
+
+  REQUIRED FIXES:
+
+  Fix 1: Make Resource Allocation Tolerant
+
+  File: src/lib/intelligent-planning/resource-manager.ts
+
+  Current behavior:
+  // Exact, case-sensitive matching that fails frequently
+  r.skills.includes(requirement.skill)
+
+  Required changes:
+
+  1. Handle missing requirements - Treat tasks with no requirements as
+  generic needs
+  2. Fuzzy skill matching - Use case-insensitive substring matching:
+  // Instead of exact match:
+  r.skills.includes(requirement.skill)
+
+  // Use fuzzy match:
+  r.skills.some(skill =>
+    skill.toLowerCase().includes(requirement.skill.toLowerCase()) ||
+    requirement.skill.toLowerCase().includes(skill.toLowerCase())
+  )
+  3. Fallback allocation - When no skill match found, assign the cheapest
+  available resource:
+  // If no skill matches found, find cheapest available resource
+  if (matchedResources.length === 0) {
+    const cheapestResource = availableResources.sort((a, b) =>
+      (a.costPerDay || 0) - (b.costPerDay || 0)
+    )[0];
+    if (cheapestResource) {
+      matchedResources = [cheapestResource];
+    }
+  }
+  4. Ensure every task gets at least one assignment - No task should have
+  empty assignedResources
+
+  Fix 2: Store Both Resource IDs and Names
+
+  File: src/lib/intelligent-planning/resource-manager.ts in
+  assignResources() method
+
+  Add to task object:
+  task.assignedResourceIds = [...]; // Array of resource IDs
+  task.assignedResourceNames = [...]; // Array of resource display names
+  task.owner = assignedResources[0]?.name || 'Unassigned'; // Primary owner 
+  name
+
+  This keeps downstream consumers from losing the person's name.
+
+  Fix 3: Propagate Resource Info to EPM Timeline
+
+  File: src/lib/intelligent-planning/epm-integration.ts
+
+  When transforming the validated schedule, ensure resource assignments are
+  preserved:
+
+  // When creating timeline tasks, include:
+  {
+    ...task,
+    owner: task.owner || task.assignedResourceNames?.[0] || 'Unassigned',
+    assignedResourceIds: task.assignedResourceIds || [],
+    assignedResourceNames: task.assignedResourceNames || [],
+  }
+
+  Fix 4: Update TypeScript Types
+
+  File: client/src/types/intelligence.ts (if it exists) OR
+  client/src/lib/intelligent-planning/types.ts
+
+  Add optional fields to task type definitions:
+
+  export interface Task {
+    // ... existing fields ...
+    assignedResourceIds?: string[];
+    assignedResourceNames?: string[];
+    owner?: string;
+  }
+
+  ---
+  VERIFICATION CHECKLIST:
+
+  After implementing, verify:
+
+  1. ✅ No empty assignments: Every task in intelligent planning has at
+  least one resource
+  2. ✅ Case-insensitive matching: Tasks with requirement.skill = "Project 
+  Management" match resources with skills = ["project management"]
+  3. ✅ Fallback works: Tasks with no matching skills get assigned to
+  cheapest available resource
+  4. ✅ UI shows names: Gantt chart and Critical Path display actual
+  resource names (e.g., "Operations Manager") instead of "Unassigned"
+  5. ✅ Warnings reference names: Over-allocation warnings list actual
+  resource names, not "Unassigned"
+
+  ---
+  TESTING STEPS:
+
+  1. Create a new EPM program using intelligent planning
+  2. Open the Gantt chart / Critical Path view
+  3. BEFORE fix: Tasks show "Unassigned"
+  4. AFTER fix: Tasks show actual resource names like "Program Manager",
+  "Operations Manager", etc.
+  5. Check console for over-allocation warnings - should reference resource
+  names, not "Unassigned"

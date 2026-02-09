@@ -1,0 +1,101 @@
+{
+  "journeyType": "business_model_innovation",
+  "sessionId": "session-1762249620034-dvj5p7",
+  "understandingId": "92d86916-9b8c-4a72-bef3-06d1c551f7d4",
+  "versionNumber": 9,
+  "steps": [
+    {
+      "stepName": "five_whys",
+      "expectedUrl": "/strategic-consultant/whys-tree/session-1762249620034-dvj5p7",
+      "requestPayload": null,
+      "responsePayload": {
+        "rootCause": "Traditional coffee margins of 15-25% can't absorb Dubai's mandatory service charges, government fees, and premium staffing costs that add 30-40% to operating expenses"
+      },
+      "dbSnapshot": null,
+      "observations": "Five Whys completed"
+    },
+    {
+      "stepName": "bmc_research",
+      "expectedUrl": "/strategic-consultant/research/session-1762249620034-dvj5p7",
+      "requestPayload": null,
+      "responsePayload": {
+        "keyInsights": [
+          "The business model faces fundamental structural challenges with traditional dine-in coffee shops showing 50-64% failure rates and severe profitability constraints due to capacity limitations versus takeaway models that achieve $1,300 revenue per square foot compared to $300-800 for sit-in operations.",
+          "Cost structure analysis reveals an unsustainable economic model where monthly expenses typically consume 75-85% of sales revenue, with downtown Dubai rent premiums often exceeding the critical 6-10% revenue threshold needed for profitability, creating a misalignment between location strategy and financial viability.",
+          "Customer segments and value propositions show strong alignment for premium positioning with tourists and business professionals, but the chosen dine-in service model contradicts the revenue optimization needs identified in the research, particularly for the high-turnover business district location."
+        ],
+        "criticalGaps": [
+          "CONTRADICTED ASSUMPTION: Traditional dine-in model viability versus research showing 50-64% failure rates and superior performance of hybrid/takeaway models",
+          "CONTRADICTED ASSUMPTION: Rent tolerance levels for downtown location versus research showing rent must stay below 6-10% of revenue for profitability",
+          "Specific financial projections comparing dine-in versus takeaway revenue models for the target customer segments and location"
+        ]
+      },
+      "dbSnapshot": null,
+      "observations": "BMC research stream completed"
+    },
+    {
+      "stepName": "strategic_decisions",
+      "expectedUrl": "/strategy-workspace/decisions/session-1762249620034-dvj5p7/1",
+      "requestPayload": null,
+      "responsePayload": [
+        {
+          "id": "decision_1",
+          "title": "Service Model Selection",
+          "options": 3
+        },
+        {
+          "id": "decision_2",
+          "title": "Customer Segment Prioritization",
+          "options": 3
+        },
+        {
+          "id": "decision_3",
+          "title": "Location and Rent Strategy",
+          "options": 3
+        },
+        {
+          "id": "decision_4",
+          "title": "Revenue Model and Pricing Strategy",
+          "options": 3
+        }
+      ],
+      "dbSnapshot": null,
+      "observations": "Decisions generated and ready for prioritization"
+    },
+    {
+      "stepName": "prioritization",
+      "expectedUrl": "/strategy-workspace/prioritization/session-1762249620034-dvj5p7/1",
+      "requestPayload": null,
+      "responsePayload": {
+        "decision_1": "option_1b",
+        "decision_2": "option_2a",
+        "decision_3": "option_3b",
+        "decision_4": "option_4b"
+      },
+      "dbSnapshot": null,
+      "observations": "Prioritized initiatives saved"
+    },
+    {
+      "stepName": "epm_generation",
+      "expectedUrl": "/strategy-workspace/epm/48d9c931-9eb7-4146-a41a-d0abe2e22a0d",
+      "requestPayload": null,
+      "responsePayload": {
+        "programId": "48d9c931-9eb7-4146-a41a-d0abe2e22a0d",
+        "status": "finalized",
+        "workstreams": 8
+      },
+      "dbSnapshot": null,
+      "observations": "EPM program generated successfully"
+    }
+  ],
+  "metadata": {
+    "initiativeType": "physical_business_launch",
+    "completedAt": "2025-11-04T10:59:20.440Z",
+    "frameworks": [
+      "five_whys",
+      "bmc"
+    ]
+  },
+  "notes": "Complete 5-step BMI journey: Five Whys -> BMC -> Decisions -> Prioritization -> EPM",
+  "capturedAt": "2025-11-04T11:31:58.639Z"
+}

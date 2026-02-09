@@ -1,0 +1,36 @@
+That structure is correct. Proceed with the reorganization.                   
+                                                                                
+  Quick validation checklist after reorganization:                              
+                                                                                
+  # Smoke tests should complete in <30 seconds                                  
+  npm run test:smoke                                                            
+  # Expected: 25+ tests pass quickly                                            
+                                                                                
+  # Integration tests run separately (optional, for full validation)            
+  npm run test:integration                                                      
+  # Expected: Full AI flows, 5-10 minutes                                       
+                                                                                
+  Smoke test content for API health checks:                                     
+                                                                                
+  // tests/smoke/api-health.spec.ts                                             
+  describe('API Health', () => {                                                
+    it('strategic-consultant/understanding accepts POST', async () => {         
+      const res = await                                                         
+  fetch(`${API_BASE}/api/strategic-consultant/understanding`, {                 
+        method: 'POST',                                                         
+        headers: { 'Content-Type': 'application/json' },                        
+        body: JSON.stringify({ input: 'test' }),                                
+      });                                                                       
+      expect(res.status).toBe(200); // Endpoint responds                        
+    });                                                                         
+                                                                                
+    it('marketing-consultant/discovery accepts POST', async () => {             
+      const res = await fetch(`${API_BASE}/api/marketing-consultant/discovery`, 
+  {                                                                             
+        method: 'POST',                                                         
+        headers: { 'Content-Type': 'application/json' },                        
+        body: JSON.stringify({ /* minimal valid input */ }),                    
+      });                                                                       
+      expect([200, 201]).toContain(res.status);                                 
+    });                                                                         
+  });          

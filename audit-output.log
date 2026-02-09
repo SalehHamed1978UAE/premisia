@@ -1,0 +1,54 @@
+🔍 KMS Encryption Audit - Deterministic Coverage Check
+
+Both TEXT and JSONB fields use JSON format: {"dataKeyCiphertext":"...", "iv":"...", "authTag":"...", "ciphertext":"..."}
+
+
+📋 strategic_understanding (35 records):
+  ✅  user_input: 35 encrypted, 0 null, 0 unencrypted
+  ✅  initiative_description: 33 encrypted, 2 null, 0 unencrypted
+  ✅  company_context: 0 encrypted, 35 null, 0 unencrypted
+
+📋 journey_sessions (16 records):
+  ✅  accumulated_context: 16 encrypted, 0 null, 0 unencrypted
+
+📋 strategic_entities (292 records):
+  ⚠️  claim: 277 encrypted, 0 null, 15 unencrypted
+  ⚠️  source: 277 encrypted, 0 null, 15 unencrypted
+  ⚠️  evidence: 172 encrypted, 108 null, 12 unencrypted
+  ⚠️  category: 105 encrypted, 184 null, 3 unencrypted
+  ✅  subcategory: 0 encrypted, 292 null, 0 unencrypted
+  ✅  metadata: 0 encrypted, 292 null, 0 unencrypted
+
+📋 strategic_relationships (1 records):
+  ✅  evidence: 1 encrypted, 0 null, 0 unencrypted
+  ✅  metadata: 1 encrypted, 0 null, 0 unencrypted
+
+📋 epm_programs (1 records):
+  ✅  executive_summary: 1 encrypted, 0 null, 0 unencrypted
+  ✅  workstreams: 1 encrypted, 0 null, 0 unencrypted
+  ✅  timeline: 1 encrypted, 0 null, 0 unencrypted
+  ✅  resource_plan: 1 encrypted, 0 null, 0 unencrypted
+  ✅  financial_plan: 1 encrypted, 0 null, 0 unencrypted
+  ✅  benefits_realization: 1 encrypted, 0 null, 0 unencrypted
+  ✅  risk_register: 1 encrypted, 0 null, 0 unencrypted
+  ✅  stakeholder_map: 1 encrypted, 0 null, 0 unencrypted
+  ✅  governance: 1 encrypted, 0 null, 0 unencrypted
+  ✅  qa_plan: 1 encrypted, 0 null, 0 unencrypted
+  ✅  procurement: 1 encrypted, 0 null, 0 unencrypted
+  ✅  exit_strategy: 1 encrypted, 0 null, 0 unencrypted
+  ✅  kpis: 1 encrypted, 0 null, 0 unencrypted
+
+📋 strategy_versions (4 records):
+  ✅  input_summary: 4 encrypted, 0 null, 0 unencrypted
+  ✅  analysis_data: 4 encrypted, 0 null, 0 unencrypted
+  ✅  decisions_data: 4 encrypted, 0 null, 0 unencrypted
+
+============================================================
+📊 FINAL AUDIT SUMMARY
+============================================================
+Total sensitive fields audited: 28
+KMS-encrypted fields: 942
+Null fields (acceptable): 913
+Unencrypted non-null fields (PROBLEMS): 45
+
+❌ AUDIT FAILED - Found unencrypted sensitive data!

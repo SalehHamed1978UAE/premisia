@@ -1,0 +1,379 @@
+npx vitest run tests/smoke/
+
+ RUN  v4.0.6 /home/runner/workspace
+
+stdout | tests/smoke/module-registry-smoke.spec.ts > Module Registry API Smoke Tests > Modules Endpoint > should list registered modules
+✓ Found 6 registered modules
+
+stdout | tests/smoke/module-registry-smoke.spec.ts > Module Registry API Smoke Tests > Modules Endpoint > should have required module properties
+✓ Module structure valid: Strategic Input Processor (processor)
+
+stdout | tests/smoke/module-registry-smoke.spec.ts > Module Registry API Smoke Tests > Modules Endpoint > should have analyzer modules
+✓ Found 4 analyzer modules
+
+stdout | tests/smoke/module-registry-smoke.spec.ts > Module Registry API Smoke Tests > Journeys Endpoint > should list journey configs
+✓ Found 1 journey configs
+
+stdout | tests/smoke/module-registry-smoke.spec.ts > Module Registry API Smoke Tests > Journeys Endpoint > should resolve individual journey by ID
+✓ Journey resolved: business_model_innovation
+
+stderr | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests
+Error cleaning up test data: error: update or delete on table "users" violates foreign key constraint "journey_sessions_user_id_fkey" on table "journey_sessions"
+    at file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1345:74
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at cleanupTestData (/home/runner/workspace/tests/test-db-setup.ts:99:5)
+    at /home/runner/workspace/tests/smoke/journey-smoke.spec.ts:72:5 {
+  length: 321,
+  severity: 'ERROR',
+  code: '23503',
+  detail: 'Key (id)=(XMp1ms) is still referenced from table "journey_sessions".',
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: 'public',
+  table: 'journey_sessions',
+  column: undefined,
+  dataType: undefined,
+  constraint: 'journey_sessions_user_id_fkey',
+  file: 'ri_triggers.c',
+  line: '2621',
+  routine: 'ri_ReportViolation'
+}
+
+stdout | tests/smoke/module-registry-smoke.spec.ts > Module Registry API Smoke Tests > Stats Endpoint > should return registry statistics
+✓ Registry stats: {"success":true,"moduleCount":6,"journeyCount":1,"availableJourneys":1}...
+
+stderr | tests/smoke/module-registry-smoke.spec.ts
+Error cleaning up test data: error: update or delete on table "users" violates foreign key constraint "journey_sessions_user_id_fkey" on table "journey_sessions"
+    at file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1345:74
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at cleanupTestData (/home/runner/workspace/tests/test-db-setup.ts:99:5)
+    at /home/runner/workspace/tests/setup.ts:25:3 {
+  length: 321,
+  severity: 'ERROR',
+  code: '23503',
+  detail: 'Key (id)=(XMp1ms) is still referenced from table "journey_sessions".',
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: 'public',
+  table: 'journey_sessions',
+  column: undefined,
+  dataType: undefined,
+  constraint: 'journey_sessions_user_id_fkey',
+  file: 'ri_triggers.c',
+  line: '2621',
+  routine: 'ri_ReportViolation'
+}
+
+ ✓ tests/smoke/module-registry-smoke.spec.ts (8 tests) 828ms
+stdout | tests/smoke/repository-smoke.spec.ts > Repository Smoke Tests
+[Container] ✓ Services and repositories registered
+
+stdout | tests/smoke/repository-smoke.spec.ts > Repository Smoke Tests > EPM Repository > should resolve without error
+✓ EPM Repository resolved
+
+stdout | tests/smoke/repository-smoke.spec.ts > Repository Smoke Tests > EPM Repository > should perform findAll query without error
+✓ EPM Repository findAll returned 2 records
+
+stdout | tests/smoke/repository-smoke.spec.ts > Repository Smoke Tests > Journey Repository > should resolve without error
+✓ Journey Repository resolved
+
+stdout | tests/smoke/repository-smoke.spec.ts > Repository Smoke Tests > Journey Repository > should perform findAll query without error
+✓ Journey Repository findAll returned 5 records
+
+stdout | tests/smoke/repository-smoke.spec.ts > Repository Smoke Tests > Strategy Repository > should resolve without error
+✓ Strategy Repository resolved
+
+stdout | tests/smoke/repository-smoke.spec.ts > Repository Smoke Tests > Strategy Repository > should perform findAll query without error
+✓ Strategy Repository findAll returned 2 records
+
+stdout | tests/smoke/repository-smoke.spec.ts > Repository Smoke Tests > Export Services > should have all exporters registered
+✓ All 5 exporters registered
+
+stderr | tests/smoke/repository-smoke.spec.ts
+Error cleaning up test data: error: update or delete on table "users" violates foreign key constraint "journey_sessions_user_id_fkey" on table "journey_sessions"
+    at file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1345:74
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at cleanupTestData (/home/runner/workspace/tests/test-db-setup.ts:99:5)
+    at /home/runner/workspace/tests/setup.ts:25:3 {
+  length: 321,
+  severity: 'ERROR',
+  code: '23503',
+  detail: 'Key (id)=(XMp1ms) is still referenced from table "journey_sessions".',
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: 'public',
+  table: 'journey_sessions',
+  column: undefined,
+  dataType: undefined,
+  constraint: 'journey_sessions_user_id_fkey',
+  file: 'ri_triggers.c',
+  line: '2621',
+  routine: 'ri_ReportViolation'
+}
+
+ ✓ tests/smoke/repository-smoke.spec.ts (17 tests) 498ms
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should create strategic understanding
+✓ Strategic understanding created: db0fbed0-62ab-4aa2-9e37-94ee7887b539, sessionId: session-1769242432584-fv32zm
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should start BMC research and receive SSE stream
+✓ BMC research SSE stream started
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should start BMC research and receive SSE stream
+⚠ SSE stream ended without completion event, will poll for status...
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 1/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 2/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 3/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 4/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 5/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 6/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 7/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 8/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 9/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 10/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 11/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 12/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 13/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 14/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 15/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 16/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 17/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 18/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 19/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 20/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 21/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 22/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 23/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 24/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 25/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 26/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 27/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 28/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 29/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 30/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 31/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 32/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 33/60
+
+stdout | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+  Polling /versions/session-1769242432584-fv32zm... 34/60
+
+stderr | tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests
+Error cleaning up test data: error: update or delete on table "users" violates foreign key constraint "journey_sessions_user_id_fkey" on table "journey_sessions"
+    at file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1345:74
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at cleanupTestData (/home/runner/workspace/tests/test-db-setup.ts:99:5)
+    at /home/runner/workspace/tests/smoke/journey-smoke.spec.ts:79:5 {
+  length: 321,
+  severity: 'ERROR',
+  code: '23503',
+  detail: 'Key (id)=(XMp1ms) is still referenced from table "journey_sessions".',
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: 'public',
+  table: 'journey_sessions',
+  column: undefined,
+  dataType: undefined,
+  constraint: 'journey_sessions_user_id_fkey',
+  file: 'ri_triggers.c',
+  line: '2621',
+  routine: 'ri_ReportViolation'
+}
+
+stderr | tests/smoke/journey-smoke.spec.ts
+Error cleaning up test data: error: update or delete on table "users" violates foreign key constraint "journey_sessions_user_id_fkey" on table "journey_sessions"
+    at file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1345:74
+    at processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at cleanupTestData (/home/runner/workspace/tests/test-db-setup.ts:99:5)
+    at /home/runner/workspace/tests/setup.ts:25:3 {
+  length: 321,
+  severity: 'ERROR',
+  code: '23503',
+  detail: 'Key (id)=(XMp1ms) is still referenced from table "journey_sessions".',
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: 'public',
+  table: 'journey_sessions',
+  column: undefined,
+  dataType: undefined,
+  constraint: 'journey_sessions_user_id_fkey',
+  file: 'ri_triggers.c',
+  line: '2621',
+  routine: 'ri_ReportViolation'
+}
+
+ ❯ tests/smoke/journey-smoke.spec.ts (12 tests | 10 failed) 298832ms
+       ✓ should create strategic understanding  15407ms
+       ✓ should start BMC research and receive SSE stream  104427ms
+       × should poll for BMC completion via /versions/:sessionId 177847ms
+       × should generate EPM with valid workstreams 2ms
+       × should create understanding and classify as B2C for physical product 2ms
+       × should confirm classification for segment discovery 1ms
+       × should start segment discovery 1ms
+       × should complete discovery with consumer segments (not B2B) 1ms
+       × should have B2C consumer segments (not B2B distribution) 1ms
+       × should list registered modules 3ms
+       × should list journey configs 2ms
+       × should return registry stats 3ms
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯ Failed Tests 10 ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should poll for BMC completion via /versions/:sessionId
+ FAIL  tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Marketing Consultant (Segment Discovery) > should create understanding and classify as B2C for physical product
+ FAIL  tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Module Registry API > should list registered modules
+ FAIL  tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Module Registry API > should list journey configs
+ FAIL  tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Module Registry API > should return registry stats
+Error: ECONNREFUSED: Connection refused
+ ❯ Test.assert node_modules/supertest/lib/test.js:187:20
+ ❯ localAssert node_modules/supertest/lib/test.js:138:14
+ ❯ node_modules/supertest/lib/test.js:156:7
+ ❯ Test.Request.callback node_modules/superagent/lib/node/index.js:857:3
+ ❯ ClientRequest.<anonymous> node_modules/superagent/lib/node/index.js:780:10
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/10]⎯
+
+ FAIL  tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Strategic Consultant (EPM Generation) > should generate EPM with valid workstreams
+AssertionError: expected undefined to be defined
+ ❯ tests/smoke/journey-smoke.spec.ts:180:33
+    178| 
+    179|     it('should generate EPM with valid workstreams', async () => {
+    180|       expect(strategyVersionId).toBeDefined();
+       |                                 ^
+    181|       
+    182|       const response = await request(API_BASE)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/10]⎯
+
+ FAIL  tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Marketing Consultant (Segment Discovery) > should confirm classification for segment discovery
+AssertionError: expected undefined to be defined
+ ❯ tests/smoke/journey-smoke.spec.ts:245:31
+    243| 
+    244|     it('should confirm classification for segment discovery', async () => {
+    245|       expect(understandingId).toBeDefined();
+       |                               ^
+    246| 
+    247|       const response = await request(API_BASE)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/10]⎯
+
+ FAIL  tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Marketing Consultant (Segment Discovery) > should start segment discovery
+AssertionError: expected undefined to be defined
+ ❯ tests/smoke/journey-smoke.spec.ts:263:31
+    261| 
+    262|     it('should start segment discovery', async () => {
+    263|       expect(understandingId).toBeDefined();
+       |                               ^
+    264| 
+    265|       const response = await request(API_BASE)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/10]⎯
+
+ FAIL  tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Marketing Consultant (Segment Discovery) > should complete discovery with consumer segments (not B2B)
+AssertionError: expected undefined to be defined
+ ❯ tests/smoke/journey-smoke.spec.ts:274:31
+    272| 
+    273|     it('should complete discovery with consumer segments (not B2B)', async () => {
+    274|       expect(understandingId).toBeDefined();
+       |                               ^
+    275| 
+    276|       // Poll for completion
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/10]⎯
+
+ FAIL  tests/smoke/journey-smoke.spec.ts > Journey Smoke Tests > Marketing Consultant (Segment Discovery) > should have B2C consumer segments (not B2B distribution)
+AssertionError: expected undefined to be defined
+ ❯ tests/smoke/journey-smoke.spec.ts:303:31
+    301| 
+    302|     it('should have B2C consumer segments (not B2B distribution)', async () => {
+    303|       expect(understandingId).toBeDefined();
+       |                               ^
+    304| 
+    305|       const response = await request(API_BASE)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/10]⎯
+
+
+ Test Files  1 failed | 2 passed (3)
+      Tests  10 failed | 27 passed (37)
+   Start at  08:13:50
+   Duration  300.71s (transform 1.47s, setup 1.85s, collect 1.68s, tests 300.16s, environment 1ms, prepare 46ms)

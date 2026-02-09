@@ -1,0 +1,128 @@
+Turn Strategic Ideas into Executable Programs — Without Waiting Weeks
+
+  What is QGentic?
+  QGentic is an AI‑enhanced strategic intelligence platform that takes
+  you from “we should do this” to a complete, execution‑ready Enterprise
+  Program Management (EPM) plan. Think of it as an on‑demand team of strategy
+  consultants, researchers, and program managers that translates your insight
+  into a roadmap you can launch.
+
+  ———
+
+  ### Why leaders pick QGentic
+
+  Multi-agent AI built for strategy
+  QGentic isn’t a chatbot. A coordinated set of agents handles each stage:
+
+  - Executive Agent – tests assumptions and frames the problem
+  - Builder Specialist – converts insight into workstreams, timelines, and
+    resources
+  - QA Specialist – stress-tests feasibility, finds contradictions, plugs gaps
+  - Research Agent – runs real-time web research with source validation
+  - Smart Orchestrator – routes tasks across OpenAI, Anthropic, and Gemini for
+    reliability
+
+  Battle-tested frameworks, guided from end to end
+
+  - Five Whys with automated quality checkpoints
+  - Business Model Canvas with evidence-backed market and competitor insights
+  - PESTLE and Porter’s Five Forces for external forces and competitive dynamics
+  - Custom journeys that chain frameworks to fit your use case
+
+  Complete EPM programs in about an hour
+  Every journey ends with a 14-component execution blueprint:
+
+  - Executive summary and success criteria
+  - Workstreams with deliverables and dependencies
+  - Critical-path timeline and stage gates
+  - Resource plan, workload checks, and conflict alerts
+  - Financial projections and cash-flow schedule
+  - Risk register with mitigations
+  - KPI framework, governance, QA, procurement, exit strategy, and more
+
+  Built-in scheduling and optimization keeps tasks sequenced, resources
+  balanced, and critical path highlighted.
+
+  ———
+
+  ### Features that deliver board-ready outputs
+
+  - Smart Document Intelligence – upload PDFs, Word docs, spreadsheets, or
+    images; QGentic extracts the insight and enriches a secure knowledge graph
+    so you never lose context.
+  - Anti-bias research – the system challenges your assumptions, surfaces
+    contradictory evidence, and flags missing proof.
+  - Evidence-based recommendations – every insight is linked to sources and
+    rationale.
+  - Professional exports – generate both standard and UI-styled reports in PDF,
+    Word, Markdown, plus data bundles (JSON, CSV) inside a single ZIP.
+  - Knowledge graph – build institutional memory with encrypted insight storage.
+
+  ———
+
+  ### Who gets value fastest?
+
+  - Founders validating a new venture
+  - Business leaders scoping transformations
+  - Consultants delivering deep analysis on tight timelines
+  - Product managers turning vision into executable roadmaps
+  - Anyone sick of strategies that stall after the slide deck
+
+  ———
+
+  ### How long does it take?
+
+  - First run: expect 45–60 minutes to complete the guided frameworks, run
+    market validation, and generate the EPM program.
+  - Repeat runs: 30–45 minutes once you’re familiar and QGentic has context.
+    Traditional consulting workflow: 2–3 weeks of research, meetings, and manual
+    assembly.
+
+  QGentic = one working session instead of one month.
+
+  ———
+
+  ### Security and reliability built in
+
+  - AES-256 encryption, role-based access control, and OIDC authentication
+  - PostgreSQL + Neon/Drizzle storage
+  - Version management so you can compare iterations and keep audits
+
+  ———
+
+  ### The QGentic shift
+
+  | Old way                              | QGentic way
+  |
+  |-------------------------------------|---------------------------------------
+  ----|
+  | Weeks of manual research            | One focused session with AI co-pilots
+  |
+  | Fragmented tools and spreadsheets   | One integrated, guided workspace
+  |
+  | Gut-feel decisions                  | Evidence-based insight with source
+  links  |
+  | Strategy docs that gather dust      | 14-component execution roadmaps
+  |
+  | Expensive consultants               | On-demand multi-agent expertise
+  |
+
+  ———
+
+  ### What you actually walk away with
+
+  - Faster analysis without compromising depth
+  - Decisions backed by real evidence, not guesswork
+  - Ready-to-run implementation plans
+  - Stakeholder-proof deliverables
+  - An encrypted knowledge graph that grows with every project
+  - Guided AI that sharpens your own strategic thinking
+
+  ———
+
+  Stop letting your best ideas stall in PowerPoint. Let QGentic help you shape
+  them into programs you can launch.
+
+  Ready to see what you can build in an hour?
+  [Try QGentic] — [Schedule a Demo] — [View Example Output]
+

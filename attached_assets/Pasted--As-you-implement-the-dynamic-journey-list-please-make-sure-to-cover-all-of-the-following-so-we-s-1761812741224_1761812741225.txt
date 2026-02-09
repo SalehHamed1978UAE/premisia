@@ -1,0 +1,39 @@
+ As you implement the dynamic
+  journey list, please make sure to cover all of the following so we stay
+  aligned with the architecture:
+
+  1. Expose backend endpoints
+      - Add a GET /api/journey-registry route that returns whatever
+        journeyRegistry.JOURNEYS currently contains: journey id, name,
+        description, frameworks, availability flag.
+      - Add a GET /api/journey-builder/templates route (or reuse an existing
+        one) to pull any custom templates the Journey Builder exposes. Each
+        should include at least an id, display name, description, and associated
+        frameworks.
+  2. Modal → API wiring
+      - Replace the hard-coded JOURNEY_TYPES array in the modal with these API
+        calls. On load:
+
+        const [prebuilt, custom] = await Promise.all([
+          fetch('/api/journey-registry'),
+          fetch('/api/journey-builder/templates'),
+        ]);
+      - Merge the two lists (grouped or tabbed however you prefer) and keep the
+        UI consistent for both types.
+  3. Availability & status
+      - Only mark a journey/framework as “available” when journeyRegistry (or
+        the template) says it’s ready. For anything flagged as available: false,
+        show “Coming soon” (greyed-out) rather than making it clickable.
+  4. Readiness & execution
+      - When the user selects a journey/framework, make sure you pass the
+        correct journeyId or frameworkName into the readiness API (POST /api/
+        journeys/check-readiness).
+      - Continue to show “Run Now” and “Start in Background” only when the
+        readiness check returns ready: true. Otherwise list the missing context.
+  5. Custom journey execution
+      - When the user picks a custom template, pass the template ID through your
+        existing start journey route so the backend can instantiate it.
+
+  With this in place, any new journeys you register or publish will show up
+  in the launcher automatically, without further code changes. That’s all that
+  needs to be done—go ahead and ship it.

@@ -1,0 +1,75 @@
+Here’s what we need you to do to bring the Strategy Hub back in line with the
+  agreed design.
+
+  ———
+
+  ## Fix the “Run Additional Analysis” Flow
+
+  1. Button label & action
+      - Change the primary action button on the Strategy detail page back to a
+        journey-specific label: “Run Additional Analysis.”
+      - The button must open the Journey Launcher modal (no direct navigation).
+  2. Journey Launcher modal
+      - When the modal opens, load the current strategy’s context (entity count,
+        reference count, completed frameworks).
+      - Present two options/tabs:
+          - Full Journey: user selects a journey type (e.g., Business Model
+            Innovation, Competitive Strategy).
+          - Single Framework: user selects one/more frameworks (Porter’s,
+            PESTLE, etc.).
+      - After a selection, call POST /api/journeys/check-readiness with the
+        understandingId and the selected journey/framework.
+  3. Readiness handling
+      - If the API returns ready: true, show “Run Now” and “Start in Background”
+        buttons.
+          - “Run Now” should later start the synchronous path (once
+            implemented).
+          - “Start in Background” must enqueue the journey/framework via the
+            background execution endpoint, close the modal, and show a toast
+            (“Analysis queued—you’ll be notified when it’s complete.”).
+      - If ready: false, display the missing requirements (e.g., “Need pricing
+        reference”) inside the modal. Include buttons/links to collect those
+        inputs.
+  4. Routing when input is needed
+      - Only when the readiness API says more input is required should we
+        navigate the user to the Strategic Consultant flow.
+      - That navigation must go to "/strategic-consultant/journey-selection/
+        ${understandingId}" (the journey wizard), not the raw input page.
+      - When that route loads with an understandingId, automatically preload the
+        stored strategic input, clarifications, and uploaded documents. Hide the
+        raw text area so it’s clear the user is continuing an existing strategy.
+  5. Avoid direct redirects
+      - Remove any code that currently takes the user straight to the blank
+        Strategic Consultant page when the button is clicked.
+      - The only time we should land in the journey wizard is after the
+        readiness check indicates additional info is needed.
+
+  ———
+
+  ## Keep Following the Overall Roadmap
+
+  Once the modal flow is fixed, continue with the remaining phases in the
+  original plan:
+
+  - Phase 3: Research Library enhancements (inline citations, Research
+    Foundation tab, export updates).
+  - Phase 4: Implement readiness evaluator/config and context inheritance
+    service (you’ll already have part of this from the work above).
+  - Phase 5: Background execution + notification wiring for journeys and single-
+    framework runs.
+  - Phase 6: Knowledge graph panel & entity usage navigation.
+  - Phase 7: QA, regression tests, documentation.
+
+  ———
+
+  ## Reminders
+
+  - Stick to the naming we’ve been using: “Strategy” = the umbrella initiative,
+    “Journey” = multi-framework run, “Framework” = individual analysis.
+  - Continue following the design guidelines in design_guidelines.md (spacing,
+    typography, cards, dark-mode compatibility).
+  - Do not reintroduce navigation changes that break the reuse flow (no blank
+    inputs).
+
+  Once these adjustments are in place, we’ll retest the Strategy Hub and move
+  on.

@@ -1,0 +1,106 @@
+## Phase 5 – Module Catalog & Journey Config System
+
+  Goal: Treat analyzers/generators as modules and express journeys via config so
+  we can eventually compose them in a GUI without touching code.
+
+  ### 1. Module Manifest Types
+
+  - Create server/modules/manifest.ts with:
+
+    export interface ModuleManifest {
+      id: string;
+      name: string;
+      version: string;
+      description: string;
+      type: 'analyzer' | 'generator' | 'processor' | 'exporter';
+      inputs: PortDefinition[];
+      outputs: PortDefinition[];
+      requires: string[];
+      serviceClass: string;
+      uiComponent?: string;
+    }
+
+    export interface PortDefinition {
+      name: string;
+      type: string;
+      required: boolean;
+      description: string;
+    }
+  - Add any supporting types you need (e.g., JourneyConfig).
+
+  ### 2. Module Registry
+
+  - Create server/modules/registry.ts with a class that stores manifests/journey
+    configs:
+
+    export class ModuleRegistry {
+      private modules = new Map<string, ModuleManifest>();
+      private journeys = new Map<string, JourneyConfig>();
+
+      registerModule(manifest: ModuleManifest) { … }
+      loadJourney(config: JourneyConfig) { … }
+      getModule(id: string) { … }
+      listModules() { … }
+      getJourney(id: string) { … }
+      listJourneys() { … }
+    }
+    export const moduleRegistry = new ModuleRegistry();
+  - Validate that journey configs reference only registered modules.
+
+  ### 3. Journey Config Schema
+
+  - Define JourneyConfig in server/modules/journey-config.ts:
+
+    export interface JourneyConfig {
+      id: string;
+      name: string;
+      version: string;
+      description: string;
+      modules: { id: string; config?: Record<string, unknown> }[];
+      pageSequence: { path: string; module: string; condition?: string }[];
+      transitions: { from: string; to: string; condition?: string }[];
+    }
+
+  ### 4. Convert a Journey to Config
+
+  - Create server/modules/journeys/business-model-innovation.yaml (or .json)
+    that expresses the BMI journey:
+      - modules (input-processor, bmc-analyzer, five-whys, epm-generator, etc.)
+      - page sequence (/strategic-consultant, /strategic-consultant/research,
+        etc.)
+      - transitions/conditions.
+  - At startup, load this config via moduleRegistry.loadJourney(…).
+
+  ### 5. Register Modules
+
+  - For each major analyzer/generator (BMC, Porters, PESTLE, EPM generator,
+    etc.), create a manifest file (e.g., server/modules/manifests/bmc-
+    analyzer.ts) and register it on startup.
+      - Example fields: id, name, version, type, inputs, outputs, dependencies,
+        service class, optional UI component.
+
+  ### 6. Expose Registry via API
+
+  - Add server/routes/module-registry.ts with endpoints:
+      - GET /api/modules
+      - GET /api/journeys
+      - GET /api/journeys/:id
+  - Mount these routes in server/routes.ts.
+
+  ### 7. Update Journey Resolver
+
+  - In journey/journey-registry.ts (or wherever journeys are currently defined),
+    update the resolver to:
+      - First try moduleRegistry.getJourney(journeyId).
+      - Fall back to the existing hard-coded definition if not present (for
+        journeys we haven’t converted yet).
+
+  ### 8. Verification
+
+  - Start the app and ensure logs show “Registered X modules, loaded Y
+    journeys”.
+  - GET /api/modules returns the manifest list.
+  - GET /api/journeys includes the BMI config with module list and page
+    sequence.
+  - Running the BMI journey still works end-to-end, proving the config matches
+    the previous behavior.

@@ -1,0 +1,131 @@
+Debug Instructions for Replit
+
+  The fix didn't work. We need to trace the complete pipeline to find where
+  it's failing.
+
+  Step 1: Verify the Fix is Running
+
+  Check: Was the application restarted after the code changes?
+
+  Replit: Please confirm the server was restarted and the new code is active.
+
+  ---
+  Step 2: Check Database - What's Actually Stored?
+
+  Query the most recent EPM program:
+
+  -- Get the most recently created program
+  SELECT
+    id,
+    program_name,
+    created_at,
+    jsonb_array_length(workstreams) as task_count
+  FROM epm_programs
+  ORDER BY created_at DESC
+  LIMIT 1;
+
+  Then check its structure:
+
+  -- Replace with actual program ID from above
+  SELECT
+    jsonb_pretty(workstreams->0) as first_task,
+    jsonb_pretty(resource_plan->'internalTeam'->0) as first_resource
+  FROM epm_programs
+  WHERE id = 'ACTUAL_PROGRAM_ID_HERE';
+
+  What to look for:
+  - Does the task have skills or requirements field populated?
+  - Does the resource have skills field populated?
+
+  ---
+  Step 3: Check Logs - Is Assignment Generation Running?
+
+  Search logs for:
+  grep -i "generating task assignments" logs/latest.log
+  grep -i "generated.*assignments" logs/latest.log
+
+  Expected output:
+  [EPM Synthesis] 📋 Generating task assignments...
+  [EPM Synthesis] 📋 DEBUG - Converted Workstreams for Assignment Engine:
+  [EPM Synthesis] 👥 DEBUG - Converted Resources for Assignment Engine:
+  [EPM Synthesis] ✓ Generated X task assignments
+
+  ---
+  Step 4: Check Assignment Database Table
+
+  -- Check if ANY assignments were created
+  SELECT
+    COUNT(*) as total_assignments,
+    COUNT(DISTINCT epm_program_id) as programs_with_assignments
+  FROM task_assignments;
+
+  -- Check assignments for the latest program
+  SELECT
+    ta.task_name,
+    ta.resource_name,
+    ta.resource_role,
+    ta.allocation_percent,
+    ta.metadata
+  FROM task_assignments ta
+  WHERE ta.epm_program_id = 'ACTUAL_PROGRAM_ID_HERE';
+
+  ---
+  Step 5: Manual Test - Call generateAssignments Directly
+
+  Replit: Add a temporary test endpoint to isolate the issue:
+
+  // In server/routes.ts or strategy-workspace.ts
+  app.post('/api/test/generate-assignments', async (req, res) => {
+    try {
+      const { programId } = req.body;
+
+      // Get the program
+      const [program] = await db
+        .select()
+        .from(epmPrograms)
+        .where(eq(epmPrograms.id, programId))
+        .limit(1);
+
+      if (!program) {
+        return res.status(404).json({ error: 'Program not found' });
+      }
+
+      console.log('=== MANUAL ASSIGNMENT TEST ===');
+      console.log('Program:', program.programName);
+      console.log('Workstreams count:', program.workstreams?.length);
+      console.log('Resource plan:', JSON.stringify(program.resourcePlan,
+  null, 2));
+
+      // Call generateAssignments
+      const { EPMSynthesizer } = await import('./intelligence');
+      const epmSynthesizer = new EPMSynthesizer(null as any);
+
+      const assignments = await epmSynthesizer.generateAssignments(
+        program as any,
+        programId
+      );
+
+      console.log('Generated assignments:', assignments.length);
+      console.log('Assignments:', JSON.stringify(assignments, null, 2));
+
+      res.json({
+        success: true,
+        assignmentsGenerated: assignments.length,
+        assignments
+      });
+
+    } catch (error: any) {
+      console.error('Assignment test failed:', error);
+      res.status(500).json({ error: error.message, stack: error.stack });
+    }
+  });
+
+  Then call it:
+  curl -X POST http://localhost:5000/api/test/generate-assignments \
+    -H "Content-Type: application/json" \
+    -d '{"programId": "ACTUAL_PROGRAM_ID_HERE"}'
+
+  ---
+  Replit: Please run through these checks and report back what you find at
+  each step. This will help us pinpoint exactly where the pipeline is
+  breaking.

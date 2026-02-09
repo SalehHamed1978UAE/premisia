@@ -1,0 +1,176 @@
+Quick claim check (what stands + what to tune)
+
+“AI delivers measurable ROI fast.”
+✅ Supported. In EMEA, 66% of senior leaders already report significant productivity gains from AI; 92% expect measurable ROI from AI agents within two years. 
+
+IBM EMEA Report - The Race for …
+
+ and
+
+“Strategy → execution in minutes.”
+⚠️ Directionally true as a differentiator (multi-agent workflows compress time), but avoid a universal time claim. Anchor it to speed vs. traditional consulting + field results on productivity/time-savings. See BCG’s controlled trials (material productivity uplift for knowledge workers) and Microsoft/UK government Copilot pilots (meaningful minutes saved per day → weeks per year).
+
+“Market need is urgent and large.”
+✅ Supported. GenAI’s economic upside is $2.6–$4.4T annually across use cases (McKinsey).
+
+“Enterprise-grade + governance.”
+✅ Directionally supported. Leaders prioritize openness, governance, and control; ethics & compliance readiness are decisive buying factors. (Use AES-256 as a clear, standard baseline; pair with governance and auditability.) 
+
+IBM EMEA Report - The Race for …
+
+Note on the “94%” stat: your outline says “94% of leaders expect measurable returns from AI strategy tools (IBM data).” The IBM EMEA study reports 92% confidence in ROI from AI agents (not 94%). Recommend updating to 92% and citing IBM EMEA 2025. 
+
+IBM EMEA Report - The Race for …
+
+Website copy (plug-and-play)
+Hero
+
+QGentic
+From strategic question to execution-ready program—fast.
+Multi-agent AI that turns leadership intent into EPM-grade roadmaps, budgets, and OKRs—with live evidence, governance, and change tracking.
+
+CTA: Try the Strategy Sprint → (starts a guided intake)
+Secondary: See a 5-minute demo →
+
+Proof strip (beneath hero):
+
+66% of leaders already see significant AI productivity gains. 
+
+IBM EMEA Report - The Race for …
+
+92% expect measurable ROI from AI agents within two years. 
+
+IBM EMEA Report - The Race for …
+
+GenAI value potential: $2.6–$4.4T annually.
+
+Value pillars
+
+Speed with substance
+Compress weeks of slide-making and stakeholder wrangling into hours—with on-call agents for scenarios, risks, budgets, and benefits. Field studies show sizeable productivity lifts for knowledge work when AI assists complex tasks.
+
+Evidence you can audit
+Every recommendation carries sources, bias-checks, and assumptions so boards and auditors can trace decisions end-to-end.
+
+Execution-ready, not just ideas
+Output is EPM-structured (charter, milestones, costs, KPIs, RAID, RACI) and syncs with your delivery stack.
+
+Enterprise-grade trust
+AES-256 at rest & in transit, role-based controls, model routing, and policy-as-code to keep you compliant while moving fast. Leaders rank control, interoperability, and governance as top criteria for AI adoption. 
+
+IBM EMEA Report - The Race for …
+
+Continuous refinement
+Strategies evolve as data changes—living programs that learn from outcomes.
+
+Social proof / Data tiles
+
++Significant gains today: Two-thirds of EMEA leaders already see AI-driven productivity improvements. 
+
+IBM EMEA Report - The Race for …
+
+ROI horizon: 92% expect measurable ROI from AI agents within two years. 
+
+IBM EMEA Report - The Race for …
+
+Time back to think: Early enterprise Copilot users report daily minutes saved that add up to ~1–2 weeks/year; a UK government trial found ~26 minutes/day saved across 20k staff.
+
+Macro tailwind: GenAI’s value pool is $2.6–$4.4T per year.
+
+How it works (3 steps)
+
+Ingest & map – Securely connect policies, financials, KPIs, and prior initiatives. QGentic builds a knowledge graph of your enterprise.
+
+Strategize with agents – Advisory agents co-draft scenarios, trade-offs, and OKRs and run risk/compliance checks in-line.
+
+Ship the program – Export to your PM suite with charter, plan, costs, KPIs, owners, and tracking—and keep iterating as conditions change.
+
+Onboarding copy (first-run, inside product)
+
+Welcome to QGentic
+You lead with questions. We deliver execution.
+
+5-minute intake: goals, constraints, stakeholders.
+
+Attach context: strategy docs, budgets, org, risk posture.
+
+Pick a sprint: Market entry, cost takeout, AI adoption, portfolio reprioritization.
+
+See the plan: EPM-ready outputs with sources, assumptions, and next steps.
+
+Invite peers: annotate, approve, and publish to delivery tools.
+
+Why this works now
+AI is crossing from demos to operational ROI: 66% of leaders already see productivity gains, and 92% expect ROI from agents in two years. Your edge is the closed loop—strategy, execution, learning. 
+
+IBM EMEA Report - The Race for …
+
+LinkedIn post templates (pick one voice and ship)
+
+1) Boardroom voice (credibility + outcomes)
+
+Strategy shouldn’t take quarters. With QGentic, we’re compressing strategy-to-program from weeks to hours—with audit trails and budgets attached.
+Across EMEA, 66% of leaders already see productivity gains from AI, and 92% expect measurable ROI from agents in two years. We’re here to make that tangible for boards and operators—not another chatbot, but multi-agent execution.
+See how the Strategy Sprint works → [demo link] 
+
+IBM EMEA Report - The Race for …
+
+2) Operator voice (time-savings + proof)
+
+Exec time is scarce. Early AI rollouts show real minutes back per day—adding up to weeks per year—for drafting, synthesis, and follow-ups. QGentic turns that reclaimed time into execution-ready programs with traceable evidence. Let’s use AI where the value is highest: strategy that ships.
+
+3) Market voice (macro momentum)
+
+GenAI’s upside is measured in trillions—but only if leaders can go from ideas to governed execution. QGentic uses multi-agent orchestration + knowledge graphs to generate programs you can fund, staff, and track. The result: speed with substance.
+
+One-page “Why QGentic now” (sales enablement blurb)
+
+The need: AI adoption is moving from pilots to platforms. Two-thirds of leaders already see productivity gains, and the majority expect agent-driven ROI on a near-term horizon—yet many still struggle to translate AI insights into fundable, governed programs. 
+
+IBM EMEA Report - The Race for …
+
+The gap: Tools that summarize aren’t enough for boards and CFOs. They need assumptions, scenarios, budgets, KPIs, risk controls, and a way to learn.
+
+The QGentic answer:
+
+Multi-agent strategy engine that co-drafts programs (charter → plan → KPIs), backed by live citations & bias checks.
+
+Enterprise guardrails (encryption, access controls, model governance) aligned to what buyers say they value most: control, interoperability, compliance. 
+
+IBM EMEA Report - The Race for …
+
+Continuous refinement so your plan evolves with data and results.
+
+Security & governance snippet (for site “Trust” page)
+
+Security: AES-256 encryption in transit/at rest; SSO/SAML; granular RBAC; customer-managed keys (optional).
+
+Privacy: Data isolation; redaction pipelines; configurable retention.
+
+Governance: Model registry & routing; policy-as-code; bias/lineage reporting; full source traceability on recommendations.
+
+Interoperability: Open connectors + export to your PM/BI stack—mirrors buyer priorities for openness and control. 
+
+IBM EMEA Report - The Race for …
+
+What to say (and not say)
+
+Say: “Cut weeks to hours with multi-agent strategy sprints,” “execution-ready outputs,” “governed, auditable decisions,” “continuous refinement.”
+
+Avoid: Universal “10–30 minutes” claims. Use “hours, not weeks” unless you can reference your own measured benchmarks.
+
+Sources you can cite publicly (anchor the 5 big proof points)
+
+IBM EMEA Race for ROI (2025): 66% report significant AI productivity gains; 92% expect measurable ROI from AI agents within two years; leaders prioritize openness, governance, control. 
+
+IBM EMEA Report - The Race for …
+
+ and
+
+McKinsey (2023): GenAI potential $2.6–$4.4T annually.
+
+BCG/HBS field experiments (2023–2024): GenAI materially boosts performance on complex knowledge tasks; guidance on where AI helps/hurts.
+
+Microsoft Work Trend Index & trials (2024–2025): Broad employee AI use; daily minutes saved → weeks/year (enterprise pilots incl. UK civil service).
+
+Gartner (2024): ~30% of GenAI projects risk abandonment post-PoC without governance/data quality—why QGentic’s policy-as-code & audit matter.

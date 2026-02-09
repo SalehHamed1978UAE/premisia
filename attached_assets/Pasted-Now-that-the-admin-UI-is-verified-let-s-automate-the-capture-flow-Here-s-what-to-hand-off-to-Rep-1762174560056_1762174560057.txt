@@ -1,0 +1,37 @@
+Now that the admin UI is verified, let’s automate the capture flow. Here’s
+  what to hand off to Replit:
+
+  1. CLI capture utility
+      - Add scripts/golden-record-capture.ts (Node/TS) modeled on scripts/
+        journey-cli.ts.
+      - Flags: --journeyType, --sessionId (or --strategyVersionId), optional
+        --notes, --promote.
+      - Script loads the session/version, uses the sanitizer helpers, and calls
+        the existing admin API to create a record.
+      - Add npm script: "capture:golden": "ts-node scripts/golden-record-
+        capture.ts".
+  2. CLI compare utility
+      - New script scripts/golden-record-compare.ts.
+      - Flags: --journeyType, --sessionId (or --strategyVersionId).
+      - Capture the current run (without saving) and call the compare endpoint
+        against the current golden record.
+      - Print diff summary and exit with code 1 on mismatch.
+      - Log results via createGoldenRecordCheck() so the admin UI shows checks.
+      - Add npm script: "compare:golden": "ts-node scripts/golden-record-
+        compare.ts".
+  3. Server auto-capture hook (feature-flagged)
+      - Env flag: AUTO_CAPTURE_GOLDEN=false (default).
+      - In the journey completion path (after successful EPM generation), if the
+        flag is true and the journey type is in our allowlist (start with BMI),
+        call the same capture helper to save a golden record automatically.
+      - Don’t auto-promote; just append. Log each capture.
+  4. Documentation
+      - Create docs/GOLDEN_RECORDS.md covering manual capture, CLI usage, auto-
+        capture flag, promotion/rollback workflow, and screenshot storage
+        conventions.
+      - Link this doc from existing admin/journey docs.
+  5. Verification
+      - Run the capture script on a fresh BMI run (creates v2).
+      - Run the compare script; verify exit codes for match/mismatch.
+      - Toggle AUTO_CAPTURE_GOLDEN=true in dev, complete a journey, confirm a
+        new record appears automatically, then set it back to false.

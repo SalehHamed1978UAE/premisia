@@ -1,0 +1,26 @@
+Good. Now execute and show results:                                           
+                                                                                
+  1. Write the file - scripts/regression-test.ts                                
+  2. Run it - Show terminal output                                              
+  3. Then add T002-async - A test that actually triggers the journey flow       
+                                                                                
+  We need to see the actual output:                                             
+                                                                                
+  [T001] strategic-understanding → swot-analyzer                                
+         Bridge: strategic_understanding                                        
+         Status: ✅ PASS                                                        
+                                                                                
+  [T002] swot-analyzer → strategic-decisions                                    
+         Bridge: strategy_versions                                              
+         Status: ✅ PASS (schema only)                                          
+                                                                                
+  [T003] strategic-decisions → epm-generator                                    
+         Bridge: strategy_versions (with decisions)                             
+         Status: ✅ PASS                                                        
+                                                                                
+  Summary: 3/3 passed                                                           
+                                                                                
+  Then T002-async should FAIL - proving the race condition exists before we fix 
+  it.                                                                           
+                                                                                
+  Ask Replit to run the tests now and paste the output.  

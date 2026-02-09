@@ -1,0 +1,38 @@
+ One important detail to add:                                                  
+                                                                                
+  The Analyzer Import Pattern                                                   
+                                                                                
+  Some analyzers are class-based (need instantiation), others are singleton     
+  instances:                                                                    
+                                                                                
+  // Singleton instances (already instantiated)                                 
+  import { swotAnalyzer } from '../intelligence/swot-analyzer';                 
+  import { ansoffAnalyzer } from '../intelligence/ansoff-analyzer';             
+                                                                                
+  // Class-based (need to instantiate or use existing instance)                 
+  import { BMCAnalyzer } from '../intelligence/bmc-analyzer';                   
+  import { PortersAnalyzer } from '../intelligence/porters-analyzer';           
+  import { PESTLEAnalyzer } from '../intelligence/pestle-analyzer';             
+                                                                                
+  Replit should check each file's export to see which pattern it uses:          
+  - If export const swotAnalyzer = new SWOTAnalyzer() → use directly            
+  - If export class BMCAnalyzer → instantiate or look for singleton             
+                                                                                
+  The Mapping Should Look Like:                                                 
+                                                                                
+  const analyzerMap: Record<string, (input: any) => Promise<any>> = {           
+    'swot-analyzer': (input) => swotAnalyzer.analyze(input),                    
+    'ansoff-analyzer': (input) => ansoffAnalyzer.analyze(input),                
+    'bmc-analyzer': (input) => new BMCAnalyzer().analyze(input), // or find     
+  singleton                                                                     
+    'porters-analyzer': (input) => new PortersAnalyzer().analyze(input),        
+    // etc.                                                                     
+  };                                                                            
+                                                                                
+  Also Remind Replit:                                                           
+                                                                                
+  For Step 4 (Strategic Decisions redirect):                                    
+  - The frameworkKey from the seed is strategic_decisions (underscore)          
+  - But manifest IDs use strategic-decisions (hyphen)                           
+  - Check for BOTH patterns when detecting user input steps                     
+                                                               

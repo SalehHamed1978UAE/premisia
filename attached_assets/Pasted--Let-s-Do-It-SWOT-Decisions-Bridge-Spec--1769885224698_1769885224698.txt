@@ -1,0 +1,183 @@
+ Let's Do It: SWOT → Decisions Bridge Spec                                     
+                                                                                
+  The Contract                                                                  
+                                                                                
+  Input (SWOT Output):                                                          
+  interface SWOTOutput {                                                        
+    strengths: SWOTItem[];                                                      
+    weaknesses: SWOTItem[];                                                     
+    opportunities: SWOTItem[];  // Derived from PESTLE + Porter's               
+    threats: SWOTItem[];        // Derived from PESTLE + Porter's               
+                                                                                
+    strategies: {                                                               
+      SO: Strategy[];  // Use Strengths to capture Opportunities                
+      ST: Strategy[];  // Use Strengths to mitigate Threats                     
+      WO: Strategy[];  // Address Weaknesses to capture Opportunities           
+      WT: Strategy[];  // Address Weaknesses to avoid Threats                   
+    };                                                                          
+                                                                                
+    priorityActions: string[];                                                  
+    pestleFactorsUsed: string[];                                                
+    porterForcesUsed: string[];                                                 
+  }                                                                             
+                                                                                
+  Output (What DecisionGenerator Expects):                                      
+  interface DecisionInput {                                                     
+    decisions: DecisionCard[];                                                  
+    context: {                                                                  
+      businessName: string;                                                     
+      journeyType: string;                                                      
+      analysisComplete: boolean;                                                
+    };                                                                          
+  }                                                                             
+                                                                                
+  interface DecisionCard {                                                      
+    id: string;                                                                 
+    category: 'market_entry' | 'competitive' | 'operational' | 'risk' |         
+  'investment';                                                                 
+    title: string;                                                              
+    description: string;                                                        
+    urgency: 'immediate' | 'short_term' | 'medium_term';                        
+    options: DecisionOption[];                                                  
+    recommendation?: string;                                                    
+    tradeoffs: string[];                                                        
+    sourceAnalysis: string;  // e.g., "SWOT SO-1: Leverage X to capture Y"      
+  }                                                                             
+                                                                                
+  The Transformation Logic                                                      
+                                                                                
+  // server/journey/bridges/swot-to-decisions-bridge.ts                         
+                                                                                
+  export function transformSWOTToDecisions(                                     
+    swotOutput: SWOTOutput,                                                     
+    context: { businessName: string; userInput: string }                        
+  ): DecisionInput {                                                            
+    const decisions: DecisionCard[] = [];                                       
+    let decisionIndex = 1;                                                      
+                                                                                
+    // 1. SO Strategies → Market Entry / Growth Decisions                       
+    for (const strategy of swotOutput.strategies.SO.slice(0, 2)) {              
+      decisions.push({                                                          
+        id: `DEC-${decisionIndex++}`,                                           
+        category: 'market_entry',                                               
+        title: `Opportunity: ${strategy.strategy}`,                             
+        description: strategy.actions.join('. '),                               
+        urgency: 'short_term',                                                  
+        options: [                                                              
+          {                                                                     
+            id: 'opt-aggressive',                                               
+            title: 'Aggressive Pursuit',                                        
+            description: `Fully commit resources to ${strategy.addresses[0]}`,  
+            implications: ['Higher investment', 'Faster market capture', 'More  
+  risk']                                                                        
+          },                                                                    
+          {                                                                     
+            id: 'opt-measured',                                                 
+            title: 'Measured Approach',                                         
+            description: `Pilot program to validate ${strategy.addresses[0]}`,  
+            implications: ['Lower initial cost', 'Slower capture', 'Validated   
+  learning']                                                                    
+          },                                                                    
+          {                                                                     
+            id: 'opt-defer',                                                    
+            title: 'Defer',                                                     
+            description: 'Focus on other priorities first',                     
+            implications: ['Preserve resources', 'Risk competitor capture',     
+  'Later entry']                                                                
+          }                                                                     
+        ],                                                                      
+        recommendation: 'opt-measured',                                         
+        tradeoffs: [                                                            
+          `Leveraging ${strategy.leverages.join(', ')}`,                        
+          `Addressing ${strategy.addresses.join(', ')}`                         
+        ],                                                                      
+        sourceAnalysis: `SWOT SO Strategy: ${strategy.strategy}`                
+      });                                                                       
+    }                                                                           
+                                                                                
+    // 2. WT Strategies → Risk Mitigation Decisions                             
+    for (const strategy of swotOutput.strategies.WT.slice(0, 2)) {              
+      decisions.push({                                                          
+        id: `DEC-${decisionIndex++}`,                                           
+        category: 'risk',                                                       
+        title: `Risk: ${strategy.strategy}`,                                    
+        description: strategy.actions.join('. '),                               
+        urgency: 'immediate',                                                   
+        options: [                                                              
+          {                                                                     
+            id: 'opt-mitigate',                                                 
+            title: 'Active Mitigation',                                         
+            description: `Invest in addressing ${strategy.leverages[0]}`,       
+            implications: ['Cost to mitigate', 'Reduced risk exposure']         
+          },                                                                    
+          {                                                                     
+            id: 'opt-accept',                                                   
+            title: 'Accept & Monitor',                                          
+            description: 'Acknowledge risk, set up monitoring',                 
+            implications: ['No immediate cost', 'Ongoing exposure', 'Response   
+  plan needed']                                                                 
+          },                                                                    
+          {                                                                     
+            id: 'opt-avoid',                                                    
+            title: 'Avoid',                                                     
+            description: 'Change approach to eliminate risk entirely',          
+            implications: ['May limit opportunity', 'Zero risk from this        
+  factor']                                                                      
+          }                                                                     
+        ],                                                                      
+        tradeoffs: [                                                            
+          `Weakness: ${strategy.leverages.join(', ')}`,                         
+          `Threat: ${strategy.addresses.join(', ')}`                            
+        ],                                                                      
+        sourceAnalysis: `SWOT WT Strategy: ${strategy.strategy}`                
+      });                                                                       
+    }                                                                           
+                                                                                
+    // 3. Priority Actions → Operational Decisions                              
+    for (const action of swotOutput.priorityActions.slice(0, 2)) {              
+      decisions.push({                                                          
+        id: `DEC-${decisionIndex++}`,                                           
+        category: 'operational',                                                
+        title: `Priority: ${action.substring(0, 50)}...`,                       
+        description: action,                                                    
+        urgency: 'immediate',                                                   
+        options: [                                                              
+          { id: 'opt-now', title: 'Execute Immediately', description: 'Start    
+  this week', implications: ['Resource commitment now'] },                      
+          { id: 'opt-plan', title: 'Plan for Next Phase', description: 'Include 
+  in Phase 2', implications: ['Delayed but planned'] },                         
+          { id: 'opt-delegate', title: 'Delegate', description: 'Assign to      
+  partner/vendor', implications: ['Less control', 'Faster execution'] }         
+        ],                                                                      
+        tradeoffs: [],                                                          
+        sourceAnalysis: 'SWOT Priority Action'                                  
+      });                                                                       
+    }                                                                           
+                                                                                
+    // Ensure 3-7 decisions (not too few, not overwhelming)                     
+    return {                                                                    
+      decisions: decisions.slice(0, 7),                                         
+      context: {                                                                
+        businessName: context.businessName,                                     
+        journeyType: 'market_entry',                                            
+        analysisComplete: true                                                  
+      }                                                                         
+    };                                                                          
+  }                                                                             
+                                                                                
+  Integration Point                                                             
+                                                                                
+  In the orchestrator or research stream, after SWOT completes:                 
+                                                                                
+  // After SWOT execution                                                       
+  const swotOutput = swotResult.output;                                         
+                                                                                
+  // Apply bridge                                                               
+  const decisionsInput = transformSWOTToDecisions(swotOutput, {                 
+    businessName: positioning.businessConcept.name,                             
+    userInput: context.userInput                                                
+  });                                                                           
+                                                                                
+  // Store for Decisions page                                                   
+  context.decisionsInput = decisionsInput;                                      
+                                          

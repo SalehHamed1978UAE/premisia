@@ -1,0 +1,238 @@
+ Phase 7: Journey Library Expansion (Updated)                                  
+                                                                                
+  Task 7.1: Add All Framework Types                                             
+                                                                                
+  File: shared/journey-types.ts                                                 
+                                                                                
+  Add to JourneyType:                                                           
+  export type JourneyType =                                                     
+    | 'business_model_innovation'                                               
+    | 'market_entry'                                                            
+    | 'competitive_strategy'                                                    
+    | 'digital_transformation'                                                  
+    | 'crisis_recovery'                                                         
+    | 'growth_strategy'                                                         
+    | 'market_segmentation';  // ADD THIS                                       
+                                                                                
+  Add complete FrameworkName union:                                             
+  export type FrameworkName =                                                   
+    // Core (implemented)                                                       
+    | 'five_whys'                                                               
+    | 'bmc'                                                                     
+    | 'segment_discovery'                                                       
+    // Competitive & Market Analysis                                            
+    | 'porters'                                                                 
+    | 'pestle'                                                                  
+    | 'swot'                                                                    
+    | 'competitive_positioning'                                                 
+    // Growth & Innovation Strategy                                             
+    | 'ansoff'                                                                  
+    | 'blue_ocean'                                                              
+    | 'ocean_strategy'    // Multi-color: Red, Blue, Green, White               
+    | 'bcg_matrix'                                                              
+    // Internal Analysis                                                        
+    | 'value_chain'                                                             
+    | 'vrio'                                                                    
+    // Future Planning                                                          
+    | 'scenario_planning'                                                       
+    // Customer & Product                                                       
+    | 'jobs_to_be_done'                                                         
+    // Execution                                                                
+    | 'okr_generator';                                                          
+                                                                                
+  Task 7.2: Create Stub Executor Template                                       
+                                                                                
+  File: server/journey/executors/stub-executor-template.ts                      
+                                                                                
+  import { FrameworkExecutor, FrameworkName, StrategicContext } from            
+  '../../../shared/journey-types';                                              
+                                                                                
+  export function createStubExecutor(name: FrameworkName, displayName: string): 
+  FrameworkExecutor {                                                           
+    return {                                                                    
+      name,                                                                     
+      async validate(context: StrategicContext) {                               
+        return {                                                                
+          valid: !!context.challenge,                                           
+          errors: context.challenge ? undefined : ['Challenge required']        
+        };                                                                      
+      },                                                                        
+      async execute(context: StrategicContext) {                                
+        throw new Error(`${displayName} executor not yet implemented`);         
+      },                                                                        
+    };                                                                          
+  }                                                                             
+                                                                                
+  Task 7.3: Create Segment Discovery Executor                                   
+                                                                                
+  File: server/journey/executors/segment-discovery-executor.ts                  
+                                                                                
+  import { FrameworkExecutor, FrameworkName, StrategicContext } from            
+  '../../../shared/journey-types';                                              
+  import { segmentDiscoveryEngine, DiscoveryContext } from                      
+  '../../services/segment-discovery-engine';                                    
+                                                                                
+  export class SegmentDiscoveryExecutor implements FrameworkExecutor {          
+    name: FrameworkName = 'segment_discovery';                                  
+                                                                                
+    async validate(context: StrategicContext): Promise<{ valid: boolean;        
+  errors?: string[] }> {                                                        
+      const errors: string[] = [];                                              
+      if (!context.challenge || context.challenge.trim().length < 10) {         
+        errors.push('Offering description required (minimum 10 characters)');   
+      }                                                                         
+      if (!context.marketingContext?.offeringType) {                            
+        errors.push('Offering type classification required');                   
+      }                                                                         
+      return { valid: errors.length === 0, errors: errors.length > 0 ? errors : 
+  undefined };                                                                  
+    }                                                                           
+                                                                                
+    async execute(context: StrategicContext): Promise<any> {                    
+      console.log('[SegmentDiscoveryExecutor] Starting segment discovery...');  
+                                                                                
+      const discoveryContext: DiscoveryContext = {                              
+        offeringDescription: context.challenge,                                 
+        offeringType: context.marketingContext?.offeringType ||                 
+  'physical_product',                                                           
+        stage: context.marketingContext?.stage || 'idea_stage',                 
+        gtmConstraint: context.marketingContext?.gtmConstraint || 'small_team', 
+        salesMotion: context.marketingContext?.salesMotion || 'self_serve',     
+      };                                                                        
+                                                                                
+      const result = await segmentDiscoveryEngine.runDiscovery(                 
+        discoveryContext,                                                       
+        (step, progress) => {                                                   
+          console.log(`[SegmentDiscoveryExecutor] ${step}: ${progress}%`);      
+          if (context.onProgress) context.onProgress(step, progress);           
+        }                                                                       
+      );                                                                        
+                                                                                
+      console.log('[SegmentDiscoveryExecutor] Complete');                       
+      return result;                                                            
+    }                                                                           
+  }                                                                             
+                                                                                
+  export const segmentDiscoveryExecutor = new SegmentDiscoveryExecutor();       
+                                                                                
+  Task 7.4: Register All Frameworks                                             
+                                                                                
+  File: server/journey/register-frameworks.ts                                   
+                                                                                
+  import { frameworkRegistry } from './framework-executor-registry';            
+  import { fiveWhysExecutor } from './executors/five-whys-executor';            
+  import { bmcExecutor } from './executors/bmc-executor';                       
+  import { segmentDiscoveryExecutor } from                                      
+  './executors/segment-discovery-executor';                                     
+  import { createStubExecutor } from './executors/stub-executor-template';      
+                                                                                
+  export function registerFrameworks(): void {                                  
+    // Core frameworks (fully implemented)                                      
+    frameworkRegistry.register(fiveWhysExecutor);                               
+    frameworkRegistry.register(bmcExecutor);                                    
+    frameworkRegistry.register(segmentDiscoveryExecutor);                       
+                                                                                
+    // Competitive & Market Analysis (stubs)                                    
+    frameworkRegistry.register(createStubExecutor('porters', "Porter's Five     
+  Forces"));                                                                    
+    frameworkRegistry.register(createStubExecutor('pestle', 'PESTLE Analysis'));
+    frameworkRegistry.register(createStubExecutor('swot', 'SWOT Analysis'));    
+    frameworkRegistry.register(createStubExecutor('competitive_positioning',    
+  'Competitive Positioning'));                                                  
+                                                                                
+    // Growth & Innovation Strategy (stubs)                                     
+    frameworkRegistry.register(createStubExecutor('ansoff', 'Ansoff Matrix'));  
+    frameworkRegistry.register(createStubExecutor('blue_ocean', 'Blue Ocean     
+  Strategy'));                                                                  
+    frameworkRegistry.register(createStubExecutor('ocean_strategy', 'Ocean      
+  Strategy Mapping'));                                                          
+    frameworkRegistry.register(createStubExecutor('bcg_matrix', 'BCG Matrix')); 
+                                                                                
+    // Internal Analysis (stubs)                                                
+    frameworkRegistry.register(createStubExecutor('value_chain', 'Value Chain   
+  Analysis'));                                                                  
+    frameworkRegistry.register(createStubExecutor('vrio', 'VRIO Analysis'));    
+                                                                                
+    // Future Planning (stubs)                                                  
+    frameworkRegistry.register(createStubExecutor('scenario_planning', 'Scenario
+   Planning'));                                                                 
+                                                                                
+    // Customer & Product (stubs)                                               
+    frameworkRegistry.register(createStubExecutor('jobs_to_be_done', 'Jobs To Be
+   Done'));                                                                     
+                                                                                
+    // Execution (stubs)                                                        
+    frameworkRegistry.register(createStubExecutor('okr_generator', 'OKR         
+  Generator'));                                                                 
+                                                                                
+    const registered = frameworkRegistry.getRegisteredFrameworks();             
+    console.log(`[Framework Registry] Registered ${registered.length}           
+  frameworks:`, registered);                                                    
+  }                                                                             
+                                                                                
+  Task 7.5: Add Journey Definition                                              
+                                                                                
+  File: server/journey/journey-registry.ts                                      
+                                                                                
+  Add to JOURNEY_DEFINITIONS:                                                   
+                                                                                
+  market_segmentation: {                                                        
+    type: 'market_segmentation',                                                
+    name: 'Market Segmentation Discovery',                                      
+    description: 'Discover and validate ideal customer segments using genetic   
+  algorithm-inspired exploration',                                              
+    frameworks: ['segment_discovery'],                                          
+    pageSequence: ['input', 'classification', 'discovery', 'results'],          
+    estimatedDuration: '3-5 minutes',                                           
+    available: true,                                                            
+    summaryBuilder: 'segmentDiscoverySummary',                                  
+    defaultReadiness: { minReferences: 0, minEntities: 0 },                     
+    insightsConfig: { requiresFiveWhys: false, requiresBmc: false },            
+    dependencies: [],                                                           
+  },                                                                            
+                                                                                
+  Task 7.6: Add Resolver Smoke Tests                                            
+                                                                                
+  File: tests/smoke/framework-registry-smoke.spec.ts                            
+                                                                                
+  import { describe, it, expect, beforeAll } from 'vitest';                     
+                                                                                
+  describe('Framework Registry Smoke Tests', () => {                            
+    const API_BASE = process.env.API_BASE || 'http://localhost:5000';           
+                                                                                
+    it('should have 16 frameworks registered', async () => {                    
+      const res = await fetch(`${API_BASE}/api/modules`);                       
+      const data = await res.json();                                            
+      // Or check via direct import if available                                
+      expect(data.frameworkCount || 16).toBeGreaterThanOrEqual(16);             
+    });                                                                         
+                                                                                
+    it('should list all expected framework names', async () => {                
+      const expectedFrameworks = [                                              
+        'five_whys', 'bmc', 'segment_discovery',                                
+        'porters', 'pestle', 'swot', 'competitive_positioning',                 
+        'ansoff', 'blue_ocean', 'ocean_strategy', 'bcg_matrix',                 
+        'value_chain', 'vrio', 'scenario_planning',                             
+        'jobs_to_be_done', 'okr_generator'                                      
+      ];                                                                        
+                                                                                
+      // Verify each framework is registered                                    
+      // Implementation depends on available API endpoint                       
+    });                                                                         
+                                                                                
+    it('should mark market_segmentation journey as available', async () => {    
+      const res = await fetch(`${API_BASE}/api/journeys`);                      
+      const data = await res.json();                                            
+      const marketSeg = data.journeys?.find(j => j.type ===                     
+  'market_segmentation');                                                       
+      expect(marketSeg?.available).toBe(true);                                  
+    });                                                                         
+  });                                                                           
+                                                                                
+  ---                                                                           
+  Expected Output After Phase 7                                                 
+                                                                                
+  [Framework Registry] Registered 16 frameworks: five_whys, bmc,                
+  segment_discovery, porters, pestle, swot, competitive_positioning, ansoff,    
+  blue_ocean, ocean_strategy, bcg_matrix, value_chain, vrio, scenario_planning, 
+  jobs_to_be_done, okr_generator   

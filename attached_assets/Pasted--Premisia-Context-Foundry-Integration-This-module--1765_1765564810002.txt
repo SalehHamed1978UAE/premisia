@@ -1,0 +1,411 @@
+"""
+Premisia <-> Context Foundry Integration
+=========================================
+
+This module enables Premisia to ground its strategic analysis 
+in verified organizational facts from Context Foundry.
+
+Usage:
+    from premisia_cf_integration import ContextFoundryClient, ground_analysis
+
+    cf = ContextFoundryClient(api_key="cf_live_xxx")
+    
+    # Get grounded context for a strategic question
+    context = cf.query("What are Alpha Logistics' key risks?", focal_entity="Alpha Logistics")
+    
+    # Use in Premisia's LLM prompt
+    grounded_prompt = ground_analysis(user_question, context)
+"""
+
+import httpx
+from dataclasses import dataclass
+from typing import Optional
+from enum import Enum
+
+
+# =============================================================================
+# Configuration
+# =============================================================================
+
+CF_BASE_URL = "https://context-foundry-darinkishore.replit.app"
+DEFAULT_CONFIDENCE_THRESHOLD = 0.6
+
+
+# =============================================================================
+# Data Structures
+# =============================================================================
+
+class ConfidenceLevel(Enum):
+    HIGH = "high"       # > 0.8 - Use directly
+    MEDIUM = "medium"   # 0.6-0.8 - Use with caveat
+    LOW = "low"         # < 0.6 - Flag uncertainty
+
+
+@dataclass
+class Entity:
+    id: str
+    type: str
+    name: str
+    properties: dict
+    confidence: float
+    source: Optional[str] = None
+
+    @property
+    def confidence_level(self) -> ConfidenceLevel:
+        if self.confidence >= 0.8:
+            return ConfidenceLevel.HIGH
+        elif self.confidence >= 0.6:
+            return ConfidenceLevel.MEDIUM
+        return ConfidenceLevel.LOW
+
+
+@dataclass
+class Relationship:
+    source_entity: str
+    relationship_type: str
+    target_entity: str
+    confidence: float
+
+
+@dataclass 
+class KnowledgeBoundary:
+    """What Context Foundry doesn't know - critical for honest responses"""
+    frontier_nodes: list[str]  # Entities at the edge of knowledge
+    missing_types: list[str]   # Entity types with no instances
+    low_coverage_areas: list[str]  # Topics with sparse data
+
+
+@dataclass
+class ContextBundle:
+    """Everything Premisia needs to ground a response"""
+    query: str
+    answer: str
+    confidence: float
+    confidence_level: ConfidenceLevel
+    
+    # Tiered results
+    confirmed_entities: list[Entity]
+    inferred_relationships: list[Relationship]
+    boundaries: KnowledgeBoundary
+    
+    # Provenance
+    evidence_chain: list[dict]
+    sources: list[str]
+    
+    @property
+    def is_grounded(self) -> bool:
+        """Can we confidently use this context?"""
+        return self.confidence >= DEFAULT_CONFIDENCE_THRESHOLD and len(self.confirmed_entities) > 0
+    
+    @property
+    def high_confidence_entities(self) -> list[Entity]:
+        return [e for e in self.confirmed_entities if e.confidence >= 0.8]
+
+
+# =============================================================================
+# Context Foundry Client
+# =============================================================================
+
+class ContextFoundryClient:
+    """
+    Client for querying Context Foundry's knowledge graph.
+    
+    Example:
+        cf = ContextFoundryClient(api_key="cf_live_xxx")
+        context = cf.query("What processes exist?")
+        print(context.confirmed_entities)
+    """
+    
+    def __init__(self, api_key: str, base_url: str = CF_BASE_URL):
+        self.api_key = api_key
+        self.base_url = base_url.rstrip("/")
+        self._client = httpx.Client(timeout=30.0)
+    
+    def query(
+        self, 
+        query: str, 
+        focal_entity: Optional[str] = None,
+        include_episodic: bool = False
+    ) -> ContextBundle:
+        """
+        Query Context Foundry and return a structured ContextBundle.
+        
+        Args:
+            query: Natural language question
+            focal_entity: Optional entity to center the query around
+            include_episodic: Include time-sensitive/recent facts
+            
+        Returns:
+            ContextBundle with entities, relationships, boundaries, and confidence
+        """
+        payload = {"query": query}
+        if focal_entity:
+            payload["focal_entity"] = focal_entity
+        if include_episodic:
+            payload["include_episodic"] = True
+            
+        response = self._client.post(
+            f"{self.base_url}/api/query",
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            },
+            json=payload
+        )
+        response.raise_for_status()
+        data = response.json()
+        
+        return self._parse_response(query, data)
+    
+    def _parse_response(self, query: str, data: dict) -> ContextBundle:
+        """Parse CF response into structured ContextBundle"""
+        
+        tiered = data.get("tiered_results", {})
+        confirmed = tiered.get("confirmed", {})
+        inferred = tiered.get("inferred", {})
+        boundaries_raw = tiered.get("boundaries", {})
+        
+        # Parse entities
+        entities = []
+        for e in confirmed.get("entities", []):
+            entities.append(Entity(
+                id=e.get("id", ""),
+                type=e.get("type", ""),
+                name=e.get("name", e.get("properties", {}).get("name", "")),
+                properties=e.get("properties", {}),
+                confidence=e.get("confidence", 0.5),
+                source=e.get("source")
+            ))
+        
+        # Parse relationships
+        relationships = []
+        for r in inferred.get("relationships", []):
+            relationships.append(Relationship(
+                source_entity=r.get("source", ""),
+                relationship_type=r.get("type", ""),
+                target_entity=r.get("target", ""),
+                confidence=r.get("confidence", 0.5)
+            ))
+        
+        # Parse boundaries
+        boundaries = KnowledgeBoundary(
+            frontier_nodes=boundaries_raw.get("frontier_nodes", []),
+            missing_types=boundaries_raw.get("missing_types", []),
+            low_coverage_areas=boundaries_raw.get("low_coverage_areas", [])
+        )
+        
+        # Determine confidence level
+        confidence = data.get("confidence", 0.0)
+        if confidence >= 0.8:
+            conf_level = ConfidenceLevel.HIGH
+        elif confidence >= 0.6:
+            conf_level = ConfidenceLevel.MEDIUM
+        else:
+            conf_level = ConfidenceLevel.LOW
+        
+        # Extract sources from evidence chain
+        evidence = data.get("evidence_chain", [])
+        sources = list(set(
+            e.get("source", "") for e in evidence if e.get("source")
+        ))
+        
+        return ContextBundle(
+            query=query,
+            answer=data.get("answer", ""),
+            confidence=confidence,
+            confidence_level=conf_level,
+            confirmed_entities=entities,
+            inferred_relationships=relationships,
+            boundaries=boundaries,
+            evidence_chain=evidence,
+            sources=sources
+        )
+    
+    def verify(self, statement: str, context: Optional[str] = None) -> dict:
+        """
+        Verify a factual claim against the knowledge graph.
+        
+        Returns:
+            {"verified": bool, "confidence": float, "evidence": [...]}
+        """
+        payload = {"statement": statement}
+        if context:
+            payload["context"] = context
+            
+        response = self._client.post(
+            f"{self.base_url}/api/verify",
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            },
+            json=payload
+        )
+        
+        if response.status_code == 404:
+            # Endpoint not yet implemented - fall back to query
+            return {"verified": None, "confidence": 0, "note": "verify endpoint not available"}
+            
+        response.raise_for_status()
+        return response.json()
+    
+    def close(self):
+        self._client.close()
+    
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, *args):
+        self.close()
+
+
+# =============================================================================
+# Premisia Integration Helpers
+# =============================================================================
+
+def ground_analysis(
+    user_question: str, 
+    context: ContextBundle,
+    analysis_type: str = "strategic"
+) -> str:
+    """
+    Generate a grounded prompt for Premisia's LLM.
+    
+    This injects verified organizational facts into the prompt,
+    ensuring the LLM response is grounded in reality.
+    
+    Args:
+        user_question: The consultant's original question
+        context: ContextBundle from Context Foundry
+        analysis_type: Type of analysis (strategic, risk, financial, etc.)
+        
+    Returns:
+        Prompt string with grounded context for LLM
+    """
+    
+    # Build entity context
+    entity_facts = []
+    for e in context.confirmed_entities:
+        conf_marker = "✓" if e.confidence >= 0.8 else "~"
+        entity_facts.append(f"  {conf_marker} {e.type}: {e.name} (confidence: {e.confidence:.0%})")
+    
+    # Build relationship context  
+    relationship_facts = []
+    for r in context.inferred_relationships:
+        relationship_facts.append(f"  - {r.source_entity} --[{r.relationship_type}]--> {r.target_entity}")
+    
+    # Build boundaries context (what we DON'T know)
+    boundary_notes = []
+    if context.boundaries.frontier_nodes:
+        boundary_notes.append(f"  - Knowledge boundary at: {', '.join(context.boundaries.frontier_nodes[:5])}")
+    if context.boundaries.low_coverage_areas:
+        boundary_notes.append(f"  - Limited data on: {', '.join(context.boundaries.low_coverage_areas[:3])}")
+    
+    # Construct the grounded prompt
+    prompt = f"""You are a {analysis_type} consultant using Premisia. Answer the following question using ONLY the verified organizational context provided below. Do not hallucinate or invent facts.
+
+## User Question
+{user_question}
+
+## Verified Context from Organization's Knowledge Graph
+**Overall Confidence: {context.confidence:.0%} ({context.confidence_level.value})**
+
+### Context Foundry's Answer
+{context.answer}
+
+### Confirmed Entities ({len(context.confirmed_entities)} found)
+{chr(10).join(entity_facts) if entity_facts else "  No entities found"}
+
+### Relationships
+{chr(10).join(relationship_facts) if relationship_facts else "  No relationships found"}
+
+### Knowledge Boundaries (what we don't know)
+{chr(10).join(boundary_notes) if boundary_notes else "  No significant gaps identified"}
+
+### Sources
+{', '.join(context.sources) if context.sources else "No sources available"}
+
+## Instructions
+1. Base your analysis on the verified context above
+2. If confidence is below 80%, note the uncertainty
+3. If the knowledge boundary limits your answer, say so explicitly
+4. Do not invent facts not present in the context
+5. Cite sources when making specific claims
+
+## Your Analysis:"""
+
+    return prompt
+
+
+def format_for_report(context: ContextBundle) -> str:
+    """
+    Format Context Bundle for inclusion in a Premisia report.
+    
+    Returns markdown-formatted findings section.
+    """
+    
+    lines = [
+        f"## Findings from Organizational Knowledge Graph",
+        f"",
+        f"**Query:** {context.query}",
+        f"**Confidence:** {context.confidence:.0%}",
+        f"",
+    ]
+    
+    if context.confirmed_entities:
+        lines.append("### Verified Entities")
+        for e in context.high_confidence_entities:
+            lines.append(f"- **{e.name}** ({e.type})")
+            for key, val in e.properties.items():
+                if key != "name" and val:
+                    lines.append(f"  - {key}: {val}")
+        lines.append("")
+    
+    if context.sources:
+        lines.append("### Sources")
+        for src in context.sources:
+            lines.append(f"- {src}")
+        lines.append("")
+    
+    if context.boundaries.low_coverage_areas:
+        lines.append("### Data Limitations")
+        lines.append(f"Limited information available on: {', '.join(context.boundaries.low_coverage_areas)}")
+        lines.append("")
+    
+    return "\n".join(lines)
+
+
+# =============================================================================
+# Example Usage
+# =============================================================================
+
+if __name__ == "__main__":
+    # Example: How Premisia would use this
+    
+    API_KEY = "cf_live_d2dbd7eb..."  # Replace with actual key
+    
+    with ContextFoundryClient(api_key=API_KEY) as cf:
+        # Consultant asks a strategic question
+        user_question = "What are the key operational risks for Alpha Logistics?"
+        
+        # Get grounded context from CF
+        context = cf.query(
+            query="operational risks",
+            focal_entity="Alpha Logistics"
+        )
+        
+        print(f"=== Context Foundry Response ===")
+        print(f"Confidence: {context.confidence:.0%}")
+        print(f"Entities found: {len(context.confirmed_entities)}")
+        print(f"Is grounded: {context.is_grounded}")
+        print()
+        
+        # Generate grounded prompt for Premisia's LLM
+        prompt = ground_analysis(user_question, context)
+        print(f"=== Grounded Prompt for LLM ===")
+        print(prompt[:500] + "...")
+        print()
+        
+        # Or format for a report
+        report_section = format_for_report(context)
+        print(f"=== Report Section ===")
+        print(report_section)

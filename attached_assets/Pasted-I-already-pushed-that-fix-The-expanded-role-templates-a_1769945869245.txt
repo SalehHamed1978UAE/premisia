@@ -1,0 +1,29 @@
+I already pushed that fix. The expanded role templates are in the latest      
+  commit.                                                                       
+                                                                                
+  Pull the latest code:                                                         
+  git pull origin main                                                          
+                                                                                
+  The cafe_coffee_shop template now has:                                        
+  cafe_coffee_shop: [                                                           
+    // Core Operations                                                          
+    { role: 'Cafe Operations Manager', ... },                                   
+    { role: 'Head Barista', ... },                                              
+    // Launch/Project Functional Roles                                          
+    { role: 'Cafe Design & Construction Lead', ... },                           
+    { role: 'Technology & Systems Specialist', ... },                           
+    { role: 'HR & Training Coordinator', ... },                                 
+    { role: 'Marketing & Community Manager', ... },                             
+    { role: 'Compliance & Licensing Specialist', ... },                         
+  ]                                                                             
+                                                                                
+  These role names contain keywords that match the workstream owner logic:      
+  - "Construction" matches construction workstreams                             
+  - "Technology" matches tech workstreams                                       
+  - "HR & Training" matches talent/training workstreams                         
+  - "Marketing" matches marketing workstreams                                   
+  - "Compliance" matches compliance workstreams                                 
+                                                                                
+  Restaurant template also expanded similarly.                                  
+                                                                                
+  Just pull and restart - no additional changes needed.  

@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Strategic Analysis Report - Qgentic Strategic Analysis Report</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    :root {
+      --background: hsl(210 40% 98%);
+      --foreground: hsl(222 47% 11%);
+      --card: hsl(0 0% 100%);
+      --card-foreground: hsl(222 47% 11%);
+      --primary: hsl(221 83% 53%);
+      --primary-foreground: hsl(0 0% 100%);
+      --secondary: hsl(210 40% 96%);
+      --secondary-foreground: hsl(222 47% 11%);
+      --muted: hsl(210 40% 96%);
+      --muted-foreground: hsl(215 16% 47%);
+      --accent: hsl(142 76% 36%);
+      --accent-foreground: hsl(0 0% 100%);
+      --destructive: hsl(0 84% 60%);
+      --destructive-foreground: hsl(0 0% 100%);
+      --border: hsl(214 32% 91%);
+      --success: hsl(142 76% 36%);
+      --warning: hsl(38 92% 50%);
+      --info: hsl(217 91% 60%);
+      --radius: 0.5rem;
+    }
+    
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background-color: hsl(var(--background));
+      color: hsl(var(--foreground));
+      line-height: 1.6;
+      padding: 2rem 1rem;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .header {
+      margin-bottom: 2rem;
+    }
+    
+    h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      color: hsl(var(--foreground));
+    }
+    
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid hsl(var(--border));
+      color: hsl(var(--foreground));
+    }
+    
+    h3 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: hsl(var(--foreground));
+    }
+    
+    .subtitle {
+      color: hsl(var(--muted-foreground));
+      font-size: 0.875rem;
+    }
+    
+    .card {
+      background: hsl(var(--card));
+      border: 1px solid hsl(var(--border));
+      border-radius: var(--radius);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+    }
+    
+    .card-header {
+      margin-bottom: 1rem;
+    }
+    
+    .card-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+    
+    .card-description {
+      color: hsl(var(--muted-foreground));
+      font-size: 0.875rem;
+    }
+    
+    .card-content {
+      color: hsl(var(--card-foreground));
+    }
+    
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      white-space: nowrap;
+      margin: 0.25rem;
+    }
+    
+    .badge-default {
+      background: hsl(var(--primary));
+      color: hsl(var(--primary-foreground));
+    }
+    
+    .badge-secondary {
+      background: hsl(var(--secondary));
+      color: hsl(var(--secondary-foreground));
+    }
+    
+    .badge-success {
+      background: hsl(var(--success) / 0.1);
+      color: hsl(var(--success));
+    }
+    
+    .badge-destructive {
+      background: hsl(var(--destructive) / 0.1);
+      color: hsl(var(--destructive));
+    }
+    
+    .badge-warning {
+      background: hsl(var(--warning) / 0.1);
+      color: hsl(var(--warning));
+    }
+    
+    .badge-outline {
+      background: transparent;
+      border: 1px solid hsl(var(--border));
+      color: hsl(var(--foreground));
+    }
+    
+    .alert {
+      padding: 1rem;
+      border-radius: var(--radius);
+      margin-bottom: 1rem;
+      border: 1px solid hsl(var(--border));
+    }
+    
+    .alert-info {
+      background: hsl(var(--info) / 0.1);
+      border-color: hsl(var(--info) / 0.3);
+      color: hsl(var(--info));
+    }
+    
+    .alert-warning {
+      background: hsl(var(--warning) / 0.1);
+      border-color: hsl(var(--warning) / 0.3);
+      color: hsl(var(--warning));
+    }
+    
+    .alert-destructive {
+      background: hsl(var(--destructive) / 0.1);
+      border-color: hsl(var(--destructive) / 0.3);
+      color: hsl(var(--destructive));
+    }
+    
+    .alert-success {
+      background: hsl(var(--success) / 0.1);
+      border-color: hsl(var(--success) / 0.3);
+      color: hsl(var(--success));
+    }
+    
+    .grid {
+      display: grid;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    
+    .grid-cols-2 {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .grid-cols-3 {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+    }
+    
+    th {
+      background: hsl(var(--muted));
+      padding: 0.75rem 1rem;
+      text-align: left;
+      font-weight: 600;
+      border: 1px solid hsl(var(--border));
+      font-size: 0.875rem;
+    }
+    
+    td {
+      padding: 0.75rem 1rem;
+      border: 1px solid hsl(var(--border));
+      font-size: 0.875rem;
+    }
+    
+    ul, ol {
+      margin: 0.5rem 0 0.5rem 1.5rem;
+    }
+    
+    li {
+      margin: 0.25rem 0;
+      font-size: 0.875rem;
+    }
+    
+    .text-lg {
+      font-size: 1.125rem;
+    }
+    
+    .text-xl {
+      font-size: 1.25rem;
+    }
+    
+    .text-2xl {
+      font-size: 1.5rem;
+    }
+    
+    .text-3xl {
+      font-size: 1.875rem;
+    }
+    
+    .font-bold {
+      font-weight: 700;
+    }
+    
+    .font-semibold {
+      font-weight: 600;
+    }
+    
+    .text-muted {
+      color: hsl(var(--muted-foreground));
+    }
+    
+    .mb-1 { margin-bottom: 0.25rem; }
+    .mb-2 { margin-bottom: 0.5rem; }
+    .mb-3 { margin-bottom: 0.75rem; }
+    .mb-4 { margin-bottom: 1rem; }
+    .mb-6 { margin-bottom: 1.5rem; }
+    
+    .mt-2 { margin-top: 0.5rem; }
+    .mt-4 { margin-top: 1rem; }
+    
+    .p-4 { padding: 1rem; }
+    
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+    
+    .confidence-display {
+      text-align: right;
+    }
+    
+    .confidence-number {
+      font-size: 2rem;
+      font-weight: 700;
+      color: hsl(var(--primary));
+    }
+    
+    .key-value {
+      display: flex;
+      margin-bottom: 0.5rem;
+    }
+    
+    .key-value-label {
+      font-weight: 600;
+      min-width: 150px;
+      color: hsl(var(--foreground));
+    }
+    
+    .key-value-value {
+      color: hsl(var(--muted-foreground));
+    }
+    
+    /* Gantt Chart Styles */
+    .gantt-chart {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      background: hsl(var(--muted) / 0.3);
+      border-radius: var(--radius);
+    }
+    
+    .gantt-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+    
+    .gantt-label {
+      width: 180px;
+      flex-shrink: 0;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: hsl(var(--foreground));
+      padding-right: 1rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .gantt-bar-track {
+      flex: 1;
+      height: 28px;
+      background: hsl(var(--border));
+      border-radius: 4px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .gantt-bar {
+      position: absolute;
+      top: 4px;
+      height: 20px;
+      border-radius: 3px;
+      background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary) / 0.8) 100%);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      transition: all 0.2s ease;
+    }
+    
+    .gantt-bar.critical {
+      background: linear-gradient(135deg, hsl(var(--destructive)) 0%, hsl(var(--destructive) / 0.8) 100%);
+    }
+    
+    .gantt-bar-label {
+      position: absolute;
+      left: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.75rem;
+      color: white;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    
+    .gantt-axis {
+      display: flex;
+      margin-top: 0.5rem;
+      padding-left: 180px;
+    }
+    
+    .gantt-axis-tick {
+      flex: 1;
+      text-align: center;
+      font-size: 0.75rem;
+      color: hsl(var(--muted-foreground));
+      border-left: 1px solid hsl(var(--border));
+      padding-top: 0.25rem;
+    }
+    
+    .gantt-axis-tick:last-child {
+      border-right: 1px solid hsl(var(--border));
+    }
+
+    @media print {
+      body {
+        background: white;
+        padding: 0;
+      }
+      
+      .card {
+        box-shadow: none;
+        page-break-inside: avoid;
+      }
+      
+      h2 {
+        page-break-after: avoid;
+      }
+      
+      .gantt-chart {
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    
+    <div class="header">
+      <h1>Strategic Analysis Report</h1>
+      <p class="subtitle">Generated: Jan 27, 2026, 6:10:42 AM</p>
+      <p class="subtitle">Session ID: 890c3ced-6aec-4b98-a392-a368f89ec3c5</p>
+      <p class="subtitle">Version: 1</p>
+    </div>
+  
+
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Strategic Journey</h2>
+        </div>
+        <div class="card-content">
+          <div class="key-value">
+            <div class="key-value-label">Journey Type:</div>
+            <div class="key-value-value">custom</div>
+          </div>
+          <div class="key-value">
+            <div class="key-value-label">Status:</div>
+            <div class="key-value-value"><span class="badge badge-default">paused</span></div>
+          </div>
+          
+          <div class="mt-4">
+            <h3>Completed Frameworks</h3>
+            <ul>
+              <li>swot</li>
+            </ul>
+          </div>
+          
+        </div>
+      </div>
+    
+
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Strategic Decisions</h2>
+          <p class="card-description">Version: Strategic Decisions v1</p>
+        </div>
+        <div class="card-content">
+          
+          
+        </div>
+      </div>
+    
+
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Enterprise Program Management (EPM) Program</h2>
+        </div>
+        <div class="card-content">
+          <div class="key-value">
+            <div class="key-value-label">Framework:</div>
+            <div class="key-value-value">swot</div>
+          </div>
+          <div class="key-value">
+            <div class="key-value-label">Status:</div>
+            <div class="key-value-value"><span class="badge badge-default">draft</span></div>
+          </div>
+          
+          <div class="key-value">
+            <div class="key-value-label">Overall Confidence:</div>
+            <div class="key-value-value"><span class="badge badge-success">75%</span></div>
+          </div>
+          
+        </div>
+      </div>
+    
+
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">1. Executive Summary</h2>
+          </div>
+          <div class="card-content">
+            <h3 class="mb-2">Premium Hardware-Powered Esports Tournament Hub with Hybrid Revenue Model</h3>
+            
+            
+          </div>
+        </div>
+      
+
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">2. Workstreams</h2>
+          </div>
+          <div class="card-content">
+            
+              <div class="mb-4">
+                <h3>1. Facility Optimization &amp; Safety Compliance</h3>
+                <p>Renovate existing facilities to enhance operational efficiency, ensure compliance with safety regulations, and improve employee comfort and productivity.</p>
+                
+                <p><strong>Duration:</strong> Month 0 to Month 0</p>
+              </div>
+            
+              <div class="mb-4">
+                <h3>2. IT Infrastructure Setup</h3>
+                <p>Establish and configure IT infrastructure to support business operations, including setting up network systems, securing data storage, and ensuring all software applications are operational.</p>
+                
+                <p><strong>Duration:</strong> Month 1 to Month 1</p>
+              </div>
+            
+              <div class="mb-4">
+                <h3>3. Operational Efficiency Enhancement</h3>
+                <p>Improve operational processes to increase efficiency, reduce costs, and enhance service delivery for sustainable growth within the SMB context.</p>
+                
+                <p><strong>Duration:</strong> Month 1 to Month 1</p>
+              </div>
+            
+              <div class="mb-4">
+                <h3>4. Talent Acquisition &amp; Onboarding Process Enhancement</h3>
+                <p>Revamp and enhance the talent acquisition and onboarding processes to attract, hire, and integrate top talent efficiently. This includes developing new recruitment strategies, enhancing the candidate experience, and ensuring a smooth transition for new hires.</p>
+                
+                <p><strong>Duration:</strong> Month 0 to Month 0</p>
+              </div>
+            
+              <div class="mb-4">
+                <h3>5. Strategic Marketing Campaign Development</h3>
+                <p>Develop and implement a comprehensive marketing campaign that aligns with the business goals, enhances brand awareness, and drives sales within the SMB market.</p>
+                
+                <p><strong>Duration:</strong> Month 2 to Month 2</p>
+              </div>
+            
+              <div class="mb-4">
+                <h3>6. Regulatory Compliance and Risk Mitigation</h3>
+                <p>Ensure the business is in full compliance with applicable laws and regulations, identify potential legal risks, and implement measures to mitigate those risks.</p>
+                
+                <p><strong>Duration:</strong> Month 0 to Month 0</p>
+              </div>
+            
+          </div>
+        </div>
+      
+
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">3. Timeline & Critical Path</h2>
+          </div>
+          <div class="card-content">
+            
+            
+            <div class="mb-4">
+              <strong>Program Phases:</strong>
+              <ul>
+                <li><strong>Planning &amp; Foundation:</strong> Month 0 to Month 3</li><li><strong>Development &amp; Execution:</strong> Month 4 to Month 6</li><li><strong>Integration &amp; Testing:</strong> Month 7 to Month 9</li><li><strong>Deployment &amp; Stabilization:</strong> Month 10 to Month 12</li>
+              </ul>
+            </div>
+            
+            
+            <div class="mb-4">
+              <strong>Critical Path:</strong>
+              <ul>
+                <li>WS001</li>
+              </ul>
+            </div>
+            
+            
+          <div class="gantt-chart">
+            
+            <div class="gantt-row">
+              <div class="gantt-label" title="Facility Optimization &amp; Safety Compliance">Facility Optimization &amp; Safety Compliance</div>
+              <div class="gantt-bar-track">
+                <div class="gantt-bar" style="left: 0%; width: 0%;">
+                  <span class="gantt-bar-label">M0-M0</span>
+                </div>
+              </div>
+            </div>
+          
+            <div class="gantt-row">
+              <div class="gantt-label" title="IT Infrastructure Setup">IT Infrastructure Setup</div>
+              <div class="gantt-bar-track">
+                <div class="gantt-bar" style="left: 8.333333333333332%; width: 0%;">
+                  <span class="gantt-bar-label">M1-M1</span>
+                </div>
+              </div>
+            </div>
+          
+            <div class="gantt-row">
+              <div class="gantt-label" title="Operational Efficiency Enhancement">Operational Efficiency Enhancement</div>
+              <div class="gantt-bar-track">
+                <div class="gantt-bar" style="left: 8.333333333333332%; width: 0%;">
+                  <span class="gantt-bar-label">M1-M1</span>
+                </div>
+              </div>
+            </div>
+          
+            <div class="gantt-row">
+              <div class="gantt-label" title="Talent Acquisition &amp; Onboarding Process Enhancement">Talent Acquisition &amp; Onboarding Process Enhancement</div>
+              <div class="gantt-bar-track">
+                <div class="gantt-bar" style="left: 0%; width: 0%;">
+                  <span class="gantt-bar-label">M0-M0</span>
+                </div>
+              </div>
+            </div>
+          
+            <div class="gantt-row">
+              <div class="gantt-label" title="Strategic Marketing Campaign Development">Strategic Marketing Campaign Development</div>
+              <div class="gantt-bar-track">
+                <div class="gantt-bar" style="left: 16.666666666666664%; width: 0%;">
+                  <span class="gantt-bar-label">M2-M2</span>
+                </div>
+              </div>
+            </div>
+          
+            <div class="gantt-row">
+              <div class="gantt-label" title="Regulatory Compliance and Risk Mitigation">Regulatory Compliance and Risk Mitigation</div>
+              <div class="gantt-bar-track">
+                <div class="gantt-bar" style="left: 0%; width: 0%;">
+                  <span class="gantt-bar-label">M0-M0</span>
+                </div>
+              </div>
+            </div>
+          
+            <div class="gantt-axis">
+              <div class="gantt-axis-tick">M0</div><div class="gantt-axis-tick">M1</div><div class="gantt-axis-tick">M2</div><div class="gantt-axis-tick">M3</div><div class="gantt-axis-tick">M4</div><div class="gantt-axis-tick">M5</div><div class="gantt-axis-tick">M6</div><div class="gantt-axis-tick">M7</div><div class="gantt-axis-tick">M8</div><div class="gantt-axis-tick">M9</div><div class="gantt-axis-tick">M10</div><div class="gantt-axis-tick">M11</div><div class="gantt-axis-tick">M12</div>
+            </div>
+          </div>
+        
+          </div>
+        </div>
+      
+
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">7. Risk Register</h2>
+            </div>
+            <div class="card-content">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>Risk</th>
+                    <th>Probability</th>
+                    <th>Impact</th>
+                    <th>Mitigation</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  
+                    <tr>
+                      <td>Internal weakness: High Initial Capital Investment</td>
+                      <td>15</td>
+                      <td>High</td>
+                      <td>Monitor and implement controls to reduce high impact</td>
+                    </tr>
+                  
+                    <tr>
+                      <td>Internal weakness: Premium Mall Rental Costs</td>
+                      <td>15</td>
+                      <td>Low</td>
+                      <td>Monitor and implement controls to reduce low impact</td>
+                    </tr>
+                  
+                    <tr>
+                      <td>Internal weakness: Dependency on Tourism Fluctuations</td>
+                      <td>15</td>
+                      <td>Low</td>
+                      <td>Monitor and implement controls to reduce low impact</td>
+                    </tr>
+                  
+                    <tr>
+                      <td>Internal weakness: Complex Staff Management Requirements</td>
+                      <td>15</td>
+                      <td>Low</td>
+                      <td>Monitor and implement controls to reduce low impact</td>
+                    </tr>
+                  
+                    <tr>
+                      <td>Internal weakness: Rapid Technology Obsolescence</td>
+                      <td>15</td>
+                      <td>Low</td>
+                      <td>Monitor and implement controls to reduce low impact</td>
+                    </tr>
+                  
+                    <tr>
+                      <td>External threat: Economic Recession Impact</td>
+                      <td>15</td>
+                      <td>Low</td>
+                      <td>Monitor and implement controls to reduce low impact</td>
+                    </tr>
+                  
+                    <tr>
+                      <td>External threat: Increasing Market Competition</td>
+                      <td>15</td>
+                      <td>Low</td>
+                      <td>Monitor and implement controls to reduce low impact</td>
+                    </tr>
+                  
+                    <tr>
+                      <td>External threat: Regulatory Changes and Licensing</td>
+                      <td>15</td>
+                      <td>Low</td>
+                      <td>Monitor and implement controls to reduce low impact</td>
+                    </tr>
+                  
+                    <tr>
+                      <td>External threat: Rising Real Estate and Operational Costs</td>
+                      <td>15</td>
+                      <td>Low</td>
+                      <td>Monitor and implement controls to reduce low impact</td>
+                    </tr>
+                  
+                    <tr>
+                      <td>External threat: Shift to Cloud Gaming and Home Setups</td>
+                      <td>15</td>
+                      <td>Low</td>
+                      <td>Monitor and implement controls to reduce low impact</td>
+                    </tr>
+                  
+                </tbody>
+              </table>
+            </div>
+          </div>
+        
+
+    <div class="card" style="background: hsl(var(--muted)); border: none;">
+      <div class="card-content" style="text-align: center;">
+        <p class="text-muted"><em>Report generated by Premisia Intelligent Strategic EPM</em></p>
+        <p class="text-muted"><em>Export Date: Tuesday, January 27th, 2026 at 6:10:42 AM</em></p>
+      </div>
+    </div>
+  
+  </div>
+</body>
+</html>

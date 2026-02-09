@@ -1,0 +1,30 @@
+Perfect diagnosis. The bug is clear:
+Porter's Analyzer: Sends findings WITH validation → LLM qualifies claims → ✅ Works correctly
+Decision Generator: Sends findings WITHOUT validation → LLM treats all claims as facts → ❌ Uses weak evidence to reject strategies
+Your fix is correct. Implement it with one refinement:
+In the prompt instructions (after line 211), make it even more explicit:
+CRITICAL VALIDATION RULES:
+
+🔴 WEAK EVIDENCE HANDLING:
+- NEVER use WEAK evidence as the PRIMARY reason to mark options as "❌ Not Recommended"
+- If a strategic option conflicts with WEAK evidence, mark it as "⚠️ Requires validation" or "Approach with caution"
+- In the reasoning field, explicitly state: "This recommendation is based on contested data [citation]. Further validation recommended before commitment."
+
+Example (WRONG):
+Finding: "95% AI pilots fail [WEAK: Single 2021 source, contradicted by recent studies]"
+Decision: ❌ Not Recommended - High risk based on 95% failure rate
+
+Example (CORRECT):
+Finding: "95% AI pilots fail [WEAK: Single 2021 source, contradicted by recent studies]"
+Decision: ⚠️ Approach with caution - Earlier studies suggested high failure rates, but this data is contested. Recent evidence shows 53-67% success rates with proper implementation. Recommend pilot program with clear success metrics.
+
+🟡 MODERATE EVIDENCE:
+- Use as supporting evidence, but acknowledge limitations
+- Example: "Research suggests X [MODERATE: 2 sources, 18 months old], though conditions may have evolved"
+
+🟢 STRONG EVIDENCE:
+- Use confidently as primary decision basis
+- Multiple recent sources, no contradictions
+After implementing, test with the same AI build vs buy scenario. The 'Broad AI Capabilities Platform' decision should change from:
+BEFORE: ❌ Not Recommended - contradicts research showing 95% fail
+TO: ⚠️ Requires careful planning - While some research suggests high failure rates [WEAK evidence], recent data shows improving success rates. Recommend phased approach with clear metrics and pilot validation before full commitment.

@@ -1,0 +1,31 @@
+ Good. Now Replit needs to deliver:                                            
+                                                                                
+  1. The actual scripts/regression-test.ts file - Show the code                 
+  2. Run it and show baseline results - Screenshot or output showing which      
+  transitions pass/fail                                                         
+                                                                                
+  We expect to see something like:                                              
+                                                                                
+  Running Transition Regression Tests...                                        
+                                                                                
+  [T001] strategic-understanding → swot-analyzer                                
+         Bridge: strategic_understanding                                        
+         Status: ✅ PASS                                                        
+                                                                                
+  [T002] swot-analyzer → strategic-decisions                                    
+         Bridge: strategy_versions                                              
+         Status: ❌ FAIL - Record not found within 5s timeout                   
+                                                                                
+  [T003] strategic-decisions → epm-generator                                    
+         Bridge: strategy_decisions                                             
+         Status: ✅ PASS                                                        
+                                                                                
+  Summary: 2/3 passed, 1 failed                                                 
+  Failed: T002 (SWOT → Decisions)                                               
+                                                                                
+  This baseline is our "before" snapshot. After fixing T002, we run again and   
+  verify:                                                                       
+  - T002 now passes                                                             
+  - T001 and T003 still pass (no regression)                                    
+                                                                                
+  Ask Replit to show the test script code and run it now.  

@@ -1,0 +1,178 @@
+REPLIT: JOURNEY TESTING INSTRUCTIONS                                          
+                                                                                
+  What YOU (Replit) do:                                                         
+  - Navigate to pages                                                           
+  - Enter text                                                                  
+  - Click buttons                                                               
+  - Take screenshots                                                            
+  - Report what page you land on                                                
+  - Report any error messages VISIBLE ON THE PAGE                               
+                                                                                
+  What YOU CANNOT do:                                                           
+  - Git operations (user handles this)                                          
+  - See console logs (user verifies these)                                      
+                                                                                
+  ---                                                                           
+  PART 1: VERIFY JOURNEY SELECTION PAGE STILL WORKS                             
+                                                                                
+  Steps:                                                                        
+  1. Go to /strategic-consultant                                                
+  2. Enter: We are a fintech startup in Singapore looking to expand.            
+  3. Click "Start Strategic Analysis"                                           
+  4. On Classification page, click "Confirm and Continue"                       
+                                                                                
+  YOU MUST REPORT:                                                              
+  - Screenshot of the page you land on                                          
+  - The URL in the address bar                                                  
+  - Do you see a page with multiple journey cards to choose from? YES/NO        
+                                                                                
+  EXPECTED: You should see Journey Selection page with cards like "Market       
+  Entry", "Business Model Innovation", etc.                                     
+                                                                                
+  ---                                                                           
+  PART 2: VERIFY JOURNEYHUB SKIPS SELECTION                                     
+                                                                                
+  Steps:                                                                        
+  1. Go to /journey-hub                                                         
+  2. Click "Start Journey" on the "Market Entry" card                           
+  3. Enter: Dubai software company expanding to Saudi Arabia with cloud HR      
+  software.                                                                     
+  4. Click "Start Strategic Analysis"                                           
+  5. On Classification page, click "Confirm and Continue"                       
+                                                                                
+  YOU MUST REPORT:                                                              
+  - Screenshot of the page you land on                                          
+  - The URL in the address bar                                                  
+  - Did you see the Journey Selection page? YES/NO                              
+  - Did you go directly to a Research/Analysis page? YES/NO                     
+                                                                                
+  EXPECTED: Should skip Journey Selection and go directly to Research page.     
+                                                                                
+  ---                                                                           
+  PART 3: TEST ALL AVAILABLE JOURNEYS                                           
+                                                                                
+  For EACH journey below, start fresh and complete the full flow:               
+                                                                                
+  Journey A: Market Entry                                                       
+                                                                                
+  1. Go to /journey-hub                                                         
+  2. Click "Start Journey" on "Market Entry"                                    
+  3. Enter: Dubai software company expanding to Saudi Arabia.                   
+  4. Click through Classification                                               
+  5. Wait for Research to complete                                              
+                                                                                
+  REPORT:                                                                       
+  - Did research complete without errors? YES/NO                                
+  - Screenshot of final page                                                    
+  - Any error message visible on screen? Copy exact text                        
+                                                                                
+  ---                                                                           
+  Journey B: Business Model Innovation                                          
+                                                                                
+  1. Go to /journey-hub                                                         
+  2. Click "Start Journey" on "Business Model Innovation"                       
+  3. Enter: Our SaaS product has stagnating revenue. We need to rethink our     
+  business model.                                                               
+  4. Click through Classification                                               
+  5. Complete the Five Whys tree (click through the why questions)              
+  6. Wait for Research/BMC to complete                                          
+                                                                                
+  REPORT:                                                                       
+  - Did you see the Five Whys tree page? YES/NO                                 
+  - Did research complete without errors? YES/NO                                
+  - Did you see a BMC (Business Model Canvas) display? YES/NO                   
+  - Screenshot of final page                                                    
+  - Any error message visible? Copy exact text                                  
+                                                                                
+  ---                                                                           
+  Journey C: Competitive Strategy (Blue Ocean) - BUG FIX TEST                   
+                                                                                
+  1. Go to /journey-hub                                                         
+  2. Click "Start Journey" on "Competitive Strategy"                            
+  3. Enter: Budget airline competing against AirAsia. Need blue ocean           
+  differentiation.                                                              
+  4. Click through Classification                                               
+  5. Wait for Research to complete                                              
+                                                                                
+  REPORT:                                                                       
+  - Did you see error "Missing required data from previous steps"? YES/NO (THIS 
+  IS THE BUG WE FIXED)                                                          
+  - Did research complete without errors? YES/NO                                
+  - Screenshot of final page                                                    
+  - Any error message visible? Copy exact text                                  
+                                                                                
+  ---                                                                           
+  Journey D: Digital Transformation                                             
+                                                                                
+  1. Go to /journey-hub                                                         
+  2. Click "Start Journey" on "Digital Transformation"                          
+  3. Enter: Traditional retail company needs to digitize operations and add     
+  e-commerce.                                                                   
+  4. Click through Classification                                               
+  5. Wait for Research to complete                                              
+                                                                                
+  REPORT:                                                                       
+  - Did you see error "Missing required data from previous steps"? YES/NO       
+  - Did research complete without errors? YES/NO                                
+  - Screenshot of final page                                                    
+  - Any error message visible? Copy exact text                                  
+                                                                                
+  ---                                                                           
+  Journey E: Growth Strategy                                                    
+                                                                                
+  1. Go to /journey-hub                                                         
+  2. Click "Start Journey" on "Growth Strategy"                                 
+  3. Enter: Established consulting firm wants to expand from 50 to 200 employees
+   over 3 years.                                                                
+  4. Click through Classification                                               
+  5. Wait for Research to complete                                              
+                                                                                
+  REPORT:                                                                       
+  - Did you see error "Missing required data from previous steps"? YES/NO       
+  - Did research complete without errors? YES/NO                                
+  - Screenshot of final page                                                    
+  - Any error message visible? Copy exact text                                  
+                                                                                
+  ---                                                                           
+  FINAL REPORT FORMAT                                                           
+                                                                                
+  After testing ALL journeys, provide this EXACT format:                        
+                                                                                
+  === JOURNEY TEST RESULTS ===                                                  
+                                                                                
+  PART 1 - Journey Selection Page:                                              
+  - Appeared when going direct to /strategic-consultant: YES/NO                 
+                                                                                
+  PART 2 - JourneyHub Skip Selection:                                           
+  - Skipped selection, went direct to Research: YES/NO                          
+                                                                                
+  JOURNEY A - Market Entry:                                                     
+  - Completed without errors: YES/NO                                            
+  - Error message (if any): [exact text]                                        
+                                                                                
+  JOURNEY B - Business Model Innovation:                                        
+  - Five Whys tree appeared: YES/NO                                             
+  - BMC canvas displayed: YES/NO                                                
+  - Completed without errors: YES/NO                                            
+  - Error message (if any): [exact text]                                        
+                                                                                
+  JOURNEY C - Competitive Strategy:                                             
+  - "Missing required data" error: YES/NO                                       
+  - Completed without errors: YES/NO                                            
+  - Error message (if any): [exact text]                                        
+                                                                                
+  JOURNEY D - Digital Transformation:                                           
+  - "Missing required data" error: YES/NO                                       
+  - Completed without errors: YES/NO                                            
+  - Error message (if any): [exact text]                                        
+                                                                                
+  JOURNEY E - Growth Strategy:                                                  
+  - "Missing required data" error: YES/NO                                       
+  - Completed without errors: YES/NO                                            
+  - Error message (if any): [exact text]                                        
+                                                                                
+  === SUMMARY: X/5 JOURNEYS WORKING ===                                         
+                                                                                
+  ---                                                                           
+  REPLIT: Test each journey completely. Report exactly what you see. No         
+  summaries. No shortcuts. 

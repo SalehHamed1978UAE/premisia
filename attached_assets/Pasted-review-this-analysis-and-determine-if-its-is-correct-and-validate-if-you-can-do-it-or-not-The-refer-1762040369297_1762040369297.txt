@@ -1,0 +1,67 @@
+review this analysis and determine if its is correct and validate if you can do it or not: The references never make it into the Research tab because they’re being
+  stored without the real owner. In /api/strategic-consultant/bmc-research/
+  stream/:sessionId we fall back to userId = 'system' whenever req.user isn’t
+  populated during the SSE handshake:
+
+  const userId = (req.user as any)?.claims?.sub || 'system';
+  referenceService.normalizeReference(ref, userId, …)
+
+  But the Strategy Hub endpoint (/api/strategies/:id/references) filters
+  on references.userId === currentUser, so anything saved with "system" is
+  invisible. Either the insert never happens (because userId is required) or, if
+  it does, the tab can’t see it.
+
+  What to fix
+
+  1. In the SSE handler, derive the owner from the understanding:
+
+     const understanding = await getStrategicUnderstandingBySession(sessionId);
+     const userId =
+       understanding?.userId ||
+       (req.user as any)?.claims?.sub ||
+       (() => { throw new Error('Missing userId for research persistence'); })
+  ();
+  2. Pass that userId into normalizeReference / persistReferences. Add logging
+     of {userId, createdCount} right after the call so we can verify.
+  3. Backfill the existing rows: UPDATE references SET user_id = <owner> WHERE
+     user_id = 'system' AND understanding_id = ….
+  4. Re-run a BMI journey. After the SSE finishes, the log should read
+     “Persisted N references for user <id>”. Then hit /api/strategies/:id/
+     references (or just open the Strategy Hub) and the Research tab will
+     populate.
+
+  Once the references carry the correct user, the Research tab will display them
+  as expected.
+
+  so is replit wrong?
+
+
+• Yes. The code change they made still writes the references with user_id =
+  'system', so the Strategy Hub—which filters by the signed-in user—never sees
+  them. We need to take Replit’s fix further before the tab will populate.
+
+  How it’s happening
+
+  server/routes/strategic-consultant.ts:1485-1521
+    const userId = (req.user as any)?.claims?.sub || 'system';
+    … referenceService.normalizeReference(ref, userId, …)
+
+  During the SSE stage req.user is often missing, so every reference gets stored
+  against "system" rather than the real owner. Later, /api/strategies/:id/
+  references returns only the rows where references.userId === currentUser, so
+  those "system" rows are invisible.
+
+  What needs to happen
+
+  const understanding = await getStrategicUnderstandingBySession(sessionId);
+  const userId =
+    understanding?.userId ??
+    (req.user as any)?.claims?.sub ??
+    (() => { throw new Error('Cannot persist research references without a
+  user'); })();
+
+  Use that userId to normalize/persist the references, and backfill existing
+  rows (UPDATE references SET user_id = <owner> WHERE user_id = 'system' AND
+  understanding_id = …). Once that’s done, the Research tab will populate
+  correctly.
+

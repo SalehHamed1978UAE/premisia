@@ -1,0 +1,44 @@
+ Let me verify the current state of the file - there may have been changes.    
+                                                                                
+⏺ Read 1 file (ctrl+o to expand)                                                
+                                                                                
+⏺ Confirmed from the actual code:                                               
+                                                                                
+  - Line 53: market_entry → available: false ✓ Already correct                  
+  - Line 74: competitive_strategy → available: false ✓                          
+  - Line 99: digital_transformation → available: false ✓                        
+  - Line 124: crisis_recovery → available: false ✓                              
+  - Line 149: growth_strategy → available: false ✓                              
+  - Line 27: business_model_innovation → available: true ✓ (only one            
+  implemented)                                                                  
+                                                                                
+  The registry is correct. Replit is looking at the wrong line - line 64 is     
+  actually a comment for Competitive Strategy, not Market Entry.                
+                                                                                
+  Tell Replit:                                                                  
+                                                                                
+  ---                                                                           
+  The registry is already correct - I just verified:                            
+  - market_entry at line 53 has available: false                                
+  - Only business_model_innovation has available: true                          
+                                                                                
+  The problem is enforcement, not the registry values. Replit's task list is    
+  still valid:                                                                  
+                                                                                
+  1. ✅ Registry is already correct - no change needed                          
+  2. Add startup validation - verify executors exist for available: true        
+  journeys                                                                      
+  3. Fix frontend filtering - use getAvailableJourneys() not getAllJourneys()   
+  4. Fix ResearchPage - check isJourneyAvailable() before proceeding            
+                                                                                
+  The user is somehow getting to Market Entry despite available: false. Find    
+  where the frontend lets users select unavailable journeys and fix that guard. 
+                                                                                
+  ---                                                                           
+                                                                                
+  5 tasks (1 done, 4 open) · ctrl+t to hide tasks                               
+  ◻ Audit Journey Builder orchestrator contract enforcement                     
+  ◻ Audit Journey Builder template validation                                   
+  ◻ Create module contract specifications                                       
+  ◻ Implement startup validation for Journey Builder                            
+  ✔ Audit Journey Builder module registry and contracts     

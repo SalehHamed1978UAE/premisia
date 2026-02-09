@@ -1,0 +1,41 @@
+That's a solid test structure. The SSE reader approach is correct - buffering 
+  chunks and parsing for the completion payload.                                
+                                                                                
+  One small refinement for the SSE parser:                                      
+                                                                                
+  async function readSSEUntilComplete(response: Response): Promise<{sessionId:  
+  string, strategyVersionId: string}> {                                         
+    const reader = response.body?.getReader();                                  
+    const decoder = new TextDecoder();                                          
+    let buffer = '';                                                            
+                                                                                
+    while (true) {                                                              
+      const { done, value } = await reader!.read();                             
+      if (done) throw new Error('Stream ended without completion event');       
+                                                                                
+      buffer += decoder.decode(value, { stream: true });                        
+                                                                                
+      // SSE format: "event: <type>\ndata: <json>\n\n"                          
+      const events = buffer.split('\n\n');                                      
+      buffer = events.pop() || ''; // Keep incomplete event in buffer           
+                                                                                
+      for (const event of events) {                                             
+        const dataMatch = event.match(/data:\s*(.+)/);                          
+        if (dataMatch) {                                                        
+          try {                                                                 
+            const data = JSON.parse(dataMatch[1]);                              
+            if (data.strategyVersionId && data.sessionId) {                     
+              return { sessionId: data.sessionId, strategyVersionId:            
+  data.strategyVersionId };                                                     
+            }                                                                   
+          } catch { /* Not JSON or incomplete */ }                              
+        }                                                                       
+      }                                                                         
+    }                                                                           
+  }                                                                             
+                                                                                
+  This handles the SSE format properly by splitting on double newlines and      
+  parsing the data: lines.                                                      
+                                                                                
+  Let me know when the tests pass - then we can mark Phase 6 as fully complete  
+  and proceed to Phase 7.  

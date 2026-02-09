@@ -1,0 +1,57 @@
+Yep—Replit’s diagnosis is right: we have two different “session” IDs and we’re
+  mixing them up.
+
+  - sessionId (format session-…) comes from the strategic‑understanding flow and
+    is what the analysis, versions, and research endpoints use.
+  - journeySessionId is the UUID returned by /api/strategic-consultant/journeys/
+    execute; this is the primary key in the journey_sessions table.
+
+  Any route that hits getJourneySession (e.g. /api/strategic-consultant/
+  journeys/:id/results) expects that UUID. Because the frontend never stores or
+  forwards journeySessionId, it ends up calling those routes with the session-…
+  string, and the lookup fails.
+
+  Fix for Replit
+
+  1. Store the journey session ID when the journey starts.
+     In client/src/pages/strategic-consultant/JourneySelectionPage.tsx, after
+     parsing the execute response, capture the journeySessionId and append it to
+     the navigation URL:
+
+     const result = await response.json();
+
+     localStorage.setItem(
+       `journey-session-${result.sessionId}`,
+       result.journeySessionId
+     );
+
+     const destination = new URL(result.navigationUrl, window.location.origin);
+     destination.searchParams.set("journeySession", result.journeySessionId);
+     setLocation(destination.pathname + destination.search);
+     (Keep the existing journey-type-${result.sessionId} entry too.)
+     (Keep the existing journey-type-${result.sessionId} entry too.)
+  2. Read the stored value wherever we need it.
+     In pages that expect a journeySession query parameter (e.g. InputPage.tsx)
+     add a fallback to the stored mapping:
+
+     const urlParams = new URLSearchParams(window.location.search);
+     const journeySessionId =
+       urlParams.get("journeySession") ??
+       (sessionId ? localStorage.getItem(`journey-session-${sessionId}`) :
+  null);
+
+     Use that journeySessionId for any API calls that hit journeySessions.
+  3. When fetching journey results or progress, make sure we send the UUID:
+
+     const journeySessionId =
+       params?.sessionId ??
+       localStorage.getItem(`journey-session-${params?.sessionId}`);
+     const res = await fetch(
+       `/api/strategic-consultant/journeys/${journeySessionId}/results`
+     );
+
+  After doing that, the backend will receive the UUID it expects, so /api/
+  strategic-consultant/journeys/:id/results, progress polling, and similar calls
+  will stop failing. If you want to keep existing URLs clean, keep the query
+  parameter and the localStorage mapping in sync so every page can recover the
+  UUID even on reload.

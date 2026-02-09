@@ -1,0 +1,549 @@
+AMBIGUITY DETECTION & CLARIFYING QUESTIONS
+
+  ---
+  🎯 WHAT WE'RE BUILDING
+
+  Problem: Users enter ambiguous inputs that lead to wrong assumptions
+  - "AI tutoring school" → Using AI to tutor? Or teaching about AI?
+  - "Digital platform" → Mobile app? Website? SaaS?
+  - "Consulting business" → B2B? B2C? What type of consulting?
+
+  Solution: Detect ambiguities BEFORE building knowledge graph → Ask
+  clarifying questions → Proceed with correct understanding
+
+  ---
+  📝 TELL REPLIT:
+
+  "Add ambiguity detection to Strategic Consultant. When user input is 
+  ambiguous, show clarifying questions BEFORE proceeding.
+
+  ---
+  IMPLEMENTATION GUIDE
+
+  STEP 1: Ambiguity Detection Service
+
+  Create server/services/ambiguity-detector.ts:
+
+  import { aiClients } from '../ai-clients';
+
+  export interface AmbiguityQuestion {
+    id: string;
+    question: string;
+    options: Array<{
+      value: string;
+      label: string;
+      description: string;
+    }>;
+  }
+
+  export interface AmbiguityDetectionResult {
+    hasAmbiguities: boolean;
+    questions: AmbiguityQuestion[];
+    reasoning?: string;
+  }
+
+  /**
+   * Ambiguity Detector Service
+   * 
+   * Detects ambiguous business inputs and generates clarifying questions
+   */
+  export class AmbiguityDetectorService {
+
+    /**
+     * Common ambiguity patterns to watch for
+     */
+    private readonly AMBIGUITY_PATTERNS = {
+      technology_usage_vs_teaching: [
+        'AI tutoring', 'AI coaching', 'AI consulting', 'AI training',
+        'tech education', 'digital training', 'software tutoring'
+      ],
+      b2b_vs_b2c: [
+        'consulting', 'services', 'platform', 'marketplace', 'app'
+      ],
+      physical_vs_digital: [
+        'store', 'shop', 'location', 'platform', 'service'
+      ],
+      product_vs_service: [
+        'offering', 'solution', 'business'
+      ],
+      local_vs_international: [
+        'market', 'customers', 'expansion'
+      ],
+    };
+
+    /**
+     * Detect ambiguities in user input
+     */
+    async detectAmbiguities(userInput: string):
+  Promise<AmbiguityDetectionResult> {
+      console.log('[Ambiguity Detector] Analyzing input for 
+  ambiguities...');
+
+      const prompt = `Analyze this business idea for ambiguities that would 
+  affect strategic planning:
+
+  "${userInput}"
+
+  COMMON AMBIGUITIES TO CHECK:
+
+  1. **Technology Role Ambiguity**
+     - Does "AI tutoring" mean using AI to tutor students, OR teaching 
+  students about AI?
+     - Does "tech consulting" mean advising on technology, OR providing tech
+   services?
+
+  2. **Customer Type Ambiguity**
+     - B2B (selling to businesses) or B2C (selling to consumers)?
+     - Who is the actual customer?
+
+  3. **Delivery Mode Ambiguity**
+     - Physical location (store, office) or digital (app, website, online)?
+     - In-person or remote?
+
+  4. **Business Model Ambiguity**
+     - Product (selling goods) or service (providing services)?
+     - One-time purchase or subscription?
+
+  5. **Market Scope Ambiguity**
+     - Local/regional or national/international?
+     - Geographic boundaries unclear?
+
+  INSTRUCTIONS:
+  - Identify CRITICAL ambiguities that would lead to wrong strategic 
+  decisions
+  - For each ambiguity, generate a clear multiple-choice question
+  - Provide 2-3 specific options (not "other")
+  - Keep questions simple and direct
+
+  Return as JSON:
+  {
+    "hasAmbiguities": true/false,
+    "questions": [
+      {
+        "id": "unique_id",
+        "question": "Clear question?",
+        "options": [
+          {
+            "value": "option_a",
+            "label": "Short label",
+            "description": "What this means"
+          }
+        ]
+      }
+    ],
+    "reasoning": "Why these ambiguities matter"
+  }
+
+  If NO critical ambiguities found, return:
+  {
+    "hasAmbiguities": false,
+    "questions": [],
+    "reasoning": "Input is clear"
+  }`;
+
+      try {
+        const response = await aiClients.callWithFallback({
+          systemPrompt: 'You are a strategic planning expert. Detect 
+  ambiguities that would lead to wrong business assumptions. Return ONLY 
+  valid JSON.',
+          userMessage: prompt,
+          maxTokens: 1500,
+        });
+
+        const result = JSON.parse(response.content);
+
+        console.log('[Ambiguity Detector] ✓ Analysis complete:', {
+          hasAmbiguities: result.hasAmbiguities,
+          questionCount: result.questions?.length || 0,
+        });
+
+        return result;
+      } catch (error) {
+        console.error('[Ambiguity Detector] Error:', error);
+        // On error, assume no ambiguities (fail gracefully)
+        return {
+          hasAmbiguities: false,
+          questions: [],
+          reasoning: 'Error detecting ambiguities - proceeding with input 
+  as-is',
+        };
+      }
+    }
+
+    /**
+     * Incorporate clarifications into original input
+     */
+    buildClarifiedInput(
+      originalInput: string,
+      clarifications: Record<string, string>
+    ): string {
+      const clarificationText = Object.entries(clarifications)
+        .map(([question, answer]) => `- ${answer}`)
+        .join('\n');
+
+      return `${originalInput}
+
+  CLARIFICATIONS:
+  ${clarificationText}`;
+    }
+  }
+
+  export const ambiguityDetector = new AmbiguityDetectorService();
+
+  ---
+  STEP 2: Update Strategic Consultant Backend
+
+  Update server/routes/strategic-consultant.ts (or wherever Strategic 
+  Understanding is created):
+
+  import { ambiguityDetector } from '../services/ambiguity-detector';
+
+  /**
+   * POST /api/strategic-consultant/check-ambiguities
+   * Check user input for ambiguities BEFORE creating strategic 
+  understanding
+   */
+  router.post('/check-ambiguities', async (req, res) => {
+    try {
+      const { userInput } = req.body;
+
+      if (!userInput) {
+        return res.status(400).json({ error: 'userInput is required' });
+      }
+
+      const result = await ambiguityDetector.detectAmbiguities(userInput);
+      res.json(result);
+    } catch (error: any) {
+      console.error('[Strategic Consultant] Error checking ambiguities:',
+  error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  /**
+   * POST /api/strategic-consultant/start (UPDATED)
+   * Create strategic understanding with optional clarifications
+   */
+  router.post('/start', async (req, res) => {
+    try {
+      const { userInput, clarifications } = req.body;
+
+      // If clarifications provided, incorporate them
+      const finalInput = clarifications
+        ? ambiguityDetector.buildClarifiedInput(userInput, clarifications)
+        : userInput;
+
+      // Continue with existing strategic understanding creation logic
+      // Use finalInput instead of userInput
+      // ... rest of existing code
+
+    } catch (error: any) {
+      console.error('[Strategic Consultant] Error:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  ---
+  STEP 3: Frontend Clarification Modal
+
+  Create client/src/components/ClarificationModal.tsx:
+
+  import { useState } from 'react';
+  import { Dialog, DialogContent, DialogHeader, DialogTitle,
+  DialogDescription } from '@/components/ui/dialog';
+  import { Button } from '@/components/ui/button';
+  import { Card } from '@/components/ui/card';
+  import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+  import { Label } from '@/components/ui/label';
+  import { AlertCircle, CheckCircle } from 'lucide-react';
+
+  interface ClarificationQuestion {
+    id: string;
+    question: string;
+    options: Array<{
+      value: string;
+      label: string;
+      description: string;
+    }>;
+  }
+
+  interface ClarificationModalProps {
+    questions: ClarificationQuestion[];
+    onSubmit: (answers: Record<string, string>) => void;
+    onSkip: () => void;
+  }
+
+  export function ClarificationModal({ questions, onSubmit, onSkip }: 
+  ClarificationModalProps) {
+    const [answers, setAnswers] = useState<Record<string, string>>({});
+
+    const isComplete = questions.every(q => answers[q.id]);
+
+    const handleSubmit = () => {
+      if (isComplete) {
+        onSubmit(answers);
+      }
+    };
+
+    return (
+      <Dialog open onOpenChange={onSkip}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl flex items-center gap-2">
+              <AlertCircle className="w-6 h-6 text-orange-500" />
+              Just a Quick Clarification
+            </DialogTitle>
+            <DialogDescription>
+              Your input could be interpreted in a few ways. Help us
+  understand exactly what you mean so we can give you the best strategic
+  advice.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            {questions.map((question, idx) => (
+              <Card key={question.id} className="p-4">
+                <h3 className="font-semibold mb-4 flex items-center gap-2">
+                  <span className="flex items-center justify-center w-6 h-6 
+  rounded-full bg-indigo-100 text-indigo-700 text-sm">
+                    {idx + 1}
+                  </span>
+                  {question.question}
+                </h3>
+
+                <RadioGroup
+                  value={answers[question.id]}
+                  onValueChange={(value) => setAnswers(prev => ({ ...prev,
+  [question.id]: value }))}
+                >
+                  <div className="space-y-3">
+                    {question.options.map(option => (
+                      <div
+                        key={option.value}
+                        className={`flex items-start space-x-3 p-3 
+  rounded-lg border-2 cursor-pointer transition-all ${
+                          answers[question.id] === option.value
+                            ? 'border-indigo-600 bg-indigo-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                        onClick={() => setAnswers(prev => ({ ...prev,
+  [question.id]: option.value }))}
+                      >
+                        <RadioGroupItem value={option.value} 
+  id={option.value} />
+                        <Label htmlFor={option.value} className="flex-1 
+  cursor-pointer">
+                          <div className="font-medium 
+  mb-1">{option.label}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {option.description}
+                          </div>
+                        </Label>
+                        {answers[question.id] === option.value && (
+                          <CheckCircle className="w-5 h-5 text-indigo-600 
+  flex-shrink-0" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </RadioGroup>
+              </Card>
+            ))}
+          </div>
+
+          <div className="flex justify-between items-center pt-4 border-t">
+            <Button variant="ghost" onClick={onSkip}>
+              Skip (Use Original Input)
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={!isComplete}
+              className="gap-2"
+            >
+              Continue with Clarifications
+              {isComplete && <CheckCircle className="w-4 h-4" />}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  ---
+  STEP 4: Update Strategic Consultant Page
+
+  Update client/src/pages/strategic-consultant/InputPage.tsx (or wherever 
+  user enters input):
+
+  import { useState } from 'react';
+  import { useMutation } from '@tanstack/react-query';
+  import { ClarificationModal } from '@/components/ClarificationModal';
+
+  export function InputPage() {
+    const [userInput, setUserInput] = useState('');
+    const [clarificationQuestions, setClarificationQuestions] =
+  useState<any[]>([]);
+    const [showClarificationModal, setShowClarificationModal] =
+  useState(false);
+
+    // Check for ambiguities mutation
+    const checkAmbiguitiesMutation = useMutation({
+      mutationFn: async (input: string) => {
+        const res = await
+  fetch('/api/strategic-consultant/check-ambiguities', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userInput: input }),
+        });
+        if (!res.ok) throw new Error('Failed to check ambiguities');
+        return res.json();
+      },
+      onSuccess: (data) => {
+        if (data.hasAmbiguities) {
+          // Show clarification modal
+          setClarificationQuestions(data.questions);
+          setShowClarificationModal(true);
+        } else {
+          // No ambiguities, proceed directly
+          startStrategicUnderstanding(userInput, null);
+        }
+      },
+    });
+
+    // Start strategic understanding mutation
+    const startMutation = useMutation({
+      mutationFn: async ({ input, clarifications }: { input: string;
+  clarifications: any }) => {
+        const res = await fetch('/api/strategic-consultant/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userInput: input, clarifications }),
+        });
+        if (!res.ok) throw new Error('Failed to start');
+        return res.json();
+      },
+      onSuccess: (data) => {
+        // Navigate to next step with understanding_id
+        window.location.href =
+  `/strategic-consultant/analysis?understandingId=${data.understandingId}`;
+      },
+    });
+
+    const handleSubmit = () => {
+      // First check for ambiguities
+      checkAmbiguitiesMutation.mutate(userInput);
+    };
+
+    const startStrategicUnderstanding = (input: string, clarifications: any)
+   => {
+      startMutation.mutate({ input, clarifications });
+    };
+
+    const handleClarificationsSubmit = (answers: Record<string, string>) =>
+  {
+      setShowClarificationModal(false);
+
+      // Convert answers to human-readable clarifications
+      const clarifications: Record<string, string> = {};
+      clarificationQuestions.forEach(q => {
+        const selectedOption = q.options.find((opt: any) => opt.value ===
+  answers[q.id]);
+        if (selectedOption) {
+          clarifications[q.question] = selectedOption.label;
+        }
+      });
+
+      startStrategicUnderstanding(userInput, clarifications);
+    };
+
+    const handleSkipClarifications = () => {
+      setShowClarificationModal(false);
+      startStrategicUnderstanding(userInput, null);
+    };
+
+    return (
+      <div>
+        {/* Your existing input UI */}
+        <textarea
+          value={userInput}
+          onChange={(e) => setUserInput(e.target.value)}
+          placeholder="Tell us about your business idea..."
+        />
+
+        <button
+          onClick={handleSubmit}
+          disabled={checkAmbiguitiesMutation.isPending || 
+  startMutation.isPending}
+        >
+          {checkAmbiguitiesMutation.isPending ? 'Checking...' :
+           startMutation.isPending ? 'Starting...' :
+           'Get Started'}
+        </button>
+
+        {/* Clarification Modal */}
+        {showClarificationModal && (
+          <ClarificationModal
+            questions={clarificationQuestions}
+            onSubmit={handleClarificationsSubmit}
+            onSkip={handleSkipClarifications}
+          />
+        )}
+      </div>
+    );
+  }
+
+  ---
+  📊 USER FLOW
+
+  User enters: "I want to start an AI tutoring school in Abu Dhabi"
+                ↓
+  System detects ambiguity
+                ↓
+  Shows modal: "Quick Clarification"
+                ↓
+  Question 1: "What does 'AI tutoring' mean?"
+    ○ Use AI technology to tutor students (AI-powered tutoring platform)
+    ○ Teach students about AI and AI-related subjects (AI education)
+                ↓
+  User selects: "Teach students about AI"
+                ↓
+  System proceeds with clarified understanding:
+  "I want to start an AI tutoring school in Abu Dhabi
+
+  CLARIFICATIONS:
+  - Teach students about AI and AI-related subjects (AI education)"
+
+  ---
+  ✅ EXPECTED RESULT
+
+  Example Clarifications:
+
+  Input: "AI tutoring school"Question: "What does 'AI tutoring' mean?"
+  - ✅ Use AI to tutor students (automated tutoring)
+  - ✅ Teach students about AI (AI education)
+
+  Input: "Digital consulting platform"Question: "Who are your customers?"
+  - ✅ Businesses (B2B consulting)
+  - ✅ Individual professionals (B2C consulting)
+
+  Input: "Coffee shop"Question: "What type of location?"
+  - ✅ Physical storefront (brick & mortar)
+  - ✅ Online shop (e-commerce)
+  - ✅ Both physical and online
+
+  ---
+  📝 SUMMARY FOR REPLIT
+
+  Implement Ambiguity Detection:
+
+  1. ✅ Create server/services/ambiguity-detector.ts
+  2. ✅ Add /check-ambiguities endpoint to strategic consultant routes
+  3. ✅ Update /start endpoint to accept clarifications
+  4. ✅ Create client/src/components/ClarificationModal.tsx
+  5. ✅ Update Strategic Consultant input page with ambiguity check flow
+  6. ✅ Test with ambiguous inputs ("AI tutoring", "digital platform", etc.)
+
+  Together with 5 Whys language fix, this completes the UX improvements 
+  before Background Jobs!
+
+  Ready to implement both fixes?

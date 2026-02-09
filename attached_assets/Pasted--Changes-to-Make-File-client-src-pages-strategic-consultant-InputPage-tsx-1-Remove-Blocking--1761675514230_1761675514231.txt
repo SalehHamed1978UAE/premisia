@@ -1,0 +1,107 @@
+ Changes to Make
+
+  File: client/src/pages/strategic-consultant/InputPage.tsx
+
+  1. Remove Blocking Toast (Lines 100-107)
+
+  Replace:
+  if (file) {
+    toast({
+      title: "File upload not yet supported",
+      description: "Please paste the content as text for now",
+      variant: "destructive"
+    });
+    return;
+  }
+
+  With:
+  if (file && file.size > 50 * 1024 * 1024) {
+    toast({
+      title: "File too large",
+      description: "Maximum file size is 50MB",
+      variant: "destructive"
+    });
+    return;
+  }
+
+  ---
+  2. Add File Upload Handler
+
+  Add this new function (before handleSubmit):
+
+  const handleFileSubmit = async () => {
+    if (!file) return;
+
+    setIsAnalyzing(true);
+    setProgress(0);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('sessionId', sessionId);
+      if (text.trim()) {
+        formData.append('text', text); // Optional additional context
+      }
+
+      const response = await fetch('/api/strategic-consultant/analyze', {
+        method: 'POST',
+        credentials: 'include', // ✅ Codex refinement: Keep Replit auth 
+  session
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('File upload failed');
+      }
+
+      const data = await response.json();
+
+      // ✅ Codex refinement: Navigate to existing results page
+      const { version } = data;
+
+      toast({
+        title: "File processed successfully",
+        description: `Extracted content from ${file.name}`,
+      });
+
+      // Navigate to results page (reuses existing route)
+      setLocation(`/strategic-consultant/results/${sessionId}/${version.versi
+  onNumber}`);
+
+    } catch (error: any) {
+      toast({
+        title: "Upload failed",
+        description: error.message || "Failed to process file",
+        variant: "destructive"
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  ---
+  3. Update handleSubmit to Route File Uploads
+
+  At the beginning of handleSubmit, add:
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Route to file upload handler if file present
+    if (file) {
+      await handleFileSubmit();
+      return;
+    }
+
+    // Otherwise, use existing text flow
+    // ... rest of existing handleSubmit logic ...
+
+  ---
+  ✅ Result
+
+  After these changes:
+  - Text input → Existing flow (ambiguity check → understanding →
+  classification)
+  - File upload → New flow (FormData → /analyze → results page)
+  - Both flows reuse the same results page at
+  /strategic-consultant/results/${sessionId}/${versionNumber}

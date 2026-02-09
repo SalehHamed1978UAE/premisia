@@ -1,0 +1,326 @@
+import { useState } from "react";
+import { useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { Upload, Loader2, FileText, Image, FileSpreadsheet, X, History, ChevronRight } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { formatDistanceToNow } from "date-fns";
+
+interface Discovery {
+  id: string;
+  offeringType: string;
+  stage: string;
+  status: string;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+const SUPPORTED_FORMATS = {
+  'application/pdf': '.pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+  'application/vnd.ms-excel': '.xls',
+  'image/jpeg': '.jpg, .jpeg',
+  'image/png': '.png',
+  'image/gif': '.gif',
+  'image/webp': '.webp'
+};
+
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
+export default function MarketingInputPage() {
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const [text, setText] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Fetch past discoveries
+  const { data: discoveriesData } = useQuery<{ discoveries: Discovery[] }>({
+    queryKey: ['/api/marketing-consultant/discoveries'],
+  });
+
+  const completedDiscoveries = discoveriesData?.discoveries?.filter(d => d.status === 'completed') || [];
+
+  const formatOfferingType = (type: string) => {
+    const labels: Record<string, string> = {
+      b2b_software: 'B2B Software',
+      b2c_software: 'B2C Software',
+      professional_services: 'Professional Services',
+      physical_product: 'Physical Product',
+      marketplace_platform: 'Marketplace',
+      content_education: 'Content/Education',
+      other: 'Other',
+    };
+    return labels[type] || type;
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    setUploadError(null);
+
+    if (!selectedFile) {
+      setFile(null);
+      return;
+    }
+
+    if (selectedFile.size > MAX_FILE_SIZE) {
+      setUploadError(`File size exceeds 50MB limit (${(selectedFile.size / 1024 / 1024).toFixed(1)}MB)`);
+      setFile(null);
+      return;
+    }
+
+    if (!Object.keys(SUPPORTED_FORMATS).includes(selectedFile.type)) {
+      setUploadError(`Unsupported file format. Please upload: ${Object.values(SUPPORTED_FORMATS).join(', ')}`);
+      setFile(null);
+      return;
+    }
+
+    setFile(selectedFile);
+  };
+
+  const getFileIcon = () => {
+    if (!file) return <Upload className="h-4 w-4" />;
+    
+    if (file.type.startsWith('image/')) return <Image className="h-4 w-4" />;
+    if (file.type.includes('spreadsheet') || file.type.includes('excel')) return <FileSpreadsheet className="h-4 w-4" />;
+    return <FileText className="h-4 w-4" />;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!text.trim() && !file) {
+      toast({
+        title: "Input required",
+        description: "Please provide text input or upload a file",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsAnalyzing(true);
+    setProgress(10);
+
+    try {
+      // Step 1: Check for ambiguities in the input
+      setProgress(20);
+      const ambiguityResponse = await fetch('/api/marketing-consultant/check-ambiguities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userInput: text.trim() }),
+        credentials: 'include'
+      });
+
+      if (!ambiguityResponse.ok) {
+        throw new Error('Failed to analyze input');
+      }
+
+      const ambiguityData = await ambiguityResponse.json();
+      const clarifications = ambiguityData.questions || [];
+      setProgress(50);
+
+      // Step 2: Create understanding record
+      const understandingResponse = await fetch('/api/marketing-consultant/understanding', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          input: text.trim(),
+          clarifications
+        }),
+        credentials: 'include'
+      });
+
+      if (!understandingResponse.ok) {
+        throw new Error('Failed to create understanding');
+      }
+
+      const understandingData = await understandingResponse.json();
+      const understandingId = understandingData.understandingId || understandingData.id;
+      setProgress(80);
+
+      // Step 3: Navigate to classification page with understanding ID
+      // If there are clarification questions, they will be shown on the classification page
+      setProgress(100);
+      
+      // Store understanding in sessionStorage for downstream pages
+      sessionStorage.setItem('marketingUnderstandingId', understandingId);
+      sessionStorage.setItem('marketingRawInput', text.trim());
+      if (clarifications.length > 0) {
+        sessionStorage.setItem('marketingClarifications', JSON.stringify(clarifications));
+      }
+
+      toast({
+        title: "Analysis Complete",
+        description: "Proceeding to classification...",
+      });
+
+      setLocation(`/marketing-consultant/classification/${understandingId}`);
+
+    } catch (error) {
+      console.error('Marketing consultant error:', error);
+      toast({
+        title: "Analysis Failed",
+        description: error instanceof Error ? error.message : "Please try again",
+        variant: "destructive"
+      });
+    } finally {
+      setIsAnalyzing(false);
+      setProgress(0);
+    }
+  };
+
+  return (
+    <AppLayout
+      title="Marketing Consultant Agent"
+      subtitle="Transform your offering into targeted market segments"
+    >
+      <div className="max-w-4xl mx-auto space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Marketing Input</CardTitle>
+            <CardDescription>
+              Describe what you're building or selling. Include what problem it solves and who you think might need it.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="marketing-text-input">Your Offering</Label>
+                <Textarea
+                  id="marketing-text-input"
+                  data-testid="input-marketing-text"
+                  placeholder="e.g., We built a tool that helps knowledge workers organize their documents and find information using AI. It refuses to hallucinate and shows sources. We're a 2-person team, no funding yet, trying to find our first 50 users..."
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  rows={8}
+                  disabled={isAnalyzing}
+                  className="resize-none"
+                />
+              </div>
+
+              <div className="space-y-4">
+                <Label>Supporting Documents (Optional)</Label>
+                <div className="border-2 border-dashed rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
+                  <Input
+                    type="file"
+                    id="file-upload"
+                    data-testid="button-upload-marketing"
+                    className="hidden"
+                    onChange={handleFileChange}
+                    accept={Object.keys(SUPPORTED_FORMATS).join(',')}
+                    disabled={isAnalyzing}
+                  />
+                  <label 
+                    htmlFor="file-upload" 
+                    className="cursor-pointer flex flex-col items-center gap-2"
+                  >
+                    {getFileIcon()}
+                    <span className="text-sm text-muted-foreground">
+                      {file ? file.name : 'Click to upload or drag and drop'}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      PDF, DOCX, Excel, Images (max 50MB)
+                    </span>
+                  </label>
+                  {file && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="mt-2"
+                      onClick={() => setFile(null)}
+                    >
+                      <X className="h-4 w-4 mr-1" /> Remove file
+                    </Button>
+                  )}
+                </div>
+                {uploadError && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{uploadError}</AlertDescription>
+                  </Alert>
+                )}
+              </div>
+
+              {isAnalyzing && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Analyzing market segments...</span>
+                    <span className="font-medium">{progress}%</span>
+                  </div>
+                  <Progress value={progress} />
+                </div>
+              )}
+
+              <Button
+                type="submit"
+                className="w-full"
+                size="lg"
+                disabled={isAnalyzing || (!text.trim() && !file)}
+                data-testid="button-start-segment-discovery"
+              >
+                {isAnalyzing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Discovering Segments...
+                  </>
+                ) : (
+                  'Start Segment Discovery'
+                )}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* Past Discoveries */}
+        {completedDiscoveries.length > 0 && (
+          <Card data-testid="card-past-discoveries">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <History className="h-5 w-5" />
+                Past Discoveries
+              </CardTitle>
+              <CardDescription>
+                View your previous segment discovery results
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {completedDiscoveries.slice(0, 5).map((discovery) => (
+                  <button
+                    key={discovery.id}
+                    onClick={() => setLocation(`/marketing-consultant/results/${discovery.id}`)}
+                    className="w-full p-3 border rounded-lg hover:bg-muted/50 transition-colors text-left flex items-center justify-between group"
+                    data-testid={`button-discovery-${discovery.id}`}
+                  >
+                    <div>
+                      <div className="font-medium">
+                        {formatOfferingType(discovery.offeringType)}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        {discovery.completedAt 
+                          ? formatDistanceToNow(new Date(discovery.completedAt), { addSuffix: true })
+                          : 'In progress'
+                        }
+                      </div>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </AppLayout>
+  );
+}

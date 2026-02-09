@@ -1,0 +1,77 @@
+turn the Five Whys generation into a fun mini‑experience.
+  Here’s how to implement a “digital rain” (8‑bit falling numbers) while the
+  model builds the tree:
+
+  ———
+
+  ### 1. UI shell
+
+  - Create a full-screen overlay or modal triggered when Five Whys generation
+    starts.
+  - Use a black background, green neon text (classic Matrix feel).
+  - Add a subtle ambient soundtrack option (muted by default with a toggle).
+  - Provide functional info at the bottom: “Generating Five Whys tree…”,
+    optional timeout indicator, “Skip animation” button.
+
+  ———
+
+  ### 2. Digital rain animation
+
+  - Render with Canvas or WebGL (Three.js), or start with HTML/CSS if you
+    prefer:
+
+    // Example structure
+    <div className="rain-container">
+      {Array.from({ length: columns }).map((_, index) => (
+        <CanvasColumn key={index} columnIndex={index} />
+      ))}
+    </div>
+  - Each column spawns random characters (0–9, A–F, Japanese katakana, etc.)
+    dropping at varying speeds.
+  - Use requestAnimationFrame to animate; throttle when tab not focused.
+  - Intensify or normalize speed depending on progress (phase 1–5).
+
+  ———
+
+  ### 3. Beam progress & messages
+
+  - Timeline across the top or side that lights up as the backend stages finish:
+      - “Parsing input”
+      - “Generating root question”
+      - “Expanding why level 1/2/3…”
+      - “Analyzing path implications”
+  - For each stage, flash a neon beam or highlight the segment.
+  - Display small tooltip pops with messages like “Evaluating best branches…” or
+    “Synthesizing insights…”
+
+  ———
+
+  ### 4. Number rain + textual highlights
+
+  - Inject actual numbers (e.g., 0xA4F08, 010101) plus small textual phrases
+    (“WHY?”, “Implications”, etc.) to make it feel interactive.
+  - When a stage completes, overlay the relevant branch text in a stylized font
+    that then fades.
+
+  ———
+
+  ### 5. Skip/reduced motion options
+
+  - Respect prefers-reduced-motion. Provide a “Skip animation” button for
+    accessibility.
+  - When skipped, show a static progress card with a standard progress bar.
+
+  ———
+
+  ### 6. Implementation plan for Replit
+
+  1. Component: build FiveWhysAnimation that subscribes to the existing SSE
+     events.
+  2. State: track stage completion and total progress.
+  3. Animation: use Canvas or CSS to render falling numbers; adjust density
+     based on state.
+  4. Controls: add skip/reduced motion toggles, progress text, and eventual
+     handoff when tree is ready.
+  5. Testing: ensure animation doesn’t block the actual flow and works on lower-
+     powered devices.
+

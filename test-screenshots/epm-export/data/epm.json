@@ -1,0 +1,1261 @@
+{
+  "program": {
+    "id": "00c19b69-f1b7-43f3-a755-8a0c2d8f1ffd",
+    "strategyVersionId": "5d1800aa-c705-4df9-a737-2240329358d6",
+    "strategyDecisionId": null,
+    "userId": "dev-user-123",
+    "frameworkType": "swot",
+    "executiveSummary": {
+      "title": "Premium Hardware-Powered Esports Tournament Hub with Hybrid Revenue Model",
+      "confidence": 0.9,
+      "riskSummary": "10 risks identified, with 10 high-priority risks requiring immediate mitigation.",
+      "expectedOutcomes": "Explosive Growth in MENA Esports Market; Dubai's Vision 2071 Digital Transformation; Rising Gaming Influencer Culture",
+      "keySuccessFactors": [
+        "Capitalize on: Explosive Growth in MENA Esports Market",
+        "Capitalize on: Dubai's Vision 2071 Digital Transformation",
+        "Capitalize on: Rising Gaming Influencer Culture",
+        "Capitalize on: Corporate Team Building Market"
+      ],
+      "marketOpportunity": "Strategic opportunity identified through framework analysis",
+      "investmentRequired": "$500k - $1.5M",
+      "strategicImperatives": []
+    },
+    "workstreams": [
+      {
+        "id": "WS001",
+        "name": "Facility Optimization & Safety Compliance",
+        "endMonth": 0,
+        "confidence": 0.85,
+        "startMonth": 0,
+        "description": "Renovate existing facilities to enhance operational efficiency, ensure compliance with safety regulations, and improve employee comfort and productivity.",
+        "deliverables": [
+          {
+            "id": "WS001-D1",
+            "name": "Completed facility upgrades with documented improvements",
+            "effort": "1 person-month",
+            "dueMonth": 0,
+            "description": "Completed facility upgrades with documented improvements"
+          },
+          {
+            "id": "WS001-D2",
+            "name": "Certificate of compliance with safety and building regulations",
+            "effort": "1 person-month",
+            "dueMonth": 0,
+            "description": "Certificate of compliance with safety and building regulations"
+          },
+          {
+            "id": "WS001-D3",
+            "name": "Installation and operational testing of new safety equipment",
+            "effort": "1 person-month",
+            "dueMonth": 0,
+            "description": "Installation and operational testing of new safety equipment"
+          },
+          {
+            "id": "WS001-D4",
+            "name": "Employee training sessions on updated safety protocols",
+            "effort": "1 person-month",
+            "dueMonth": 0,
+            "description": "Employee training sessions on updated safety protocols"
+          },
+          {
+            "id": "WS001-D5",
+            "name": "Detailed report on infrastructure investment returns",
+            "effort": "1 person-month",
+            "dueMonth": 0,
+            "description": "Detailed report on infrastructure investment returns"
+          }
+        ],
+        "dependencies": []
+      },
+      {
+        "id": "WS002",
+        "name": "IT Infrastructure Setup",
+        "endMonth": 1,
+        "confidence": 0.85,
+        "startMonth": 1,
+        "description": "Establish and configure IT infrastructure to support business operations, including setting up network systems, securing data storage, and ensuring all software applications are operational.",
+        "deliverables": [
+          {
+            "id": "WS002-D1",
+            "name": "Configured and tested network systems",
+            "effort": "1 person-month",
+            "dueMonth": 1,
+            "description": "Configured and tested network systems"
+          },
+          {
+            "id": "WS002-D2",
+            "name": "Setup and secured data storage solutions",
+            "effort": "1 person-month",
+            "dueMonth": 1,
+            "description": "Setup and secured data storage solutions"
+          },
+          {
+            "id": "WS002-D3",
+            "name": "Operational software applications on all necessary devices",
+            "effort": "1 person-month",
+            "dueMonth": 1,
+            "description": "Operational software applications on all necessary devices"
+          },
+          {
+            "id": "WS002-D4",
+            "name": "Completed cybersecurity threat assessment",
+            "effort": "1 person-month",
+            "dueMonth": 1,
+            "description": "Completed cybersecurity threat assessment"
+          },
+          {
+            "id": "WS002-D5",
+            "name": "Technical support and maintenance plan documented",
+            "effort": "1 person-month",
+            "dueMonth": 1,
+            "description": "Technical support and maintenance plan documented"
+          }
+        ],
+        "dependencies": [
+          "WS001"
+        ]
+      },
+      {
+        "id": "WS003",
+        "name": "Operational Efficiency Enhancement",
+        "endMonth": 1,
+        "confidence": 0.85,
+        "startMonth": 1,
+        "description": "Improve operational processes to increase efficiency, reduce costs, and enhance service delivery for sustainable growth within the SMB context.",
+        "deliverables": [
+          {
+            "id": "WS003-D1",
+            "name": "Comprehensive operations audit report highlighting areas for improvement",
+            "effort": "1 person-month",
+            "dueMonth": 1,
+            "description": "Comprehensive operations audit report highlighting areas for improvement"
+          },
+          {
+            "id": "WS003-D2",
+            "name": "Implementation of process automation tools for at least three core processes",
+            "effort": "1 person-month",
+            "dueMonth": 1,
+            "description": "Implementation of process automation tools for at least three core processes"
+          },
+          {
+            "id": "WS003-D3",
+            "name": "Training programs for staff on new operational procedures",
+            "effort": "1 person-month",
+            "dueMonth": 1,
+            "description": "Training programs for staff on new operational procedures"
+          },
+          {
+            "id": "WS003-D4",
+            "name": "Achieve a 20% cost reduction in key operational areas within six months",
+            "effort": "1 person-month",
+            "dueMonth": 1,
+            "description": "Achieve a 20% cost reduction in key operational areas within six months"
+          },
+          {
+            "id": "WS003-D5",
+            "name": "Monthly performance metrics dashboard set up for continuous monitoring",
+            "effort": "1 person-month",
+            "dueMonth": 1,
+            "description": "Monthly performance metrics dashboard set up for continuous monitoring"
+          }
+        ],
+        "dependencies": [
+          "WS001",
+          "WS004"
+        ]
+      },
+      {
+        "id": "WS004",
+        "name": "Talent Acquisition & Onboarding Process Enhancement",
+        "endMonth": 0,
+        "confidence": 0.85,
+        "startMonth": 0,
+        "description": "Revamp and enhance the talent acquisition and onboarding processes to attract, hire, and integrate top talent efficiently. This includes developing new recruitment strategies, enhancing the candidate experience, and ensuring a smooth transition for new hires.",
+        "deliverables": [
+          {
+            "id": "WS004-D1",
+            "name": "Updated job descriptions and postings for all key positions",
+            "effort": "1 person-month",
+            "dueMonth": 0,
+            "description": "Updated job descriptions and postings for all key positions"
+          },
+          {
+            "id": "WS004-D2",
+            "name": "Implementation of a new applicant tracking system",
+            "effort": "1 person-month",
+            "dueMonth": 0,
+            "description": "Implementation of a new applicant tracking system"
+          },
+          {
+            "id": "WS004-D3",
+            "name": "Creation of a structured onboarding program, including training materials and schedule",
+            "effort": "1 person-month",
+            "dueMonth": 0,
+            "description": "Creation of a structured onboarding program, including training materials and schedule"
+          },
+          {
+            "id": "WS004-D4",
+            "name": "Reduced time-to-hire metric by 20%",
+            "effort": "1 person-month",
+            "dueMonth": 0,
+            "description": "Reduced time-to-hire metric by 20%"
+          },
+          {
+            "id": "WS004-D5",
+            "name": "Established metrics for candidate experience feedback",
+            "effort": "1 person-month",
+            "dueMonth": 0,
+            "description": "Established metrics for candidate experience feedback"
+          }
+        ],
+        "dependencies": []
+      },
+      {
+        "id": "WS005",
+        "name": "Strategic Marketing Campaign Development",
+        "endMonth": 2,
+        "confidence": 0.85,
+        "startMonth": 2,
+        "description": "Develop and implement a comprehensive marketing campaign that aligns with the business goals, enhances brand awareness, and drives sales within the SMB market.",
+        "deliverables": [
+          {
+            "id": "WS005-D1",
+            "name": "Detailed marketing strategy document with defined goals, target audience, key messages, and channels",
+            "effort": "1 person-month",
+            "dueMonth": 2,
+            "description": "Detailed marketing strategy document with defined goals, target audience, key messages, and channels"
+          },
+          {
+            "id": "WS005-D2",
+            "name": "Launch of a multi-channel marketing campaign across social media, email, and paid advertising platforms",
+            "effort": "1 person-month",
+            "dueMonth": 2,
+            "description": "Launch of a multi-channel marketing campaign across social media, email, and paid advertising platforms"
+          },
+          {
+            "id": "WS005-D3",
+            "name": "Monthly marketing performance report tracking key performance metrics like reach, engagement, and conversions",
+            "effort": "1 person-month",
+            "dueMonth": 2,
+            "description": "Monthly marketing performance report tracking key performance metrics like reach, engagement, and conversions"
+          },
+          {
+            "id": "WS005-D4",
+            "name": "Creation and distribution of promotional materials such as brochures, digital ads, and newsletters",
+            "effort": "1 person-month",
+            "dueMonth": 2,
+            "description": "Creation and distribution of promotional materials such as brochures, digital ads, and newsletters"
+          },
+          {
+            "id": "WS005-D5",
+            "name": "Established partnerships with at least three local influencers or businesses to expand brand reach",
+            "effort": "1 person-month",
+            "dueMonth": 2,
+            "description": "Established partnerships with at least three local influencers or businesses to expand brand reach"
+          }
+        ],
+        "dependencies": [
+          "WS003"
+        ]
+      },
+      {
+        "id": "WS006",
+        "name": "Regulatory Compliance and Risk Mitigation",
+        "endMonth": 0,
+        "confidence": 0.85,
+        "startMonth": 0,
+        "description": "Ensure the business is in full compliance with applicable laws and regulations, identify potential legal risks, and implement measures to mitigate those risks.",
+        "deliverables": [
+          {
+            "id": "WS006-D1",
+            "name": "Completed legal compliance audit report",
+            "effort": "1 person-month",
+            "dueMonth": 0,
+            "description": "Completed legal compliance audit report"
+          },
+          {
+            "id": "WS006-D2",
+            "name": "Updated internal compliance policies and procedures",
+            "effort": "1 person-month",
+            "dueMonth": 0,
+            "description": "Updated internal compliance policies and procedures"
+          },
+          {
+            "id": "WS006-D3",
+            "name": "Training session completed for staff on compliance requirements",
+            "effort": "1 person-month",
+            "dueMonth": 0,
+            "description": "Training session completed for staff on compliance requirements"
+          },
+          {
+            "id": "WS006-D4",
+            "name": "Report on identified legal risks with mitigation plans",
+            "effort": "1 person-month",
+            "dueMonth": 0,
+            "description": "Report on identified legal risks with mitigation plans"
+          },
+          {
+            "id": "WS006-D5",
+            "name": "Register of necessary industry-specific licenses and permits obtained",
+            "effort": "1 person-month",
+            "dueMonth": 0,
+            "description": "Register of necessary industry-specific licenses and permits obtained"
+          }
+        ],
+        "dependencies": []
+      }
+    ],
+    "timeline": {
+      "phases": [
+        {
+          "name": "Planning & Foundation",
+          "phase": 1,
+          "endMonth": 3,
+          "startMonth": 0,
+          "description": "Initial setup, team assembly, detailed planning",
+          "keyMilestones": [
+            "Project kickoff",
+            "Team onboarded",
+            "Detailed plan approved"
+          ],
+          "workstreamIds": [
+            "WS001",
+            "WS002",
+            "WS003",
+            "WS004",
+            "WS005",
+            "WS006"
+          ]
+        },
+        {
+          "name": "Development & Execution",
+          "phase": 2,
+          "endMonth": 6,
+          "startMonth": 4,
+          "description": "Core workstream execution, deliverable development",
+          "keyMilestones": [
+            "Key deliverables completed",
+            "Progress review",
+            "Adjustments made"
+          ],
+          "workstreamIds": []
+        },
+        {
+          "name": "Integration & Testing",
+          "phase": 3,
+          "endMonth": 9,
+          "startMonth": 7,
+          "description": "Integration of deliverables, testing, refinement",
+          "keyMilestones": [
+            "Integration complete",
+            "Testing passed",
+            "Stakeholder approval"
+          ],
+          "workstreamIds": []
+        },
+        {
+          "name": "Deployment & Stabilization",
+          "phase": 4,
+          "endMonth": 12,
+          "startMonth": 10,
+          "description": "Launch, monitoring, optimization",
+          "keyMilestones": [
+            "Launch complete",
+            "Performance validated",
+            "Benefits tracking"
+          ],
+          "workstreamIds": []
+        }
+      ],
+      "confidence": 0.7,
+      "totalMonths": 12,
+      "criticalPath": [
+        "WS001"
+      ]
+    },
+    "resourcePlan": {
+      "totalFTEs": 12,
+      "confidence": 0.7,
+      "internalTeam": [
+        {
+          "role": "Hybrid Gaming Operations Manager",
+          "months": 12,
+          "skills": [
+            "Gaming facility operations",
+            "Cloud gaming platform management",
+            "Physical-digital integration",
+            "Customer experience optimization",
+            "Safety compliance"
+          ],
+          "allocation": 100,
+          "justification": "Critical for managing the hybrid physical-digital gaming environment, ensuring seamless integration between on-site gaming experiences and streaming services while maintaining operational excellence"
+        },
+        {
+          "role": "Cloud Gaming Infrastructure Engineer",
+          "months": 10,
+          "skills": [
+            "Cloud gaming platforms",
+            "Network optimization",
+            "Streaming infrastructure",
+            "Gaming server management",
+            "Latency optimization"
+          ],
+          "allocation": 100,
+          "justification": "Essential for establishing and maintaining the technical backbone that enables high-quality cloud gaming streaming services integrated with physical gaming facilities"
+        },
+        {
+          "role": "Gaming Experience Designer",
+          "months": 8,
+          "skills": [
+            "Gaming UX/UI design",
+            "Hybrid experience design",
+            "Customer journey mapping",
+            "Physical space design",
+            "Gaming community engagement"
+          ],
+          "allocation": 80,
+          "justification": "Needed to create compelling hybrid experiences that seamlessly blend physical gaming environments with digital streaming capabilities to attract and retain customers"
+        },
+        {
+          "role": "Gaming Marketing Strategist",
+          "months": 12,
+          "skills": [
+            "Gaming industry marketing",
+            "Digital marketing",
+            "Community building",
+            "Influencer partnerships",
+            "Multi-channel campaigns"
+          ],
+          "allocation": 75,
+          "justification": "Required to develop and execute marketing strategies that position the hybrid gaming model effectively in the competitive gaming market and build community around both physical and streaming services"
+        },
+        {
+          "role": "Gaming Compliance & Risk Specialist",
+          "months": 12,
+          "skills": [
+            "Gaming regulations",
+            "Data privacy compliance",
+            "Physical facility safety",
+            "Digital content regulations",
+            "Risk assessment"
+          ],
+          "allocation": 60,
+          "justification": "Critical for navigating complex gaming industry regulations, ensuring compliance with both physical facility requirements and digital streaming platform regulations"
+        },
+        {
+          "role": "Gaming Talent Development Lead",
+          "months": 9,
+          "skills": [
+            "Gaming industry recruitment",
+            "Esports talent management",
+            "Training program development",
+            "Gaming community management",
+            "Performance coaching"
+          ],
+          "allocation": 70,
+          "justification": "Needed to recruit and develop specialized gaming talent including streamers, tournament organizers, and gaming coaches to support the hybrid model's unique staffing requirements"
+        }
+      ],
+      "criticalSkills": [
+        "Gaming facility operations",
+        "Cloud gaming platform management",
+        "Physical-digital integration",
+        "Customer experience optimization",
+        "Safety compliance",
+        "Cloud gaming platforms",
+        "Network optimization",
+        "Streaming infrastructure",
+        "Gaming server management",
+        "Latency optimization",
+        "Gaming UX/UI design",
+        "Hybrid experience design",
+        "Customer journey mapping",
+        "Physical space design",
+        "Gaming community engagement",
+        "Gaming industry marketing",
+        "Digital marketing",
+        "Community building",
+        "Influencer partnerships",
+        "Multi-channel campaigns",
+        "Gaming regulations",
+        "Data privacy compliance",
+        "Physical facility safety",
+        "Digital content regulations",
+        "Risk assessment",
+        "Gaming industry recruitment",
+        "Esports talent management",
+        "Training program development",
+        "Gaming community management",
+        "Performance coaching"
+      ],
+      "externalResources": [
+        {
+          "type": "Consultant",
+          "timing": "Months 0-3",
+          "description": "Strategic advisory and specialized expertise",
+          "estimatedCost": 150000,
+          "justification": "Domain expertise and methodology guidance"
+        },
+        {
+          "type": "Software",
+          "timing": "Months 0-12",
+          "description": "Project management and collaboration tools",
+          "estimatedCost": 50000,
+          "justification": "Enable effective team collaboration and tracking"
+        }
+      ]
+    },
+    "financialPlan": {
+      "cashFlow": [
+        {
+          "amount": -920000,
+          "quarter": 1,
+          "cumulative": -920000
+        },
+        {
+          "amount": -690000,
+          "quarter": 2,
+          "cumulative": -1610000
+        },
+        {
+          "amount": -460000,
+          "quarter": 3,
+          "cumulative": -2070000
+        },
+        {
+          "amount": -230000,
+          "quarter": 4,
+          "cumulative": -2300000
+        }
+      ],
+      "confidence": 0.55,
+      "assumptions": [
+        "FTE cost: $150k/year",
+        "12 FTEs for 12 months",
+        "15% overhead for infrastructure and support",
+        "10% contingency for risks and unknowns"
+      ],
+      "contingency": 230000,
+      "totalBudget": 2530000,
+      "costBreakdown": [
+        {
+          "amount": 1800000,
+          "category": "Personnel",
+          "percentage": 78.26086956521739,
+          "description": "Internal team costs"
+        },
+        {
+          "amount": 200000,
+          "category": "External Resources",
+          "percentage": 8.695652173913043,
+          "description": "Consultants, software, services"
+        },
+        {
+          "amount": 300000,
+          "category": "Overhead",
+          "percentage": 13.043478260869565,
+          "description": "Infrastructure, admin, facilities"
+        }
+      ],
+      "contingencyPercentage": 10
+    },
+    "benefitsRealization": {
+      "benefits": [
+        {
+          "id": "B001",
+          "category": "Strategic",
+          "confidence": 0.75,
+          "description": "Explosive Growth in MENA Esports Market",
+          "measurement": "Market analysis (semi-annual)",
+          "realizationMonth": 10
+        },
+        {
+          "id": "B002",
+          "category": "Strategic",
+          "confidence": 0.75,
+          "description": "Dubai's Vision 2071 Digital Transformation",
+          "measurement": "Performance metrics (quarterly)",
+          "realizationMonth": 11
+        },
+        {
+          "id": "B003",
+          "category": "Strategic",
+          "confidence": 0.75,
+          "description": "Rising Gaming Influencer Culture",
+          "measurement": "Performance metrics (quarterly)",
+          "realizationMonth": 12
+        },
+        {
+          "id": "B004",
+          "category": "Strategic",
+          "confidence": 0.75,
+          "description": "Corporate Team Building Market",
+          "measurement": "Market analysis (semi-annual)",
+          "realizationMonth": 13
+        },
+        {
+          "id": "B005",
+          "category": "Strategic",
+          "confidence": 0.75,
+          "description": "Gaming Tourism Development",
+          "measurement": "Performance metrics (quarterly)",
+          "realizationMonth": 14
+        }
+      ],
+      "confidence": 0.7
+    },
+    "riskRegister": {
+      "risks": [
+        {
+          "id": "R001",
+          "impact": "High",
+          "category": "Strategic",
+          "severity": 45,
+          "confidence": 0.85,
+          "mitigation": "Monitor and implement controls to reduce high impact",
+          "contingency": "Escalate to governance if probability exceeds 35%",
+          "description": "Internal weakness: High Initial Capital Investment",
+          "probability": 15
+        },
+        {
+          "id": "R002",
+          "impact": "Low",
+          "category": "Strategic",
+          "severity": 15,
+          "confidence": 0.85,
+          "mitigation": "Monitor and implement controls to reduce low impact",
+          "contingency": "Escalate to governance if probability exceeds 35%",
+          "description": "Internal weakness: Premium Mall Rental Costs",
+          "probability": 15
+        },
+        {
+          "id": "R003",
+          "impact": "Low",
+          "category": "Strategic",
+          "severity": 15,
+          "confidence": 0.85,
+          "mitigation": "Monitor and implement controls to reduce low impact",
+          "contingency": "Escalate to governance if probability exceeds 35%",
+          "description": "Internal weakness: Dependency on Tourism Fluctuations",
+          "probability": 15
+        },
+        {
+          "id": "R004",
+          "impact": "Low",
+          "category": "Strategic",
+          "severity": 15,
+          "confidence": 0.85,
+          "mitigation": "Monitor and implement controls to reduce low impact",
+          "contingency": "Escalate to governance if probability exceeds 35%",
+          "description": "Internal weakness: Complex Staff Management Requirements",
+          "probability": 15
+        },
+        {
+          "id": "R005",
+          "impact": "Low",
+          "category": "Technical",
+          "severity": 15,
+          "confidence": 0.85,
+          "mitigation": "Monitor and implement controls to reduce low impact",
+          "contingency": "Escalate to governance if probability exceeds 35%",
+          "description": "Internal weakness: Rapid Technology Obsolescence",
+          "probability": 15
+        },
+        {
+          "id": "R006",
+          "impact": "Low",
+          "category": "Strategic",
+          "severity": 15,
+          "confidence": 0.85,
+          "mitigation": "Monitor and implement controls to reduce low impact",
+          "contingency": "Escalate to governance if probability exceeds 35%",
+          "description": "External threat: Economic Recession Impact",
+          "probability": 15
+        },
+        {
+          "id": "R007",
+          "impact": "Low",
+          "category": "Market",
+          "severity": 15,
+          "confidence": 0.85,
+          "mitigation": "Monitor and implement controls to reduce low impact",
+          "contingency": "Escalate to governance if probability exceeds 35%",
+          "description": "External threat: Increasing Market Competition",
+          "probability": 15
+        },
+        {
+          "id": "R008",
+          "impact": "Low",
+          "category": "Regulatory",
+          "severity": 15,
+          "confidence": 0.85,
+          "mitigation": "Monitor and implement controls to reduce low impact",
+          "contingency": "Escalate to governance if probability exceeds 35%",
+          "description": "External threat: Regulatory Changes and Licensing",
+          "probability": 15
+        },
+        {
+          "id": "R009",
+          "impact": "Low",
+          "category": "Strategic",
+          "severity": 15,
+          "confidence": 0.85,
+          "mitigation": "Monitor and implement controls to reduce low impact",
+          "contingency": "Escalate to governance if probability exceeds 35%",
+          "description": "External threat: Rising Real Estate and Operational Costs",
+          "probability": 15
+        },
+        {
+          "id": "R010",
+          "impact": "Low",
+          "category": "Strategic",
+          "severity": 15,
+          "confidence": 0.85,
+          "mitigation": "Monitor and implement controls to reduce low impact",
+          "contingency": "Escalate to governance if probability exceeds 35%",
+          "description": "External threat: Shift to Cloud Gaming and Home Setups",
+          "probability": 15
+        }
+      ],
+      "topRisks": [
+        {
+          "id": "R001",
+          "impact": "High",
+          "category": "Strategic",
+          "severity": 45,
+          "confidence": 0.85,
+          "mitigation": "Monitor and implement controls to reduce high impact",
+          "contingency": "Escalate to governance if probability exceeds 35%",
+          "description": "Internal weakness: High Initial Capital Investment",
+          "probability": 15
+        },
+        {
+          "id": "R002",
+          "impact": "Low",
+          "category": "Strategic",
+          "severity": 15,
+          "confidence": 0.85,
+          "mitigation": "Monitor and implement controls to reduce low impact",
+          "contingency": "Escalate to governance if probability exceeds 35%",
+          "description": "Internal weakness: Premium Mall Rental Costs",
+          "probability": 15
+        },
+        {
+          "id": "R003",
+          "impact": "Low",
+          "category": "Strategic",
+          "severity": 15,
+          "confidence": 0.85,
+          "mitigation": "Monitor and implement controls to reduce low impact",
+          "contingency": "Escalate to governance if probability exceeds 35%",
+          "description": "Internal weakness: Dependency on Tourism Fluctuations",
+          "probability": 15
+        },
+        {
+          "id": "R004",
+          "impact": "Low",
+          "category": "Strategic",
+          "severity": 15,
+          "confidence": 0.85,
+          "mitigation": "Monitor and implement controls to reduce low impact",
+          "contingency": "Escalate to governance if probability exceeds 35%",
+          "description": "Internal weakness: Complex Staff Management Requirements",
+          "probability": 15
+        },
+        {
+          "id": "R005",
+          "impact": "Low",
+          "category": "Technical",
+          "severity": 15,
+          "confidence": 0.85,
+          "mitigation": "Monitor and implement controls to reduce low impact",
+          "contingency": "Escalate to governance if probability exceeds 35%",
+          "description": "Internal weakness: Rapid Technology Obsolescence",
+          "probability": 15
+        }
+      ],
+      "confidence": 0.8,
+      "mitigationBudget": 250000
+    },
+    "stageGates": {
+      "gates": [
+        {
+          "gate": 1,
+          "name": "Gate 1: Planning & Foundation Complete",
+          "month": 3,
+          "confidence": 0.85,
+          "goCriteria": [
+            "All Planning & Foundation deliverables completed",
+            "Phase objectives achieved",
+            "Budget within ±10% of plan",
+            "No critical risks unmitigated"
+          ],
+          "deliverables": [
+            "WS001",
+            "WS002",
+            "WS003",
+            "WS004",
+            "WS005",
+            "WS006"
+          ],
+          "noGoTriggers": [
+            "Critical deliverables >2 weeks late",
+            "Budget overrun >20%",
+            "Risk R001 realized OR Risk R002 realized"
+          ]
+        },
+        {
+          "gate": 2,
+          "name": "Gate 2: Development & Execution Complete",
+          "month": 6,
+          "confidence": 0.85,
+          "goCriteria": [
+            "All Development & Execution deliverables completed",
+            "Phase objectives achieved",
+            "Budget within ±10% of plan",
+            "No critical risks unmitigated"
+          ],
+          "deliverables": [],
+          "noGoTriggers": [
+            "Critical deliverables >2 weeks late",
+            "Budget overrun >20%",
+            "Risk R001 realized OR Risk R002 realized"
+          ]
+        },
+        {
+          "gate": 3,
+          "name": "Gate 3: Integration & Testing Complete",
+          "month": 9,
+          "confidence": 0.85,
+          "goCriteria": [
+            "All Integration & Testing deliverables completed",
+            "Phase objectives achieved",
+            "Budget within ±10% of plan",
+            "No critical risks unmitigated"
+          ],
+          "deliverables": [],
+          "noGoTriggers": [
+            "Critical deliverables >2 weeks late",
+            "Budget overrun >20%",
+            "Risk R001 realized OR Risk R002 realized"
+          ]
+        },
+        {
+          "gate": 4,
+          "name": "Gate 4: Deployment & Stabilization Complete",
+          "month": 12,
+          "confidence": 0.85,
+          "goCriteria": [
+            "All Deployment & Stabilization deliverables completed",
+            "Phase objectives achieved",
+            "Budget within ±10% of plan",
+            "No critical risks unmitigated"
+          ],
+          "deliverables": [],
+          "noGoTriggers": [
+            "Critical deliverables >2 weeks late",
+            "Budget overrun >20%",
+            "Risk R001 realized OR Risk R002 realized"
+          ]
+        }
+      ],
+      "confidence": 0.85
+    },
+    "kpis": {
+      "kpis": [
+        {
+          "id": "KPI001",
+          "name": "Explosive Growth in MENA",
+          "target": "Improvement",
+          "baseline": "Current state",
+          "category": "Strategic",
+          "frequency": "Quarterly",
+          "confidence": 0.75,
+          "measurement": "Market analysis (semi-annual)",
+          "linkedBenefitIds": [
+            "B001"
+          ]
+        },
+        {
+          "id": "KPI002",
+          "name": "Dubai's Vision 2071 Digital",
+          "target": "Improvement",
+          "baseline": "Current state",
+          "category": "Strategic",
+          "frequency": "Quarterly",
+          "confidence": 0.75,
+          "measurement": "Performance metrics (quarterly)",
+          "linkedBenefitIds": [
+            "B002"
+          ]
+        },
+        {
+          "id": "KPI003",
+          "name": "Rising Gaming Influencer Culture",
+          "target": "Improvement",
+          "baseline": "Current state",
+          "category": "Strategic",
+          "frequency": "Quarterly",
+          "confidence": 0.75,
+          "measurement": "Performance metrics (quarterly)",
+          "linkedBenefitIds": [
+            "B003"
+          ]
+        },
+        {
+          "id": "KPI004",
+          "name": "Corporate Team Building Market",
+          "target": "Improvement",
+          "baseline": "Current state",
+          "category": "Strategic",
+          "frequency": "Quarterly",
+          "confidence": 0.75,
+          "measurement": "Market analysis (semi-annual)",
+          "linkedBenefitIds": [
+            "B004"
+          ]
+        },
+        {
+          "id": "KPI005",
+          "name": "Gaming Tourism Development",
+          "target": "Improvement",
+          "baseline": "Current state",
+          "category": "Strategic",
+          "frequency": "Quarterly",
+          "confidence": 0.75,
+          "measurement": "Performance metrics (quarterly)",
+          "linkedBenefitIds": [
+            "B005"
+          ]
+        },
+        {
+          "id": "KPI006",
+          "name": "Program Progress",
+          "target": "100%",
+          "baseline": "0%",
+          "category": "Operational",
+          "frequency": "Monthly",
+          "confidence": 0.95,
+          "measurement": "Percentage of deliverables completed",
+          "linkedBenefitIds": []
+        }
+      ],
+      "confidence": 0.75
+    },
+    "stakeholderMap": {
+      "confidence": 0.65,
+      "stakeholders": [
+        {
+          "name": "Executive Sponsor",
+          "group": "Leadership",
+          "power": "High",
+          "interest": "High",
+          "engagement": "Manage closely",
+          "communicationPlan": "Weekly updates"
+        },
+        {
+          "name": "Program Team",
+          "group": "Execution",
+          "power": "Medium",
+          "interest": "High",
+          "engagement": "Keep informed",
+          "communicationPlan": "Daily standups"
+        },
+        {
+          "name": "End Users",
+          "group": "Customers",
+          "power": "Medium",
+          "interest": "High",
+          "engagement": "Keep informed",
+          "communicationPlan": "Monthly updates"
+        }
+      ],
+      "impactedGroups": 3,
+      "changeManagement": [
+        {
+          "phase": "Awareness",
+          "months": "Months 0-2",
+          "activities": [
+            "Stakeholder identification",
+            "Impact assessment",
+            "Communication planning"
+          ]
+        },
+        {
+          "phase": "Mobilization",
+          "months": "Months 2-4",
+          "activities": [
+            "Training programs",
+            "Change champions",
+            "Feedback loops"
+          ]
+        },
+        {
+          "phase": "Execution",
+          "months": "Months 4-10",
+          "activities": [
+            "Ongoing support",
+            "Resistance management",
+            "Progress tracking"
+          ]
+        },
+        {
+          "phase": "Sustainment",
+          "months": "Months 10-12+",
+          "activities": [
+            "Reinforcement",
+            "Best practices",
+            "Continuous improvement"
+          ]
+        }
+      ]
+    },
+    "governance": {
+      "bodies": [
+        {
+          "name": "Steering Committee",
+          "level": "Strategic",
+          "cadence": "Monthly",
+          "members": [
+            "Executive Sponsor",
+            "Business Owners",
+            "Program Manager"
+          ],
+          "escalationPath": "Board of Directors",
+          "responsibilities": [
+            "Strategic direction",
+            "Budget approval",
+            "Risk escalation"
+          ]
+        },
+        {
+          "name": "Program Management Office",
+          "level": "Tactical",
+          "cadence": "Weekly",
+          "members": [
+            "Program Manager",
+            "Workstream Leads",
+            "Change Manager"
+          ],
+          "escalationPath": "Steering Committee",
+          "responsibilities": [
+            "Progress tracking",
+            "Issue resolution",
+            "Resource allocation"
+          ]
+        }
+      ],
+      "confidence": 0.85,
+      "decisionRights": [
+        {
+          "decision": "Budget Changes >10%",
+          "informed": "All Stakeholders",
+          "consulted": "Finance",
+          "accountable": "Steering Committee",
+          "responsible": "Program Manager"
+        },
+        {
+          "decision": "Scope Changes",
+          "informed": "Steering Committee",
+          "consulted": "Business Owners",
+          "accountable": "Program Manager",
+          "responsible": "Workstream Leads"
+        },
+        {
+          "decision": "Risk Mitigation",
+          "informed": "Steering Committee",
+          "consulted": "PMO",
+          "accountable": "Program Manager",
+          "responsible": "Risk Owner"
+        }
+      ],
+      "meetingCadence": {
+        "Daily": "Team standups",
+        "Weekly": "PMO sync, workstream reviews",
+        "Monthly": "Steering Committee, stakeholder updates"
+      }
+    },
+    "qaPlan": {
+      "processes": [
+        {
+          "phase": "Planning",
+          "activities": [
+            "Quality plan development",
+            "Standards definition",
+            "Acceptance criteria"
+          ]
+        },
+        {
+          "phase": "Execution",
+          "activities": [
+            "Quality reviews",
+            "Testing",
+            "Defect tracking"
+          ]
+        },
+        {
+          "phase": "Closure",
+          "activities": [
+            "Final QA audit",
+            "Lessons learned",
+            "Quality metrics"
+          ]
+        }
+      ],
+      "standards": [
+        {
+          "area": "Deliverables",
+          "standard": "All deliverables reviewed and approved",
+          "acceptanceCriteria": [
+            "Peer review completed",
+            "Stakeholder approval",
+            "Quality checklist passed"
+          ]
+        },
+        {
+          "area": "Testing",
+          "standard": "Comprehensive testing before deployment",
+          "acceptanceCriteria": [
+            "Test plans executed",
+            "Defects resolved",
+            "User acceptance complete"
+          ]
+        },
+        {
+          "area": "Documentation",
+          "standard": "Complete and current documentation",
+          "acceptanceCriteria": [
+            "User guides",
+            "Technical specs",
+            "Process documentation"
+          ]
+        }
+      ],
+      "confidence": 0.8,
+      "acceptanceCriteria": [
+        "All deliverables meet quality standards",
+        "Testing complete with <5% defect rate",
+        "Stakeholder sign-off received",
+        "Documentation complete and approved"
+      ]
+    },
+    "procurement": {
+      "items": [
+        {
+          "id": "P001",
+          "name": "Consultants, software, services",
+          "type": "Services",
+          "timing": "Months 0-6",
+          "purpose": "Consultants, software, services",
+          "estimatedValue": 200000,
+          "approvalRequired": "Steering Committee"
+        }
+      ],
+      "policies": [
+        "All procurement >$50k requires competitive bidding",
+        "Vendor selection based on capability and cost",
+        "Quarterly vendor portfolio review"
+      ],
+      "confidence": 0.75,
+      "vendorManagement": [
+        "Monthly vendor performance reviews",
+        "Contract compliance monitoring",
+        "Service level agreement tracking"
+      ],
+      "totalProcurementValue": 200000
+    },
+    "exitStrategy": {
+      "confidence": 0.75,
+      "pivotOptions": [
+        {
+          "name": "Reduce Scope",
+          "conditions": [
+            "Budget constraints",
+            "Timeline pressure"
+          ],
+          "description": "Focus on core deliverables only"
+        },
+        {
+          "name": "Phased Approach",
+          "conditions": [
+            "Resource constraints",
+            "Risk mitigation"
+          ],
+          "description": "Deliver in multiple phases"
+        }
+      ],
+      "lessonsLearned": [
+        "Conduct post-implementation review",
+        "Document successes and challenges",
+        "Update organizational playbooks"
+      ],
+      "failureConditions": [
+        {
+          "trigger": "Internal weakness: High Initial Capital Investment",
+          "severity": "High",
+          "responseTime": "30 days"
+        },
+        {
+          "trigger": "Internal weakness: Premium Mall Rental Costs",
+          "severity": "Medium",
+          "responseTime": "30 days"
+        },
+        {
+          "trigger": "Internal weakness: Dependency on Tourism Fluctuations",
+          "severity": "Medium",
+          "responseTime": "30 days"
+        }
+      ],
+      "rollbackProcedures": [
+        {
+          "name": "Program Pause",
+          "actions": [
+            "Pause all workstreams",
+            "Stakeholder notification",
+            "Impact assessment",
+            "Remediation plan"
+          ],
+          "trigger": "Critical risk realized or budget overrun >30%",
+          "timeline": "2-4 weeks",
+          "estimatedCost": 100000
+        },
+        {
+          "name": "Graceful Wind-Down",
+          "actions": [
+            "Complete in-flight deliverables",
+            "Knowledge transfer",
+            "Asset disposition",
+            "Team redeployment"
+          ],
+          "trigger": "Strategic objectives no longer valid",
+          "timeline": "3 months",
+          "estimatedCost": 250000
+        }
+      ]
+    },
+    "componentConfidence": {
+      "kpis": 0.75,
+      "qaPlan": 0.8,
+      "timeline": 0.7,
+      "governance": 0.85,
+      "stageGates": 0.85,
+      "procurement": 0.75,
+      "workstreams": 0.75,
+      "exitStrategy": 0.75,
+      "resourcePlan": 0.7,
+      "riskRegister": 0.8,
+      "financialPlan": 0.55,
+      "stakeholderMap": 0.65,
+      "executiveSummary": 0.9,
+      "benefitsRealization": 0.7
+    },
+    "overallConfidence": "0.7500",
+    "editTracking": {},
+    "status": "draft",
+    "archived": false,
+    "createdAt": "2026-01-27T04:45:22.492Z",
+    "updatedAt": "2026-01-27T04:45:22.492Z",
+    "finalizedAt": null
+  },
+  "assignments": []
+}

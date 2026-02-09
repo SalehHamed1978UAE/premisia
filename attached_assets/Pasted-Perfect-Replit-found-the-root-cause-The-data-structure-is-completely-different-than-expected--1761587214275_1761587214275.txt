@@ -1,0 +1,100 @@
+Perfect! Replit found the root cause. The data structure is completely
+  different than expected.
+
+  🎯 Real Root Cause Found
+
+  The Issue: Intelligent planning creates a flat task list, but it's being
+  stored as if each task IS a workstream.
+
+  Database shows:
+  workstreams: [
+    { "id": "T001", "name": "Market Strategy", "owner": "Unassigned", ... },
+   // This is a TASK, not a workstream!
+    { "id": "T002", "name": "Partnership Development", ... }
+  ]
+
+  But generateAssignments() expects:
+  workstreams: [
+    {
+      "id": "WS001",
+      "name": "Market Strategy",
+      "tasks": [  // ← This array doesn't exist!
+        { "id": "T001", "name": "...", ... }
+      ]
+    }
+  ]
+
+  Result: ws.tasks is undefined, so (ws.tasks || []) returns [], and NO tasks
+   are converted!
+
+  ---
+  🔧 Fix Instructions for Replit
+
+  Two options - choose the correct one:
+
+  Option 1: Fix in generateAssignments() (Quick Fix)
+
+  If the flat structure is intentional, adapt generateAssignments():
+
+  File: /server/intelligence/epm-synthesizer.ts around line 2070
+
+  // BEFORE:
+  const workstreams = epmProgram.workstreams.map((ws: any) => ({
+    id: ws.id,
+    name: ws.name,
+    description: ws.description || '',
+    tasks: (ws.tasks || []).map((task: any) => ({ ... })),
+  }));
+
+  // AFTER - Handle flat task structure:
+  // Check if workstreams array contains tasks directly (flat structure from 
+  intelligent planning)
+  const hasFlatStructure = epmProgram.workstreams.length > 0 &&
+    epmProgram.workstreams[0].id?.startsWith('T');
+
+  let workstreams;
+  if (hasFlatStructure) {
+    // Flat structure: each item in workstreams array is actually a task
+    console.log('[EPM Synthesis] 📋 Detected flat task structure, grouping 
+  into single workstream');
+    workstreams = [{
+      id: 'WS-ALL',
+      name: 'All Tasks',
+      description: 'Generated tasks from intelligent planning',
+      tasks: epmProgram.workstreams.map((task: any) => ({
+        id: task.id,
+        name: task.name,
+        description: task.description || '',
+        startDate: task.start || task.startDate || new Date().toISOString(),
+        endDate: task.end || task.endDate || new Date().toISOString(),
+        duration: task.duration || 1,
+        dependencies: task.dependencies || [],
+        requiredSkills: task.requirements
+          ? task.requirements.map((req: any) => req.skill || req)
+          : task.skills || [],
+        estimatedEffort: task.effort || 1,
+        priority: task.priority || 'medium',
+      }))
+    }];
+  } else {
+    // Normal structure: workstreams contain tasks
+    workstreams = epmProgram.workstreams.map((ws: any) => ({
+      id: ws.id,
+      name: ws.name,
+      description: ws.description || '',
+      tasks: (ws.tasks || []).map((task: any) => ({ ... existing mapping ...
+  })),
+    }));
+  }
+
+  Option 2: Fix the EPM Program Structure (Proper Fix)
+
+  Question for Replit: Where is the intelligent planning result being
+  converted to EPM program structure?
+
+  Search for where workstreams array is populated from intelligent planning
+  tasks. It should be creating proper workstream objects with nested tasks,
+  not a flat task list.
+
+  Replit: Which approach should we take? Can you show me where intelligent
+  planning tasks are being added to the EPM program's workstreams array?

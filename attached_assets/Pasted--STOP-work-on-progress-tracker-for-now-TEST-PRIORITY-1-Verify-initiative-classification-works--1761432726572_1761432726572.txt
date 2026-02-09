@@ -1,0 +1,139 @@
+ STOP work on progress tracker for now.
+
+  TEST PRIORITY 1: Verify initiative classification works
+
+  1. Create a new test:
+     Input: "I want to open a coffee shop in Brooklyn"
+
+  2. Check the flow:
+     ✓ Does classification page appear?
+     ✓ Does it show "physical_business_launch"?
+     ✓ Can user confirm it?
+     ✓ Does it save to database?
+
+  3. Generate EPM and check:
+     ✓ Timeline: Should be 6-12 months (NOT 166 months)
+     ✓ Resources: Should show "Store Manager", "Barista", "Kitchen Staff"
+     ✓ Resources: Should NOT show "Software Developer", "Technical Lead"
+     ✓ Tasks: Should show "Location scouting", "Permits", "Build-out"
+     ✓ Tasks: Should NOT show "System Design", "Platform Development"
+
+  4. Check logs for these critical messages:
+     ✓ [ContextBuilder] ✓ Loaded initiative from DB
+     ✓ [Task Extractor] THIS IS A PHYSICAL BUSINESS LAUNCH
+     ✓ [Resource Generation] Generating roles for physical_business_launch
+
+  If ANY of these fail, we have a bug to fix BEFORE adding progress tracker.
+
+  Step 2: Quick Diagnosis Commands
+
+  Tell Replit to run:
+
+  # Check if classification is saving to DB
+  psql $DATABASE_URL -c "SELECT session_id, initiative_type, 
+  initiative_description FROM strategic_understanding ORDER BY created_at 
+  DESC LIMIT 3;"
+
+  # Check if understandingId is flowing through
+  grep -rn "understandingId" server/journey/ --include="*.ts" | grep -v
+  import
+
+  # Check if resource generation is using initiative type
+  grep -rn "generateInternalTeam" server/intelligence/ --include="*.ts" -A 3
+
+  Step 3: If Tests Pass, THEN Finish Progress Tracker
+
+  If core functionality works, tell Replit:
+
+  Core works! Now finish progress tracker with SIMPLE approach:
+
+  Use the simulated/time-based progress (not real-time streaming).
+
+  In PrioritizationPage.tsx, when user clicks "Generate Program Plan":
+
+  1. Show PlanningProgressTracker immediately
+  2. Component uses internal timer to simulate progress:
+     - 0-20%: "Extracting tasks" (0-30s)
+     - 20-40%: "Building schedule" (30-60s)
+     - 40-60%: "Allocating resources" (60-100s)
+     - 60-80%: "AI optimization" (100-150s)
+     - 80-100%: "Final validation" (150-180s)
+
+  3. When API returns (actual completion), jump to 100% and show success
+
+  This gives users immediate feedback without complex WebSocket/SSE
+  infrastructure.
+
+  ---
+  🚨 Critical Question for Replit
+
+  Ask Replit this before proceeding:
+
+  "Before we continue with progress tracker:
+
+  Have you verified that the initiative classification bug is fixed?
+
+  The bug was: understandingId not being passed to ContextBuilder, causing 
+  initiative type to not propagate.
+
+  Check this:
+  1. Does insights object have understandingId when passed to 
+  ContextBuilder.fromJourneyInsights?
+  2. Add this debug log in epm-synthesizer.ts at line ~448:
+  console.log('[DEBUG] insights keys:', Object.keys(insights));
+  console.log('[DEBUG] insights.understandingId:', (insights as 
+  any).understandingId);
+  3. Generate a coffee shop EPM and check logs
+
+  If understandingId is undefined:
+  - Progress tracker won't help
+  - Need to fix data flow first
+  - Find where StrategyInsights is built and add understandingId
+
+  If understandingId is present:
+  - Core bug is fixed!
+  - Safe to add progress tracker polish"
+
+  ---
+  🎯 My Recommendation
+
+  Tell Replit:
+
+  PRIORITY ORDER:
+
+  1. ✅ Verify core bug is fixed (5 min)
+    - Add debug logs
+    - Test coffee shop
+    - Check resources
+  2. ✅ Fix any remaining issues (variable time)
+    - If resources still wrong → fix resource generation
+    - If timeline still wrong → fix task extraction
+    - If classification not saving → fix DB flow
+  3. ✅ Add progress tracker (15 min)
+    - Only after core works
+    - Use simple time-based simulation
+    - Good UX polish, but not critical
+
+  Don't polish the UI if the backend is broken.
+
+  ---
+  📊 Success Criteria Before Progress Tracker
+
+  Before Replit works on progress tracker, these MUST be true:
+
+  - Coffee shop shows "physical_business_launch" classification
+  - Coffee shop resources include "Barista", "Store Manager"
+  - Coffee shop resources do NOT include "Software Developer"
+  - Coffee shop timeline is 6-12 months (not 166)
+  - Logs show: [ContextBuilder] ✓ Loaded initiative from DB
+  - Logs show initiative type: physical_business_launch
+  - Software project (test case 2) shows developers, not baristas
+
+  If all checked: GO for progress tracker
+
+  If any unchecked: FIX those first
+
+  ---
+  Tell Replit: "Test the core functionality first. Add those debug logs to
+  verify understandingId is flowing. Show me the results. Then we'll decide
+  whether to finish progress tracker or fix remaining bugs."

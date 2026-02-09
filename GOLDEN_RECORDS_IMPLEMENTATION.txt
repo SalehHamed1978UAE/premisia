@@ -1,0 +1,923 @@
+================================================================================
+GOLDEN RECORDS AUTOMATION - FILE PATCHES
+================================================================================
+
+This document contains all new files and modifications for the Golden Records 
+automation system implementation.
+
+================================================================================
+NEW FILE: scripts/golden-record-capture.ts (186 lines)
+================================================================================
+#!/usr/bin/env tsx
+
+/**
+ * Golden Record Capture CLI
+ * 
+ * Captures a journey session as a golden record for regression testing.
+ * 
+ * Usage:
+ *   npm run capture:golden -- --sessionId=<id> [--notes="Description"] [--promote]
+ *   npm run capture:golden -- --strategyVersionId=<id> [--notes="Description"] [--promote]
+ * 
+ * Flags:
+ *   --sessionId: Journey session ID to capture
+ *   --strategyVersionId: Strategy version ID (alternative to sessionId)
+ *   --notes: Optional notes about this golden record
+ *   --promote: Promote this version as the current golden record (default: false)
+ * 
+ * Environment:
+ *   ADMIN_TOKEN: Admin authentication token (required)
+ */
+
+import {
+  fetchJourneySessionData,
+  fetchStrategyVersionData,
+  sanitizeGoldenRecordData,
+  saveGoldenRecordToFile,
+  prepareGoldenRecordForAPI,
+} from '../server/utils/golden-records-service.js';
+import { db } from '../server/db.js';
+import { goldenRecords } from '../shared/schema.js';
+import { eq, and, desc } from 'drizzle-orm';
+
+// Parse command line arguments
+const args = process.argv.slice(2);
+const flags: Record<string, string | boolean> = {};
+
+for (const arg of args) {
+  if (arg.startsWith('--')) {
+    const [key, value] = arg.substring(2).split('=');
+    flags[key] = value || true;
+  }
+}
+
+const sessionId = flags.sessionId as string | undefined;
+const strategyVersionId = flags.strategyVersionId as string | undefined;
+const notes = flags.notes as string | undefined;
+const promote = flags.promote === true || flags.promote === 'true';
+
+/**
+ * Main capture function
+ */
+async function captureGoldenRecord() {
+  console.log('\n📸 Golden Record Capture Tool\n');
+  console.log('='.repeat(80) + '\n');
+
+  // Validate inputs
+  if (!sessionId && !strategyVersionId) {
+    console.error('❌ Error: Either --sessionId or --strategyVersionId is required');
+    console.log('\nUsage:');
+    console.log('  npm run capture:golden -- --sessionId=<id> [--notes="..."] [--promote]');
+    console.log('  npm run capture:golden -- --strategyVersionId=<id> [--notes="..."] [--promote]');
+    process.exit(1);
+  }
+
+  if (sessionId && strategyVersionId) {
+    console.error('❌ Error: Provide either --sessionId OR --strategyVersionId, not both');
+    process.exit(1);
+  }
+
+  try {
+    // Step 1: Fetch journey data
+    console.log('📥 Fetching journey data...');
+    const rawData = sessionId
+      ? await fetchJourneySessionData(sessionId)
+      : await fetchStrategyVersionData(strategyVersionId!);
+
+    if (!rawData) {
+      console.error('❌ Error: Journey session or strategy version not found');
+      process.exit(1);
+    }
+
+    console.log(`✓ Found journey: ${rawData.journeyType} (v${rawData.versionNumber})`);
+    console.log(`  Session ID: ${rawData.sessionId}`);
+    console.log(`  Understanding ID: ${rawData.understandingId}`);
+    console.log(`  Steps: ${rawData.steps.length}`);
+    console.log('');
+
+    // Step 2: Sanitize data
+    console.log('🧹 Sanitizing sensitive data...');
+    const sanitizedData = await sanitizeGoldenRecordData(rawData);
+    console.log('✓ Data sanitized\n');
+
+    // Step 3: Determine next version number
+    console.log('🔍 Checking existing golden records...');
+    const existingRecords = await db
+      .select()
+      .from(goldenRecords)
+      .where(eq(goldenRecords.journeyType, rawData.journeyType as any))
+      .orderBy(desc(goldenRecords.version));
+
+    const maxVersion = existingRecords.length > 0 ? existingRecords[0].version : 0;
+    const nextVersion = maxVersion + 1;
+    
+    console.log(`✓ Latest version: v${maxVersion}`);
+    console.log(`  New version: v${nextVersion}\n`);
+
+    // Update sanitized data with the correct golden record version
+    sanitizedData.versionNumber = nextVersion;
+
+    // Step 4: Save to local file
+    console.log('💾 Saving to local file system...');
+    const filepath = await saveGoldenRecordToFile(sanitizedData, notes);
+    console.log(`✓ Saved to: ${filepath}\n`);
+
+    // Step 5: Save to database via direct insert (CLI has DB access)
+    console.log('💾 Saving to database...');
+    
+    // Get user ID (in CLI context, we use a system user or the first admin)
+    const adminUser = process.env.ADMIN_USER_ID || 'system';
+    
+    const recordData = {
+      journeyType: rawData.journeyType as any,
+      version: nextVersion,
+      parentVersion: maxVersion > 0 ? maxVersion : null,
+      isCurrent: promote,
+      metadata: sanitizedData.metadata,
+      notes: notes || null,
+      steps: sanitizedData.steps as any,
+      createdBy: adminUser,
+    };
+
+    // If promoting, demote all other current records for this journey type
+    if (promote) {
+      await db
+        .update(goldenRecords)
+        .set({ isCurrent: false })
+        .where(
+          and(
+            eq(goldenRecords.journeyType, rawData.journeyType as any),
+            eq(goldenRecords.isCurrent, true)
+          )
+        );
+      console.log('  Demoted previous current version');
+    }
+
+    const [newRecord] = await db
+      .insert(goldenRecords)
+      .values(recordData)
+      .returning();
+
+    console.log(`✓ Saved to database: ${newRecord.id}\n`);
+
+    // Step 6: Print summary
+    console.log('='.repeat(80));
+    console.log('✅ Golden Record Captured Successfully\n');
+    console.log(`  Journey Type: ${rawData.journeyType}`);
+    console.log(`  Version: v${nextVersion}`);
+    console.log(`  Steps: ${rawData.steps.length}`);
+    console.log(`  Promoted: ${promote ? 'Yes' : 'No'}`);
+    if (notes) {
+      console.log(`  Notes: ${notes}`);
+    }
+    console.log(`\n  Local File: ${filepath}`);
+    console.log(`  Database ID: ${newRecord.id}`);
+    console.log('='.repeat(80) + '\n');
+
+    console.log('💡 Next steps:');
+    console.log('  - View in admin UI: /admin/golden-records');
+    console.log('  - Compare against new runs: npm run compare:golden -- --sessionId=<id> --journeyType=' + rawData.journeyType);
+    if (!promote) {
+      console.log('  - Promote to current: POST /api/admin/golden-records/' + rawData.journeyType + '/' + nextVersion + '/promote');
+    }
+    console.log('');
+
+  } catch (error) {
+    console.error('\n❌ Error capturing golden record:', error);
+    console.error((error as Error).stack);
+    process.exit(1);
+  }
+}
+
+// Run the capture
+captureGoldenRecord().catch(error => {
+  console.error('Fatal error:', error);
+  process.exit(1);
+});
+
+
+
+================================================================================
+NEW FILE: scripts/golden-record-compare.ts (238 lines)
+================================================================================
+#!/usr/bin/env tsx
+
+/**
+ * Golden Record Compare CLI
+ * 
+ * Compares a journey session against the current golden record for regression testing.
+ * 
+ * Usage:
+ *   npm run compare:golden -- --sessionId=<id> --journeyType=<type>
+ *   npm run compare:golden -- --strategyVersionId=<id> --journeyType=<type>
+ * 
+ * Flags:
+ *   --sessionId: Journey session ID to compare
+ *   --strategyVersionId: Strategy version ID (alternative to sessionId)
+ *   --journeyType: Journey type to compare against (required)
+ * 
+ * Exit Codes:
+ *   0 - Journey matches golden record
+ *   1 - Journey differs from golden record
+ *   2 - Error occurred during comparison
+ */
+
+import {
+  fetchJourneySessionData,
+  fetchStrategyVersionData,
+  sanitizeGoldenRecordData,
+  generateDiffSummary,
+} from '../server/utils/golden-records-service.js';
+import { db } from '../server/db.js';
+import { goldenRecords, goldenRecordChecks } from '../shared/schema.js';
+import { eq, and, desc } from 'drizzle-orm';
+import type { JourneyType } from '../shared/journey-types.js';
+
+// Parse command line arguments
+const args = process.argv.slice(2);
+const flags: Record<string, string | boolean> = {};
+
+for (const arg of args) {
+  if (arg.startsWith('--')) {
+    const [key, value] = arg.substring(2).split('=');
+    flags[key] = value || true;
+  }
+}
+
+const sessionId = flags.sessionId as string | undefined;
+const strategyVersionId = flags.strategyVersionId as string | undefined;
+const journeyType = flags.journeyType as string | undefined;
+
+/**
+ * Main compare function
+ */
+async function compareGoldenRecord() {
+  console.log('\n🔍 Golden Record Comparison Tool\n');
+  console.log('='.repeat(80) + '\n');
+
+  // Validate inputs
+  if (!sessionId && !strategyVersionId) {
+    console.error('❌ Error: Either --sessionId or --strategyVersionId is required');
+    console.log('\nUsage:');
+    console.log('  npm run compare:golden -- --sessionId=<id> --journeyType=<type>');
+    console.log('  npm run compare:golden -- --strategyVersionId=<id> --journeyType=<type>');
+    process.exit(2);
+  }
+
+  if (!journeyType) {
+    console.error('❌ Error: --journeyType is required');
+    console.log('\nAvailable journey types:');
+    console.log('  - market_entry');
+    console.log('  - business_model_innovation');
+    console.log('  - competitive_strategy');
+    console.log('  - digital_transformation');
+    console.log('  - crisis_recovery');
+    console.log('  - growth_strategy');
+    process.exit(2);
+  }
+
+  try {
+    // Step 1: Fetch current journey data
+    console.log('📥 Fetching current journey data...');
+    const currentRawData = sessionId
+      ? await fetchJourneySessionData(sessionId)
+      : await fetchStrategyVersionData(strategyVersionId!);
+
+    if (!currentRawData) {
+      console.error('❌ Error: Journey session or strategy version not found');
+      process.exit(2);
+    }
+
+    console.log(`✓ Found journey: ${currentRawData.journeyType} (v${currentRawData.versionNumber})`);
+    console.log(`  Session ID: ${currentRawData.sessionId}`);
+    console.log(`  Steps: ${currentRawData.steps.length}`);
+    console.log('');
+
+    // Verify journey type matches
+    if (currentRawData.journeyType !== journeyType) {
+      console.error(`❌ Error: Journey type mismatch`);
+      console.error(`  Expected: ${journeyType}`);
+      console.error(`  Actual: ${currentRawData.journeyType}`);
+      process.exit(2);
+    }
+
+    // Step 2: Sanitize current data
+    console.log('🧹 Sanitizing current journey data...');
+    const currentData = await sanitizeGoldenRecordData(currentRawData);
+    console.log('✓ Data sanitized\n');
+
+    // Step 3: Fetch current golden record
+    console.log('📚 Fetching current golden record...');
+    const [goldenRecord] = await db
+      .select()
+      .from(goldenRecords)
+      .where(
+        and(
+          eq(goldenRecords.journeyType, journeyType as any),
+          eq(goldenRecords.isCurrent, true)
+        )
+      )
+      .limit(1);
+
+    if (!goldenRecord) {
+      console.error(`❌ Error: No current golden record found for journey type: ${journeyType}`);
+      console.log('\n💡 Tip: Create a golden record first using:');
+      console.log(`  npm run capture:golden -- --sessionId=${currentRawData.sessionId} --promote`);
+      process.exit(2);
+    }
+
+    console.log(`✓ Found golden record: v${goldenRecord.version}`);
+    console.log(`  Created: ${goldenRecord.createdAt.toISOString()}`);
+    console.log(`  Created by: ${goldenRecord.createdBy}`);
+    if (goldenRecord.notes) {
+      console.log(`  Notes: ${goldenRecord.notes}`);
+    }
+    console.log('');
+
+    // Step 4: Compare journey data
+    console.log('⚖️  Comparing journeys...\n');
+    
+    const baselineData = {
+      journeyType: goldenRecord.journeyType as JourneyType,
+      sessionId: '',
+      understandingId: '',
+      versionNumber: goldenRecord.version,
+      steps: goldenRecord.steps as any[],
+      metadata: goldenRecord.metadata as any,
+    };
+
+    const diff = generateDiffSummary(baselineData, currentData);
+
+    // Step 5: Print results
+    console.log('='.repeat(80));
+    console.log(diff.summary);
+    console.log('='.repeat(80) + '\n');
+
+    if (!diff.match) {
+      if (diff.added.length > 0) {
+        console.log('➕ Added Steps:');
+        diff.added.forEach(step => console.log(`  - ${step}`));
+        console.log('');
+      }
+
+      if (diff.removed.length > 0) {
+        console.log('➖ Removed Steps:');
+        diff.removed.forEach(step => console.log(`  - ${step}`));
+        console.log('');
+      }
+
+      if (diff.modified.length > 0) {
+        console.log('🔄 Modified Steps:');
+        diff.modified.forEach(mod => {
+          console.log(`  - ${mod.step}:`);
+          mod.differences.forEach(d => console.log(`      ${d}`));
+        });
+        console.log('');
+      }
+    }
+
+    // Step 6: Log check result to database
+    console.log('💾 Logging check result...');
+    
+    const checkData = {
+      goldenRecordId: goldenRecord.id,
+      sessionId: currentData.sessionId,
+      status: diff.match ? 'pass' : 'fail',
+      diffSummary: {
+        added: diff.added,
+        removed: diff.removed,
+        modified: diff.modified,
+      },
+      stepResults: currentData.steps.map((step, idx) => ({
+        stepName: step.stepName,
+        status: diff.modified.some(m => m.step === step.stepName) ? 'modified' : 'passed',
+      })),
+      exitCode: diff.match ? 0 : 1,
+      executedBy: null, // CLI execution
+    };
+
+    const [checkRecord] = await db
+      .insert(goldenRecordChecks)
+      .values(checkData as any)
+      .returning();
+
+    console.log(`✓ Check logged: ${checkRecord.id}\n`);
+
+    // Step 7: Print summary
+    console.log('📊 Comparison Summary:');
+    console.log(`  Golden Record: v${goldenRecord.version}`);
+    console.log(`  Current Journey: v${currentData.versionNumber}`);
+    console.log(`  Result: ${diff.match ? '✅ PASS' : '❌ FAIL'}`);
+    console.log(`  Check ID: ${checkRecord.id}`);
+    console.log('');
+
+    console.log('💡 Next steps:');
+    if (!diff.match) {
+      console.log('  - Review the differences above');
+      console.log('  - If expected, capture as new golden record:');
+      console.log(`    npm run capture:golden -- --sessionId=${currentData.sessionId} --promote`);
+      console.log('  - View check history: /admin/golden-records/' + journeyType);
+    } else {
+      console.log('  ✓ Journey is consistent with golden record');
+      console.log('  - View check history: /admin/golden-records/' + journeyType);
+    }
+    console.log('');
+
+    // Exit with appropriate code
+    process.exit(diff.match ? 0 : 1);
+
+  } catch (error) {
+    console.error('\n❌ Error comparing golden record:', error);
+    console.error((error as Error).stack);
+    process.exit(2);
+  }
+}
+
+// Run the comparison
+compareGoldenRecord().catch(error => {
+  console.error('Fatal error:', error);
+  process.exit(2);
+});
+
+
+
+================================================================================
+NEW FILE: server/utils/golden-records-service.ts (340 lines)
+================================================================================
+import { db } from '../db';
+import { journeySessions, strategyVersions, strategicUnderstanding, epmPrograms } from '@shared/schema';
+import { eq, and, desc } from 'drizzle-orm';
+import { getJourneySession, getStrategicUnderstanding } from '../services/secure-data-service';
+import { sanitizeGoldenRecordStep } from './golden-record-sanitizer';
+import type { JourneyType } from '@shared/journey-types';
+import { mkdir, writeFile } from 'fs/promises';
+import { join } from 'path';
+
+/**
+ * Golden Records Service
+ * Shared utilities for capturing, comparing, and managing golden records
+ */
+
+export interface GoldenRecordStep {
+  stepName: string;
+  frameworkType?: string;
+  expectedUrl?: string;
+  screenshotPath?: string;
+  requestPayload?: any;
+  responsePayload?: any;
+  dbSnapshot?: any;
+  observations?: string;
+  completedAt?: Date;
+}
+
+export interface GoldenRecordData {
+  journeyType: JourneyType;
+  sessionId: string;
+  understandingId: string;
+  versionNumber: number;
+  steps: GoldenRecordStep[];
+  metadata: {
+    userInput?: string;
+    initiativeType?: string;
+    completedAt?: Date;
+    frameworks?: string[];
+  };
+}
+
+/**
+ * Fetch journey session data for golden record capture
+ */
+export async function fetchJourneySessionData(sessionId: string): Promise<GoldenRecordData | null> {
+  const session = await getJourneySession(sessionId);
+  
+  if (!session || !session.id || !session.understandingId) {
+    console.error(`[Golden Records] Journey session not found or missing understandingId: ${sessionId}`);
+    return null;
+  }
+
+  // Fetch the strategic understanding
+  const understanding = await getStrategicUnderstanding(session.understandingId);
+  
+  if (!understanding) {
+    console.error(`[Golden Records] Strategic understanding not found: ${session.understandingId}`);
+    return null;
+  }
+
+  // Fetch strategy versions linked to this session
+  const versions = await db
+    .select()
+    .from(strategyVersions)
+    .where(eq(strategyVersions.sessionId, sessionId))
+    .orderBy(desc(strategyVersions.versionNumber));
+
+  // Fetch EPM program if exists
+  const epmProgram = versions.length > 0 
+    ? await db
+        .select()
+        .from(epmPrograms)
+        .where(eq(epmPrograms.strategyVersionId, versions[0].id))
+        .limit(1)
+    : [];
+
+  // Build steps from journey data
+  const steps: GoldenRecordStep[] = [];
+  
+  // Add framework steps based on completed frameworks
+  if (session.completedFrameworks && session.completedFrameworks.length > 0) {
+    for (const framework of session.completedFrameworks) {
+      steps.push({
+        stepName: `${framework}_analysis`,
+        frameworkType: framework,
+        completedAt: session.completedAt || undefined,
+        observations: `Completed ${framework} framework analysis`,
+      });
+    }
+  }
+
+  // Add strategy version step if exists
+  if (versions.length > 0) {
+    steps.push({
+      stepName: 'strategy_version_created',
+      responsePayload: {
+        versionNumber: versions[0].versionNumber,
+        status: versions[0].status,
+      },
+      completedAt: versions[0].createdAt || undefined,
+      observations: `Strategy version ${versions[0].versionNumber} created`,
+    });
+  }
+
+  // Add EPM generation step if exists
+  if (epmProgram.length > 0) {
+    steps.push({
+      stepName: 'epm_generated',
+      responsePayload: {
+        programId: epmProgram[0].id,
+        status: epmProgram[0].status,
+        workstreamCount: Array.isArray(epmProgram[0].workstreams) 
+          ? epmProgram[0].workstreams.length 
+          : 0,
+      },
+      completedAt: epmProgram[0].createdAt || undefined,
+      observations: 'EPM program generated successfully',
+    });
+  }
+
+  return {
+    journeyType: session.journeyType as JourneyType,
+    sessionId: session.id,
+    understandingId: session.understandingId,
+    versionNumber: session.versionNumber || 1,
+    steps,
+    metadata: {
+      userInput: understanding.userInput,
+      initiativeType: understanding.initiativeType || undefined,
+      completedAt: session.completedAt || undefined,
+      frameworks: session.completedFrameworks || [],
+    },
+  };
+}
+
+/**
+ * Fetch strategy version data for golden record capture
+ */
+export async function fetchStrategyVersionData(strategyVersionId: string): Promise<GoldenRecordData | null> {
+  const [version] = await db
+    .select()
+    .from(strategyVersions)
+    .where(eq(strategyVersions.id, strategyVersionId))
+    .limit(1);
+  
+  if (!version) {
+    console.error(`[Golden Records] Strategy version not found: ${strategyVersionId}`);
+    return null;
+  }
+
+  // Fetch the journey session
+  return fetchJourneySessionData(version.sessionId);
+}
+
+/**
+ * Sanitize golden record data before storage
+ */
+export async function sanitizeGoldenRecordData(data: GoldenRecordData): Promise<GoldenRecordData> {
+  const sanitizedSteps = await Promise.all(
+    data.steps.map(step => sanitizeGoldenRecordStep(step))
+  );
+
+  return {
+    ...data,
+    steps: sanitizedSteps,
+    metadata: {
+      ...data.metadata,
+      // Remove sensitive user input, keep only summary info
+      userInput: undefined,
+    },
+  };
+}
+
+/**
+ * Save golden record to local file system
+ */
+export async function saveGoldenRecordToFile(
+  data: GoldenRecordData,
+  notes?: string
+): Promise<string> {
+  const outputDir = join(process.cwd(), 'scripts', 'output', 'golden-records', data.journeyType);
+  
+  // Create directory if it doesn't exist
+  await mkdir(outputDir, { recursive: true });
+
+  // Generate filename with timestamp
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const filename = `v${data.versionNumber}_${timestamp}.json`;
+  const filepath = join(outputDir, filename);
+
+  // Prepare output data
+  const output = {
+    ...data,
+    notes,
+    capturedAt: new Date().toISOString(),
+  };
+
+  // Write to file
+  await writeFile(filepath, JSON.stringify(output, null, 2), 'utf-8');
+  
+  console.log(`[Golden Records] Saved to: ${filepath}`);
+  return filepath;
+}
+
+/**
+ * Compare two golden record steps
+ */
+export function compareSteps(step1: GoldenRecordStep, step2: GoldenRecordStep): {
+  match: boolean;
+  differences: string[];
+} {
+  const differences: string[] = [];
+
+  if (step1.stepName !== step2.stepName) {
+    differences.push(`Step name mismatch: "${step1.stepName}" vs "${step2.stepName}"`);
+  }
+
+  if (step1.frameworkType !== step2.frameworkType) {
+    differences.push(`Framework type mismatch: "${step1.frameworkType}" vs "${step2.frameworkType}"`);
+  }
+
+  // Compare response payloads structurally (ignoring dynamic values like IDs and timestamps)
+  if (step1.responsePayload && step2.responsePayload) {
+    const keys1 = Object.keys(step1.responsePayload);
+    const keys2 = Object.keys(step2.responsePayload);
+    
+    const missingKeys = keys1.filter(k => !keys2.includes(k));
+    const extraKeys = keys2.filter(k => !keys1.includes(k));
+    
+    if (missingKeys.length > 0) {
+      differences.push(`Missing keys in step2: ${missingKeys.join(', ')}`);
+    }
+    
+    if (extraKeys.length > 0) {
+      differences.push(`Extra keys in step2: ${extraKeys.join(', ')}`);
+    }
+  } else if (step1.responsePayload || step2.responsePayload) {
+    differences.push('Response payload presence mismatch');
+  }
+
+  return {
+    match: differences.length === 0,
+    differences,
+  };
+}
+
+/**
+ * Generate diff summary between two golden records
+ */
+export function generateDiffSummary(
+  baseline: GoldenRecordData,
+  current: GoldenRecordData
+): {
+  match: boolean;
+  added: string[];
+  removed: string[];
+  modified: Array<{ step: string; differences: string[] }>;
+  summary: string;
+} {
+  const baselineSteps = baseline.steps.map(s => s.stepName);
+  const currentSteps = current.steps.map(s => s.stepName);
+
+  const added = currentSteps.filter(s => !baselineSteps.includes(s));
+  const removed = baselineSteps.filter(s => !currentSteps.includes(s));
+  const modified: Array<{ step: string; differences: string[] }> = [];
+
+  // Compare common steps
+  const commonSteps = baselineSteps.filter(s => currentSteps.includes(s));
+  
+  for (const stepName of commonSteps) {
+    const step1 = baseline.steps.find(s => s.stepName === stepName)!;
+    const step2 = current.steps.find(s => s.stepName === stepName)!;
+    
+    const comparison = compareSteps(step1, step2);
+    
+    if (!comparison.match) {
+      modified.push({
+        step: stepName,
+        differences: comparison.differences,
+      });
+    }
+  }
+
+  const match = added.length === 0 && removed.length === 0 && modified.length === 0;
+
+  let summary = match 
+    ? '✓ Journey matches golden record' 
+    : '✗ Journey differs from golden record';
+
+  if (!match) {
+    summary += '\n';
+    if (added.length > 0) {
+      summary += `\n  Added steps: ${added.join(', ')}`;
+    }
+    if (removed.length > 0) {
+      summary += `\n  Removed steps: ${removed.length}`;
+    }
+    if (modified.length > 0) {
+      summary += `\n  Modified steps: ${modified.map(m => m.step).join(', ')}`;
+    }
+  }
+
+  return {
+    match,
+    added,
+    removed,
+    modified,
+    summary,
+  };
+}
+
+/**
+ * Prepare golden record data for admin API storage
+ */
+export function prepareGoldenRecordForAPI(
+  data: GoldenRecordData,
+  notes?: string,
+  promoteAsCurrent: boolean = false,
+  parentVersion?: number
+): {
+  journeyType: JourneyType;
+  notes?: string;
+  steps: any[];
+  metadata: any;
+  promoteAsCurrent: boolean;
+  parentVersion?: number;
+} {
+  return {
+    journeyType: data.journeyType,
+    notes,
+    steps: data.steps,
+    metadata: {
+      ...data.metadata,
+      versionNumber: data.versionNumber,
+      sessionId: data.sessionId,
+      understandingId: data.understandingId,
+    },
+    promoteAsCurrent,
+    parentVersion,
+  };
+}
+
+
+
+================================================================================
+MODIFIED FILE: server/journey/journey-orchestrator.ts
+SECTION: Auto-Capture Hook (lines 405-487)
+================================================================================
+  ): Promise<void> {
+    // Check if auto-capture is enabled via environment variable
+    const autoCaptureEnabled = process.env.AUTO_CAPTURE_GOLDEN === 'true';
+    
+    if (!autoCaptureEnabled) {
+      console.log('[Golden Records] Auto-capture disabled (AUTO_CAPTURE_GOLDEN=false)');
+      return;
+    }
+
+    // Journey allowlist (start with BMI only)
+    const allowedJourneys: JourneyType[] = ['business_model_innovation'];
+    
+    if (!allowedJourneys.includes(journeyType)) {
+      console.log(`[Golden Records] Journey type "${journeyType}" not in auto-capture allowlist`);
+      return;
+    }
+
+    // Capture asynchronously without blocking the main flow
+    setImmediate(async () => {
+      try {
+        console.log(`[Golden Records] 🔄 Auto-capturing golden record for journey: ${journeyType}`);
+        const timestamp = new Date().toISOString();
+        
+        // Import the golden records service
+        const {
+          fetchJourneySessionData,
+          sanitizeGoldenRecordData,
+          saveGoldenRecordToFile,
+        } = await import('../utils/golden-records-service');
+        
+        // Fetch journey data
+        const rawData = await fetchJourneySessionData(journeySessionId);
+        
+        if (!rawData) {
+          console.error('[Golden Records] Failed to fetch journey session data for auto-capture');
+          return;
+        }
+
+        // Sanitize data
+        const sanitizedData = await sanitizeGoldenRecordData(rawData);
+
+        // Determine next version
+        const existingRecords = await db
+          .select()
+          .from(goldenRecords)
+          .where(eq(goldenRecords.journeyType, journeyType as any))
+          .orderBy(desc(goldenRecords.version));
+
+        const maxVersion = existingRecords.length > 0 ? existingRecords[0].version : 0;
+        const nextVersion = maxVersion + 1;
+
+        // Update sanitized data with the correct golden record version
+        sanitizedData.versionNumber = nextVersion;
+
+        // Save to local file
+        await saveGoldenRecordToFile(sanitizedData, `Auto-captured on ${timestamp}`);
+
+        // Save to database (don't auto-promote)
+        const recordData = {
+          journeyType: journeyType as any,
+          version: nextVersion,
+          parentVersion: maxVersion > 0 ? maxVersion : null,
+          isCurrent: false, // Don't auto-promote
+          metadata: sanitizedData.metadata,
+          notes: `Auto-captured on ${timestamp}`,
+          steps: sanitizedData.steps as any,
+          createdBy: 'system', // Auto-capture is system-initiated
+        };
+
+        const [newRecord] = await db
+          .insert(goldenRecords)
+          .values(recordData)
+          .returning();
+
+        console.log(`[Golden Records] ✅ Auto-captured golden record v${nextVersion}: ${newRecord.id}`);
+        console.log(`[Golden Records] Journey: ${journeyType}, Session: ${journeySessionId}`);
+        
+      } catch (error) {
+        console.error('[Golden Records] Error during auto-capture:', error);
+        // Don't throw - this is a non-critical background operation
+      }
+    });
+  }
+
+
+
+================================================================================
+MODIFIED FILE: docs/GOLDEN_RECORDS.md
+SECTION: Version Synchronization (lines 53-59)
+================================================================================
+- Database records store the computed golden record version (v1, v2, v3...)
+- Filesystem files are saved with matching version numbers in filenames (`v2_timestamp.json`)
+- The capture process ensures version alignment by updating the sanitized data before persistence
+- This prevents version mismatches and ensures consistent regression testing
+
+### Data Sanitization
+
+
+================================================================================
+SUMMARY OF CHANGES
+================================================================================
+
+Files Created:
+  1. scripts/golden-record-capture.ts       (186 lines) - CLI capture utility
+  2. scripts/golden-record-compare.ts       (238 lines) - CLI compare utility
+  3. server/utils/golden-records-service.ts (340 lines) - Shared service layer
+
+Files Modified:
+  4. server/journey/journey-orchestrator.ts (83 lines) - Auto-capture hook
+  5. docs/GOLDEN_RECORDS.md                 (7 lines)  - Version sync docs
+
+Total Lines Added: ~854 lines
+
+Key Features Implemented:
+  ✓ CLI capture utility with promotion support
+  ✓ CLI compare utility with exit codes (0=pass, 1=fail, 2=error)
+  ✓ Auto-capture hook with feature flag (AUTO_CAPTURE_GOLDEN=true)
+  ✓ Shared service layer for consistency
+  ✓ Version alignment fix (database/filesystem sync)
+  ✓ Comprehensive documentation
+
+Exit Codes:
+  - Capture: 0 (success), 1 (error)
+  - Compare: 0 (match), 1 (mismatch), 2 (error)
+
+Usage:
+  npx tsx scripts/golden-record-capture.ts --sessionId=<id> --promote
+  npx tsx scripts/golden-record-compare.ts --sessionId=<id> --journeyType=business_model_innovation
+
+================================================================================

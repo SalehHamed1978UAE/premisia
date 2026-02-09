@@ -1,0 +1,95 @@
+ ## Phase 1 – Provision Managed Key Infrastructure
+
+  1. Create a dedicated KMS key
+      - Use AWS KMS (or equivalent). Friendly name: premisia-data-key.
+      - Enable automatic rotation (recommended).
+      - Policy: Only the application’s IAM role (e.g., premisia-app-role) is
+        allowed to call kms:Encrypt and kms:Decrypt. No human IAM users should
+        have these permissions.
+  2. Update application configuration
+      - Add PREMISIA_KMS_KEY_ID (or similar) to the server config so the secure
+        data service knows which CMK to use.
+      - Ensure the app’s execution environment (containers, EC2) can assume
+        premisia-app-role. DB admins/operators must not have this ability.
+  3. Logging & monitoring
+      - Enable CloudTrail/CloudWatch logging for the CMK so every decrypt call
+        is audited.
+      - Set alerts on unexpected decrypt volume or calls from non-application
+        contexts.
+
+  ———
+
+  ## Phase 2 – Implement Envelope Encryption
+
+  4. Update the secure data service (server/services/secure-data-service.ts)
+
+     Implement the following helpers (or equivalent):
+
+     type EncryptedPayload = {
+       dataKeyCiphertext: Buffer;   //  encrypted via KMS
+       iv: Buffer;
+       authTag: Buffer;
+       ciphertext: Buffer;
+     };
+      - generateDataKey(): call kms.GenerateDataKey to get a plaintext data
+        key and a ciphertext blob. Use the plaintext key to encrypt the record;
+        discard it immediately after encryption. Store the ciphertext blob with
+        the record.
+      - encryptWithDataKey(plaintext): given a plaintext data key, return {iv,
+        authTag, ciphertext} using AES-256-GCM.
+      - decryptWithKms(dataKeyCiphertext): call kms.Decrypt to get the plaintext
+        data key; wipe it from memory after decrypting the payload.
+  5. Modify persistence code
+      - For every sensitive column (as already classified), store an
+        EncryptedPayload object (serialized) instead of raw plaintext.
+      - On read, the secure service should unwrap the data key with KMS, decrypt
+        the payload, then zero the key.
+  6. Backfill migrations
+      - Write a migration script to read every existing row, re-encrypt it with
+        a fresh data key, and update the DB.
+      - Run in manageable batches, logging progress.
+  7. Testing
+      - Add integration tests that:
+          1. Insert a record with known plaintext.
+          2. Fetch the raw DB row and assert the plaintext doesn’t appear.
+          3. Read via the secure service and verify the original plaintext comes
+             back.
+      - Fail the test if the raw DB query still contains plaintext.
+  8. Manual QA
+      - Create/edit data via the UI (strategy input, BMI run, references).
+        Inspect the DB to confirm only ciphertext is present.
+      - Confirm the UI and exported reports show correct plaintext (proving
+        decryption works).
+
+  ———
+
+  ## Phase 3 – Operational Hardening & Documentation
+
+  9. CLI audit command
+      - Add pnpm security:audit that queries sample rows and prints “ENCRYPTED”
+        or details any plaintext leaks.
+  10. Documentation
+
+  - docs/security/encryption.md: describe the new architecture (per-record data
+    keys, KMS usage, key rotation).
+  - docs/security/runbook.md: instructions for running the migration, verifying
+    encryption, rotating keys, handling incidents.
+
+  11. Key rotation process
+
+  - Document how to rotate data keys periodically (or after an incident).
+    Typical workflow:
+      1. Call KMS GenerateDataKey for each record.
+      2. Re-encrypt payload with new data key.
+      3. Store the new ciphertext blob.
+  - Verify tests and audit CLI afterwards.
+
+  ———
+
+  ## Deliverables to return:
+
+  - Code changes implementing steps 4–6.
+  - Migration script(s) and execution logs.
+  - Passing integration tests + manual QA evidence.
+  - Updated documentation.
+

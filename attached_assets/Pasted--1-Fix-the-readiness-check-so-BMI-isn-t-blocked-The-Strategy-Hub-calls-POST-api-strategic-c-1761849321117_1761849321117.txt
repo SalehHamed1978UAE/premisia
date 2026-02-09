@@ -1,0 +1,80 @@
+ ### 1. Fix the readiness check so BMI isn’t blocked
+
+  The Strategy Hub calls POST /api/strategic-consultant/journeys/check-
+  readiness. That handler still uses the default minimums (3 references, 5
+  entities), which trips BMI every time you run it from the hub. Update the
+  readiness logic in server/routes/strategic-consultant.ts so it’s journey-
+  aware:
+
+  const readinessConfig: Record<string, { minReferences: number; minEntities:
+  number }> = {
+    business_model_innovation: { minReferences: 0, minEntities: 0 },
+    // leave other journeys with the default thresholds for now
+  };
+
+  const { minReferences, minEntities } = readinessConfig[journeyType as
+  string] ?? {
+    minReferences: 3,
+    minEntities: 5,
+  };
+
+  Use those minReferences / minEntities when you calculate isReady and when
+  you build the “missing requirements” list. This will stop “Need 3 more
+  reference(s)” from appearing when you have enough context to run BMI.
+
+  ———
+
+  ### 2. Restore the ambiguity workflow in the journey path
+
+  handleJourneyStepSubmit in client/src/pages/strategic-consultant/InputPage.tsx
+  now calls the ambiguity check, but the results aren’t stored correctly:
+
+  - When hasAmbiguities is true, capture the trimmed input before showing the
+    modal (e.g. setText(trimmedInput);).
+  - In handleClarificationsSubmit, if you’re in journey mode, rebuild
+    the clarified input exactly the way the standard path does (use
+    ambiguityDetector.buildClarifiedInput on the server, or reconstruct the text
+    client-side) and pass it into startJourneyUnderstanding.
+  - Persist the answered clarifications in localStorage or on the understanding
+    record so subsequent runs know they’ve been resolved.
+
+  Without that, the modal either never opens or the clarifications aren’t
+  applied when you advance the journey.
+
+  ———
+
+  ### 3. Stop re-running the raw baseline input
+
+  Right now “Run Additional Analysis” just replays the original statement, which
+  produces the same outputs. Instead, before you launch a follow-on journey:
+
+  1. Assemble a summary of the completed strategy (executive summary, key
+     insights, major decisions).
+  2. Use that summary as the input for startJourneyUnderstanding (or pass it to
+     the backend when you call /understanding).
+  3. Mark in the understanding record that this run was derived from version N
+     so you keep the audit trail.
+
+  That way every new journey works off the latest strategic state, not the raw
+  first draft.
+
+  ———
+
+  ### 4. Bonus: better error messaging for missing Brave keys
+
+  If BRAVE_SEARCH_API_KEY isn’t set, the current /api/web-search implementation
+  just throws and the SSE dies. Wrap it with a user-friendly fallback:
+
+  if (!apiKey) {
+    console.warn('Brave Search API key missing');
+    return res.status(503).json({
+      error: 'Search service unavailable',
+      message: 'Add BRAVE_SEARCH_API_KEY to enable web research.',
+    });
+  }
+
+  This keeps the UI consistent and tells us exactly what’s wrong.
+
+  ———
+
+  Send Replit those four items and they’ll be working on the same plan we are.

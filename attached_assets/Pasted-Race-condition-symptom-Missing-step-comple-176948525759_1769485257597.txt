@@ -1,0 +1,79 @@
+Race condition = symptom                                                      
+  Missing step completion check = root cause                                    
+                                                                                
+  ---                                                                           
+  The proper fix is #2 from the user's instinct:                                
+                                                                                
+  The orchestrator should never advance to the next step until the current step 
+  is confirmed complete in the database.                                        
+                                                                                
+  WRONG (current):                                                              
+  1. Execute SWOT analysis                                                      
+  2. Fire-and-forget save to DB                                                 
+  3. Immediately redirect to Decisions                                          
+  4. Page loads → data not there yet → 404                                      
+                                                                                
+  RIGHT (proper workflow):                                                      
+  1. Execute SWOT analysis                                                      
+  2. Save to DB                                                                 
+  3. CONFIRM save succeeded (query back, verify row exists)                     
+  4. THEN redirect to Decisions                                                 
+  5. Page loads → data is there → works                                         
+                                                                                
+  ---                                                                           
+  Tell Replit:                                                                  
+                                                                                
+  ---                                                                           
+  No. Do not add polling or loading states. That's patching the symptom.        
+                                                                                
+  The orchestrator should not advance until the step is confirmed complete.     
+                                                                                
+  Fix it at the source - in CustomJourneyExecutor (or wherever the step         
+  transition happens):                                                          
+                                                                                
+  async function completeStepAndAdvance(sessionId: string, stepIndex: number,   
+  result: any) {                                                                
+    // 1. Save the result                                                       
+    await saveStepResult(sessionId, stepIndex, result);                         
+                                                                                
+    // 2. VERIFY it saved (don't trust the insert)                              
+    const saved = await db.select()                                             
+      .from(frameworkInsights)                                                  
+      .where(and(                                                               
+        eq(frameworkInsights.sessionId, sessionId),                             
+        eq(frameworkInsights.frameworkName, currentStep.frameworkKey)           
+      ))                                                                        
+      .limit(1);                                                                
+                                                                                
+    if (saved.length === 0) {                                                   
+      throw new Error(`Step ${stepIndex} failed to save - cannot advance`);     
+    }                                                                           
+                                                                                
+    // 3. If next step is user-input, verify strategy_version exists            
+    if (nextStep.moduleType === 'user-input') {                                 
+      const version = await db.select()                                         
+        .from(strategyVersions)                                                 
+        .where(eq(strategyVersions.sessionId, sessionId))                       
+        .limit(1);                                                              
+                                                                                
+      if (version.length === 0) {                                               
+        // Create it now, before redirecting                                    
+        await createStrategyVersion(sessionId);                                 
+      }                                                                         
+    }                                                                           
+                                                                                
+    // 4. NOW advance to next step                                              
+    await updateJourneySession(sessionId, { currentStepIndex: stepIndex + 1 }); 
+                                                                                
+    // 5. NOW trigger navigation (if applicable)                                
+    return { success: true, nextStep: stepIndex + 1 };                          
+  }                                                                             
+                                                                                
+  The rule: Never navigate until the database confirms the required data exists.
+                                                                                
+  Polling/retry on the frontend is a band-aid. The orchestrator should guarantee
+   data exists before telling the frontend to navigate.                         
+                                                                                
+  ---                                                                           
+  This is workflow orchestration 101. Each step must be confirmed complete      
+  before the next begins. That's how you build reliable systems. 

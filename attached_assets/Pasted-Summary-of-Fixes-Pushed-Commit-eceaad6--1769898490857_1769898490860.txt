@@ -1,0 +1,27 @@
+Summary of Fixes Pushed:                                                      
+  Commit: eceaad6                                                               
+  Fix: AssignmentGenerator enum fix - assignmentSource values now match DB enum 
+    (ai_generated, manual, bulk_import instead of invalid values)               
+  ────────────────────────────────────────                                      
+  Commit: 7708410                                                               
+  Fix: BenefitsGenerator improvements - Added food service patterns + removed   
+    boilerplate descriptions                                                    
+  Remaining Issues:                                                             
+                                                                                
+  1. EPM Program Name Bug - The title shows "Multi-Location Coffee Hub          
+  Expansion" instead of "Turkish Kebab Shop Downtown Dubai Launch"              
+    - Root cause: journeyTitle is not being passed correctly to                 
+  ProgramNameGenerator                                                          
+    - Need to investigate why version.sessionId doesn't match                   
+  strategic_understanding.id                                                    
+  2. Assignments still need testing - After the enum fix, Replit needs to:      
+    - Pull latest code                                                          
+    - Restart server                                                            
+    - Run a new EPM generation                                                  
+    - Verify assignments now have taskName, resourceName, dates, allocation     
+                                                                                
+  For Replit: Pull the latest code and restart. Then run a new journey to test  
+  if:                                                                           
+  - Assignments now populate correctly                                          
+  - Benefits have better descriptions (not boilerplate)                         
+  - Food service patterns are recognized   

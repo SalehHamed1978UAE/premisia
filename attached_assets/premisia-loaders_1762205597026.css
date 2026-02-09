@@ -1,0 +1,525 @@
+/* ============================================
+   PREMISIA GEOMETRIC LOADERS
+   Pure CSS Loading Animations
+   ============================================ */
+
+/* Color Variables */
+:root {
+    --premisia-primary: #3b82f6;
+    --premisia-secondary: #10b981;
+    --premisia-tertiary: #8b5cf6;
+    --premisia-warning: #f59e0b;
+    --premisia-dark: #0f1419;
+    --premisia-dark-secondary: #1a1f2e;
+    --premisia-gradient-1: linear-gradient(135deg, #3b82f6 0%, #10b981 100%);
+    --premisia-gradient-2: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+/* ============================================
+   1. ROTATING CUBE
+   ============================================ */
+.cube-loader {
+    width: 60px;
+    height: 60px;
+    position: relative;
+    transform-style: preserve-3d;
+    animation: rotateCube 2s infinite linear;
+}
+
+@keyframes rotateCube {
+    0% { transform: rotateX(0deg) rotateY(0deg); }
+    100% { transform: rotateX(360deg) rotateY(360deg); }
+}
+
+.cube-face {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    border: 2px solid var(--premisia-primary);
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.cube-face:nth-child(1) { transform: translateZ(30px); }
+.cube-face:nth-child(2) { transform: rotateY(90deg) translateZ(30px); }
+.cube-face:nth-child(3) { transform: rotateY(180deg) translateZ(30px); }
+.cube-face:nth-child(4) { transform: rotateY(-90deg) translateZ(30px); }
+.cube-face:nth-child(5) { transform: rotateX(90deg) translateZ(30px); }
+.cube-face:nth-child(6) { transform: rotateX(-90deg) translateZ(30px); }
+
+/* ============================================
+   2. MORPHING TRIANGLE
+   ============================================ */
+.triangle-morph {
+    width: 80px;
+    height: 80px;
+    position: relative;
+}
+
+.triangle-shape {
+    width: 100%;
+    height: 100%;
+    background: var(--premisia-gradient-1);
+    animation: morphTriangle 3s infinite ease-in-out;
+    clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+}
+
+@keyframes morphTriangle {
+    0% { 
+        clip-path: polygon(50% 0%, 0% 100%, 100% 100%); 
+        transform: rotate(0deg); 
+    }
+    33% { 
+        clip-path: polygon(50% 0%, 20% 100%, 80% 100%); 
+        transform: rotate(120deg); 
+    }
+    66% { 
+        clip-path: polygon(30% 0%, 0% 100%, 100% 70%); 
+        transform: rotate(240deg); 
+    }
+    100% { 
+        clip-path: polygon(50% 0%, 0% 100%, 100% 100%); 
+        transform: rotate(360deg); 
+    }
+}
+
+/* ============================================
+   3. DNA HELIX
+   ============================================ */
+.dna-loader {
+    width: 60px;
+    height: 60px;
+    position: relative;
+}
+
+.dna-strand {
+    position: absolute;
+    width: 4px;
+    height: 100%;
+    background: var(--premisia-primary);
+    left: 50%;
+    transform: translateX(-50%);
+    animation: dnaRotate 2s infinite linear;
+}
+
+.dna-strand:nth-child(2) {
+    background: var(--premisia-secondary);
+    animation-delay: -0.5s;
+}
+
+@keyframes dnaRotate {
+    0% { transform: translateX(-50%) rotateY(0deg); }
+    100% { transform: translateX(-50%) rotateY(360deg); }
+}
+
+.dna-node {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: #fff;
+    border-radius: 50%;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* ============================================
+   4. HEXAGON PULSE
+   ============================================ */
+.hexagon-loader {
+    width: 80px;
+    height: 80px;
+    position: relative;
+}
+
+.hexagon {
+    width: 100%;
+    height: 100%;
+    background: var(--premisia-gradient-1);
+    clip-path: polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%);
+    animation: hexPulse 2s infinite ease-in-out;
+}
+
+@keyframes hexPulse {
+    0%, 100% { 
+        transform: scale(1); 
+        opacity: 1; 
+    }
+    50% { 
+        transform: scale(0.8); 
+        opacity: 0.5; 
+    }
+}
+
+/* ============================================
+   5. ORBITING DOTS
+   ============================================ */
+.orbit-loader {
+    width: 80px;
+    height: 80px;
+    position: relative;
+}
+
+.orbit-center {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background: var(--premisia-primary);
+    border-radius: 50%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.orbit-ring {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    animation: orbitRotate 2s infinite linear;
+}
+
+.orbit-ring:nth-child(2) { animation-delay: -0.5s; }
+.orbit-ring:nth-child(3) { animation-delay: -1s; }
+
+@keyframes orbitRotate {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.orbit-dot {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: var(--premisia-secondary);
+    border-radius: 50%;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* ============================================
+   6. FRACTAL SQUARES
+   ============================================ */
+.fractal-loader {
+    width: 80px;
+    height: 80px;
+    position: relative;
+}
+
+.fractal-square {
+    position: absolute;
+    border: 2px solid var(--premisia-primary);
+    animation: fractalRotate 3s infinite ease-in-out;
+}
+
+.fractal-square:nth-child(1) {
+    width: 80px;
+    height: 80px;
+    animation-delay: 0s;
+}
+
+.fractal-square:nth-child(2) {
+    width: 60px;
+    height: 60px;
+    top: 10px;
+    left: 10px;
+    border-color: var(--premisia-secondary);
+    animation-delay: 0.2s;
+}
+
+.fractal-square:nth-child(3) {
+    width: 40px;
+    height: 40px;
+    top: 20px;
+    left: 20px;
+    border-color: var(--premisia-tertiary);
+    animation-delay: 0.4s;
+}
+
+.fractal-square:nth-child(4) {
+    width: 20px;
+    height: 20px;
+    top: 30px;
+    left: 30px;
+    border-color: var(--premisia-warning);
+    animation-delay: 0.6s;
+}
+
+@keyframes fractalRotate {
+    0%, 100% { transform: rotate(0deg); }
+    50% { transform: rotate(180deg); }
+}
+
+/* ============================================
+   7. NETWORK NODES
+   ============================================ */
+.network-loader {
+    width: 100px;
+    height: 100px;
+    position: relative;
+}
+
+.network-line {
+    position: absolute;
+    background: rgba(59, 130, 246, 0.3);
+    height: 2px;
+    transform-origin: left center;
+}
+
+.network-node {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: var(--premisia-primary);
+    border-radius: 50%;
+    animation: nodePulse 2s infinite ease-in-out;
+}
+
+@keyframes nodePulse {
+    0%, 100% { 
+        transform: scale(1); 
+        opacity: 1; 
+    }
+    50% { 
+        transform: scale(1.5); 
+        opacity: 0.5; 
+    }
+}
+
+/* ============================================
+   8. RIPPLE EFFECT
+   ============================================ */
+.ripple-loader {
+    width: 80px;
+    height: 80px;
+    position: relative;
+}
+
+.ripple-ring {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border: 3px solid var(--premisia-primary);
+    border-radius: 50%;
+    animation: rippleExpand 2s infinite ease-out;
+}
+
+.ripple-ring:nth-child(1) { animation-delay: 0s; }
+.ripple-ring:nth-child(2) { animation-delay: 0.5s; }
+.ripple-ring:nth-child(3) { animation-delay: 1s; }
+
+@keyframes rippleExpand {
+    0% {
+        transform: scale(0);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 0;
+    }
+}
+
+/* ============================================
+   9. TESSELLATION GRID
+   ============================================ */
+.tessellation-loader {
+    width: 90px;
+    height: 90px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 5px;
+}
+
+.tess-tile {
+    width: 25px;
+    height: 25px;
+    background: var(--premisia-gradient-1);
+    animation: tessFlip 2s infinite ease-in-out;
+}
+
+.tess-tile:nth-child(1) { animation-delay: 0s; }
+.tess-tile:nth-child(2) { animation-delay: 0.1s; }
+.tess-tile:nth-child(3) { animation-delay: 0.2s; }
+.tess-tile:nth-child(4) { animation-delay: 0.3s; }
+.tess-tile:nth-child(5) { animation-delay: 0.4s; }
+.tess-tile:nth-child(6) { animation-delay: 0.5s; }
+.tess-tile:nth-child(7) { animation-delay: 0.6s; }
+.tess-tile:nth-child(8) { animation-delay: 0.7s; }
+.tess-tile:nth-child(9) { animation-delay: 0.8s; }
+
+@keyframes tessFlip {
+    0%, 100% { transform: rotateY(0deg); }
+    50% { transform: rotateY(180deg); }
+}
+
+/* ============================================
+   10. INFINITY LOOP
+   ============================================ */
+.infinity-loader {
+    width: 100px;
+    height: 50px;
+    position: relative;
+}
+
+.infinity-shape {
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+.infinity-shape:before,
+.infinity-shape:after {
+    content: '';
+    position: absolute;
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--premisia-primary);
+    border-radius: 50%;
+    animation: infinityRotate 2s infinite linear;
+}
+
+.infinity-shape:before {
+    left: 0;
+    border-color: var(--premisia-primary);
+}
+
+.infinity-shape:after {
+    right: 0;
+    border-color: var(--premisia-secondary);
+    animation-delay: -1s;
+}
+
+@keyframes infinityRotate {
+    0% { transform: rotate(0deg) scale(1); }
+    50% { transform: rotate(180deg) scale(0.8); }
+    100% { transform: rotate(360deg) scale(1); }
+}
+
+/* ============================================
+   FULL PAGE LOADER OVERLAY
+   ============================================ */
+.premisia-loader-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 20, 25, 0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    transition: opacity 0.5s ease;
+}
+
+.premisia-loader {
+    text-align: center;
+}
+
+.premisia-logo-loader {
+    font-size: 48px;
+    font-weight: bold;
+    background: var(--premisia-gradient-1);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 30px;
+    animation: logoGlow 2s infinite ease-in-out;
+}
+
+@keyframes logoGlow {
+    0%, 100% { 
+        opacity: 1; 
+        filter: brightness(1); 
+    }
+    50% { 
+        opacity: 0.8; 
+        filter: brightness(1.2); 
+    }
+}
+
+.loading-text {
+    color: #94a3b8;
+    font-size: 14px;
+    margin-top: 20px;
+    animation: fadeInOut 2s infinite ease-in-out;
+}
+
+@keyframes fadeInOut {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+}
+
+/* ============================================
+   BUTTON LOADERS
+   ============================================ */
+.btn-loading {
+    position: relative;
+    pointer-events: none;
+}
+
+.btn-loading .btn-text {
+    opacity: 0;
+}
+
+.btn-loading .btn-loader {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+/* Small versions for buttons */
+.orbit-loader-small {
+    width: 30px;
+    height: 30px;
+}
+
+.orbit-loader-small .orbit-center {
+    width: 8px;
+    height: 8px;
+}
+
+.orbit-loader-small .orbit-dot {
+    width: 4px;
+    height: 4px;
+}
+
+.hexagon-loader-small {
+    width: 30px;
+    height: 30px;
+}
+
+/* ============================================
+   INLINE LOADERS
+   ============================================ */
+.inline-loader {
+    display: inline-block;
+    vertical-align: middle;
+    margin: 0 10px;
+}
+
+.dots-loader {
+    display: inline-flex;
+    gap: 5px;
+}
+
+.dot {
+    width: 8px;
+    height: 8px;
+    background: var(--premisia-primary);
+    border-radius: 50%;
+    animation: dotBounce 1.4s infinite ease-in-out;
+}
+
+.dot:nth-child(1) { animation-delay: -0.32s; }
+.dot:nth-child(2) { animation-delay: -0.16s; }
+.dot:nth-child(3) { animation-delay: 0; }
+
+@keyframes dotBounce {
+    0%, 80%, 100% { 
+        transform: scale(0);
+        opacity: 0.5;
+    }
+    40% { 
+        transform: scale(1);
+        opacity: 1;
+    }
+}

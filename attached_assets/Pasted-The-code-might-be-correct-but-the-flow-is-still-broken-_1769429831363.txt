@@ -1,0 +1,27 @@
+The code might be correct, but the flow is still broken.                      
+                                                                                
+  Replit improved the decision generation logic, but the user's screenshot shows
+   the journey ends at /strategies/:id after SWOT instead of continuing to      
+  Strategic Decisions.                                                          
+                                                                                
+  Ask Replit to verify:                                                         
+                                                                                
+  1. After SWOT completes in a custom journey, does the executor actually hit   
+  the user-input detection code?                                                
+  2. Is user_input_required SSE event being emitted?                            
+  3. Is the frontend receiving that event and redirecting to DecisionPage?      
+                                                                                
+  The test should show:                                                         
+  [CustomJourneyExecutor] SWOT complete                                         
+  [CustomJourneyExecutor] Next step: strategic-decisions (user-input type)      
+  [CustomJourneyExecutor] Emitting user_input_required event                    
+  [CustomJourneyExecutor] Redirect URL: /strategy-workspace/decisions/xxx/1     
+                                                                                
+  If those logs don't appear, the journey is ending before it reaches Strategic 
+  Decisions. The decision generation code never runs if the flow doesn't get    
+  there.                                                                        
+                                                                                
+  Tell Replit: "Test the actual journey flow, not just the decision generation  
+  code. Start a custom journey with SWOT → Strategic Decisions, complete SWOT,  
+  and verify the SSE event fires and redirects to DecisionPage. The user is     
+  still landing on /strategies/:id instead of the decision page." 

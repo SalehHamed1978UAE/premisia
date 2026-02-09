@@ -1,0 +1,55 @@
+This is still wrong, but in a different way.                                  
+                                                                                
+  The Problem                                                                   
+                                                                                
+  Beachhead: "Shisha lounge owners diversifying offerings"                      
+                                                                                
+  This is B2B - targeting other businesses as customers. But a restaurant's     
+  customers are diners (consumers), not shisha lounge owners.                   
+  ┌───────────────────────────┬──────────────────────────────────────────────┐  
+  │   What System Returned    │            What It Should Return             │  
+  ├───────────────────────────┼──────────────────────────────────────────────┤  
+  │ Shisha lounge owners      │ Affluent expat couples                       │  
+  ├───────────────────────────┼──────────────────────────────────────────────┤  
+  │ Menu development advisors │ Finance professionals hosting client dinners │  
+  ├───────────────────────────┼──────────────────────────────────────────────┤  
+  │ Golf club networks (B2B)  │ Food enthusiasts seeking new cuisines        │  
+  ├───────────────────────────┼──────────────────────────────────────────────┤  
+  │ Business diversification  │ Date night diners                            │  
+  └───────────────────────────┴──────────────────────────────────────────────┘  
+  Evidence It's Still in B2B Mode                                               
+                                                                                
+  1. Fitness scores use B2B names: "Pain Intensity", "DM Access", "GTM          
+  Efficiency"                                                                   
+  2. Strategic insight says: "B2B segments consistently outperform B2C segments"
+                                                                                
+  3. Validation plan is B2B: "Visit shisha lounges and interview owners"        
+                                                                                
+  A restaurant doesn't sell to shisha lounge owners. It sells meals to people   
+  who eat.                                                                      
+                                                                                
+  The Root Cause                                                                
+                                                                                
+  The business type detection or B2C mode switching isn't working. Ask Replit to
+   check logs for:                                                              
+                                                                                
+  [SegmentDiscoveryEngine] Detected business type: ???                          
+  [SegmentDiscoveryEngine] Mode: B2C (Consumer) or B2B (Product/SaaS)?          
+                                                                                
+  If it says B2B for a restaurant, the detectBusinessType() function isn't      
+  correctly identifying "restaurant" as a local business.                       
+                                                                                
+  Quick Fix for Replit                                                          
+                                                                                
+  The detectBusinessType function should return 'local_business' for            
+  restaurants, which triggers B2C mode. Check if:                               
+                                                                                
+  1. The function exists and is being called                                    
+  2. "restaurant" is in the keyword list                                        
+  3. The return value is being used to select B2C gene library                  
+                                                                                
+  The restaurant test should produce segments like:                             
+  - "Young professionals, date night, weekly, Instagram discovery"              
+  - "Emirati families, weekend celebration, quality-focused"                    
+                                                                                
+  Not "Shisha lounge owners" or "Golf club networks".   

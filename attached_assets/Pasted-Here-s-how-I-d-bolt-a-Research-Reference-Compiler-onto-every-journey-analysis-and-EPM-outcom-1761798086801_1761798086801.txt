@@ -1,0 +1,144 @@
+Here’s how I’d bolt a “Research & Reference Compiler” onto every journey,
+  analysis, and EPM outcome:
+
+  ———
+
+  ### 1. Define the data you want to surface
+
+  We already capture pieces of this in our knowledge graph (strategicEntities
+  store source, evidence). Add an explicit Reference entity that summarizes each
+  external source:
+
+  | Field | Example |
+  |-------|---------|
+  | id | UUID |
+  | sessionId / understandingId / programId | ties to the artifact |
+  | sourceType | article / report / dataset / conversation |
+  | title | “Gartner AI Consulting Market Report 2024” |
+  | url | https://… |
+  | description | 1–2 sentence summary |
+  | topics | [“market size”, “pricing”] |
+  | confidence / trustScore | maybe use research engine’s internal scoring |
+  | extractedQuotes | array { snippet, usedIn: ["BMC.valuePropositions",
+  "Risks[1]"] } |
+  | lastValidated | timestamp |
+  | origin | manual upload / web search / structured doc |
+
+  This table can live alongside strategic_entities and share the same encryption
+  logic.
+
+  ———
+
+  ### 2. Hook references into every generator
+
+  - MarketResearcher: it already aggregates search results + citations. Have
+    it return { factors, sources }, where sources is a clean list of references
+    with snippet metadata.
+  - BMCResearcher: it currently sticks citations inside each block—collect them
+    into the new reference structure.
+  - TrendAnalyzers, Porters, PESTLE: same idea; bundle citations with the
+    results.
+  - Manual uploads: when users upload documents, extract key metadata (title,
+    author, year) alongside the text, create a reference entry, and link any
+    entities derived from that doc back to it.
+
+  When the strategic understanding pipeline saves entities to the knowledge
+  graph, also upsert Reference rows using the unique URLs/filenames. Keep track
+  of which component consumed each source.
+
+  ———
+
+  ### 3. Compile per-artifact “Research Dossier”
+
+  Create a backend service that, given a sessionId/versionNumber/programId,
+  returns:
+
+  {
+    "references": [
+      {
+        "title": "...",
+        "url": "...",
+        "sourceType": "web",
+        "confidence": 0.82,
+        "topics": ["customer segments", "pricing"],
+        "usedIn": [
+          { "component": "BMC.customerSegments", "claim": "Government contracts
+  dominate" },
+          { "component": "RiskRegister[2]", "claim": "Dubai preferred by tech
+  talent" }
+        ],
+        "extractedQuotes": [
+          { "text": "...", "page": 3 }
+        ]
+      },
+      ...
+    ],
+    "summary": {
+      "totalSources": 17,
+      "byType": { "web": 12, "document": 3, "manual": 2 },
+      "confidenceDistribution": { "high": 6, "medium": 9, "low": 2 }
+    }
+  }
+
+  Wire this up to a new endpoint: GET /api/research-dossier?
+  sessionId=...&programId=....
+
+  ———
+
+  ### 4. Surface it in the UI
+
+  - Analysis view (StrategyResultsPage): add a “Research & References” section
+    that lists the sources grouped by component, with badges for confidence and
+    quick filters (e.g., show only “Contradictions”, show only “Pricing data”).
+  - EPM Program view: add a tab or card summarizing references that underpin the
+    implementation plan.
+  - Repository detail: show the reference list so stakeholders can audit the
+    evidence before reviewing the plan.
+  - Provide “jump” links (“View where this source is used”) so users can trace
+    from reference → component → knowledge graph entity.
+
+  ———
+
+  ### 5. Include references in exports
+
+  Update report.md / report-ui.pdf / report-ui.docx to include a “References”
+  section with the same list. For data exports, add references.json and
+  optionally references.csv.
+
+  ———
+
+  ### 6. Deduplication & quality control
+
+  - Implement simple deduping on URL or file hash so one source doesn’t appear
+    five times.
+  - If multiple frameworks cite the same source with different confidence,
+    combine the metadata (e.g. highest confidence, union of topics).
+  - Optionally add a “validation status” flag if a user manually verifies a
+    reference or marks it irrelevant.
+
+  ———
+
+  ### 7. Future enhancements
+
+  - Allow users to annotate references (“used for board deck”, “expired”).
+  - Tag references with chronology so you can chart research freshness.
+  - Show references directly on the knowledge graph nodes (e.g. on hover).
+
+  ———
+
+  Implementation outline for Replit:
+
+  1. Add references table / schema updates.
+  2. Extend MarketResearcher & other analyzers to emit normalized reference
+     arrays.
+  3. Modify strategic understanding pipeline to persist references alongside
+     entities.
+  4. Build /api/research-dossier endpoint.
+  5. Implement UI components/tabs showing the reference list and per-component
+     usage.
+  6. Update export service to include references section in all report formats.
+  7. Add dedupe + optional annotation logic.
+
+  Once this is in place, every artifact you generate will come with provenance,
+  traceable back to the sources that informed it. That’s the kind of
+  accountability that turns AI outputs into enterprise-grade deliverables.

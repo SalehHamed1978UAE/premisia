@@ -1,0 +1,79 @@
+Two things are still missing in the code Replit has:
+
+  ———
+
+  ### 1. Version fallbacks on all post-results pages
+
+  Only StrategyResultsPage currently rehydrates the version number
+  from localStorage. The other pages (DecisionPage, PrioritizationPage,
+  TrendAnalysisPage, EPMPage) still do parseInt(params.versionNumber) || 1,
+  so when navigation drops /:versionNumber they fall back to version 1 and
+  immediately see the old EPM.
+
+  Have Replit add the same block we used on StrategyResultsPage to each of those
+  files:
+
+  const sessionIdParam = params?.sessionId;
+  const sessionId = sessionIdParam ?? '';
+
+  const routeVersionNumber = params?.versionNumber ?
+  parseInt(params.versionNumber, 10) : NaN;
+  const storedVersionNumber =
+    typeof window !== 'undefined' && sessionId
+      ? parseInt(window.localStorage.getItem(`strategic-
+  versionNumber-${sessionId}`) || '', 10)
+      : NaN;
+
+  const versionNumber =
+    !Number.isNaN(routeVersionNumber) && routeVersionNumber > 0
+      ? routeVersionNumber
+      : !Number.isNaN(storedVersionNumber) && storedVersionNumber > 0
+        ? storedVersionNumber
+        : 1;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!sessionId || !versionNumber || Number.isNaN(versionNumber)) return;
+    window.localStorage.setItem(`strategic-versionNumber-${sessionId}`,
+  versionNumber.toString());
+  }, [sessionId, versionNumber]);
+
+  and update the React Query hook to enabled: !!sessionIdParam. Do this in:
+
+  - client/src/pages/strategic-consultant/DecisionPage.tsx
+  - client/src/pages/strategy-workspace/PrioritizationPage.tsx
+  - client/src/pages/strategic-consultant/TrendAnalysisPage.tsx
+  - client/src/pages/strategic-consultant/EPMPage.tsx
+
+  That prevents any page from silently reverting to version 1, so the “Generate
+  EPM Program” button stays visible until a new program is actually created.
+
+  ———
+
+  ### 2. Persist research references
+
+  The Strategies Hub Research tab reads directly from /api/strategies/:id/
+  references, but the main /api/strategic-consultant/research/stream endpoint
+  never writes references to the references table—only trend analysis and the
+  BMC executor do that.
+
+  Inside /research/stream (after findingsWithValidation is built and before the
+  SSE type: 'complete' event), Replit needs to:
+
+  1. Fetch the understanding via getStrategicUnderstandingBySession(sessionId)
+     and grab userId from the request.
+  2. Map each source through referenceService.normalizeReference, e.g.
+
+     const normalized = findingsWithValidation.sources.map((source) =>
+       referenceService.normalizeReference(
+         source,
+         userId,
+         { component: 'research.pestle', claim: source.description },
+         { understandingId: understanding.id, sessionId }
+       )
+     );
+  3. Call referenceService.persistReferences(normalized, { understandingId:
+     understanding.id, sessionId });
+
+  Once that block is in place the research references will show up in the
+  strategy’s Research tab without any UI changes.

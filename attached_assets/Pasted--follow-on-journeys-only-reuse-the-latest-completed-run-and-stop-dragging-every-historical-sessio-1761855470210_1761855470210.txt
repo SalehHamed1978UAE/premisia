@@ -1,0 +1,123 @@
+ follow-on journeys only reuse
+  the latest completed run (and stop dragging every historical session into
+  the prompt).
+
+  ———
+
+  Phase 1 – Locate the code building the “strategic summary”
+
+  - Find the logic that runs when /api/strategic-consultant/journeys/run-
+    now starts a follow-on journey (it’s inside server/routes/strategic-
+    consultant.ts).
+  - Step through until you see the code that:
+      - Loads every journey_sessions row for the strategy/understanding.
+      - Loops over multiple strategy versions, references, research entries,
+        etc.
+      - Concatenates everything into a “strategic summary” or context block.
+  - Confirm this is the only place aggregating that much data. If there’s a
+    shared helper (e.g. buildStrategicSummary), take note—you’ll replace it.
+
+  ———
+
+  Phase 2 – Replace the “all sessions” aggregation with a single snapshot
+
+  1. Select the baseline journey
+
+     const latestSession = await db.query.journeySessions.findFirst({
+       where: (tbl, { eq, and }) => and(
+         eq(tbl.understandingId, understandingId),
+         eq(tbl.status, 'completed')
+       ),
+       orderBy: (tbl, { desc }) => desc(tbl.completedAt ?? tbl.createdAt),
+     });
+      - If no completed journey exists, fall back to the original understanding
+        input and skip summarization entirely.
+  2. Load data only for that latestSession
+      - Use the journeySessionId to pull the associated framework insights,
+        decisions, references, etc.
+      - Grab the latest strategyVersions record tied to that session (again, not
+        every version).
+      - Fetch:
+          - Clarified input / baseline statement (from the understanding record,
+            truncated to 2 000 characters).
+          - Five Whys output (root cause + selected path) from the stored
+            insight.
+          - BMC (or other framework) highlights—limit to the top 3 findings.
+          - Final strategic decisions (titles only, up to 5).
+          - Supporting references (3 highest confidence entries; { title, url,
+            confidence }).
+          - Outstanding risks/questions flagged for follow-up (if stored; max
+            5).
+  3. Construct a concise summary object
+
+     {
+       summaryVersion: 2,
+       strategySnapshot: {
+         baselineInput,
+         clarifiedInput,
+         currentGoal
+       },
+       latestJourney: {
+         journeySessionId: latestSession.id,
+         journeyType: latestSession.journeyType,
+         completedAt: latestSession.completedAt ?? latestSession.createdAt,
+         frameworks: {
+           fiveWhys: { rootCause, path },
+           bmc: { keyBlocks: [...] }
+         },
+         keyDecisions: [...]
+       },
+       supportingEvidence: [...],
+       openItems: [...]
+     }
+      - Wrap every free-text field with a helper that truncates to ~300
+        characters.
+      - Ensure total serialized size stays under ~8 KB (log
+        JSON.stringify(summary).length so we can monitor).
+  4. Remove all loops that iterate across multiple sessions/versions.
+      - Delete the code that aggregates:
+          - All journey sessions.
+          - All versions across the strategy.
+          - Full entity/evidence dumps.
+          - Full research transcripts.
+      - No more than one journey session + its latest version should feed into
+        the summary.
+
+  ———
+
+  Phase 3 – Hard limits and safeguards
+
+  - Clamp counts: decisions ≤ 5, references ≤ 3, insights per framework ≤ 3.
+  - Drop any fields you can’t populate cleanly—don’t invent placeholders.
+  - If the journey session lacks a piece (e.g., no research references), keep
+    the array empty rather than pulling from older runs.
+  - Add a loud log entry when the summary exceeds 8 KB so we catch future
+    regressions.
+
+  ———
+
+  Phase 4 – Tests / sanity checks
+
+  - Write unit tests (or at least integration tests) for the new summary helper
+    using mocked data:
+      - Scenario with multiple sessions—verify only the newest completed one
+        is used.
+      - Scenario with huge text blobs—confirm truncation works.
+      - Scenario with no completed journey—ensure it falls back to baseline
+        input without errors.
+  - Manually run “Run Now” on a strategy with several past journeys; confirm the
+    summary log is small (a few KB, not hundreds).
+
+  ———
+
+  Deliverables for you
+
+  - PR/commit containing:
+      - New helper (e.g. summaries/strategic-summary.ts).
+      - Adjusted run-now endpoint calling the helper.
+      - Logs showing summary size per execution.
+      - Tests or at least documented manual verification.
+
+  With that change in place, each follow-on journey will reuse exactly one
+  snapshot—the latest completed run—and you’ll stop seeing runaway payloads or
+  crazy memory use.

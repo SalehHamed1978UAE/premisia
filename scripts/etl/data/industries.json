@@ -1,0 +1,62 @@
+[
+  {
+    "id": "ind-fb",
+    "name": "Food & Beverage",
+    "code": "FB",
+    "aliases": ["F&B", "Restaurants", "Hospitality"]
+  },
+  {
+    "id": "ind-retail",
+    "name": "Retail",
+    "code": "RETAIL",
+    "aliases": ["E-commerce", "Shopping"]
+  },
+  {
+    "id": "ind-software",
+    "name": "Software & Technology",
+    "code": "TECH",
+    "aliases": ["IT", "Software Development", "SaaS", "Technology"]
+  },
+  {
+    "id": "ind-fintech",
+    "name": "Financial Technology",
+    "code": "FINTECH",
+    "aliases": ["FinTech", "Financial Services"]
+  },
+  {
+    "id": "ind-consulting",
+    "name": "Professional Services & Consulting",
+    "code": "CONSULT",
+    "aliases": ["Consulting", "Advisory", "Professional Services"]
+  },
+  {
+    "id": "ind-manufacturing",
+    "name": "Manufacturing",
+    "code": "MFG",
+    "aliases": ["Production", "Industrial"]
+  },
+  {
+    "id": "ind-healthcare",
+    "name": "Healthcare & Medical",
+    "code": "HEALTH",
+    "aliases": ["Medical", "Health Services"]
+  },
+  {
+    "id": "ind-education",
+    "name": "Education & Training",
+    "code": "EDU",
+    "aliases": ["Education", "Training", "E-learning"]
+  },
+  {
+    "id": "ind-logistics",
+    "name": "Logistics & Supply Chain",
+    "code": "LOG",
+    "aliases": ["Logistics", "Supply Chain", "Transportation"]
+  },
+  {
+    "id": "ind-renewable",
+    "name": "Renewable Energy & Sustainability",
+    "code": "RENEW",
+    "aliases": ["Clean Energy", "Sustainability", "Green Tech"]
+  }
+]

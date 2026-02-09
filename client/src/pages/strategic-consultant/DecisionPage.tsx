@@ -1,0 +1,376 @@
+import { useState, useEffect } from "react";
+import { useRoute, useLocation } from "wouter";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, ArrowRight, AlertCircle, Star } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { AppLayout } from "@/components/layout/AppLayout";
+
+interface DecisionOption {
+  id: string;
+  label: string;
+  description: string;
+  estimated_cost?: { min: number; max: number };
+  estimated_timeline_months?: number;
+  pros: string[];
+  cons: string[];
+  recommended?: boolean;
+  warning?: string;
+  reasoning?: string;
+}
+
+interface Decision {
+  id: string;
+  title: string;
+  question: string;
+  context: string;
+  options: DecisionOption[];
+  impact_areas: string[];
+}
+
+interface DecisionsResponse {
+  decisions: Decision[];
+  decision_flow: string;
+  estimated_completion_time_minutes: number;
+}
+
+interface DecisionsData {
+  version: {
+    decisions: DecisionsResponse;
+    versionNumber: number;
+  };
+}
+
+export default function DecisionPage() {
+  const [, params] = useRoute("/strategic-consultant/decisions/:sessionId/:versionNumber");
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  
+  const sessionIdParam = params?.sessionId;
+  const sessionId = sessionIdParam ?? '';
+
+  const routeVersionNumber = params?.versionNumber ? parseInt(params.versionNumber, 10) : NaN;
+  const storedVersionNumber =
+    typeof window !== 'undefined' && sessionId
+      ? parseInt(window.localStorage.getItem(`strategic-versionNumber-${sessionId}`) || '', 10)
+      : NaN;
+
+  const versionNumber =
+    !Number.isNaN(routeVersionNumber) && routeVersionNumber > 0
+      ? routeVersionNumber
+      : !Number.isNaN(storedVersionNumber) && storedVersionNumber > 0
+        ? storedVersionNumber
+        : 1;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!sessionId || !versionNumber || Number.isNaN(versionNumber)) return;
+    window.localStorage.setItem(`strategic-versionNumber-${sessionId}`, versionNumber.toString());
+  }, [sessionId, versionNumber]);
+
+  const [selectedDecisions, setSelectedDecisions] = useState<Record<string, string>>({});
+
+  const { data, isLoading, error } = useQuery<DecisionsData>({
+    queryKey: ['/api/strategic-consultant/versions', sessionId, versionNumber],
+    enabled: !!sessionIdParam,
+  });
+
+  const selectDecisionsMutation = useMutation({
+    mutationFn: async (decisions: Record<string, string>) => {
+      return apiRequest('POST', '/api/strategic-consultant/decisions/select', {
+        sessionId,
+        versionNumber,
+        selectedDecisions: decisions
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/strategic-consultant/versions', sessionId, versionNumber] });
+      toast({
+        title: "Decisions saved",
+        description: "Your strategic decisions have been recorded"
+      });
+      setLocation(`/strategy-workspace/prioritization/${sessionId}/${versionNumber}`);
+    },
+    onError: (error: any) => {
+      if (error.message?.includes('rate limit')) {
+        toast({
+          title: "Rate limit reached",
+          description: "Please wait a moment before trying again",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Failed to save decisions",
+          description: error.message || "An unexpected error occurred. Please try again.",
+          variant: "destructive"
+        });
+      }
+    }
+  });
+
+  // Helper to get decisions array from response
+  const getDecisions = (data: DecisionsData | undefined): Decision[] => {
+    if (!data?.version?.decisions) return [];
+    const decisionsData = data.version.decisions;
+    return Array.isArray(decisionsData?.decisions) 
+      ? decisionsData.decisions 
+      : (Array.isArray(decisionsData) ? decisionsData : []);
+  };
+
+  const handleDecisionChange = (decisionId: string, optionId: string) => {
+    setSelectedDecisions(prev => ({
+      ...prev,
+      [decisionId]: optionId
+    }));
+  };
+
+  const handleProceed = () => {
+    const currentDecisions = getDecisions(data);
+    if (currentDecisions.length === 0) return;
+
+    const allSelected = currentDecisions.every(d => selectedDecisions[d.id]);
+    
+    if (!allSelected) {
+      toast({
+        title: "Incomplete selection",
+        description: "Please make a selection for all strategic decisions",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    selectDecisionsMutation.mutate(selectedDecisions);
+  };
+
+  if (!sessionId) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-8">
+        <Alert variant="destructive" className="max-w-md">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Invalid Session</AlertTitle>
+          <AlertDescription>No session ID provided in URL</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <p className="text-muted-foreground">Loading strategic decisions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Extract decisions array using helper
+  const decisions = getDecisions(data);
+
+  if (error || decisions.length === 0) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-8">
+        <Alert variant="destructive" className="max-w-md">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Decisions Not Found</AlertTitle>
+          <AlertDescription>
+            {error?.message || "Unable to load decisions. Please try analyzing again."}
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  const allSelected = decisions.every(d => selectedDecisions[d.id]);
+  const selectionCount = Object.keys(selectedDecisions).length;
+
+  return (
+    <AppLayout
+      title="Strategic Decisions"
+      subtitle="Select strategic options for your EPM program"
+      onViewChange={(view) => setLocation('/')}
+    >
+      <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6 p-4 sm:p-0">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <p className="text-sm text-muted-foreground break-words">
+              Session: {sessionId} | Version: {versionNumber}
+            </p>
+          </div>
+          <div className="flex flex-col sm:items-end gap-2">
+            <div className="text-sm text-muted-foreground" data-testid="text-selection-progress">
+              {selectionCount} / {decisions.length} selected
+            </div>
+            <Button
+              onClick={handleProceed}
+              disabled={!allSelected || selectDecisionsMutation.isPending}
+              data-testid="button-convert-epm"
+              className="w-full sm:w-auto"
+              size="lg"
+            >
+              {selectDecisionsMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  Convert to EPM Program <ArrowRight className="ml-2 h-4 w-4" />
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          {decisions.map((decision, index) => (
+            <Card key={decision.id} data-testid={`card-decision-${decision.id}`}>
+              <CardHeader>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <CardTitle className="text-xl">
+                      Decision {index + 1}: {decision.question}
+                    </CardTitle>
+                    <CardDescription className="mt-2">{decision.context}</CardDescription>
+                  </div>
+                  {selectedDecisions[decision.id] && (
+                    <Badge variant="default" data-testid={`badge-selected-${decision.id}`}>Selected</Badge>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <RadioGroup
+                  value={selectedDecisions[decision.id] || ''}
+                  onValueChange={(value) => handleDecisionChange(decision.id, value)}
+                  className="space-y-4"
+                >
+                  {decision.options.map((option) => (
+                    <div
+                      key={option.id}
+                      className={`border rounded-lg p-4 transition-all ${
+                        selectedDecisions[decision.id] === option.id
+                          ? 'border-primary bg-primary/5'
+                          : option.recommended && !option.warning
+                          ? 'border-2 border-primary bg-primary/5 hover:border-primary'
+                          : 'border-border hover:border-primary/50'
+                      }`}
+                      data-testid={`option-${decision.id}-${option.id}`}
+                    >
+                      <div className="flex items-start space-x-3">
+                        <RadioGroupItem value={option.id} id={`${decision.id}-${option.id}`} className="mt-1" />
+                        <div className="flex-1 space-y-2">
+                          <Label
+                            htmlFor={`${decision.id}-${option.id}`}
+                            className="text-base font-semibold cursor-pointer"
+                          >
+                            {option.label}
+                          </Label>
+                          <p className="text-sm text-muted-foreground">{option.description}</p>
+                          
+                          {option.warning && (
+                            <Alert variant="destructive" className="mt-2">
+                              <AlertCircle className="h-4 w-4" />
+                              <AlertDescription>
+                                <span className="font-semibold">{option.warning}</span>
+                                {option.reasoning && (
+                                  <p className="mt-1 text-sm">{option.reasoning}</p>
+                                )}
+                              </AlertDescription>
+                            </Alert>
+                          )}
+                          
+                          {option.reasoning && !option.warning && (
+                            <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-950/30 rounded border border-blue-200 dark:border-blue-800">
+                              <p className="text-xs text-blue-900 dark:text-blue-100">
+                                <span className="font-semibold">Research insight:</span> {option.reasoning}
+                              </p>
+                            </div>
+                          )}
+                          
+                          <div className="flex items-center gap-4 text-xs flex-wrap">
+                            {option.estimated_cost && (
+                              <Badge variant="outline" className="font-normal">
+                                ${(option.estimated_cost.min / 1000000).toFixed(1)}M - ${(option.estimated_cost.max / 1000000).toFixed(1)}M
+                              </Badge>
+                            )}
+                            {option.estimated_timeline_months && (
+                              <Badge variant="outline" className="font-normal">
+                                {option.estimated_timeline_months} months
+                              </Badge>
+                            )}
+                            {option.recommended && !option.warning && (
+                              <Badge variant="default" className="font-normal flex items-center gap-1">
+                                <Star className="w-3 h-3" />
+                                Recommended
+                              </Badge>
+                            )}
+                            {option.warning && (
+                              <Badge variant="destructive" className="font-normal">
+                                ⚠ Not Recommended
+                              </Badge>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pt-2">
+                            {option.pros && option.pros.length > 0 && (
+                              <div>
+                                <p className="text-xs font-medium text-green-600 dark:text-green-400 mb-1">Pros:</p>
+                                <ul className="list-disc list-inside text-xs text-muted-foreground space-y-0.5">
+                                  {option.pros.map((pro, idx) => (
+                                    <li key={idx}>{pro}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {option.cons && option.cons.length > 0 && (
+                              <div>
+                                <p className="text-xs font-medium text-red-600 dark:text-red-400 mb-1">Cons:</p>
+                                <ul className="list-disc list-inside text-xs text-muted-foreground space-y-0.5">
+                                  {option.cons.map((con, idx) => (
+                                    <li key={idx}>{con}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </RadioGroup>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        <div className="flex justify-end pt-4">
+          <Button
+            size="lg"
+            onClick={handleProceed}
+            disabled={!allSelected || selectDecisionsMutation.isPending}
+            data-testid="button-convert-epm-bottom"
+            className="w-full sm:w-auto"
+          >
+            {selectDecisionsMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving Decisions...
+              </>
+            ) : (
+              <>
+                Convert to EPM Program <ArrowRight className="ml-2 h-4 w-4" />
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    </AppLayout>
+  );
+}

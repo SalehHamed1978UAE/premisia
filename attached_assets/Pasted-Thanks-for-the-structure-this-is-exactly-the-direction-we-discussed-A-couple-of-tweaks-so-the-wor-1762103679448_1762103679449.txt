@@ -1,0 +1,35 @@
+Thanks for the structure—this is exactly the direction we discussed. A couple
+  of tweaks so the work stays concrete and testable:
+
+  1. “Add more details to journey plan” – let’s flesh this out as: expand
+     journey-registry.ts to include the richer schema (framework sequence,
+     summary builder type, readiness defaults, dependencies), and seed it for
+     the existing journeys. Please note here that Strategic Consultant and
+     Strategy Hub will both read from this.
+  2. “Create service for journey summaries” – make this explicitly “Implement
+     JourneySummaryService to save/load summaries, and register summary
+     builders keyed by JourneyType.” Include success criteria (e.g.,
+     getLatestSummary(understandingId) returns the data from the last completed
+     session).
+  3. “Save and load journey progress” – specify the orchestrator changes: when a
+     journey completes, call the summary service to persist; when a new journey
+     starts, fetch the baseline summary and attach it to the context.
+  4. “Update readiness checks using new rules” – note that /journeys/check-
+     readiness should pull the thresholds from the registry (with overrides if
+     needed) so both entry points share the same logic.
+  5. “Show journey summaries in interfaces” – please spell out the UI work:
+     update both Strategic Consultant and Strategy Hub modals to pull from the
+     registry and display the latest summary snippet to the user before starting
+     a journey.
+  6. “Make script for new journey setup” – clarify that this script updates
+     generated artifacts (modal options, readiness defaults, summary builder
+     wiring) after a developer adds a new definition.
+  7. “Create tests for all journeys” – call out the smoke test harness: iterate
+     through every registered journey, simulate a run, and assert that summaries
+     and readiness behave. This should go into CI.
+  8. “Add tools for managing journeys” – specify whether this is a CLI or admin
+     endpoint (e.g., pnpm run journeys:list, journeys:summary --understanding
+     <id>), and what functionality we expect for phase one.
+
+  If you fold those details into the task list, we’re good to go. Let me know
+  when you’ve updated the list and we can kick off the first task.

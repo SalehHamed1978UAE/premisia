@@ -1,0 +1,45 @@
+Phase 4 is the data-access layer refactor. The goal is to eliminate
+  direct db imports in routes/services and replace them with repositories so we
+  can mock DB interactions later.
+
+  ### Phase 4 Plan
+
+  1. Create repository directory
+
+     server/repositories/
+     ├── index.ts
+     ├── base-repository.ts
+     ├── journey-repository.ts
+     ├── strategy-repository.ts
+     ├── epm-repository.ts
+     ├── user-repository.ts
+     └── knowledge-repository.ts
+  2. Build BaseRepository
+      - base-repository.ts should wrap the Drizzle db instance and provide
+        common helpers (findById, findAll, create, update, delete).
+  3. Implement domain repositories
+      - JourneyRepository: manages journeySessions, journeyDefinitions, etc.
+      - StrategyRepository: handles strategyVersions, strategyDecisions, etc.
+      - EPMRepository: saves/loads epmPrograms, workstreams, assignments.
+      - UserRepository: simple lookup by user id.
+      - KnowledgeRepository: any KG/knowledge reference storage.
+        (We can start with the first three, then add others as needed.)
+  4. Register repositories in DI container
+      - In server/services/container.ts, instantiate each repository and
+        register them (e.g., container.registerInstance('epmRepository', new
+        EPMRepository())).
+  5. Update services/routes to use repositories
+      - Replace direct imports of db, eq, etc., inside routes/services with
+        calls to the repositories.
+      - For example, processEPMGeneration should use
+        container.resolve('epmRepository') to save programs instead of calling
+        db.insert directly.
+  6. Verify after each conversion
+      - Run npm run dev + an end-to-end EPM generation after updating each major
+        area to ensure no regressions.
+
+  Once Replit works through this phase, we’ll have a clean separation between
+  business logic and data access—a big step toward the visual builder. Let me
+  know when they’re ready for more detailed repo interfaces or if they want the
+  stub code to start with.
+

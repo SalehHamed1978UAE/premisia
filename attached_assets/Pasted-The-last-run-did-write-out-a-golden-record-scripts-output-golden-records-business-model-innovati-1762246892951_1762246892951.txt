@@ -1,0 +1,49 @@
+The last run did write out a golden record (scripts/output/golden-records/
+  business_model_innovation/v5_…json), but it’s basically empty—steps and
+  metadata.frameworks are []. That means the capture code isn’t seeing any of
+  the journey steps, so the record is useless even though the file exists.
+
+  ### Why it happened
+
+  fetchJourneySessionData() (in server/utils/golden-records-service.ts) still
+  looks for session.completedFrameworks and similar legacy signals. In the
+  current BMI pipeline those fields are empty, so the function never adds any
+  steps. Hence the golden record JSON ends up like:
+
+  {
+    "journeyType": "business_model_innovation",
+    "versionNumber": 5,
+    "steps": [],            ← no Five Whys / BMC / Decisions / Prioritization /
+  EPM
+    "metadata": { "frameworks": [] }
+  }
+
+  ### What needs to change
+
+  Update fetchJourneySessionData() so it builds the step sequence from the
+  actual artifacts we store now:
+
+  1. Five Whys – detect via session.accumulatedContext.insights.fiveWhys or
+     versions[*].analysisData.five_whys.
+  2. BMC Research – check latestVersion.analysisData.bmc_research.
+  3. Strategic Decisions – check latestVersion.decisionsData.
+  4. Prioritization – check latestVersion.selectedDecisions.
+  5. EPM Generation – check epmPrograms for this strategy version.
+
+  Tie this to the canonical step IDs (JourneyStepId.BMI_FIVE_WHYS, etc.)
+  so we know exactly what was executed. This is also a good place to log
+  completedStepIds on the session so capture isn’t guessing.
+
+  ### What to ask Replit to do
+
+  1. Patch server/utils/golden-records-service.ts to populate steps using the
+     concrete data above (and fill metadata.frameworks properly).
+  2. Re-run the capture for the latest BMI session:
+
+     npx tsx scripts/golden-record-capture.ts --sessionId=<sessionId> --promote
+     or toggle the auto-capture flag and re-run the journey.
+  3. Optionally delete the empty golden records (v3–v5) or mark them deprecated.
+
+  Once that’s done, your next capture will include the full journey (Five Whys →
+  BMC → Decisions → Prioritization → EPM) and screenshots, and the golden record
+  system will be meaningful again.

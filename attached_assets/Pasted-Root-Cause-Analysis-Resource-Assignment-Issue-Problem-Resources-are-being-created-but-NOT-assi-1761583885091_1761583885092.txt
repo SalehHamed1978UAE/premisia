@@ -1,0 +1,66 @@
+Root Cause Analysis - Resource Assignment Issue
+
+  Problem: Resources are being created but NOT assigned to tasks in
+  QgenticEPM3.
+
+  Root Cause Found: Data structure mismatch between intelligent planning task
+   format and assignment engine expectations.
+
+  The Issue:
+
+  Intelligent Planning generates tasks with:
+  {
+    name: "Design Database Schema",
+    requirements: [
+      { skill: "Database Design", quantity: 1, duration: 10 },
+      { skill: "SQL", quantity: 1, duration: 10 }
+    ]
+  }
+
+  Assignment Engine expects:
+  {
+    name: "Design Database Schema",
+    skills: ["Database Design", "SQL"]  // Flat array
+  }
+
+  In /server/intelligence/epm-synthesizer.ts line 2083:
+  requiredSkills: task.skills || []  // Always returns [] when task has 
+  requirements instead!
+
+  Result: Assignment matching fails because tasks have no requiredSkills, so:
+  - Skill matching returns 0 points
+  - Role matching might give +20 points
+  - Very weak matches or NO matches
+  - No assignments created!
+
+  ---
+  🔧 Fix Instructions for Replit
+
+  File: /Users/salehyahyahamed/qgentic/QgenticEPM/QgenticEPM3/server/intellig
+  ence/epm-synthesizer.ts
+
+  Location: Lines 2075-2086 in the generateAssignments() method
+
+  Change:
+  // BEFORE (Line 2083):
+  requiredSkills: task.skills || [],
+
+  // AFTER:
+  // Extract skills from requirements array (intelligent planning format)
+  // or fall back to skills array (legacy format)
+  requiredSkills: task.requirements
+    ? task.requirements.map((req: any) => req.skill || req)
+    : task.skills || [],
+
+  This will:
+  1. Check if task has requirements array (intelligent planning format)
+  2. Extract the skill field from each requirement
+  3. Fall back to task.skills for legacy format
+  4. Enable proper skill matching in assignment engine
+
+  Expected Result:
+  - Tasks from intelligent planning will have proper requiredSkills populated
+  - Assignment engine can match resources to tasks based on skills
+  - Assignments will be created and saved to database
+
+  ---

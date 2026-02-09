@@ -1,0 +1,56 @@
+framework-feb8d59901280d4c.js:1 Unrecognized feature: 'ambient-light-sensor'.
+
+framework-feb8d59901280d4c.js:1 Unrecognized feature: 'battery'.
+framework-feb8d59901280d4c.js:1 Unrecognized feature: 'execution-while-not-rendered'.
+framework-feb8d59901280d4c.js:1 Unrecognized feature: 'execution-while-out-of-viewport'.
+framework-feb8d59901280d4c.js:1 Unrecognized feature: 'layout-animations'.
+framework-feb8d59901280d4c.js:1 Unrecognized feature: 'legacy-image-formats'.
+framework-feb8d59901280d4c.js:1 Unrecognized feature: 'navigation-override'.
+framework-feb8d59901280d4c.js:1 Unrecognized feature: 'oversized-images'.
+framework-feb8d59901280d4c.js:1 Unrecognized feature: 'publickey-credentials'.
+framework-feb8d59901280d4c.js:1 Unrecognized feature: 'speaker-selection'.
+framework-feb8d59901280d4c.js:1 Unrecognized feature: 'unoptimized-images'.
+framework-feb8d59901280d4c.js:1 Unrecognized feature: 'unsized-media'.
+framework-feb8d59901280d4c.js:1 Unrecognized feature: 'pointer-lock'.
+framework-feb8d59901280d4c.js:1 Allow attribute will take precedence over 'allowfullscreen'.
+framework-feb8d59901280d4c.js:1 Allow attribute will take precedence over 'allowpaymentrequest'.
+t3.gstatic.com/favic…p://e2.id&size=32:1 
+ Failed to load resource: the server responded with a status of 404 ()
+t3.gstatic.com/favic…://e1.id/&size=32:1 
+ Failed to load resource: the server responded with a status of 404 ()
+t1.gstatic.com/favic…p://e1.id&size=32:1 
+ Failed to load resource: the server responded with a status of 404 ()
+t0.gstatic.com/favic…://e2.id/&size=32:1 
+ Failed to load resource: the server responded with a status of 404 ()
+t3.gstatic.com/favic…://e1.id/&size=32:1 
+ Failed to load resource: the server responded with a status of 404 ()
+t1.gstatic.com/favic…p://e2.id&size=32:1 
+ Failed to load resource: the server responded with a status of 404 ()
+t3.gstatic.com/favic…://e2.id/&size=32:1 
+ Failed to load resource: the server responded with a status of 404 ()
+t2.gstatic.com/favic…p://e1.id&size=32:1 
+ Failed to load resource: the server responded with a status of 404 ()
+growthbook.justdone.…dk-3ZaG9WQlxj3uKw:1 
+ Failed to load resource: net::ERR_HTTP2_PROTOCOL_ERROR
+growthbook.justdone.…dk-3ZaG9WQlxj3uKw:1 
+ Failed to load resource: net::ERR_HTTP2_PROTOCOL_ERROR
+growthbook.justdone.…dk-3ZaG9WQlxj3uKw:1 
+ Failed to load resource: net::ERR_HTTP2_PROTOCOL_ERROR
+growthbook.justdone.…dk-3ZaG9WQlxj3uKw:1 
+ Failed to load resource: net::ERR_HTTP2_PROTOCOL_ERROR
+growthbook.justdone.…dk-3ZaG9WQlxj3uKw:1 
+ Failed to load resource: net::ERR_HTTP2_PROTOCOL_ERROR
+growthbook.justdone.…dk-3ZaG9WQlxj3uKw:1 
+ Failed to load resource: net::ERR_HTTP2_PROTOCOL_ERROR
+growthbook.justdone.…dk-3ZaG9WQlxj3uKw:1 
+ Failed to load resource: net::ERR_HTTP2_PROTOCOL_ERROR
+t1.gstatic.com/favic…ing...so/&size=32:1 
+ Failed to load resource: the server responded with a status of 404 ()
+t1.gstatic.com/favic…ging...so&size=32:1 
+ Failed to load resource: the server responded with a status of 404 ()
+growthbook.justdone.…dk-3ZaG9WQlxj3uKw:1 
+ Failed to load resource: net::ERR_HTTP2_PROTOCOL_ERROR
+t1.gstatic.com/favic…ing...it/&size=32:1 
+ Failed to load resource: the server responded with a status of 404 ()
+t2.gstatic.com/favic…oing...it&size=32:1 
+ Failed to load resource: the server responded with a status of 404 ()
