@@ -28,8 +28,11 @@ export interface IStorage {
   // User management
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getUserBySupabaseUid(supabaseUid: string): Promise<User | undefined>;
+  updateUserSupabaseUid(id: string, supabaseUid: string): Promise<User>;
   createUser(user: InsertUser): Promise<User>;
-  upsertUser(user: UpsertUser): Promise<User>; // For Replit Auth
+  upsertUser(user: UpsertUser): Promise<User>; // For auth integration
   
   // Location management
   createLocation(location: InsertLocation): Promise<Location>;
@@ -224,13 +227,38 @@ export class DatabaseStorage implements IStorage {
     return undefined;
   }
 
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user || undefined;
+  }
+
+  async getUserBySupabaseUid(supabaseUid: string): Promise<User | undefined> {
+    const result = await db.select().from(users).where(eq(sql`supabase_uid`, supabaseUid));
+    return result[0] || undefined;
+  }
+
+  async updateUserSupabaseUid(id: string, supabaseUid: string): Promise<User> {
+    const [user] = await db.update(users)
+      .set({ supabase_uid: supabaseUid, updatedAt: new Date() } as any)
+      .where(eq(users.id, id))
+      .returning();
+    return user;
+  }
+
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
     return user;
   }
 
-  // Replit Auth user upsert
+  // Auth user upsert (supports both Replit and Supabase)
   async upsertUser(userData: UpsertUser): Promise<User> {
+    // Map supabaseUid to database column name if provided
+    const dbUserData = {
+      ...userData,
+      supabase_uid: (userData as any).supabaseUid,
+    };
+    delete (dbUserData as any).supabaseUid;
+
     // Check if user exists by email (to handle email unique constraint)
     if (userData.email) {
       const existing = await db
@@ -242,7 +270,7 @@ export class DatabaseStorage implements IStorage {
       if (existing.length > 0) {
         // Update existing user by their current ID
         // CRITICAL: Never update the ID field to avoid FK constraint violations
-        const { id, ...updateData } = userData;
+        const { id, ...updateData } = dbUserData;
         const [user] = await db
           .update(users)
           .set({
@@ -256,20 +284,32 @@ export class DatabaseStorage implements IStorage {
     }
 
     // Insert new user or update if ID conflicts
-    // CRITICAL: Never update the ID field to avoid FK constraint violations
-    const { id: _, ...updateData } = userData;
-    const [user] = await db
-      .insert(users)
-      .values(userData)
-      .onConflictDoUpdate({
-        target: users.id,
-        set: {
-          ...updateData,
-          updatedAt: new Date(),
-        },
-      })
-      .returning();
-    return user;
+    // For new Supabase users, generate a new internal ID
+    const insertData = userData.id ? dbUserData : { ...dbUserData, id: undefined };
+    const { id: _, ...updateData } = dbUserData;
+
+    if (userData.id) {
+      // If ID provided (Replit auth), use upsert
+      const [user] = await db
+        .insert(users)
+        .values(insertData)
+        .onConflictDoUpdate({
+          target: users.id,
+          set: {
+            ...updateData,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+      return user;
+    } else {
+      // For Supabase auth, always insert new (ID will be auto-generated)
+      const [user] = await db
+        .insert(users)
+        .values(insertData)
+        .returning();
+      return user;
+    }
   }
 
   // Location management

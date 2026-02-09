@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { setupAuthMiddleware, isAuthenticated } from "./replitAuth";
+import { initializeSupabaseAuth, isAuthenticated } from "./supabaseAuth";
 import { storage } from "./storage";
 import { insertProgramSchema, insertWorkstreamSchema, insertStageGateSchema, insertTaskSchema, insertKpiSchema, insertRiskSchema, insertBenefitSchema, insertFundingSourceSchema, insertExpenseSchema, insertResourceSchema, insertSessionContextSchema, orchestratorTaskSchema, backgroundJobs, journeySessions, strategicUnderstanding, sessionContext, references, strategyVersions, epmPrograms } from "@shared/schema";
 import { ontologyService } from "./ontology-service";
@@ -31,29 +31,34 @@ import { db } from "./db";
 export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize module catalog and journey config system
   initializeModuleSystem();
-  
-  // Setup auth middleware synchronously (session, passport)
-  // This MUST happen before route registration for req.user to be populated
-  setupAuthMiddleware(app);
-  
-  // Complete auth setup (OIDC config + strategy registration + auth routes)
-  // This registers /api/login, /api/callback, /api/logout
-  // Skip OIDC setup only when BOTH DEV_AUTH_BYPASS=true AND NODE_ENV=development
-  const shouldSkipOIDC = process.env.DEV_AUTH_BYPASS === 'true' && process.env.NODE_ENV === 'development';
-  if (!shouldSkipOIDC) {
-    const { finishAuthSetup } = await import('./replitAuth.js');
-    await finishAuthSetup(app);
-    console.log('[Auth] OIDC authentication configured');
+
+  // Initialize Supabase Auth
+  // Skip Supabase setup only when BOTH DEV_AUTH_BYPASS=true AND NODE_ENV=development
+  const shouldSkipSupabase = process.env.DEV_AUTH_BYPASS === 'true' && process.env.NODE_ENV === 'development';
+  if (!shouldSkipSupabase) {
+    initializeSupabaseAuth();
+    console.log('[Auth] Supabase authentication configured');
   } else {
-    console.log('[Auth] Skipping OIDC setup (DEV_AUTH_BYPASS=true in development)');
+    console.log('[Auth] Skipping Supabase setup (DEV_AUTH_BYPASS=true in development)');
   }
 
-  // Auth user endpoint for Replit Auth
+  // Auth endpoints for Supabase
+  // Simple endpoint that returns the current user (frontend will handle actual auth)
+  app.post('/api/auth/logout', (req, res) => {
+    // Supabase handles logout client-side, this is just for compatibility
+    res.json({ success: true });
+  });
+
+  // Auth user endpoint (works with both Supabase and dev bypass)
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      res.json(user);
+      // The isAuthenticated middleware already attached the full user object
+      // from our database to req.user, so just return it
+      const user = req.user;
+
+      // Remove the claims wrapper for cleaner response
+      const { claims, ...cleanUser } = user;
+      res.json(cleanUser);
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });

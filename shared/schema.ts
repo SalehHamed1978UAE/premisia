@@ -189,7 +189,7 @@ export const sessions = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
 
-// Users table - Updated for Replit Auth
+// Users table - Updated for Supabase Auth
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").unique(),
@@ -198,6 +198,7 @@ export const users = pgTable("users", {
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
+  supabaseUid: text("supabase_uid").unique(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
