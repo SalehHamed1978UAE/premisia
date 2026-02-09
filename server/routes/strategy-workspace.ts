@@ -14,7 +14,8 @@ import type { StrategicContext, JourneyType } from '@shared/journey-types';
 import { container, getService } from '../services/container';
 import { ServiceKeys } from '../types/interfaces';
 import type { EPMRepository, StrategyRepository } from '../repositories';
-import { refreshTokenProactively } from '../replitAuth';
+// Migration: refreshTokenProactively is no longer needed with Supabase auth
+// Supabase handles token refresh automatically on the client side
 
 const router = Router();
 
@@ -278,14 +279,8 @@ router.post('/epm/generate', async (req: Request, res: Response) => {
   const progressId = `progress-${Date.now()}-${Math.random().toString(36).substring(7)}`;
   
   try {
-    // Proactively refresh token before long-running operation to prevent mid-operation auth failures
-    const tokenValid = await refreshTokenProactively(req, 600); // Refresh if expiring within 10 minutes
-    if (!tokenValid) {
-      return res.status(401).json({ 
-        error: 'Session expired', 
-        message: 'Please log in again to continue' 
-      });
-    }
+    // Supabase handles token refresh automatically on the client side
+    // No need for server-side token refresh
     
     const { strategyVersionId, decisionId, prioritizedOrder } = req.body;
 

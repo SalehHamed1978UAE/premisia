@@ -14,7 +14,8 @@ import { FrameworkSelector } from '../strategic-consultant-legacy/framework-sele
 import { BMCResearcher } from '../strategic-consultant-legacy/bmc-researcher';
 import { storage } from '../storage';
 import { unlink } from 'fs/promises';
-import { refreshTokenProactively } from '../replitAuth';
+// Migration: refreshTokenProactively is no longer needed with Supabase auth
+// Supabase handles token refresh automatically on the client side
 import { db } from '../db';
 import { strategicUnderstanding, journeySessions, strategyVersions, epmPrograms, bmcAnalyses, strategicEntities, strategicRelationships, frameworkInsights } from '@shared/schema';
 import { eq, and, inArray } from 'drizzle-orm';
@@ -2184,14 +2185,8 @@ router.get('/bmc-research/stream/:sessionId', async (req: Request, res: Response
   let keepaliveInterval: NodeJS.Timeout | null = null;
   
   try {
-    // Proactively refresh token before long-running operation to prevent mid-operation auth failures
-    const tokenValid = await refreshTokenProactively(req, 600); // Refresh if expiring within 10 minutes
-    if (!tokenValid) {
-      return res.status(401).json({ 
-        error: 'Session expired', 
-        message: 'Please log in again to continue' 
-      });
-    }
+    // Supabase handles token refresh automatically on the client side
+    // No need for server-side token refresh
     
     const { sessionId } = req.params;
     
@@ -2534,14 +2529,8 @@ router.get('/journey-research/stream/:sessionId', async (req: Request, res: Resp
   let keepaliveInterval: NodeJS.Timeout | null = null;
 
   try {
-    // Proactively refresh token before long-running operation
-    const tokenValid = await refreshTokenProactively(req, 600);
-    if (!tokenValid) {
-      return res.status(401).json({
-        error: 'Session expired',
-        message: 'Please log in again to continue'
-      });
-    }
+    // Supabase handles token refresh automatically on the client side
+    // No need for server-side token refresh
 
     const { sessionId } = req.params;
 
@@ -2890,14 +2879,8 @@ router.get('/market-entry-research/stream/:sessionId', async (req: Request, res:
   let keepaliveInterval: NodeJS.Timeout | null = null;
   
   try {
-    // Proactively refresh token before long-running operation
-    const tokenValid = await refreshTokenProactively(req, 600);
-    if (!tokenValid) {
-      return res.status(401).json({ 
-        error: 'Session expired', 
-        message: 'Please log in again to continue' 
-      });
-    }
+    // Supabase handles token refresh automatically on the client side
+    // No need for server-side token refresh
     
     const { sessionId } = req.params;
     

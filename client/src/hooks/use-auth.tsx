@@ -1,3 +1,10 @@
+/**
+ * Authentication Hook - Supabase Integration
+ *
+ * Implemented by: Agent 5
+ * Date: 2026-02-09
+ * Purpose: React hook for managing Supabase authentication state
+ */
 import { createContext, ReactNode, useContext, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { User as SelectUser } from "@shared/schema";

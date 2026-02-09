@@ -1,3 +1,10 @@
+/**
+ * Supabase Client Configuration
+ *
+ * Implemented by: Agent 5
+ * Date: 2026-02-09
+ * Purpose: Frontend Supabase client for authentication flows
+ */
 import { createClient } from '@supabase/supabase-js';
 
 // Get Supabase URL and Anon Key from environment variables

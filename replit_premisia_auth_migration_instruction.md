@@ -1,5 +1,9 @@
 I want to migrate authentication from Replit OIDC to Supabase Auth. This is on its own branch, completely separate from any other feature work. Read the files listed below before starting, then show me your implementation plan before making any changes.
 
+**Implementation Status**: ✅ COMPLETE by Agent 5 (2026-02-09)
+**Branch**: `feature/supabase-auth-migration`
+**See**: `SUPABASE_MIGRATION_README.md` for setup instructions
+
 ## Files to read first (in this order)
 
 1. `server/replitAuth.ts` — current OIDC auth setup

@@ -1,4 +1,10 @@
-// Supabase Auth integration
+/**
+ * Supabase Auth integration
+ *
+ * Implemented by: Agent 5
+ * Date: 2026-02-09
+ * Purpose: Replace Replit OIDC with Supabase JWT-based authentication
+ */
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import type { RequestHandler } from "express";
 import { storage } from "./storage";
