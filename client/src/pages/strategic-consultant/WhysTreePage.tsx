@@ -424,6 +424,55 @@ export default function WhysTreePage() {
     return path.reverse();
   };
 
+  const buildFullTreeForExport = (): WhyTree | null => {
+    if (!treeMeta) return null;
+    const rootId = "root";
+    const childrenByParent = new Map<string, string[]>();
+
+    nodeMetaRef.current.forEach((meta, id) => {
+      if (!meta.parentId) return;
+      const data = nodeDataById[id];
+      if (!data || data.isLoading || data.label === "Loading...") return;
+      const list = childrenByParent.get(meta.parentId) || [];
+      list.push(id);
+      childrenByParent.set(meta.parentId, list);
+    });
+
+    const sortChildren = (ids: string[]) =>
+      ids.sort((a, b) => (nodeMetaRef.current.get(a)?.index ?? 0) - (nodeMetaRef.current.get(b)?.index ?? 0));
+
+    const buildNode = (id: string): WhyNode | null => {
+      const data = nodeDataById[id];
+      const meta = nodeMetaRef.current.get(id);
+      if (!data || data.isRoot || !data.label) return null;
+      const children = sortChildren(childrenByParent.get(id) || []);
+      const depth = meta?.depth ?? 0;
+      return {
+        id,
+        option: data.label,
+        question: data.nextQuestion || "",
+        branches: children.map(buildNode).filter(Boolean) as WhyNode[],
+        depth,
+        isLeaf: children.length === 0,
+        parentId: meta?.parentId,
+        supporting_evidence: data.supporting_evidence || [],
+        counter_arguments: data.counter_arguments || [],
+        consideration: data.consideration || "",
+      };
+    };
+
+    const rootChildren = sortChildren(childrenByParent.get(rootId) || []);
+    const branches = rootChildren.map(buildNode).filter(Boolean) as WhyNode[];
+    if (branches.length === 0) return null;
+
+    return {
+      rootQuestion: treeMeta.rootQuestion,
+      branches,
+      maxDepth: treeMeta.maxDepth,
+      sessionId: understanding?.sessionId || "",
+    };
+  };
+
   const expandNode = async (nodeId: string) => {
     if (!understanding || isProcessingAction) return;
     const meta = nodeMetaRef.current.get(nodeId);
@@ -620,12 +669,14 @@ export default function WhysTreePage() {
 
       const sessionIdForNavigation = journeySessionId || understanding.sessionId;
       const pathHistory = buildSelectedPath(selectedNodeId);
+      const fullTree = buildFullTreeForExport();
       const finalizeResponse = await apiRequest("POST", "/api/strategic-consultant/whys-tree/finalize", {
         sessionId: understanding.sessionId,
         selectedPath: pathHistory,
         rootCause: node.label,
         input: understanding.userInput,
         versionNumber,
+        tree: fullTree,
       });
 
       const finalizeData = await finalizeResponse.json();
