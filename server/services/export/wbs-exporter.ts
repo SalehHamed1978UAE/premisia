@@ -115,8 +115,28 @@ export function generateWBSCsv(pkg: FullExportPackage): string {
     notes: ''
   });
 
-  // Track WBS codes for dependencies
+  // Track WBS codes for dependencies - must be built before generating rows
   const wbsCodeMap = new Map<string, string>();
+
+  // First pass: Build WBS code map for all workstreams
+  if (phases.length > 0) {
+    phases.forEach((phase, phaseIndex) => {
+      const phaseWorkstreams = workstreams.filter((ws: any) => {
+        return ws.phase === phase.name ||
+               (ws.startMonth >= phase.startMonth && ws.startMonth <= phase.endMonth);
+      });
+
+      phaseWorkstreams.forEach((ws: any, wsIndex: number) => {
+        const wsWbsCode = `1.${phaseIndex + 1}.${wsIndex + 1}`;
+        wbsCodeMap.set(ws.id, wsWbsCode);
+      });
+    });
+  } else {
+    workstreams.forEach((ws: any, wsIndex: number) => {
+      const wsWbsCode = `1.${wsIndex + 1}`;
+      wbsCodeMap.set(ws.id, wsWbsCode);
+    });
+  }
 
   // Level 1: Phases or direct workstreams
   if (phases.length > 0) {
@@ -182,16 +202,15 @@ export function generateWBSCsv(pkg: FullExportPackage): string {
 
       phaseWorkstreams.forEach((ws: any, wsIndex: number) => {
         const wsWbsCode = `${phaseWbsCode}.${wsIndex + 1}`;
-        wbsCodeMap.set(ws.id, wsWbsCode);
-        addWorkstreamToRows(rows, ws, wsWbsCode, 2, programStartDate, journeyType, pkg);
+        addWorkstreamToRows(rows, ws, wsWbsCode, 2, programStartDate, journeyType, pkg, wbsCodeMap, phaseStartDate, phaseEndDate);
       });
     });
   } else {
     // No phases, add workstreams directly under program
+    const programEndDate = timeline.endDate ? new Date(timeline.endDate) : new Date();
     workstreams.forEach((ws: any, wsIndex: number) => {
       const wsWbsCode = `1.${wsIndex + 1}`;
-      wbsCodeMap.set(ws.id, wsWbsCode);
-      addWorkstreamToRows(rows, ws, wsWbsCode, 1, programStartDate, journeyType, pkg);
+      addWorkstreamToRows(rows, ws, wsWbsCode, 1, programStartDate, journeyType, pkg, wbsCodeMap, programStartDate, programEndDate);
     });
   }
 
@@ -231,7 +250,10 @@ function addWorkstreamToRows(
   level: number,
   programStartDate: Date,
   journeyType: string,
-  pkg: FullExportPackage
+  pkg: FullExportPackage,
+  wbsCodeMap: Map<string, string>,
+  parentStartDate: Date,
+  parentEndDate: Date
 ): void {
   const wsStartDate = addMonths(programStartDate, ws.startMonth || 0);
   const wsEndDate = addMonths(programStartDate, ws.endMonth || ws.startMonth || 0);
@@ -249,7 +271,7 @@ function addWorkstreamToRows(
     start_date: format(wsStartDate, 'yyyy-MM-dd'),
     end_date: format(wsEndDate, 'yyyy-MM-dd'),
     duration_days: calculateBusinessDays(wsStartDate, wsEndDate),
-    dependency: formatDependencies(ws.dependencies, wsWbsCode),
+    dependency: formatDependencies(ws.dependencies, wbsCodeMap),
     dependency_type: ws.dependencies && ws.dependencies.length > 0 ? 'FS' : '',
     priority: ws.isCritical ? 'Critical' : 'High',
     status: 'Not Started',
@@ -264,10 +286,24 @@ function addWorkstreamToRows(
   if (ws.deliverables && Array.isArray(ws.deliverables)) {
     ws.deliverables.forEach((deliverable: any, delIndex: number) => {
       const taskWbsCode = `${wsWbsCode}.${delIndex + 1}`;
-      const taskDueDate = addMonths(programStartDate, deliverable.dueMonth || ws.endMonth || 0);
-      // Task starts 1 week before due date (estimate)
+      let taskDueDate = addMonths(programStartDate, deliverable.dueMonth || ws.endMonth || 0);
+
+      // Ensure task due date falls within workstream boundaries
+      if (taskDueDate > wsEndDate) {
+        taskDueDate = wsEndDate;
+      }
+
+      // Calculate realistic start date: estimate task duration based on complexity
+      // Use 2 weeks (10 business days) as default for complex deliverables
+      const estimatedDuration = estimateTaskDuration(deliverable.name, deliverable.description);
       const taskStartDate = new Date(taskDueDate);
-      taskStartDate.setDate(taskStartDate.getDate() - 7);
+      taskStartDate.setDate(taskStartDate.getDate() - (estimatedDuration * 1.4)); // 1.4 = business days factor
+
+      // Ensure task starts after workstream starts
+      const finalTaskStartDate = taskStartDate < wsStartDate ? wsStartDate : taskStartDate;
+
+      // Calculate actual duration based on final dates
+      const actualDuration = calculateBusinessDays(finalTaskStartDate, taskDueDate);
 
       rows.push({
         wbs_code: taskWbsCode,
@@ -275,9 +311,9 @@ function addWorkstreamToRows(
         level: level + 1,
         type: 'task',
         owner: ws.owner || 'TBD',
-        start_date: format(taskStartDate, 'yyyy-MM-dd'),
+        start_date: format(finalTaskStartDate, 'yyyy-MM-dd'),
         end_date: format(taskDueDate, 'yyyy-MM-dd'),
-        duration_days: 5, // Assume 5 business days for tasks
+        duration_days: actualDuration,
         dependency: delIndex > 0 ? `${wsWbsCode}.${delIndex}` : '',
         dependency_type: delIndex > 0 ? 'FS' : '',
         priority: 'Medium',
@@ -320,12 +356,61 @@ function addMonths(date: Date, months: number): Date {
   return result;
 }
 
-function formatDependencies(dependencies: string[] | undefined, currentWbsCode: string): string {
+function formatDependencies(dependencies: string[] | undefined, wbsCodeMap: Map<string, string>): string {
   if (!dependencies || dependencies.length === 0) return '';
 
-  // For now, return the dependencies as-is, but in a real implementation
-  // we'd map these to actual WBS codes
-  return dependencies.join(';');
+  // Map WS### IDs to WBS codes and validate existence
+  const mappedDeps = dependencies
+    .map((dep) => {
+      // Remove any whitespace
+      const cleanDep = dep.trim();
+
+      // Check if dependency exists in map
+      if (wbsCodeMap.has(cleanDep)) {
+        return wbsCodeMap.get(cleanDep);
+      }
+
+      // If dependency is already a WBS code format (e.g., "1.1.1"), keep it
+      if (/^\d+(\.\d+)*$/.test(cleanDep)) {
+        return cleanDep;
+      }
+
+      // Dependency not found - log warning but don't fail
+      console.warn(`Warning: Dependency "${cleanDep}" not found in WBS code map`);
+      return null;
+    })
+    .filter((dep): dep is string => dep !== null); // Filter out null values
+
+  return mappedDeps.join(';');
+}
+
+function estimateTaskDuration(taskName: string, taskDescription: string): number {
+  const text = `${taskName} ${taskDescription || ''}`.toLowerCase();
+
+  // Keywords indicating complexity
+  const complexKeywords = [
+    'comprehensive', 'complete', 'audit', 'certification', 'compliance',
+    'assessment', 'strategy', 'framework', 'architecture', 'migration',
+    'integration', 'security', 'dpia', 'legal review'
+  ];
+
+  const moderateKeywords = [
+    'report', 'document', 'plan', 'checklist', 'guidelines',
+    'training', 'analysis', 'design', 'implementation'
+  ];
+
+  // Check for complex tasks (15-20 business days)
+  if (complexKeywords.some(keyword => text.includes(keyword))) {
+    return 15;
+  }
+
+  // Check for moderate tasks (8-10 business days)
+  if (moderateKeywords.some(keyword => text.includes(keyword))) {
+    return 10;
+  }
+
+  // Simple tasks (5 business days)
+  return 5;
 }
 
 function inferFrameworkSource(name: string, description: string): string {
