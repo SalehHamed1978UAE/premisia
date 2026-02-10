@@ -125,89 +125,114 @@ export class TimelineCalculator implements ITimelineCalculator {
   identifyCriticalPath(workstreams: Workstream[]): string[] {
     if (workstreams.length === 0) return [];
 
-    const byId = new Map(workstreams.map((ws) => [ws.id, ws]));
-    const inDegree = new Map<string, number>();
-    const dependents = new Map<string, string[]>();
+    const computeLongestPath = (streams: Workstream[]): string[] => {
+      if (streams.length === 0) return [];
 
-    for (const ws of workstreams) {
-      inDegree.set(ws.id, 0);
-      dependents.set(ws.id, []);
-    }
+      const byId = new Map(streams.map((ws) => [ws.id, ws]));
+      const inDegree = new Map<string, number>();
+      const dependents = new Map<string, string[]>();
 
-    for (const ws of workstreams) {
-      for (const depId of ws.dependencies || []) {
-        if (!byId.has(depId)) continue;
-        inDegree.set(ws.id, (inDegree.get(ws.id) || 0) + 1);
-        dependents.get(depId)?.push(ws.id);
+      for (const ws of streams) {
+        inDegree.set(ws.id, 0);
+        dependents.set(ws.id, []);
       }
-    }
 
-    const queue: string[] = workstreams
-      .filter((ws) => (inDegree.get(ws.id) || 0) === 0)
-      .map((ws) => ws.id);
-    const topo: string[] = [];
-
-    while (queue.length > 0) {
-      const id = queue.shift() as string;
-      topo.push(id);
-
-      for (const dependentId of dependents.get(id) || []) {
-        const nextDegree = (inDegree.get(dependentId) || 0) - 1;
-        inDegree.set(dependentId, nextDegree);
-        if (nextDegree === 0) queue.push(dependentId);
-      }
-    }
-
-    // Cyclic dependencies should already be handled upstream; degrade gracefully here.
-    if (topo.length !== workstreams.length) {
-      const longest = [...workstreams].sort(
-        (a, b) => (b.endMonth - b.startMonth) - (a.endMonth - a.startMonth)
-      )[0];
-      return longest ? [longest.id] : [];
-    }
-
-    const scoreById = new Map<string, number>();
-    const predecessorById = new Map<string, string | null>();
-
-    for (const id of topo) {
-      const ws = byId.get(id)!;
-      const duration = Math.max(1, ws.endMonth - ws.startMonth + 1);
-
-      let bestPredecessor: string | null = null;
-      let bestPredecessorScore = 0;
-
-      for (const depId of ws.dependencies || []) {
-        const depScore = scoreById.get(depId);
-        if (depScore === undefined) continue;
-        if (depScore > bestPredecessorScore) {
-          bestPredecessorScore = depScore;
-          bestPredecessor = depId;
+      for (const ws of streams) {
+        for (const depId of ws.dependencies || []) {
+          if (!byId.has(depId)) continue;
+          inDegree.set(ws.id, (inDegree.get(ws.id) || 0) + 1);
+          dependents.get(depId)?.push(ws.id);
         }
       }
 
-      scoreById.set(id, duration + bestPredecessorScore);
-      predecessorById.set(id, bestPredecessor);
-    }
+      const queue: string[] = streams
+        .filter((ws) => (inDegree.get(ws.id) || 0) === 0)
+        .map((ws) => ws.id);
+      const topo: string[] = [];
 
-    let criticalEndId: string | null = null;
-    let maxScore = -1;
-    scoreById.forEach((score, id) => {
-      if (score > maxScore) {
-        maxScore = score;
-        criticalEndId = id;
+      while (queue.length > 0) {
+        const id = queue.shift() as string;
+        topo.push(id);
+
+        for (const dependentId of dependents.get(id) || []) {
+          const nextDegree = (inDegree.get(dependentId) || 0) - 1;
+          inDegree.set(dependentId, nextDegree);
+          if (nextDegree === 0) queue.push(dependentId);
+        }
       }
-    });
 
-    if (!criticalEndId) return [];
+      // Cyclic dependencies should already be handled upstream; degrade gracefully here.
+      if (topo.length !== streams.length) {
+        const longest = [...streams].sort(
+          (a, b) => (b.endMonth - b.startMonth) - (a.endMonth - a.startMonth)
+        )[0];
+        return longest ? [longest.id] : [];
+      }
 
-    const path: string[] = [];
-    let cursor: string | null = criticalEndId;
-    while (cursor) {
-      path.push(cursor);
-      cursor = predecessorById.get(cursor) || null;
+      const scoreById = new Map<string, number>();
+      const predecessorById = new Map<string, string | null>();
+
+      for (const id of topo) {
+        const ws = byId.get(id)!;
+        const duration = Math.max(1, ws.endMonth - ws.startMonth + 1);
+
+        let bestPredecessor: string | null = null;
+        let bestPredecessorScore = 0;
+
+        for (const depId of ws.dependencies || []) {
+          const depScore = scoreById.get(depId);
+          if (depScore === undefined) continue;
+          if (depScore > bestPredecessorScore) {
+            bestPredecessorScore = depScore;
+            bestPredecessor = depId;
+          }
+        }
+
+        scoreById.set(id, duration + bestPredecessorScore);
+        predecessorById.set(id, bestPredecessor);
+      }
+
+      let criticalEndId: string | null = null;
+      let maxScore = -1;
+      scoreById.forEach((score, id) => {
+        if (score > maxScore) {
+          maxScore = score;
+          criticalEndId = id;
+        }
+      });
+
+      if (!criticalEndId) return [];
+
+      const path: string[] = [];
+      let cursor: string | null = criticalEndId;
+      while (cursor) {
+        path.push(cursor);
+        cursor = predecessorById.get(cursor) || null;
+      }
+
+      return path.reverse();
+    };
+
+    const isDecisionWorkstream = (ws?: Workstream): boolean => {
+      if (!ws) return false;
+      const name = ws.name?.toLowerCase() || '';
+      const id = ws.id?.toLowerCase() || '';
+      return id.startsWith('decision_') || name.includes('decision implementation');
+    };
+
+    const primaryPath = computeLongestPath(workstreams);
+    if (primaryPath.length === 0) return [];
+
+    const byId = new Map(workstreams.map((ws) => [ws.id, ws]));
+    const isDecisionOnly = primaryPath.every((id) => isDecisionWorkstream(byId.get(id)));
+
+    if (isDecisionOnly) {
+      const nonDecision = workstreams.filter((ws) => !isDecisionWorkstream(ws));
+      const alternativePath = computeLongestPath(nonDecision);
+      return alternativePath.length > 0 ? alternativePath : primaryPath;
     }
 
-    return path.reverse();
+    return primaryPath;
   }
 }
 
