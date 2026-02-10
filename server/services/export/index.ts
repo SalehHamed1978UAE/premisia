@@ -7,6 +7,7 @@ import { PdfExporter, findChromiumExecutable, generatePdfFromHtml, generatePdfFr
 import { DocxExporter, generateDocxReport, generateDocxFromHtml } from './docx-exporter';
 import { CsvExporter, generateAssignmentsCsv, generateWorkstreamsCsv, generateResourcesCsv, generateRisksCsv, generateBenefitsCsv } from './csv-exporter';
 import { ExcelExporter, generateExcelWorkbook } from './excel-exporter';
+import { WBSExporter, generateWBSCsv } from './wbs-exporter';
 import { escapeCsvField } from './base-exporter';
 import { buildStrategyJsonPayload, buildEpmJsonPayload } from './json-payloads';
 import { validateExportAcceptance } from './acceptance-gates';
@@ -20,6 +21,7 @@ export { PdfExporter, findChromiumExecutable, generatePdfFromHtml, generatePdfFr
 export { DocxExporter, generateDocxReport, generateDocxFromHtml };
 export { CsvExporter, generateAssignmentsCsv, generateWorkstreamsCsv, generateResourcesCsv, generateRisksCsv, generateBenefitsCsv };
 export { ExcelExporter, generateExcelWorkbook };
+export { WBSExporter, generateWBSCsv };
 
 export async function generateFullPassExport(
   request: ExportRequest,
@@ -89,6 +91,17 @@ export async function generateFullPassExport(
   
   const benefitsRealization = parseField(exportPackage.epm?.program?.benefitsRealization);
   const benefitsCsv = benefitsRealization ? generateBenefitsCsv(benefitsRealization) : null;
+
+  console.log('[Export Service] Generating WBS CSV...');
+  let wbsCsv: string | null = null;
+  try {
+    wbsCsv = exportPackage.epm?.program ? generateWBSCsv(exportPackage) : null;
+    if (wbsCsv) {
+      console.log('[Export Service] WBS CSV generated successfully');
+    }
+  } catch (error) {
+    console.warn('[Export Service] WBS CSV generation failed:', error instanceof Error ? error.message : error);
+  }
 
   console.log('[Export Service] Running acceptance gates...');
   const acceptanceReport = validateExportAcceptance({
@@ -227,7 +240,12 @@ export async function generateFullPassExport(
     archive.append(benefitsCsv, { name: 'data/benefits.csv' });
     includedFiles.push('data/benefits.csv');
   }
-  
+
+  if (wbsCsv) {
+    archive.append(wbsCsv, { name: 'data/wbs.csv' });
+    includedFiles.push('data/wbs.csv');
+  }
+
   if (excelBuffer) {
     archive.append(excelBuffer, { name: 'data/epm-program.xlsx' });
     includedFiles.push('data/epm-program.xlsx');
@@ -260,6 +278,7 @@ PDF files require Puppeteer (headless Chrome) which may not be available on mobi
 - **report-ui.pdf** - Styled PDF version (if available)
 - **data/strategy.json** - Strategic analysis data in JSON
 - **data/epm.json** - EPM program data (if generated)
+- **data/wbs.csv** - Work Breakdown Structure in universal PM tool format (if generated)
 - **data/epm-program.xlsx** - Excel workbook with 8 sheets (Summary, WBS, Schedule, Resources, Budget, RACI, Risks, Assumptions)
 - **data/*.csv** - Detailed data exports for assignments, workstreams, resources, risks, and benefits
 

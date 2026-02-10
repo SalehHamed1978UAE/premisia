@@ -16,6 +16,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 
 interface ValidationResult {
   isValid: boolean;
@@ -421,8 +422,19 @@ class EPMPackageValidator {
   }
 }
 
-// CLI execution
-if (require.main === module) {
+// CLI execution (ESM-safe)
+const isMain = (() => {
+  try {
+    const entry = process.argv[1];
+    if (!entry) return false;
+    const current = fileURLToPath(import.meta.url);
+    return path.resolve(entry) === path.resolve(current);
+  } catch {
+    return false;
+  }
+})();
+
+if (isMain) {
   const args = process.argv.slice(2);
 
   if (args.length === 0) {

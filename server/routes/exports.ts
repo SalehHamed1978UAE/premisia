@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { generateFullPassExport, loadExportData, generateExcelWorkbook, generatePdfFromHtml, generateUiStyledHtml, findChromiumExecutable } from '../services/export-service';
+import { generateFullPassExport, loadExportData, generateExcelWorkbook, generatePdfFromHtml, generateUiStyledHtml, findChromiumExecutable, generateWBSCsv } from '../services/export-service';
 import { db } from '../db';
 import { strategicUnderstanding, epmPrograms, strategyVersions } from '@shared/schema';
 import { eq, or } from 'drizzle-orm';
@@ -296,6 +296,49 @@ router.get('/pdf', async (req, res) => {
   } catch (error) {
     console.error('[Export] PDF export error:', error);
     res.status(500).json({ error: error instanceof Error ? error.message : 'PDF export failed' });
+  }
+});
+
+/**
+ * GET /api/exports/wbs
+ * Download WBS CSV file in universal PM tool format
+ */
+router.get('/wbs', async (req, res) => {
+  try {
+    const { sessionId, programId } = req.query;
+    const userId = (req.user as any)?.claims?.sub;
+
+    if (!userId) {
+      res.status(401).json({ error: 'Authentication required' });
+      return;
+    }
+
+    if (!sessionId && !programId) {
+      res.status(400).json({ error: 'sessionId or programId is required' });
+      return;
+    }
+
+    const resolvedSessionId = await resolveSessionId(sessionId as string, programId as string, userId, res);
+    if (!resolvedSessionId) return;
+
+    const exportPackage = await loadExportData(resolvedSessionId, undefined, programId as string, userId);
+
+    if (!exportPackage.epm?.program) {
+      res.status(404).json({ error: 'No EPM program found for this session. Generate an EPM program first.' });
+      return;
+    }
+
+    // Generate WBS CSV with UTF-8 BOM for Excel compatibility
+    const bom = '\uFEFF';
+    const wbsCsv = bom + generateWBSCsv(exportPackage);
+
+    const filename = `wbs-${resolvedSessionId.substring(0, 8)}.csv`;
+    res.setHeader('Content-Type', 'text/csv;charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(wbsCsv);
+  } catch (error) {
+    console.error('[Export] WBS export error:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'WBS export failed' });
   }
 });
 
