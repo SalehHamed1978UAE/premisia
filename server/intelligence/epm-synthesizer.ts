@@ -274,6 +274,9 @@ export class EPMSynthesizer {
     const strategicContext = this.extractStrategicContext(insights, namingContext);
     console.log(`[EPM Synthesis] ✓ Strategic context: ${strategicContext.decisions.length} decisions, SWOT available: ${!!strategicContext.swotData}`);
 
+    // Enrich userContext with budget/timeline constraints from strategic decisions
+    const enrichedUserContext = this.enrichUserContextFromDecisions(strategicContext.decisions, userContext);
+
     if (planningResult.success && planningResult.confidence >= 0.6) {
       console.log('[EPM Synthesis] ✓ Intelligent planning successful');
       console.log(`[EPM Synthesis]   Confidence: ${(planningResult.confidence * 100).toFixed(1)}%`);
@@ -285,7 +288,7 @@ export class EPMSynthesizer {
         insights,
         scheduledWorkstreams,
         planningContext,
-        userContext,
+        enrichedUserContext,
         namingContext,
         strategicContext,
         onProgress,
@@ -324,7 +327,7 @@ export class EPMSynthesizer {
         insights,
         timedWorkstreams, // Use WBS Builder workstreams with default timings
         planningContext,
-        userContext,
+        enrichedUserContext,
         namingContext,
         strategicContext,
         onProgress,
@@ -423,6 +426,87 @@ export class EPMSynthesizer {
     console.log(`  - Source: ${journeyBuilderSwot ? 'Journey Builder (frameworkInsights)' : 'Legacy (insights/marketContext)'}`);
 
     return { decisions, swotData };
+  }
+
+  /**
+   * Enrich UserContext with budget and timeline constraints from strategic decisions
+   *
+   * FIXES: Budget Coherence Issue - EPM shows $3.67M but decisions promise $15-20M
+   *
+   * This method parses strategic decision text for:
+   * - Budget constraints: "$15-20M", "$15M-$20M", "15-20 million"
+   * - Timeline constraints: "24-month", "24 months", "2-year"
+   *
+   * Returns enriched userContext with populated budgetRange and timeline hints
+   */
+  private enrichUserContextFromDecisions(
+    decisions: any[],
+    userContext?: UserContext
+  ): UserContext {
+    const enriched = { ...userContext } as UserContext;
+
+    // Filter to selected decisions only
+    const selectedDecisions = decisions.filter((d: any) => d.selectedOptionId);
+
+    for (const decision of selectedDecisions) {
+      // Find the selected option text
+      const selectedOption = decision.options?.find((opt: any) => opt.id === decision.selectedOptionId);
+      if (!selectedOption) continue;
+
+      const optionText = selectedOption.text || selectedOption.label || selectedOption.description || '';
+      const decisionText = `${decision.question} ${optionText}`.toLowerCase();
+
+      console.log(`[Budget Coherence] Analyzing decision: "${decision.question?.substring(0, 80)}..."`);
+
+      // Parse budget constraints
+      // Patterns: $15-20M, $15M-$20M, 15-20 million, $15M to $20M, etc.
+      const budgetPattern = /\$?(\d+(?:\.\d+)?)\s*(?:million|m|mil)?\s*(?:-|to)\s*\$?(\d+(?:\.\d+)?)\s*(?:million|m|mil)?(?:\s+budget)?/i;
+      const budgetMatch = decisionText.match(budgetPattern);
+
+      if (budgetMatch) {
+        const minBudget = parseFloat(budgetMatch[1]) * 1_000_000;
+        const maxBudget = parseFloat(budgetMatch[2]) * 1_000_000;
+
+        console.log(`[Budget Coherence] ✓ Found budget constraint: $${minBudget.toLocaleString()} - $${maxBudget.toLocaleString()}`);
+
+        enriched.budgetRange = {
+          min: minBudget,
+          max: maxBudget,
+        };
+      }
+
+      // Parse timeline constraints
+      // Patterns: 24-month, 24 months, 18-24 months, 2-year, etc.
+      const timelinePattern = /(\d+)\s*(?:-|to)?\s*(?:(\d+)\s*)?(?:month|mo|year|yr)s?(?:\s+timeline)?/i;
+      const timelineMatch = decisionText.match(timelinePattern);
+
+      if (timelineMatch) {
+        let minMonths = parseInt(timelineMatch[1], 10);
+        let maxMonths = timelineMatch[2] ? parseInt(timelineMatch[2], 10) : minMonths;
+
+        // Convert years to months if pattern mentions "year"
+        if (decisionText.includes('year') || decisionText.includes('yr')) {
+          minMonths *= 12;
+          maxMonths *= 12;
+        }
+
+        console.log(`[Budget Coherence] ✓ Found timeline constraint: ${minMonths}-${maxMonths} months`);
+
+        // Store timeline hint (UserContext doesn't have a timeline field, so we'll add it)
+        (enriched as any).timelineHint = {
+          min: minMonths,
+          max: maxMonths,
+        };
+      }
+    }
+
+    if (!enriched.budgetRange) {
+      console.warn('[Budget Coherence] ⚠️  No budget constraints found in strategic decisions');
+    } else {
+      console.log(`[Budget Coherence] Enriched userContext with budget: $${enriched.budgetRange.min.toLocaleString()} - $${enriched.budgetRange.max.toLocaleString()}`);
+    }
+
+    return enriched;
   }
 
   private alignWorkstreamsToDecisions(
@@ -1108,7 +1192,10 @@ export class EPMSynthesizer {
     
     console.log('[EPM Synthesis] ✓ Program built successfully');
     console.log(`[EPM Synthesis]   Overall confidence: ${(overallConfidence * 100).toFixed(1)}%`);
-    
+
+    // Validate budget coherence
+    this.validateBudgetCoherence(program, userContext);
+
     return program;
   }
 
@@ -1401,6 +1488,50 @@ export class EPMSynthesizer {
     const avg = confidences.reduce((sum, c) => sum + c, 0) / confidences.length;
     const variance = confidences.reduce((sum, c) => sum + Math.pow(c - avg, 2), 0) / confidences.length;
     return Math.max(0.5, avg - (variance * 0.1));
+  }
+
+  /**
+   * Validate budget coherence between strategic decisions and generated EPM
+   *
+   * FIXES: Budget Coherence Issue #1 - Detects when EPM budget doesn't match
+   * strategic decision budget (e.g., $3.67M vs $15-20M promised)
+   *
+   * Logs errors if:
+   * - EPM budget is below strategic decision min budget (80%+ shortfall)
+   * - EPM budget is above strategic decision max budget (significant overrun)
+   */
+  private validateBudgetCoherence(program: EPMProgram, userContext?: UserContext): void {
+    if (!userContext?.budgetRange) {
+      console.log('[Budget Coherence] No budget constraints defined in strategic decisions - skipping validation');
+      return;
+    }
+
+    const strategicMin = userContext.budgetRange.min;
+    const strategicMax = userContext.budgetRange.max;
+    const epmBudget = program.financialPlan.totalBudget;
+
+    console.log('[Budget Coherence] Validating budget coherence:');
+    console.log(`  - Strategic decision budget: $${strategicMin.toLocaleString()} - $${strategicMax.toLocaleString()}`);
+    console.log(`  - Generated EPM budget: $${epmBudget.toLocaleString()}`);
+
+    // Check if EPM budget is within strategic range
+    if (epmBudget < strategicMin) {
+      const shortfall = ((strategicMin - epmBudget) / strategicMin) * 100;
+      console.error(`[Budget Coherence] ❌ CRITICAL: EPM budget is ${shortfall.toFixed(1)}% below strategic minimum!`);
+      console.error(`[Budget Coherence]   Expected: At least $${strategicMin.toLocaleString()}`);
+      console.error(`[Budget Coherence]   Generated: $${epmBudget.toLocaleString()}`);
+      console.error(`[Budget Coherence]   Shortfall: $${(strategicMin - epmBudget).toLocaleString()}`);
+    } else if (epmBudget > strategicMax) {
+      const overrun = ((epmBudget - strategicMax) / strategicMax) * 100;
+      console.warn(`[Budget Coherence] ⚠️  WARNING: EPM budget exceeds strategic maximum by ${overrun.toFixed(1)}%`);
+      console.warn(`[Budget Coherence]   Expected: At most $${strategicMax.toLocaleString()}`);
+      console.warn(`[Budget Coherence]   Generated: $${epmBudget.toLocaleString()}`);
+      console.warn(`[Budget Coherence]   Overrun: $${(epmBudget - strategicMax).toLocaleString()}`);
+    } else {
+      console.log(`[Budget Coherence] ✅ Budget coherence validated - EPM budget within strategic range`);
+      const percentOfMax = (epmBudget / strategicMax) * 100;
+      console.log(`[Budget Coherence]   Using ${percentOfMax.toFixed(1)}% of maximum budget`);
+    }
   }
 
   /**
