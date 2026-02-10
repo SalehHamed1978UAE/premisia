@@ -67,6 +67,7 @@ import {
   RoleInferenceService,
   normalizeRole,
   ensureResourceExists,
+  qualityGateRunner,
 } from './epm';
 
 export { ContextBuilder } from './epm';
@@ -1136,7 +1137,26 @@ export class EPMSynthesizer {
     if (planningGrid.conflicts.length > 0) {
       console.log(`[EPM Synthesis] ⚠️ Planning grid conflicts: ${planningGrid.conflicts.length}`);
     }
-    
+
+    // Sprint 1 (P2 Scheduling): Run WBS timeline validation
+    console.log('[EPM Synthesis] 🔍 Running WBS timeline quality gates');
+    const qualityReport = qualityGateRunner.runQualityGate(alignedWorkstreams, timeline, stageGates, businessContext);
+    if (!qualityReport.overallPassed) {
+      console.log(`[EPM Synthesis] ⚠️ WBS validation found ${qualityReport.errorCount} errors, ${qualityReport.warningCount} warnings`);
+      qualityReport.validatorResults.forEach(result => {
+        result.issues.forEach(issue => {
+          if (issue.severity === 'error') {
+            console.log(`    ❌ [${issue.code}] ${issue.message}`);
+            if (issue.suggestion) {
+              console.log(`       💡 ${issue.suggestion}`);
+            }
+          }
+        });
+      });
+    } else {
+      console.log(`[EPM Synthesis] ✓ WBS timeline validation passed`);
+    }
+
     onProgress?.({
       type: 'step-start',
       step: 'financial',

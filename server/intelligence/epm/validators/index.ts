@@ -3,4 +3,5 @@ export { ValidatorRegistry, QualityReport, validatorRegistry } from './validator
 export { DependencyValidator } from './dependency-validator';
 export { IndustryValidator } from './industry-validator';
 export { CompletenessValidator } from './completeness-validator';
+export { WBSTimelineValidator } from './wbs-timeline-validator';
 export { QualityGateRunner, qualityGateRunner } from './quality-gate-runner';
