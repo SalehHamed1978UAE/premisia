@@ -66,9 +66,28 @@ export async function generateFullPassExport(
   const docx = await generateDocxReport(exportPackage);
   
   console.log('[Export Service] Generating JSON and CSV exports...');
-  const strategyJson = JSON.stringify(buildStrategyJsonPayload(exportPackage.strategy), null, 2);
+  const epmProgramId = exportPackage.epm?.program?.id || exportPackage.metadata?.programId || null;
+  const strategyPayload = exportPackage.strategy?.strategyVersion && epmProgramId
+    ? {
+        ...exportPackage.strategy,
+        strategyVersion: {
+          ...exportPackage.strategy.strategyVersion,
+          convertedProgramId: exportPackage.strategy.strategyVersion.convertedProgramId || epmProgramId,
+        },
+      }
+    : exportPackage.strategy;
+
+  const strategyJson = JSON.stringify(buildStrategyJsonPayload(strategyPayload), null, 2);
   const epmJson = exportPackage.epm?.program
-    ? JSON.stringify(buildEpmJsonPayload(exportPackage.epm), null, 2)
+    ? JSON.stringify(
+        buildEpmJsonPayload(exportPackage.epm, {
+          exportMeta: exportPackage.metadata,
+          strategyVersion: strategyPayload?.strategyVersion,
+          userInput: strategyPayload?.understanding?.userInput,
+        }),
+        null,
+        2
+      )
     : null;
   
   const parseField = (field: any) => {

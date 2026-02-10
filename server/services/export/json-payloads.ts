@@ -4,6 +4,11 @@ import { normalizeWhysPathSteps } from '../../utils/whys-path';
 
 type StrategyPayload = FullExportPackage['strategy'];
 type EpmPayload = NonNullable<FullExportPackage['epm']>;
+type EpmPayloadContext = {
+  exportMeta?: FullExportPackage['metadata'];
+  strategyVersion?: any;
+  userInput?: string | null;
+};
 
 const FRAMEWORK_ALIASES: Record<string, string> = {
   five_whys: 'five_whys',
@@ -438,7 +443,10 @@ export function buildStrategyJsonPayload(strategy: StrategyPayload): Record<stri
   };
 }
 
-export function buildEpmJsonPayload(epm: EpmPayload): Record<string, any> {
+export function buildEpmJsonPayload(
+  epm: EpmPayload,
+  context: EpmPayloadContext = {}
+): Record<string, any> {
   const program = epm.program || {};
   const workstreams = parseMaybeJson<any[]>(program.workstreams) || [];
   const timeline = normalizeTimeline(program, workstreams);
@@ -446,8 +454,20 @@ export function buildEpmJsonPayload(epm: EpmPayload): Record<string, any> {
   const riskRegister = parseMaybeJson<any>(program.riskRegister);
   const benefitsRealization = parseMaybeJson<any>(program.benefitsRealization);
   const stageGates = parseMaybeJson<any>(program.stageGates);
+  const programId = program.id ?? context.exportMeta?.programId ?? null;
+  const constraints = context.strategyVersion
+    ? {
+        costMin: context.strategyVersion.costMin ?? null,
+        costMax: context.strategyVersion.costMax ?? null,
+        teamSizeMin: context.strategyVersion.teamSizeMin ?? null,
+        teamSizeMax: context.strategyVersion.teamSizeMax ?? null,
+        timelineMonths: context.strategyVersion.timelineMonths ?? null,
+        inputSummary: context.strategyVersion.inputSummary ?? null,
+      }
+    : null;
   const normalizedProgram = {
     ...program,
+    id: programId ?? program.id,
     workstreams,
     timeline,
     resourcePlan,
@@ -457,18 +477,23 @@ export function buildEpmJsonPayload(epm: EpmPayload): Record<string, any> {
   };
 
   const assignments = normalizeAssignments(epm.assignments || [], workstreams);
-  const metadata = epm.metadata || {
-    programId: program.id ?? null,
-    strategyVersionId: program.strategyVersionId ?? null,
-    userId: program.userId ?? null,
-    status: program.status ?? null,
-    createdAt: program.createdAt ?? null,
-    updatedAt: program.updatedAt ?? null,
+  const metadata = {
+    ...(epm.metadata || {}),
+    programId: epm.metadata?.programId ?? programId ?? null,
+    strategyVersionId: epm.metadata?.strategyVersionId ?? program.strategyVersionId ?? null,
+    userId: epm.metadata?.userId ?? program.userId ?? null,
+    status: epm.metadata?.status ?? program.status ?? null,
+    createdAt: epm.metadata?.createdAt ?? program.createdAt ?? null,
+    updatedAt: epm.metadata?.updatedAt ?? program.updatedAt ?? null,
+    sessionId: epm.metadata?.sessionId ?? context.exportMeta?.sessionId ?? context.strategyVersion?.sessionId ?? null,
+    generatedAt: epm.metadata?.generatedAt ?? context.exportMeta?.exportedAt ?? null,
+    constraints,
   };
 
   return {
     ...epm,
     metadata,
+    programId: programId ?? null,
     program: normalizedProgram,
     workstreams,
     resourcePlan,
@@ -478,5 +503,6 @@ export function buildEpmJsonPayload(epm: EpmPayload): Record<string, any> {
     benefitsRealization,
     benefits: deriveBenefitList(benefitsRealization),
     assignments,
+    userInput: context.userInput ?? null,
   };
 }
