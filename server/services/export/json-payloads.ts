@@ -477,6 +477,7 @@ export function buildEpmJsonPayload(
   };
 
   const assignments = normalizeAssignments(epm.assignments || [], workstreams);
+  const requiresApproval = (epm as any).requiresApproval ?? (program as any).requiresApproval ?? null;
   const metadata = {
     ...(epm.metadata || {}),
     programId: epm.metadata?.programId ?? programId ?? null,
@@ -492,6 +493,7 @@ export function buildEpmJsonPayload(
 
   return {
     ...epm,
+    requiresApproval,
     metadata,
     programId: programId ?? null,
     program: normalizedProgram,
