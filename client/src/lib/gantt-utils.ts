@@ -16,6 +16,7 @@ export interface GanttTask {
   dependencies: string[];
   isCriticalPath: boolean;
   confidence: number;
+  progress: number;
   owner?: string;
   description?: string;
   deliverables?: GanttDeliverable[];
@@ -85,6 +86,7 @@ export function transformToGanttData(
     dependencies: ws.dependencies || [],
     isCriticalPath: criticalPathSet.has(ws.id) || criticalPathSet.has(ws.name),
     confidence: ws.confidence,
+    progress: calculateWorkstreamProgress(ws),
     owner: ws.owner,
     description: ws.description,
     assignedResourceIds: ws.assignedResourceIds || [],
@@ -158,6 +160,21 @@ export function transformToGanttData(
     criticalPath: timeline.criticalPath || [],
     maxMonth
   };
+}
+
+function calculateWorkstreamProgress(workstream: Workstream): number {
+  const deliverables = workstream.deliverables || [];
+  if (deliverables.length === 0) return 0;
+
+  const completed = deliverables.filter(isDeliverableComplete).length;
+  return Math.round((completed / deliverables.length) * 100);
+}
+
+function isDeliverableComplete(deliverable: Deliverable): boolean {
+  const status = (deliverable as any)?.status;
+  if (!status) return false;
+  const normalized = String(status).toLowerCase();
+  return normalized === 'completed' || normalized === 'complete' || normalized === 'done';
 }
 
 /**

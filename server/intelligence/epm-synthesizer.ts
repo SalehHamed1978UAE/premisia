@@ -442,6 +442,13 @@ export class EPMSynthesizer {
       const optionDescription = selectedOption?.description || '';
       const context = decision.context || '';
       const impactAreas = Array.isArray(decision.impact_areas) ? decision.impact_areas : [];
+      const dependsOn = Array.isArray(decision.dependsOn)
+        ? decision.dependsOn
+        : Array.isArray(decision.depends_on)
+          ? decision.depends_on
+          : Array.isArray(decision.dependencies)
+            ? decision.dependencies
+            : [];
       const seedText = [title, optionLabel, optionDescription, context, impactAreas.join(' ')].filter(Boolean).join(' ');
 
       return {
@@ -451,6 +458,7 @@ export class EPMSynthesizer {
         optionDescription,
         context,
         impactAreas,
+        dependsOn,
         seedText,
       };
     });
@@ -489,24 +497,32 @@ export class EPMSynthesizer {
 
     const combined = [...aligned, ...decisionWorkstreams];
 
-    const orderedDecisionIds = decisionSeeds
-      .map((seed) => decisionToWorkstream.get(seed.id))
-      .filter((id): id is string => !!id);
+    const hasExplicitDependencies = decisionSeeds.some(
+      (seed) => Array.isArray(seed.dependsOn) && seed.dependsOn.length > 0
+    );
 
-    for (let i = 1; i < orderedDecisionIds.length; i += 1) {
-      const prevId = orderedDecisionIds[i - 1];
-      const currentId = orderedDecisionIds[i];
-      const target = combined.find((ws) => ws.id === currentId);
-      const dependency = combined.find((ws) => ws.id === prevId);
-      if (!target) continue;
-      if (target.dependencies.includes(prevId)) continue;
-      if (this.wouldCreateCycle(combined, currentId, prevId)) continue;
-      target.dependencies.push(prevId);
-      if (dependency && target.startMonth <= dependency.endMonth) {
-        const shift = dependency.endMonth - target.startMonth + 1;
-        target.startMonth += shift;
-        target.endMonth += shift;
-        this.resequenceDeliverables(target);
+    if (hasExplicitDependencies) {
+      for (const seed of decisionSeeds) {
+        if (!seed.dependsOn || seed.dependsOn.length === 0) continue;
+        const currentId = decisionToWorkstream.get(seed.id);
+        if (!currentId) continue;
+        const target = combined.find((ws) => ws.id === currentId);
+        if (!target) continue;
+
+        for (const depSeedId of seed.dependsOn) {
+          const depWorkstreamId = decisionToWorkstream.get(depSeedId);
+          const dependency = depWorkstreamId ? combined.find((ws) => ws.id === depWorkstreamId) : null;
+          if (!depWorkstreamId || !dependency) continue;
+          if (target.dependencies.includes(depWorkstreamId)) continue;
+          if (this.wouldCreateCycle(combined, currentId, depWorkstreamId)) continue;
+          target.dependencies.push(depWorkstreamId);
+          if (target.startMonth <= dependency.endMonth) {
+            const shift = dependency.endMonth - target.startMonth + 1;
+            target.startMonth += shift;
+            target.endMonth += shift;
+            this.resequenceDeliverables(target);
+          }
+        }
       }
     }
 
@@ -952,7 +968,7 @@ export class EPMSynthesizer {
     };
     console.log('[EPM Synthesis] ✓ Assigned risk owners (buildV2Program):', risksWithOwners.map(r => ({ id: r.id, owner: r.owner })));
     
-    const stageGates = await this.stageGateGenerator.generate(timeline, riskRegister);
+    const stageGates = await this.stageGateGenerator.generate(timeline, riskRegister, alignedWorkstreams);
     
     onProgress?.({
       type: 'step-start',
@@ -1155,7 +1171,7 @@ export class EPMSynthesizer {
     };
     console.log('[EPM Synthesis] ✓ Assigned risk owners (legacy):', risksWithOwners2.map(r => ({ id: r.id, owner: r.owner })));
     
-    const stageGates = await this.stageGateGenerator.generate(timeline, riskRegister);
+    const stageGates = await this.stageGateGenerator.generate(timeline, riskRegister, workstreams);
     
     const businessContext = insights.marketContext?.industry || '';
     const validationResult = this.validator.validate(workstreams, timeline, stageGates, businessContext);

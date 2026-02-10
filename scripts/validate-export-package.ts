@@ -29,8 +29,15 @@ interface EPMPackage {
   workstreams?: any[];
   timeline?: any;
   resources?: any;
+  resourcePlan?: any;
+  financialPlan?: any;
   stageGates?: any[];
   metadata?: any;
+  risks?: any[];
+  benefits?: any[];
+  kpis?: any[];
+  userInput?: any;
+  executiveSummary?: any;
 }
 
 class EPMPackageValidator {
@@ -73,6 +80,13 @@ class EPMPackageValidator {
     this.check8_DataCompleteness(epmPackage);
     this.check9_LogicalCoherence(epmPackage);
     this.check10_ExportReadiness(epmPackage);
+
+    // NEW: Agent-2 Quality Enhancement Checks
+    this.check11_ResourceOverallocation(epmPackage);
+    this.check12_KPICompleteness(epmPackage);
+    this.check13_GenericDeliverables(epmPackage);
+    this.check14_RiskCoverage(epmPackage);
+    this.check15_BudgetConsistency(epmPackage);
 
     return this.getResult();
   }
@@ -340,6 +354,247 @@ class EPMPackageValidator {
 
     if (deliverableCount < wsCount * 2) {
       this.addWarning(`Low deliverable count (${deliverableCount} for ${wsCount} workstreams)`);
+    }
+  }
+
+  /**
+   * Check 11: Resource Overallocation (Agent-2 Enhancement)
+   * Detects impossible resource schedules where resources are allocated >100%
+   */
+  private check11_ResourceOverallocation(pkg: EPMPackage): void {
+    console.log('✓ Check 11: Resource Overallocation');
+
+    const resourcePlan = pkg.resourcePlan || pkg.resources;
+    if (!resourcePlan) {
+      this.addWarning('No resource plan found for overallocation check');
+      return;
+    }
+
+    // Check internal team resources
+    const internalResources = resourcePlan.internalTeam || [];
+    internalResources.forEach((resource: any) => {
+      const allocation = resource.totalAllocation || resource.allocation;
+      if (allocation && allocation > 100) {
+        this.addError(
+          `Resource "${resource.role || resource.name}" overallocated at ${allocation}% (>100%)`,
+          15
+        );
+      }
+    });
+
+    // Check external resources if present
+    const externalResources = resourcePlan.externalResources || [];
+    externalResources.forEach((resource: any) => {
+      const allocation = resource.totalAllocation || resource.allocation;
+      if (allocation && allocation > 100) {
+        this.addWarning(
+          `External resource "${resource.type || resource.name}" overallocated at ${allocation}%`
+        );
+      }
+    });
+  }
+
+  /**
+   * Check 12: KPI Completeness (Agent-2 Enhancement)
+   * Ensures KPIs are complete sentences with defined baselines and metrics
+   */
+  private check12_KPICompleteness(pkg: EPMPackage): void {
+    console.log('✓ Check 12: KPI Completeness');
+
+    const kpis = pkg.kpis || [];
+    if (kpis.length === 0) {
+      this.addWarning('No KPIs defined in package');
+      return;
+    }
+
+    kpis.forEach((kpi: any, idx: number) => {
+      const name = kpi.name || kpi.kpi || '';
+
+      // Check for truncated KPIs (ends with "to", "from", "by", etc.)
+      if (name.match(/\s+(to|from|by|for|with)$/i)) {
+        this.addError(`KPI ${idx + 1} appears truncated: "${name}"`, 10);
+      }
+
+      // Check for too-short KPIs (< 10 chars)
+      if (name.length < 10) {
+        this.addWarning(`KPI ${idx + 1} is very short: "${name}"`);
+      }
+
+      // Check for undefined baseline references
+      const target = kpi.target || '';
+      if (target.toLowerCase().includes('baseline') && !target.match(/from\s+[\d.]+/i)) {
+        this.addWarning(`KPI ${idx + 1} references undefined baseline: "${target}"`);
+      }
+
+      // Check for vague percentage targets without metrics
+      if (target.match(/^\+?\d+%/) && !name.match(/(revenue|cost|time|quality|satisfaction|adoption)/i)) {
+        this.addWarning(`KPI ${idx + 1} has percentage target but unclear metric: "${name}"`);
+      }
+    });
+  }
+
+  /**
+   * Check 13: Generic Deliverables (Agent-2 Enhancement)
+   * Detects template language and non-specific deliverable descriptions
+   */
+  private check13_GenericDeliverables(pkg: EPMPackage): void {
+    console.log('✓ Check 13: Generic Deliverables');
+
+    if (!pkg.workstreams || pkg.workstreams.length === 0) {
+      return; // Already caught by check1
+    }
+
+    const genericPatterns = [
+      /^decision\s+execution\s+plan$/i,
+      /^implementation\s+roadmap$/i,
+      /^resource\s+alignment$/i,
+      /^a\s+(comprehensive|detailed|strategic)\s+(document|plan|report|strategy)/i,
+      /^(develop|create|implement|build|design|establish)\s+\w+\s*$/i,
+    ];
+
+    const vagueWords = ['various', 'several', 'appropriate', 'relevant', 'multiple'];
+
+    pkg.workstreams.forEach((ws: any) => {
+      const deliverables = ws.deliverables || [];
+
+      deliverables.forEach((d: any, idx: number) => {
+        const name = (d.name || d.deliverable || '').trim();
+        const description = (d.description || '').trim();
+
+        // Check against generic patterns
+        for (const pattern of genericPatterns) {
+          if (name.match(pattern)) {
+            this.addWarning(
+              `Generic deliverable in ${ws.name || ws.id}: "${name}"`
+            );
+            break;
+          }
+        }
+
+        // Check for vague words
+        for (const vague of vagueWords) {
+          if (name.toLowerCase().includes(vague) || description.toLowerCase().includes(vague)) {
+            this.addWarning(
+              `Vague language in deliverable "${name}": contains "${vague}"`
+            );
+            break;
+          }
+        }
+
+        // Check for very short deliverables without specifics
+        if (name.length < 10 && !name.match(/\d/)) {
+          this.addWarning(`Very short deliverable without specifics: "${name}"`);
+        }
+      });
+    });
+  }
+
+  /**
+   * Check 14: Risk Coverage (Agent-2 Enhancement)
+   * Ensures minimum risk coverage and mitigation quality
+   */
+  private check14_RiskCoverage(pkg: EPMPackage): void {
+    console.log('✓ Check 14: Risk Coverage');
+
+    const risks = pkg.risks || [];
+    const wsCount = pkg.workstreams?.length || 0;
+
+    // Minimum risk threshold: at least 1 risk per 2 workstreams
+    const minRisks = Math.ceil(wsCount / 2);
+    if (risks.length < minRisks) {
+      this.addWarning(`Low risk coverage: ${risks.length} risks for ${wsCount} workstreams (expected ≥${minRisks})`);
+    }
+
+    // Check mitigation quality
+    const genericMitigations = [
+      /^monitor\s+(closely|regularly)/i,
+      /^regular\s+(reviews|meetings)/i,
+      /^develop\s+\w+\s+strategy$/i,
+      /^implement\s+\w+\s+plan$/i,
+    ];
+
+    const mitigationTexts = new Map<string, string[]>();
+
+    risks.forEach((risk: any, idx: number) => {
+      const mitigation = (risk.mitigation || risk.mitigationStrategy || '').trim();
+
+      // Check for generic mitigations
+      for (const pattern of genericMitigations) {
+        if (mitigation.match(pattern)) {
+          this.addWarning(`Generic mitigation for risk ${idx + 1}: "${mitigation}"`);
+          break;
+        }
+      }
+
+      // Check for duplicate/copy-pasted mitigations
+      if (mitigation.length > 20) {
+        const existing = mitigationTexts.get(mitigation);
+        if (existing) {
+          existing.push(`Risk ${idx + 1}`);
+        } else {
+          mitigationTexts.set(mitigation, [`Risk ${idx + 1}`]);
+        }
+      }
+    });
+
+    // Report duplicates
+    for (const [mitigation, riskIds] of mitigationTexts.entries()) {
+      if (riskIds.length > 1) {
+        this.addWarning(
+          `Duplicate mitigation across ${riskIds.join(', ')}: "${mitigation.substring(0, 50)}..."`
+        );
+      }
+    }
+  }
+
+  /**
+   * Check 15: Budget Consistency (Agent-2 Enhancement)
+   * Validates EPM budget matches user input constraints
+   */
+  private check15_BudgetConsistency(pkg: EPMPackage): void {
+    console.log('✓ Check 15: Budget Consistency');
+
+    const financialPlan = pkg.financialPlan;
+    const userInput = pkg.userInput || pkg.executiveSummary;
+
+    if (!financialPlan) {
+      this.addWarning('No financial plan found for budget consistency check');
+      return;
+    }
+
+    const epmBudget = financialPlan.totalBudget || financialPlan.total;
+    if (!epmBudget) {
+      this.addWarning('EPM budget not defined in financial plan');
+      return;
+    }
+
+    // Try to extract budget from user input
+    let userBudget = null;
+    if (userInput?.budget) {
+      userBudget = userInput.budget;
+    } else if (typeof userInput === 'string') {
+      // Try to parse budget from text (e.g., "$7M", "7 million")
+      const budgetMatch = userInput.match(/\$?([\d.]+)\s*(m|million|k|thousand)/i);
+      if (budgetMatch) {
+        const amount = parseFloat(budgetMatch[1]);
+        const unit = budgetMatch[2].toLowerCase();
+        userBudget = unit.startsWith('m') ? amount * 1000000 : amount * 1000;
+      }
+    }
+
+    if (userBudget) {
+      const ratio = epmBudget / userBudget;
+
+      if (ratio < 0.7) {
+        this.addError(
+          `EPM budget ($${(epmBudget / 1000000).toFixed(2)}M) significantly lower than stated constraint ($${(userBudget / 1000000).toFixed(2)}M) - ${(ratio * 100).toFixed(0)}% of stated budget`,
+          10
+        );
+      } else if (ratio > 1.2) {
+        this.addWarning(
+          `EPM budget ($${(epmBudget / 1000000).toFixed(2)}M) exceeds stated constraint ($${(userBudget / 1000000).toFixed(2)}M) by ${((ratio - 1) * 100).toFixed(0)}%`
+        );
+      }
     }
   }
 

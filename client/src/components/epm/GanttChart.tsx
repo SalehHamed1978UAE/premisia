@@ -394,7 +394,7 @@ export default function GanttChart({
           textAnchor="middle"
           className="text-xs fill-white font-semibold pointer-events-none"
         >
-          {Math.round(task.confidence * 100)}%
+          {Math.round(task.progress ?? 0)}%
         </text>
 
         {/* Owner indicator */}
