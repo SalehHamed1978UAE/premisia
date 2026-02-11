@@ -297,6 +297,7 @@ export class EPMSynthesizer {
         namingContext,
         strategicContext,
         decisionValidation,
+        userConstraints,
         onProgress,
         processStartTime
       );
@@ -337,6 +338,7 @@ export class EPMSynthesizer {
         namingContext,
         strategicContext,
         decisionValidation,
+        userConstraints,
         onProgress,
         processStartTime
       );
@@ -965,6 +967,7 @@ export class EPMSynthesizer {
     namingContext?: any,
     strategicContext?: { decisions: any[]; swotData: any },
     decisionValidation?: { needsApproval: boolean; violations: string[] },
+    userConstraints?: { budget?: { min: number; max: number }; timeline?: { min: number; max: number } },
     onProgress?: (event: any) => void,
     startTime?: number
   ): Promise<EPMProgram> {
