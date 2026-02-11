@@ -556,20 +556,26 @@ export class EPMSynthesizer {
       workstream.description = `${prefix}\n\n${workstream.description}`.trim();
     }
 
+    // Generate decision-specific deliverables (NO GENERIC TEMPLATES)
+    const decisionLabel = seed.optionLabel || seed.title;
+    if (!decisionLabel) {
+      throw new Error('[EPM] Decision deliverable injection requires optionLabel or title in seed context');
+    }
+
     const decisionDeliverables: Deliverable[] = [
       {
         id: `${workstream.id}-DEC-1`,
-        name: `Decision execution plan: ${decisionTag}`,
-        description: `Define scope, milestones, and success criteria for ${decisionTag}.`,
+        name: `Define success criteria for ${decisionLabel}`,
+        description: `Establish measurable KPIs and acceptance criteria for ${decisionLabel}. ${seed.optionDescription || ''}`,
         dueMonth: workstream.startMonth,
         effort: '10-20 person-days',
       },
       {
         id: `${workstream.id}-DEC-2`,
-        name: `Resource and budget alignment for ${decisionTag}`,
-        description: `Align resources, budget, and ownership to execute ${decisionTag}.`,
-        dueMonth: workstream.startMonth,
-        effort: '10-20 person-days',
+        name: `Execute ${decisionLabel}`,
+        description: `Implement ${decisionLabel} within ${workstream.name} workstream. Ensure alignment with decision context: ${seed.context || 'as specified'}.`,
+        dueMonth: workstream.startMonth + 1,
+        effort: '20-40 person-days',
       },
     ];
 
@@ -612,25 +618,31 @@ export class EPMSynthesizer {
       planningContext.business.industry ? `Industry focus: ${planningContext.business.industry}.` : null,
     ].filter(Boolean).join(' ');
 
+    // Generate decision-specific deliverables (NO GENERIC TEMPLATES)
+    const decisionLabel = seed.optionLabel || seed.title;
+    if (!decisionLabel) {
+      throw new Error('[EPM] Decision deliverable generator requires optionLabel or title in seed context');
+    }
+
     const deliverables: Deliverable[] = [
       {
         id: `WS${String(index).padStart(3, '0')}-D1`,
-        name: `Decision execution plan`,
-        description: `Plan milestones, success criteria, and governance for ${seed.optionLabel || seed.title}.`,
+        name: `Define success criteria and KPIs for ${decisionLabel}`,
+        description: `Establish measurable outcomes, KPIs, and acceptance criteria specific to ${decisionLabel}. Include baseline metrics and target improvements.`,
         dueMonth: 1,
         effort: '10-20 person-days',
       },
       {
         id: `WS${String(index).padStart(3, '0')}-D2`,
-        name: `Implementation roadmap`,
-        description: `Define phased rollout, dependencies, and key deliverables for ${seed.optionLabel || seed.title}.`,
+        name: `Implement ${decisionLabel}`,
+        description: `Execute core implementation of ${decisionLabel}. ${seed.optionDescription || 'Deliver solution as specified in decision context.'}`,
         dueMonth: 2,
-        effort: '10-20 person-days',
+        effort: '20-40 person-days',
       },
       {
         id: `WS${String(index).padStart(3, '0')}-D3`,
-        name: `Resource alignment`,
-        description: `Align owners, staffing, and budget to deliver ${seed.optionLabel || seed.title}.`,
+        name: `Validate and measure ${decisionLabel} outcomes`,
+        description: `Measure actual results against success criteria for ${decisionLabel}. Document lessons learned and adjustment recommendations.`,
         dueMonth: 3,
         effort: '10-20 person-days',
       },
