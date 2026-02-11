@@ -198,7 +198,34 @@ export function generateMarkdownReport(pkg: FullExportPackage): string {
   if (pkg.metadata.versionNumber) {
     lines.push(`**Version:** ${pkg.metadata.versionNumber}`);
   }
+  if (pkg.metadata.acceptanceReport) {
+    const report = pkg.metadata.acceptanceReport;
+    lines.push('');
+    lines.push('**Export Validation:**');
+    lines.push(report.passed ? 'PASS' : 'FAIL');
+  }
   lines.push('\n---\n');
+
+  if (pkg.metadata.acceptanceReport) {
+    const report = pkg.metadata.acceptanceReport;
+    lines.push('## Export Validation Summary\n');
+    lines.push(`**Status:** ${report.passed ? 'PASS' : 'FAIL'}\n`);
+    if (report.criticalIssues.length > 0) {
+      lines.push('**Critical Issues:**');
+      report.criticalIssues.forEach(issue => {
+        lines.push(`- [${issue.code}] ${issue.message}`);
+      });
+      lines.push('');
+    }
+    if (report.warnings.length > 0) {
+      lines.push('**Warnings:**');
+      report.warnings.forEach(issue => {
+        lines.push(`- [${issue.code}] ${issue.message}`);
+      });
+      lines.push('');
+    }
+    lines.push('\n---\n');
+  }
 
   if (pkg.strategy.understanding) {
     const u = pkg.strategy.understanding;

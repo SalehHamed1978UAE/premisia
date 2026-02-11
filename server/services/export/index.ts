@@ -37,34 +37,6 @@ export async function generateFullPassExport(
 
   const skippedFiles: string[] = [];
   
-  console.log('[Export Service] Generating Markdown report...');
-  const markdown = generateMarkdownReport(exportPackage);
-  
-  console.log('[Export Service] Converting Markdown to HTML...');
-  const html = await generateHtmlFromMarkdown(markdown);
-  
-  console.log('[Export Service] Generating PDF from HTML...');
-  let pdf: Buffer | null = null;
-  try {
-    pdf = await generatePdfFromHtml(html);
-    console.log('[Export Service] PDF generated successfully');
-  } catch (error) {
-    const err = error as Error;
-    const errorMsg = err?.message || String(error);
-    const isChromiumMissing = errorMsg.toLowerCase().includes('executable') || errorMsg.toLowerCase().includes('browser');
-    
-    if (isChromiumMissing) {
-      console.warn('[Export Service] PDF generation skipped - Chromium not available. Install chromium to enable PDF exports.');
-    } else {
-      console.warn('[Export Service] PDF generation failed:', errorMsg);
-    }
-    
-    skippedFiles.push(`report.pdf (${isChromiumMissing ? 'Chromium not available' : 'generation failed'})`);
-  }
-  
-  console.log('[Export Service] Generating DOCX report...');
-  const docx = await generateDocxReport(exportPackage);
-  
   console.log('[Export Service] Generating JSON and CSV exports...');
   const epmProgramId = exportPackage.epm?.program?.id || exportPackage.metadata?.programId || null;
   const strategyPayload = exportPackage.strategy?.strategyVersion && epmProgramId
@@ -141,17 +113,48 @@ export async function generateFullPassExport(
         console.error('[Export Acceptance] Details:', issue.details);
       }
     });
-    throw new Error(
-      `Export acceptance gates failed with ${acceptanceReport.criticalIssues.length} critical issue(s)`
+    console.warn(
+      `[Export Acceptance] Export will continue with ${acceptanceReport.criticalIssues.length} critical issue(s)`
     );
+  } else {
+    console.log('[Export Service] Acceptance gates passed');
   }
-  console.log('[Export Service] Acceptance gates passed');
   if (acceptanceReport.warnings.length > 0) {
     acceptanceReport.warnings.forEach((warning) =>
       console.warn(`[Export Acceptance] ${warning.code}: ${warning.message}`)
     );
   }
 
+  (exportPackage.metadata as any).acceptanceReport = acceptanceReport;
+
+  console.log('[Export Service] Generating Markdown report...');
+  const markdown = generateMarkdownReport(exportPackage);
+  
+  console.log('[Export Service] Converting Markdown to HTML...');
+  const html = await generateHtmlFromMarkdown(markdown);
+  
+  console.log('[Export Service] Generating PDF from HTML...');
+  let pdf: Buffer | null = null;
+  try {
+    pdf = await generatePdfFromHtml(html);
+    console.log('[Export Service] PDF generated successfully');
+  } catch (error) {
+    const err = error as Error;
+    const errorMsg = err?.message || String(error);
+    const isChromiumMissing = errorMsg.toLowerCase().includes('executable') || errorMsg.toLowerCase().includes('browser');
+    
+    if (isChromiumMissing) {
+      console.warn('[Export Service] PDF generation skipped - Chromium not available. Install chromium to enable PDF exports.');
+    } else {
+      console.warn('[Export Service] PDF generation failed:', errorMsg);
+    }
+    
+    skippedFiles.push(`report.pdf (${isChromiumMissing ? 'Chromium not available' : 'generation failed'})`);
+  }
+  
+  console.log('[Export Service] Generating DOCX report...');
+  const docx = await generateDocxReport(exportPackage);
+  
   console.log('[Export Service] Generating UI-styled HTML...');
   const uiHtml = generateUiStyledHtml(exportPackage);
   
@@ -267,6 +270,11 @@ export async function generateFullPassExport(
     includedFiles.push('data/wbs.csv');
   }
 
+  if (acceptanceReport) {
+    archive.append(JSON.stringify(acceptanceReport, null, 2), { name: 'data/validation.json' });
+    includedFiles.push('data/validation.json');
+  }
+
   if (excelBuffer) {
     archive.append(excelBuffer, { name: 'data/epm-program.xlsx' });
     includedFiles.push('data/epm-program.xlsx');
@@ -300,6 +308,7 @@ PDF files require Puppeteer (headless Chrome) which may not be available on mobi
 - **data/strategy.json** - Strategic analysis data in JSON
 - **data/epm.json** - EPM program data (if generated)
 - **data/wbs.csv** - Work Breakdown Structure in universal PM tool format (if generated)
+- **data/validation.json** - Export validation report (acceptance gates + quality checks)
 - **data/epm-program.xlsx** - Excel workbook with 8 sheets (Summary, WBS, Schedule, Resources, Budget, RACI, Risks, Assumptions)
 - **data/*.csv** - Detailed data exports for assignments, workstreams, resources, risks, and benefits
 

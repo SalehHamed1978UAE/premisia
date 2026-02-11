@@ -30,6 +30,21 @@ export interface FullExportPackage {
     versionNumber?: number;
     programId?: string;
     exportedBy: string;
+    acceptanceReport?: {
+      passed: boolean;
+      criticalIssues: Array<{
+        severity: 'critical' | 'warning';
+        code: string;
+        message: string;
+        details?: Record<string, any>;
+      }>;
+      warnings: Array<{
+        severity: 'critical' | 'warning';
+        code: string;
+        message: string;
+        details?: Record<string, any>;
+      }>;
+    };
   };
   strategy: {
     understanding?: any;
