@@ -194,14 +194,182 @@ If NO critical ambiguities found, return:
     originalInput: string,
     clarifications: Record<string, string>
   ): string {
-    const clarificationText = Object.entries(clarifications)
-      .map(([question, answer]) => `- ${answer}`)
-      .join('\n');
+    const existingClarifications = this.extractClarificationLines(originalInput);
+    const incomingClarifications = Object.entries(clarifications)
+      .map(([_, answer]) => answer)
+      .filter(Boolean);
 
-    return `${originalInput}
+    const { lines: resolvedClarifications, conflicts } = this.resolveClarificationConflicts(
+      existingClarifications,
+      incomingClarifications
+    );
+
+    const strippedInput = this.stripClarificationBlocks(originalInput);
+
+    if (resolvedClarifications.length === 0) {
+      return strippedInput;
+    }
+
+    const clarificationText = resolvedClarifications.map(c => `- ${c}`).join('\n');
+    const conflictText = conflicts.length > 0
+      ? `\n\nCLARIFICATION_CONFLICTS:\n${conflicts.map(c => `- ${c}`).join('\n')}`
+      : '';
+
+    if (conflicts.length > 0) {
+      console.warn('[Ambiguity Detector] Clarification conflicts detected:', conflicts);
+    }
+
+    return `${strippedInput}
 
 CLARIFICATIONS:
-${clarificationText}`;
+${clarificationText}${conflictText}`;
+  }
+
+  /**
+   * Extract existing clarifications from a user-provided input block
+   * Looks for "CLARIFICATIONS:" sections and collects bullet lines.
+   */
+  private extractClarificationLines(input: string): string[] {
+    const lines = input.split('\n');
+    const clarifications: string[] = [];
+    let inBlock = false;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (/^clarifications:/i.test(trimmed)) {
+        inBlock = true;
+        continue;
+      }
+      if (!inBlock) {
+        continue;
+      }
+      if (trimmed === '') {
+        continue;
+      }
+      if (/^[-*]\s+/.test(trimmed)) {
+        clarifications.push(trimmed.replace(/^[-*]\s+/, '').trim());
+        continue;
+      }
+      // End block on first non-bullet line
+      inBlock = false;
+    }
+
+    return clarifications;
+  }
+
+  /**
+   * Remove existing CLARIFICATIONS blocks to prevent duplication.
+   */
+  private stripClarificationBlocks(input: string): string {
+    const lines = input.split('\n');
+    const output: string[] = [];
+    let inBlock = false;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (/^clarifications:/i.test(trimmed)) {
+        inBlock = true;
+        continue;
+      }
+      if (inBlock) {
+        if (trimmed === '' || /^[-*]\s+/.test(trimmed)) {
+          continue;
+        }
+        // End block when encountering non-bullet content
+        inBlock = false;
+      }
+      if (!inBlock) {
+        output.push(line);
+      }
+    }
+
+    return output.join('\n').trim();
+  }
+
+  /**
+   * Resolve contradictory clarifications and return a clean list + conflict notes.
+   * Resolution strategy: prefer clarifications explicitly present in the original input.
+   */
+  private resolveClarificationConflicts(
+    existing: string[],
+    incoming: string[]
+  ): { lines: string[]; conflicts: string[] } {
+    const entries = [
+      ...existing.map(text => ({ text, source: 'input' as const })),
+      ...incoming.map(text => ({ text, source: 'answer' as const })),
+    ];
+
+    const rules = [
+      {
+        id: 'deployment',
+        label: 'Deployment model',
+        a: ['cloud-only', 'cloud only', 'saas only'],
+        b: ['company-owned infrastructure', 'on-prem', 'on premises', 'self-hosted', 'customer-owned'],
+      },
+      {
+        id: 'automation',
+        label: 'Automation scope',
+        a: ['automated system actions', 'automated actions', 'system actions'],
+        b: ['alerts only', 'recommendations only', 'alerts and recommendations only', 'no automated actions'],
+      },
+      {
+        id: 'channel',
+        label: 'Sales channel',
+        a: ['through channel partners', 'channel partners', 'partner channel'],
+        b: ['sales and lead generation only', 'direct sales', 'sales only'],
+      },
+    ];
+
+    const conflicts: string[] = [];
+    const keep = new Set(entries.map((_, idx) => idx));
+
+    for (const rule of rules) {
+      const matchesA = entries
+        .map((e, idx) => ({ e, idx }))
+        .filter(({ e }) => this.matchesAny(e.text, rule.a));
+      const matchesB = entries
+        .map((e, idx) => ({ e, idx }))
+        .filter(({ e }) => this.matchesAny(e.text, rule.b));
+
+      if (matchesA.length > 0 && matchesB.length > 0) {
+        conflicts.push(`${rule.label} conflict: "${matchesA[0].e.text}" vs "${matchesB[0].e.text}"`);
+
+        const inputA = matchesA.some(m => m.e.source === 'input');
+        const inputB = matchesB.some(m => m.e.source === 'input');
+
+        if (inputA || inputB) {
+          // Prefer explicit input clarifications; drop conflicting answers
+          if (inputA) {
+            matchesB.filter(m => m.e.source === 'answer').forEach(m => keep.delete(m.idx));
+          }
+          if (inputB) {
+            matchesA.filter(m => m.e.source === 'answer').forEach(m => keep.delete(m.idx));
+          }
+        } else {
+          // No explicit input: keep earliest occurrence, drop the other side
+          const keepA = matchesA[0].idx < matchesB[0].idx;
+          const drop = keepA ? matchesB : matchesA;
+          drop.forEach(m => keep.delete(m.idx));
+        }
+      }
+    }
+
+    const normalized = new Set<string>();
+    const resolved: string[] = [];
+    entries.forEach((entry, idx) => {
+      if (!keep.has(idx)) return;
+      const key = entry.text.trim().toLowerCase();
+      if (normalized.has(key)) return;
+      normalized.add(key);
+      resolved.push(entry.text.trim());
+    });
+
+    return { lines: resolved, conflicts };
+  }
+
+  private matchesAny(text: string, terms: string[]): boolean {
+    const lower = text.toLowerCase();
+    return terms.some(term => lower.includes(term));
   }
 }
 

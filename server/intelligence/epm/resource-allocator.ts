@@ -177,7 +177,7 @@ Return ONLY valid JSON array of role objects. NO markdown, NO code blocks, ONLY 
         // FILTER: Remove domain-contaminated skills based on initiative type
         const filteredRoles = normalized.map((r: any) => ({
           ...r,
-          skills: this.filterDomainContamination(r.skills, finalInitiativeType)
+          skills: this.filterDomainContamination(r.skills, initiativeType)
         }));
 
         // Map back to original structure with normalized allocation and filtered skills

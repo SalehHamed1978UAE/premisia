@@ -69,6 +69,7 @@ import {
   ensureResourceExists,
   qualityGateRunner,
 } from './epm';
+import { extractUserConstraintsFromText } from './epm/constraint-utils';
 
 export { ContextBuilder } from './epm';
 
@@ -449,80 +450,8 @@ export class EPMSynthesizer {
     insights: StrategyInsights,
     planningContext?: PlanningContext
   ): { budget?: { min: number; max: number }; timeline?: { min: number; max: number } } {
-    const constraints: any = {};
-
-    console.log('[Constraints] Parsing USER constraints from input...');
-
     const rawUserInput = planningContext?.business?.description || '';
-    const budgetContextPattern = /(?:budget|funding|investment|spend|allocation|runway)[^$\n]{0,60}\$?\d+(?:\.\d+)?\s*(?:million|m|mil|k|thousand)?(?:\s*(?:-|to)\s*\$?\d+(?:\.\d+)?\s*(?:million|m|mil|k|thousand)?)?/i;
-    const budgetContextMatch = rawUserInput.match(budgetContextPattern);
-    const budgetInput = budgetContextMatch?.[0] || insights.marketContext?.budgetRange;
-
-    if (budgetInput) {
-      console.log(`[Constraints] Found user budget input: "${budgetInput}"`);
-
-      // Patterns: $15-20M, $15M-$20M, $5M, $500k-$1.5M, etc.
-      const budgetPattern = /\$?(\d+(?:\.\d+)?)\s*(?:million|m|mil|k)?\s*(?:-|to)?\s*(?:\$?(\d+(?:\.\d+)?))?\s*(?:million|m|mil|k)?/i;
-      const budgetMatch = budgetInput.match(budgetPattern);
-
-      if (budgetMatch) {
-        let minBudget = parseFloat(budgetMatch[1]);
-        let maxBudget = budgetMatch[2] ? parseFloat(budgetMatch[2]) : minBudget;
-
-        // Handle k (thousands) vs M (millions)
-        const firstUnit = budgetInput.toLowerCase().substring(budgetMatch.index!, budgetMatch.index! + budgetMatch[0].length);
-        const isMillions = firstUnit.includes('million') || firstUnit.includes('m');
-        const isThousands = firstUnit.includes('k');
-
-        if (isMillions) {
-          minBudget *= 1_000_000;
-          maxBudget *= 1_000_000;
-        } else if (isThousands) {
-          minBudget *= 1_000;
-          maxBudget *= 1_000;
-        }
-
-        constraints.budget = { min: minBudget, max: maxBudget };
-        console.log(`[Constraints] ✓ Parsed user budget: $${minBudget.toLocaleString()} - $${maxBudget.toLocaleString()}`);
-      } else {
-        console.warn(`[Constraints] ⚠️  Could not parse budget from: "${budgetInput}"`);
-      }
-    } else {
-      console.log('[Constraints] No budget constraint in user input');
-    }
-
-    const timelineContextPattern = /(?:timeline|runway|over|within|for\s+first)[^\n]{0,60}?(\d+)(?:\s*(?:-|to)\s*(\d+))?\s*(months?|mo|years?|yrs?|quarters?|qtrs?)/i;
-    const timelineContextMatch = rawUserInput.match(timelineContextPattern);
-    const timelineInput = timelineContextMatch?.[0];
-
-    if (timelineInput) {
-      console.log(`[Constraints] Found user timeline input: "${timelineInput}"`);
-      const timelinePattern = /(\d+)(?:\s*(?:-|to)\s*(\d+))?\s*(months?|mo|years?|yrs?|quarters?|qtrs?)/i;
-      const timelineMatch = timelineInput.match(timelinePattern);
-
-      if (timelineMatch) {
-        let minMonths = parseInt(timelineMatch[1], 10);
-        let maxMonths = timelineMatch[2] ? parseInt(timelineMatch[2], 10) : minMonths;
-        const unit = timelineMatch[3].toLowerCase();
-
-        if (unit.startsWith('year') || unit.startsWith('yr')) {
-          minMonths *= 12;
-          maxMonths *= 12;
-        } else if (unit.startsWith('quarter') || unit.startsWith('qtr')) {
-          minMonths *= 3;
-          maxMonths *= 3;
-        }
-
-        constraints.timeline = { min: minMonths, max: maxMonths };
-        console.log(`[Constraints] ✓ Parsed user timeline: ${minMonths}-${maxMonths} months`);
-      } else {
-        console.warn(`[Constraints] ⚠️  Could not parse timeline from: "${timelineInput}"`);
-      }
-    } else {
-      console.log('[Constraints] No explicit timeline constraint found in user input');
-    }
-
-    return constraints;
+    return extractUserConstraintsFromText(rawUserInput, insights.marketContext?.budgetRange);
   }
 
   /**

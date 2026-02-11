@@ -4,6 +4,7 @@ import { strategyDecisions, epmPrograms, journeySessions, strategyVersions, stra
 import { eq, desc, inArray, and } from 'drizzle-orm';
 import { BMCAnalyzer, PortersAnalyzer, PESTLEAnalyzer, EPMSynthesizer, getAggregatedAnalysis, normalizeSWOT } from '../intelligence';
 import type { BMCResults, PortersResults, PESTLEResults } from '../intelligence/types';
+import { deriveTeamSizeFromBudget, extractUserConstraintsFromText } from '../intelligence/epm/constraint-utils';
 import { storage } from '../storage';
 import { createOpenAIProvider } from '../../src/lib/intelligent-planning/llm-provider';
 import { backgroundJobService } from '../services/background-job-service';
@@ -365,6 +366,7 @@ async function processEPMGeneration(
           .select({ 
             initiativeType: strategicUnderstanding.initiativeType,
             title: strategicUnderstanding.title,
+            userInput: strategicUnderstanding.userInput,
           })
           .from(strategicUnderstanding)
           .where(eq(strategicUnderstanding.sessionId, version.sessionId))
@@ -377,6 +379,32 @@ async function processEPMGeneration(
         if (understanding?.title) {
           journeyTitle = understanding.title;
           console.log(`[EPM Generation] ✅ Journey title fetched: "${journeyTitle}"`);
+        }
+        if (understanding?.userInput) {
+          const userConstraints = extractUserConstraintsFromText(understanding.userInput);
+          if (userConstraints.budget || userConstraints.timeline) {
+            const updates: any = {};
+            if (userConstraints.budget) {
+              if (version.costMin == null) updates.costMin = userConstraints.budget.min;
+              if (version.costMax == null) updates.costMax = userConstraints.budget.max;
+              if (version.teamSizeMin == null || version.teamSizeMax == null) {
+                const teamSize = deriveTeamSizeFromBudget(userConstraints.budget);
+                if (version.teamSizeMin == null) updates.teamSizeMin = teamSize.min;
+                if (version.teamSizeMax == null) updates.teamSizeMax = teamSize.max;
+              }
+            }
+            if (userConstraints.timeline) {
+              if (version.timelineMonths == null) {
+                updates.timelineMonths = userConstraints.timeline.max || userConstraints.timeline.min;
+              }
+            }
+            if (Object.keys(updates).length > 0) {
+              await db.update(strategyVersions)
+                .set({ ...updates, updatedAt: new Date() })
+                .where(eq(strategyVersions.id, strategyVersionId));
+              console.log('[EPM Generation] ✅ Persisted user constraints to strategy_version:', updates);
+            }
+          }
         }
         if (!understanding) {
           console.warn(`[EPM Generation] ⚠️ No strategic understanding found for id: ${version.sessionId}`);
