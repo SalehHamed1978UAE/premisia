@@ -282,10 +282,25 @@ export class CustomJourneyExecutor {
                 // Build user input from journey context with defensive defaults
                 const journeyName = execution.configId ? 'Custom Journey Analysis' : 'Strategic Analysis';
                 const completedFrameworks = aggregatedOutputs ? Object.keys(aggregatedOutputs) : [];
-                // Always provide a non-empty userInput to satisfy NOT NULL constraint
-                const userInputText = completedFrameworks.length > 0
-                  ? `Custom journey analysis with frameworks: ${completedFrameworks.join(', ')}`
-                  : 'Custom strategic journey - awaiting user input';
+                const inputData = execution.inputData as Record<string, any> || {};
+                const providedUserInput = (typeof inputData.businessContext === 'string' && inputData.businessContext.trim())
+                  ? inputData.businessContext.trim()
+                  : (typeof inputData.userInput === 'string' && inputData.userInput.trim())
+                    ? inputData.userInput.trim()
+                    : '';
+                // Always provide a non-empty userInput to satisfy NOT NULL constraint.
+                // Prefer actual user input when available to preserve constraints/clarifications.
+                const userInputText = providedUserInput || (
+                  completedFrameworks.length > 0
+                    ? `Custom journey analysis with frameworks: ${completedFrameworks.join(', ')}`
+                    : 'Custom strategic journey - awaiting user input'
+                );
+                const clarificationsProvided = (inputData.clarifications && typeof inputData.clarifications === 'object')
+                  ? inputData.clarifications
+                  : null;
+                const clarificationQuestions = Array.isArray(inputData.clarificationQuestions)
+                  ? inputData.clarificationQuestions
+                  : null;
                 
                 try {
                   await db.insert(strategicUnderstanding).values({
@@ -295,6 +310,8 @@ export class CustomJourneyExecutor {
                     initiativeType: 'software_development',
                     strategyMetadata: {
                       completedFrameworks: completedFrameworks,
+                      clarificationQuestions: clarificationQuestions || undefined,
+                      clarificationsProvided: clarificationsProvided || undefined,
                       lastUpdated: new Date().toISOString(),
                     },
                   });

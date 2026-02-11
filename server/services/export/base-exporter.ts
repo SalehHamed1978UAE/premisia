@@ -13,6 +13,62 @@ import { buildLinearWhysTree, normalizeWhysPathSteps } from '../../utils/whys-pa
 
 export type { ExportRequest, FullExportPackage, ExportResult, IExporter };
 
+function extractBulletBlock(input: string, headerPattern: RegExp): string[] {
+  if (!input) return [];
+  const lines = input.split('\n');
+  const collected: string[] = [];
+  let inBlock = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (headerPattern.test(trimmed)) {
+      inBlock = true;
+      continue;
+    }
+    if (!inBlock) {
+      continue;
+    }
+    if (trimmed === '') {
+      continue;
+    }
+    if (/^[-*]\s+/.test(trimmed)) {
+      collected.push(trimmed.replace(/^[-*]\s+/, '').trim());
+      continue;
+    }
+    // End block on first non-bullet line
+    inBlock = false;
+  }
+
+  return collected;
+}
+
+function extractClarificationFallback(understanding: any): { lines: string[]; conflicts: string[] } {
+  const lines: string[] = [];
+  const conflicts: string[] = [];
+
+  const companyContext = typeof understanding?.companyContext === 'string'
+    ? (() => {
+        try { return JSON.parse(understanding.companyContext); } catch { return null; }
+      })()
+    : understanding?.companyContext;
+
+  if (companyContext?.clarifications && typeof companyContext.clarifications === 'object') {
+    Object.values(companyContext.clarifications).forEach((value) => {
+      if (typeof value === 'string' && value.trim()) {
+        lines.push(value.trim());
+      }
+    });
+  }
+
+  const inputText = typeof understanding?.userInput === 'string' ? understanding.userInput : '';
+  const inputLines = extractBulletBlock(inputText, /^clarifications:/i);
+  inputLines.forEach((line) => lines.push(line));
+  const conflictLines = extractBulletBlock(inputText, /^clarification_conflicts:/i);
+  conflictLines.forEach((line) => conflicts.push(line));
+
+  return { lines, conflicts };
+}
+
 export abstract class BaseExporter implements IExporter {
   abstract readonly name: string;
   abstract readonly format: string;
@@ -173,7 +229,16 @@ export async function loadExportData(
       };
       console.log('[Export Service] Clarifications loaded:', clarifications.questions?.length || 0, 'questions');
     } else {
-      console.log('[Export Service] No clarifications found. Questions:', !!questions, 'Answers:', !!answers);
+      const fallback = extractClarificationFallback(understanding);
+      if (fallback.lines.length > 0 || fallback.conflicts.length > 0) {
+        clarifications = {
+          lines: fallback.lines,
+          conflicts: fallback.conflicts.length > 0 ? fallback.conflicts : undefined,
+        };
+        console.log('[Export Service] Clarifications loaded from fallback:', fallback.lines.length);
+      } else {
+        console.log('[Export Service] No clarifications found. Questions:', !!questions, 'Answers:', !!answers);
+      }
     }
   }
 
