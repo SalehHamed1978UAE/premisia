@@ -279,6 +279,9 @@ export class EPMSynthesizer {
     // SPRINT 1: Parse user constraints from input (not decisions)
     const userConstraints = this.parseUserConstraints(insights, planningContext);
 
+    // SPRINT 1: Enrich userContext with parsed budget constraints
+    const enrichedUserContext = this.enrichUserContextWithConstraints(userContext, userConstraints);
+
     // SPRINT 1: Validate decisions against user constraints (integrity gate)
     const decisionValidation = this.validateDecisionsAgainstConstraints(strategicContext.decisions, userConstraints);
 
@@ -293,7 +296,7 @@ export class EPMSynthesizer {
         insights,
         scheduledWorkstreams,
         planningContext,
-        userContext,
+        enrichedUserContext,
         namingContext,
         strategicContext,
         decisionValidation,
@@ -334,7 +337,7 @@ export class EPMSynthesizer {
         insights,
         timedWorkstreams, // Use WBS Builder workstreams with default timings
         planningContext,
-        userContext,
+        enrichedUserContext,
         namingContext,
         strategicContext,
         decisionValidation,
@@ -454,6 +457,68 @@ export class EPMSynthesizer {
   ): { budget?: { min: number; max: number }; timeline?: { min: number; max: number } } {
     const rawUserInput = planningContext?.business?.description || '';
     return extractUserConstraintsFromText(rawUserInput, insights.marketContext?.budgetRange);
+  }
+
+  /**
+   * Enrich UserContext with parsed budget constraints
+   *
+   * SPRINT 1 - BUDGET COHERENCE: Populate userContext.budgetRange from parsed constraints
+   * This ensures FinancialPlanGenerator has access to user's stated budget limits
+   *
+   * Returns: Enriched UserContext with budgetRange populated
+   */
+  private enrichUserContextWithConstraints(
+    userContext: UserContext | undefined,
+    userConstraints: { budget?: { min: number; max: number }; timeline?: { min: number; max: number } }
+  ): UserContext {
+    const enriched = userContext || { timelineUrgency: 'Strategic' as const };
+
+    if (userConstraints.budget && !enriched.budgetRange) {
+      enriched.budgetRange = userConstraints.budget;
+      console.log(`[Budget Coherence] ✓ Enriched userContext with budget constraint: $${(userConstraints.budget.min / 1_000_000).toFixed(1)}M - $${(userConstraints.budget.max / 1_000_000).toFixed(1)}M`);
+    }
+
+    return enriched;
+  }
+
+  /**
+   * Build requiresApproval flag from decision violations and budget violations
+   *
+   * SPRINT 1 - BUDGET COHERENCE: Combine decision and budget validation results
+   * Returns unified requiresApproval object with all violations
+   */
+  private buildRequiresApprovalFlag(
+    decisionValidation?: { needsApproval: boolean; violations: string[] },
+    financialPlan?: FinancialPlan
+  ): EPMProgram['requiresApproval'] {
+    const violations: string[] = [];
+    let hasBudgetViolation = false;
+    let hasTimelineViolation = false;
+
+    // Add decision violations
+    if (decisionValidation?.needsApproval) {
+      violations.push(...decisionValidation.violations);
+      hasBudgetViolation = hasBudgetViolation || decisionValidation.violations.some(v => v.includes('budget'));
+      hasTimelineViolation = hasTimelineViolation || decisionValidation.violations.some(v => v.includes('month'));
+    }
+
+    // Add budget calculation violations
+    if (financialPlan?.budgetViolation) {
+      const v = financialPlan.budgetViolation;
+      const violationMsg = `Calculated costs ($${(v.calculatedCost / 1_000_000).toFixed(1)}M) exceed user budget constraint ($${(v.userConstraint / 1_000_000).toFixed(1)}M) by ${v.exceedsPercentage.toFixed(1)}%`;
+      violations.push(violationMsg);
+      hasBudgetViolation = true;
+    }
+
+    if (violations.length === 0) {
+      return undefined;
+    }
+
+    return {
+      budget: hasBudgetViolation,
+      timeline: hasTimelineViolation,
+      violations,
+    };
   }
 
   /**
@@ -716,25 +781,31 @@ export class EPMSynthesizer {
       planningContext.business.industry ? `Industry focus: ${planningContext.business.industry}.` : null,
     ].filter(Boolean).join(' ');
 
+    // Generate decision-specific deliverables (NO GENERIC TEMPLATES)
+    const decisionLabel = seed.optionLabel || seed.title;
+    if (!decisionLabel) {
+      throw new Error('Decision deliverable generator requires optionLabel or title in seed context');
+    }
+
     const deliverables: Deliverable[] = [
       {
         id: `WS${String(index).padStart(3, '0')}-D1`,
-        name: `Decision execution plan`,
-        description: `Plan milestones, success criteria, and governance for ${seed.optionLabel || seed.title}.`,
+        name: `Define success criteria and KPIs for ${decisionLabel}`,
+        description: `Establish measurable outcomes, KPIs, and acceptance criteria specific to ${decisionLabel}. Include baseline metrics and target improvements.`,
         dueMonth: 1,
         effort: '10-20 person-days',
       },
       {
         id: `WS${String(index).padStart(3, '0')}-D2`,
-        name: `Implementation roadmap`,
-        description: `Define phased rollout, dependencies, and key deliverables for ${seed.optionLabel || seed.title}.`,
+        name: `Implement ${decisionLabel}`,
+        description: `Execute core implementation of ${decisionLabel}. ${seed.optionDescription || 'Deliver solution as specified in decision context.'}`,
         dueMonth: 2,
-        effort: '10-20 person-days',
+        effort: '20-40 person-days',
       },
       {
         id: `WS${String(index).padStart(3, '0')}-D3`,
-        name: `Resource alignment`,
-        description: `Align owners, staffing, and budget to deliver ${seed.optionLabel || seed.title}.`,
+        name: `Validate and measure ${decisionLabel} outcomes`,
+        description: `Measure actual results against success criteria for ${decisionLabel}. Document lessons learned and adjustment recommendations.`,
         dueMonth: 3,
         effort: '10-20 person-days',
       },
@@ -1232,12 +1303,8 @@ export class EPMSynthesizer {
 
       extractionRationale: this.generateExtractionRationale(insights, userContext),
 
-      // SPRINT 1: Add requiresApproval flag if decisions exceed user constraints
-      requiresApproval: decisionValidation?.needsApproval ? {
-        budget: decisionValidation.violations.some(v => v.includes('budget')),
-        timeline: decisionValidation.violations.some(v => v.includes('month')),
-        violations: decisionValidation.violations,
-      } : undefined,
+      // SPRINT 1: Add requiresApproval flag if decisions exceed user constraints OR budget violations exist
+      requiresApproval: this.buildRequiresApprovalFlag(decisionValidation, financialPlan),
       constraints: userConstraints,
     };
 
@@ -1245,7 +1312,7 @@ export class EPMSynthesizer {
     console.log(`[EPM Synthesis]   Overall confidence: ${(overallConfidence * 100).toFixed(1)}%`);
 
     if (program.requiresApproval) {
-      console.warn('[EPM Synthesis] ⚠️  REQUIRES USER APPROVAL: Decisions exceed user constraints');
+      console.warn('[EPM Synthesis] ⚠️  REQUIRES USER APPROVAL: Constraint violations detected');
       console.warn(`[EPM Synthesis]   Violations: ${program.requiresApproval.violations.join('; ')}`);
     }
     

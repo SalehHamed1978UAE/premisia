@@ -124,6 +124,12 @@ export interface FinancialPlan {
   contingencyPercentage: number;
   assumptions: string[];
   confidence: number;
+  budgetViolation?: {
+    userConstraint: number;
+    calculatedCost: number;
+    exceedsBy: number;
+    exceedsPercentage: number;
+  };
 }
 
 export interface Benefit {

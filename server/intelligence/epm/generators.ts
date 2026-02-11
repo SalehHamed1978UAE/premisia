@@ -115,11 +115,45 @@ export class FinancialPlanGenerator {
     userContext?: UserContext
   ): Promise<FinancialPlan> {
     const costInsights = insights.insights.filter(i => i.type === 'cost');
-    
+
+    // Calculate actual costs based on resources
     const personnelCost = resourcePlan.totalFTEs * 150000;
     const externalCost = resourcePlan.externalResources.reduce((sum, r) => sum + r.estimatedCost, 0);
     const overheadCost = (personnelCost + externalCost) * 0.15;
-    const totalBudget = userContext?.budgetRange?.max || (personnelCost + externalCost + overheadCost);
+    const calculatedCost = personnelCost + externalCost + overheadCost;
+
+    // SPRINT 1 - BUDGET COHERENCE: Check if calculated costs exceed user constraints
+    const userBudgetConstraint = userContext?.budgetRange?.max;
+    let budgetViolation: FinancialPlan['budgetViolation'] = undefined;
+    let totalBudget = calculatedCost;
+
+    if (userBudgetConstraint) {
+      console.log(`[Budget Coherence] User budget constraint: $${(userBudgetConstraint / 1_000_000).toFixed(1)}M`);
+      console.log(`[Budget Coherence] Calculated cost: $${(calculatedCost / 1_000_000).toFixed(1)}M`);
+
+      if (calculatedCost > userBudgetConstraint) {
+        const exceedsBy = calculatedCost - userBudgetConstraint;
+        const exceedsPercentage = (exceedsBy / userBudgetConstraint) * 100;
+
+        budgetViolation = {
+          userConstraint: userBudgetConstraint,
+          calculatedCost,
+          exceedsBy,
+          exceedsPercentage,
+        };
+
+        console.warn(`[Budget Coherence] ⚠️  BUDGET VIOLATION: Calculated cost exceeds user constraint by $${(exceedsBy / 1_000_000).toFixed(1)}M (${exceedsPercentage.toFixed(1)}%)`);
+        console.warn(`[Budget Coherence] Using user's budget constraint for totalBudget (requiresApproval will be flagged)`);
+
+        // Use user's constraint as totalBudget, but flag the violation
+        totalBudget = userBudgetConstraint;
+      } else {
+        console.log(`[Budget Coherence] ✓ Calculated cost within user budget constraint`);
+        totalBudget = userBudgetConstraint; // Honor user's stated budget even if costs are lower
+      }
+    } else {
+      console.log(`[Budget Coherence] No user budget constraint found, using calculated cost`);
+    }
 
     const costBreakdown = [
       { category: 'Personnel', amount: personnelCost, percentage: (personnelCost / totalBudget) * 100, description: 'Internal team costs' },
@@ -141,8 +175,10 @@ export class FinancialPlanGenerator {
         `${resourcePlan.totalFTEs} FTEs for ${12} months`,
         `15% overhead for infrastructure and support`,
         `10% contingency for risks and unknowns`,
+        ...(budgetViolation ? [`⚠️ Calculated costs ($${(calculatedCost / 1_000_000).toFixed(1)}M) exceed user budget constraint ($${(userBudgetConstraint! / 1_000_000).toFixed(1)}M)`] : []),
       ],
       confidence: costInsights.length > 0 ? 0.65 : 0.55,
+      budgetViolation,
     };
   }
 
