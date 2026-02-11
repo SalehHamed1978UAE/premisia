@@ -36,6 +36,21 @@ interface EPMPackage {
   benefits?: any[];
   kpis?: any[];
   userInput?: any;
+  userInputStructured?: {
+    raw?: string | null;
+    summary?: string | null;
+    constraints?: {
+      costMin?: number | null;
+      costMax?: number | null;
+      teamSizeMin?: number | null;
+      teamSizeMax?: number | null;
+      timelineMonths?: number | null;
+      inputSummary?: string | null;
+    } | null;
+    clarifications?: any[] | null;
+    initiativeType?: string | null;
+  };
+  requiresApproval?: boolean;
   executiveSummary?: any;
 }
 
@@ -180,16 +195,27 @@ class EPMPackageValidator {
   private check4_ResourceAllocation(pkg: EPMPackage): void {
     console.log('✓ Check 4: Resource Allocation');
 
-    if (!pkg.resources) {
+    // Check financial plan (NEW schema location)
+    const financialPlan = pkg.financialPlan;
+    if (!financialPlan || !financialPlan.totalBudget || financialPlan.totalBudget === 0) {
+      this.addWarning('No budget allocated in financial plan');
+    }
+
+    // Check resource allocations
+    const resourcePlan = pkg.resourcePlan;
+    const resources = pkg.resources;
+
+    if (!resourcePlan && !resources) {
       this.addWarning('No resource plan found');
       return;
     }
 
-    if (!pkg.resources.totalBudget || pkg.resources.totalBudget === 0) {
-      this.addWarning('No budget allocated');
-    }
+    // Validate internal team allocations
+    const internalTeam = resourcePlan?.internalTeam || [];
+    const externalResources = resourcePlan?.externalResources || [];
+    const totalResources = internalTeam.length + externalResources.length;
 
-    if (!pkg.resources.allocations || pkg.resources.allocations.length === 0) {
+    if (totalResources === 0 && (!resources || resources.length === 0)) {
       this.addWarning('No resource allocations defined');
     }
   }
@@ -554,8 +580,6 @@ class EPMPackageValidator {
     console.log('✓ Check 15: Budget Consistency');
 
     const financialPlan = pkg.financialPlan;
-    const userInput = pkg.userInput || pkg.executiveSummary;
-
     if (!financialPlan) {
       this.addWarning('No financial plan found for budget consistency check');
       return;
@@ -567,33 +591,48 @@ class EPMPackageValidator {
       return;
     }
 
-    // Try to extract budget from user input
-    let userBudget = null;
-    if (userInput?.budget) {
-      userBudget = userInput.budget;
-    } else if (typeof userInput === 'string') {
-      // Try to parse budget from text (e.g., "$7M", "7 million")
-      const budgetMatch = userInput.match(/\$?([\d.]+)\s*(m|million|k|thousand)/i);
-      if (budgetMatch) {
-        const amount = parseFloat(budgetMatch[1]);
-        const unit = budgetMatch[2].toLowerCase();
-        userBudget = unit.startsWith('m') ? amount * 1000000 : amount * 1000;
+    // Extract budget constraints from structured user input (NEW)
+    const constraints = pkg.userInputStructured?.constraints || pkg.metadata?.constraints;
+    let userBudgetMin = constraints?.costMin;
+    let userBudgetMax = constraints?.costMax;
+
+    // Fallback: try to extract from legacy userInput field
+    if (!userBudgetMin && !userBudgetMax) {
+      const userInput = pkg.userInput || pkg.executiveSummary;
+      if (userInput?.budget) {
+        userBudgetMin = userInput.budget;
+        userBudgetMax = userInput.budget;
+      } else if (typeof userInput === 'string') {
+        const budgetMatch = userInput.match(/\$?([\d.]+)\s*(m|million|k|thousand)/i);
+        if (budgetMatch) {
+          const amount = parseFloat(budgetMatch[1]);
+          const unit = budgetMatch[2].toLowerCase();
+          const parsed = unit.startsWith('m') ? amount * 1000000 : amount * 1000;
+          userBudgetMin = parsed;
+          userBudgetMax = parsed;
+        }
       }
     }
 
-    if (userBudget) {
-      const ratio = epmBudget / userBudget;
+    // Validate against constraints
+    if (userBudgetMin && epmBudget < userBudgetMin * 0.7) {
+      this.addError(
+        `EPM budget ($${(epmBudget / 1000000).toFixed(2)}M) significantly below minimum constraint ($${(userBudgetMin / 1000000).toFixed(2)}M)`,
+        10
+      );
+    }
 
-      if (ratio < 0.7) {
-        this.addError(
-          `EPM budget ($${(epmBudget / 1000000).toFixed(2)}M) significantly lower than stated constraint ($${(userBudget / 1000000).toFixed(2)}M) - ${(ratio * 100).toFixed(0)}% of stated budget`,
-          10
-        );
-      } else if (ratio > 1.2) {
-        this.addWarning(
-          `EPM budget ($${(epmBudget / 1000000).toFixed(2)}M) exceeds stated constraint ($${(userBudget / 1000000).toFixed(2)}M) by ${((ratio - 1) * 100).toFixed(0)}%`
-        );
-      }
+    if (userBudgetMax && epmBudget > userBudgetMax * 1.2) {
+      this.addWarning(
+        `EPM budget ($${(epmBudget / 1000000).toFixed(2)}M) exceeds maximum constraint ($${(userBudgetMax / 1000000).toFixed(2)}M) by ${(((epmBudget / userBudgetMax) - 1) * 100).toFixed(0)}%`
+      );
+    }
+
+    // Check if EPM is within specified range
+    if (userBudgetMin && userBudgetMax && (epmBudget < userBudgetMin || epmBudget > userBudgetMax)) {
+      this.addWarning(
+        `EPM budget ($${(epmBudget / 1000000).toFixed(2)}M) outside constraint range ($${(userBudgetMin / 1000000).toFixed(2)}M - $${(userBudgetMax / 1000000).toFixed(2)}M)`
+      );
     }
   }
 
