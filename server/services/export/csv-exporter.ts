@@ -177,13 +177,16 @@ export function generateWorkstreamsCsv(workstreams: any[]): string {
     const deliverableNames = deliverables.map((d: any) => 
       typeof d === 'string' ? d : (d.name || d.title || d.description || 'Deliverable')
     );
+    const phase = typeof ws.phase === 'object'
+      ? (ws.phase?.name || ws.phase?.label || ws.phase?.title || '-')
+      : (ws.phaseName || ws.phaseLabel || ws.phase || '-');
     
     const row = [
       ws.id || `WS-${idx + 1}`,
       escapeCsvField(ws.name || `Workstream ${idx + 1}`),
       escapeCsvField(ws.description || '-'),
       escapeCsvField(ws.owner || '-'),
-      escapeCsvField(ws.phase || '-'),
+      escapeCsvField(phase),
       ws.startMonth !== undefined ? `Month ${ws.startMonth}` : '-',
       ws.endMonth !== undefined ? `Month ${ws.endMonth}` : '-',
       escapeCsvField(ws.status || 'Pending'),
