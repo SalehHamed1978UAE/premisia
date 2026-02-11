@@ -46,6 +46,19 @@ function extractClarificationFallback(understanding: any): { lines: string[]; co
   const lines: string[] = [];
   const conflicts: string[] = [];
 
+  const metadata = typeof understanding?.strategyMetadata === 'string'
+    ? (() => {
+        try { return JSON.parse(understanding.strategyMetadata); } catch { return null; }
+      })()
+    : understanding?.strategyMetadata;
+  if (metadata?.clarificationConflicts && Array.isArray(metadata.clarificationConflicts)) {
+    metadata.clarificationConflicts.forEach((item: any) => {
+      if (typeof item === 'string' && item.trim()) {
+        conflicts.push(item.trim());
+      }
+    });
+  }
+
   const companyContext = typeof understanding?.companyContext === 'string'
     ? (() => {
         try { return JSON.parse(understanding.companyContext); } catch { return null; }

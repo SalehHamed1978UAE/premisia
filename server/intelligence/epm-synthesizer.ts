@@ -1214,6 +1214,15 @@ export class EPMSynthesizer {
     
     const overallConfidence = this.calculateOverallConfidence(confidences);
     
+    const conflictViolations = (userContext?.clarificationConflicts || []).map(
+      (conflict) => `Clarification conflict: ${conflict}`
+    );
+    const combinedViolations = [
+      ...(decisionValidation?.violations || []),
+      ...conflictViolations,
+    ];
+    const needsApproval = (decisionValidation?.needsApproval ?? false) || conflictViolations.length > 0;
+
     const program: EPMProgram = {
       id: `EPM-${Date.now()}`,
       generatedAt: new Date(),
@@ -1239,11 +1248,12 @@ export class EPMSynthesizer {
 
       extractionRationale: this.generateExtractionRationale(insights, userContext),
 
-      // SPRINT 1: Add requiresApproval flag if decisions exceed user constraints
-      requiresApproval: decisionValidation?.needsApproval ? {
-        budget: decisionValidation.violations.some(v => v.includes('budget')),
-        timeline: decisionValidation.violations.some(v => v.includes('month')),
-        violations: decisionValidation.violations,
+      // SPRINT 1: Add requiresApproval flag if decisions exceed user constraints or clarifications conflict
+      requiresApproval: needsApproval ? {
+        budget: (decisionValidation?.violations || []).some(v => v.includes('budget')),
+        timeline: (decisionValidation?.violations || []).some(v => v.includes('month')),
+        clarifications: conflictViolations.length > 0,
+        violations: combinedViolations,
       } : undefined,
       constraints: userConstraints,
     };

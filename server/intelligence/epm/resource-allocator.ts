@@ -356,7 +356,9 @@ Return ONLY valid JSON array of role objects. NO markdown, NO code blocks, ONLY 
       'health permits', 'health inspections', 'HACCP',
       'store', 'retail', 'cashier', 'merchandising',
       'inventory control', 'stockroom',
-      'restaurant', 'cafe', 'catering'
+      'restaurant', 'cafe', 'catering',
+      'supply chain', 'logistics',
+      'licensing', 'permits'
     ];
 
     const TECH_SAAS_TERMS = [
@@ -405,8 +407,8 @@ Return ONLY valid JSON array of role objects. NO markdown, NO code blocks, ONLY 
 
     // If we filtered out all skills, keep at least one generic skill
     if (filtered.length === 0 && skills.length > 0) {
-      console.warn(`[ResourceAllocator] ⚠️  All skills were contaminated, keeping first as fallback`);
-      return [skills[0]];
+      console.warn(`[ResourceAllocator] ⚠️  All skills were contaminated, using generic fallback`);
+      return ['General domain expertise'];
     }
 
     return filtered;

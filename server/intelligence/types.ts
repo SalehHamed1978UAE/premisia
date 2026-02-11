@@ -333,6 +333,7 @@ export interface EPMProgram {
   requiresApproval?: {
     budget?: boolean;
     timeline?: boolean;
+    clarifications?: boolean;
     violations: string[];
   };
 
@@ -591,6 +592,7 @@ export interface UserContext {
   }>;
   organizationalContext?: string;
   sessionId?: string;  // Added for initiative type lookup
+  clarificationConflicts?: string[];
 }
 
 // ============================================================================

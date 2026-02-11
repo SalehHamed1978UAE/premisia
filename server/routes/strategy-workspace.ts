@@ -17,6 +17,7 @@ import { container, getService } from '../services/container';
 import { ServiceKeys } from '../types/interfaces';
 import type { EPMRepository, StrategyRepository } from '../repositories';
 import { refreshTokenProactively } from '../replitAuth';
+import { ambiguityDetector } from '../services/ambiguity-detector';
 
 const router = Router();
 
@@ -37,6 +38,30 @@ function sendSSEEvent(progressId: string, data: any) {
   const eventData = JSON.stringify(data);
   stream.res.write(`id: ${stream.lastEventId}\n`);
   stream.res.write(`data: ${eventData}\n\n`);
+}
+
+function extractConflictLines(input: string): string[] {
+  if (!input) return [];
+  const lines = input.split('\n');
+  const conflicts: string[] = [];
+  let inBlock = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (/^clarification_conflicts:/i.test(trimmed)) {
+      inBlock = true;
+      continue;
+    }
+    if (!inBlock) continue;
+    if (trimmed === '') continue;
+    if (/^[-*]\s+/.test(trimmed)) {
+      conflicts.push(trimmed.replace(/^[-*]\s+/, '').trim());
+      continue;
+    }
+    inBlock = false;
+  }
+
+  return conflicts;
 }
 
 // Create LLM provider for intelligent planning
@@ -359,19 +384,10 @@ async function processEPMGeneration(
     // which matches strategic_understanding.sessionId (not id)
     let initiativeType: string | undefined = undefined;
     let journeyTitle: string | undefined = undefined;
+    let clarificationConflicts: string[] = [];
     if (version.sessionId) {
       try {
-        // Query by strategic_understanding.sessionId because version.sessionId
-        // is the session string format (e.g., "session-1769898649296-uocxqo")
-        const [understanding] = await db
-          .select({ 
-            initiativeType: strategicUnderstanding.initiativeType,
-            title: strategicUnderstanding.title,
-            userInput: strategicUnderstanding.userInput,
-          })
-          .from(strategicUnderstanding)
-          .where(eq(strategicUnderstanding.sessionId, version.sessionId))
-          .limit(1);
+        const understanding = await getStrategicUnderstandingBySession(version.sessionId);
         
         if (understanding?.initiativeType) {
           initiativeType = understanding.initiativeType;
@@ -405,6 +421,24 @@ async function processEPMGeneration(
                 .where(eq(strategyVersions.id, strategyVersionId));
               console.log('[EPM Generation] ✅ Persisted user constraints to strategy_version:', updates);
             }
+          }
+
+          // Detect clarification conflicts in existing input and store in metadata
+          const clarifiedInput = ambiguityDetector.buildClarifiedInput(understanding.userInput, {});
+          clarificationConflicts = extractConflictLines(clarifiedInput);
+          if (clarificationConflicts.length > 0) {
+            const currentMeta = typeof (understanding as any).strategyMetadata === 'string'
+              ? JSON.parse((understanding as any).strategyMetadata)
+              : (understanding as any).strategyMetadata || {};
+            const nextMeta = {
+              ...currentMeta,
+              clarificationConflicts,
+              clarificationConflictsDetectedAt: new Date().toISOString(),
+            };
+            await db.update(strategicUnderstanding)
+              .set({ strategyMetadata: nextMeta, updatedAt: new Date() })
+              .where(eq(strategicUnderstanding.id, understanding.id));
+            console.warn('[EPM Generation] ⚠️ Clarification conflicts detected:', clarificationConflicts);
           }
         }
         if (!understanding) {
@@ -680,9 +714,11 @@ async function processEPMGeneration(
       ...userDecisions,
       prioritizedOrder: prioritizedOrder || [],
       sessionId: version.sessionId,  // Pass sessionId for initiative type lookup
+      clarificationConflicts,
     } : { 
       prioritizedOrder: prioritizedOrder || [],
       sessionId: version.sessionId,  // Pass sessionId for initiative type lookup
+      clarificationConflicts,
     };
     
     // Run through EPM synthesizer with naming context and real-time progress
