@@ -123,22 +123,23 @@ export function generateFiveWhysTreeMarkdown(tree: any, whysPath?: any[]): strin
 }
 
 export function generateClarificationsMarkdown(clarifications: any): string {
-  const lines: string[] = [];
   if (!clarifications) {
     return '';
   }
 
   const hasQuestions = Array.isArray(clarifications.questions) && clarifications.questions.length > 0;
   const hasLines = Array.isArray(clarifications.lines) && clarifications.lines.length > 0;
+  const hasConflicts = Array.isArray(clarifications.conflicts) && clarifications.conflicts.length > 0;
 
-  if (!hasQuestions && !hasLines) {
+  if (!hasQuestions && !hasLines && !hasConflicts) {
     return '';
   }
 
+  const lines: string[] = [];
   lines.push('## Strategic Input Clarifications\n');
-  lines.push('During initial analysis, you provided the following clarifications:\n');
 
   if (hasQuestions) {
+    lines.push('During initial analysis, you provided the following clarifications:\n');
     clarifications.questions.forEach((q: any) => {
       lines.push(`**${q.question}**\n`);
 
@@ -164,8 +165,8 @@ export function generateClarificationsMarkdown(clarifications: any): string {
     lines.push('');
   }
 
-  if (Array.isArray(clarifications.conflicts) && clarifications.conflicts.length > 0) {
-    lines.push('**Clarification Conflicts Detected:**');
+  if (hasConflicts) {
+    lines.push('### Clarification Conflicts\n');
     clarifications.conflicts.forEach((conflict: string) => {
       lines.push(`- ${conflict}`);
     });

@@ -116,6 +116,63 @@ export function escapeCsvField(field: string | null | undefined): string {
   return str;
 }
 
+function parseInlineBullets(value: string): string[] {
+  if (!value) {
+    return [];
+  }
+  const parts = value.split(/\s+-\s+/).map((part) => part.trim()).filter(Boolean);
+  return parts.length > 0 ? parts : [value.trim()];
+}
+
+function extractBulletBlock(inputText: string, headerRegex: RegExp): string[] {
+  if (!inputText) {
+    return [];
+  }
+  const lines = inputText.split('\n');
+  const collected: string[] = [];
+  let inBlock = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (headerRegex.test(trimmed)) {
+      inBlock = true;
+      const afterHeader = trimmed.replace(headerRegex, '').trim();
+      if (afterHeader) {
+        collected.push(...parseInlineBullets(afterHeader));
+      }
+      continue;
+    }
+
+    if (!inBlock) {
+      continue;
+    }
+
+    if (trimmed === '') {
+      continue;
+    }
+
+    if (/^[A-Z_][A-Z0-9_ ]*:\s*$/i.test(trimmed)) {
+      inBlock = false;
+      continue;
+    }
+
+    if (/^\s*-\s+/.test(trimmed)) {
+      collected.push(trimmed.replace(/^\s*-\s+/, '').trim());
+      continue;
+    }
+
+    inBlock = false;
+  }
+
+  return collected.filter(Boolean);
+}
+
+function extractClarificationFallback(inputText: string): { lines: string[]; conflicts: string[] } {
+  const lines = extractBulletBlock(inputText, /^clarifications:/i);
+  const conflicts = extractBulletBlock(inputText, /^clarification_conflicts:/i);
+  return { lines, conflicts };
+}
+
 export async function loadExportData(
   sessionId: string,
   versionNumber: number | undefined,
@@ -199,7 +256,9 @@ export async function loadExportData(
 
   console.log('[Export Service] loadExportData - Fetching clarifications from strategic understanding...');
   let clarifications;
+  let requiresApproval;
   if (understanding) {
+    const fallback = extractClarificationFallback(understanding.userInput || '');
     const metadata = typeof (understanding as any).strategyMetadata === 'string'
       ? JSON.parse((understanding as any).strategyMetadata)
       : (understanding as any).strategyMetadata;
@@ -208,6 +267,7 @@ export async function loadExportData(
     
     let questions = null;
     let answers = null;
+    let conflicts: string[] = [];
     
     if (metadata?.clarificationQuestions) {
       questions = metadata.clarificationQuestions;
@@ -234,13 +294,33 @@ export async function loadExportData(
       answers = metadata.answers;
       console.log('[Export Service] Found answers');
     }
+
+    if (Array.isArray(metadata?.clarificationConflicts)) {
+      conflicts = metadata.clarificationConflicts;
+    } else if (Array.isArray(metadata?.clarificationContext?.conflicts)) {
+      conflicts = metadata.clarificationContext.conflicts;
+    } else if (fallback.conflicts.length > 0) {
+      conflicts = fallback.conflicts;
+    }
+
+    if (metadata?.requiresApproval && typeof metadata.requiresApproval === 'object') {
+      requiresApproval = metadata.requiresApproval;
+    } else if (conflicts.length > 0) {
+      requiresApproval = { clarifications: true };
+    }
     
     if (questions && answers) {
       clarifications = {
         questions: Array.isArray(questions) ? questions : [],
         answers: typeof answers === 'object' ? answers : {},
+        conflicts: conflicts.length > 0 ? conflicts : undefined,
       };
       console.log('[Export Service] Clarifications loaded:', clarifications.questions?.length || 0, 'questions');
+    } else if (conflicts.length > 0 || fallback.lines.length > 0) {
+      clarifications = {
+        conflicts: conflicts.length > 0 ? conflicts : undefined,
+      };
+      console.log('[Export Service] Clarification conflicts loaded without questions:', conflicts.length);
     } else {
       const fallback = extractClarificationFallback(understanding);
       if (fallback.lines.length > 0 || fallback.conflicts.length > 0) {
@@ -323,6 +403,7 @@ export async function loadExportData(
       fiveWhysTree,
       whysPath,
       clarifications,
+      requiresApproval,
     },
     epm: epmProgram ? {
       program: epmProgram,
