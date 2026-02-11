@@ -276,7 +276,7 @@ export class EPMSynthesizer {
     console.log(`[EPM Synthesis] ✓ Strategic context: ${strategicContext.decisions.length} decisions, SWOT available: ${!!strategicContext.swotData}`);
 
     // SPRINT 1: Parse user constraints from input (not decisions)
-    const userConstraints = this.parseUserConstraints(insights);
+    const userConstraints = this.parseUserConstraints(insights, planningContext);
 
     // SPRINT 1: Validate decisions against user constraints (integrity gate)
     const decisionValidation = this.validateDecisionsAgainstConstraints(strategicContext.decisions, userConstraints);
@@ -446,14 +446,17 @@ export class EPMSynthesizer {
    * Returns: Structured constraints object { budget: {min, max}, timeline: {min, max} }
    */
   private parseUserConstraints(
-    insights: StrategyInsights
+    insights: StrategyInsights,
+    planningContext?: PlanningContext
   ): { budget?: { min: number; max: number }; timeline?: { min: number; max: number } } {
     const constraints: any = {};
 
     console.log('[Constraints] Parsing USER constraints from input...');
 
-    // Parse budget from insights.marketContext.budgetRange (user's original input)
-    const budgetInput = insights.marketContext?.budgetRange;
+    const rawUserInput = planningContext?.business?.description || '';
+    const budgetContextPattern = /(?:budget|funding|investment|spend|allocation|runway)[^$\n]{0,60}\$?\d+(?:\.\d+)?\s*(?:million|m|mil|k|thousand)?(?:\s*(?:-|to)\s*\$?\d+(?:\.\d+)?\s*(?:million|m|mil|k|thousand)?)?/i;
+    const budgetContextMatch = rawUserInput.match(budgetContextPattern);
+    const budgetInput = budgetContextMatch?.[0] || insights.marketContext?.budgetRange;
 
     if (budgetInput) {
       console.log(`[Constraints] Found user budget input: "${budgetInput}"`);
@@ -488,10 +491,36 @@ export class EPMSynthesizer {
       console.log('[Constraints] No budget constraint in user input');
     }
 
-    // Parse timeline from insights (if available in marketContext or elsewhere)
-    // TODO: Once Agent-3 adds structured timeline field, parse from there
-    // For now, log that timeline parsing is pending schema normalization
-    console.log('[Constraints] Timeline parsing pending Agent-3 schema normalization');
+    const timelineContextPattern = /(?:timeline|runway|over|within|for\s+first)[^\n]{0,60}?(\d+)(?:\s*(?:-|to)\s*(\d+))?\s*(months?|mo|years?|yrs?|quarters?|qtrs?)/i;
+    const timelineContextMatch = rawUserInput.match(timelineContextPattern);
+    const timelineInput = timelineContextMatch?.[0];
+
+    if (timelineInput) {
+      console.log(`[Constraints] Found user timeline input: "${timelineInput}"`);
+      const timelinePattern = /(\d+)(?:\s*(?:-|to)\s*(\d+))?\s*(months?|mo|years?|yrs?|quarters?|qtrs?)/i;
+      const timelineMatch = timelineInput.match(timelinePattern);
+
+      if (timelineMatch) {
+        let minMonths = parseInt(timelineMatch[1], 10);
+        let maxMonths = timelineMatch[2] ? parseInt(timelineMatch[2], 10) : minMonths;
+        const unit = timelineMatch[3].toLowerCase();
+
+        if (unit.startsWith('year') || unit.startsWith('yr')) {
+          minMonths *= 12;
+          maxMonths *= 12;
+        } else if (unit.startsWith('quarter') || unit.startsWith('qtr')) {
+          minMonths *= 3;
+          maxMonths *= 3;
+        }
+
+        constraints.timeline = { min: minMonths, max: maxMonths };
+        console.log(`[Constraints] ✓ Parsed user timeline: ${minMonths}-${maxMonths} months`);
+      } else {
+        console.warn(`[Constraints] ⚠️  Could not parse timeline from: "${timelineInput}"`);
+      }
+    } else {
+      console.log('[Constraints] No explicit timeline constraint found in user input');
+    }
 
     return constraints;
   }
