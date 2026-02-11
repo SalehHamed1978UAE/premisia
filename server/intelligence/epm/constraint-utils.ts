@@ -18,9 +18,9 @@ export function extractUserConstraintsFromText(
   const timelineInput = timelineContextMatch?.[0];
 
   const currencyBudgetPattern =
-    /(?:budget|funding|investment|spend|allocation|runway)[^$\n]{0,60}\$\s*\d+(?:\.\d+)?\s*(?:million|mil|k|thousand)?(?:\s*(?:-|to)\s*\$\s*\d+(?:\.\d+)?\s*(?:million|mil|k|thousand)?)?/i;
+    /(?:budget|funding|investment|spend|allocation|runway)[^$\n]{0,80}\$\s*\d+(?:\.\d+)?\s*(?:million|mil|m|k|thousand)?(?:\s*(?:-|to)\s*\$\s*\d+(?:\.\d+)?\s*(?:million|mil|m|k|thousand)?)?/i;
   const plainBudgetPattern =
-    /(?:budget|funding|investment|spend|allocation|runway)[^$\n]{0,60}\b\d+(?:\.\d+)?\s*(?:million|mil|k|thousand)\b(?:\s*(?:-|to)\s*\b\d+(?:\.\d+)?\s*(?:million|mil|k|thousand)\b)?/i;
+    /(?:budget|funding|investment|spend|allocation|runway)[^$\n]{0,80}\b\d+(?:\.\d+)?\s*(?:million|mil|k|thousand)\b(?:\s*(?:-|to)\s*\b\d+(?:\.\d+)?\s*(?:million|mil|k|thousand)\b)?/i;
 
   const budgetSearchInput = timelineInput ? input.replace(timelineInput, '') : input;
   const budgetContextMatch = budgetSearchInput.match(currencyBudgetPattern)
@@ -30,20 +30,24 @@ export function extractUserConstraintsFromText(
   if (budgetInput) {
     console.log(`[Constraints] Found user budget input: "${budgetInput}"`);
 
-    const budgetPattern =
-      /\$?(\d+(?:\.\d+)?)\s*(?:million|mil|k|thousand)?\s*(?:-|to)?\s*(?:\$?(\d+(?:\.\d+)?))?\s*(?:million|mil|k|thousand)?/i;
-    const budgetMatch = budgetInput.match(budgetPattern);
+    const rangeWithDollar = /\$\s*(\d+(?:\.\d+)?)\s*(million|mil|m|k|thousand)?\s*(?:-|to)\s*\$\s*(\d+(?:\.\d+)?)\s*(million|mil|m|k|thousand)?/i;
+    const singleWithDollar = /\$\s*(\d+(?:\.\d+)?)\s*(million|mil|m|k|thousand)?/i;
+    const rangeWithUnit = /\b(\d+(?:\.\d+)?)\s*(million|mil|k|thousand)\b\s*(?:-|to)\s*(\d+(?:\.\d+)?)\s*(million|mil|k|thousand)\b/i;
+    const singleWithUnit = /\b(\d+(?:\.\d+)?)\s*(million|mil|k|thousand)\b/i;
 
-    if (budgetMatch) {
-      let minBudget = parseFloat(budgetMatch[1]);
-      let maxBudget = budgetMatch[2] ? parseFloat(budgetMatch[2]) : minBudget;
+    const match = budgetInput.match(rangeWithDollar)
+      || budgetInput.match(rangeWithUnit)
+      || budgetInput.match(singleWithDollar)
+      || budgetInput.match(singleWithUnit);
 
-      const unitSegment = budgetInput.toLowerCase().substring(
-        budgetMatch.index || 0,
-        (budgetMatch.index || 0) + budgetMatch[0].length
-      );
-      const isMillions = /\b(million|mil)\b/.test(unitSegment);
-      const isThousands = /\b(k|thousand)\b/.test(unitSegment);
+    if (match) {
+      const hasDollar = match[0].includes('$');
+      let minBudget = parseFloat(match[1]);
+      let maxBudget = match[3] ? parseFloat(match[3]) : minBudget;
+      const unitToken = (match[2] || match[4] || '').toLowerCase();
+
+      const isMillions = unitToken === 'million' || unitToken === 'mil' || (hasDollar && unitToken === 'm');
+      const isThousands = unitToken === 'k' || unitToken === 'thousand';
 
       if (isMillions) {
         minBudget *= 1_000_000;
