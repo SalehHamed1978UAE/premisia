@@ -459,13 +459,37 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
       strategyData?.understanding?.initiativeType || strategyData?.understanding?.userInput || ''
     );
 
-    if (report.errorCount > 0) {
-      criticalIssues.push({
-        severity: 'critical',
-        code: 'VALIDATOR_CRITICAL_ISSUES',
-        message: `Quality gate found ${report.errorCount} error-level issues`,
-      });
+    // Map ALL validator results to individual AcceptanceIssues (Item E fix)
+    // Previously only checked report.errorCount > 0 with one generic message,
+    // discarding validator-specific details (codes, workstreamIds, suggestions).
+    for (const result of report.validatorResults) {
+      for (const issue of result.issues) {
+        const acceptanceIssue: AcceptanceIssue = {
+          severity: issue.severity === 'error' ? 'critical' : 'warning',
+          code: issue.code,
+          message: `[${result.validatorName}] ${issue.message}`,
+          details: {
+            validatorName: result.validatorName,
+            originalSeverity: issue.severity,
+            ...(issue.workstreamId && { workstreamId: issue.workstreamId }),
+            ...(issue.field && { field: issue.field }),
+            ...(issue.suggestion && { suggestion: issue.suggestion }),
+          },
+        };
+
+        if (issue.severity === 'error') {
+          criticalIssues.push(acceptanceIssue);
+        } else {
+          // 'warning' and 'info' issues go to warnings (non-gate-blocking)
+          warnings.push(acceptanceIssue);
+        }
+      }
     }
+
+    console.log(
+      `[AcceptanceGates] Quality gate: ${report.validatorResults.length} validators, ` +
+      `${report.totalIssues} issues (${report.errorCount} errors, ${report.warningCount} warnings, ${report.infoCount} info)`
+    );
   }
 
   return {
