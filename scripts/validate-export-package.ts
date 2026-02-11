@@ -432,7 +432,10 @@ class EPMPackageValidator {
   private check12_KPICompleteness(pkg: EPMPackage): void {
     console.log('✓ Check 12: KPI Completeness');
 
-    const kpis = pkg.kpis || [];
+    const rawKpis = pkg.kpis as any;
+    const kpis = Array.isArray(rawKpis)
+      ? rawKpis
+      : (Array.isArray(rawKpis?.kpis) ? rawKpis.kpis : []);
     if (kpis.length === 0) {
       this.addWarning('No KPIs defined in package');
       return;
