@@ -227,13 +227,18 @@ class EPMPackageValidator {
   private check5_MilestoneSequencing(pkg: EPMPackage): void {
     console.log('✓ Check 5: Milestone Sequencing');
 
-    if (!pkg.stageGates || pkg.stageGates.length === 0) {
+    const rawStageGates = pkg.stageGates as any;
+    const stageGatesList = Array.isArray(rawStageGates)
+      ? rawStageGates
+      : (Array.isArray(rawStageGates?.gates) ? rawStageGates.gates : null);
+
+    if (!stageGatesList || stageGatesList.length === 0) {
       this.addWarning('No stage gates/milestones defined');
       return;
     }
 
     // Check milestone ordering
-    const sorted = [...pkg.stageGates].sort((a, b) => a.month - b.month);
+    const sorted = [...stageGatesList].sort((a, b) => a.month - b.month);
     for (let i = 0; i < sorted.length - 1; i++) {
       if (sorted[i].month === sorted[i + 1].month) {
         this.addWarning(`Multiple milestones at month ${sorted[i].month}`);
