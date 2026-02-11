@@ -1019,7 +1019,7 @@ export class KPIGenerator {
         id: `KPI${String(idx + 1).padStart(3, '0')}`,
         name: this.generateKPIName(benefit.description),
         category: kpiCategory,
-        baseline: 'Current state',
+        baseline: this.generateBaseline(benefit),
         target: benefit.estimatedValue ? `+${benefit.estimatedValue.toLocaleString()}` : this.generateMeasurableTarget(benefit),
         measurement: benefit.measurement,
         frequency: benefit.category === 'Financial' ? 'Monthly' as const : 'Quarterly' as const,
@@ -1047,8 +1047,42 @@ export class KPIGenerator {
   }
 
   private generateKPIName(description: string): string {
-    const words = description.split(' ').slice(0, 4).join(' ');
-    return words.length > 40 ? words.substring(0, 37) + '...' : words;
+    // NO TRUNCATION - Return full benefit description as KPI name
+    // KPI names must be complete and measurable, not cut off mid-sentence
+    return description.trim();
+  }
+
+  private generateBaseline(benefit: { description: string; category: string; measurement?: string }): string {
+    // Extract baseline from benefit description or measurement
+    // Look for patterns like "from X to Y", "current: X", "baseline X", etc.
+    const lower = benefit.description.toLowerCase();
+    const measurement = benefit.measurement?.toLowerCase() || '';
+
+    // Pattern 1: "from X to Y" or "X to Y"
+    const fromToMatch = (lower + ' ' + measurement).match(/from\s+([0-9]+[%$]?[kKmMbB]?)\s+to/i);
+    if (fromToMatch) return fromToMatch[1];
+
+    // Pattern 2: "current(ly)?: X" or "baseline: X"
+    const currentMatch = (lower + ' ' + measurement).match(/(?:current(?:ly)?|baseline)[\s:]+([0-9]+[%$]?[kKmMbB]?)/i);
+    if (currentMatch) return currentMatch[1];
+
+    // Pattern 3: Standalone numbers at start (e.g., "15% churn rate")
+    const leadingNumberMatch = (lower + ' ' + measurement).match(/^([0-9]+[%$]?[kKmMbB]?)/);
+    if (leadingNumberMatch) return leadingNumberMatch[1];
+
+    // If measurement field contains numeric baseline, extract it
+    if (measurement && /^[0-9]+[%$]?/.test(measurement)) {
+      const numMatch = measurement.match(/^([0-9]+[%$]?[kKmMbB]?)/);
+      if (numMatch) return numMatch[1];
+    }
+
+    // Category-specific defaults
+    if (benefit.category === 'Financial') return '$0 (establish baseline)';
+    if (benefit.category === 'Operational') return '0 (establish baseline)';
+    if (benefit.category === 'Customer') return 'To be measured';
+
+    // Generic fallback
+    return 'To be measured';
   }
 
   private generateMeasurableTarget(benefit: { description: string; category: string; measurement?: string }): string {
