@@ -653,6 +653,8 @@ SIGN-OFF:
 5. **DO NOT** proceed to next phase without GO status
 6. **DO NOT** hardcode session IDs or test data
 7. **DO NOT** merge without validation evidence
+8. **DO NOT** work on files outside your owned area without an explicit handoff
+9. **DO NOT** start work without a task claim in `docs/AGENT_TASKS.md`
 8. **DO NOT** introduce helper methods with the same name but different signatures in shared services. Use explicit suffixes like `FromInput` or `FromMap`.
 
 ---
