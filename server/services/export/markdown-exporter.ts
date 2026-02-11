@@ -123,31 +123,55 @@ export function generateFiveWhysTreeMarkdown(tree: any, whysPath?: any[]): strin
 }
 
 export function generateClarificationsMarkdown(clarifications: any): string {
-  if (!clarifications || !clarifications.questions || clarifications.questions.length === 0) {
+  const lines: string[] = [];
+  if (!clarifications) {
     return '';
   }
-  
-  const lines: string[] = [];
+
+  const hasQuestions = Array.isArray(clarifications.questions) && clarifications.questions.length > 0;
+  const hasLines = Array.isArray(clarifications.lines) && clarifications.lines.length > 0;
+
+  if (!hasQuestions && !hasLines) {
+    return '';
+  }
+
   lines.push('## Strategic Input Clarifications\n');
   lines.push('During initial analysis, you provided the following clarifications:\n');
-  
-  clarifications.questions.forEach((q: any) => {
-    lines.push(`**${q.question}**\n`);
-    
-    if (q.options && Array.isArray(q.options)) {
-      q.options.forEach((option: any) => {
-        const isChosen = clarifications.answers && clarifications.answers[q.id] === option.value;
-        const chosenMarker = isChosen ? ' ✓ (You chose this)' : '';
-        lines.push(`- **${option.label}**${chosenMarker}`);
-        if (option.description) {
-          lines.push(`  - ${option.description}`);
-        }
-      });
-    }
-    
+
+  if (hasQuestions) {
+    clarifications.questions.forEach((q: any) => {
+      lines.push(`**${q.question}**\n`);
+
+      if (q.options && Array.isArray(q.options)) {
+        q.options.forEach((option: any) => {
+          const isChosen = clarifications.answers && clarifications.answers[q.id] === option.value;
+          const chosenMarker = isChosen ? ' ✓ (You chose this)' : '';
+          lines.push(`- **${option.label}**${chosenMarker}`);
+          if (option.description) {
+            lines.push(`  - ${option.description}`);
+          }
+        });
+      }
+
+      lines.push('');
+    });
+  }
+
+  if (hasLines) {
+    clarifications.lines.forEach((line: string) => {
+      lines.push(`- ${line}`);
+    });
     lines.push('');
-  });
-  
+  }
+
+  if (Array.isArray(clarifications.conflicts) && clarifications.conflicts.length > 0) {
+    lines.push('**Clarification Conflicts Detected:**');
+    clarifications.conflicts.forEach((conflict: string) => {
+      lines.push(`- ${conflict}`);
+    });
+    lines.push('');
+  }
+
   lines.push('\n---\n');
   return lines.join('\n');
 }

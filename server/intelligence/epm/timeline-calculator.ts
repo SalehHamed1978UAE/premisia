@@ -100,6 +100,10 @@ export class TimelineCalculator implements ITimelineCalculator {
         w.startMonth < phaseEnd && w.endMonth >= phaseStart
       );
 
+      if (phaseStart > phaseEnd) {
+        continue;
+      }
+
       phases.push({
         phase: i + 1,
         name: config.name,

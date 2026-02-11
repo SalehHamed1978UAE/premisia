@@ -47,6 +47,7 @@ export interface Workstream {
   description: string;
   deliverables: Deliverable[];
   owner?: string;
+  phase?: string;
   startMonth: number;
   endMonth: number;
   dependencies: string[]; // IDs of other workstreams
@@ -325,6 +326,15 @@ export interface EPMProgram {
   extractionRationale?: string;
   sourceInsightsCount?: number;
   validationReport?: EPMValidationReport;
+  constraints?: {
+    budget?: { min: number; max: number };
+    timeline?: { min: number; max: number };
+  };
+  requiresApproval?: {
+    budget?: boolean;
+    timeline?: boolean;
+    violations: string[];
+  };
 
   // The 14 Required Components
   executiveSummary: ExecutiveSummary;

@@ -1000,6 +1000,8 @@ export class EPMSynthesizer {
     
     const timeline = await this.timelineCalculator.calculate(insights, alignedWorkstreams, userContext);
     console.log(`[EPM Synthesis] ✓ Timeline: ${timeline.totalMonths} months, ${timeline.phases.length} phases`);
+
+    const phasedWorkstreams = this.assignWorkstreamPhases(alignedWorkstreams, timeline);
     
     onProgress?.({
       type: 'step-start',
@@ -1021,7 +1023,7 @@ export class EPMSynthesizer {
 
     const resourcePlan = await this.resourceAllocator.allocate(
       insights,
-      alignedWorkstreams,
+      phasedWorkstreams,
       userContext,
       initiativeType,
       strategyContext  // Pass strategy context for context-aware role selection
@@ -1037,7 +1039,7 @@ export class EPMSynthesizer {
       initiativeType: planningContext.business.initiativeType || 'market_entry',
       programName,
     };
-    const roleValidationWarnings = await this.assignWorkstreamOwners(alignedWorkstreams, resourcePlan, ownerInferenceContext);
+    const roleValidationWarnings = await this.assignWorkstreamOwners(phasedWorkstreams, resourcePlan, ownerInferenceContext);
     console.log(`[EPM Synthesis] ✓ Workstream owners assigned via LLM inference`);
     
     onProgress?.({
@@ -1071,7 +1073,7 @@ export class EPMSynthesizer {
     };
     console.log('[EPM Synthesis] ✓ Assigned risk owners (buildV2Program):', risksWithOwners.map(r => ({ id: r.id, owner: r.owner })));
     
-    const stageGates = await this.stageGateGenerator.generate(timeline, riskRegister, alignedWorkstreams);
+    const stageGates = await this.stageGateGenerator.generate(timeline, riskRegister, phasedWorkstreams);
     
     onProgress?.({
       type: 'step-start',
@@ -1081,7 +1083,7 @@ export class EPMSynthesizer {
     });
     
     const businessContext = insights.marketContext?.industry || '';
-    const validationResult = this.validator.validate(alignedWorkstreams, timeline, stageGates, businessContext);
+    const validationResult = this.validator.validate(phasedWorkstreams, timeline, stageGates, businessContext);
     if (validationResult.errors.length > 0) {
       console.log(`[EPM Synthesis] ⚠️ Validation found ${validationResult.errors.length} errors, auto-corrected`);
       validationResult.corrections.forEach(c => console.log(`    - ${c}`));
@@ -1177,7 +1179,7 @@ export class EPMSynthesizer {
     ]);
 
     const validationReport = this.buildValidationReport(
-      alignedWorkstreams,
+      phasedWorkstreams,
       timeline,
       stageGates,
       validationResult,
@@ -1211,7 +1213,7 @@ export class EPMSynthesizer {
       validationReport,
       
       executiveSummary,
-      workstreams: alignedWorkstreams,
+      workstreams: phasedWorkstreams,
       timeline,
       resourcePlan,
       financialPlan,
@@ -1233,6 +1235,7 @@ export class EPMSynthesizer {
         timeline: decisionValidation.violations.some(v => v.includes('month')),
         violations: decisionValidation.violations,
       } : undefined,
+      constraints: userConstraints,
     };
 
     console.log('[EPM Synthesis] ✓ Program built successfully');
@@ -1398,6 +1401,29 @@ export class EPMSynthesizer {
       
       extractionRationale: this.generateExtractionRationale(insights, userContext),
     };
+  }
+
+  private assignWorkstreamPhases(workstreams: Workstream[], timeline: Timeline): Workstream[] {
+    if (!timeline?.phases || timeline.phases.length === 0) {
+      return workstreams;
+    }
+
+    return workstreams.map((ws) => {
+      const containingPhase = timeline.phases.find((phase) => {
+        return ws.startMonth >= phase.startMonth && ws.endMonth <= phase.endMonth;
+      }) || timeline.phases.find((phase) => {
+        return ws.startMonth <= phase.endMonth && ws.endMonth >= phase.startMonth;
+      });
+
+      if (!containingPhase) {
+        return ws;
+      }
+
+      return {
+        ...ws,
+        phase: containingPhase.name,
+      };
+    });
   }
 
   /**

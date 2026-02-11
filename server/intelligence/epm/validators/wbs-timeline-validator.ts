@@ -66,24 +66,40 @@ export class WBSTimelineValidator extends BaseValidator {
     const issues: ValidatorIssue[] = [];
 
     for (const workstream of workstreams) {
-      const wsStart = new Date(workstream.startMonth);
-      const wsEnd = new Date(workstream.endMonth);
+      const wsStart = Number(workstream.startMonth);
+      const wsEnd = Number(workstream.endMonth);
+      if (!Number.isFinite(wsStart) || !Number.isFinite(wsEnd)) {
+        continue;
+      }
 
-      // Check if workstream falls within program timeline
-      if (timeline.startDate && timeline.endDate) {
-        const programStart = new Date(timeline.startDate);
-        const programEnd = new Date(timeline.endDate);
+      if (wsEnd < wsStart) {
+        issues.push(
+          this.createIssue(
+            'error',
+            'WBS_DATE_RANGE',
+            `Workstream "${workstream.name}" has endMonth before startMonth (${workstream.startMonth} to ${workstream.endMonth})`,
+            {
+              workstreamId: workstream.id,
+              field: 'startMonth,endMonth',
+              suggestion: 'Ensure workstream endMonth is not before startMonth',
+            }
+          )
+        );
+      }
 
-        if (wsStart < programStart || wsEnd > programEnd) {
+      // Check if workstream falls within program timeline (totalMonths)
+      const totalMonths = Number(timeline.totalMonths);
+      if (Number.isFinite(totalMonths) && totalMonths > 0) {
+        if (wsStart < 0 || wsEnd > totalMonths) {
           issues.push(
             this.createIssue(
               'error',
               'WBS_CONTAINMENT_PROGRAM',
-              `Workstream "${workstream.name}" (${workstream.startMonth} to ${workstream.endMonth}) falls outside program timeline (${timeline.startDate} to ${timeline.endDate})`,
+              `Workstream "${workstream.name}" (${workstream.startMonth} to ${workstream.endMonth}) falls outside program timeline (0 to ${totalMonths})`,
               {
                 workstreamId: workstream.id,
                 field: 'startMonth,endMonth',
-                suggestion: `Adjust workstream dates to fall within ${timeline.startDate} to ${timeline.endDate}`,
+                suggestion: `Adjust workstream dates to fall within 0 to ${totalMonths}`,
               }
             )
           );
@@ -94,9 +110,11 @@ export class WBSTimelineValidator extends BaseValidator {
       if (workstream.deliverables && Array.isArray(workstream.deliverables)) {
         for (const deliverable of workstream.deliverables) {
           if (deliverable.dueMonth !== undefined) {
-            const dueDate = new Date(deliverable.dueMonth);
-
-            if (dueDate < wsStart || dueDate > wsEnd) {
+            const dueMonth = Number(deliverable.dueMonth);
+            if (!Number.isFinite(dueMonth)) {
+              continue;
+            }
+            if (dueMonth < wsStart || dueMonth > wsEnd) {
               issues.push(
                 this.createIssue(
                   'error',
@@ -136,8 +154,15 @@ export class WBSTimelineValidator extends BaseValidator {
       dependencyGraph[workstream.id] = [];
 
       // Validate dependency references
-      if (workstream.dependencies && Array.isArray(workstream.dependencies)) {
-        for (const dep of workstream.dependencies) {
+      const rawDeps = (workstream as any).dependencies;
+      const normalizedDeps = Array.isArray(rawDeps)
+        ? rawDeps
+        : typeof rawDeps === 'string'
+          ? rawDeps.split(/[;,]/).map((d) => d.trim()).filter(Boolean)
+          : [];
+      if (normalizedDeps.length > 0) {
+        (workstream as any).dependencies = normalizedDeps;
+        for (const dep of normalizedDeps) {
           const depId = typeof dep === 'string' ? dep.trim() : dep;
 
           // Check if dependency exists
@@ -195,6 +220,26 @@ export class WBSTimelineValidator extends BaseValidator {
     }
 
     const phases = timeline.phases;
+    phases.forEach((phase: any) => {
+      const phaseStart = Number(phase.startMonth);
+      const phaseEnd = Number(phase.endMonth);
+      if (!Number.isFinite(phaseStart) || !Number.isFinite(phaseEnd)) {
+        return;
+      }
+      if (phaseEnd < phaseStart) {
+        issues.push(
+          this.createIssue(
+            'error',
+            'WBS_PHASE_RANGE',
+            `Phase "${phase.name}" has endMonth before startMonth (${phase.startMonth} to ${phase.endMonth})`,
+            {
+              field: 'timeline.phases',
+              suggestion: 'Ensure phase endMonth is not before startMonth',
+            }
+          )
+        );
+      }
+    });
 
     for (const workstream of workstreams) {
       const wsStart = workstream.startMonth;

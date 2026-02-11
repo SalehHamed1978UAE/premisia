@@ -514,7 +514,7 @@ export function buildEpmJsonPayload(
   const financialPlan = parseMaybeJson<any>(program.financialPlan);
   const kpis = parseMaybeJson<any>(program.kpis);
   const programId = program.id ?? context.exportMeta?.programId ?? null;
-  const constraints = context.strategyVersion
+  const constraintsFromVersion = context.strategyVersion
     ? {
         costMin: context.strategyVersion.costMin ?? null,
         costMax: context.strategyVersion.costMax ?? null,
@@ -524,6 +524,18 @@ export function buildEpmJsonPayload(
         inputSummary: context.strategyVersion.inputSummary ?? null,
       }
     : null;
+  const rawFallbackConstraints = (program as any).constraints ?? (epm as any).constraints ?? epm.metadata?.constraints ?? null;
+  const constraintsFromProgram = rawFallbackConstraints
+    ? {
+        costMin: rawFallbackConstraints.costMin ?? rawFallbackConstraints.budget?.min ?? null,
+        costMax: rawFallbackConstraints.costMax ?? rawFallbackConstraints.budget?.max ?? null,
+        teamSizeMin: rawFallbackConstraints.teamSizeMin ?? null,
+        teamSizeMax: rawFallbackConstraints.teamSizeMax ?? null,
+        timelineMonths: rawFallbackConstraints.timelineMonths ?? rawFallbackConstraints.timeline?.max ?? rawFallbackConstraints.timeline?.min ?? null,
+        inputSummary: context.strategyVersion?.inputSummary ?? null,
+      }
+    : null;
+  const constraints = constraintsFromVersion ?? constraintsFromProgram;
 
   const normalizedBenefitData = normalizeBenefits(deriveBenefitList(benefitsRealization));
   const normalizedBenefits = normalizedBenefitData.benefits;
