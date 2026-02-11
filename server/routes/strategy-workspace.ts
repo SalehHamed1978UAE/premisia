@@ -6,6 +6,7 @@ import { BMCAnalyzer, PortersAnalyzer, PESTLEAnalyzer, EPMSynthesizer, getAggreg
 import type { BMCResults, PortersResults, PESTLEResults } from '../intelligence/types';
 import { deriveTeamSizeFromBudget, extractUserConstraintsFromText } from '../intelligence/epm/constraint-utils';
 import { storage } from '../storage';
+import { getEPMProgram, getStrategicUnderstandingBySession } from '../services/secure-data-service';
 import { createOpenAIProvider } from '../../src/lib/intelligent-planning/llm-provider';
 import { backgroundJobService } from '../services/background-job-service';
 import { journeySummaryService } from '../services/journey-summary-service';
@@ -1350,7 +1351,53 @@ router.post('/epm/batch-export', async (req: Request, res: Response) => {
       .from(epmPrograms)
       .where(inArray(epmPrograms.id, ids));
 
-    res.json({ success: true, data: programs });
+    const enriched = await Promise.all(programs.map(async (program) => {
+      const decrypted = await getEPMProgram(program.id);
+      const version = await storage.getStrategyVersionById(program.strategyVersionId);
+      const understanding = version?.sessionId
+        ? await getStrategicUnderstandingBySession(version.sessionId)
+        : null;
+
+      let frameworkRows: any[] = [];
+      if (understanding?.id) {
+        const [journeySession] = await db
+          .select()
+          .from(journeySessions)
+          .where(eq(journeySessions.understandingId, understanding.id))
+          .orderBy(desc(journeySessions.createdAt))
+          .limit(1);
+
+        if (journeySession?.id) {
+          const bySession = await db
+            .select()
+            .from(frameworkInsights)
+            .where(eq(frameworkInsights.sessionId, journeySession.id));
+          frameworkRows = frameworkRows.concat(bySession);
+        }
+
+        const byUnderstanding = await db
+          .select()
+          .from(frameworkInsights)
+          .where(eq(frameworkInsights.understandingId, understanding.id));
+        if (byUnderstanding.length > 0) {
+          const seen = new Set(frameworkRows.map((row) => row.id));
+          byUnderstanding.forEach((row) => {
+            if (!seen.has(row.id)) frameworkRows.push(row);
+          });
+        }
+      }
+
+      return {
+        ...(decrypted || program),
+        analysis: {
+          strategyVersion: version || null,
+          understanding: understanding || null,
+          frameworkInsights: frameworkRows,
+        },
+      };
+    }));
+
+    res.json({ success: true, data: enriched });
   } catch (error: any) {
     console.error('Error batch exporting EPM programs:', error);
     res.status(500).json({ error: error.message || 'Failed to export EPM programs' });
