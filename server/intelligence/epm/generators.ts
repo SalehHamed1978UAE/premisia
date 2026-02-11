@@ -25,6 +25,7 @@ import type {
   RiskRegister,
   StageGates,
   BenefitsRealization,
+  Workstream,
   Benefit,
   Risk,
   ExecutiveSummary,
@@ -760,7 +761,7 @@ RULES:
  * Risk Register Generator
  */
 export class RiskGenerator {
-  async generate(insights: StrategyInsights): Promise<RiskRegister> {
+  async generate(insights: StrategyInsights, workstreams: Workstream[] = []): Promise<RiskRegister> {
     const riskInsights = insights.insights.filter(i => i.type === 'risk');
 
     const risks: Risk[] = riskInsights.map((insight, idx) => {
@@ -782,6 +783,11 @@ export class RiskGenerator {
       };
     });
 
+    const targetRiskCount = Math.max(5, Math.ceil(workstreams.length * 0.6));
+    if (workstreams.length > 0 && risks.length < targetRiskCount) {
+      risks.push(...this.buildWorkstreamRisks(workstreams, risks.length, targetRiskCount - risks.length));
+    }
+
     const topRisks = [...risks].sort((a, b) => b.severity - a.severity).slice(0, 5);
 
     return {
@@ -793,7 +799,11 @@ export class RiskGenerator {
   }
 
   private categorizeRisk(insight: StrategyInsight): string {
-    const lower = insight.content.toLowerCase();
+    return this.categorizeRiskContent(insight.content);
+  }
+
+  private categorizeRiskContent(content: string): string {
+    const lower = content.toLowerCase();
     if (lower.includes('technology') || lower.includes('technical') || lower.includes('system') || lower.includes('integration')) return 'Technical';
     if (lower.includes('market') || lower.includes('competitive') || lower.includes('competition') || lower.includes('demand')) return 'Market';
     if (lower.includes('resource') || lower.includes('team') || lower.includes('talent') || lower.includes('hiring')) return 'Resource';
@@ -801,6 +811,63 @@ export class RiskGenerator {
     if (lower.includes('cost') || lower.includes('budget') || lower.includes('financial') || lower.includes('economic')) return 'Financial';
     if (lower.includes('operations') || lower.includes('supply') || lower.includes('inventory') || lower.includes('logistics')) return 'Operational';
     return 'Strategic';
+  }
+
+  private buildWorkstreamRisks(workstreams: Workstream[], startIndex: number, targetCount: number): Risk[] {
+    const supplemental: Risk[] = [];
+    const seen = new Set<string>();
+
+    for (const workstream of workstreams) {
+      if (supplemental.length >= targetCount) break;
+      const key = (workstream.name || workstream.id).toLowerCase().trim();
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const category = this.categorizeRiskContent(`${workstream.name} ${workstream.description || ''}`);
+      const details = this.buildWorkstreamRiskDetails(workstream, category, supplemental.length);
+      const impactMultiplier = details.impact === 'Critical' ? 4 : details.impact === 'High' ? 3 : details.impact === 'Medium' ? 2 : 1;
+
+      supplemental.push({
+        id: `R${String(startIndex + supplemental.length + 1).padStart(3, '0')}`,
+        description: details.description,
+        category,
+        probability: details.probability,
+        impact: details.impact,
+        severity: Math.round(details.probability * impactMultiplier / 10),
+        mitigation: this.generateMitigation({ content: details.description } as StrategyInsight, category),
+        contingency: `Escalate to governance if probability exceeds ${Math.min(details.probability + 20, 90)}%`,
+        confidence: 0.65,
+      });
+    }
+
+    return supplemental;
+  }
+
+  private buildWorkstreamRiskDetails(
+    workstream: Workstream,
+    category: string,
+    idx: number
+  ): { description: string; probability: number; impact: 'Low' | 'Medium' | 'High' | 'Critical' } {
+    const baseName = workstream.name || `Workstream ${workstream.id}`;
+    const templates: Record<string, string> = {
+      Regulatory: `Compliance approvals or audit cycles may delay ${baseName}.`,
+      Financial: `Budget overruns could impact delivery of ${baseName}.`,
+      Technical: `Integration complexity may delay ${baseName} delivery.`,
+      Resource: `Resource constraints could slow ${baseName} execution.`,
+      Market: `Market response uncertainty could reduce impact of ${baseName}.`,
+      Operational: `Operational readiness gaps may delay ${baseName}.`,
+      Strategic: `Strategic misalignment could reduce the impact of ${baseName}.`,
+    };
+
+    const description = templates[category] || `Execution risk in ${baseName} due to dependencies and constraints.`;
+    const baseProbability = category === 'Regulatory' || category === 'Financial' || category === 'Technical' || category === 'Resource' ? 45
+      : category === 'Operational' || category === 'Market' ? 40
+      : 35;
+    const probability = Math.max(25, Math.min(70, baseProbability + (idx % 4) * 3));
+    const impact: 'Low' | 'Medium' | 'High' | 'Critical' =
+      category === 'Regulatory' || category === 'Financial' || category === 'Technical' ? 'High' : 'Medium';
+
+    return { description, probability, impact };
   }
 
   /**
@@ -1017,10 +1084,10 @@ export class KPIGenerator {
       
       return {
         id: `KPI${String(idx + 1).padStart(3, '0')}`,
-        name: this.generateKPIName(benefit.description),
+        name: this.generateKPIName(benefit),
         category: kpiCategory,
-        baseline: 'Current state',
-        target: benefit.estimatedValue ? `+${benefit.estimatedValue.toLocaleString()}` : this.generateMeasurableTarget(benefit),
+        baseline: this.generateBaseline(benefit),
+        target: benefit.target || (benefit.estimatedValue ? `+${benefit.estimatedValue.toLocaleString()}` : this.generateMeasurableTarget(benefit)),
         measurement: benefit.measurement,
         frequency: benefit.category === 'Financial' ? 'Monthly' as const : 'Quarterly' as const,
         linkedBenefitIds: [benefit.id],
@@ -1046,9 +1113,23 @@ export class KPIGenerator {
     };
   }
 
-  private generateKPIName(description: string): string {
-    const words = description.split(' ').slice(0, 4).join(' ');
-    return words.length > 40 ? words.substring(0, 37) + '...' : words;
+  private generateKPIName(benefit: Benefit): string {
+    const base = (benefit.name || benefit.description || 'KPI').trim();
+    const measurement = benefit.measurement?.trim();
+    if (!measurement) return base;
+    const measurementCore = measurement.split(/[;,.]/)[0]?.trim();
+    if (!measurementCore) return base;
+    const baseLower = base.toLowerCase();
+    if (baseLower.includes(measurementCore.toLowerCase())) return base;
+    return `${base} (${measurementCore})`;
+  }
+
+  private generateBaseline(benefit: Benefit): string {
+    const measurement = benefit.measurement?.trim();
+    if (measurement) {
+      return `Current ${measurement}`;
+    }
+    return 'Current baseline';
   }
 
   private generateMeasurableTarget(benefit: { description: string; category: string; measurement?: string }): string {

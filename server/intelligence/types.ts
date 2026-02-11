@@ -579,6 +579,10 @@ export interface UserContext {
     min: number;
     max: number;
   };
+  timelineRange?: {
+    min: number;
+    max: number;
+  };
   budgetFlexibility?: 'Fixed' | 'Flexible' | 'Very Flexible';
   riskTolerance?: 'Conservative' | 'Moderate' | 'Aggressive';
   teamAvailability?: {

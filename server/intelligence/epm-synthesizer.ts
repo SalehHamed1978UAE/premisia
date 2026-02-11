@@ -256,6 +256,10 @@ export class EPMSynthesizer {
 
     console.log(`[EPM Synthesis] ✓ Planning context: Scale=${planningContext.business.scale}, Timeline=${planningContext.execution.timeline.min}-${planningContext.execution.timeline.max}mo`);
 
+    // SPRINT 1: Parse user constraints from input (not decisions)
+    const userConstraints = this.parseUserConstraints(insights, planningContext);
+    const enrichedUserContext = this.applyUserConstraintsToContext(userContext, userConstraints);
+
     onProgress?.({
       type: 'step-start',
       step: 'intelligent-planning',
@@ -267,17 +271,21 @@ export class EPMSynthesizer {
     // The function expects an object with a .workstreams property, not a raw array
     const epmProgramInput = { workstreams };
 
+    const planningConfig = {
+      maxDuration: userConstraints.timeline?.max ?? planningContext.execution.timeline?.max,
+      budget: userConstraints.budget?.max ?? planningContext.execution.budget?.max,
+      teamSize: enrichedUserContext?.teamAvailability?.currentTeamSize,
+    };
+
     const planningResult = await replaceTimelineGeneration(
       epmProgramInput,
-      planningContext
+      planningContext,
+      planningConfig
     );
 
     // Extract strategic context for benefits generation
     const strategicContext = this.extractStrategicContext(insights, namingContext);
     console.log(`[EPM Synthesis] ✓ Strategic context: ${strategicContext.decisions.length} decisions, SWOT available: ${!!strategicContext.swotData}`);
-
-    // SPRINT 1: Parse user constraints from input (not decisions)
-    const userConstraints = this.parseUserConstraints(insights, planningContext);
 
     // SPRINT 1: Validate decisions against user constraints (integrity gate)
     const decisionValidation = this.validateDecisionsAgainstConstraints(strategicContext.decisions, userConstraints);
@@ -293,7 +301,7 @@ export class EPMSynthesizer {
         insights,
         scheduledWorkstreams,
         planningContext,
-        userContext,
+        enrichedUserContext,
         namingContext,
         strategicContext,
         decisionValidation,
@@ -334,7 +342,7 @@ export class EPMSynthesizer {
         insights,
         timedWorkstreams, // Use WBS Builder workstreams with default timings
         planningContext,
-        userContext,
+        enrichedUserContext,
         namingContext,
         strategicContext,
         decisionValidation,
@@ -454,6 +462,39 @@ export class EPMSynthesizer {
   ): { budget?: { min: number; max: number }; timeline?: { min: number; max: number } } {
     const rawUserInput = planningContext?.business?.description || '';
     return extractUserConstraintsFromText(rawUserInput, insights.marketContext?.budgetRange);
+  }
+
+  private applyUserConstraintsToContext(
+    userContext: UserContext | undefined,
+    userConstraints: { budget?: { min: number; max: number }; timeline?: { min: number; max: number } }
+  ): UserContext | undefined {
+    if (!userConstraints.budget && !userConstraints.timeline) {
+      return userContext;
+    }
+
+    const base: UserContext = {
+      ...(userContext || { timelineUrgency: 'Strategic' }),
+    };
+
+    if (!base.timelineUrgency) {
+      base.timelineUrgency = 'Strategic';
+    }
+
+    if (userConstraints.budget && !base.budgetRange) {
+      base.budgetRange = {
+        min: userConstraints.budget.min,
+        max: userConstraints.budget.max,
+      };
+    }
+
+    if (userConstraints.timeline && !base.timelineRange) {
+      base.timelineRange = {
+        min: userConstraints.timeline.min,
+        max: userConstraints.timeline.max,
+      };
+    }
+
+    return base;
   }
 
   /**
@@ -660,23 +701,7 @@ export class EPMSynthesizer {
       workstream.description = `${prefix}\n\n${workstream.description}`.trim();
     }
 
-    const decisionDeliverables: Deliverable[] = [
-      {
-        id: `${workstream.id}-DEC-1`,
-        name: `Decision execution plan: ${decisionTag}`,
-        description: `Define scope, milestones, and success criteria for ${decisionTag}.`,
-        dueMonth: workstream.startMonth,
-        effort: '10-20 person-days',
-      },
-      {
-        id: `${workstream.id}-DEC-2`,
-        name: `Resource and budget alignment for ${decisionTag}`,
-        description: `Align resources, budget, and ownership to execute ${decisionTag}.`,
-        dueMonth: workstream.startMonth,
-        effort: '10-20 person-days',
-      },
-    ];
-
+    const decisionDeliverables = this.buildDecisionDeliverables(seed, workstream.id, workstream.startMonth);
     workstream.deliverables = [...decisionDeliverables, ...workstream.deliverables];
     this.resequenceDeliverables(workstream);
 
@@ -716,43 +741,174 @@ export class EPMSynthesizer {
       planningContext.business.industry ? `Industry focus: ${planningContext.business.industry}.` : null,
     ].filter(Boolean).join(' ');
 
-    const deliverables: Deliverable[] = [
-      {
-        id: `WS${String(index).padStart(3, '0')}-D1`,
-        name: `Decision execution plan`,
-        description: `Plan milestones, success criteria, and governance for ${seed.optionLabel || seed.title}.`,
-        dueMonth: 1,
-        effort: '10-20 person-days',
-      },
-      {
-        id: `WS${String(index).padStart(3, '0')}-D2`,
-        name: `Implementation roadmap`,
-        description: `Define phased rollout, dependencies, and key deliverables for ${seed.optionLabel || seed.title}.`,
-        dueMonth: 2,
-        effort: '10-20 person-days',
-      },
-      {
-        id: `WS${String(index).padStart(3, '0')}-D3`,
-        name: `Resource alignment`,
-        description: `Align owners, staffing, and budget to deliver ${seed.optionLabel || seed.title}.`,
-        dueMonth: 3,
-        effort: '10-20 person-days',
-      },
-    ];
+    const workstreamId = `WS${String(index).padStart(3, '0')}`;
+    const startMonth = 1;
+    const deliverables = this.buildDecisionDeliverables(seed, workstreamId, startMonth);
+    const endMonth = deliverables.reduce((latest, item) => Math.max(latest, item.dueMonth), startMonth + 2);
 
     const workstream: Workstream = {
-      id: `WS${String(index).padStart(3, '0')}`,
+      id: workstreamId,
       name,
       description,
       deliverables,
-      startMonth: 1,
-      endMonth: 3,
+      startMonth,
+      endMonth,
       dependencies: [],
       confidence: 0.9,
     };
 
     this.resequenceDeliverables(workstream);
     return workstream;
+  }
+
+  private buildDecisionDeliverables(
+    seed: {
+      id: string;
+      title: string;
+      optionLabel: string;
+      optionDescription: string;
+      context: string;
+      impactAreas: string[];
+      seedText: string;
+    },
+    workstreamId: string,
+    startMonth: number
+  ): Deliverable[] {
+    const decisionTag = this.truncateText(seed.optionLabel || seed.title || 'Decision', 64);
+    const text = [
+      seed.title,
+      seed.optionLabel,
+      seed.optionDescription,
+      seed.context,
+      seed.seedText,
+      ...(seed.impactAreas || []),
+    ].filter(Boolean).join(' ').toLowerCase();
+
+    const deliverableTemplates: Array<{ name: string; description: string }> = [];
+    const addTemplates = (templates: Array<{ name: string; description: string }>) => {
+      templates.forEach(template => {
+        if (deliverableTemplates.length < 4) {
+          deliverableTemplates.push(template);
+        }
+      });
+    };
+
+    const pricingSignals = /price|pricing|roi|tier|package|value|margin|monetiz/.test(text);
+    const complianceSignals = /compliance|privacy|security|regulator|audit|gdpr|hipaa|sox|risk/.test(text);
+    const gtmSignals = /go-to-market|gtm|marketing|sales|channel|demand|lead|segment|positioning|brand/.test(text);
+    const techSignals = /platform|architecture|integration|data|ai|ml|model|infrastructure|scalab/.test(text);
+    const opsSignals = /operations|process|workflow|delivery|execution|service|support/.test(text);
+    const talentSignals = /talent|hiring|recruit|onboard|training|people|hr|workforce/.test(text);
+
+    if (pricingSignals) {
+      addTemplates([
+        {
+          name: `${decisionTag}: Pricing model definition`,
+          description: `Define pricing logic, tiers, and value anchors for ${decisionTag}.`,
+        },
+        {
+          name: `${decisionTag}: Packaging & tiering design`,
+          description: `Map features to packages and validate unit economics for ${decisionTag}.`,
+        },
+        {
+          name: `${decisionTag}: ROI narrative & validation`,
+          description: `Build ROI assumptions, proof points, and validation plan for ${decisionTag}.`,
+        },
+      ]);
+    }
+
+    if (complianceSignals) {
+      addTemplates([
+        {
+          name: `${decisionTag}: Regulatory requirements matrix`,
+          description: `Document compliance requirements, controls, and evidence for ${decisionTag}.`,
+        },
+        {
+          name: `${decisionTag}: Privacy impact assessment`,
+          description: `Assess data handling risks and privacy obligations for ${decisionTag}.`,
+        },
+        {
+          name: `${decisionTag}: Audit readiness checklist`,
+          description: `Define audit artifacts, owners, and timelines for ${decisionTag}.`,
+        },
+      ]);
+    }
+
+    if (gtmSignals) {
+      addTemplates([
+        {
+          name: `${decisionTag}: ICP & segment definition`,
+          description: `Define target segments, ICP attributes, and qualification criteria for ${decisionTag}.`,
+        },
+        {
+          name: `${decisionTag}: Positioning & messaging`,
+          description: `Craft positioning, proof points, and messaging for ${decisionTag}.`,
+        },
+        {
+          name: `${decisionTag}: Channel & launch plan`,
+          description: `Define channels, launch sequencing, and enablement for ${decisionTag}.`,
+        },
+      ]);
+    }
+
+    if (techSignals || opsSignals) {
+      addTemplates([
+        {
+          name: `${decisionTag}: Architecture & integration plan`,
+          description: `Define system boundaries, integrations, and delivery approach for ${decisionTag}.`,
+        },
+        {
+          name: `${decisionTag}: Data & infrastructure requirements`,
+          description: `Specify data sources, infrastructure needs, and scalability requirements for ${decisionTag}.`,
+        },
+        {
+          name: `${decisionTag}: Delivery milestones & dependencies`,
+          description: `Sequence milestones, dependencies, and acceptance criteria for ${decisionTag}.`,
+        },
+      ]);
+    }
+
+    if (talentSignals) {
+      addTemplates([
+        {
+          name: `${decisionTag}: Role profiles & hiring plan`,
+          description: `Define critical roles, hiring sequence, and ownership for ${decisionTag}.`,
+        },
+        {
+          name: `${decisionTag}: Onboarding & training playbook`,
+          description: `Create onboarding, training, and enablement plan for ${decisionTag}.`,
+        },
+        {
+          name: `${decisionTag}: Change management plan`,
+          description: `Plan adoption, communications, and change management for ${decisionTag}.`,
+        },
+      ]);
+    }
+
+    if (deliverableTemplates.length === 0) {
+      addTemplates([
+        {
+          name: `${decisionTag}: Scope & success criteria`,
+          description: `Define scope, success metrics, and governance for ${decisionTag}.`,
+        },
+        {
+          name: `${decisionTag}: Dependencies & risk controls`,
+          description: `Identify dependencies, risks, and mitigation actions for ${decisionTag}.`,
+        },
+        {
+          name: `${decisionTag}: Ownership & budget alignment`,
+          description: `Align owners, budget, and resources required for ${decisionTag}.`,
+        },
+      ]);
+    }
+
+    return deliverableTemplates.map((template, idx) => ({
+      id: `${workstreamId}-DEC-${idx + 1}`,
+      name: template.name,
+      description: template.description,
+      dueMonth: startMonth + idx,
+      effort: '10-20 person-days',
+    }));
   }
 
   private findBestWorkstreamMatch(
@@ -1066,7 +1222,7 @@ export class EPMSynthesizer {
       qaPlan,
     ] = await Promise.all([
       this.executiveSummaryGenerator.generate(insights, programName),
-      this.riskGenerator.generate(insights),
+      this.riskGenerator.generate(insights, alignedWorkstreams),
       this.stakeholderGenerator.generate(insights),
       this.qaPlanGenerator.generate(insights),
     ]);
@@ -1311,7 +1467,7 @@ export class EPMSynthesizer {
       qaPlan,
     ] = await Promise.all([
       this.executiveSummaryGenerator.generate(insights, programName),
-      this.riskGenerator.generate(insights),
+      this.riskGenerator.generate(insights, workstreams),
       this.stakeholderGenerator.generate(insights),
       this.qaPlanGenerator.generate(insights),
     ]);

@@ -41,7 +41,18 @@ export class TimelineCalculator implements ITimelineCalculator {
     // Use actual workstream duration if available, otherwise fall back to baseMonths
     // Add buffer for stabilization phase (at least 1 month after last workstream)
     const effectiveDuration = maxWorkstreamEnd > 0 ? maxWorkstreamEnd + 1 : baseMonths;
-    const totalMonths = Math.max(effectiveDuration, 3); // Minimum 3 months for meaningful phases
+    const constraintMax = userContext?.timelineRange?.max;
+    const totalMonths = Math.max(
+      Math.min(constraintMax || effectiveDuration, effectiveDuration),
+      3
+    ); // Minimum 3 months for meaningful phases
+
+    if (constraintMax && effectiveDuration > constraintMax) {
+      console.warn(
+        `[TimelineCalculator] ⚠️ User timeline constraint (${constraintMax}mo) is shorter than computed duration (${effectiveDuration}mo). ` +
+        `Timeline constrained to ${totalMonths} months.`
+      );
+    }
     
     console.log(`[TimelineCalculator] 📊 Timeline calculation:`);
     console.log(`  - Workstream count: ${workstreams.length}`);
