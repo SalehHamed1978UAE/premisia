@@ -17,12 +17,63 @@ export interface AmbiguityDetectionResult {
   reasoning?: string;
 }
 
+export interface ClarificationConflictResult {
+  clarifiedInput: string;
+  conflicts: string[];
+}
+
 /**
  * Ambiguity Detector Service
  * 
  * Detects ambiguous business inputs and generates clarifying questions
  */
 export class AmbiguityDetectorService {
+  private readonly CLARIFICATION_PLACEHOLDERS = new Set([
+    'primary sales channel',
+    'sales channel',
+    'offering type',
+    'company stage',
+    'gtm constraints',
+    'go to market constraints',
+    'budget range',
+    'timeline',
+    'target timeline',
+    'team size',
+    'deployment model',
+    'data residency',
+    'privacy level',
+    'pricing model',
+    'roi target',
+    'success metrics',
+    'target segment',
+    'customer segment',
+    'customer type',
+    'market segment',
+  ]);
+
+  private readonly CLARIFICATION_CONFLICT_RULES = [
+    {
+      label: 'Deployment model',
+      groups: [
+        { id: 'cloud_only', keywords: ['cloud-only', 'cloud only', 'saas only', 'hosted only', 'cloud hosted'] },
+        { id: 'self_hosted', keywords: ['company-owned', 'on-prem', 'on premise', 'self-hosted', 'private cloud', 'in-house'] },
+      ],
+    },
+    {
+      label: 'Automation model',
+      groups: [
+        { id: 'alerts_only', keywords: ['alerts-only', 'alerts only', 'monitoring only'] },
+        { id: 'automated_actions', keywords: ['automated actions', 'automatic actions', 'automated interventions', 'auto-remediation', 'autonomous actions'] },
+      ],
+    },
+    {
+      label: 'Sales motion',
+      groups: [
+        { id: 'channel_partners', keywords: ['channel partners', 'partner channel', 'resellers', 'channel sales'] },
+        { id: 'direct_sales', keywords: ['direct sales only', 'direct sales', 'sales only', 'no channel'] },
+      ],
+    },
+  ];
 
   /**
    * Common ambiguity patterns to watch for
@@ -202,6 +253,129 @@ If NO critical ambiguities found, return:
 
 CLARIFICATIONS:
 ${clarificationText}`;
+  }
+
+  buildClarifiedInputWithConflicts(
+    originalInput: string,
+    clarifications: Record<string, string>
+  ): ClarificationConflictResult {
+    const baseInput = this.stripClarificationBlocks(originalInput);
+    const clarificationLines = this.extractClarificationLines(clarifications);
+    const conflicts = this.detectClarificationConflicts(clarificationLines);
+
+    if (clarificationLines.length === 0) {
+      return { clarifiedInput: baseInput, conflicts };
+    }
+
+    let clarifiedInput = `${baseInput}
+
+CLARIFICATIONS:
+${clarificationLines.map((line) => `- ${line}`).join('\n')}`;
+
+    if (conflicts.length > 0) {
+      clarifiedInput = `${clarifiedInput}
+
+CLARIFICATION_CONFLICTS:
+${conflicts.map((line) => `- ${line}`).join('\n')}`;
+    }
+
+    return { clarifiedInput, conflicts };
+  }
+
+  private extractClarificationLines(clarifications: Record<string, string>): string[] {
+    return Object.values(clarifications)
+      .map((value) => (value ?? '').toString().trim())
+      .filter((value) => value.length > 0);
+  }
+
+  private detectClarificationConflicts(lines: string[]): string[] {
+    const conflicts: string[] = [];
+    const normalizedLines = lines.map((line) => this.normalizeForMatch(line));
+
+    lines.forEach((line) => {
+      if (this.isPlaceholderClarification(line)) {
+        conflicts.push(`Placeholder clarification: "${line}"`);
+      }
+    });
+
+    this.CLARIFICATION_CONFLICT_RULES.forEach((rule) => {
+      const matched: Record<string, string[]> = {};
+      rule.groups.forEach((group) => {
+        const matches = lines.filter((line, idx) =>
+          group.keywords.some((keyword) => normalizedLines[idx].includes(this.normalizeForMatch(keyword)))
+        );
+        if (matches.length > 0) {
+          matched[group.id] = matches;
+        }
+      });
+
+      const matchedGroups = Object.values(matched);
+      if (matchedGroups.length > 1) {
+        const summary = matchedGroups
+          .map((groupLines) => groupLines.join('; '))
+          .join(' vs ');
+        conflicts.push(`${rule.label} conflict: ${summary}`);
+      }
+    });
+
+    return conflicts;
+  }
+
+  private isPlaceholderClarification(line: string): boolean {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      return true;
+    }
+
+    const normalized = this.normalizeForMatch(trimmed);
+    if (this.CLARIFICATION_PLACEHOLDERS.has(normalized)) {
+      return true;
+    }
+
+    if (/^(tbd|tbc|unknown|unspecified|not specified|n\/a|na)$/i.test(trimmed)) {
+      return true;
+    }
+
+    const colonIndex = trimmed.indexOf(':');
+    if (colonIndex >= 0 && trimmed.slice(colonIndex + 1).trim().length === 0) {
+      return true;
+    }
+
+    const wordCount = normalized.split(' ').filter(Boolean).length;
+    if (wordCount <= 3 && normalized.includes('channel')) {
+      return true;
+    }
+
+    return false;
+  }
+
+  private normalizeForMatch(value: string): string {
+    return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+
+  private stripClarificationBlocks(input: string): string {
+    const lines = input.split('\n');
+    const kept: string[] = [];
+    let skipping = false;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (/^clarifications?:/i.test(trimmed) || /^clarification_conflicts?:/i.test(trimmed)) {
+        skipping = true;
+        continue;
+      }
+
+      if (skipping) {
+        if (trimmed === '' || /^\s*-\s+/.test(trimmed)) {
+          continue;
+        }
+        skipping = false;
+      }
+
+      kept.push(line);
+    }
+
+    return kept.join('\n').trim();
   }
 }
 

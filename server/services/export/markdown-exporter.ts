@@ -123,30 +123,43 @@ export function generateFiveWhysTreeMarkdown(tree: any, whysPath?: any[]): strin
 }
 
 export function generateClarificationsMarkdown(clarifications: any): string {
-  if (!clarifications || !clarifications.questions || clarifications.questions.length === 0) {
+  const hasQuestions = Array.isArray(clarifications?.questions) && clarifications.questions.length > 0;
+  const hasConflicts = Array.isArray(clarifications?.conflicts) && clarifications.conflicts.length > 0;
+
+  if (!clarifications || (!hasQuestions && !hasConflicts)) {
     return '';
   }
   
   const lines: string[] = [];
   lines.push('## Strategic Input Clarifications\n');
-  lines.push('During initial analysis, you provided the following clarifications:\n');
+  if (hasQuestions) {
+    lines.push('During initial analysis, you provided the following clarifications:\n');
   
-  clarifications.questions.forEach((q: any) => {
-    lines.push(`**${q.question}**\n`);
-    
-    if (q.options && Array.isArray(q.options)) {
-      q.options.forEach((option: any) => {
-        const isChosen = clarifications.answers && clarifications.answers[q.id] === option.value;
-        const chosenMarker = isChosen ? ' ✓ (You chose this)' : '';
-        lines.push(`- **${option.label}**${chosenMarker}`);
-        if (option.description) {
-          lines.push(`  - ${option.description}`);
-        }
-      });
-    }
-    
+    clarifications.questions.forEach((q: any) => {
+      lines.push(`**${q.question}**\n`);
+      
+      if (q.options && Array.isArray(q.options)) {
+        q.options.forEach((option: any) => {
+          const isChosen = clarifications.answers && clarifications.answers[q.id] === option.value;
+          const chosenMarker = isChosen ? ' ✓ (You chose this)' : '';
+          lines.push(`- **${option.label}**${chosenMarker}`);
+          if (option.description) {
+            lines.push(`  - ${option.description}`);
+          }
+        });
+      }
+      
+      lines.push('');
+    });
+  }
+
+  if (hasConflicts) {
+    lines.push('### Clarification Conflicts\n');
+    clarifications.conflicts.forEach((conflict: string) => {
+      lines.push(`- ${conflict}`);
+    });
     lines.push('');
-  });
+  }
   
   lines.push('\n---\n');
   return lines.join('\n');

@@ -50,6 +50,7 @@ const marketResearcher = new MarketResearcher();
 const frameworkSelector = new FrameworkSelector();
 const bmcResearcher = new BMCResearcher();
 const journeyOrchestrator = new JourneyOrchestrator();
+const shouldBlockClarificationConflicts = () => process.env.CLARIFICATION_CONFLICTS_BLOCK === 'true';
 
 /**
  * POST /api/strategic-consultant/extract-file
@@ -312,10 +313,19 @@ router.post('/understanding', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Input text is required' });
     }
 
-    // If clarifications provided, incorporate them into the input
-    const finalInput = clarifications
-      ? ambiguityDetector.buildClarifiedInput(input.trim(), clarifications)
-      : input.trim();
+    // If clarifications provided, incorporate them into the input + detect conflicts
+    const clarificationResult = clarifications
+      ? ambiguityDetector.buildClarifiedInputWithConflicts(input.trim(), clarifications)
+      : { clarifiedInput: input.trim(), conflicts: [] };
+
+    if (clarificationResult.conflicts.length > 0 && shouldBlockClarificationConflicts()) {
+      return res.status(409).json({
+        error: 'Clarification conflicts detected',
+        conflicts: clarificationResult.conflicts,
+      });
+    }
+
+    const finalInput = clarificationResult.clarifiedInput;
 
     const sessionId = `session-${Date.now()}-${Math.random().toString(36).substring(7)}`;
     
@@ -338,6 +348,33 @@ router.post('/understanding', async (req: Request, res: Response) => {
       userInput: finalInput,
       companyContext: null,
     });
+
+    if (clarificationResult.conflicts.length > 0) {
+      const [existingMeta] = await db.select({ strategyMetadata: strategicUnderstanding.strategyMetadata })
+        .from(strategicUnderstanding)
+        .where(eq(strategicUnderstanding.id, result.understandingId))
+        .limit(1);
+
+      const baseMetadata = (existingMeta?.strategyMetadata && typeof existingMeta.strategyMetadata === 'object')
+        ? existingMeta.strategyMetadata as Record<string, any>
+        : {};
+
+      const updatedMetadata = {
+        ...baseMetadata,
+        clarificationConflicts: clarificationResult.conflicts,
+        requiresApproval: {
+          ...(baseMetadata.requiresApproval || {}),
+          clarifications: true,
+        },
+      };
+
+      await db.update(strategicUnderstanding)
+        .set({
+          strategyMetadata: updatedMetadata,
+          updatedAt: new Date(),
+        })
+        .where(eq(strategicUnderstanding.id, result.understandingId));
+    }
 
     console.log(`[Understanding] Analysis complete - extracted ${result.entities.length} entities`);
     
