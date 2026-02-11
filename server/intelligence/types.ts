@@ -77,6 +77,7 @@ export interface Timeline {
   phases: TimelinePhase[];
   criticalPath: string[];
   confidence: number;
+  timelineViolation: boolean;
 }
 
 export interface ResourceAllocation {
@@ -576,6 +577,10 @@ export interface ValidationReport {
 export interface UserContext {
   timelineUrgency: 'ASAP' | 'Strategic' | 'Exploratory';
   budgetRange?: {
+    min: number;
+    max: number;
+  };
+  timelineRange?: {
     min: number;
     max: number;
   };

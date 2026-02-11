@@ -39,28 +39,71 @@ export class TimelineCalculator implements ITimelineCalculator {
     }
 
     // Use actual workstream duration if available, otherwise fall back to baseMonths
-    // Add buffer for stabilization phase (at least 1 month after last workstream)
     const effectiveDuration = maxWorkstreamEnd > 0 ? maxWorkstreamEnd + 1 : baseMonths;
     const constraintMax = userContext?.timelineRange?.max;
-    const totalMonths = Math.max(
-      Math.min(constraintMax || effectiveDuration, effectiveDuration),
-      3
-    ); // Minimum 3 months for meaningful phases
 
-    if (constraintMax && effectiveDuration > constraintMax) {
-      console.warn(
-        `[TimelineCalculator] ⚠️ User timeline constraint (${constraintMax}mo) is shorter than computed duration (${effectiveDuration}mo). ` +
-        `Timeline constrained to ${totalMonths} months.`
-      );
+    let totalMonths: number;
+    let timelineViolation: boolean;
+    let phases: TimelinePhase[];
+
+    if (constraintMax) {
+      console.log(`[Timeline] Effective: ${effectiveDuration}mo, Constraint: ${constraintMax}mo`);
+
+      if (effectiveDuration < constraintMax) {
+        // CASE A: Constraint exceeds effective duration - add stabilization phase
+        const workPhases = this.generatePhases(effectiveDuration, workstreams);
+        const stabilizationPhase: TimelinePhase = {
+          phase: workPhases.length + 1,
+          name: 'Stabilization & Buffer',
+          startMonth: effectiveDuration,
+          endMonth: constraintMax,
+          description: 'Testing, stabilization, risk mitigation, and buffer period',
+          keyMilestones: [
+            'Production readiness validation',
+            'Stakeholder acceptance',
+            'Program completion',
+          ],
+          workstreamIds: [],
+        };
+
+        phases = [...workPhases, stabilizationPhase];
+        totalMonths = constraintMax;
+        timelineViolation = false;
+
+        console.log(`[Timeline] Extended to ${constraintMax}mo with stabilization phase (months ${effectiveDuration}-${constraintMax})`);
+      } else if (effectiveDuration > constraintMax) {
+        // CASE B: Violation - workstreams need more time than constraint allows
+        phases = this.generatePhases(effectiveDuration, workstreams);
+        totalMonths = constraintMax; // Cap at constraint
+        timelineViolation = true;
+
+        console.log(`[Timeline] Violation: Workstreams need ${effectiveDuration}mo but constraint is ${constraintMax}mo`);
+      } else {
+        // CASE C: Exact match - no buffer needed
+        phases = this.generatePhases(effectiveDuration, workstreams);
+        totalMonths = constraintMax;
+        timelineViolation = false;
+
+        console.log(`[Timeline] Exact match at ${constraintMax}mo`);
+      }
+
+      console.log(`[Timeline] Final: ${totalMonths}mo`);
+    } else {
+      // No constraint - use effective duration (preserve existing behavior)
+      totalMonths = Math.max(effectiveDuration, 3); // Minimum 3 months for meaningful phases
+      phases = this.generatePhases(totalMonths, workstreams);
+      timelineViolation = false;
     }
-    
+
     console.log(`[TimelineCalculator] 📊 Timeline calculation:`);
     console.log(`  - Workstream count: ${workstreams.length}`);
     console.log(`  - Max workstream end: M${maxWorkstreamEnd}`);
     console.log(`  - Base months (from urgency): ${baseMonths}`);
     console.log(`  - Effective duration: ${effectiveDuration}`);
+    console.log(`  - Constraint: ${constraintMax || 'none'}`);
     console.log(`  - Total months: ${totalMonths}`);
-    
+    console.log(`  - Timeline violation: ${timelineViolation}`);
+
     if (deadlineMonths < totalMonths && userContext?.hardDeadlines) {
       console.warn(
         `[TimelineCalculator] Hard deadline at M${deadlineMonths} exceeded by corrected schedule (M${totalMonths}). ` +
@@ -68,7 +111,6 @@ export class TimelineCalculator implements ITimelineCalculator {
       );
     }
 
-    const phases = this.generatePhases(totalMonths, workstreams);
     const criticalPath = this.identifyCriticalPath(workstreams);
 
     return {
@@ -76,6 +118,7 @@ export class TimelineCalculator implements ITimelineCalculator {
       phases,
       criticalPath,
       confidence: timelineInsight?.confidence || 0.65,
+      timelineViolation,
     };
   }
 

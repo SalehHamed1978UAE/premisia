@@ -1377,7 +1377,31 @@ export class EPMSynthesizer {
       ...(decisionValidation?.violations || []),
       ...conflictViolations,
     ];
-    const needsApproval = (decisionValidation?.needsApproval ?? false) || conflictViolations.length > 0;
+
+    // SPRINT 1 Phase 1: Budget calculation violations
+    let hasBudgetViolation = (decisionValidation?.violations || []).some(v => v.includes('budget'));
+    if (financialPlan?.budgetViolation) {
+      const bv = financialPlan.budgetViolation;
+      const budgetMsg = `Calculated costs ($${(bv.calculatedCost / 1_000_000).toFixed(1)}M) exceed user budget constraint ($${(bv.userConstraint / 1_000_000).toFixed(1)}M) by ${bv.exceedsPercentage.toFixed(1)}%`;
+      combinedViolations.push(budgetMsg);
+      hasBudgetViolation = true;
+    }
+
+    // SPRINT 1 Phase 2: Timeline calculation violations
+    let hasTimelineViolation = (decisionValidation?.violations || []).some(v => v.includes('month'));
+    if (timeline?.timelineViolation) {
+      const timelineMsg = `Timeline constraint cannot accommodate required workstream duration`;
+      combinedViolations.push(timelineMsg);
+      hasTimelineViolation = true;
+    }
+
+    const uniqueViolations = Array.from(new Set(combinedViolations));
+    const needsApproval = (decisionValidation?.needsApproval ?? false) ||
+      conflictViolations.length > 0 ||
+      hasBudgetViolation ||
+      hasTimelineViolation;
+
+    console.log(`[Approval] Budget=${hasBudgetViolation}, Timeline=${hasTimelineViolation}, Clarifications=${conflictViolations.length > 0}`);
 
     const program: EPMProgram = {
       id: `EPM-${Date.now()}`,
@@ -1386,7 +1410,7 @@ export class EPMSynthesizer {
       sourceInsightsCount: insights.insights.length,
       overallConfidence,
       validationReport,
-      
+
       executiveSummary,
       workstreams: phasedWorkstreams,
       timeline,
@@ -1404,12 +1428,12 @@ export class EPMSynthesizer {
 
       extractionRationale: this.generateExtractionRationale(insights, userContext),
 
-      // SPRINT 1: Add requiresApproval flag if decisions exceed user constraints or clarifications conflict
+      // SPRINT 1: Add requiresApproval flag if constraints violated
       requiresApproval: needsApproval ? {
-        budget: (decisionValidation?.violations || []).some(v => v.includes('budget')),
-        timeline: (decisionValidation?.violations || []).some(v => v.includes('month')),
+        budget: hasBudgetViolation,
+        timeline: hasTimelineViolation,
         clarifications: conflictViolations.length > 0,
-        violations: combinedViolations,
+        violations: uniqueViolations,
       } : undefined,
       constraints: userConstraints,
     };
@@ -1418,8 +1442,8 @@ export class EPMSynthesizer {
     console.log(`[EPM Synthesis]   Overall confidence: ${(overallConfidence * 100).toFixed(1)}%`);
 
     if (program.requiresApproval) {
-      console.warn('[EPM Synthesis] ⚠️  REQUIRES USER APPROVAL: Decisions exceed user constraints');
-      console.warn(`[EPM Synthesis]   Violations: ${program.requiresApproval.violations.join('; ')}`);
+      console.warn('[EPM Synthesis] ⚠️  REQUIRES USER APPROVAL: Constraint violations detected');
+      console.log(`[Approval] Violations: ${JSON.stringify(program.requiresApproval.violations, null, 2)}`);
     }
     
     return program;
