@@ -12,9 +12,15 @@ export function extractUserConstraintsFromText(
 
   console.log('[Constraints] Parsing USER constraints from input...');
 
+  const timelineContextPattern =
+    /(?:timeline|runway|over|within|for\s+first)[^\n]{0,60}?(\d+)(?:\s*(?:-|to)\s*(\d+))?\s*(months?|mo|years?|yrs?|quarters?|qtrs?)/i;
+  const timelineContextMatch = input.match(timelineContextPattern);
+  const timelineInput = timelineContextMatch?.[0];
+
   const budgetContextPattern =
     /(?:budget|funding|investment|spend|allocation|runway)[^$\n]{0,60}\$?\d+(?:\.\d+)?\s*(?:million|m|mil|k|thousand)?(?:\s*(?:-|to)\s*\$?\d+(?:\.\d+)?\s*(?:million|m|mil|k|thousand)?)?/i;
-  const budgetContextMatch = input.match(budgetContextPattern);
+  const budgetSearchInput = timelineInput ? input.replace(timelineInput, '') : input;
+  const budgetContextMatch = budgetSearchInput.match(budgetContextPattern);
   const budgetInput = budgetContextMatch?.[0] || fallbackBudget;
 
   if (budgetInput) {
@@ -32,8 +38,8 @@ export function extractUserConstraintsFromText(
         budgetMatch.index || 0,
         (budgetMatch.index || 0) + budgetMatch[0].length
       );
-      const isMillions = unitSegment.includes('million') || unitSegment.includes('m');
-      const isThousands = unitSegment.includes('k') || unitSegment.includes('thousand');
+      const isMillions = /\b(million|mil|m)\b/.test(unitSegment);
+      const isThousands = /\b(k|thousand)\b/.test(unitSegment);
 
       if (isMillions) {
         minBudget *= 1_000_000;
@@ -51,11 +57,6 @@ export function extractUserConstraintsFromText(
   } else {
     console.log('[Constraints] No budget constraint in user input');
   }
-
-  const timelineContextPattern =
-    /(?:timeline|runway|over|within|for\s+first)[^\n]{0,60}?(\d+)(?:\s*(?:-|to)\s*(\d+))?\s*(months?|mo|years?|yrs?|quarters?|qtrs?)/i;
-  const timelineContextMatch = input.match(timelineContextPattern);
-  const timelineInput = timelineContextMatch?.[0];
 
   if (timelineInput) {
     console.log(`[Constraints] Found user timeline input: "${timelineInput}"`);
