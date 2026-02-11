@@ -1004,7 +1004,14 @@ export class EPMSynthesizer {
     const timeline = await this.timelineCalculator.calculate(insights, alignedWorkstreams, userContext);
     console.log(`[EPM Synthesis] ✓ Timeline: ${timeline.totalMonths} months, ${timeline.phases.length} phases`);
 
-    const phasedWorkstreams = this.assignWorkstreamPhases(alignedWorkstreams, timeline);
+    // Sprint 1: Deduplicate workstreams before phase assignment
+    const deduplicatedWorkstreams = this.deduplicateWorkstreams(alignedWorkstreams);
+    if (deduplicatedWorkstreams.length !== alignedWorkstreams.length) {
+      console.log(`[EPM Synthesis] ✓ Deduplication: ${alignedWorkstreams.length} → ${deduplicatedWorkstreams.length} workstreams`);
+    }
+
+    // Sprint 1: Assign phases with containment enforcement
+    const phasedWorkstreams = this.assignWorkstreamPhases(deduplicatedWorkstreams, timeline);
     
     onProgress?.({
       type: 'step-start',
@@ -1406,25 +1413,114 @@ export class EPMSynthesizer {
     };
   }
 
+  /**
+   * Sprint 1: Deduplicate workstreams by name and timeline hash
+   * Removes duplicate workstreams that have identical name, startMonth, and endMonth
+   */
+  private deduplicateWorkstreams(workstreams: Workstream[]): Workstream[] {
+    const seen = new Map<string, Workstream>();
+    const duplicates: string[] = [];
+
+    for (const ws of workstreams) {
+      // Create hash key from name + timeline
+      const key = `${ws.name.trim().toLowerCase()}:${ws.startMonth}:${ws.endMonth}`;
+
+      if (seen.has(key)) {
+        duplicates.push(`"${ws.name}" (M${ws.startMonth}-M${ws.endMonth})`);
+        console.warn(`[EPM Synthesis] ⚠️ Duplicate workstream detected: ${ws.name} (${ws.startMonth}-${ws.endMonth}), skipping duplicate`);
+        continue;
+      }
+
+      seen.set(key, ws);
+    }
+
+    const deduplicated = Array.from(seen.values());
+
+    if (duplicates.length > 0) {
+      console.log(`[EPM Synthesis] 🔧 Deduplication removed ${duplicates.length} duplicate workstream(s):`);
+      duplicates.forEach(dup => console.log(`  - ${dup}`));
+    }
+
+    return deduplicated;
+  }
+
+  /**
+   * Sprint 1: Assign workstreams to phases with preventive containment enforcement
+   * Ensures workstream dates are constrained to fit within phase boundaries
+   */
   private assignWorkstreamPhases(workstreams: Workstream[], timeline: Timeline): Workstream[] {
     if (!timeline?.phases || timeline.phases.length === 0) {
       return workstreams;
     }
 
     return workstreams.map((ws) => {
-      const containingPhase = timeline.phases.find((phase) => {
+      // First, try to find a phase that FULLY CONTAINS the workstream
+      let containingPhase = timeline.phases.find((phase) => {
         return ws.startMonth >= phase.startMonth && ws.endMonth <= phase.endMonth;
-      }) || timeline.phases.find((phase) => {
-        return ws.startMonth <= phase.endMonth && ws.endMonth >= phase.startMonth;
       });
 
+      // If no containing phase, find the phase with maximum overlap
       if (!containingPhase) {
+        let maxOverlap = 0;
+        for (const phase of timeline.phases) {
+          // Calculate overlap duration
+          const overlapStart = Math.max(ws.startMonth, phase.startMonth);
+          const overlapEnd = Math.min(ws.endMonth, phase.endMonth);
+          const overlap = Math.max(0, overlapEnd - overlapStart);
+
+          if (overlap > maxOverlap) {
+            maxOverlap = overlap;
+            containingPhase = phase;
+          }
+        }
+      }
+
+      if (!containingPhase) {
+        console.warn(`[EPM Synthesis] ⚠️ Workstream "${ws.name}" (M${ws.startMonth}-M${ws.endMonth}) could not be assigned to any phase`);
         return ws;
+      }
+
+      // Sprint 1: ENFORCE CONTAINMENT - constrain workstream dates to phase boundaries
+      let adjustedStart = ws.startMonth;
+      let adjustedEnd = ws.endMonth;
+      let wasAdjusted = false;
+
+      if (ws.startMonth < containingPhase.startMonth) {
+        adjustedStart = containingPhase.startMonth;
+        wasAdjusted = true;
+        console.log(`[EPM Synthesis] 🔧 Constrained workstream "${ws.name}" start: M${ws.startMonth} → M${adjustedStart} (phase boundary)`);
+      }
+
+      if (ws.endMonth > containingPhase.endMonth) {
+        adjustedEnd = containingPhase.endMonth;
+        wasAdjusted = true;
+        console.log(`[EPM Synthesis] 🔧 Constrained workstream "${ws.name}" end: M${ws.endMonth} → M${adjustedEnd} (phase boundary)`);
+      }
+
+      // Adjust deliverable dates to fit within constrained workstream
+      let adjustedDeliverables = ws.deliverables;
+      if (wasAdjusted && ws.deliverables) {
+        adjustedDeliverables = ws.deliverables.map((del) => {
+          if (del.dueMonth !== undefined) {
+            const constrainedDueMonth = Math.max(adjustedStart, Math.min(adjustedEnd, del.dueMonth));
+            if (constrainedDueMonth !== del.dueMonth) {
+              console.log(`[EPM Synthesis] 🔧 Adjusted deliverable "${del.name}" due: M${del.dueMonth} → M${constrainedDueMonth}`);
+            }
+            return {
+              ...del,
+              dueMonth: constrainedDueMonth,
+            };
+          }
+          return del;
+        });
       }
 
       return {
         ...ws,
         phase: containingPhase.name,
+        startMonth: adjustedStart,
+        endMonth: adjustedEnd,
+        deliverables: adjustedDeliverables,
       };
     });
   }
