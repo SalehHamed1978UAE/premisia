@@ -17,17 +17,21 @@ export function extractUserConstraintsFromText(
   const timelineContextMatch = input.match(timelineContextPattern);
   const timelineInput = timelineContextMatch?.[0];
 
-  const budgetContextPattern =
-    /(?:budget|funding|investment|spend|allocation|runway)[^$\n]{0,60}\$?\d+(?:\.\d+)?\s*(?:million|m|mil|k|thousand)?(?:\s*(?:-|to)\s*\$?\d+(?:\.\d+)?\s*(?:million|m|mil|k|thousand)?)?/i;
+  const currencyBudgetPattern =
+    /(?:budget|funding|investment|spend|allocation|runway)[^$\n]{0,60}\$\s*\d+(?:\.\d+)?\s*(?:million|mil|k|thousand)?(?:\s*(?:-|to)\s*\$\s*\d+(?:\.\d+)?\s*(?:million|mil|k|thousand)?)?/i;
+  const plainBudgetPattern =
+    /(?:budget|funding|investment|spend|allocation|runway)[^$\n]{0,60}\b\d+(?:\.\d+)?\s*(?:million|mil|k|thousand)\b(?:\s*(?:-|to)\s*\b\d+(?:\.\d+)?\s*(?:million|mil|k|thousand)\b)?/i;
+
   const budgetSearchInput = timelineInput ? input.replace(timelineInput, '') : input;
-  const budgetContextMatch = budgetSearchInput.match(budgetContextPattern);
+  const budgetContextMatch = budgetSearchInput.match(currencyBudgetPattern)
+    || budgetSearchInput.match(plainBudgetPattern);
   const budgetInput = budgetContextMatch?.[0] || fallbackBudget;
 
   if (budgetInput) {
     console.log(`[Constraints] Found user budget input: "${budgetInput}"`);
 
     const budgetPattern =
-      /\$?(\d+(?:\.\d+)?)\s*(?:million|m|mil|k)?\s*(?:-|to)?\s*(?:\$?(\d+(?:\.\d+)?))?\s*(?:million|m|mil|k)?/i;
+      /\$?(\d+(?:\.\d+)?)\s*(?:million|mil|k|thousand)?\s*(?:-|to)?\s*(?:\$?(\d+(?:\.\d+)?))?\s*(?:million|mil|k|thousand)?/i;
     const budgetMatch = budgetInput.match(budgetPattern);
 
     if (budgetMatch) {
@@ -38,7 +42,7 @@ export function extractUserConstraintsFromText(
         budgetMatch.index || 0,
         (budgetMatch.index || 0) + budgetMatch[0].length
       );
-      const isMillions = /\b(million|mil|m)\b/.test(unitSegment);
+      const isMillions = /\b(million|mil)\b/.test(unitSegment);
       const isThousands = /\b(k|thousand)\b/.test(unitSegment);
 
       if (isMillions) {

@@ -120,7 +120,9 @@ export class FinancialPlanGenerator {
     const personnelCost = resourcePlan.totalFTEs * 150000;
     const externalCost = resourcePlan.externalResources.reduce((sum, r) => sum + r.estimatedCost, 0);
     const overheadCost = (personnelCost + externalCost) * 0.15;
-    const totalBudget = userContext?.budgetRange?.max || (personnelCost + externalCost + overheadCost);
+    const computedBudget = personnelCost + externalCost + overheadCost;
+    const constraintMax = userContext?.budgetRange?.max;
+    const totalBudget = constraintMax ? Math.max(constraintMax, computedBudget) : computedBudget;
 
     const costBreakdown = [
       { category: 'Personnel', amount: personnelCost, percentage: (personnelCost / totalBudget) * 100, description: 'Internal team costs' },
