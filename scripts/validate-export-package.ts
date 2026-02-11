@@ -743,4 +743,5 @@ if (isMain) {
   process.exit(result.isValid ? 0 : 1);
 }
 
-export { EPMPackageValidator, ValidationResult };
+export { EPMPackageValidator };
+export type { ValidationResult };
