@@ -428,7 +428,7 @@ ${clarificationText}${conflictText}`;
     clarifications: Record<string, string>
   ): ClarificationConflictResult {
     const baseInput = this.stripClarificationBlocks(originalInput);
-    const clarificationLines = this.extractClarificationLines(clarifications);
+    const clarificationLines = this.extractClarificationLinesFromRecord(clarifications);
     const conflicts = this.detectClarificationConflicts(clarificationLines);
 
     if (clarificationLines.length === 0) {
@@ -450,7 +450,7 @@ ${conflicts.map((line) => `- ${line}`).join('\n')}`;
     return { clarifiedInput, conflicts };
   }
 
-  private extractClarificationLines(clarifications: Record<string, string>): string[] {
+  private extractClarificationLinesFromRecord(clarifications: Record<string, string>): string[] {
     return Object.values(clarifications)
       .map((value) => (value ?? '').toString().trim())
       .filter((value) => value.length > 0);
@@ -521,30 +521,6 @@ ${conflicts.map((line) => `- ${line}`).join('\n')}`;
     return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   }
 
-  private stripClarificationBlocks(input: string): string {
-    const lines = input.split('\n');
-    const kept: string[] = [];
-    let skipping = false;
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (/^clarifications?:/i.test(trimmed) || /^clarification_conflicts?:/i.test(trimmed)) {
-        skipping = true;
-        continue;
-      }
-
-      if (skipping) {
-        if (trimmed === '' || /^\s*-\s+/.test(trimmed)) {
-          continue;
-        }
-        skipping = false;
-      }
-
-      kept.push(line);
-    }
-
-    return kept.join('\n').trim();
-  }
 }
 
 export const ambiguityDetector = new AmbiguityDetectorService();
