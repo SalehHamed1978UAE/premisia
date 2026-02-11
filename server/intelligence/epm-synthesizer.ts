@@ -67,6 +67,7 @@ import {
   RoleInferenceService,
   normalizeRole,
   ensureResourceExists,
+  qualityGateRunner,
 } from './epm';
 
 export { ContextBuilder } from './epm';
@@ -274,6 +275,12 @@ export class EPMSynthesizer {
     const strategicContext = this.extractStrategicContext(insights, namingContext);
     console.log(`[EPM Synthesis] ✓ Strategic context: ${strategicContext.decisions.length} decisions, SWOT available: ${!!strategicContext.swotData}`);
 
+    // SPRINT 1: Parse user constraints from input (not decisions)
+    const userConstraints = this.parseUserConstraints(insights);
+
+    // SPRINT 1: Validate decisions against user constraints (integrity gate)
+    const decisionValidation = this.validateDecisionsAgainstConstraints(strategicContext.decisions, userConstraints);
+
     if (planningResult.success && planningResult.confidence >= 0.6) {
       console.log('[EPM Synthesis] ✓ Intelligent planning successful');
       console.log(`[EPM Synthesis]   Confidence: ${(planningResult.confidence * 100).toFixed(1)}%`);
@@ -288,6 +295,7 @@ export class EPMSynthesizer {
         userContext,
         namingContext,
         strategicContext,
+        decisionValidation,
         onProgress,
         processStartTime
       );
@@ -327,6 +335,7 @@ export class EPMSynthesizer {
         userContext,
         namingContext,
         strategicContext,
+        decisionValidation,
         onProgress,
         processStartTime
       );
@@ -423,6 +432,141 @@ export class EPMSynthesizer {
     console.log(`  - Source: ${journeyBuilderSwot ? 'Journey Builder (frameworkInsights)' : 'Legacy (insights/marketContext)'}`);
 
     return { decisions, swotData };
+  }
+
+  /**
+   * Parse user constraints from USER INPUT (not AI decisions)
+   *
+   * SPRINT 1 - INTEGRITY: Parse constraints from user's original input
+   * Source: insights.marketContext.budgetRange (string)
+   *
+   * This enforces system integrity: USER constraints are the source of truth,
+   * not AI-generated strategic decisions.
+   *
+   * Returns: Structured constraints object { budget: {min, max}, timeline: {min, max} }
+   */
+  private parseUserConstraints(
+    insights: StrategyInsights
+  ): { budget?: { min: number; max: number }; timeline?: { min: number; max: number } } {
+    const constraints: any = {};
+
+    console.log('[Constraints] Parsing USER constraints from input...');
+
+    // Parse budget from insights.marketContext.budgetRange (user's original input)
+    const budgetInput = insights.marketContext?.budgetRange;
+
+    if (budgetInput) {
+      console.log(`[Constraints] Found user budget input: "${budgetInput}"`);
+
+      // Patterns: $15-20M, $15M-$20M, $5M, $500k-$1.5M, etc.
+      const budgetPattern = /\$?(\d+(?:\.\d+)?)\s*(?:million|m|mil|k)?\s*(?:-|to)?\s*(?:\$?(\d+(?:\.\d+)?))?\s*(?:million|m|mil|k)?/i;
+      const budgetMatch = budgetInput.match(budgetPattern);
+
+      if (budgetMatch) {
+        let minBudget = parseFloat(budgetMatch[1]);
+        let maxBudget = budgetMatch[2] ? parseFloat(budgetMatch[2]) : minBudget;
+
+        // Handle k (thousands) vs M (millions)
+        const firstUnit = budgetInput.toLowerCase().substring(budgetMatch.index!, budgetMatch.index! + budgetMatch[0].length);
+        const isMillions = firstUnit.includes('million') || firstUnit.includes('m');
+        const isThousands = firstUnit.includes('k');
+
+        if (isMillions) {
+          minBudget *= 1_000_000;
+          maxBudget *= 1_000_000;
+        } else if (isThousands) {
+          minBudget *= 1_000;
+          maxBudget *= 1_000;
+        }
+
+        constraints.budget = { min: minBudget, max: maxBudget };
+        console.log(`[Constraints] ✓ Parsed user budget: $${minBudget.toLocaleString()} - $${maxBudget.toLocaleString()}`);
+      } else {
+        console.warn(`[Constraints] ⚠️  Could not parse budget from: "${budgetInput}"`);
+      }
+    } else {
+      console.log('[Constraints] No budget constraint in user input');
+    }
+
+    // Parse timeline from insights (if available in marketContext or elsewhere)
+    // TODO: Once Agent-3 adds structured timeline field, parse from there
+    // For now, log that timeline parsing is pending schema normalization
+    console.log('[Constraints] Timeline parsing pending Agent-3 schema normalization');
+
+    return constraints;
+  }
+
+  /**
+   * Validate strategic decisions against user constraints
+   *
+   * SPRINT 1 - INTEGRITY: Decisions CANNOT override user constraints without approval
+   *
+   * Returns: { needsApproval: boolean, violations: string[] }
+   */
+  private validateDecisionsAgainstConstraints(
+    decisions: any[],
+    userConstraints: { budget?: { min: number; max: number }; timeline?: { min: number; max: number } }
+  ): { needsApproval: boolean; violations: string[] } {
+    const violations: string[] = [];
+    const selectedDecisions = decisions.filter((d: any) => d.selectedOptionId);
+
+    console.log('[Decision Gate] Validating decisions against user constraints...');
+
+    if (!userConstraints.budget && !userConstraints.timeline) {
+      console.log('[Decision Gate] No user constraints defined - all decisions allowed');
+      return { needsApproval: false, violations: [] };
+    }
+
+    // Check if any decision proposes budget exceeding user's stated limit
+    for (const decision of selectedDecisions) {
+      const selectedOption = decision.options?.find((opt: any) => opt.id === decision.selectedOptionId);
+      if (!selectedOption) continue;
+
+      const optionText = selectedOption.text || selectedOption.label || selectedOption.description || '';
+      const decisionText = `${decision.question} ${optionText}`.toLowerCase();
+
+      // Parse decision's proposed budget
+      const budgetPattern = /\$?(\d+(?:\.\d+)?)\s*(?:million|m|mil)?\s*(?:-|to)?\s*(?:\$?(\d+(?:\.\d+)?))?\s*(?:million|m|mil)?/i;
+      const budgetMatch = decisionText.match(budgetPattern);
+
+      if (budgetMatch && userConstraints.budget) {
+        let proposedMin = parseFloat(budgetMatch[1]) * 1_000_000;
+        let proposedMax = budgetMatch[2] ? parseFloat(budgetMatch[2]) * 1_000_000 : proposedMin;
+
+        // Check if decision exceeds user's budget limit
+        if (proposedMax > userConstraints.budget.max) {
+          const violation = `Decision proposes $${(proposedMax / 1_000_000).toFixed(1)}M but user limit is $${(userConstraints.budget.max / 1_000_000).toFixed(1)}M`;
+          violations.push(violation);
+          console.warn(`[Decision Gate] ⚠️  VIOLATION: ${violation}`);
+        }
+      }
+
+      // Parse decision's proposed timeline
+      const timelinePattern = /(\d+)\s*(?:-|to)?\s*(?:(\d+)\s*)?(?:month|mo|year|yr)s?/i;
+      const timelineMatch = decisionText.match(timelinePattern);
+
+      if (timelineMatch && userConstraints.timeline) {
+        let proposedMonths = parseInt(timelineMatch[1], 10);
+        if (decisionText.includes('year') || decisionText.includes('yr')) {
+          proposedMonths *= 12;
+        }
+
+        // Check if decision exceeds user's timeline limit
+        if (userConstraints.timeline.max && proposedMonths > userConstraints.timeline.max) {
+          const violation = `Decision proposes ${proposedMonths} months but user limit is ${userConstraints.timeline.max} months`;
+          violations.push(violation);
+          console.warn(`[Decision Gate] ⚠️  VIOLATION: ${violation}`);
+        }
+      }
+    }
+
+    if (violations.length > 0) {
+      console.warn(`[Decision Gate] ❌ ${violations.length} violations detected - requiresApproval flag will be set`);
+      return { needsApproval: true, violations };
+    }
+
+    console.log('[Decision Gate] ✅ All decisions within user constraints');
+    return { needsApproval: false, violations: [] };
   }
 
   private alignWorkstreamsToDecisions(
@@ -862,6 +1006,7 @@ export class EPMSynthesizer {
     userContext?: UserContext,
     namingContext?: any,
     strategicContext?: { decisions: any[]; swotData: any },
+    decisionValidation?: { needsApproval: boolean; violations: string[] },
     onProgress?: (event: any) => void,
     startTime?: number
   ): Promise<EPMProgram> {
@@ -992,7 +1137,26 @@ export class EPMSynthesizer {
     if (planningGrid.conflicts.length > 0) {
       console.log(`[EPM Synthesis] ⚠️ Planning grid conflicts: ${planningGrid.conflicts.length}`);
     }
-    
+
+    // Sprint 1 (P2 Scheduling): Run WBS timeline validation
+    console.log('[EPM Synthesis] 🔍 Running WBS timeline quality gates');
+    const qualityReport = qualityGateRunner.runQualityGate(alignedWorkstreams, timeline, stageGates, businessContext);
+    if (!qualityReport.overallPassed) {
+      console.log(`[EPM Synthesis] ⚠️ WBS validation found ${qualityReport.errorCount} errors, ${qualityReport.warningCount} warnings`);
+      qualityReport.validatorResults.forEach(result => {
+        result.issues.forEach(issue => {
+          if (issue.severity === 'error') {
+            console.log(`    ❌ [${issue.code}] ${issue.message}`);
+            if (issue.suggestion) {
+              console.log(`       💡 ${issue.suggestion}`);
+            }
+          }
+        });
+      });
+    } else {
+      console.log(`[EPM Synthesis] ✓ WBS timeline validation passed`);
+    }
+
     onProgress?.({
       type: 'step-start',
       step: 'financial',
@@ -1102,12 +1266,24 @@ export class EPMSynthesizer {
       qaPlan,
       procurement,
       exitStrategy,
-      
+
       extractionRationale: this.generateExtractionRationale(insights, userContext),
+
+      // SPRINT 1: Add requiresApproval flag if decisions exceed user constraints
+      requiresApproval: decisionValidation?.needsApproval ? {
+        budget: decisionValidation.violations.some(v => v.includes('budget')),
+        timeline: decisionValidation.violations.some(v => v.includes('month')),
+        violations: decisionValidation.violations,
+      } : undefined,
     };
-    
+
     console.log('[EPM Synthesis] ✓ Program built successfully');
     console.log(`[EPM Synthesis]   Overall confidence: ${(overallConfidence * 100).toFixed(1)}%`);
+
+    if (program.requiresApproval) {
+      console.warn('[EPM Synthesis] ⚠️  REQUIRES USER APPROVAL: Decisions exceed user constraints');
+      console.warn(`[EPM Synthesis]   Violations: ${program.requiresApproval.violations.join('; ')}`);
+    }
     
     return program;
   }
