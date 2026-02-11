@@ -13,35 +13,6 @@ import { buildLinearWhysTree, normalizeWhysPathSteps } from '../../utils/whys-pa
 
 export type { ExportRequest, FullExportPackage, ExportResult, IExporter };
 
-function extractBulletBlock(input: string, headerPattern: RegExp): string[] {
-  if (!input) return [];
-  const lines = input.split('\n');
-  const collected: string[] = [];
-  let inBlock = false;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (headerPattern.test(trimmed)) {
-      inBlock = true;
-      continue;
-    }
-    if (!inBlock) {
-      continue;
-    }
-    if (trimmed === '') {
-      continue;
-    }
-    if (/^[-*]\s+/.test(trimmed)) {
-      collected.push(trimmed.replace(/^[-*]\s+/, '').trim());
-      continue;
-    }
-    // End block on first non-bullet line
-    inBlock = false;
-  }
-
-  return collected;
-}
-
 function extractClarificationFallback(understanding: any): { lines: string[]; conflicts: string[] } {
   const lines: string[] = [];
   const conflicts: string[] = [];
@@ -167,7 +138,7 @@ function extractBulletBlock(inputText: string, headerRegex: RegExp): string[] {
   return collected.filter(Boolean);
 }
 
-function extractClarificationFallback(inputText: string): { lines: string[]; conflicts: string[] } {
+function extractClarificationFallbackFromText(inputText: string): { lines: string[]; conflicts: string[] } {
   const lines = extractBulletBlock(inputText, /^clarifications:/i);
   const conflicts = extractBulletBlock(inputText, /^clarification_conflicts:/i);
   return { lines, conflicts };
@@ -258,7 +229,7 @@ export async function loadExportData(
   let clarifications;
   let requiresApproval;
   if (understanding) {
-    const fallback = extractClarificationFallback(understanding.userInput || '');
+    const fallback = extractClarificationFallbackFromText(understanding.userInput || '');
     const metadata = typeof (understanding as any).strategyMetadata === 'string'
       ? JSON.parse((understanding as any).strategyMetadata)
       : (understanding as any).strategyMetadata;
