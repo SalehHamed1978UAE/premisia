@@ -98,6 +98,19 @@ export class ContextBuilder {
       budgetRange = userConstraints.budget;
       console.log(`[ContextBuilder] 💰 Using user budget constraint: $${budgetRange.min.toLocaleString()}-$${budgetRange.max.toLocaleString()}`);
     }
+
+    const userConstraints = extractUserConstraintsFromText(
+      userInput || businessDescription,
+      insights.marketContext?.budgetRange
+    );
+    if (userConstraints.timeline) {
+      timelineRange = userConstraints.timeline;
+      console.log(`[ContextBuilder] ⏱ Using user timeline constraint: ${timelineRange.min}-${timelineRange.max} months`);
+    }
+    if (userConstraints.budget) {
+      budgetRange = userConstraints.budget;
+      console.log(`[ContextBuilder] 💰 Using user budget constraint: $${budgetRange.min.toLocaleString()}-$${budgetRange.max.toLocaleString()}`);
+    }
     
     // Infer business type first, then use it for industry if not explicitly set
     const businessType = this.inferBusinessType(insights);
