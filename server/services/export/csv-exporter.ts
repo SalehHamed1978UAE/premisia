@@ -344,6 +344,7 @@ export function generateBenefitsCsv(benefitsRealization: any): string {
   const benefitArray = benefits.benefits || [];
   if (Array.isArray(benefitArray)) {
     benefitArray.forEach((b: any, idx: number) => {
+      const idFromData = typeof b.id === 'string' ? b.id : (typeof b.benefitId === 'string' ? b.benefitId : null);
       // Support both standard path field names and custom path field names
       // Extract a short name from description if name isn't present
       const benefitName = b.name || b.benefit || 
@@ -358,7 +359,7 @@ export function generateBenefitsCsv(benefitsRealization: any): string {
         (b.realizationMonth ? `Month ${b.realizationMonth}` : '-');
       
       const row = [
-        `BEN-${idx + 1}`,
+        escapeCsvField(idFromData || `BEN-${idx + 1}`),
         escapeCsvField(benefitName),
         escapeCsvField(b.description || '-'),
         escapeCsvField(b.category || b.type || '-'),

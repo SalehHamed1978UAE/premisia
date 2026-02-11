@@ -84,6 +84,8 @@ export async function generateFullPassExport(
           exportMeta: exportPackage.metadata,
           strategyVersion: strategyPayload?.strategyVersion,
           userInput: strategyPayload?.understanding?.userInput,
+          clarifications: strategyPayload?.clarifications,
+          initiativeType: strategyPayload?.understanding?.initiativeType,
         }),
         null,
         2

@@ -8,6 +8,8 @@ type EpmPayloadContext = {
   exportMeta?: FullExportPackage['metadata'];
   strategyVersion?: any;
   userInput?: string | null;
+  clarifications?: StrategyPayload['clarifications'] | null;
+  initiativeType?: string | null;
 };
 
 const FRAMEWORK_ALIASES: Record<string, string> = {
@@ -215,6 +217,61 @@ function deriveBenefitList(benefitsRealization: any): any[] {
   if (Array.isArray(benefitsRealization)) return benefitsRealization;
   if (Array.isArray(benefitsRealization.benefits)) return benefitsRealization.benefits;
   return [];
+}
+
+function formatBenefitId(value: number): string {
+  return `BEN-${String(value).padStart(2, '0')}`;
+}
+
+function normalizeBenefitId(raw: any, fallbackIndex?: number): string | null {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return formatBenefitId(raw);
+  if (typeof raw === 'string') {
+    const match = raw.match(/(\d+)/);
+    if (match) return formatBenefitId(Number(match[1]));
+  }
+  if (typeof fallbackIndex === 'number') return formatBenefitId(fallbackIndex);
+  return null;
+}
+
+function normalizeBenefits(benefitsRaw: any[]): { benefits: any[]; idMap: Map<string, string> } {
+  const idMap = new Map<string, string>();
+  const benefits = benefitsRaw.map((benefit, idx) => {
+    const rawId = benefit?.id ?? benefit?.benefitId ?? benefit?.benefit_id;
+    const normalizedId = normalizeBenefitId(rawId, idx + 1) ?? `BEN-${idx + 1}`;
+    if (typeof rawId === 'string') {
+      idMap.set(rawId, normalizedId);
+    }
+    return {
+      ...benefit,
+      id: normalizedId,
+    };
+  });
+  return { benefits, idMap };
+}
+
+function normalizeKpis(kpisData: any, benefitIdMap: Map<string, string>): any {
+  if (!kpisData) return null;
+  const list = Array.isArray(kpisData?.kpis)
+    ? kpisData.kpis
+    : (Array.isArray(kpisData) ? kpisData : []);
+  if (!Array.isArray(list)) return kpisData;
+
+  const normalizedList = list.map((kpi: any) => {
+    const linked = Array.isArray(kpi?.linkedBenefitIds) ? kpi.linkedBenefitIds : [];
+    const normalizedLinked = linked.map((id: any) => {
+      if (typeof id !== 'string') return id;
+      return benefitIdMap.get(id) ?? normalizeBenefitId(id) ?? id;
+    });
+    return {
+      ...kpi,
+      linkedBenefitIds: normalizedLinked,
+    };
+  });
+
+  if (Array.isArray(kpisData?.kpis)) {
+    return { ...kpisData, kpis: normalizedList };
+  }
+  return normalizedList;
 }
 
 function computeLongestDependencyChain(workstreams: any[]): string[] {
@@ -454,6 +511,8 @@ export function buildEpmJsonPayload(
   const riskRegister = parseMaybeJson<any>(program.riskRegister);
   const benefitsRealization = parseMaybeJson<any>(program.benefitsRealization);
   const stageGates = parseMaybeJson<any>(program.stageGates);
+  const financialPlan = parseMaybeJson<any>(program.financialPlan);
+  const kpis = parseMaybeJson<any>(program.kpis);
   const programId = program.id ?? context.exportMeta?.programId ?? null;
   const constraints = context.strategyVersion
     ? {
@@ -465,6 +524,23 @@ export function buildEpmJsonPayload(
         inputSummary: context.strategyVersion.inputSummary ?? null,
       }
     : null;
+
+  const normalizedBenefitData = normalizeBenefits(deriveBenefitList(benefitsRealization));
+  const normalizedBenefits = normalizedBenefitData.benefits;
+  const normalizedKpis = normalizeKpis(kpis, normalizedBenefitData.idMap);
+  const normalizedBenefitsRealization = benefitsRealization
+    ? (Array.isArray(benefitsRealization)
+      ? normalizedBenefits
+      : { ...benefitsRealization, benefits: normalizedBenefits })
+    : benefitsRealization;
+
+  const structuredUserInput = {
+    raw: context.userInput ?? null,
+    summary: context.strategyVersion?.inputSummary ?? null,
+    constraints,
+    clarifications: context.clarifications ?? null,
+    initiativeType: context.initiativeType ?? null,
+  };
   const normalizedProgram = {
     ...program,
     id: programId ?? program.id,
@@ -472,8 +548,10 @@ export function buildEpmJsonPayload(
     timeline,
     resourcePlan,
     riskRegister,
-    benefitsRealization,
+    financialPlan,
+    benefitsRealization: normalizedBenefitsRealization,
     stageGates: stageGates || program.stageGates,
+    kpis: normalizedKpis || program.kpis,
   };
 
   const assignments = normalizeAssignments(epm.assignments || [], workstreams);
@@ -498,11 +576,15 @@ export function buildEpmJsonPayload(
     workstreams,
     resourcePlan,
     resources: deriveResources(resourcePlan),
+    financialPlan,
     riskRegister,
     risks: deriveRiskList(riskRegister),
-    benefitsRealization,
-    benefits: deriveBenefitList(benefitsRealization),
+    benefitsRealization: normalizedBenefitsRealization,
+    benefits: normalizedBenefits,
+    kpis: normalizedKpis || null,
+    stageGates: stageGates || program.stageGates || null,
     assignments,
     userInput: context.userInput ?? null,
+    userInputStructured: structuredUserInput,
   };
 }
