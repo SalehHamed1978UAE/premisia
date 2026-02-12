@@ -11,7 +11,10 @@ export default defineConfig({
     environment: 'node',
     // NO setup files - pure unit tests
     testTimeout: 10000,
-    include: ['tests/bridges/bridge-unit.test.ts'],
+    include: [
+      'tests/bridges/bridge-unit.test.ts',
+      'tests/item-c-clarifications.test.ts',
+    ],
   },
   resolve: {
     alias: {
