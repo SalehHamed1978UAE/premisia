@@ -103,17 +103,24 @@ export function generateWBSRows(pkg: FullExportPackage): WBSRow[] {
   const assignedWsIds = new Set<string>();
 
   if (phases.length > 0) {
+    // Two-pass assignment: phase name match first, then date range for unassigned
     phases.forEach((phase, phaseIndex) => {
-      const phaseWorkstreams = workstreams.filter((ws: any) => {
+      const nameMatches = workstreams.filter((ws: any) => {
         if (assignedWsIds.has(ws.id)) return false;
-        return ws.phase === phase.name ||
-               (ws.startMonth >= phase.startMonth && ws.startMonth <= phase.endMonth);
+        return ws.phase === phase.name;
       });
+      nameMatches.forEach((ws: any) => assignedWsIds.add(ws.id));
 
+      const dateMatches = workstreams.filter((ws: any) => {
+        if (assignedWsIds.has(ws.id)) return false;
+        return ws.startMonth >= phase.startMonth && ws.startMonth <= phase.endMonth;
+      });
+      dateMatches.forEach((ws: any) => assignedWsIds.add(ws.id));
+
+      const phaseWorkstreams = [...nameMatches, ...dateMatches];
       phaseWorkstreams.forEach((ws: any, wsIndex: number) => {
         const wsWbsCode = `1.${phaseIndex + 1}.${wsIndex + 1}`;
         wbsCodeMap.set(ws.id, wsWbsCode);
-        assignedWsIds.add(ws.id);
       });
     });
   } else {
@@ -182,15 +189,21 @@ export function generateWBSRows(pkg: FullExportPackage): WBSRow[] {
         });
       }
 
-      // Add workstreams for this phase (skip already-assigned to prevent duplicates)
-      const phaseWorkstreams = workstreams.filter((ws: any) => {
+      // Add workstreams: phase name match first, then date range for unassigned
+      const wsNameMatches = workstreams.filter((ws: any) => {
         if (rowAssignedWsIds.has(ws.id)) return false;
-        return ws.phase === phase.name ||
-               (ws.startMonth >= phase.startMonth && ws.startMonth <= phase.endMonth);
+        return ws.phase === phase.name;
       });
+      wsNameMatches.forEach((ws: any) => rowAssignedWsIds.add(ws.id));
 
+      const wsDateMatches = workstreams.filter((ws: any) => {
+        if (rowAssignedWsIds.has(ws.id)) return false;
+        return ws.startMonth >= phase.startMonth && ws.startMonth <= phase.endMonth;
+      });
+      wsDateMatches.forEach((ws: any) => rowAssignedWsIds.add(ws.id));
+
+      const phaseWorkstreams = [...wsNameMatches, ...wsDateMatches];
       phaseWorkstreams.forEach((ws: any, wsIndex: number) => {
-        rowAssignedWsIds.add(ws.id);
         const wsWbsCode = `${phaseWbsCode}.${wsIndex + 1}`;
         addWorkstreamToRows(rows, ws, wsWbsCode, 2, programStartDate, journeyType, pkg, wbsCodeMap, phaseStartDate, phaseEndDate);
       });
