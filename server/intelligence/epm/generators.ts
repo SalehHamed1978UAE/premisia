@@ -123,8 +123,10 @@ export class FinancialPlanGenerator {
     const overheadCost = (personnelCost + externalCost) * 0.15;
     const computedBudget = personnelCost + externalCost + overheadCost;
     const constraintMax = userContext?.budgetRange?.max;
-    // Sprint 6: Cap at constraint (was Math.max — backwards)
-    const totalBudget = constraintMax ? Math.min(constraintMax, computedBudget) : computedBudget;
+    // Sprint 6: Cap at constraint. Sprint 6.1: Reserve 10% for contingency within the cap
+    // so that totalBudget + contingency never exceeds constraintMax
+    const effectiveCap = constraintMax ? constraintMax / 1.10 : undefined;
+    const totalBudget = effectiveCap ? Math.min(effectiveCap, computedBudget) : computedBudget;
 
     // Sprint 6.1: Scale breakdown amounts proportionally when budget is capped
     const scaleFactor = totalBudget < computedBudget ? totalBudget / computedBudget : 1;

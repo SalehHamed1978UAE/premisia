@@ -15,6 +15,7 @@ export default defineConfig({
       'tests/bridges/bridge-unit.test.ts',
       'tests/item-c-clarifications.test.ts',
       'tests/t1-t8-validation.test.ts',
+      'tests/sprint6-validation.spec.ts',
     ],
   },
   resolve: {
