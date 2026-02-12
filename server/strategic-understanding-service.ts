@@ -347,11 +347,22 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
 
     // Persist user input entities to database with discovered_by='user_input'
     console.log(`[StrategicUnderstanding] Persisting ${validEntities.length} user input entities...`);
-    
-    // Generate embeddings in batch to avoid timeouts
+
+    // Generate embeddings in batch — gracefully skip if unavailable
     const claims = validEntities.map(e => e.claim);
-    const embeddings = await this.generateEmbeddingsBatch(claims);
-    
+    let embeddings: (number[] | null)[] = claims.map(() => null);
+    try {
+      const generated = await this.generateEmbeddingsBatch(claims);
+      // Validate dimensions match the database column (1536)
+      if (generated.length > 0 && generated[0].length === EMBEDDING_DIMENSIONS) {
+        embeddings = generated;
+      } else if (generated.length > 0) {
+        console.warn(`[StrategicUnderstanding] Embedding dimension mismatch: got ${generated[0].length}, expected ${EMBEDDING_DIMENSIONS}. Skipping embeddings.`);
+      }
+    } catch (embeddingError: any) {
+      console.warn(`[StrategicUnderstanding] Embedding generation failed (non-blocking): ${embeddingError.message}`);
+    }
+
     // Prepare all entity data with encryption for sensitive fields
     const entitiesData: InsertStrategicEntity[] = validEntities.map((entity, i) => ({
       understandingId: understanding.id,
@@ -437,11 +448,20 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
   }
 
   async createEntity(
-    understandingId: string, 
+    understandingId: string,
     entity: EntityExtractionResult,
     discoveredBy: 'user_input' | 'bmc_agent' | '5whys_agent' | 'porters_agent' | 'trends_agent' | 'system' = 'system'
   ): Promise<StrategicEntity> {
-    const embedding = await this.generateEmbedding(entity.claim);
+    let embedding: number[] | null = null;
+    try {
+      const generated = await this.generateEmbedding(entity.claim);
+      embedding = generated.length === EMBEDDING_DIMENSIONS ? generated : null;
+      if (!embedding && generated.length > 0) {
+        console.warn(`[StrategicUnderstanding] Embedding dimension mismatch: got ${generated.length}, expected ${EMBEDDING_DIMENSIONS}`);
+      }
+    } catch (embeddingError: any) {
+      console.warn(`[StrategicUnderstanding] Embedding generation failed (non-blocking): ${embeddingError.message}`);
+    }
 
     // Encrypt sensitive fields before inserting
     const entityData: InsertStrategicEntity = {
@@ -531,13 +551,18 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
     embedding: number[],
     discoveredBy: 'user_input' | 'bmc_agent' | '5whys_agent' | 'porters_agent' | 'trends_agent' | 'system' = 'system'
   ): Promise<StrategicEntity> {
+    // Validate embedding dimensions before insert
+    const safeEmbedding = (embedding && embedding.length === EMBEDDING_DIMENSIONS) ? embedding : null;
+    if (!safeEmbedding && embedding?.length) {
+      console.warn(`[StrategicUnderstanding] Skipping embedding: got ${embedding.length} dims, expected ${EMBEDDING_DIMENSIONS}`);
+    }
     // Encrypt sensitive fields before inserting
     const entityData: InsertStrategicEntity = {
       understandingId,
       type: entity.type as any,
       claim: encrypt(entity.claim)!, // 🔐 Encrypted
       confidence: entity.confidence,
-      embedding: embedding as any,
+      embedding: safeEmbedding as any,
       source: encrypt(entity.source)!, // 🔐 Encrypted
       evidence: entity.evidence ? encrypt(entity.evidence) : null, // 🔐 Encrypted if present
       category: entity.category ? encrypt(entity.category) : null, // 🔐 Encrypted if present
