@@ -300,9 +300,11 @@ ${clarificationText}${conflictText}`;
 
     for (const line of lines) {
       const trimmed = line.trim();
-      if (/^clarifications:/i.test(trimmed)) {
+      // Strip markdown formatting from header (e.g., *CLARIFICATIONS:*, **CLARIFICATIONS:**)
+      const stripped = trimmed.replace(/^\*+\s*/, '').replace(/\s*\*+$/, '');
+      if (/^clarifications:/i.test(stripped)) {
         inBlock = true;
-        const afterHeader = trimmed.replace(/^clarifications:/i, '').trim();
+        const afterHeader = stripped.replace(/^clarifications:/i, '').trim();
         if (afterHeader) {
           this.parseInlineBullets(afterHeader).forEach(item => clarifications.push(item));
         }
@@ -311,11 +313,16 @@ ${clarificationText}${conflictText}`;
       if (!inBlock) {
         // Check for mid-line CLARIFICATIONS: (e.g., "...text CLARIFICATIONS: We want...")
         const midLineMatch = trimmed.match(/\bCLARIFICATIONS:\s*(.+)/i);
-        if (midLineMatch && midLineMatch[1] && !/^clarifications:/i.test(trimmed)) {
-          const inlineText = midLineMatch[1].trim();
-          // Split by sentence boundaries
-          const sentences = inlineText.split(/\.\s+/).map(s => s.trim().replace(/\.$/, '')).filter(Boolean);
-          sentences.forEach(s => clarifications.push(s));
+        if (midLineMatch && midLineMatch[1] && !/^\*?clarifications:\*?$/i.test(trimmed)) {
+          const inlineText = midLineMatch[1].trim()
+            .replace(/^\*+/, '').replace(/\*+$/, '').trim(); // Strip trailing markdown
+          if (inlineText.length > 1) {
+            // Split by sentence boundaries
+            const sentences = inlineText.split(/\.\s+/).map(s => s.trim().replace(/\.$/, '')).filter(Boolean);
+            sentences.forEach(s => {
+              if (s.length > 1) clarifications.push(s);
+            });
+          }
         }
         continue;
       }
@@ -326,8 +333,12 @@ ${clarificationText}${conflictText}`;
         inBlock = false;
         continue;
       }
-      if (/^[-*]\s+/.test(trimmed)) {
-        clarifications.push(trimmed.replace(/^[-*]\s+/, '').trim());
+      // Support bullets: -, *, •, ⁠ (word joiner + bullet patterns)
+      if (/^[-*•⁠]\s+/.test(trimmed) || /^[•⁠]\s*/.test(trimmed)) {
+        const cleaned = trimmed.replace(/^[-*•⁠]+\s*/, '').trim();
+        if (cleaned.length > 1) {
+          clarifications.push(cleaned);
+        }
         continue;
       }
       // End block on first non-bullet line

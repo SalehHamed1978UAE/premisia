@@ -106,9 +106,11 @@ function extractBulletBlock(inputText: string, headerRegex: RegExp): string[] {
 
   for (const line of lines) {
     const trimmed = line.trim();
-    if (headerRegex.test(trimmed)) {
+    // Strip markdown formatting (* or **) from header lines
+    const stripped = trimmed.replace(/^\*+\s*/, '').replace(/\s*\*+$/, '');
+    if (headerRegex.test(stripped)) {
       inBlock = true;
-      const afterHeader = trimmed.replace(headerRegex, '').trim();
+      const afterHeader = stripped.replace(headerRegex, '').trim();
       if (afterHeader) {
         collected.push(...parseInlineBullets(afterHeader));
       }
@@ -128,8 +130,12 @@ function extractBulletBlock(inputText: string, headerRegex: RegExp): string[] {
       continue;
     }
 
-    if (/^\s*-\s+/.test(trimmed)) {
-      collected.push(trimmed.replace(/^\s*-\s+/, '').trim());
+    // Support bullets: -, *, •, ⁠ (word joiner + bullet patterns)
+    if (/^\s*[-*•⁠]\s+/.test(trimmed) || /^\s*[•⁠]\s*/.test(trimmed)) {
+      const cleaned = trimmed.replace(/^\s*[-*•⁠]+\s*/, '').trim();
+      if (cleaned.length > 1) {
+        collected.push(cleaned);
+      }
       continue;
     }
 
@@ -154,14 +160,18 @@ function extractInlineClarifications(inputText: string): string[] {
   const lines = inputText.split('\n');
   for (const line of lines) {
     const trimmed = line.trim();
-    // Skip lines that START with CLARIFICATIONS: (handled by extractBulletBlock)
-    if (/^clarifications:/i.test(trimmed)) continue;
+    // Skip lines that START with CLARIFICATIONS: or *CLARIFICATIONS:* (handled by extractBulletBlock)
+    const stripped = trimmed.replace(/^\*+\s*/, '').replace(/\s*\*+$/, '');
+    if (/^clarifications:/i.test(stripped)) continue;
     // Look for mid-line CLARIFICATIONS: (e.g., "...text CLARIFICATIONS: We want...")
     const match = trimmed.match(/\bCLARIFICATIONS:\s*(.+)/i);
     if (match && match[1]) {
-      const inlineText = match[1].trim();
-      const sentences = inlineText.split(/\.\s+/).map((s) => s.trim().replace(/\.$/, '')).filter(Boolean);
-      sentences.forEach((s) => collected.push(s));
+      const inlineText = match[1].trim()
+        .replace(/^\*+/, '').replace(/\*+$/, '').trim(); // Strip trailing markdown
+      if (inlineText.length > 1) {
+        const sentences = inlineText.split(/\.\s+/).map((s) => s.trim().replace(/\.$/, '')).filter(Boolean);
+        sentences.forEach((s) => { if (s.length > 1) collected.push(s); });
+      }
     }
   }
   return collected;
