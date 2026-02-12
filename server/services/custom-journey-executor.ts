@@ -48,6 +48,7 @@ import { PortersAnalyzer } from '../intelligence/porters-analyzer';
 import { PESTLEAnalyzer } from '../intelligence/pestle-analyzer';
 
 // Import additional modules
+import { ambiguityDetector } from './ambiguity-detector';
 import { FiveWhysCoach } from './five-whys-coach';
 import { SegmentDiscoveryEngine } from './segment-discovery-engine';
 import { OKRGenerator } from '../intelligence/okr-generator';
@@ -303,17 +304,33 @@ export class CustomJourneyExecutor {
                   : null;
                 
                 try {
+                  // Run conflict detection on clarification lines from user input
+                  const clarificationLines = ambiguityDetector.extractClarificationLines(userInputText || '');
+                  const clarificationConflicts = ambiguityDetector.detectClarificationConflicts(clarificationLines);
+                  if (clarificationConflicts.length > 0) {
+                    console.log(`[CustomJourneyExecutor] Detected ${clarificationConflicts.length} clarification conflicts`);
+                  }
+
+                  const stratMeta: Record<string, any> = {
+                    completedFrameworks: completedFrameworks,
+                    clarificationQuestions: clarificationQuestions || undefined,
+                    clarificationsProvided: clarificationsProvided || undefined,
+                    lastUpdated: new Date().toISOString(),
+                  };
+                  if (clarificationLines.length > 0) {
+                    stratMeta.clarificationLines = clarificationLines;
+                  }
+                  if (clarificationConflicts.length > 0) {
+                    stratMeta.clarificationConflicts = clarificationConflicts;
+                    stratMeta.requiresApproval = { clarifications: true };
+                  }
+
                   await db.insert(strategicUnderstanding).values({
                     sessionId: sessionId,
                     userInput: userInputText || 'Strategic analysis pending user input',
                     title: journeyName || 'Strategic Analysis',
                     initiativeType: 'software_development',
-                    strategyMetadata: {
-                      completedFrameworks: completedFrameworks,
-                      clarificationQuestions: clarificationQuestions || undefined,
-                      clarificationsProvided: clarificationsProvided || undefined,
-                      lastUpdated: new Date().toISOString(),
-                    },
+                    strategyMetadata: stratMeta,
                   });
                   console.log(`[CustomJourneyExecutor] Created understanding record for session: ${sessionId}`);
                 } catch (insertError: any) {

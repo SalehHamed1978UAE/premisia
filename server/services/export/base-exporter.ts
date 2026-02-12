@@ -10,6 +10,7 @@ import {
 import { eq, and, desc } from 'drizzle-orm';
 import type { IExporter, ExportResult, FullExportPackage, ExportRequest } from '../../types/interfaces';
 import { buildLinearWhysTree, normalizeWhysPathSteps } from '../../utils/whys-path';
+import { ambiguityDetector } from '../ambiguity-detector';
 
 export type { ExportRequest, FullExportPackage, ExportResult, IExporter };
 
@@ -141,7 +142,29 @@ function extractBulletBlock(inputText: string, headerRegex: RegExp): string[] {
 function extractClarificationFallbackFromText(inputText: string): { lines: string[]; conflicts: string[] } {
   const lines = extractBulletBlock(inputText, /^clarifications:/i);
   const conflicts = extractBulletBlock(inputText, /^clarification_conflicts:/i);
+  // Also extract mid-line inline clarifications
+  const inlineLines = extractInlineClarifications(inputText);
+  inlineLines.forEach((l) => { if (!lines.includes(l)) lines.push(l); });
   return { lines, conflicts };
+}
+
+function extractInlineClarifications(inputText: string): string[] {
+  if (!inputText) return [];
+  const collected: string[] = [];
+  const lines = inputText.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // Skip lines that START with CLARIFICATIONS: (handled by extractBulletBlock)
+    if (/^clarifications:/i.test(trimmed)) continue;
+    // Look for mid-line CLARIFICATIONS: (e.g., "...text CLARIFICATIONS: We want...")
+    const match = trimmed.match(/\bCLARIFICATIONS:\s*(.+)/i);
+    if (match && match[1]) {
+      const inlineText = match[1].trim();
+      const sentences = inlineText.split(/\.\s+/).map((s) => s.trim().replace(/\.$/, '')).filter(Boolean);
+      sentences.forEach((s) => collected.push(s));
+    }
+  }
+  return collected;
 }
 
 export async function loadExportData(
@@ -272,6 +295,15 @@ export async function loadExportData(
       conflicts = metadata.clarificationContext.conflicts;
     } else if (fallback.conflicts.length > 0) {
       conflicts = fallback.conflicts;
+    }
+
+    // Export-time conflict detection: if no conflicts from metadata, scan full text
+    if (conflicts.length === 0 && fallback.lines.length > 0) {
+      const detected = ambiguityDetector.detectClarificationConflicts(fallback.lines);
+      if (detected.length > 0) {
+        conflicts = detected;
+        console.log('[Export Service] Detected conflicts from clarification lines:', detected.length);
+      }
     }
 
     if (metadata?.requiresApproval) {

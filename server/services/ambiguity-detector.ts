@@ -62,15 +62,15 @@ export class AmbiguityDetectorService {
     {
       label: 'Automation model',
       groups: [
-        { id: 'alerts_only', keywords: ['alerts-only', 'alerts only', 'monitoring only'] },
-        { id: 'automated_actions', keywords: ['automated actions', 'automatic actions', 'automated interventions', 'auto-remediation', 'autonomous actions'] },
+        { id: 'alerts_only', keywords: ['alerts-only', 'alerts only', 'monitoring only', 'manager-driven', 'human-driven', 'manual intervention'] },
+        { id: 'automated_actions', keywords: ['automated actions', 'automatic actions', 'automated interventions', 'auto-remediation', 'autonomous actions', 'automated alerts', 'automated monitoring'] },
       ],
     },
     {
       label: 'Sales motion',
       groups: [
-        { id: 'channel_partners', keywords: ['channel partners', 'partner channel', 'resellers', 'channel sales'] },
-        { id: 'direct_sales', keywords: ['direct sales only', 'direct sales', 'sales only', 'no channel'] },
+        { id: 'channel_partners', keywords: ['channel partners', 'partner channel', 'resellers', 'channel sales', 'channel partnerships', 'hr consultancies'] },
+        { id: 'direct_sales', keywords: ['direct sales only', 'direct sales', 'sales only', 'no channel', 'direct enterprise sales', 'enterprise sales'] },
       ],
     },
   ];
@@ -293,7 +293,7 @@ ${clarificationText}${conflictText}`;
     return parts.length > 0 ? parts : [value.trim()];
   }
 
-  private extractClarificationLines(input: string): string[] {
+  extractClarificationLines(input: string): string[] {
     const lines = input.split('\n');
     const clarifications: string[] = [];
     let inBlock = false;
@@ -309,6 +309,14 @@ ${clarificationText}${conflictText}`;
         continue;
       }
       if (!inBlock) {
+        // Check for mid-line CLARIFICATIONS: (e.g., "...text CLARIFICATIONS: We want...")
+        const midLineMatch = trimmed.match(/\bCLARIFICATIONS:\s*(.+)/i);
+        if (midLineMatch && midLineMatch[1] && !/^clarifications:/i.test(trimmed)) {
+          const inlineText = midLineMatch[1].trim();
+          // Split by sentence boundaries
+          const sentences = inlineText.split(/\.\s+/).map(s => s.trim().replace(/\.$/, '')).filter(Boolean);
+          sentences.forEach(s => clarifications.push(s));
+        }
         continue;
       }
       if (trimmed === '') {
@@ -381,14 +389,14 @@ ${clarificationText}${conflictText}`;
       {
         id: 'automation',
         label: 'Automation scope',
-        a: ['automated system actions', 'automated actions', 'system actions'],
-        b: ['alerts only', 'recommendations only', 'alerts and recommendations only', 'no automated actions'],
+        a: ['automated system actions', 'automated actions', 'system actions', 'automated alerts', 'automated monitoring'],
+        b: ['alerts only', 'recommendations only', 'alerts and recommendations only', 'no automated actions', 'manager-driven', 'human-driven', 'manual intervention'],
       },
       {
         id: 'channel',
         label: 'Sales channel',
-        a: ['through channel partners', 'channel partners', 'partner channel'],
-        b: ['sales and lead generation only', 'direct sales', 'sales only'],
+        a: ['through channel partners', 'channel partners', 'partner channel', 'channel partnerships', 'hr consultancies'],
+        b: ['sales and lead generation only', 'direct sales', 'sales only', 'direct enterprise sales', 'enterprise sales'],
       },
     ];
 
@@ -484,7 +492,7 @@ ${conflicts.map((line) => `- ${line}`).join('\n')}`;
       .filter((value) => value.length > 0);
   }
 
-  private detectClarificationConflicts(lines: string[]): string[] {
+  detectClarificationConflicts(lines: string[]): string[] {
     const conflicts: string[] = [];
     const normalizedLines = lines.map((line) => this.normalizeForMatch(line));
 
