@@ -284,11 +284,13 @@ export async function loadExportData(
       clarifications = {
         questions: Array.isArray(questions) ? questions : [],
         answers: typeof answers === 'object' ? answers : {},
+        lines: fallback.lines.length > 0 ? fallback.lines : undefined,
         conflicts: conflicts.length > 0 ? conflicts : undefined,
       };
       console.log('[Export Service] Clarifications loaded:', clarifications.questions?.length || 0, 'questions');
     } else if (conflicts.length > 0 || fallback.lines.length > 0) {
       clarifications = {
+        lines: fallback.lines.length > 0 ? fallback.lines : undefined,
         conflicts: conflicts.length > 0 ? conflicts : undefined,
       };
       console.log('[Export Service] Clarification conflicts loaded without questions:', conflicts.length);

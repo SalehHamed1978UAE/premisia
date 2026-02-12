@@ -56,6 +56,7 @@ export interface FullExportPackage {
     clarifications?: {
       questions?: any[];
       answers?: Record<string, string>;
+      lines?: string[];
       conflicts?: string[];
     };
     requiresApproval?: {

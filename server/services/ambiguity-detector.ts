@@ -258,7 +258,12 @@ If NO critical ambiguities found, return:
     const strippedInput = this.stripClarificationBlocks(originalInput);
 
     if (resolvedClarifications.length === 0) {
-      return strippedInput;
+      if (conflicts.length === 0) {
+        return strippedInput;
+      }
+      const conflictText = `\n\nCLARIFICATION_CONFLICTS:\n${conflicts.map(c => `- ${c}`).join('\n')}`;
+      console.warn('[Ambiguity Detector] Clarification conflicts detected:', conflicts);
+      return `${strippedInput}${conflictText}`;
     }
 
     const clarificationText = resolvedClarifications.map(c => `- ${c}`).join('\n');
@@ -280,6 +285,14 @@ ${clarificationText}${conflictText}`;
    * Extract existing clarifications from a user-provided input block
    * Looks for "CLARIFICATIONS:" sections and collects bullet lines.
    */
+  private parseInlineBullets(value: string): string[] {
+    if (!value) {
+      return [];
+    }
+    const parts = value.split(/\s+-\s+/).map(part => part.trim()).filter(Boolean);
+    return parts.length > 0 ? parts : [value.trim()];
+  }
+
   private extractClarificationLines(input: string): string[] {
     const lines = input.split('\n');
     const clarifications: string[] = [];
@@ -289,12 +302,20 @@ ${clarificationText}${conflictText}`;
       const trimmed = line.trim();
       if (/^clarifications:/i.test(trimmed)) {
         inBlock = true;
+        const afterHeader = trimmed.replace(/^clarifications:/i, '').trim();
+        if (afterHeader) {
+          this.parseInlineBullets(afterHeader).forEach(item => clarifications.push(item));
+        }
         continue;
       }
       if (!inBlock) {
         continue;
       }
       if (trimmed === '') {
+        continue;
+      }
+      if (/^[A-Z_][A-Z0-9_ ]*:\s*$/i.test(trimmed)) {
+        inBlock = false;
         continue;
       }
       if (/^[-*]\s+/.test(trimmed)) {
@@ -374,13 +395,20 @@ ${clarificationText}${conflictText}`;
     const conflicts: string[] = [];
     const keep = new Set(entries.map((_, idx) => idx));
 
+    entries.forEach((entry, idx) => {
+      if (this.isPlaceholderClarification(entry.text)) {
+        conflicts.push(`Placeholder clarification: "${entry.text}"`);
+        keep.delete(idx);
+      }
+    });
+
     for (const rule of rules) {
       const matchesA = entries
         .map((e, idx) => ({ e, idx }))
-        .filter(({ e }) => this.matchesAny(e.text, rule.a));
+        .filter(({ e, idx }) => keep.has(idx) && this.matchesAny(e.text, rule.a));
       const matchesB = entries
         .map((e, idx) => ({ e, idx }))
-        .filter(({ e }) => this.matchesAny(e.text, rule.b));
+        .filter(({ e, idx }) => keep.has(idx) && this.matchesAny(e.text, rule.b));
 
       if (matchesA.length > 0 && matchesB.length > 0) {
         conflicts.push(`${rule.label} conflict: "${matchesA[0].e.text}" vs "${matchesB[0].e.text}"`);
