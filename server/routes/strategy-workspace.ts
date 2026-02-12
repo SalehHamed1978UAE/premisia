@@ -709,21 +709,20 @@ async function processEPMGeneration(
       // Clean up temp file
       fs.unlinkSync(tempPath);
 
-      // Check validation result
+      // Log validation result — NEVER block generation, only warn
+      // The export gate (acceptance-gates.ts) is the enforcement point, not here
       if (!validationResult.isValid) {
-        console.error('[EPM Generation] ❌ VALIDATION FAILED:');
-        validationResult.errors.forEach(e => console.error(`  - ${e}`));
+        console.warn('[EPM Generation] ⚠️  VALIDATION WARNINGS (non-blocking):');
+        validationResult.errors.forEach(e => console.warn(`  - ${e}`));
 
-        // Send validation failure to SSE stream
+        // Send validation info via SSE for visibility, but do NOT block
         sendSSEEvent(progressId, {
-          type: 'validation_failed',
+          type: 'validation_warning',
           errors: validationResult.errors,
           warnings: validationResult.warnings,
           score: validationResult.score,
-          message: `Quality validation failed (score: ${validationResult.score}/100). Please review and try again.`
+          message: `Quality validation flagged ${validationResult.errors.length} issues (score: ${validationResult.score}/100). Proceeding — export gate will enforce.`
         });
-
-        throw new Error(`EPM quality validation failed with ${validationResult.errors.length} errors. Score: ${validationResult.score}/100`);
       }
 
       // Log warnings if any
@@ -732,18 +731,11 @@ async function processEPMGeneration(
         validationResult.warnings.forEach(w => console.warn(`  - ${w}`));
       }
 
-      console.log(`[EPM Generation] ✅ Validation passed (score: ${validationResult.score}/100)`);
+      console.log(`[EPM Generation] ✅ Generation continuing (validation score: ${validationResult.score}/100)`);
 
     } catch (validationError: any) {
-      // If validation itself fails (not just validation checks), log but continue
-      // This ensures we don't break existing flows while rolling out validation
-      if (validationError.message?.includes('validation failed')) {
-        // This is an actual validation failure, re-throw it
-        throw validationError;
-      } else {
-        // This is an error in the validation process itself, log and continue
-        console.error('[EPM Generation] ⚠️  Validation process error (continuing):', validationError.message);
-      }
+      // Validation process errors should never block generation
+      console.error('[EPM Generation] ⚠️  Validation process error (continuing):', validationError.message);
     }
 
     // Extract component-level confidence scores

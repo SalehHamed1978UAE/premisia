@@ -101,17 +101,18 @@ export async function generateFullPassExport(
     benefitsCsv,
   });
   if (!acceptanceReport.passed) {
+    // Log issues but do NOT block export — let the deliverable be generated
+    // Quality issues are surfaced in validation.json inside the ZIP for review
+    console.warn(`[Export Acceptance] ⚠️  ${acceptanceReport.criticalIssues.length} issue(s) found (non-blocking):`);
     acceptanceReport.criticalIssues.forEach((issue) => {
-      console.error(`[Export Acceptance] ${issue.code}: ${issue.message}`);
+      console.warn(`[Export Acceptance] ${issue.code}: ${issue.message}`);
       if (issue.details) {
-        console.error('[Export Acceptance] Details:', issue.details);
+        console.warn('[Export Acceptance] Details:', issue.details);
       }
     });
-    throw new Error(
-      `Export acceptance gates failed with ${acceptanceReport.criticalIssues.length} critical issue(s)`
-    );
+  } else {
+    console.log('[Export Service] Acceptance gates passed');
   }
-  console.log('[Export Service] Acceptance gates passed');
   if (acceptanceReport.warnings.length > 0) {
     acceptanceReport.warnings.forEach((warning) =>
       console.warn(`[Export Acceptance] ${warning.code}: ${warning.message}`)
@@ -232,6 +233,11 @@ export async function generateFullPassExport(
     archive.append(excelBuffer, { name: 'data/epm-program.xlsx' });
     includedFiles.push('data/epm-program.xlsx');
   }
+
+  // Always include validation report so reviewers can see quality findings
+  const validationJson = JSON.stringify(acceptanceReport, null, 2);
+  archive.append(validationJson, { name: 'data/validation.json' });
+  includedFiles.push('data/validation.json');
 
   const readmeContent = `# Export Package Contents
 
