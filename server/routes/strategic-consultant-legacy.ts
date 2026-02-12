@@ -1307,7 +1307,7 @@ router.post('/whys-tree/expand', async (req: Request, res: Response) => {
 
 router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
   try {
-    const { sessionId, selectedPath, rootCause, versionNumber, input } = req.body;
+    const { sessionId, selectedPath, rootCause, versionNumber, input, tree } = req.body;
 
     if (!sessionId || !selectedPath || !rootCause || !input) {
       return res.status(400).json({ 
@@ -1317,7 +1317,41 @@ router.post('/whys-tree/finalize', async (req: Request, res: Response) => {
 
     const canonicalPath = normalizeWhysPathSteps(selectedPath || []);
     const whysPathText = whysPathToText(canonicalPath);
-    const canonicalTree = buildLinearWhysTree(canonicalPath);
+
+    const sanitizeTree = (rawTree: any) => {
+      if (!rawTree || typeof rawTree.rootQuestion !== 'string' || !Array.isArray(rawTree.branches)) {
+        return null;
+      }
+
+      const cleanNode = (node: any): any | null => {
+        if (!node || typeof node.option !== 'string' || !node.option.trim()) return null;
+        const cleaned = {
+          id: node.id,
+          option: node.option,
+          question: typeof node.question === 'string' ? node.question : '',
+          branches: [] as any[],
+          supporting_evidence: Array.isArray(node.supporting_evidence) ? node.supporting_evidence : [],
+          counter_arguments: Array.isArray(node.counter_arguments) ? node.counter_arguments : [],
+          consideration: typeof node.consideration === 'string' ? node.consideration : '',
+        };
+        if (Array.isArray(node.branches)) {
+          cleaned.branches = node.branches.map(cleanNode).filter(Boolean);
+        }
+        return cleaned;
+      };
+
+      const cleanedBranches = rawTree.branches.map(cleanNode).filter(Boolean);
+      if (cleanedBranches.length === 0) return null;
+
+      return {
+        rootQuestion: rawTree.rootQuestion,
+        branches: cleanedBranches,
+        maxDepth: rawTree.maxDepth || 5,
+        sessionId: rawTree.sessionId || sessionId,
+      };
+    };
+
+    const canonicalTree = sanitizeTree(tree) || buildLinearWhysTree(canonicalPath);
 
     console.log('[FiveWhys] Finalize received:', {
       sessionId,
