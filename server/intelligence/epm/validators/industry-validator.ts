@@ -27,9 +27,21 @@ export class IndustryValidator extends BaseValidator {
     
     const contextLower = businessContext.toLowerCase();
     const detectedIndustries: string[] = [];
-    
+
+    // Detect industries from businessContext classification
     for (const [industry, keywords] of Object.entries(this.industryKeywords)) {
       if (keywords.some(kw => contextLower.includes(kw))) {
+        detectedIndustries.push(industry);
+      }
+    }
+
+    // Sprint 6: Also detect industries from workstream content itself
+    // If 3+ keywords from an industry appear across workstreams, it's the user's domain
+    const allWsContent = workstreams.map(ws => `${ws.name} ${ws.description || ''}`).join(' ').toLowerCase();
+    for (const [industry, keywords] of Object.entries(this.industryKeywords)) {
+      if (detectedIndustries.includes(industry)) continue;
+      const hitCount = keywords.filter(kw => allWsContent.includes(kw)).length;
+      if (hitCount >= 3) {
         detectedIndustries.push(industry);
       }
     }

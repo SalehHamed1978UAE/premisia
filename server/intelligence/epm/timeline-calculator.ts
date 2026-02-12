@@ -131,7 +131,13 @@ export class TimelineCalculator implements ITimelineCalculator {
    */
   generatePhases(totalMonths: number, workstreams: Workstream[]): TimelinePhase[] {
     // Determine optimal phase count based on duration
-    const phaseCount = totalMonths <= 4 ? 2 : totalMonths <= 8 ? 3 : 4;
+    let phaseCount = totalMonths <= 4 ? 2 : totalMonths <= 8 ? 3 : 4;
+
+    // Sprint 6: Reduce phaseCount if it would create phases shorter than 2 months
+    while (phaseCount > 2 && Math.floor(totalMonths / phaseCount) < 2) {
+      phaseCount--;
+    }
+
     const phaseDuration = Math.ceil(totalMonths / phaseCount);
 
     const phaseConfigs = [
@@ -154,7 +160,7 @@ export class TimelineCalculator implements ITimelineCalculator {
         w.startMonth < phaseEnd && w.endMonth >= phaseStart
       );
 
-      if (phaseStart > phaseEnd) {
+      if (phaseStart >= phaseEnd) {
         continue;
       }
 
@@ -169,7 +175,22 @@ export class TimelineCalculator implements ITimelineCalculator {
       });
     }
 
-    console.log(`[TimelineCalculator] Generated ${phaseCount} phases for ${totalMonths} month program:`);
+    // Sprint 6: Merge last phase if too short (< 2 months) — belt-and-suspenders guard
+    if (phases.length > 1) {
+      const lastPhase = phases[phases.length - 1];
+      if (lastPhase.endMonth - lastPhase.startMonth < 2) {
+        const merged = phases.pop()!;
+        phases[phases.length - 1].endMonth = merged.endMonth;
+        // Merge workstream IDs (deduplicate)
+        const mergedWsIds = new Set([
+          ...phases[phases.length - 1].workstreamIds,
+          ...merged.workstreamIds,
+        ]);
+        phases[phases.length - 1].workstreamIds = Array.from(mergedWsIds);
+      }
+    }
+
+    console.log(`[TimelineCalculator] Generated ${phases.length} phases for ${totalMonths} month program:`);
     phases.forEach(p => {
       console.log(`  Phase ${p.phase} (M${p.startMonth}-M${p.endMonth}): ${p.workstreamIds.length} workstreams`);
     });

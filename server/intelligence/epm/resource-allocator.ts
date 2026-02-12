@@ -28,7 +28,23 @@ export class ResourceAllocator {
   ): Promise<ResourcePlan> {
     const resourceInsights = insights.insights.filter(i => i.type === 'resource');
 
-    const estimatedFTEs = Math.max(8, Math.min(workstreams.length * 2, 20));
+    // Budget-aware FTE sizing (Sprint 6)
+    const uncappedFTEs = Math.max(4, Math.min(workstreams.length * 2, 20));
+    let estimatedFTEs = uncappedFTEs;
+
+    if (userContext?.budgetRange?.max) {
+      // Reverse the cost formula: totalBudget = (FTEs * 150000 + external) * 1.15 * 1.10
+      // So: maxFTEs = floor((budgetMax / 1.265 - externalCost) / 150000)
+      const budgetMax = userContext.budgetRange.max;
+      const estimatedExternal = 100000; // Conservative estimate for external resources
+      const maxAffordableFTEs = Math.floor((budgetMax / 1.265 - estimatedExternal) / 150000);
+
+      if (maxAffordableFTEs < estimatedFTEs) {
+        console.warn(`[ResourceAllocator] Budget ($${(budgetMax / 1e6).toFixed(2)}M) constrains team to ${maxAffordableFTEs} FTEs (optimal: ${estimatedFTEs})`);
+      }
+
+      estimatedFTEs = Math.max(4, Math.min(estimatedFTEs, maxAffordableFTEs));
+    }
 
     const finalInitiativeType = initiativeType || 'other';
     console.log('[ResourceAllocator] 🎯 Resource allocation context:');
@@ -56,12 +72,29 @@ export class ResourceAllocator {
     const externalResources = this.generateExternalResources(insights, userContext);
     const criticalSkills = Array.from(new Set(internalTeam.flatMap(r => r.skills)));
 
+    // Calculate actual FTEs from generated roles (not formula estimate)
+    const actualFTEs = internalTeam.reduce((sum, r) => sum + (r.allocation || 1), 0);
+    const totalFTEs = Math.ceil(actualFTEs);
+
+    // Budget constraint gap warning
+    let budgetConstrained: ResourcePlan['budgetConstrained'];
+    if (userContext?.budgetRange?.max && estimatedFTEs < uncappedFTEs) {
+      budgetConstrained = {
+        optimalFTEs: uncappedFTEs,
+        budgetFTEs: estimatedFTEs,
+        gap: uncappedFTEs - estimatedFTEs,
+        warning: `Team sized to ${estimatedFTEs} FTEs to fit $${(userContext.budgetRange.max / 1e6).toFixed(1)}M budget. Optimal staffing is ${uncappedFTEs} FTEs. Consider increasing budget or reducing scope.`,
+      };
+      console.log(`[ResourceAllocator] ⚠️ Budget constrained: ${JSON.stringify(budgetConstrained)}`);
+    }
+
     return {
       internalTeam,
       externalResources,
       criticalSkills,
-      totalFTEs: estimatedFTEs,
+      totalFTEs,
       confidence: strategyContext ? 0.85 : (resourceInsights.length > 0 ? 0.70 : 0.60),
+      budgetConstrained,
     };
   }
 

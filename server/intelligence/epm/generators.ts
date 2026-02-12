@@ -113,16 +113,18 @@ export class FinancialPlanGenerator {
   async generate(
     insights: StrategyInsights,
     resourcePlan: ResourcePlan,
-    userContext?: UserContext
+    userContext?: UserContext,
+    timelineMonths?: number
   ): Promise<FinancialPlan> {
     const costInsights = insights.insights.filter(i => i.type === 'cost');
-    
+
     const personnelCost = resourcePlan.totalFTEs * 150000;
     const externalCost = resourcePlan.externalResources.reduce((sum, r) => sum + r.estimatedCost, 0);
     const overheadCost = (personnelCost + externalCost) * 0.15;
     const computedBudget = personnelCost + externalCost + overheadCost;
     const constraintMax = userContext?.budgetRange?.max;
-    const totalBudget = constraintMax ? Math.max(constraintMax, computedBudget) : computedBudget;
+    // Sprint 6: Cap at constraint (was Math.max — backwards)
+    const totalBudget = constraintMax ? Math.min(constraintMax, computedBudget) : computedBudget;
 
     const costBreakdown = [
       { category: 'Personnel', amount: personnelCost, percentage: (personnelCost / totalBudget) * 100, description: 'Internal team costs' },
@@ -131,7 +133,9 @@ export class FinancialPlanGenerator {
     ];
 
     const contingency = totalBudget * 0.10;
-    const cashFlow = this.generateCashFlow(totalBudget, 12);
+    // Sprint 6: Use actual timeline months instead of hardcoded 12
+    const programMonths = timelineMonths || userContext?.timelineRange?.max || 12;
+    const cashFlow = this.generateCashFlow(totalBudget, programMonths);
 
     return {
       totalBudget: totalBudget + contingency,
@@ -141,7 +145,7 @@ export class FinancialPlanGenerator {
       contingencyPercentage: 10,
       assumptions: [
         `FTE cost: $150k/year`,
-        `${resourcePlan.totalFTEs} FTEs for ${12} months`,
+        `${resourcePlan.totalFTEs} FTEs for ${programMonths} months`,
         `15% overhead for infrastructure and support`,
         `10% contingency for risks and unknowns`,
       ],

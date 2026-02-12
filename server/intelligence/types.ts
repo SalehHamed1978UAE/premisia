@@ -102,6 +102,12 @@ export interface ResourcePlan {
   criticalSkills: string[];
   totalFTEs: number;
   confidence: number;
+  budgetConstrained?: {
+    optimalFTEs: number;
+    budgetFTEs: number;
+    gap: number;
+    warning: string;
+  };
 }
 
 export interface CostBreakdown {

@@ -13,6 +13,10 @@ type EpmPayloadContext = {
   initiativeType?: string | null;
   programName?: string | null;
   wbsRows?: WBSRow[] | null;
+  // Sprint 6: Five Whys data from strategy
+  whysPath?: Array<{ question: string; answer: string }> | null;
+  rootCause?: string | null;
+  fiveWhysTree?: any | null;
 };
 
 const FRAMEWORK_ALIASES: Record<string, string> = {
@@ -635,7 +639,11 @@ export function buildEpmJsonPayload(
     financialPlan.budgetHeadroom = budgetHeadroom;
   }
 
-  const hasTimelineViolation = Number.isFinite(totalDuration) && Number.isFinite(constraintTimeline) && constraintTimeline > 0 && (totalDuration as number) > constraintTimeline;
+  // Sprint 6: Bidirectional check — catch programs both longer AND shorter than constraint
+  const _tlDiff = Number.isFinite(totalDuration) && Number.isFinite(constraintTimeline) && constraintTimeline > 0
+    ? Math.abs((totalDuration as number) - constraintTimeline)
+    : 0;
+  const hasTimelineViolation = _tlDiff > 1 && (_tlDiff / constraintTimeline) * 100 > 10;
   if (timelineValue) {
     (timelineValue as any).timelineViolation = hasTimelineViolation;
   }
@@ -691,6 +699,10 @@ export function buildEpmJsonPayload(
     assignments,
     userInput: context.userInput ?? null,
     userInputStructured: structuredUserInput,
+    // Sprint 6: Five Whys data from strategy
+    whysPath: context.whysPath ?? null,
+    rootCause: context.rootCause ?? null,
+    fiveWhysTree: context.fiveWhysTree ?? null,
   };
 }
 

@@ -69,6 +69,10 @@ export async function generateFullPassExport(
           initiativeType: strategyPayload?.understanding?.initiativeType,
           programName: strategyPayload?.understanding?.title || null,
           wbsRows,
+          // Sprint 6: Pass Five Whys data from strategy
+          whysPath: strategyPayload?.whysPath || null,
+          rootCause: (strategyPayload as any)?.rootCause || null,
+          fiveWhysTree: strategyPayload?.fiveWhysTree || null,
         }),
         null,
         2

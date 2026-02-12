@@ -1128,14 +1128,19 @@ export class EPMSynthesizer {
     startTime?: number
   ): Promise<EPMProgram> {
     const processStartTime = startTime || Date.now();
-    
+
+    // Sprint 6: Enrich userContext with parsed constraints for budget/timeline-aware generation
+    const enrichedUserContext = userConstraints
+      ? this.applyUserConstraintsToContext(userContext, userConstraints)
+      : userContext;
+
     onProgress?.({
       type: 'step-start',
       step: 'program-name',
       description: 'Generating program name',
       elapsedSeconds: Math.round((Date.now() - processStartTime) / 1000)
     });
-    
+
     const programName = await this.programNameGenerator.generate(insights, userContext, namingContext);
     console.log(`[EPM Synthesis] Program name: "${programName}"`);
 
@@ -1157,7 +1162,7 @@ export class EPMSynthesizer {
       elapsedSeconds: Math.round((Date.now() - processStartTime) / 1000)
     });
     
-    const timeline = await this.timelineCalculator.calculate(insights, alignedWorkstreams, userContext);
+    const timeline = await this.timelineCalculator.calculate(insights, alignedWorkstreams, enrichedUserContext);
     console.log(`[EPM Synthesis] ✓ Timeline: ${timeline.totalMonths} months, ${timeline.phases.length} phases`);
 
     // Sprint 1: Deduplicate workstreams before phase assignment
@@ -1190,7 +1195,7 @@ export class EPMSynthesizer {
     const resourcePlan = await this.resourceAllocator.allocate(
       insights,
       phasedWorkstreams,
-      userContext,
+      enrichedUserContext,
       initiativeType,
       strategyContext  // Pass strategy context for context-aware role selection
     );
@@ -1330,7 +1335,7 @@ export class EPMSynthesizer {
       financialPlan,
       governance,
     ] = await Promise.all([
-      this.financialPlanGenerator.generate(insights, resourcePlan, userContext),
+      this.financialPlanGenerator.generate(insights, resourcePlan, enrichedUserContext, timeline.totalMonths),
       this.governanceGenerator.generate(insights, stakeholderMap),
     ]);
 
@@ -1480,9 +1485,13 @@ export class EPMSynthesizer {
     if (workstreams.length < 3) {
       workstreams.push(...this.workstreamGenerator.generateDefaultWorkstreams(3 - workstreams.length));
     }
-    
-    const timeline = await this.timelineCalculator.calculate(insights, workstreams, userContext);
-    const resourcePlan = await this.resourceAllocator.allocate(insights, workstreams, userContext);
+
+    // Enrich userContext with parsed constraints (same as main path)
+    const legacyConstraints = this.parseUserConstraints(insights);
+    const enrichedLegacyContext = this.applyUserConstraintsToContext(userContext, legacyConstraints);
+
+    const timeline = await this.timelineCalculator.calculate(insights, workstreams, enrichedLegacyContext);
+    const resourcePlan = await this.resourceAllocator.allocate(insights, workstreams, enrichedLegacyContext);
     
     const [
       executiveSummary,
@@ -1524,7 +1533,7 @@ export class EPMSynthesizer {
       benefitsRealizationRaw2,
       governance,
     ] = await Promise.all([
-      this.financialPlanGenerator.generate(insights, resourcePlan, userContext),
+      this.financialPlanGenerator.generate(insights, resourcePlan, enrichedLegacyContext, timeline.totalMonths),
       this.benefitsGenerator.generate(insights, timeline),
       this.governanceGenerator.generate(insights, stakeholderMap),
     ]);
