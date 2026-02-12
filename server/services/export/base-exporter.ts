@@ -297,9 +297,9 @@ export async function loadExportData(
       conflicts = fallback.conflicts;
     }
 
-    // Export-time conflict detection: if no conflicts from metadata, scan full text
+    // Export-time conflict detection: if no conflicts from metadata, run full analysis
     if (conflicts.length === 0 && fallback.lines.length > 0) {
-      const detected = ambiguityDetector.detectClarificationConflicts(fallback.lines);
+      const detected = await ambiguityDetector.detectAllConflicts(fallback.lines);
       if (detected.length > 0) {
         conflicts = detected;
         console.log('[Export Service] Detected conflicts from clarification lines:', detected.length);

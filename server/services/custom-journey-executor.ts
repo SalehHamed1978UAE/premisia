@@ -306,7 +306,7 @@ export class CustomJourneyExecutor {
                 try {
                   // Run conflict detection on clarification lines from user input
                   const clarificationLines = ambiguityDetector.extractClarificationLines(userInputText || '');
-                  const clarificationConflicts = ambiguityDetector.detectClarificationConflicts(clarificationLines);
+                  const clarificationConflicts = await ambiguityDetector.detectAllConflicts(clarificationLines);
                   if (clarificationConflicts.length > 0) {
                     console.log(`[CustomJourneyExecutor] Detected ${clarificationConflicts.length} clarification conflicts`);
                   }

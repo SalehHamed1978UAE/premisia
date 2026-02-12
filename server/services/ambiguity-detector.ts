@@ -503,26 +503,141 @@ ${conflicts.map((line) => `- ${line}`).join('\n')}`;
     });
 
     this.CLARIFICATION_CONFLICT_RULES.forEach((rule) => {
-      const matched: Record<string, string[]> = {};
+      const matched: Record<string, { lines: string[]; indices: Set<number> }> = {};
       rule.groups.forEach((group) => {
-        const matches = lines.filter((line, idx) =>
-          group.keywords.some((keyword) => normalizedLines[idx].includes(this.normalizeForMatch(keyword)))
-        );
-        if (matches.length > 0) {
-          matched[group.id] = matches;
+        const matchingLines: string[] = [];
+        const matchingIndices = new Set<number>();
+        lines.forEach((line, idx) => {
+          if (group.keywords.some((keyword) => normalizedLines[idx].includes(this.normalizeForMatch(keyword)))) {
+            matchingLines.push(line);
+            matchingIndices.add(idx);
+          }
+        });
+        if (matchingLines.length > 0) {
+          matched[group.id] = { lines: matchingLines, indices: matchingIndices };
         }
       });
 
-      const matchedGroups = Object.values(matched);
-      if (matchedGroups.length > 1) {
-        const summary = matchedGroups
-          .map((groupLines) => groupLines.join('; '))
-          .join(' vs ');
-        conflicts.push(`${rule.label} conflict: ${summary}`);
+      const matchedEntries = Object.values(matched);
+      if (matchedEntries.length > 1) {
+        // Only flag conflict if opposing groups match on DIFFERENT lines.
+        // A single line containing both keywords (e.g. "both channel partners and direct sales")
+        // is the user describing their intent, not a contradiction between separate statements.
+        const allMatchedIndices = new Set(matchedEntries.flatMap((e) => Array.from(e.indices)));
+        if (allMatchedIndices.size > 1) {
+          const summary = matchedEntries
+            .map((e) => e.lines.join('; '))
+            .join(' vs ');
+          conflicts.push(`${rule.label} conflict: ${summary}`);
+        }
       }
     });
 
     return conflicts;
+  }
+
+  /**
+   * LLM-based semantic conflict detection. Catches contradictions that keyword rules miss.
+   * Runs AFTER keyword-based detection as an enhancement layer.
+   * Works for ANY business domain — no hardcoded keywords.
+   */
+  async detectSemanticConflicts(lines: string[]): Promise<string[]> {
+    const meaningful = lines.filter((l) => l.trim().length > 3 && !this.isPlaceholderClarification(l));
+    if (meaningful.length < 2) return [];
+
+    const systemPrompt = `You are a business strategy analyst reviewing clarification statements provided by a user for a strategic planning tool. Your job is to identify CONTRADICTIONS between different statements.
+
+A contradiction exists when two statements make claims that cannot both be true simultaneously. Examples:
+- "Direct Sales Only" contradicts "sell through channel partners" (can't be direct-only AND use partners)
+- "Full Automation" contradicts "manual human-driven review" (can't be fully automated AND manual)
+- "Cloud-only deployment" contradicts "on-premises installation" (mutually exclusive)
+
+Do NOT flag as contradictions:
+- Statements that are simply different topics
+- Vague or incomplete statements (flag as "unclear" instead)
+- Statements that represent complementary strategies (e.g., "target SMBs" and "also serve enterprise")
+
+Return a JSON object with this structure:
+{
+  "conflicts": [
+    {
+      "line1": "exact text of first conflicting statement",
+      "line2": "exact text of second conflicting statement",
+      "type": "brief category (e.g., sales_channel, automation_scope, deployment_model)",
+      "explanation": "one sentence explaining why these contradict"
+    }
+  ],
+  "unclear": [
+    {
+      "line": "exact text of vague statement",
+      "reason": "why it's too vague to be actionable"
+    }
+  ]
+}
+
+If no conflicts or unclear items exist, return empty arrays.`;
+
+    const userMessage = `Here are the clarification statements to analyze:\n\n${meaningful.map((l, i) => `${i + 1}. "${l}"`).join('\n')}`;
+
+    try {
+      const response = await aiClients.callWithFallback({
+        systemPrompt,
+        userMessage,
+        maxTokens: 1024,
+      });
+
+      const parsed = JSON.parse(response.content);
+      const semanticConflicts: string[] = [];
+
+      if (parsed.conflicts && Array.isArray(parsed.conflicts)) {
+        for (const c of parsed.conflicts) {
+          if (c.line1 && c.line2 && c.explanation) {
+            semanticConflicts.push(
+              `${c.type || 'Semantic'} conflict: "${c.line1}" vs "${c.line2}" — ${c.explanation}`
+            );
+          }
+        }
+      }
+
+      if (parsed.unclear && Array.isArray(parsed.unclear)) {
+        for (const u of parsed.unclear) {
+          if (u.line && u.reason) {
+            semanticConflicts.push(`Unclear clarification: "${u.line}" — ${u.reason}`);
+          }
+        }
+      }
+
+      return semanticConflicts;
+    } catch (error: any) {
+      console.warn(`[AmbiguityDetector] Semantic conflict detection failed (non-blocking): ${error.message}`);
+      return [];
+    }
+  }
+
+  /**
+   * Combined conflict detection: keyword rules (fast, free) + LLM semantic analysis (thorough, async).
+   * Returns all unique conflicts from both methods.
+   */
+  async detectAllConflicts(lines: string[]): Promise<string[]> {
+    const keywordConflicts = this.detectClarificationConflicts(lines);
+    const semanticConflicts = await this.detectSemanticConflicts(lines);
+
+    // Deduplicate: if a keyword conflict covers the same lines as a semantic one, keep the semantic (more descriptive)
+    const allConflicts = [...keywordConflicts];
+    for (const sc of semanticConflicts) {
+      const isDuplicate = keywordConflicts.some((kc) => {
+        // Simple overlap check: if both mention the same pair of quoted strings
+        const kcQuotes: string[] = kc.match(/"[^"]+"/g) || [];
+        const scQuotes: string[] = sc.match(/"[^"]+"/g) || [];
+        return kcQuotes.length >= 2 && scQuotes.length >= 2 &&
+          kcQuotes.some((q) => scQuotes.includes(q));
+      });
+      if (!isDuplicate) {
+        allConflicts.push(sc);
+      }
+    }
+
+    return allConflicts;
   }
 
   private isPlaceholderClarification(line: string): boolean {
