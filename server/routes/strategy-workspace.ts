@@ -710,15 +710,22 @@ async function processEPMGeneration(
     }
     
     // Include prioritized order and sessionId in user decisions context
+    // Sprint 6.1: Inject constraints from strategyVersion so generators respect budget/timeline
+    const versionBudgetRange = version.costMax ? { min: version.costMin || version.costMax, max: version.costMax } : undefined;
+    const versionTimelineRange = version.timelineMonths ? { min: version.timelineMonths, max: version.timelineMonths } : undefined;
     const decisionsWithPriority = userDecisions ? {
       ...userDecisions,
       prioritizedOrder: prioritizedOrder || [],
       sessionId: version.sessionId,  // Pass sessionId for initiative type lookup
       clarificationConflicts,
-    } : { 
+      budgetRange: versionBudgetRange,
+      timelineRange: versionTimelineRange,
+    } : {
       prioritizedOrder: prioritizedOrder || [],
       sessionId: version.sessionId,  // Pass sessionId for initiative type lookup
       clarificationConflicts,
+      budgetRange: versionBudgetRange,
+      timelineRange: versionTimelineRange,
     };
     
     // Run through EPM synthesizer with naming context and real-time progress
