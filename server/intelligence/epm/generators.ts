@@ -126,10 +126,12 @@ export class FinancialPlanGenerator {
     // Sprint 6: Cap at constraint (was Math.max — backwards)
     const totalBudget = constraintMax ? Math.min(constraintMax, computedBudget) : computedBudget;
 
+    // Sprint 6.1: Scale breakdown amounts proportionally when budget is capped
+    const scaleFactor = totalBudget < computedBudget ? totalBudget / computedBudget : 1;
     const costBreakdown = [
-      { category: 'Personnel', amount: personnelCost, percentage: (personnelCost / totalBudget) * 100, description: 'Internal team costs' },
-      { category: 'External Resources', amount: externalCost, percentage: (externalCost / totalBudget) * 100, description: 'Consultants, software, services' },
-      { category: 'Overhead', amount: overheadCost, percentage: (overheadCost / totalBudget) * 100, description: 'Infrastructure, admin, facilities' },
+      { category: 'Personnel', amount: Math.round(personnelCost * scaleFactor), percentage: (personnelCost / computedBudget) * 100, description: 'Internal team costs' },
+      { category: 'External Resources', amount: Math.round(externalCost * scaleFactor), percentage: (externalCost / computedBudget) * 100, description: 'Consultants, software, services' },
+      { category: 'Overhead', amount: Math.round(overheadCost * scaleFactor), percentage: (overheadCost / computedBudget) * 100, description: 'Infrastructure, admin, facilities' },
     ];
 
     const contingency = totalBudget * 0.10;

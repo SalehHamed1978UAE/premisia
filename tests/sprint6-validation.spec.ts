@@ -140,6 +140,27 @@ describe('Fix 1: Budget-aware financial plan generation', () => {
     expect(plan.totalBudget).toBeLessThanOrEqual(1980000 + 1);
     expect(plan.totalBudget).toBeLessThan(3000000); // definitely not $3.54M
   });
+
+  it('costBreakdown amounts scale proportionally when budget is capped', async () => {
+    // 18 FTEs * 150k = 2.7M + 100k external + overhead ≈ 3.22M computed
+    // With $1M constraint, amounts must scale down proportionally
+    const resourcePlan = makeResourcePlan(18);
+    const constrained: UserContext = {
+      budgetRange: { min: 500000, max: 1000000 },
+    } as UserContext;
+
+    const plan = await generator.generate(makeInsights(), resourcePlan, constrained, 12);
+
+    // costBreakdown amounts must sum to ≤ totalBudget (minus contingency)
+    const breakdownSum = plan.costBreakdown.reduce((sum: number, item: any) => sum + item.amount, 0);
+    const budgetBeforeContingency = plan.totalBudget - plan.contingency;
+    expect(breakdownSum).toBeLessThanOrEqual(budgetBeforeContingency + 1); // +1 for rounding
+
+    // Percentages must sum to ~100% (not >100%)
+    const percentageSum = plan.costBreakdown.reduce((sum: number, item: any) => sum + item.percentage, 0);
+    expect(percentageSum).toBeGreaterThan(95);
+    expect(percentageSum).toBeLessThanOrEqual(100.1);
+  });
 });
 
 // ─── Fix 2: Bidirectional Timeline Check ────────────────────────────────────
