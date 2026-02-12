@@ -772,11 +772,11 @@ class EPMPackageValidator {
       const impliedTeamLow = Math.floor(budgetPerYear / 200000);
       const impliedTeamHigh = Math.ceil(budgetPerYear / 80000);
 
-      // Check for range match patterns like "between N and M"
+      // Check for range match patterns like "between N and M people/team/members"
       const inputSummary = constraints.inputSummary || '';
-      const betweenMatch = inputSummary.match(/between\s+(\d[\d,]*)\s+and\s+(\d[\d,]*)/i);
-      const parsedMin = betweenMatch ? parseInt(betweenMatch[1].replace(/,/g, '')) : null;
-      const parsedMax = betweenMatch ? parseInt(betweenMatch[2].replace(/,/g, '')) : null;
+      const betweenMatch = inputSummary.match(/(?:team|staff|people|members|engineers|developers|headcount)\s+(?:of\s+)?between\s+(\d[\d,]*)\s+and\s+(\d[\d,]*)|between\s+(\d[\d,]*)\s+and\s+(\d[\d,]*)\s+(?:people|team\s+members|members|engineers|developers|staff|headcount)/i);
+      const parsedMin = betweenMatch ? parseInt((betweenMatch[1] || betweenMatch[3]).replace(/,/g, '')) : null;
+      const parsedMax = betweenMatch ? parseInt((betweenMatch[2] || betweenMatch[4]).replace(/,/g, '')) : null;
 
       // If constraint team size is wildly off from budget-implied size
       if (teamSizeMax < impliedTeamLow * 0.3 || teamSizeMin > impliedTeamHigh * 3) {
