@@ -67,6 +67,7 @@ export async function generateFullPassExport(
           userInput: strategyPayload?.understanding?.userInput,
           clarifications: strategyPayload?.clarifications,
           initiativeType: strategyPayload?.understanding?.initiativeType,
+          programName: strategyPayload?.understanding?.title || null,
           wbsRows,
         }),
         null,

@@ -11,6 +11,7 @@ type EpmPayloadContext = {
   userInput?: string | null;
   clarifications?: StrategyPayload['clarifications'] | null;
   initiativeType?: string | null;
+  programName?: string | null;
   wbsRows?: WBSRow[] | null;
 };
 
@@ -570,7 +571,16 @@ export function buildEpmJsonPayload(
 
   const startDateRaw = program.startDate || timelineValue?.startDate || null;
   const startDateParsed = startDateRaw ? new Date(startDateRaw) : null;
-  const startDate = startDateParsed && !Number.isNaN(startDateParsed.getTime()) ? startDateParsed : null;
+  let startDate = startDateParsed && !Number.isNaN(startDateParsed.getTime()) ? startDateParsed : null;
+
+  // Fallback: use generatedAt as program start proxy when no explicit start date
+  if (!startDate) {
+    const generatedAt = (epm as any).metadata?.generatedAt || context.exportMeta?.exportedAt;
+    if (generatedAt) {
+      const d = new Date(generatedAt);
+      if (!Number.isNaN(d.getTime())) startDate = d;
+    }
+  }
 
   const endDateRaw = program.endDate || timelineValue?.endDate || null;
   let endDateParsed = endDateRaw ? new Date(endDateRaw) : null;
@@ -606,7 +616,44 @@ export function buildEpmJsonPayload(
   }
 
   const assignments = normalizeAssignments(epm.assignments || [], workstreams);
-  const requiresApproval = (epm as any).requiresApproval ?? (program as any).requiresApproval ?? null;
+
+  // ─── Compute budget/timeline violation flags ───
+  const costMax = Number(constraints?.costMax);
+  const costMin = Number(constraints?.costMin);
+  const constraintTimeline = Number(constraints?.timelineMonths);
+  const hasBudgetViolation = Number.isFinite(totalBudget) && Number.isFinite(costMax) && costMax > 0 && (totalBudget as number) > costMax;
+  const budgetHeadroom = (Number.isFinite(totalBudget) && Number.isFinite(costMax) && costMax > 0)
+    ? costMax - (totalBudget as number)
+    : null;
+
+  // Enrich financialPlan with violation data
+  if (financialPlan && hasBudgetViolation) {
+    financialPlan.budgetViolation = true;
+    financialPlan.budgetHeadroom = budgetHeadroom;
+  } else if (financialPlan && budgetHeadroom !== null) {
+    financialPlan.budgetViolation = false;
+    financialPlan.budgetHeadroom = budgetHeadroom;
+  }
+
+  const hasTimelineViolation = Number.isFinite(totalDuration) && Number.isFinite(constraintTimeline) && constraintTimeline > 0 && (totalDuration as number) > constraintTimeline;
+  if (timelineValue) {
+    (timelineValue as any).timelineViolation = hasTimelineViolation;
+  }
+
+  // ─── Compute requiresApproval (replaces passthrough) ───
+  const baseApproval = (epm as any).requiresApproval ?? (program as any).requiresApproval ?? {};
+  const computedApproval: Record<string, boolean> = typeof baseApproval === 'object' && baseApproval !== null ? { ...baseApproval } : {};
+  if (hasBudgetViolation) {
+    computedApproval.budget = true;
+  }
+  if (hasTimelineViolation) {
+    computedApproval.timeline = true;
+  }
+  // Preserve clarifications flag from upstream
+  if (context.clarifications && (context.clarifications as any).conflicts && (context.clarifications as any).conflicts.length > 0) {
+    computedApproval.clarifications = true;
+  }
+  const requiresApproval = Object.keys(computedApproval).length > 0 ? computedApproval : null;
   const metadata = {
     ...(epm.metadata || {}),
     programId: epm.metadata?.programId ?? programId ?? null,
@@ -617,6 +664,7 @@ export function buildEpmJsonPayload(
     updatedAt: epm.metadata?.updatedAt ?? program.updatedAt ?? null,
     sessionId: epm.metadata?.sessionId ?? context.exportMeta?.sessionId ?? context.strategyVersion?.sessionId ?? null,
     generatedAt: epm.metadata?.generatedAt ?? context.exportMeta?.exportedAt ?? null,
+    programName: context.programName || (epm as any).metadata?.programName || null,
     constraints,
   };
 
@@ -628,6 +676,7 @@ export function buildEpmJsonPayload(
     requiresApproval,
     metadata,
     programId: programId ?? null,
+    programName: context.programName || (epm as any).metadata?.programName || null,
     program: normalizedProgram,
     workstreams,
     resourcePlan,

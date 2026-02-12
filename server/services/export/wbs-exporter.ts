@@ -99,9 +99,13 @@ export function generateWBSRows(pkg: FullExportPackage): WBSRow[] {
   const wbsCodeMap = new Map<string, string>();
 
   // First pass: Build WBS code map for all workstreams
+  // Track assigned IDs to prevent duplicate workstreams across phases
+  const assignedWsIds = new Set<string>();
+
   if (phases.length > 0) {
     phases.forEach((phase, phaseIndex) => {
       const phaseWorkstreams = workstreams.filter((ws: any) => {
+        if (assignedWsIds.has(ws.id)) return false;
         return ws.phase === phase.name ||
                (ws.startMonth >= phase.startMonth && ws.startMonth <= phase.endMonth);
       });
@@ -109,6 +113,7 @@ export function generateWBSRows(pkg: FullExportPackage): WBSRow[] {
       phaseWorkstreams.forEach((ws: any, wsIndex: number) => {
         const wsWbsCode = `1.${phaseIndex + 1}.${wsIndex + 1}`;
         wbsCodeMap.set(ws.id, wsWbsCode);
+        assignedWsIds.add(ws.id);
       });
     });
   } else {
@@ -119,6 +124,9 @@ export function generateWBSRows(pkg: FullExportPackage): WBSRow[] {
   }
 
   // Level 1: Phases or direct workstreams
+  // Re-use assignedWsIds to ensure row generation matches the code map
+  const rowAssignedWsIds = new Set<string>();
+
   if (phases.length > 0) {
     phases.forEach((phase, phaseIndex) => {
       const phaseWbsCode = `1.${phaseIndex + 1}`;
@@ -174,13 +182,15 @@ export function generateWBSRows(pkg: FullExportPackage): WBSRow[] {
         });
       }
 
-      // Add workstreams for this phase
+      // Add workstreams for this phase (skip already-assigned to prevent duplicates)
       const phaseWorkstreams = workstreams.filter((ws: any) => {
+        if (rowAssignedWsIds.has(ws.id)) return false;
         return ws.phase === phase.name ||
                (ws.startMonth >= phase.startMonth && ws.startMonth <= phase.endMonth);
       });
 
       phaseWorkstreams.forEach((ws: any, wsIndex: number) => {
+        rowAssignedWsIds.add(ws.id);
         const wsWbsCode = `${phaseWbsCode}.${wsIndex + 1}`;
         addWorkstreamToRows(rows, ws, wsWbsCode, 2, programStartDate, journeyType, pkg, wbsCodeMap, phaseStartDate, phaseEndDate);
       });

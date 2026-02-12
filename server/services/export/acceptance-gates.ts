@@ -492,6 +492,61 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
     );
   }
 
+  // ─── Budget & Timeline Constraint Enforcement ───
+  const constraints = epmData.constraints || epmData.program?.constraints || epmData.metadata?.constraints || null;
+  const financialPlan = parseJson(epmData.program?.financialPlan) || epmData.financialPlan || null;
+  const totalBudget = Number(financialPlan?.totalBudget ?? epmData.program?.totalBudget);
+  const costMax = Number(constraints?.costMax);
+
+  if (Number.isFinite(totalBudget) && Number.isFinite(costMax) && costMax > 0 && totalBudget > costMax) {
+    const overage = totalBudget - costMax;
+    const overagePercent = ((overage / costMax) * 100).toFixed(1);
+    criticalIssues.push({
+      severity: 'critical',
+      code: 'BUDGET_CONSTRAINT_VIOLATION',
+      message: `Total budget ($${totalBudget.toLocaleString()}) exceeds cost constraint ($${costMax.toLocaleString()}) by $${overage.toLocaleString()} (${overagePercent}%)`,
+      details: { totalBudget, costMax, overage, overagePercent },
+    });
+  }
+
+  const timelineObj = parseJson(epmData.program?.timeline) || epmData.timeline || {};
+  const programTotalMonths = Number(timelineObj?.totalMonths ?? epmData.program?.totalDuration);
+  const constraintTimelineMonths = Number(constraints?.timelineMonths);
+
+  if (Number.isFinite(programTotalMonths) && Number.isFinite(constraintTimelineMonths) && constraintTimelineMonths > 0) {
+    // Flag if program duration is less than half the requested timeline (indicates incomplete scope)
+    if (programTotalMonths < constraintTimelineMonths * 0.5) {
+      warnings.push({
+        severity: 'warning',
+        code: 'TIMELINE_SCOPE_MISMATCH',
+        message: `Program duration (${programTotalMonths} months) covers less than half the requested timeline (${constraintTimelineMonths} months). The full scope may not be planned.`,
+        details: { programTotalMonths, constraintTimelineMonths },
+      });
+    }
+    // Flag if program exceeds timeline constraint
+    if (programTotalMonths > constraintTimelineMonths) {
+      criticalIssues.push({
+        severity: 'critical',
+        code: 'TIMELINE_CONSTRAINT_VIOLATION',
+        message: `Program duration (${programTotalMonths} months) exceeds timeline constraint (${constraintTimelineMonths} months)`,
+        details: { programTotalMonths, constraintTimelineMonths },
+      });
+    }
+  }
+
+  // ─── requiresApproval Check ───
+  const requiresApproval = epmData.requiresApproval;
+  if (Number.isFinite(totalBudget) && Number.isFinite(costMax) && totalBudget > costMax) {
+    if (!requiresApproval || requiresApproval.budget !== true) {
+      criticalIssues.push({
+        severity: 'critical',
+        code: 'MISSING_APPROVAL_GATE',
+        message: 'Budget exceeds constraint but requiresApproval.budget is not set',
+        details: { requiresApproval },
+      });
+    }
+  }
+
   const wbsRows = Array.isArray(epmData.wbs) ? epmData.wbs : [];
   if (wbsRows.length > 0) {
     const placeholderNames = new Set([
