@@ -7,6 +7,7 @@ import { PdfExporter, findChromiumExecutable, generatePdfFromHtml, generatePdfFr
 import { DocxExporter, generateDocxReport, generateDocxFromHtml } from './docx-exporter';
 import { CsvExporter, generateAssignmentsCsv, generateWorkstreamsCsv, generateResourcesCsv, generateRisksCsv, generateBenefitsCsv } from './csv-exporter';
 import { ExcelExporter, generateExcelWorkbook } from './excel-exporter';
+import { WBSExporter, generateWBSRows, generateWBSCsv } from './wbs-exporter';
 import { escapeCsvField } from './base-exporter';
 import { buildStrategyJsonPayload, buildEpmJsonPayload } from './json-payloads';
 import { validateExportAcceptance } from './acceptance-gates';
@@ -20,6 +21,7 @@ export { PdfExporter, findChromiumExecutable, generatePdfFromHtml, generatePdfFr
 export { DocxExporter, generateDocxReport, generateDocxFromHtml };
 export { CsvExporter, generateAssignmentsCsv, generateWorkstreamsCsv, generateResourcesCsv, generateRisksCsv, generateBenefitsCsv };
 export { ExcelExporter, generateExcelWorkbook };
+export { WBSExporter, generateWBSRows, generateWBSCsv };
 
 export async function generateFullPassExport(
   request: ExportRequest,
@@ -35,6 +37,106 @@ export async function generateFullPassExport(
 
   const skippedFiles: string[] = [];
   
+  console.log('[Export Service] Generating JSON and CSV exports...');
+  const epmProgramId = exportPackage.epm?.program?.id || exportPackage.metadata?.programId || null;
+  const strategyPayload = exportPackage.strategy?.strategyVersion && epmProgramId
+    ? {
+        ...exportPackage.strategy,
+        strategyVersion: {
+          ...exportPackage.strategy.strategyVersion,
+          convertedProgramId: exportPackage.strategy.strategyVersion.convertedProgramId || epmProgramId,
+        },
+      }
+    : exportPackage.strategy;
+
+  const strategyJson = JSON.stringify(buildStrategyJsonPayload(strategyPayload), null, 2);
+
+  let wbsRows: ReturnType<typeof generateWBSRows> | null = null;
+  try {
+    wbsRows = exportPackage.epm?.program ? generateWBSRows(exportPackage) : null;
+  } catch (error) {
+    console.warn('[Export Service] WBS row generation failed:', error instanceof Error ? error.message : error);
+    wbsRows = null;
+  }
+
+  const epmJson = exportPackage.epm?.program
+    ? JSON.stringify(
+        buildEpmJsonPayload(exportPackage.epm, {
+          exportMeta: exportPackage.metadata,
+          strategyVersion: strategyPayload?.strategyVersion,
+          userInput: strategyPayload?.understanding?.userInput,
+          clarifications: strategyPayload?.clarifications,
+          initiativeType: strategyPayload?.understanding?.initiativeType,
+          wbsRows,
+        }),
+        null,
+        2
+      )
+    : null;
+  
+  const parseField = (field: any) => {
+    if (!field) return null;
+    if (typeof field === 'object') return field;
+    try { return JSON.parse(field); } catch { return null; }
+  };
+  
+  const workstreams = parseField(exportPackage.epm?.program?.workstreams);
+  const assignmentsCsv = exportPackage.epm?.assignments
+    ? generateAssignmentsCsv(exportPackage.epm.assignments, workstreams || [])
+    : null;
+  const workstreamsCsv = workstreams && workstreams.length > 0 ? generateWorkstreamsCsv(workstreams) : null;
+  
+  const resourcePlan = parseField(exportPackage.epm?.program?.resourcePlan);
+  const resourcesCsv = resourcePlan ? generateResourcesCsv(resourcePlan, exportPackage.epm?.assignments || []) : null;
+  
+  const riskRegister = parseField(exportPackage.epm?.program?.riskRegister);
+  const risksCsv = riskRegister ? generateRisksCsv(riskRegister) : null;
+  
+  const benefitsRealization = parseField(exportPackage.epm?.program?.benefitsRealization);
+  const benefitsCsv = benefitsRealization ? generateBenefitsCsv(benefitsRealization) : null;
+
+  console.log('[Export Service] Generating WBS CSV...');
+  let wbsCsv: string | null = null;
+  try {
+    wbsCsv = exportPackage.epm?.program ? generateWBSCsv(exportPackage) : null;
+    if (wbsCsv) {
+      console.log('[Export Service] WBS CSV generated successfully');
+    }
+  } catch (error) {
+    console.warn('[Export Service] WBS CSV generation failed:', error instanceof Error ? error.message : error);
+  }
+
+  console.log('[Export Service] Running acceptance gates...');
+  const acceptanceReport = validateExportAcceptance({
+    strategyJson,
+    epmJson,
+    assignmentsCsv,
+    workstreamsCsv,
+    resourcesCsv,
+    risksCsv,
+    benefitsCsv,
+  });
+  if (!acceptanceReport.passed) {
+    acceptanceReport.criticalIssues.forEach((issue) => {
+      console.error(`[Export Acceptance] ${issue.code}: ${issue.message}`);
+      if (issue.details) {
+        console.error('[Export Acceptance] Details:', issue.details);
+      }
+    });
+    console.warn(
+      `[Export Acceptance] Export will continue with ${acceptanceReport.criticalIssues.length} critical issue(s)`
+    );
+  } else {
+    console.log('[Export Service] Acceptance gates passed');
+  }
+  if (acceptanceReport.warnings.length > 0) {
+    acceptanceReport.warnings.forEach((warning) =>
+      console.warn(`[Export Acceptance] ${warning.code}: ${warning.message}`)
+    );
+  }
+
+  (exportPackage.metadata as any).acceptanceReport = acceptanceReport;
+
   console.log('[Export Service] Generating Markdown report...');
   const markdown = generateMarkdownReport(exportPackage);
   
@@ -63,62 +165,6 @@ export async function generateFullPassExport(
   console.log('[Export Service] Generating DOCX report...');
   const docx = await generateDocxReport(exportPackage);
   
-  console.log('[Export Service] Generating JSON and CSV exports...');
-  const strategyJson = JSON.stringify(buildStrategyJsonPayload(exportPackage.strategy), null, 2);
-  const epmJson = exportPackage.epm?.program
-    ? JSON.stringify(buildEpmJsonPayload(exportPackage.epm), null, 2)
-    : null;
-  
-  const parseField = (field: any) => {
-    if (!field) return null;
-    if (typeof field === 'object') return field;
-    try { return JSON.parse(field); } catch { return null; }
-  };
-  
-  const workstreams = parseField(exportPackage.epm?.program?.workstreams);
-  const assignmentsCsv = exportPackage.epm?.assignments
-    ? generateAssignmentsCsv(exportPackage.epm.assignments, workstreams || [])
-    : null;
-  const workstreamsCsv = workstreams && workstreams.length > 0 ? generateWorkstreamsCsv(workstreams) : null;
-  
-  const resourcePlan = parseField(exportPackage.epm?.program?.resourcePlan);
-  const resourcesCsv = resourcePlan ? generateResourcesCsv(resourcePlan, exportPackage.epm?.assignments || []) : null;
-  
-  const riskRegister = parseField(exportPackage.epm?.program?.riskRegister);
-  const risksCsv = riskRegister ? generateRisksCsv(riskRegister) : null;
-  
-  const benefitsRealization = parseField(exportPackage.epm?.program?.benefitsRealization);
-  const benefitsCsv = benefitsRealization ? generateBenefitsCsv(benefitsRealization) : null;
-
-  console.log('[Export Service] Running acceptance gates...');
-  const acceptanceReport = validateExportAcceptance({
-    strategyJson,
-    epmJson,
-    assignmentsCsv,
-    workstreamsCsv,
-    resourcesCsv,
-    risksCsv,
-    benefitsCsv,
-  });
-  if (!acceptanceReport.passed) {
-    // Log issues but do NOT block export — let the deliverable be generated
-    // Quality issues are surfaced in validation.json inside the ZIP for review
-    console.warn(`[Export Acceptance] ⚠️  ${acceptanceReport.criticalIssues.length} issue(s) found (non-blocking):`);
-    acceptanceReport.criticalIssues.forEach((issue) => {
-      console.warn(`[Export Acceptance] ${issue.code}: ${issue.message}`);
-      if (issue.details) {
-        console.warn('[Export Acceptance] Details:', issue.details);
-      }
-    });
-  } else {
-    console.log('[Export Service] Acceptance gates passed');
-  }
-  if (acceptanceReport.warnings.length > 0) {
-    acceptanceReport.warnings.forEach((warning) =>
-      console.warn(`[Export Acceptance] ${warning.code}: ${warning.message}`)
-    );
-  }
-
   console.log('[Export Service] Generating UI-styled HTML...');
   const uiHtml = generateUiStyledHtml(exportPackage);
   
@@ -228,16 +274,21 @@ export async function generateFullPassExport(
     archive.append(benefitsCsv, { name: 'data/benefits.csv' });
     includedFiles.push('data/benefits.csv');
   }
-  
+
+  if (wbsCsv) {
+    archive.append(wbsCsv, { name: 'data/wbs.csv' });
+    includedFiles.push('data/wbs.csv');
+  }
+
+  if (acceptanceReport) {
+    archive.append(JSON.stringify(acceptanceReport, null, 2), { name: 'data/validation.json' });
+    includedFiles.push('data/validation.json');
+  }
+
   if (excelBuffer) {
     archive.append(excelBuffer, { name: 'data/epm-program.xlsx' });
     includedFiles.push('data/epm-program.xlsx');
   }
-
-  // Always include validation report so reviewers can see quality findings
-  const validationJson = JSON.stringify(acceptanceReport, null, 2);
-  archive.append(validationJson, { name: 'data/validation.json' });
-  includedFiles.push('data/validation.json');
 
   const readmeContent = `# Export Package Contents
 
@@ -266,6 +317,8 @@ PDF files require Puppeteer (headless Chrome) which may not be available on mobi
 - **report-ui.pdf** - Styled PDF version (if available)
 - **data/strategy.json** - Strategic analysis data in JSON
 - **data/epm.json** - EPM program data (if generated)
+- **data/wbs.csv** - Work Breakdown Structure in universal PM tool format (if generated)
+- **data/validation.json** - Export validation report (acceptance gates + quality checks)
 - **data/epm-program.xlsx** - Excel workbook with 8 sheets (Summary, WBS, Schedule, Resources, Budget, RACI, Risks, Assumptions)
 - **data/*.csv** - Detailed data exports for assignments, workstreams, resources, risks, and benefits
 

@@ -7,6 +7,7 @@
  */
 
 import type { StrategyInsights, StrategyContext, BusinessCategory, JourneyType } from '../types';
+import { extractUserConstraintsFromText } from './constraint-utils';
 import type { PlanningContext, BusinessScale } from '../../../src/lib/intelligent-planning/types';
 
 export class ContextBuilder {
@@ -20,8 +21,8 @@ export class ContextBuilder {
     sessionId?: string
   ): Promise<PlanningContext> {
     const scale = this.inferScale(insights);
-    const timelineRange = this.inferTimelineRange(scale, insights);
-    const budgetRange = this.inferBudgetRange(scale, insights);
+    let timelineRange = this.inferTimelineRange(scale, insights);
+    let budgetRange = this.inferBudgetRange(scale, insights);
     
     let initiativeType: string | undefined = undefined;
     let businessName: string = 'Unnamed Business';
@@ -83,6 +84,19 @@ export class ContextBuilder {
       }
     } else {
       console.log('[ContextBuilder] ⚠️ No sessionId provided, cannot fetch strategic context');
+    }
+
+    const userConstraints = extractUserConstraintsFromText(
+      userInput || businessDescription,
+      insights.marketContext?.budgetRange
+    );
+    if (userConstraints.timeline) {
+      timelineRange = userConstraints.timeline;
+      console.log(`[ContextBuilder] ⏱ Using user timeline constraint: ${timelineRange.min}-${timelineRange.max} months`);
+    }
+    if (userConstraints.budget) {
+      budgetRange = userConstraints.budget;
+      console.log(`[ContextBuilder] 💰 Using user budget constraint: $${budgetRange.min.toLocaleString()}-$${budgetRange.max.toLocaleString()}`);
     }
     
     // Infer business type first, then use it for industry if not explicitly set

@@ -1,9 +1,18 @@
 import type { FullExportPackage } from '../../types/interfaces';
+import type { WBSRow } from './wbs-exporter';
 import { getJourney } from '../../journey/journey-registry';
 import { normalizeWhysPathSteps } from '../../utils/whys-path';
 
 type StrategyPayload = FullExportPackage['strategy'];
 type EpmPayload = NonNullable<FullExportPackage['epm']>;
+type EpmPayloadContext = {
+  exportMeta?: FullExportPackage['metadata'];
+  strategyVersion?: any;
+  userInput?: string | null;
+  clarifications?: StrategyPayload['clarifications'] | null;
+  initiativeType?: string | null;
+  wbsRows?: WBSRow[] | null;
+};
 
 const FRAMEWORK_ALIASES: Record<string, string> = {
   five_whys: 'five_whys',
@@ -210,6 +219,61 @@ function deriveBenefitList(benefitsRealization: any): any[] {
   if (Array.isArray(benefitsRealization)) return benefitsRealization;
   if (Array.isArray(benefitsRealization.benefits)) return benefitsRealization.benefits;
   return [];
+}
+
+function formatBenefitId(value: number): string {
+  return `BEN-${String(value).padStart(2, '0')}`;
+}
+
+function normalizeBenefitId(raw: any, fallbackIndex?: number): string | null {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return formatBenefitId(raw);
+  if (typeof raw === 'string') {
+    const match = raw.match(/(\d+)/);
+    if (match) return formatBenefitId(Number(match[1]));
+  }
+  if (typeof fallbackIndex === 'number') return formatBenefitId(fallbackIndex);
+  return null;
+}
+
+function normalizeBenefits(benefitsRaw: any[]): { benefits: any[]; idMap: Map<string, string> } {
+  const idMap = new Map<string, string>();
+  const benefits = benefitsRaw.map((benefit, idx) => {
+    const rawId = benefit?.id ?? benefit?.benefitId ?? benefit?.benefit_id;
+    const normalizedId = normalizeBenefitId(rawId, idx + 1) ?? `BEN-${idx + 1}`;
+    if (typeof rawId === 'string') {
+      idMap.set(rawId, normalizedId);
+    }
+    return {
+      ...benefit,
+      id: normalizedId,
+    };
+  });
+  return { benefits, idMap };
+}
+
+function normalizeKpis(kpisData: any, benefitIdMap: Map<string, string>): any {
+  if (!kpisData) return null;
+  const list = Array.isArray(kpisData?.kpis)
+    ? kpisData.kpis
+    : (Array.isArray(kpisData) ? kpisData : []);
+  if (!Array.isArray(list)) return kpisData;
+
+  const normalizedList = list.map((kpi: any) => {
+    const linked = Array.isArray(kpi?.linkedBenefitIds) ? kpi.linkedBenefitIds : [];
+    const normalizedLinked = linked.map((id: any) => {
+      if (typeof id !== 'string') return id;
+      return benefitIdMap.get(id) ?? normalizeBenefitId(id) ?? id;
+    });
+    return {
+      ...kpi,
+      linkedBenefitIds: normalizedLinked,
+    };
+  });
+
+  if (Array.isArray(kpisData?.kpis)) {
+    return { ...kpisData, kpis: normalizedList };
+  }
+  return normalizedList;
 }
 
 function computeLongestDependencyChain(workstreams: any[]): string[] {
@@ -438,45 +502,151 @@ export function buildStrategyJsonPayload(strategy: StrategyPayload): Record<stri
   };
 }
 
-export function buildEpmJsonPayload(epm: EpmPayload): Record<string, any> {
+export function buildEpmJsonPayload(
+  epm: EpmPayload,
+  context: EpmPayloadContext = {}
+): Record<string, any> {
   const program = epm.program || {};
   const workstreams = parseMaybeJson<any[]>(program.workstreams) || [];
   const timeline = normalizeTimeline(program, workstreams);
+  const hasTimelineData = (
+    (Array.isArray(timeline?.phases) && timeline.phases.length > 0) ||
+    (Number.isFinite(timeline?.totalMonths) && timeline.totalMonths > 0)
+  );
+  const timelineValue = hasTimelineData ? timeline : null;
   const resourcePlan = parseMaybeJson<any>(program.resourcePlan);
   const riskRegister = parseMaybeJson<any>(program.riskRegister);
   const benefitsRealization = parseMaybeJson<any>(program.benefitsRealization);
   const stageGates = parseMaybeJson<any>(program.stageGates);
+  const financialPlan = parseMaybeJson<any>(program.financialPlan);
+  const kpis = parseMaybeJson<any>(program.kpis);
+  const programId = program.id ?? context.exportMeta?.programId ?? null;
+  const constraintsFromVersion = context.strategyVersion
+    ? {
+        costMin: context.strategyVersion.costMin ?? null,
+        costMax: context.strategyVersion.costMax ?? null,
+        teamSizeMin: context.strategyVersion.teamSizeMin ?? null,
+        teamSizeMax: context.strategyVersion.teamSizeMax ?? null,
+        timelineMonths: context.strategyVersion.timelineMonths ?? null,
+        inputSummary: context.strategyVersion.inputSummary ?? null,
+      }
+    : null;
+  const rawFallbackConstraints = (program as any).constraints ?? (epm as any).constraints ?? epm.metadata?.constraints ?? null;
+  const constraintsFromProgram = rawFallbackConstraints
+    ? {
+        costMin: rawFallbackConstraints.costMin ?? rawFallbackConstraints.budget?.min ?? null,
+        costMax: rawFallbackConstraints.costMax ?? rawFallbackConstraints.budget?.max ?? null,
+        teamSizeMin: rawFallbackConstraints.teamSizeMin ?? null,
+        teamSizeMax: rawFallbackConstraints.teamSizeMax ?? null,
+        timelineMonths: rawFallbackConstraints.timelineMonths ?? rawFallbackConstraints.timeline?.max ?? rawFallbackConstraints.timeline?.min ?? null,
+        inputSummary: context.strategyVersion?.inputSummary ?? null,
+      }
+    : null;
+  const constraints = constraintsFromVersion ?? constraintsFromProgram ?? null;
+  const wbs = Array.isArray(context.wbsRows) ? context.wbsRows : [];
+
+  const normalizedBenefitData = normalizeBenefits(deriveBenefitList(benefitsRealization));
+  const normalizedBenefits = normalizedBenefitData.benefits;
+  const normalizedKpis = normalizeKpis(kpis, normalizedBenefitData.idMap);
+  const normalizedBenefitsRealization = benefitsRealization
+    ? (Array.isArray(benefitsRealization)
+      ? normalizedBenefits
+      : { ...benefitsRealization, benefits: normalizedBenefits })
+    : benefitsRealization;
+
+  const structuredUserInput = {
+    raw: context.userInput ?? null,
+    summary: context.strategyVersion?.inputSummary ?? null,
+    constraints,
+    clarifications: context.clarifications ?? null,
+    initiativeType: context.initiativeType ?? null,
+  };
+  const totalDuration = Number.isFinite(timelineValue?.totalMonths)
+    ? timelineValue?.totalMonths
+    : (Number.isFinite(program.totalDuration) ? program.totalDuration : null);
+  const totalBudget = Number.isFinite(financialPlan?.totalBudget)
+    ? financialPlan?.totalBudget
+    : (Number.isFinite(program.totalBudget) ? program.totalBudget : null);
+
+  const startDateRaw = program.startDate || timelineValue?.startDate || null;
+  const startDateParsed = startDateRaw ? new Date(startDateRaw) : null;
+  const startDate = startDateParsed && !Number.isNaN(startDateParsed.getTime()) ? startDateParsed : null;
+
+  const endDateRaw = program.endDate || timelineValue?.endDate || null;
+  let endDateParsed = endDateRaw ? new Date(endDateRaw) : null;
+  endDateParsed = endDateParsed && !Number.isNaN(endDateParsed.getTime()) ? endDateParsed : null;
+
+  if (!endDateParsed && startDate && Number.isFinite(totalDuration) && totalDuration !== null) {
+    endDateParsed = addMonths(startDate, totalDuration);
+  }
+
   const normalizedProgram = {
     ...program,
+    id: programId ?? program.id,
     workstreams,
-    timeline,
+    timeline: timelineValue,
     resourcePlan,
     riskRegister,
-    benefitsRealization,
+    financialPlan,
+    benefitsRealization: normalizedBenefitsRealization,
     stageGates: stageGates || program.stageGates,
+    kpis: normalizedKpis || program.kpis,
+    totalDuration: totalDuration ?? null,
+    totalBudget: totalBudget ?? null,
+    startDate: startDate ? startDate.toISOString() : null,
+    endDate: endDateParsed ? endDateParsed.toISOString() : null,
   };
 
+  if (normalizedProgram.totalDuration !== null && timelineValue?.totalMonths !== null && normalizedProgram.totalDuration !== timelineValue?.totalMonths) {
+    console.warn(`[Export] Program totalDuration (${normalizedProgram.totalDuration}) != timeline.totalMonths (${timelineValue?.totalMonths})`);
+  }
+
+  if (normalizedProgram.totalBudget !== null && financialPlan?.totalBudget !== null && normalizedProgram.totalBudget !== financialPlan.totalBudget) {
+    console.warn(`[Export] Program totalBudget (${normalizedProgram.totalBudget}) != financialPlan.totalBudget (${financialPlan.totalBudget})`);
+  }
+
   const assignments = normalizeAssignments(epm.assignments || [], workstreams);
-  const metadata = epm.metadata || {
-    programId: program.id ?? null,
-    strategyVersionId: program.strategyVersionId ?? null,
-    userId: program.userId ?? null,
-    status: program.status ?? null,
-    createdAt: program.createdAt ?? null,
-    updatedAt: program.updatedAt ?? null,
+  const requiresApproval = (epm as any).requiresApproval ?? (program as any).requiresApproval ?? null;
+  const metadata = {
+    ...(epm.metadata || {}),
+    programId: epm.metadata?.programId ?? programId ?? null,
+    strategyVersionId: epm.metadata?.strategyVersionId ?? program.strategyVersionId ?? null,
+    userId: epm.metadata?.userId ?? program.userId ?? null,
+    status: epm.metadata?.status ?? program.status ?? null,
+    createdAt: epm.metadata?.createdAt ?? program.createdAt ?? null,
+    updatedAt: epm.metadata?.updatedAt ?? program.updatedAt ?? null,
+    sessionId: epm.metadata?.sessionId ?? context.exportMeta?.sessionId ?? context.strategyVersion?.sessionId ?? null,
+    generatedAt: epm.metadata?.generatedAt ?? context.exportMeta?.exportedAt ?? null,
+    constraints,
   };
 
   return {
     ...epm,
+    timeline: timelineValue,
+    constraints,
+    wbs,
+    requiresApproval,
     metadata,
+    programId: programId ?? null,
     program: normalizedProgram,
     workstreams,
     resourcePlan,
     resources: deriveResources(resourcePlan),
+    financialPlan,
     riskRegister,
     risks: deriveRiskList(riskRegister),
-    benefitsRealization,
-    benefits: deriveBenefitList(benefitsRealization),
+    benefitsRealization: normalizedBenefitsRealization,
+    benefits: normalizedBenefits,
+    kpis: normalizedKpis || null,
+    stageGates: stageGates || program.stageGates || null,
     assignments,
+    userInput: context.userInput ?? null,
+    userInputStructured: structuredUserInput,
   };
+}
+
+function addMonths(date: Date, months: number): Date {
+  const result = new Date(date);
+  result.setMonth(result.getMonth() + months);
+  return result;
 }

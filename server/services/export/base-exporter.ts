@@ -13,38 +13,22 @@ import { buildLinearWhysTree, normalizeWhysPathSteps } from '../../utils/whys-pa
 
 export type { ExportRequest, FullExportPackage, ExportResult, IExporter };
 
-function extractBulletBlock(input: string, headerPattern: RegExp): string[] {
-  if (!input) return [];
-  const lines = input.split('\n');
-  const collected: string[] = [];
-  let inBlock = false;
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (headerPattern.test(trimmed)) {
-      inBlock = true;
-      continue;
-    }
-    if (!inBlock) {
-      continue;
-    }
-    if (trimmed === '') {
-      continue;
-    }
-    if (/^[-*]\s+/.test(trimmed)) {
-      collected.push(trimmed.replace(/^[-*]\s+/, '').trim());
-      continue;
-    }
-    // End block on first non-bullet line
-    inBlock = false;
-  }
-
-  return collected;
-}
-
 function extractClarificationFallback(understanding: any): { lines: string[]; conflicts: string[] } {
   const lines: string[] = [];
   const conflicts: string[] = [];
+
+  const metadata = typeof understanding?.strategyMetadata === 'string'
+    ? (() => {
+        try { return JSON.parse(understanding.strategyMetadata); } catch { return null; }
+      })()
+    : understanding?.strategyMetadata;
+  if (metadata?.clarificationConflicts && Array.isArray(metadata.clarificationConflicts)) {
+    metadata.clarificationConflicts.forEach((item: any) => {
+      if (typeof item === 'string' && item.trim()) {
+        conflicts.push(item.trim());
+      }
+    });
+  }
 
   const companyContext = typeof understanding?.companyContext === 'string'
     ? (() => {
@@ -101,6 +85,63 @@ export function escapeCsvField(field: string | null | undefined): string {
     return `"${str.replace(/"/g, '""')}"`;
   }
   return str;
+}
+
+function parseInlineBullets(value: string): string[] {
+  if (!value) {
+    return [];
+  }
+  const parts = value.split(/\s+-\s+/).map((part) => part.trim()).filter(Boolean);
+  return parts.length > 0 ? parts : [value.trim()];
+}
+
+function extractBulletBlock(inputText: string, headerRegex: RegExp): string[] {
+  if (!inputText) {
+    return [];
+  }
+  const lines = inputText.split('\n');
+  const collected: string[] = [];
+  let inBlock = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (headerRegex.test(trimmed)) {
+      inBlock = true;
+      const afterHeader = trimmed.replace(headerRegex, '').trim();
+      if (afterHeader) {
+        collected.push(...parseInlineBullets(afterHeader));
+      }
+      continue;
+    }
+
+    if (!inBlock) {
+      continue;
+    }
+
+    if (trimmed === '') {
+      continue;
+    }
+
+    if (/^[A-Z_][A-Z0-9_ ]*:\s*$/i.test(trimmed)) {
+      inBlock = false;
+      continue;
+    }
+
+    if (/^\s*-\s+/.test(trimmed)) {
+      collected.push(trimmed.replace(/^\s*-\s+/, '').trim());
+      continue;
+    }
+
+    inBlock = false;
+  }
+
+  return collected.filter(Boolean);
+}
+
+function extractClarificationFallbackFromText(inputText: string): { lines: string[]; conflicts: string[] } {
+  const lines = extractBulletBlock(inputText, /^clarifications:/i);
+  const conflicts = extractBulletBlock(inputText, /^clarification_conflicts:/i);
+  return { lines, conflicts };
 }
 
 export async function loadExportData(
@@ -186,7 +227,9 @@ export async function loadExportData(
 
   console.log('[Export Service] loadExportData - Fetching clarifications from strategic understanding...');
   let clarifications;
+  let requiresApproval;
   if (understanding) {
+    const fallback = extractClarificationFallbackFromText(understanding.userInput || '');
     const metadata = typeof (understanding as any).strategyMetadata === 'string'
       ? JSON.parse((understanding as any).strategyMetadata)
       : (understanding as any).strategyMetadata;
@@ -195,6 +238,7 @@ export async function loadExportData(
     
     let questions = null;
     let answers = null;
+    let conflicts: string[] = [];
     
     if (metadata?.clarificationQuestions) {
       questions = metadata.clarificationQuestions;
@@ -221,13 +265,41 @@ export async function loadExportData(
       answers = metadata.answers;
       console.log('[Export Service] Found answers');
     }
+
+    if (Array.isArray(metadata?.clarificationConflicts)) {
+      conflicts = metadata.clarificationConflicts;
+    } else if (Array.isArray(metadata?.clarificationContext?.conflicts)) {
+      conflicts = metadata.clarificationContext.conflicts;
+    } else if (fallback.conflicts.length > 0) {
+      conflicts = fallback.conflicts;
+    }
+
+    if (metadata?.requiresApproval) {
+      if (typeof metadata.requiresApproval === 'object') {
+        requiresApproval = { ...metadata.requiresApproval };
+      } else {
+        // Convert legacy boolean to object form
+        requiresApproval = {};
+      }
+    }
+    if (conflicts.length > 0) {
+      requiresApproval = { ...(requiresApproval || {}), clarifications: true };
+    }
     
     if (questions && answers) {
       clarifications = {
         questions: Array.isArray(questions) ? questions : [],
         answers: typeof answers === 'object' ? answers : {},
+        lines: fallback.lines.length > 0 ? fallback.lines : undefined,
+        conflicts: conflicts.length > 0 ? conflicts : undefined,
       };
       console.log('[Export Service] Clarifications loaded:', clarifications.questions?.length || 0, 'questions');
+    } else if (conflicts.length > 0 || fallback.lines.length > 0) {
+      clarifications = {
+        lines: fallback.lines.length > 0 ? fallback.lines : undefined,
+        conflicts: conflicts.length > 0 ? conflicts : undefined,
+      };
+      console.log('[Export Service] Clarification conflicts loaded without questions:', conflicts.length);
     } else {
       const fallback = extractClarificationFallback(understanding);
       if (fallback.lines.length > 0 || fallback.conflicts.length > 0) {
@@ -310,6 +382,7 @@ export async function loadExportData(
       fiveWhysTree,
       whysPath,
       clarifications,
+      requiresApproval,
     },
     epm: epmProgram ? {
       program: epmProgram,

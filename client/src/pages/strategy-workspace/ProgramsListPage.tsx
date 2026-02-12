@@ -23,7 +23,7 @@ import { useState } from 'react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import { ExportFullReportButton } from '@/components/epm/ExportFullReportButton';
+import { ExportDropdown } from '@/components/epm/ExportDropdown';
 
 interface EPMProgram {
   id: string;
@@ -363,7 +363,7 @@ export function ProgramsListPage() {
                     </Button>
                   </div>
                   <div className="pt-2 border-t">
-                    <ExportFullReportButton
+                    <ExportDropdown
                       programId={program.id}
                       variant="ghost"
                       size="sm"
@@ -427,7 +427,7 @@ export function ProgramsListPage() {
                     </Button>
                   </div>
                   <div className="pt-2 border-t">
-                    <ExportFullReportButton
+                    <ExportDropdown
                       programId={program.id}
                       variant="ghost"
                       size="sm"

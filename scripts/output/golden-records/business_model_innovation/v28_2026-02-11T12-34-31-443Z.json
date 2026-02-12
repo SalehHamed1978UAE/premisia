@@ -1,0 +1,13 @@
+{
+  "journeyType": "business_model_innovation",
+  "sessionId": "79ab2f29-94b4-4f19-9ef2-3f8d14428f26",
+  "understandingId": "d060356e-6c7d-4026-bb3a-60af331d1800",
+  "versionNumber": 28,
+  "steps": [],
+  "metadata": {
+    "initiativeType": "software_development",
+    "completedAt": "2026-02-11T12:34:29.630Z",
+    "frameworks": []
+  },
+  "capturedAt": "2026-02-11T12:34:31.444Z"
+}

@@ -39,17 +39,71 @@ export class TimelineCalculator implements ITimelineCalculator {
     }
 
     // Use actual workstream duration if available, otherwise fall back to baseMonths
-    // Add buffer for stabilization phase (at least 1 month after last workstream)
     const effectiveDuration = maxWorkstreamEnd > 0 ? maxWorkstreamEnd + 1 : baseMonths;
-    const totalMonths = Math.max(effectiveDuration, 3); // Minimum 3 months for meaningful phases
-    
+    const constraintMax = userContext?.timelineRange?.max;
+
+    let totalMonths: number;
+    let timelineViolation: boolean;
+    let phases: TimelinePhase[];
+
+    if (constraintMax) {
+      console.log(`[Timeline] Effective: ${effectiveDuration}mo, Constraint: ${constraintMax}mo`);
+
+      if (effectiveDuration < constraintMax) {
+        // CASE A: Constraint exceeds effective duration - add stabilization phase
+        const workPhases = this.generatePhases(effectiveDuration, workstreams);
+        const stabilizationPhase: TimelinePhase = {
+          phase: workPhases.length + 1,
+          name: 'Stabilization & Buffer',
+          startMonth: effectiveDuration,
+          endMonth: constraintMax,
+          description: 'Testing, stabilization, risk mitigation, and buffer period',
+          keyMilestones: [
+            'Production readiness validation',
+            'Stakeholder acceptance',
+            'Program completion',
+          ],
+          workstreamIds: [],
+        };
+
+        phases = [...workPhases, stabilizationPhase];
+        totalMonths = constraintMax;
+        timelineViolation = false;
+
+        console.log(`[Timeline] Extended to ${constraintMax}mo with stabilization phase (months ${effectiveDuration}-${constraintMax})`);
+      } else if (effectiveDuration > constraintMax) {
+        // CASE B: Violation - workstreams need more time than constraint allows
+        phases = this.generatePhases(effectiveDuration, workstreams);
+        totalMonths = constraintMax; // Cap at constraint
+        timelineViolation = true;
+
+        console.log(`[Timeline] Violation: Workstreams need ${effectiveDuration}mo but constraint is ${constraintMax}mo`);
+      } else {
+        // CASE C: Exact match - no buffer needed
+        phases = this.generatePhases(effectiveDuration, workstreams);
+        totalMonths = constraintMax;
+        timelineViolation = false;
+
+        console.log(`[Timeline] Exact match at ${constraintMax}mo`);
+      }
+
+      console.log(`[Timeline] Final: ${totalMonths}mo`);
+    } else {
+      // No constraint - use effective duration (preserve existing behavior)
+      totalMonths = Math.max(effectiveDuration, 3); // Minimum 3 months for meaningful phases
+      phases = this.generatePhases(totalMonths, workstreams);
+      timelineViolation = false;
+    }
+
     console.log(`[TimelineCalculator] 📊 Timeline calculation:`);
     console.log(`  - Workstream count: ${workstreams.length}`);
     console.log(`  - Max workstream end: M${maxWorkstreamEnd}`);
     console.log(`  - Base months (from urgency): ${baseMonths}`);
     console.log(`  - Effective duration: ${effectiveDuration}`);
+    console.log(`  - Constraint: ${constraintMax || 'none'}`);
     console.log(`  - Total months: ${totalMonths}`);
-    
+    console.log(`  - Timeline violation: ${timelineViolation}`);
+
     if (deadlineMonths < totalMonths && userContext?.hardDeadlines) {
       console.warn(
         `[TimelineCalculator] Hard deadline at M${deadlineMonths} exceeded by corrected schedule (M${totalMonths}). ` +
@@ -57,7 +111,6 @@ export class TimelineCalculator implements ITimelineCalculator {
       );
     }
 
-    const phases = this.generatePhases(totalMonths, workstreams);
     const criticalPath = this.identifyCriticalPath(workstreams);
 
     return {
@@ -65,6 +118,7 @@ export class TimelineCalculator implements ITimelineCalculator {
       phases,
       criticalPath,
       confidence: timelineInsight?.confidence || 0.65,
+      timelineViolation,
     };
   }
 
@@ -100,6 +154,10 @@ export class TimelineCalculator implements ITimelineCalculator {
         w.startMonth < phaseEnd && w.endMonth >= phaseStart
       );
 
+      if (phaseStart > phaseEnd) {
+        continue;
+      }
+
       phases.push({
         phase: i + 1,
         name: config.name,
@@ -125,89 +183,114 @@ export class TimelineCalculator implements ITimelineCalculator {
   identifyCriticalPath(workstreams: Workstream[]): string[] {
     if (workstreams.length === 0) return [];
 
-    const byId = new Map(workstreams.map((ws) => [ws.id, ws]));
-    const inDegree = new Map<string, number>();
-    const dependents = new Map<string, string[]>();
+    const computeLongestPath = (streams: Workstream[]): string[] => {
+      if (streams.length === 0) return [];
 
-    for (const ws of workstreams) {
-      inDegree.set(ws.id, 0);
-      dependents.set(ws.id, []);
-    }
+      const byId = new Map(streams.map((ws) => [ws.id, ws]));
+      const inDegree = new Map<string, number>();
+      const dependents = new Map<string, string[]>();
 
-    for (const ws of workstreams) {
-      for (const depId of ws.dependencies || []) {
-        if (!byId.has(depId)) continue;
-        inDegree.set(ws.id, (inDegree.get(ws.id) || 0) + 1);
-        dependents.get(depId)?.push(ws.id);
+      for (const ws of streams) {
+        inDegree.set(ws.id, 0);
+        dependents.set(ws.id, []);
       }
-    }
 
-    const queue: string[] = workstreams
-      .filter((ws) => (inDegree.get(ws.id) || 0) === 0)
-      .map((ws) => ws.id);
-    const topo: string[] = [];
-
-    while (queue.length > 0) {
-      const id = queue.shift() as string;
-      topo.push(id);
-
-      for (const dependentId of dependents.get(id) || []) {
-        const nextDegree = (inDegree.get(dependentId) || 0) - 1;
-        inDegree.set(dependentId, nextDegree);
-        if (nextDegree === 0) queue.push(dependentId);
-      }
-    }
-
-    // Cyclic dependencies should already be handled upstream; degrade gracefully here.
-    if (topo.length !== workstreams.length) {
-      const longest = [...workstreams].sort(
-        (a, b) => (b.endMonth - b.startMonth) - (a.endMonth - a.startMonth)
-      )[0];
-      return longest ? [longest.id] : [];
-    }
-
-    const scoreById = new Map<string, number>();
-    const predecessorById = new Map<string, string | null>();
-
-    for (const id of topo) {
-      const ws = byId.get(id)!;
-      const duration = Math.max(1, ws.endMonth - ws.startMonth + 1);
-
-      let bestPredecessor: string | null = null;
-      let bestPredecessorScore = 0;
-
-      for (const depId of ws.dependencies || []) {
-        const depScore = scoreById.get(depId);
-        if (depScore === undefined) continue;
-        if (depScore > bestPredecessorScore) {
-          bestPredecessorScore = depScore;
-          bestPredecessor = depId;
+      for (const ws of streams) {
+        for (const depId of ws.dependencies || []) {
+          if (!byId.has(depId)) continue;
+          inDegree.set(ws.id, (inDegree.get(ws.id) || 0) + 1);
+          dependents.get(depId)?.push(ws.id);
         }
       }
 
-      scoreById.set(id, duration + bestPredecessorScore);
-      predecessorById.set(id, bestPredecessor);
-    }
+      const queue: string[] = streams
+        .filter((ws) => (inDegree.get(ws.id) || 0) === 0)
+        .map((ws) => ws.id);
+      const topo: string[] = [];
 
-    let criticalEndId: string | null = null;
-    let maxScore = -1;
-    scoreById.forEach((score, id) => {
-      if (score > maxScore) {
-        maxScore = score;
-        criticalEndId = id;
+      while (queue.length > 0) {
+        const id = queue.shift() as string;
+        topo.push(id);
+
+        for (const dependentId of dependents.get(id) || []) {
+          const nextDegree = (inDegree.get(dependentId) || 0) - 1;
+          inDegree.set(dependentId, nextDegree);
+          if (nextDegree === 0) queue.push(dependentId);
+        }
       }
-    });
 
-    if (!criticalEndId) return [];
+      // Cyclic dependencies should already be handled upstream; degrade gracefully here.
+      if (topo.length !== streams.length) {
+        const longest = [...streams].sort(
+          (a, b) => (b.endMonth - b.startMonth) - (a.endMonth - a.startMonth)
+        )[0];
+        return longest ? [longest.id] : [];
+      }
 
-    const path: string[] = [];
-    let cursor: string | null = criticalEndId;
-    while (cursor) {
-      path.push(cursor);
-      cursor = predecessorById.get(cursor) || null;
+      const scoreById = new Map<string, number>();
+      const predecessorById = new Map<string, string | null>();
+
+      for (const id of topo) {
+        const ws = byId.get(id)!;
+        const duration = Math.max(1, ws.endMonth - ws.startMonth + 1);
+
+        let bestPredecessor: string | null = null;
+        let bestPredecessorScore = 0;
+
+        for (const depId of ws.dependencies || []) {
+          const depScore = scoreById.get(depId);
+          if (depScore === undefined) continue;
+          if (depScore > bestPredecessorScore) {
+            bestPredecessorScore = depScore;
+            bestPredecessor = depId;
+          }
+        }
+
+        scoreById.set(id, duration + bestPredecessorScore);
+        predecessorById.set(id, bestPredecessor);
+      }
+
+      let criticalEndId: string | null = null;
+      let maxScore = -1;
+      scoreById.forEach((score, id) => {
+        if (score > maxScore) {
+          maxScore = score;
+          criticalEndId = id;
+        }
+      });
+
+      if (!criticalEndId) return [];
+
+      const path: string[] = [];
+      let cursor: string | null = criticalEndId;
+      while (cursor) {
+        path.push(cursor);
+        cursor = predecessorById.get(cursor) || null;
+      }
+
+      return path.reverse();
+    };
+
+    const isDecisionWorkstream = (ws?: Workstream): boolean => {
+      if (!ws) return false;
+      const name = ws.name?.toLowerCase() || '';
+      const id = ws.id?.toLowerCase() || '';
+      return id.startsWith('decision_') || name.includes('decision implementation');
+    };
+
+    const primaryPath = computeLongestPath(workstreams);
+    if (primaryPath.length === 0) return [];
+
+    const byId = new Map(workstreams.map((ws) => [ws.id, ws]));
+    const isDecisionOnly = primaryPath.every((id) => isDecisionWorkstream(byId.get(id)));
+
+    if (isDecisionOnly) {
+      const nonDecision = workstreams.filter((ws) => !isDecisionWorkstream(ws));
+      const alternativePath = computeLongestPath(nonDecision);
+      return alternativePath.length > 0 ? alternativePath : primaryPath;
     }
 
-    return path.reverse();
+    return primaryPath;
   }
 }
 

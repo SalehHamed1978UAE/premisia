@@ -67,7 +67,9 @@ import {
   RoleInferenceService,
   normalizeRole,
   ensureResourceExists,
+  qualityGateRunner,
 } from './epm';
+import { extractUserConstraintsFromText } from './epm/constraint-utils';
 
 export { ContextBuilder } from './epm';
 
@@ -254,6 +256,10 @@ export class EPMSynthesizer {
 
     console.log(`[EPM Synthesis] ✓ Planning context: Scale=${planningContext.business.scale}, Timeline=${planningContext.execution.timeline.min}-${planningContext.execution.timeline.max}mo`);
 
+    // SPRINT 1: Parse user constraints from input (not decisions)
+    const userConstraints = this.parseUserConstraints(insights, planningContext);
+    const enrichedUserContext = this.applyUserConstraintsToContext(userContext, userConstraints);
+
     onProgress?.({
       type: 'step-start',
       step: 'intelligent-planning',
@@ -265,14 +271,24 @@ export class EPMSynthesizer {
     // The function expects an object with a .workstreams property, not a raw array
     const epmProgramInput = { workstreams };
 
+    const planningConfig = {
+      maxDuration: userConstraints.timeline?.max ?? planningContext.execution.timeline?.max,
+      budget: userConstraints.budget?.max ?? planningContext.execution.budget?.max,
+      teamSize: enrichedUserContext?.teamAvailability?.currentTeamSize,
+    };
+
     const planningResult = await replaceTimelineGeneration(
       epmProgramInput,
-      planningContext
+      planningContext,
+      planningConfig
     );
 
     // Extract strategic context for benefits generation
     const strategicContext = this.extractStrategicContext(insights, namingContext);
     console.log(`[EPM Synthesis] ✓ Strategic context: ${strategicContext.decisions.length} decisions, SWOT available: ${!!strategicContext.swotData}`);
+
+    // SPRINT 1: Validate decisions against user constraints (integrity gate)
+    const decisionValidation = this.validateDecisionsAgainstConstraints(strategicContext.decisions, userConstraints);
 
     if (planningResult.success && planningResult.confidence >= 0.6) {
       console.log('[EPM Synthesis] ✓ Intelligent planning successful');
@@ -285,9 +301,11 @@ export class EPMSynthesizer {
         insights,
         scheduledWorkstreams,
         planningContext,
-        userContext,
+        enrichedUserContext,
         namingContext,
         strategicContext,
+        decisionValidation,
+        userConstraints,
         onProgress,
         processStartTime
       );
@@ -324,9 +342,11 @@ export class EPMSynthesizer {
         insights,
         timedWorkstreams, // Use WBS Builder workstreams with default timings
         planningContext,
-        userContext,
+        enrichedUserContext,
         namingContext,
         strategicContext,
+        decisionValidation,
+        userConstraints,
         onProgress,
         processStartTime
       );
@@ -425,6 +445,131 @@ export class EPMSynthesizer {
     return { decisions, swotData };
   }
 
+  /**
+   * Parse user constraints from USER INPUT (not AI decisions)
+   *
+   * SPRINT 1 - INTEGRITY: Parse constraints from user's original input
+   * Source: insights.marketContext.budgetRange (string)
+   *
+   * This enforces system integrity: USER constraints are the source of truth,
+   * not AI-generated strategic decisions.
+   *
+   * Returns: Structured constraints object { budget: {min, max}, timeline: {min, max} }
+   */
+  private parseUserConstraints(
+    insights: StrategyInsights,
+    planningContext?: PlanningContext
+  ): { budget?: { min: number; max: number }; timeline?: { min: number; max: number } } {
+    const rawUserInput = planningContext?.business?.description || '';
+    return extractUserConstraintsFromText(rawUserInput, insights.marketContext?.budgetRange);
+  }
+
+  private applyUserConstraintsToContext(
+    userContext: UserContext | undefined,
+    userConstraints: { budget?: { min: number; max: number }; timeline?: { min: number; max: number } }
+  ): UserContext | undefined {
+    if (!userConstraints.budget && !userConstraints.timeline) {
+      return userContext;
+    }
+
+    const base: UserContext = {
+      ...(userContext || { timelineUrgency: 'Strategic' }),
+    };
+
+    if (!base.timelineUrgency) {
+      base.timelineUrgency = 'Strategic';
+    }
+
+    if (userConstraints.budget && !base.budgetRange) {
+      base.budgetRange = {
+        min: userConstraints.budget.min,
+        max: userConstraints.budget.max,
+      };
+    }
+
+    if (userConstraints.timeline && !base.timelineRange) {
+      base.timelineRange = {
+        min: userConstraints.timeline.min,
+        max: userConstraints.timeline.max,
+      };
+    }
+
+    return base;
+  }
+
+  /**
+   * Validate strategic decisions against user constraints
+   *
+   * SPRINT 1 - INTEGRITY: Decisions CANNOT override user constraints without approval
+   *
+   * Returns: { needsApproval: boolean, violations: string[] }
+   */
+  private validateDecisionsAgainstConstraints(
+    decisions: any[],
+    userConstraints: { budget?: { min: number; max: number }; timeline?: { min: number; max: number } }
+  ): { needsApproval: boolean; violations: string[] } {
+    const violations: string[] = [];
+    const selectedDecisions = decisions.filter((d: any) => d.selectedOptionId);
+
+    console.log('[Decision Gate] Validating decisions against user constraints...');
+
+    if (!userConstraints.budget && !userConstraints.timeline) {
+      console.log('[Decision Gate] No user constraints defined - all decisions allowed');
+      return { needsApproval: false, violations: [] };
+    }
+
+    // Check if any decision proposes budget exceeding user's stated limit
+    for (const decision of selectedDecisions) {
+      const selectedOption = decision.options?.find((opt: any) => opt.id === decision.selectedOptionId);
+      if (!selectedOption) continue;
+
+      const optionText = selectedOption.text || selectedOption.label || selectedOption.description || '';
+      const decisionText = `${decision.question} ${optionText}`.toLowerCase();
+
+      // Parse decision's proposed budget
+      const budgetPattern = /\$?(\d+(?:\.\d+)?)\s*(?:million|m|mil)?\s*(?:-|to)?\s*(?:\$?(\d+(?:\.\d+)?))?\s*(?:million|m|mil)?/i;
+      const budgetMatch = decisionText.match(budgetPattern);
+
+      if (budgetMatch && userConstraints.budget) {
+        let proposedMin = parseFloat(budgetMatch[1]) * 1_000_000;
+        let proposedMax = budgetMatch[2] ? parseFloat(budgetMatch[2]) * 1_000_000 : proposedMin;
+
+        // Check if decision exceeds user's budget limit
+        if (proposedMax > userConstraints.budget.max) {
+          const violation = `Decision proposes $${(proposedMax / 1_000_000).toFixed(1)}M but user limit is $${(userConstraints.budget.max / 1_000_000).toFixed(1)}M`;
+          violations.push(violation);
+          console.warn(`[Decision Gate] ⚠️  VIOLATION: ${violation}`);
+        }
+      }
+
+      // Parse decision's proposed timeline
+      const timelinePattern = /(\d+)\s*(?:-|to)?\s*(?:(\d+)\s*)?(?:month|mo|year|yr)s?/i;
+      const timelineMatch = decisionText.match(timelinePattern);
+
+      if (timelineMatch && userConstraints.timeline) {
+        let proposedMonths = parseInt(timelineMatch[1], 10);
+        if (decisionText.includes('year') || decisionText.includes('yr')) {
+          proposedMonths *= 12;
+        }
+
+        // Check if decision exceeds user's timeline limit
+        if (userConstraints.timeline.max && proposedMonths > userConstraints.timeline.max) {
+          const violation = `Decision proposes ${proposedMonths} months but user limit is ${userConstraints.timeline.max} months`;
+          violations.push(violation);
+          console.warn(`[Decision Gate] ⚠️  VIOLATION: ${violation}`);
+        }
+      }
+    }
+
+    if (violations.length > 0) {
+      console.warn(`[Decision Gate] ❌ ${violations.length} violations detected - requiresApproval flag will be set`);
+      return { needsApproval: true, violations };
+    }
+
+    console.log('[Decision Gate] ✅ All decisions within user constraints');
+    return { needsApproval: false, violations: [] };
+  }
+
   private alignWorkstreamsToDecisions(
     workstreams: Workstream[],
     decisions: any[],
@@ -442,6 +587,13 @@ export class EPMSynthesizer {
       const optionDescription = selectedOption?.description || '';
       const context = decision.context || '';
       const impactAreas = Array.isArray(decision.impact_areas) ? decision.impact_areas : [];
+      const dependsOn = Array.isArray(decision.dependsOn)
+        ? decision.dependsOn
+        : Array.isArray(decision.depends_on)
+          ? decision.depends_on
+          : Array.isArray(decision.dependencies)
+            ? decision.dependencies
+            : [];
       const seedText = [title, optionLabel, optionDescription, context, impactAreas.join(' ')].filter(Boolean).join(' ');
 
       return {
@@ -451,6 +603,7 @@ export class EPMSynthesizer {
         optionDescription,
         context,
         impactAreas,
+        dependsOn,
         seedText,
       };
     });
@@ -489,24 +642,32 @@ export class EPMSynthesizer {
 
     const combined = [...aligned, ...decisionWorkstreams];
 
-    const orderedDecisionIds = decisionSeeds
-      .map((seed) => decisionToWorkstream.get(seed.id))
-      .filter((id): id is string => !!id);
+    const hasExplicitDependencies = decisionSeeds.some(
+      (seed) => Array.isArray(seed.dependsOn) && seed.dependsOn.length > 0
+    );
 
-    for (let i = 1; i < orderedDecisionIds.length; i += 1) {
-      const prevId = orderedDecisionIds[i - 1];
-      const currentId = orderedDecisionIds[i];
-      const target = combined.find((ws) => ws.id === currentId);
-      const dependency = combined.find((ws) => ws.id === prevId);
-      if (!target) continue;
-      if (target.dependencies.includes(prevId)) continue;
-      if (this.wouldCreateCycle(combined, currentId, prevId)) continue;
-      target.dependencies.push(prevId);
-      if (dependency && target.startMonth <= dependency.endMonth) {
-        const shift = dependency.endMonth - target.startMonth + 1;
-        target.startMonth += shift;
-        target.endMonth += shift;
-        this.resequenceDeliverables(target);
+    if (hasExplicitDependencies) {
+      for (const seed of decisionSeeds) {
+        if (!seed.dependsOn || seed.dependsOn.length === 0) continue;
+        const currentId = decisionToWorkstream.get(seed.id);
+        if (!currentId) continue;
+        const target = combined.find((ws) => ws.id === currentId);
+        if (!target) continue;
+
+        for (const depSeedId of seed.dependsOn) {
+          const depWorkstreamId = decisionToWorkstream.get(depSeedId);
+          const dependency = depWorkstreamId ? combined.find((ws) => ws.id === depWorkstreamId) : null;
+          if (!depWorkstreamId || !dependency) continue;
+          if (target.dependencies.includes(depWorkstreamId)) continue;
+          if (this.wouldCreateCycle(combined, currentId, depWorkstreamId)) continue;
+          target.dependencies.push(depWorkstreamId);
+          if (target.startMonth <= dependency.endMonth) {
+            const shift = dependency.endMonth - target.startMonth + 1;
+            target.startMonth += shift;
+            target.endMonth += shift;
+            this.resequenceDeliverables(target);
+          }
+        }
       }
     }
 
@@ -961,6 +1122,8 @@ export class EPMSynthesizer {
     userContext?: UserContext,
     namingContext?: any,
     strategicContext?: { decisions: any[]; swotData: any },
+    decisionValidation?: { needsApproval: boolean; violations: string[] },
+    userConstraints?: { budget?: { min: number; max: number }; timeline?: { min: number; max: number } },
     onProgress?: (event: any) => void,
     startTime?: number
   ): Promise<EPMProgram> {
@@ -996,6 +1159,15 @@ export class EPMSynthesizer {
     
     const timeline = await this.timelineCalculator.calculate(insights, alignedWorkstreams, userContext);
     console.log(`[EPM Synthesis] ✓ Timeline: ${timeline.totalMonths} months, ${timeline.phases.length} phases`);
+
+    // Sprint 1: Deduplicate workstreams before phase assignment
+    const deduplicatedWorkstreams = this.deduplicateWorkstreams(alignedWorkstreams);
+    if (deduplicatedWorkstreams.length !== alignedWorkstreams.length) {
+      console.log(`[EPM Synthesis] ✓ Deduplication: ${alignedWorkstreams.length} → ${deduplicatedWorkstreams.length} workstreams`);
+    }
+
+    // Sprint 1: Assign phases with containment enforcement
+    const phasedWorkstreams = this.assignWorkstreamPhases(deduplicatedWorkstreams, timeline);
     
     onProgress?.({
       type: 'step-start',
@@ -1017,7 +1189,7 @@ export class EPMSynthesizer {
 
     const resourcePlan = await this.resourceAllocator.allocate(
       insights,
-      alignedWorkstreams,
+      phasedWorkstreams,
       userContext,
       initiativeType,
       strategyContext  // Pass strategy context for context-aware role selection
@@ -1033,7 +1205,7 @@ export class EPMSynthesizer {
       initiativeType: planningContext.business.initiativeType || 'market_entry',
       programName,
     };
-    const roleValidationWarnings = await this.assignWorkstreamOwners(alignedWorkstreams, resourcePlan, ownerInferenceContext);
+    const roleValidationWarnings = await this.assignWorkstreamOwners(phasedWorkstreams, resourcePlan, ownerInferenceContext);
     console.log(`[EPM Synthesis] ✓ Workstream owners assigned via LLM inference`);
     
     onProgress?.({
@@ -1067,7 +1239,7 @@ export class EPMSynthesizer {
     };
     console.log('[EPM Synthesis] ✓ Assigned risk owners (buildV2Program):', risksWithOwners.map(r => ({ id: r.id, owner: r.owner })));
     
-    const stageGates = await this.stageGateGenerator.generate(timeline, riskRegister);
+    const stageGates = await this.stageGateGenerator.generate(timeline, riskRegister, phasedWorkstreams);
     
     onProgress?.({
       type: 'step-start',
@@ -1077,7 +1249,7 @@ export class EPMSynthesizer {
     });
     
     const businessContext = insights.marketContext?.industry || '';
-    const validationResult = this.validator.validate(alignedWorkstreams, timeline, stageGates, businessContext);
+    const validationResult = this.validator.validate(phasedWorkstreams, timeline, stageGates, businessContext);
     if (validationResult.errors.length > 0) {
       console.log(`[EPM Synthesis] ⚠️ Validation found ${validationResult.errors.length} errors, auto-corrected`);
       validationResult.corrections.forEach(c => console.log(`    - ${c}`));
@@ -1091,7 +1263,26 @@ export class EPMSynthesizer {
     if (planningGrid.conflicts.length > 0) {
       console.log(`[EPM Synthesis] ⚠️ Planning grid conflicts: ${planningGrid.conflicts.length}`);
     }
-    
+
+    // Sprint 1 (P2 Scheduling): Run WBS timeline validation
+    console.log('[EPM Synthesis] 🔍 Running WBS timeline quality gates');
+    const qualityReport = qualityGateRunner.runQualityGate(alignedWorkstreams, timeline, stageGates, businessContext);
+    if (!qualityReport.overallPassed) {
+      console.log(`[EPM Synthesis] ⚠️ WBS validation found ${qualityReport.errorCount} errors, ${qualityReport.warningCount} warnings`);
+      qualityReport.validatorResults.forEach(result => {
+        result.issues.forEach(issue => {
+          if (issue.severity === 'error') {
+            console.log(`    ❌ [${issue.code}] ${issue.message}`);
+            if (issue.suggestion) {
+              console.log(`       💡 ${issue.suggestion}`);
+            }
+          }
+        });
+      });
+    } else {
+      console.log(`[EPM Synthesis] ✓ WBS timeline validation passed`);
+    }
+
     onProgress?.({
       type: 'step-start',
       step: 'financial',
@@ -1154,7 +1345,7 @@ export class EPMSynthesizer {
     ]);
 
     const validationReport = this.buildValidationReport(
-      alignedWorkstreams,
+      phasedWorkstreams,
       timeline,
       stageGates,
       validationResult,
@@ -1179,6 +1370,39 @@ export class EPMSynthesizer {
     
     const overallConfidence = this.calculateOverallConfidence(confidences);
     
+    const conflictViolations = (userContext?.clarificationConflicts || []).map(
+      (conflict) => `Clarification conflict: ${conflict}`
+    );
+    const combinedViolations = [
+      ...(decisionValidation?.violations || []),
+      ...conflictViolations,
+    ];
+
+    // SPRINT 1 Phase 1: Budget calculation violations
+    let hasBudgetViolation = (decisionValidation?.violations || []).some(v => v.includes('budget'));
+    if (financialPlan?.budgetViolation) {
+      const bv = financialPlan.budgetViolation;
+      const budgetMsg = `Calculated costs ($${(bv.calculatedCost / 1_000_000).toFixed(1)}M) exceed user budget constraint ($${(bv.userConstraint / 1_000_000).toFixed(1)}M) by ${bv.exceedsPercentage.toFixed(1)}%`;
+      combinedViolations.push(budgetMsg);
+      hasBudgetViolation = true;
+    }
+
+    // SPRINT 1 Phase 2: Timeline calculation violations
+    let hasTimelineViolation = (decisionValidation?.violations || []).some(v => v.includes('month'));
+    if (timeline?.timelineViolation) {
+      const timelineMsg = `Timeline constraint cannot accommodate required workstream duration`;
+      combinedViolations.push(timelineMsg);
+      hasTimelineViolation = true;
+    }
+
+    const uniqueViolations = Array.from(new Set(combinedViolations));
+    const needsApproval = (decisionValidation?.needsApproval ?? false) ||
+      conflictViolations.length > 0 ||
+      hasBudgetViolation ||
+      hasTimelineViolation;
+
+    console.log(`[Approval] Budget=${hasBudgetViolation}, Timeline=${hasTimelineViolation}, Clarifications=${conflictViolations.length > 0}`);
+
     const program: EPMProgram = {
       id: `EPM-${Date.now()}`,
       generatedAt: new Date(),
@@ -1186,9 +1410,9 @@ export class EPMSynthesizer {
       sourceInsightsCount: insights.insights.length,
       overallConfidence,
       validationReport,
-      
+
       executiveSummary,
-      workstreams: alignedWorkstreams,
+      workstreams: phasedWorkstreams,
       timeline,
       resourcePlan,
       financialPlan,
@@ -1201,12 +1425,26 @@ export class EPMSynthesizer {
       qaPlan,
       procurement,
       exitStrategy,
-      
+
       extractionRationale: this.generateExtractionRationale(insights, userContext),
+
+      // SPRINT 1: Add requiresApproval flag if constraints violated
+      requiresApproval: needsApproval ? {
+        budget: hasBudgetViolation,
+        timeline: hasTimelineViolation,
+        clarifications: conflictViolations.length > 0,
+        violations: uniqueViolations,
+      } : undefined,
+      constraints: userConstraints,
     };
-    
+
     console.log('[EPM Synthesis] ✓ Program built successfully');
     console.log(`[EPM Synthesis]   Overall confidence: ${(overallConfidence * 100).toFixed(1)}%`);
+
+    if (program.requiresApproval) {
+      console.warn('[EPM Synthesis] ⚠️  REQUIRES USER APPROVAL: Constraint violations detected');
+      console.log(`[Approval] Violations: ${JSON.stringify(program.requiresApproval.violations, null, 2)}`);
+    }
     
     return program;
   }
@@ -1270,7 +1508,7 @@ export class EPMSynthesizer {
     };
     console.log('[EPM Synthesis] ✓ Assigned risk owners (legacy):', risksWithOwners2.map(r => ({ id: r.id, owner: r.owner })));
     
-    const stageGates = await this.stageGateGenerator.generate(timeline, riskRegister);
+    const stageGates = await this.stageGateGenerator.generate(timeline, riskRegister, workstreams);
     
     const businessContext = insights.marketContext?.industry || '';
     const validationResult = this.validator.validate(workstreams, timeline, stageGates, businessContext);
@@ -1363,6 +1601,118 @@ export class EPMSynthesizer {
       
       extractionRationale: this.generateExtractionRationale(insights, userContext),
     };
+  }
+
+  /**
+   * Sprint 1: Deduplicate workstreams by name and timeline hash
+   * Removes duplicate workstreams that have identical name, startMonth, and endMonth
+   */
+  private deduplicateWorkstreams(workstreams: Workstream[]): Workstream[] {
+    const seen = new Map<string, Workstream>();
+    const duplicates: string[] = [];
+
+    for (const ws of workstreams) {
+      // Create hash key from name + timeline
+      const key = `${ws.name.trim().toLowerCase()}:${ws.startMonth}:${ws.endMonth}`;
+
+      if (seen.has(key)) {
+        duplicates.push(`"${ws.name}" (M${ws.startMonth}-M${ws.endMonth})`);
+        console.warn(`[EPM Synthesis] ⚠️ Duplicate workstream detected: ${ws.name} (${ws.startMonth}-${ws.endMonth}), skipping duplicate`);
+        continue;
+      }
+
+      seen.set(key, ws);
+    }
+
+    const deduplicated = Array.from(seen.values());
+
+    if (duplicates.length > 0) {
+      console.log(`[EPM Synthesis] 🔧 Deduplication removed ${duplicates.length} duplicate workstream(s):`);
+      duplicates.forEach(dup => console.log(`  - ${dup}`));
+    }
+
+    return deduplicated;
+  }
+
+  /**
+   * Sprint 1: Assign workstreams to phases with preventive containment enforcement
+   * Ensures workstream dates are constrained to fit within phase boundaries
+   */
+  private assignWorkstreamPhases(workstreams: Workstream[], timeline: Timeline): Workstream[] {
+    if (!timeline?.phases || timeline.phases.length === 0) {
+      return workstreams;
+    }
+
+    return workstreams.map((ws) => {
+      // First, try to find a phase that FULLY CONTAINS the workstream
+      let containingPhase = timeline.phases.find((phase) => {
+        return ws.startMonth >= phase.startMonth && ws.endMonth <= phase.endMonth;
+      });
+
+      // If no containing phase, find the phase with maximum overlap
+      if (!containingPhase) {
+        let maxOverlap = 0;
+        for (const phase of timeline.phases) {
+          // Calculate overlap duration
+          const overlapStart = Math.max(ws.startMonth, phase.startMonth);
+          const overlapEnd = Math.min(ws.endMonth, phase.endMonth);
+          const overlap = Math.max(0, overlapEnd - overlapStart);
+
+          if (overlap > maxOverlap) {
+            maxOverlap = overlap;
+            containingPhase = phase;
+          }
+        }
+      }
+
+      if (!containingPhase) {
+        console.warn(`[EPM Synthesis] ⚠️ Workstream "${ws.name}" (M${ws.startMonth}-M${ws.endMonth}) could not be assigned to any phase`);
+        return ws;
+      }
+
+      // Sprint 1: ENFORCE CONTAINMENT - constrain workstream dates to phase boundaries
+      let adjustedStart = ws.startMonth;
+      let adjustedEnd = ws.endMonth;
+      let wasAdjusted = false;
+
+      if (ws.startMonth < containingPhase.startMonth) {
+        adjustedStart = containingPhase.startMonth;
+        wasAdjusted = true;
+        console.log(`[EPM Synthesis] 🔧 Constrained workstream "${ws.name}" start: M${ws.startMonth} → M${adjustedStart} (phase boundary)`);
+      }
+
+      if (ws.endMonth > containingPhase.endMonth) {
+        adjustedEnd = containingPhase.endMonth;
+        wasAdjusted = true;
+        console.log(`[EPM Synthesis] 🔧 Constrained workstream "${ws.name}" end: M${ws.endMonth} → M${adjustedEnd} (phase boundary)`);
+      }
+
+      // Adjust deliverable dates to fit within constrained workstream
+      let adjustedDeliverables = ws.deliverables;
+      if (wasAdjusted && ws.deliverables) {
+        adjustedDeliverables = ws.deliverables.map((del) => {
+          if (del.dueMonth !== undefined) {
+            const constrainedDueMonth = Math.max(adjustedStart, Math.min(adjustedEnd, del.dueMonth));
+            if (constrainedDueMonth !== del.dueMonth) {
+              console.log(`[EPM Synthesis] 🔧 Adjusted deliverable "${del.name}" due: M${del.dueMonth} → M${constrainedDueMonth}`);
+            }
+            return {
+              ...del,
+              dueMonth: constrainedDueMonth,
+            };
+          }
+          return del;
+        });
+      }
+
+      return {
+        ...ws,
+        phase: containingPhase.name,
+        startMonth: adjustedStart,
+        endMonth: adjustedEnd,
+        deliverables: adjustedDeliverables,
+      };
+    });
   }
 
   /**

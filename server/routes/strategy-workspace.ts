@@ -4,7 +4,9 @@ import { strategyDecisions, epmPrograms, journeySessions, strategyVersions, stra
 import { eq, desc, inArray, and } from 'drizzle-orm';
 import { BMCAnalyzer, PortersAnalyzer, PESTLEAnalyzer, EPMSynthesizer, getAggregatedAnalysis, normalizeSWOT } from '../intelligence';
 import type { BMCResults, PortersResults, PESTLEResults } from '../intelligence/types';
+import { deriveTeamSizeFromBudget, extractUserConstraintsFromText } from '../intelligence/epm/constraint-utils';
 import { storage } from '../storage';
+import { getEPMProgram, getStrategicUnderstandingBySession } from '../services/secure-data-service';
 import { createOpenAIProvider } from '../../src/lib/intelligent-planning/llm-provider';
 import { backgroundJobService } from '../services/background-job-service';
 import { journeySummaryService } from '../services/journey-summary-service';
@@ -15,6 +17,7 @@ import { container, getService } from '../services/container';
 import { ServiceKeys } from '../types/interfaces';
 import type { EPMRepository, StrategyRepository } from '../repositories';
 import { refreshTokenProactively } from '../replitAuth';
+import { ambiguityDetector } from '../services/ambiguity-detector';
 
 const router = Router();
 
@@ -35,6 +38,30 @@ function sendSSEEvent(progressId: string, data: any) {
   const eventData = JSON.stringify(data);
   stream.res.write(`id: ${stream.lastEventId}\n`);
   stream.res.write(`data: ${eventData}\n\n`);
+}
+
+function extractConflictLines(input: string): string[] {
+  if (!input) return [];
+  const lines = input.split('\n');
+  const conflicts: string[] = [];
+  let inBlock = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (/^clarification_conflicts:/i.test(trimmed)) {
+      inBlock = true;
+      continue;
+    }
+    if (!inBlock) continue;
+    if (trimmed === '') continue;
+    if (/^[-*]\s+/.test(trimmed)) {
+      conflicts.push(trimmed.replace(/^[-*]\s+/, '').trim());
+      continue;
+    }
+    inBlock = false;
+  }
+
+  return conflicts;
 }
 
 // Create LLM provider for intelligent planning
@@ -357,18 +384,10 @@ async function processEPMGeneration(
     // which matches strategic_understanding.sessionId (not id)
     let initiativeType: string | undefined = undefined;
     let journeyTitle: string | undefined = undefined;
+    let clarificationConflicts: string[] = [];
     if (version.sessionId) {
       try {
-        // Query by strategic_understanding.sessionId because version.sessionId
-        // is the session string format (e.g., "session-1769898649296-uocxqo")
-        const [understanding] = await db
-          .select({ 
-            initiativeType: strategicUnderstanding.initiativeType,
-            title: strategicUnderstanding.title,
-          })
-          .from(strategicUnderstanding)
-          .where(eq(strategicUnderstanding.sessionId, version.sessionId))
-          .limit(1);
+        const understanding = await getStrategicUnderstandingBySession(version.sessionId);
         
         if (understanding?.initiativeType) {
           initiativeType = understanding.initiativeType;
@@ -377,6 +396,50 @@ async function processEPMGeneration(
         if (understanding?.title) {
           journeyTitle = understanding.title;
           console.log(`[EPM Generation] ✅ Journey title fetched: "${journeyTitle}"`);
+        }
+        if (understanding?.userInput) {
+          const userConstraints = extractUserConstraintsFromText(understanding.userInput);
+          if (userConstraints.budget || userConstraints.timeline) {
+            const updates: any = {};
+            if (userConstraints.budget) {
+              if (version.costMin == null) updates.costMin = userConstraints.budget.min;
+              if (version.costMax == null) updates.costMax = userConstraints.budget.max;
+              if (version.teamSizeMin == null || version.teamSizeMax == null) {
+                const teamSize = deriveTeamSizeFromBudget(userConstraints.budget);
+                if (version.teamSizeMin == null) updates.teamSizeMin = teamSize.min;
+                if (version.teamSizeMax == null) updates.teamSizeMax = teamSize.max;
+              }
+            }
+            if (userConstraints.timeline) {
+              if (version.timelineMonths == null) {
+                updates.timelineMonths = userConstraints.timeline.max || userConstraints.timeline.min;
+              }
+            }
+            if (Object.keys(updates).length > 0) {
+              await db.update(strategyVersions)
+                .set({ ...updates, updatedAt: new Date() })
+                .where(eq(strategyVersions.id, strategyVersionId));
+              console.log('[EPM Generation] ✅ Persisted user constraints to strategy_version:', updates);
+            }
+          }
+
+          // Detect clarification conflicts in existing input and store in metadata
+          const clarifiedInput = ambiguityDetector.buildClarifiedInput(understanding.userInput, {});
+          clarificationConflicts = extractConflictLines(clarifiedInput);
+          if (clarificationConflicts.length > 0) {
+            const currentMeta = typeof (understanding as any).strategyMetadata === 'string'
+              ? JSON.parse((understanding as any).strategyMetadata)
+              : (understanding as any).strategyMetadata || {};
+            const nextMeta = {
+              ...currentMeta,
+              clarificationConflicts,
+              clarificationConflictsDetectedAt: new Date().toISOString(),
+            };
+            await db.update(strategicUnderstanding)
+              .set({ strategyMetadata: nextMeta, updatedAt: new Date() })
+              .where(eq(strategicUnderstanding.id, understanding.id));
+            console.warn('[EPM Generation] ⚠️ Clarification conflicts detected:', clarificationConflicts);
+          }
         }
         if (!understanding) {
           console.warn(`[EPM Generation] ⚠️ No strategic understanding found for id: ${version.sessionId}`);
@@ -651,9 +714,11 @@ async function processEPMGeneration(
       ...userDecisions,
       prioritizedOrder: prioritizedOrder || [],
       sessionId: version.sessionId,  // Pass sessionId for initiative type lookup
+      clarificationConflicts,
     } : { 
       prioritizedOrder: prioritizedOrder || [],
       sessionId: version.sessionId,  // Pass sessionId for initiative type lookup
+      clarificationConflicts,
     };
     
     // Run through EPM synthesizer with naming context and real-time progress
@@ -1314,7 +1379,53 @@ router.post('/epm/batch-export', async (req: Request, res: Response) => {
       .from(epmPrograms)
       .where(inArray(epmPrograms.id, ids));
 
-    res.json({ success: true, data: programs });
+    const enriched = await Promise.all(programs.map(async (program) => {
+      const decrypted = await getEPMProgram(program.id);
+      const version = await storage.getStrategyVersionById(program.strategyVersionId);
+      const understanding = version?.sessionId
+        ? await getStrategicUnderstandingBySession(version.sessionId)
+        : null;
+
+      let frameworkRows: any[] = [];
+      if (understanding?.id) {
+        const [journeySession] = await db
+          .select()
+          .from(journeySessions)
+          .where(eq(journeySessions.understandingId, understanding.id))
+          .orderBy(desc(journeySessions.createdAt))
+          .limit(1);
+
+        if (journeySession?.id) {
+          const bySession = await db
+            .select()
+            .from(frameworkInsights)
+            .where(eq(frameworkInsights.sessionId, journeySession.id));
+          frameworkRows = frameworkRows.concat(bySession);
+        }
+
+        const byUnderstanding = await db
+          .select()
+          .from(frameworkInsights)
+          .where(eq(frameworkInsights.understandingId, understanding.id));
+        if (byUnderstanding.length > 0) {
+          const seen = new Set(frameworkRows.map((row) => row.id));
+          byUnderstanding.forEach((row) => {
+            if (!seen.has(row.id)) frameworkRows.push(row);
+          });
+        }
+      }
+
+      return {
+        ...(decrypted || program),
+        analysis: {
+          strategyVersion: version || null,
+          understanding: understanding || null,
+          frameworkInsights: frameworkRows,
+        },
+      };
+    }));
+
+    res.json({ success: true, data: enriched });
   } catch (error: any) {
     console.error('Error batch exporting EPM programs:', error);
     res.status(500).json({ error: error.message || 'Failed to export EPM programs' });

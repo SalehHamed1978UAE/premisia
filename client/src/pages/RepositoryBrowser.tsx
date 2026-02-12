@@ -13,7 +13,7 @@ import type { StatementSummary } from '@/types/repository';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { DeleteAnalysisDialog } from '@/components/DeleteAnalysisDialog';
-import { ExportFullReportButton } from '@/components/epm/ExportFullReportButton';
+import { ExportDropdown } from '@/components/epm/ExportDropdown';
 
 export default function RepositoryBrowser() {
   const [, setLocation] = useLocation();
@@ -423,7 +423,7 @@ export default function RepositoryBrowser() {
                     >
                       <Eye className="h-4 w-4" />
                     </Button>
-                    <ExportFullReportButton
+                    <ExportDropdown
                       sessionId={statement.sessionId}
                       variant="ghost"
                       size="icon"

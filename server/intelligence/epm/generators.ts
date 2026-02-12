@@ -38,6 +38,7 @@ import type {
   ExitStrategy,
   StrategyContext,
   RiskCategory,
+  Workstream,
 } from '../types';
 import { aiClients } from '../../ai-clients';
 import {
@@ -119,7 +120,9 @@ export class FinancialPlanGenerator {
     const personnelCost = resourcePlan.totalFTEs * 150000;
     const externalCost = resourcePlan.externalResources.reduce((sum, r) => sum + r.estimatedCost, 0);
     const overheadCost = (personnelCost + externalCost) * 0.15;
-    const totalBudget = userContext?.budgetRange?.max || (personnelCost + externalCost + overheadCost);
+    const computedBudget = personnelCost + externalCost + overheadCost;
+    const constraintMax = userContext?.budgetRange?.max;
+    const totalBudget = constraintMax ? Math.max(constraintMax, computedBudget) : computedBudget;
 
     const costBreakdown = [
       { category: 'Personnel', amount: personnelCost, percentage: (personnelCost / totalBudget) * 100, description: 'Internal team costs' },
@@ -1021,25 +1024,47 @@ export class RiskGenerator {
  * Stage Gates Generator
  */
 export class StageGateGenerator {
-  async generate(timeline: Timeline, riskRegister: RiskRegister): Promise<StageGates> {
-    const gates = timeline.phases.map((phase, idx) => ({
-      gate: idx + 1,
-      name: `Gate ${idx + 1}: ${phase.name} Complete`,
-      month: phase.endMonth,
-      goCriteria: [
-        `All ${phase.name} deliverables completed`,
-        `Phase objectives achieved`,
-        `Budget within ±10% of plan`,
-        `No critical risks unmitigated`,
-      ],
-      noGoTriggers: [
-        `Critical deliverables >2 weeks late`,
-        `Budget overrun >20%`,
-        `${riskRegister.topRisks.slice(0, 2).map(r => `Risk ${r.id} realized`).join(' OR ')}`,
-      ],
-      deliverables: phase.workstreamIds,
-      confidence: 0.85,
-    }));
+  async generate(
+    timeline: Timeline,
+    riskRegister: RiskRegister,
+    workstreams: Workstream[] = []
+  ): Promise<StageGates> {
+    const workstreamById = new Map<string, Workstream>();
+    for (const ws of workstreams) {
+      if (ws?.id) workstreamById.set(ws.id, ws);
+    }
+
+    const gates = timeline.phases.map((phase, idx) => {
+      const phaseWorkstreams = (phase.workstreamIds || [])
+        .map((id) => workstreamById.get(id))
+        .filter((ws): ws is Workstream => !!ws);
+
+      // Required workstreams should complete by the end of the phase
+      const requiredWorkstreams = phaseWorkstreams.filter(
+        (ws) => ws.endMonth <= phase.endMonth
+      );
+
+      const deliverables = requiredWorkstreams.map((ws) => ws.id);
+
+      return {
+        gate: idx + 1,
+        name: `Gate ${idx + 1}: ${phase.name} Complete`,
+        month: phase.endMonth,
+        goCriteria: [
+          `All ${phase.name} deliverables completed`,
+          `Phase objectives achieved`,
+          `Budget within ±10% of plan`,
+          `No critical risks unmitigated`,
+        ],
+        noGoTriggers: [
+          `Critical deliverables >2 weeks late`,
+          `Budget overrun >20%`,
+          `${riskRegister.topRisks.slice(0, 2).map(r => `Risk ${r.id} realized`).join(' OR ')}`,
+        ],
+        deliverables,
+        confidence: 0.85,
+      };
+    });
 
     return {
       gates,

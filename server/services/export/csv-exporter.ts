@@ -169,7 +169,7 @@ export function generateAssignmentsCsv(assignments: any[], workstreams?: any[]):
 }
 
 export function generateWorkstreamsCsv(workstreams: any[]): string {
-  const headers = ['Workstream ID', 'Name', 'Description', 'Owner', 'Start Date', 'End Date', 'Status', 'Deliverables Count', 'Deliverables'];
+  const headers = ['Workstream ID', 'Name', 'Description', 'Owner', 'Phase', 'Start Date', 'End Date', 'Status', 'Deliverables Count', 'Deliverables'];
   const rows = [headers.join(',')];
 
   workstreams.forEach((ws: any, idx: number) => {
@@ -177,12 +177,16 @@ export function generateWorkstreamsCsv(workstreams: any[]): string {
     const deliverableNames = deliverables.map((d: any) => 
       typeof d === 'string' ? d : (d.name || d.title || d.description || 'Deliverable')
     );
+    const phase = typeof ws.phase === 'object'
+      ? (ws.phase?.name || ws.phase?.label || ws.phase?.title || '-')
+      : (ws.phaseName || ws.phaseLabel || ws.phase || '-');
     
     const row = [
       ws.id || `WS-${idx + 1}`,
       escapeCsvField(ws.name || `Workstream ${idx + 1}`),
       escapeCsvField(ws.description || '-'),
       escapeCsvField(ws.owner || '-'),
+      escapeCsvField(phase),
       ws.startMonth !== undefined ? `Month ${ws.startMonth}` : '-',
       ws.endMonth !== undefined ? `Month ${ws.endMonth}` : '-',
       escapeCsvField(ws.status || 'Pending'),
@@ -344,6 +348,7 @@ export function generateBenefitsCsv(benefitsRealization: any): string {
   const benefitArray = benefits.benefits || [];
   if (Array.isArray(benefitArray)) {
     benefitArray.forEach((b: any, idx: number) => {
+      const idFromData = typeof b.id === 'string' ? b.id : (typeof b.benefitId === 'string' ? b.benefitId : null);
       // Support both standard path field names and custom path field names
       // Extract a short name from description if name isn't present
       const benefitName = b.name || b.benefit || 
@@ -358,7 +363,7 @@ export function generateBenefitsCsv(benefitsRealization: any): string {
         (b.realizationMonth ? `Month ${b.realizationMonth}` : '-');
       
       const row = [
-        `BEN-${idx + 1}`,
+        escapeCsvField(idFromData || `BEN-${idx + 1}`),
         escapeCsvField(benefitName),
         escapeCsvField(b.description || '-'),
         escapeCsvField(b.category || b.type || '-'),

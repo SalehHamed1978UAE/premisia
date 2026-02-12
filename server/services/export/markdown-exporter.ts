@@ -123,22 +123,23 @@ export function generateFiveWhysTreeMarkdown(tree: any, whysPath?: any[]): strin
 }
 
 export function generateClarificationsMarkdown(clarifications: any): string {
-  const lines: string[] = [];
   if (!clarifications) {
     return '';
   }
 
   const hasQuestions = Array.isArray(clarifications.questions) && clarifications.questions.length > 0;
   const hasLines = Array.isArray(clarifications.lines) && clarifications.lines.length > 0;
+  const hasConflicts = Array.isArray(clarifications.conflicts) && clarifications.conflicts.length > 0;
 
-  if (!hasQuestions && !hasLines) {
+  if (!hasQuestions && !hasLines && !hasConflicts) {
     return '';
   }
 
+  const lines: string[] = [];
   lines.push('## Strategic Input Clarifications\n');
-  lines.push('During initial analysis, you provided the following clarifications:\n');
 
   if (hasQuestions) {
+    lines.push('During initial analysis, you provided the following clarifications:\n');
     clarifications.questions.forEach((q: any) => {
       lines.push(`**${q.question}**\n`);
 
@@ -164,8 +165,8 @@ export function generateClarificationsMarkdown(clarifications: any): string {
     lines.push('');
   }
 
-  if (Array.isArray(clarifications.conflicts) && clarifications.conflicts.length > 0) {
-    lines.push('**Clarification Conflicts Detected:**');
+  if (hasConflicts) {
+    lines.push('### Clarification Conflicts\n');
     clarifications.conflicts.forEach((conflict: string) => {
       lines.push(`- ${conflict}`);
     });
@@ -197,7 +198,34 @@ export function generateMarkdownReport(pkg: FullExportPackage): string {
   if (pkg.metadata.versionNumber) {
     lines.push(`**Version:** ${pkg.metadata.versionNumber}`);
   }
+  if (pkg.metadata.acceptanceReport) {
+    const report = pkg.metadata.acceptanceReport;
+    lines.push('');
+    lines.push('**Export Validation:**');
+    lines.push(report.passed ? 'PASS' : 'FAIL');
+  }
   lines.push('\n---\n');
+
+  if (pkg.metadata.acceptanceReport) {
+    const report = pkg.metadata.acceptanceReport;
+    lines.push('## Export Validation Summary\n');
+    lines.push(`**Status:** ${report.passed ? 'PASS' : 'FAIL'}\n`);
+    if (report.criticalIssues.length > 0) {
+      lines.push('**Critical Issues:**');
+      report.criticalIssues.forEach(issue => {
+        lines.push(`- [${issue.code}] ${issue.message}`);
+      });
+      lines.push('');
+    }
+    if (report.warnings.length > 0) {
+      lines.push('**Warnings:**');
+      report.warnings.forEach(issue => {
+        lines.push(`- [${issue.code}] ${issue.message}`);
+      });
+      lines.push('');
+    }
+    lines.push('\n---\n');
+  }
 
   if (pkg.strategy.understanding) {
     const u = pkg.strategy.understanding;

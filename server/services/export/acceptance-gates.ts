@@ -459,11 +459,63 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
       strategyData?.understanding?.initiativeType || strategyData?.understanding?.userInput || ''
     );
 
-    if (report.errorCount > 0) {
-      criticalIssues.push({
-        severity: 'critical',
-        code: 'VALIDATOR_CRITICAL_ISSUES',
-        message: `Quality gate found ${report.errorCount} error-level issues`,
+    // Map ALL validator results to individual AcceptanceIssues (Item E fix)
+    // Previously only checked report.errorCount > 0 with one generic message,
+    // discarding validator-specific details (codes, workstreamIds, suggestions).
+    for (const result of report.validatorResults) {
+      for (const issue of result.issues) {
+        const acceptanceIssue: AcceptanceIssue = {
+          severity: issue.severity === 'error' ? 'critical' : 'warning',
+          code: issue.code,
+          message: `[${result.validatorName}] ${issue.message}`,
+          details: {
+            validatorName: result.validatorName,
+            originalSeverity: issue.severity,
+            ...(issue.workstreamId && { workstreamId: issue.workstreamId }),
+            ...(issue.field && { field: issue.field }),
+            ...(issue.suggestion && { suggestion: issue.suggestion }),
+          },
+        };
+
+        if (issue.severity === 'error') {
+          criticalIssues.push(acceptanceIssue);
+        } else {
+          // 'warning' and 'info' issues go to warnings (non-gate-blocking)
+          warnings.push(acceptanceIssue);
+        }
+      }
+    }
+
+    console.log(
+      `[AcceptanceGates] Quality gate: ${report.validatorResults.length} validators, ` +
+      `${report.totalIssues} issues (${report.errorCount} errors, ${report.warningCount} warnings, ${report.infoCount} info)`
+    );
+  }
+
+  const wbsRows = Array.isArray(epmData.wbs) ? epmData.wbs : [];
+  if (wbsRows.length > 0) {
+    const placeholderNames = new Set([
+      'tbd',
+      'placeholder',
+      'decision execution plan',
+      'implementation roadmap',
+      'resource alignment',
+    ]);
+    const placeholders: Array<{ wbs_code?: string; task_name?: string }> = [];
+    for (const row of wbsRows) {
+      const taskName = typeof row?.task_name === 'string' ? row.task_name.trim() : '';
+      if (!taskName) continue;
+      const normalized = taskName.toLowerCase();
+      if (placeholderNames.has(normalized)) {
+        placeholders.push({ wbs_code: row?.wbs_code, task_name: row?.task_name });
+      }
+    }
+    if (placeholders.length > 0) {
+      warnings.push({
+        severity: 'warning',
+        code: 'WBS_PLACEHOLDER_TASK',
+        message: `WBS contains ${placeholders.length} placeholder task name(s)`,
+        details: { placeholders },
       });
     }
   }

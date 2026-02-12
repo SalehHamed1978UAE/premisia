@@ -192,7 +192,10 @@ export class AssignmentGenerator {
     console.log(`[AssignmentGenerator] Generated ${assignments.length} task assignments`);
     this.logAllocationSummary(assignments, allResources);
 
-    return assignments;
+    // VALIDATE: Cap resource allocation at <=100%
+    const validatedAssignments = this.validateAndCapAllocations(assignments, allResources);
+
+    return validatedAssignments;
   }
 
   /**
@@ -368,6 +371,84 @@ IMPORTANT: Return a match for EVERY task. Use exact taskId and resourceId values
     for (const [role, data] of Object.entries(summary)) {
       console.log(`  - ${role}: ${data.count} tasks, avg ${Math.round(data.totalAllocation / data.count)}% allocation`);
     }
+  }
+
+  /**
+   * Validate and cap resource allocations to prevent overallocation (>100%)
+   *
+   * VALIDATION RULES:
+   * 1. Calculate total allocation % per resource across all assignments
+   * 2. If any resource exceeds 100%, scale down ALL their assignments proportionally
+   * 3. Log warnings for overallocated resources
+   *
+   * FIXES: Issue #1 from ZIP analysis - Resource overallocation (141%, 125%, 116%)
+   */
+  private validateAndCapAllocations(
+    assignments: TaskAssignment[],
+    resources: Resource[]
+  ): TaskAssignment[] {
+    // Calculate total allocation per resource
+    const resourceTotals: Record<string, { total: number; count: number; name: string }> = {};
+
+    for (const assignment of assignments) {
+      if (!resourceTotals[assignment.resourceId]) {
+        resourceTotals[assignment.resourceId] = {
+          total: 0,
+          count: 0,
+          name: assignment.resourceName
+        };
+      }
+      resourceTotals[assignment.resourceId].total += assignment.allocationPercent;
+      resourceTotals[assignment.resourceId].count++;
+    }
+
+    // Check for overallocations and scale down if needed
+    const adjustedAssignments = [...assignments];
+    const overallocatedResources: string[] = [];
+
+    for (const [resourceId, data] of Object.entries(resourceTotals)) {
+      if (data.total > 100) {
+        overallocatedResources.push(`${data.name} (${data.total}% → capped at 100%)`);
+
+        // Scale down all assignments for this resource proportionally
+        const scaleFactor = 100 / data.total;
+
+        for (let i = 0; i < adjustedAssignments.length; i++) {
+          if (adjustedAssignments[i].resourceId === resourceId) {
+            const originalAllocation = adjustedAssignments[i].allocationPercent;
+            adjustedAssignments[i].allocationPercent = Math.round(originalAllocation * scaleFactor);
+
+            // Add note about adjustment
+            const note = adjustedAssignments[i].notes || '';
+            adjustedAssignments[i].notes = note
+              ? `${note} [Allocation adjusted from ${originalAllocation}% to prevent overallocation]`
+              : `Allocation adjusted from ${originalAllocation}% to prevent overallocation`;
+          }
+        }
+      }
+    }
+
+    // Log results
+    if (overallocatedResources.length > 0) {
+      console.warn('[AssignmentGenerator] ⚠️  RESOURCE OVERALLOCATION DETECTED AND FIXED:');
+      overallocatedResources.forEach(msg => console.warn(`  - ${msg}`));
+      console.warn('[AssignmentGenerator] All allocations have been scaled proportionally to cap at 100%');
+    } else {
+      console.log('[AssignmentGenerator] ✅ All resource allocations within 100% limit');
+    }
+
+    // Verify totals after adjustment
+    const finalTotals: Record<string, number> = {};
+    for (const assignment of adjustedAssignments) {
+      finalTotals[assignment.resourceId] = (finalTotals[assignment.resourceId] || 0) + assignment.allocationPercent;
+    }
+
+    for (const [resourceId, total] of Object.entries(finalTotals)) {
+      const data = resourceTotals[resourceId];
+      console.log(`[AssignmentGenerator] ${data.name}: ${data.count} tasks, ${total}% total allocation`);
+    }
+
+    return adjustedAssignments;
   }
 }
 
