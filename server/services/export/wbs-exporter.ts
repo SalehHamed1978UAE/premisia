@@ -30,7 +30,7 @@ export class WBSExporter extends BaseExporter {
   }
 }
 
-interface WBSRow {
+export interface WBSRow {
   wbs_code: string;
   task_name: string;
   level: number;
@@ -50,27 +50,7 @@ interface WBSRow {
   notes?: string;
 }
 
-export function generateWBSCsv(pkg: FullExportPackage): string {
-  const headers = [
-    'wbs_code',
-    'task_name',
-    'level',
-    'type',
-    'owner',
-    'start_date',
-    'end_date',
-    'duration_days',
-    'dependency',
-    'dependency_type',
-    'priority',
-    'status',
-    'percent_complete',
-    'description',
-    'framework_source',
-    'journey',
-    'notes'
-  ];
-
+export function generateWBSRows(pkg: FullExportPackage): WBSRow[] {
   const rows: WBSRow[] = [];
   const program = pkg.epm?.program;
   const understanding = pkg.strategy?.understanding;
@@ -214,7 +194,31 @@ export function generateWBSCsv(pkg: FullExportPackage): string {
     });
   }
 
-  // Convert to CSV format
+  return rows;
+}
+
+export function generateWBSCsv(pkg: FullExportPackage): string {
+  const headers = [
+    'wbs_code',
+    'task_name',
+    'level',
+    'type',
+    'owner',
+    'start_date',
+    'end_date',
+    'duration_days',
+    'dependency',
+    'dependency_type',
+    'priority',
+    'status',
+    'percent_complete',
+    'description',
+    'framework_source',
+    'journey',
+    'notes'
+  ];
+
+  const rows = generateWBSRows(pkg);
   const csvRows = [headers.join(',')];
 
   rows.forEach(row => {

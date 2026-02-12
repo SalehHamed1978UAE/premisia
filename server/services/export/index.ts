@@ -7,7 +7,7 @@ import { PdfExporter, findChromiumExecutable, generatePdfFromHtml, generatePdfFr
 import { DocxExporter, generateDocxReport, generateDocxFromHtml } from './docx-exporter';
 import { CsvExporter, generateAssignmentsCsv, generateWorkstreamsCsv, generateResourcesCsv, generateRisksCsv, generateBenefitsCsv } from './csv-exporter';
 import { ExcelExporter, generateExcelWorkbook } from './excel-exporter';
-import { WBSExporter, generateWBSCsv } from './wbs-exporter';
+import { WBSExporter, generateWBSRows, generateWBSCsv } from './wbs-exporter';
 import { escapeCsvField } from './base-exporter';
 import { buildStrategyJsonPayload, buildEpmJsonPayload } from './json-payloads';
 import { validateExportAcceptance } from './acceptance-gates';
@@ -21,7 +21,7 @@ export { PdfExporter, findChromiumExecutable, generatePdfFromHtml, generatePdfFr
 export { DocxExporter, generateDocxReport, generateDocxFromHtml };
 export { CsvExporter, generateAssignmentsCsv, generateWorkstreamsCsv, generateResourcesCsv, generateRisksCsv, generateBenefitsCsv };
 export { ExcelExporter, generateExcelWorkbook };
-export { WBSExporter, generateWBSCsv };
+export { WBSExporter, generateWBSRows, generateWBSCsv };
 
 export async function generateFullPassExport(
   request: ExportRequest,
@@ -50,6 +50,15 @@ export async function generateFullPassExport(
     : exportPackage.strategy;
 
   const strategyJson = JSON.stringify(buildStrategyJsonPayload(strategyPayload), null, 2);
+
+  let wbsRows: ReturnType<typeof generateWBSRows> | null = null;
+  try {
+    wbsRows = exportPackage.epm?.program ? generateWBSRows(exportPackage) : null;
+  } catch (error) {
+    console.warn('[Export Service] WBS row generation failed:', error instanceof Error ? error.message : error);
+    wbsRows = null;
+  }
+
   const epmJson = exportPackage.epm?.program
     ? JSON.stringify(
         buildEpmJsonPayload(exportPackage.epm, {
@@ -58,6 +67,7 @@ export async function generateFullPassExport(
           userInput: strategyPayload?.understanding?.userInput,
           clarifications: strategyPayload?.clarifications,
           initiativeType: strategyPayload?.understanding?.initiativeType,
+          wbsRows,
         }),
         null,
         2

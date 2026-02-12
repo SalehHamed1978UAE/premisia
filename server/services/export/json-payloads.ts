@@ -1,4 +1,5 @@
 import type { FullExportPackage } from '../../types/interfaces';
+import type { WBSRow } from './wbs-exporter';
 import { getJourney } from '../../journey/journey-registry';
 import { normalizeWhysPathSteps } from '../../utils/whys-path';
 
@@ -10,6 +11,7 @@ type EpmPayloadContext = {
   userInput?: string | null;
   clarifications?: StrategyPayload['clarifications'] | null;
   initiativeType?: string | null;
+  wbsRows?: WBSRow[] | null;
 };
 
 const FRAMEWORK_ALIASES: Record<string, string> = {
@@ -507,6 +509,11 @@ export function buildEpmJsonPayload(
   const program = epm.program || {};
   const workstreams = parseMaybeJson<any[]>(program.workstreams) || [];
   const timeline = normalizeTimeline(program, workstreams);
+  const hasTimelineData = (
+    (Array.isArray(timeline?.phases) && timeline.phases.length > 0) ||
+    (Number.isFinite(timeline?.totalMonths) && timeline.totalMonths > 0)
+  );
+  const timelineValue = hasTimelineData ? timeline : null;
   const resourcePlan = parseMaybeJson<any>(program.resourcePlan);
   const riskRegister = parseMaybeJson<any>(program.riskRegister);
   const benefitsRealization = parseMaybeJson<any>(program.benefitsRealization);
@@ -535,7 +542,8 @@ export function buildEpmJsonPayload(
         inputSummary: context.strategyVersion?.inputSummary ?? null,
       }
     : null;
-  const constraints = constraintsFromVersion ?? constraintsFromProgram;
+  const constraints = constraintsFromVersion ?? constraintsFromProgram ?? null;
+  const wbs = Array.isArray(context.wbsRows) ? context.wbsRows : [];
 
   const normalizedBenefitData = normalizeBenefits(deriveBenefitList(benefitsRealization));
   const normalizedBenefits = normalizedBenefitData.benefits;
@@ -553,18 +561,49 @@ export function buildEpmJsonPayload(
     clarifications: context.clarifications ?? null,
     initiativeType: context.initiativeType ?? null,
   };
+  const totalDuration = Number.isFinite(timelineValue?.totalMonths)
+    ? timelineValue?.totalMonths
+    : (Number.isFinite(program.totalDuration) ? program.totalDuration : null);
+  const totalBudget = Number.isFinite(financialPlan?.totalBudget)
+    ? financialPlan?.totalBudget
+    : (Number.isFinite(program.totalBudget) ? program.totalBudget : null);
+
+  const startDateRaw = program.startDate || timelineValue?.startDate || null;
+  const startDateParsed = startDateRaw ? new Date(startDateRaw) : null;
+  const startDate = startDateParsed && !Number.isNaN(startDateParsed.getTime()) ? startDateParsed : null;
+
+  const endDateRaw = program.endDate || timelineValue?.endDate || null;
+  let endDateParsed = endDateRaw ? new Date(endDateRaw) : null;
+  endDateParsed = endDateParsed && !Number.isNaN(endDateParsed.getTime()) ? endDateParsed : null;
+
+  if (!endDateParsed && startDate && Number.isFinite(totalDuration) && totalDuration !== null) {
+    endDateParsed = addMonths(startDate, totalDuration);
+  }
+
   const normalizedProgram = {
     ...program,
     id: programId ?? program.id,
     workstreams,
-    timeline,
+    timeline: timelineValue,
     resourcePlan,
     riskRegister,
     financialPlan,
     benefitsRealization: normalizedBenefitsRealization,
     stageGates: stageGates || program.stageGates,
     kpis: normalizedKpis || program.kpis,
+    totalDuration: totalDuration ?? null,
+    totalBudget: totalBudget ?? null,
+    startDate: startDate ? startDate.toISOString() : null,
+    endDate: endDateParsed ? endDateParsed.toISOString() : null,
   };
+
+  if (normalizedProgram.totalDuration !== null && timelineValue?.totalMonths !== null && normalizedProgram.totalDuration !== timelineValue?.totalMonths) {
+    console.warn(`[Export] Program totalDuration (${normalizedProgram.totalDuration}) != timeline.totalMonths (${timelineValue?.totalMonths})`);
+  }
+
+  if (normalizedProgram.totalBudget !== null && financialPlan?.totalBudget !== null && normalizedProgram.totalBudget !== financialPlan.totalBudget) {
+    console.warn(`[Export] Program totalBudget (${normalizedProgram.totalBudget}) != financialPlan.totalBudget (${financialPlan.totalBudget})`);
+  }
 
   const assignments = normalizeAssignments(epm.assignments || [], workstreams);
   const requiresApproval = (epm as any).requiresApproval ?? (program as any).requiresApproval ?? null;
@@ -583,6 +622,9 @@ export function buildEpmJsonPayload(
 
   return {
     ...epm,
+    timeline: timelineValue,
+    constraints,
+    wbs,
     requiresApproval,
     metadata,
     programId: programId ?? null,
@@ -601,4 +643,10 @@ export function buildEpmJsonPayload(
     userInput: context.userInput ?? null,
     userInputStructured: structuredUserInput,
   };
+}
+
+function addMonths(date: Date, months: number): Date {
+  const result = new Date(date);
+  result.setMonth(result.getMonth() + months);
+  return result;
 }

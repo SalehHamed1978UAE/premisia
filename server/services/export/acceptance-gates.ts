@@ -492,6 +492,34 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
     );
   }
 
+  const wbsRows = Array.isArray(epmData.wbs) ? epmData.wbs : [];
+  if (wbsRows.length > 0) {
+    const placeholderNames = new Set([
+      'tbd',
+      'placeholder',
+      'decision execution plan',
+      'implementation roadmap',
+      'resource alignment',
+    ]);
+    const placeholders: Array<{ wbs_code?: string; task_name?: string }> = [];
+    for (const row of wbsRows) {
+      const taskName = typeof row?.task_name === 'string' ? row.task_name.trim() : '';
+      if (!taskName) continue;
+      const normalized = taskName.toLowerCase();
+      if (placeholderNames.has(normalized)) {
+        placeholders.push({ wbs_code: row?.wbs_code, task_name: row?.task_name });
+      }
+    }
+    if (placeholders.length > 0) {
+      warnings.push({
+        severity: 'warning',
+        code: 'WBS_PLACEHOLDER_TASK',
+        message: `WBS contains ${placeholders.length} placeholder task name(s)`,
+        details: { placeholders },
+      });
+    }
+  }
+
   return {
     passed: criticalIssues.length === 0,
     criticalIssues,
