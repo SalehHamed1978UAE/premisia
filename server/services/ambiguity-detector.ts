@@ -537,11 +537,6 @@ ${conflicts.map((line) => `- ${line}`).join('\n')}`;
       return true;
     }
 
-    const wordCount = normalized.split(' ').filter(Boolean).length;
-    if (wordCount <= 3 && normalized.includes('channel')) {
-      return true;
-    }
-
     return false;
   }
 

@@ -79,9 +79,14 @@ describe('Item C — Clarification Parsing & Conflict Detection', () => {
       expect(result.conflicts.some(c => c.includes('Placeholder'))).toBe(true);
     });
 
-    it('detects a bare category label like "sales channel" as placeholder', () => {
+    it('detects a bare category label like "sales channel" as placeholder (exact match in set)', () => {
       const result = svc.buildClarifiedInputWithConflicts('', { q1: 'sales channel' });
       expect(result.conflicts.some(c => c.includes('Placeholder'))).toBe(true);
+    });
+
+    it('does NOT match "TBD for Q3 release" as placeholder (Mod 2: exact match only)', () => {
+      const result = svc.buildClarifiedInputWithConflicts('', { q1: 'TBD for Q3 release' });
+      expect(result.conflicts.some(c => c.includes('Placeholder'))).toBe(false);
     });
   });
 

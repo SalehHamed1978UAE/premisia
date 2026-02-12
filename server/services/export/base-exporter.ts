@@ -274,10 +274,16 @@ export async function loadExportData(
       conflicts = fallback.conflicts;
     }
 
-    if (metadata?.requiresApproval && typeof metadata.requiresApproval === 'object') {
-      requiresApproval = metadata.requiresApproval;
-    } else if (conflicts.length > 0) {
-      requiresApproval = { clarifications: true };
+    if (metadata?.requiresApproval) {
+      if (typeof metadata.requiresApproval === 'object') {
+        requiresApproval = { ...metadata.requiresApproval };
+      } else {
+        // Convert legacy boolean to object form
+        requiresApproval = {};
+      }
+    }
+    if (conflicts.length > 0) {
+      requiresApproval = { ...(requiresApproval || {}), clarifications: true };
     }
     
     if (questions && answers) {
