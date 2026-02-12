@@ -14,6 +14,7 @@ export default defineConfig({
     include: [
       'tests/bridges/bridge-unit.test.ts',
       'tests/item-c-clarifications.test.ts',
+      'tests/t1-t8-validation.test.ts',
     ],
   },
   resolve: {

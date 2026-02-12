@@ -30,6 +30,10 @@ interface LegacyEPMInput {
   sessionId?: string;
   versionNumber?: number;
   userId?: string;
+  // Sprint 6.1: DB-stored constraints from strategyVersion
+  costMin?: number | null;
+  costMax?: number | null;
+  timelineMonths?: number | null;
 }
 
 interface EPMAdapterOptions {
@@ -56,9 +60,27 @@ export class EPMAdapter {
 
     const insights = this.transformToInsights(input);
     
+    // Sprint 6.1: Inject budget/timeline constraints from DB-stored version fields
+    // These take priority over text-parsed values inside the synthesizer
+    const budgetRange = input.costMax
+      ? { min: input.costMin || input.costMax, max: input.costMax }
+      : undefined;
+    const timelineRange = input.timelineMonths
+      ? { min: input.timelineMonths, max: input.timelineMonths }
+      : undefined;
+
+    if (budgetRange) {
+      console.log(`[EPM-Adapter] Budget constraint from DB: $${budgetRange.min.toLocaleString()} - $${budgetRange.max.toLocaleString()}`);
+    }
+    if (timelineRange) {
+      console.log(`[EPM-Adapter] Timeline constraint from DB: ${timelineRange.min}-${timelineRange.max} months`);
+    }
+
     const userContext = {
       sessionId: input.sessionId,
       userId: input.userId,
+      budgetRange,
+      timelineRange,
     };
 
     const namingContext = this.extractNamingContext(input);

@@ -860,6 +860,10 @@ router.post('/convert-to-epm', async (req: Request, res: Response) => {
           sessionId,
           versionNumber,
           userId,
+          // Sprint 6.1: Pass DB-stored constraints so generators respect budget/timeline
+          costMin: version.costMin,
+          costMax: version.costMax,
+          timelineMonths: version.timelineMonths,
         });
       } catch (v2Error: any) {
         console.error('[convert-to-epm] V2 engine failed, falling back to legacy:', v2Error.message);
