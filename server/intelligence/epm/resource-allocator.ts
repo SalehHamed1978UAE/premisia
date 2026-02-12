@@ -173,16 +173,22 @@ Return ONLY valid JSON array of role objects. NO markdown, NO code blocks, ONLY 
         if (fixes.length > 0) {
           console.log('[ResourceAllocator] FTE normalization fixes:', fixes);
         }
-        
-        // Map back to original structure with normalized allocation
-        const normalizedRoles = normalized.map((r: any) => ({
+
+        // FILTER: Remove domain-contaminated skills based on initiative type
+        const filteredRoles = normalized.map((r: any) => ({
+          ...r,
+          skills: this.filterDomainContamination(r.skills, initiativeType)
+        }));
+
+        // Map back to original structure with normalized allocation and filtered skills
+        const normalizedRoles = filteredRoles.map((r: any) => ({
           role: r.role,
           allocation: r.fteAllocation,
           months: r.months,
           skills: r.skills,
           justification: r.justification
         }));
-        
+
         return normalizedRoles;
       }
     } catch (parseError) {
@@ -328,6 +334,84 @@ Return ONLY valid JSON array of role objects. NO markdown, NO code blocks, ONLY 
     
     const roles = templates[initiativeType] || templates.other;
     return roles.slice(0, Math.min(estimatedFTEs, roles.length));
+  }
+
+  /**
+   * Filter out domain-contaminated skills that don't belong in this initiative type
+   *
+   * PREVENTS: Physical business terminology (POS, food safety) appearing in SaaS/tech roles
+   * PREVENTS: SaaS terminology (API, DevOps) appearing in physical business roles
+   *
+   * FIXES: Issue #2 from ZIP analysis - Domain contamination ("POS systems" in AI roles,
+   * "food safety" in SaaS Compliance Officer)
+   */
+  private filterDomainContamination(skills: string[], initiativeType: string): string[] {
+    if (!skills || !Array.isArray(skills)) return [];
+
+    // Define domain-specific vocabulary blacklists
+    const PHYSICAL_BUSINESS_TERMS = [
+      'POS systems', 'POS', 'point of sale',
+      'food safety', 'food', 'beverage', 'kitchen', 'culinary',
+      'barista', 'server', 'chef', 'cooking',
+      'health permits', 'health inspections', 'HACCP',
+      'store', 'retail', 'cashier', 'merchandising',
+      'inventory control', 'stockroom',
+      'restaurant', 'cafe', 'catering',
+      'supply chain', 'logistics',
+      'licensing', 'permits'
+    ];
+
+    const TECH_SAAS_TERMS = [
+      'API', 'API design', 'REST', 'GraphQL',
+      'DevOps', 'CI/CD', 'Docker', 'Kubernetes',
+      'frontend', 'backend', 'full-stack',
+      'React', 'Vue', 'Angular', 'TypeScript',
+      'database design', 'SQL', 'NoSQL',
+      'cloud infrastructure', 'AWS', 'Azure', 'GCP',
+      'microservices', 'serverless'
+    ];
+
+    // Map initiative types to blacklisted terms
+    const blacklistMap: Record<string, string[]> = {
+      'software_development': PHYSICAL_BUSINESS_TERMS,
+      'digital_transformation': PHYSICAL_BUSINESS_TERMS,
+      'saas_platform': PHYSICAL_BUSINESS_TERMS,
+      'tech_startup': PHYSICAL_BUSINESS_TERMS,
+
+      'physical_business_launch': TECH_SAAS_TERMS,
+      'retail_launch': TECH_SAAS_TERMS,
+      'cafe_launch': TECH_SAAS_TERMS,
+      'restaurant_launch': TECH_SAAS_TERMS,
+      'food_service': TECH_SAAS_TERMS,
+    };
+
+    const blacklist = blacklistMap[initiativeType];
+    if (!blacklist) {
+      // No specific filtering for this initiative type
+      return skills;
+    }
+
+    // Filter out contaminated skills (case-insensitive partial match)
+    const filtered = skills.filter(skill => {
+      const skillLower = skill.toLowerCase();
+      const isContaminated = blacklist.some(term =>
+        skillLower.includes(term.toLowerCase())
+      );
+
+      if (isContaminated) {
+        console.warn(`[ResourceAllocator] 🚫 Filtered domain-contaminated skill: "${skill}" (initiative: ${initiativeType})`);
+      }
+
+      return !isContaminated;
+    });
+
+    // If we filtered out all skills, keep at least one generic skill
+    if (filtered.length === 0 && skills.length > 0) {
+      console.warn(`[ResourceAllocator] ⚠️  All skills were contaminated, using generic fallback`);
+      return ['General domain expertise'];
+    }
+
+    return filtered;
   }
 
   /**

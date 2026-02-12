@@ -3,6 +3,7 @@ import { strategyOntologyService } from '../ontology/strategy-ontology-service';
 import { ResearchFindings, Source, Finding } from './market-researcher';
 import { groundStrategicAnalysis, isContextFoundryConfigured, orchestrateAnalysis, OrchestrationResult } from '../services/grounded-analysis-service';
 import { ContextBundle } from '../services/context-foundry-client';
+import { whysPathToText } from '../utils/whys-path';
 
 export interface FiveWhysAnalysis {
   problem_statement: string;
@@ -374,10 +375,11 @@ Return ONLY valid JSON (no markdown, no explanation):
   async analyzeWithResearch(
     sessionId: string,
     rootCause: string,
-    whysPath: string[],
+    whysPath: any[],
     research: ResearchFindings,
     input: string
   ): Promise<EnhancedAnalysisResult> {
+    const whysPathText = whysPathToText(whysPath);
     const findValidation = (fact: string) => {
       if (!research.validation) return null;
       const factLower = fact.toLowerCase().replace(/[^\w\s]/g, '').trim();
@@ -461,7 +463,7 @@ Root Cause: ${rootCause}
 Original Input: ${input.substring(0, 1500)}
 
 Analysis Path (5 Whys):
-${whysPath.map((w, i) => `${i + 1}. ${w}`).join('\n')}
+${whysPathText.map((w, i) => `${i + 1}. ${w}`).join('\n')}
 
 RESEARCH FINDINGS:
 ${researchSummary}

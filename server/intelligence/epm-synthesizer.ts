@@ -25,6 +25,7 @@ import type {
   ValidationReport,
   ExecutiveSummary,
   Workstream,
+  Deliverable,
   Timeline,
   ResourcePlan,
   ResourceAllocation,
@@ -66,7 +67,9 @@ import {
   RoleInferenceService,
   normalizeRole,
   ensureResourceExists,
+  qualityGateRunner,
 } from './epm';
+import { extractUserConstraintsFromText } from './epm/constraint-utils';
 
 export { ContextBuilder } from './epm';
 
@@ -253,6 +256,10 @@ export class EPMSynthesizer {
 
     console.log(`[EPM Synthesis] ✓ Planning context: Scale=${planningContext.business.scale}, Timeline=${planningContext.execution.timeline.min}-${planningContext.execution.timeline.max}mo`);
 
+    // SPRINT 1: Parse user constraints from input (not decisions)
+    const userConstraints = this.parseUserConstraints(insights, planningContext);
+    const enrichedUserContext = this.applyUserConstraintsToContext(userContext, userConstraints);
+
     onProgress?.({
       type: 'step-start',
       step: 'intelligent-planning',
@@ -264,14 +271,24 @@ export class EPMSynthesizer {
     // The function expects an object with a .workstreams property, not a raw array
     const epmProgramInput = { workstreams };
 
+    const planningConfig = {
+      maxDuration: userConstraints.timeline?.max ?? planningContext.execution.timeline?.max,
+      budget: userConstraints.budget?.max ?? planningContext.execution.budget?.max,
+      teamSize: enrichedUserContext?.teamAvailability?.currentTeamSize,
+    };
+
     const planningResult = await replaceTimelineGeneration(
       epmProgramInput,
-      planningContext
+      planningContext,
+      planningConfig
     );
 
     // Extract strategic context for benefits generation
     const strategicContext = this.extractStrategicContext(insights, namingContext);
     console.log(`[EPM Synthesis] ✓ Strategic context: ${strategicContext.decisions.length} decisions, SWOT available: ${!!strategicContext.swotData}`);
+
+    // SPRINT 1: Validate decisions against user constraints (integrity gate)
+    const decisionValidation = this.validateDecisionsAgainstConstraints(strategicContext.decisions, userConstraints);
 
     if (planningResult.success && planningResult.confidence >= 0.6) {
       console.log('[EPM Synthesis] ✓ Intelligent planning successful');
@@ -284,9 +301,11 @@ export class EPMSynthesizer {
         insights,
         scheduledWorkstreams,
         planningContext,
-        userContext,
+        enrichedUserContext,
         namingContext,
         strategicContext,
+        decisionValidation,
+        userConstraints,
         onProgress,
         processStartTime
       );
@@ -323,9 +342,11 @@ export class EPMSynthesizer {
         insights,
         timedWorkstreams, // Use WBS Builder workstreams with default timings
         planningContext,
-        userContext,
+        enrichedUserContext,
         namingContext,
         strategicContext,
+        decisionValidation,
+        userConstraints,
         onProgress,
         processStartTime
       );
@@ -422,6 +443,567 @@ export class EPMSynthesizer {
     console.log(`  - Source: ${journeyBuilderSwot ? 'Journey Builder (frameworkInsights)' : 'Legacy (insights/marketContext)'}`);
 
     return { decisions, swotData };
+  }
+
+  /**
+   * Parse user constraints from USER INPUT (not AI decisions)
+   *
+   * SPRINT 1 - INTEGRITY: Parse constraints from user's original input
+   * Source: insights.marketContext.budgetRange (string)
+   *
+   * This enforces system integrity: USER constraints are the source of truth,
+   * not AI-generated strategic decisions.
+   *
+   * Returns: Structured constraints object { budget: {min, max}, timeline: {min, max} }
+   */
+  private parseUserConstraints(
+    insights: StrategyInsights,
+    planningContext?: PlanningContext
+  ): { budget?: { min: number; max: number }; timeline?: { min: number; max: number } } {
+    const rawUserInput = planningContext?.business?.description || '';
+    return extractUserConstraintsFromText(rawUserInput, insights.marketContext?.budgetRange);
+  }
+
+  private applyUserConstraintsToContext(
+    userContext: UserContext | undefined,
+    userConstraints: { budget?: { min: number; max: number }; timeline?: { min: number; max: number } }
+  ): UserContext | undefined {
+    if (!userConstraints.budget && !userConstraints.timeline) {
+      return userContext;
+    }
+
+    const base: UserContext = {
+      ...(userContext || { timelineUrgency: 'Strategic' }),
+    };
+
+    if (!base.timelineUrgency) {
+      base.timelineUrgency = 'Strategic';
+    }
+
+    if (userConstraints.budget && !base.budgetRange) {
+      base.budgetRange = {
+        min: userConstraints.budget.min,
+        max: userConstraints.budget.max,
+      };
+    }
+
+    if (userConstraints.timeline && !base.timelineRange) {
+      base.timelineRange = {
+        min: userConstraints.timeline.min,
+        max: userConstraints.timeline.max,
+      };
+    }
+
+    return base;
+  }
+
+  /**
+   * Validate strategic decisions against user constraints
+   *
+   * SPRINT 1 - INTEGRITY: Decisions CANNOT override user constraints without approval
+   *
+   * Returns: { needsApproval: boolean, violations: string[] }
+   */
+  private validateDecisionsAgainstConstraints(
+    decisions: any[],
+    userConstraints: { budget?: { min: number; max: number }; timeline?: { min: number; max: number } }
+  ): { needsApproval: boolean; violations: string[] } {
+    const violations: string[] = [];
+    const selectedDecisions = decisions.filter((d: any) => d.selectedOptionId);
+
+    console.log('[Decision Gate] Validating decisions against user constraints...');
+
+    if (!userConstraints.budget && !userConstraints.timeline) {
+      console.log('[Decision Gate] No user constraints defined - all decisions allowed');
+      return { needsApproval: false, violations: [] };
+    }
+
+    // Check if any decision proposes budget exceeding user's stated limit
+    for (const decision of selectedDecisions) {
+      const selectedOption = decision.options?.find((opt: any) => opt.id === decision.selectedOptionId);
+      if (!selectedOption) continue;
+
+      const optionText = selectedOption.text || selectedOption.label || selectedOption.description || '';
+      const decisionText = `${decision.question} ${optionText}`.toLowerCase();
+
+      // Parse decision's proposed budget
+      const budgetPattern = /\$?(\d+(?:\.\d+)?)\s*(?:million|m|mil)?\s*(?:-|to)?\s*(?:\$?(\d+(?:\.\d+)?))?\s*(?:million|m|mil)?/i;
+      const budgetMatch = decisionText.match(budgetPattern);
+
+      if (budgetMatch && userConstraints.budget) {
+        let proposedMin = parseFloat(budgetMatch[1]) * 1_000_000;
+        let proposedMax = budgetMatch[2] ? parseFloat(budgetMatch[2]) * 1_000_000 : proposedMin;
+
+        // Check if decision exceeds user's budget limit
+        if (proposedMax > userConstraints.budget.max) {
+          const violation = `Decision proposes $${(proposedMax / 1_000_000).toFixed(1)}M but user limit is $${(userConstraints.budget.max / 1_000_000).toFixed(1)}M`;
+          violations.push(violation);
+          console.warn(`[Decision Gate] ⚠️  VIOLATION: ${violation}`);
+        }
+      }
+
+      // Parse decision's proposed timeline
+      const timelinePattern = /(\d+)\s*(?:-|to)?\s*(?:(\d+)\s*)?(?:month|mo|year|yr)s?/i;
+      const timelineMatch = decisionText.match(timelinePattern);
+
+      if (timelineMatch && userConstraints.timeline) {
+        let proposedMonths = parseInt(timelineMatch[1], 10);
+        if (decisionText.includes('year') || decisionText.includes('yr')) {
+          proposedMonths *= 12;
+        }
+
+        // Check if decision exceeds user's timeline limit
+        if (userConstraints.timeline.max && proposedMonths > userConstraints.timeline.max) {
+          const violation = `Decision proposes ${proposedMonths} months but user limit is ${userConstraints.timeline.max} months`;
+          violations.push(violation);
+          console.warn(`[Decision Gate] ⚠️  VIOLATION: ${violation}`);
+        }
+      }
+    }
+
+    if (violations.length > 0) {
+      console.warn(`[Decision Gate] ❌ ${violations.length} violations detected - requiresApproval flag will be set`);
+      return { needsApproval: true, violations };
+    }
+
+    console.log('[Decision Gate] ✅ All decisions within user constraints');
+    return { needsApproval: false, violations: [] };
+  }
+
+  private alignWorkstreamsToDecisions(
+    workstreams: Workstream[],
+    decisions: any[],
+    planningContext: PlanningContext
+  ): Workstream[] {
+    const selectedDecisions = (decisions || []).filter((d: any) => d.selectedOptionId);
+    if (selectedDecisions.length === 0) return workstreams;
+
+    const decisionSeeds = selectedDecisions.map((decision: any, index: number) => {
+      const selectedOption = Array.isArray(decision.options)
+        ? decision.options.find((option: any) => option.id === decision.selectedOptionId)
+        : null;
+      const title = decision.title || decision.question || `Decision ${index + 1}`;
+      const optionLabel = selectedOption?.label || decision.selectedOptionId || 'Selected option';
+      const optionDescription = selectedOption?.description || '';
+      const context = decision.context || '';
+      const impactAreas = Array.isArray(decision.impact_areas) ? decision.impact_areas : [];
+      const dependsOn = Array.isArray(decision.dependsOn)
+        ? decision.dependsOn
+        : Array.isArray(decision.depends_on)
+          ? decision.depends_on
+          : Array.isArray(decision.dependencies)
+            ? decision.dependencies
+            : [];
+      const seedText = [title, optionLabel, optionDescription, context, impactAreas.join(' ')].filter(Boolean).join(' ');
+
+      return {
+        id: decision.id || `decision_${index + 1}`,
+        title,
+        optionLabel,
+        optionDescription,
+        context,
+        impactAreas,
+        dependsOn,
+        seedText,
+      };
+    });
+
+    const aligned = workstreams.map((ws) => ({
+      ...ws,
+      deliverables: ws.deliverables.map((d) => ({ ...d })),
+      dependencies: [...(ws.dependencies || [])],
+    }));
+
+    const decisionToWorkstream = new Map<string, string>();
+    const usedWorkstreamIds = new Set<string>();
+    const unmatchedSeeds: typeof decisionSeeds = [];
+
+    decisionSeeds.forEach((seed) => {
+      const match = this.findBestWorkstreamMatch(seed, aligned, usedWorkstreamIds);
+      if (match && match.score >= 1) {
+        const target = aligned[match.index];
+        this.applyDecisionToWorkstream(target, seed, planningContext);
+        decisionToWorkstream.set(seed.id, target.id);
+        usedWorkstreamIds.add(target.id);
+      } else {
+        unmatchedSeeds.push(seed);
+      }
+    });
+
+    let nextIndex = this.nextWorkstreamIndex(aligned);
+    const decisionWorkstreams: Workstream[] = [];
+
+    for (const seed of unmatchedSeeds) {
+      const created = this.createDecisionWorkstream(seed, nextIndex, planningContext);
+      decisionWorkstreams.push(created);
+      decisionToWorkstream.set(seed.id, created.id);
+      nextIndex += 1;
+    }
+
+    const combined = [...aligned, ...decisionWorkstreams];
+
+    const hasExplicitDependencies = decisionSeeds.some(
+      (seed) => Array.isArray(seed.dependsOn) && seed.dependsOn.length > 0
+    );
+
+    if (hasExplicitDependencies) {
+      for (const seed of decisionSeeds) {
+        if (!seed.dependsOn || seed.dependsOn.length === 0) continue;
+        const currentId = decisionToWorkstream.get(seed.id);
+        if (!currentId) continue;
+        const target = combined.find((ws) => ws.id === currentId);
+        if (!target) continue;
+
+        for (const depSeedId of seed.dependsOn) {
+          const depWorkstreamId = decisionToWorkstream.get(depSeedId);
+          const dependency = depWorkstreamId ? combined.find((ws) => ws.id === depWorkstreamId) : null;
+          if (!depWorkstreamId || !dependency) continue;
+          if (target.dependencies.includes(depWorkstreamId)) continue;
+          if (this.wouldCreateCycle(combined, currentId, depWorkstreamId)) continue;
+          target.dependencies.push(depWorkstreamId);
+          if (target.startMonth <= dependency.endMonth) {
+            const shift = dependency.endMonth - target.startMonth + 1;
+            target.startMonth += shift;
+            target.endMonth += shift;
+            this.resequenceDeliverables(target);
+          }
+        }
+      }
+    }
+
+    return combined;
+  }
+
+  private applyDecisionToWorkstream(
+    workstream: Workstream,
+    seed: {
+      id: string;
+      title: string;
+      optionLabel: string;
+      optionDescription: string;
+      context: string;
+      impactAreas: string[];
+      seedText: string;
+    },
+    planningContext: PlanningContext
+  ): void {
+    const decisionTag = this.truncateText(`${seed.optionLabel || seed.title}`, 64);
+    if (!workstream.name.toLowerCase().includes(decisionTag.toLowerCase())) {
+      workstream.name = `${workstream.name} — ${decisionTag}`;
+    }
+
+    const decisionSummary = this.truncateText(
+      `${seed.title}. Selected option: ${seed.optionLabel}. ${seed.optionDescription}`.trim(),
+      240
+    );
+    const prefix = `Decision alignment: ${decisionSummary}`;
+    if (!workstream.description.includes(prefix)) {
+      workstream.description = `${prefix}\n\n${workstream.description}`.trim();
+    }
+
+    const decisionDeliverables = this.buildDecisionDeliverables(seed, workstream.id, workstream.startMonth);
+    workstream.deliverables = [...decisionDeliverables, ...workstream.deliverables];
+    this.resequenceDeliverables(workstream);
+
+    if (seed.impactAreas.length > 0) {
+      const impactLine = `Impact areas: ${seed.impactAreas.join(', ')}.`;
+      if (!workstream.description.includes(impactLine)) {
+        workstream.description = `${workstream.description}\n\n${impactLine}`.trim();
+      }
+    }
+
+    if (planningContext.business.industry) {
+      const industryLine = `Industry focus: ${planningContext.business.industry}.`;
+      if (!workstream.description.includes(industryLine)) {
+        workstream.description = `${workstream.description}\n\n${industryLine}`.trim();
+      }
+    }
+  }
+
+  private createDecisionWorkstream(
+    seed: {
+      id: string;
+      title: string;
+      optionLabel: string;
+      optionDescription: string;
+      context: string;
+      impactAreas: string[];
+      seedText: string;
+    },
+    index: number,
+    planningContext: PlanningContext
+  ): Workstream {
+    const name = this.truncateText(`Decision Implementation: ${seed.optionLabel || seed.title}`, 72);
+    const description = [
+      `Implements selected decision: ${seed.title}.`,
+      seed.optionDescription ? `Option detail: ${seed.optionDescription}` : null,
+      seed.context ? `Context: ${seed.context}` : null,
+      planningContext.business.industry ? `Industry focus: ${planningContext.business.industry}.` : null,
+    ].filter(Boolean).join(' ');
+
+    const workstreamId = `WS${String(index).padStart(3, '0')}`;
+    const startMonth = 1;
+    const deliverables = this.buildDecisionDeliverables(seed, workstreamId, startMonth);
+    const endMonth = deliverables.reduce((latest, item) => Math.max(latest, item.dueMonth), startMonth + 2);
+
+    const workstream: Workstream = {
+      id: workstreamId,
+      name,
+      description,
+      deliverables,
+      startMonth,
+      endMonth,
+      dependencies: [],
+      confidence: 0.9,
+    };
+
+    this.resequenceDeliverables(workstream);
+    return workstream;
+  }
+
+  private buildDecisionDeliverables(
+    seed: {
+      id: string;
+      title: string;
+      optionLabel: string;
+      optionDescription: string;
+      context: string;
+      impactAreas: string[];
+      seedText: string;
+    },
+    workstreamId: string,
+    startMonth: number
+  ): Deliverable[] {
+    const decisionTag = this.truncateText(seed.optionLabel || seed.title || 'Decision', 64);
+    const text = [
+      seed.title,
+      seed.optionLabel,
+      seed.optionDescription,
+      seed.context,
+      seed.seedText,
+      ...(seed.impactAreas || []),
+    ].filter(Boolean).join(' ').toLowerCase();
+
+    const deliverableTemplates: Array<{ name: string; description: string }> = [];
+    const addTemplates = (templates: Array<{ name: string; description: string }>) => {
+      templates.forEach(template => {
+        if (deliverableTemplates.length < 4) {
+          deliverableTemplates.push(template);
+        }
+      });
+    };
+
+    const pricingSignals = /price|pricing|roi|tier|package|value|margin|monetiz/.test(text);
+    const complianceSignals = /compliance|privacy|security|regulator|audit|gdpr|hipaa|sox|risk/.test(text);
+    const gtmSignals = /go-to-market|gtm|marketing|sales|channel|demand|lead|segment|positioning|brand/.test(text);
+    const techSignals = /platform|architecture|integration|data|ai|ml|model|infrastructure|scalab/.test(text);
+    const opsSignals = /operations|process|workflow|delivery|execution|service|support/.test(text);
+    const talentSignals = /talent|hiring|recruit|onboard|training|people|hr|workforce/.test(text);
+
+    if (pricingSignals) {
+      addTemplates([
+        {
+          name: `${decisionTag}: Pricing model definition`,
+          description: `Define pricing logic, tiers, and value anchors for ${decisionTag}.`,
+        },
+        {
+          name: `${decisionTag}: Packaging & tiering design`,
+          description: `Map features to packages and validate unit economics for ${decisionTag}.`,
+        },
+        {
+          name: `${decisionTag}: ROI narrative & validation`,
+          description: `Build ROI assumptions, proof points, and validation plan for ${decisionTag}.`,
+        },
+      ]);
+    }
+
+    if (complianceSignals) {
+      addTemplates([
+        {
+          name: `${decisionTag}: Regulatory requirements matrix`,
+          description: `Document compliance requirements, controls, and evidence for ${decisionTag}.`,
+        },
+        {
+          name: `${decisionTag}: Privacy impact assessment`,
+          description: `Assess data handling risks and privacy obligations for ${decisionTag}.`,
+        },
+        {
+          name: `${decisionTag}: Audit readiness checklist`,
+          description: `Define audit artifacts, owners, and timelines for ${decisionTag}.`,
+        },
+      ]);
+    }
+
+    if (gtmSignals) {
+      addTemplates([
+        {
+          name: `${decisionTag}: ICP & segment definition`,
+          description: `Define target segments, ICP attributes, and qualification criteria for ${decisionTag}.`,
+        },
+        {
+          name: `${decisionTag}: Positioning & messaging`,
+          description: `Craft positioning, proof points, and messaging for ${decisionTag}.`,
+        },
+        {
+          name: `${decisionTag}: Channel & launch plan`,
+          description: `Define channels, launch sequencing, and enablement for ${decisionTag}.`,
+        },
+      ]);
+    }
+
+    if (techSignals || opsSignals) {
+      addTemplates([
+        {
+          name: `${decisionTag}: Architecture & integration plan`,
+          description: `Define system boundaries, integrations, and delivery approach for ${decisionTag}.`,
+        },
+        {
+          name: `${decisionTag}: Data & infrastructure requirements`,
+          description: `Specify data sources, infrastructure needs, and scalability requirements for ${decisionTag}.`,
+        },
+        {
+          name: `${decisionTag}: Delivery milestones & dependencies`,
+          description: `Sequence milestones, dependencies, and acceptance criteria for ${decisionTag}.`,
+        },
+      ]);
+    }
+
+    if (talentSignals) {
+      addTemplates([
+        {
+          name: `${decisionTag}: Role profiles & hiring plan`,
+          description: `Define critical roles, hiring sequence, and ownership for ${decisionTag}.`,
+        },
+        {
+          name: `${decisionTag}: Onboarding & training playbook`,
+          description: `Create onboarding, training, and enablement plan for ${decisionTag}.`,
+        },
+        {
+          name: `${decisionTag}: Change management plan`,
+          description: `Plan adoption, communications, and change management for ${decisionTag}.`,
+        },
+      ]);
+    }
+
+    if (deliverableTemplates.length === 0) {
+      addTemplates([
+        {
+          name: `${decisionTag}: Scope & success criteria`,
+          description: `Define scope, success metrics, and governance for ${decisionTag}.`,
+        },
+        {
+          name: `${decisionTag}: Dependencies & risk controls`,
+          description: `Identify dependencies, risks, and mitigation actions for ${decisionTag}.`,
+        },
+        {
+          name: `${decisionTag}: Ownership & budget alignment`,
+          description: `Align owners, budget, and resources required for ${decisionTag}.`,
+        },
+      ]);
+    }
+
+    return deliverableTemplates.map((template, idx) => ({
+      id: `${workstreamId}-DEC-${idx + 1}`,
+      name: template.name,
+      description: template.description,
+      dueMonth: startMonth + idx,
+      effort: '10-20 person-days',
+    }));
+  }
+
+  private findBestWorkstreamMatch(
+    seed: { seedText: string },
+    workstreams: Workstream[],
+    usedIds: Set<string>
+  ): { index: number; score: number } | null {
+    const seedTokens = this.tokenize(seed.seedText);
+    if (seedTokens.size === 0) return null;
+
+    let bestIndex = -1;
+    let bestScore = 0;
+
+    workstreams.forEach((ws, index) => {
+      if (usedIds.has(ws.id)) return;
+      const wsText = [ws.name, ws.description, ...ws.deliverables.map(d => d.name)].join(' ');
+      const wsTokens = this.tokenize(wsText);
+      const score = this.overlapScore(seedTokens, wsTokens);
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = index;
+      }
+    });
+
+    if (bestIndex === -1) return null;
+    return { index: bestIndex, score: bestScore };
+  }
+
+  private overlapScore(a: Set<string>, b: Set<string>): number {
+    let score = 0;
+    a.forEach((token) => {
+      if (b.has(token)) score += 1;
+    });
+    return score;
+  }
+
+  private tokenize(text: string): Set<string> {
+    const stopWords = new Set([
+      'the', 'and', 'with', 'for', 'from', 'that', 'this', 'into', 'over', 'under', 'will', 'must',
+      'should', 'could', 'would', 'about', 'after', 'before', 'their', 'they', 'them', 'your', 'our',
+      'from', 'into', 'when', 'where', 'while', 'which', 'what', 'who', 'how', 'why', 'use', 'using',
+    ]);
+
+    return new Set(
+      text
+        .toLowerCase()
+        .replace(/[^a-z0-9\\s]/g, ' ')
+        .split(/\\s+/)
+        .filter((token) => token.length > 3 && !stopWords.has(token))
+    );
+  }
+
+  private nextWorkstreamIndex(workstreams: Workstream[]): number {
+    const ids = workstreams
+      .map((ws) => parseInt(ws.id.replace(/\\D+/g, ''), 10))
+      .filter((n) => !Number.isNaN(n));
+    if (ids.length === 0) return workstreams.length + 1;
+    return Math.max(...ids) + 1;
+  }
+
+  private resequenceDeliverables(workstream: Workstream): void {
+    if (!workstream.deliverables || workstream.deliverables.length === 0) return;
+    const start = workstream.startMonth;
+    const end = workstream.endMonth;
+    const span = Math.max(1, end - start);
+    const count = workstream.deliverables.length;
+    workstream.deliverables = workstream.deliverables.map((deliverable, index) => {
+      const progress = (index + 1) / count;
+      const dueMonth = Math.floor(start + span * progress);
+      return { ...deliverable, dueMonth };
+    });
+  }
+
+  private truncateText(text: string, maxLength: number): string {
+    if (text.length <= maxLength) return text;
+    return `${text.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
+  }
+
+  private wouldCreateCycle(workstreams: Workstream[], currentId: string, dependencyId: string): boolean {
+    const byId = new Map(workstreams.map((ws) => [ws.id, ws]));
+    const stack: string[] = [dependencyId];
+    const visited = new Set<string>();
+
+    while (stack.length > 0) {
+      const id = stack.pop() as string;
+      if (id === currentId) return true;
+      if (visited.has(id)) continue;
+      visited.add(id);
+      const ws = byId.get(id);
+      if (!ws) continue;
+      (ws.dependencies || []).forEach((depId) => {
+        if (!visited.has(depId)) stack.push(depId);
+      });
+    }
+    return false;
   }
   
   /**
@@ -540,6 +1122,8 @@ export class EPMSynthesizer {
     userContext?: UserContext,
     namingContext?: any,
     strategicContext?: { decisions: any[]; swotData: any },
+    decisionValidation?: { needsApproval: boolean; violations: string[] },
+    userConstraints?: { budget?: { min: number; max: number }; timeline?: { min: number; max: number } },
     onProgress?: (event: any) => void,
     startTime?: number
   ): Promise<EPMProgram> {
@@ -554,6 +1138,17 @@ export class EPMSynthesizer {
     
     const programName = await this.programNameGenerator.generate(insights, userContext, namingContext);
     console.log(`[EPM Synthesis] Program name: "${programName}"`);
+
+    const alignedWorkstreams = this.alignWorkstreamsToDecisions(
+      workstreams,
+      strategicContext?.decisions || [],
+      planningContext
+    );
+    if (alignedWorkstreams.length !== workstreams.length) {
+      console.log(`[EPM Synthesis] ✓ Decision alignment adjusted workstreams: ${workstreams.length} → ${alignedWorkstreams.length}`);
+    } else {
+      console.log('[EPM Synthesis] ✓ Decision alignment applied (no count change)');
+    }
     
     onProgress?.({
       type: 'step-start',
@@ -562,8 +1157,17 @@ export class EPMSynthesizer {
       elapsedSeconds: Math.round((Date.now() - processStartTime) / 1000)
     });
     
-    const timeline = await this.timelineCalculator.calculate(insights, workstreams, userContext);
+    const timeline = await this.timelineCalculator.calculate(insights, alignedWorkstreams, userContext);
     console.log(`[EPM Synthesis] ✓ Timeline: ${timeline.totalMonths} months, ${timeline.phases.length} phases`);
+
+    // Sprint 1: Deduplicate workstreams before phase assignment
+    const deduplicatedWorkstreams = this.deduplicateWorkstreams(alignedWorkstreams);
+    if (deduplicatedWorkstreams.length !== alignedWorkstreams.length) {
+      console.log(`[EPM Synthesis] ✓ Deduplication: ${alignedWorkstreams.length} → ${deduplicatedWorkstreams.length} workstreams`);
+    }
+
+    // Sprint 1: Assign phases with containment enforcement
+    const phasedWorkstreams = this.assignWorkstreamPhases(deduplicatedWorkstreams, timeline);
     
     onProgress?.({
       type: 'step-start',
@@ -585,7 +1189,7 @@ export class EPMSynthesizer {
 
     const resourcePlan = await this.resourceAllocator.allocate(
       insights,
-      workstreams,
+      phasedWorkstreams,
       userContext,
       initiativeType,
       strategyContext  // Pass strategy context for context-aware role selection
@@ -601,7 +1205,7 @@ export class EPMSynthesizer {
       initiativeType: planningContext.business.initiativeType || 'market_entry',
       programName,
     };
-    const roleValidationWarnings = await this.assignWorkstreamOwners(workstreams, resourcePlan, ownerInferenceContext);
+    const roleValidationWarnings = await this.assignWorkstreamOwners(phasedWorkstreams, resourcePlan, ownerInferenceContext);
     console.log(`[EPM Synthesis] ✓ Workstream owners assigned via LLM inference`);
     
     onProgress?.({
@@ -618,7 +1222,7 @@ export class EPMSynthesizer {
       qaPlan,
     ] = await Promise.all([
       this.executiveSummaryGenerator.generate(insights, programName),
-      this.riskGenerator.generate(insights),
+      this.riskGenerator.generate(insights, alignedWorkstreams),
       this.stakeholderGenerator.generate(insights),
       this.qaPlanGenerator.generate(insights),
     ]);
@@ -635,7 +1239,7 @@ export class EPMSynthesizer {
     };
     console.log('[EPM Synthesis] ✓ Assigned risk owners (buildV2Program):', risksWithOwners.map(r => ({ id: r.id, owner: r.owner })));
     
-    const stageGates = await this.stageGateGenerator.generate(timeline, riskRegister);
+    const stageGates = await this.stageGateGenerator.generate(timeline, riskRegister, phasedWorkstreams);
     
     onProgress?.({
       type: 'step-start',
@@ -645,7 +1249,7 @@ export class EPMSynthesizer {
     });
     
     const businessContext = insights.marketContext?.industry || '';
-    const validationResult = this.validator.validate(workstreams, timeline, stageGates, businessContext);
+    const validationResult = this.validator.validate(phasedWorkstreams, timeline, stageGates, businessContext);
     if (validationResult.errors.length > 0) {
       console.log(`[EPM Synthesis] ⚠️ Validation found ${validationResult.errors.length} errors, auto-corrected`);
       validationResult.corrections.forEach(c => console.log(`    - ${c}`));
@@ -655,11 +1259,30 @@ export class EPMSynthesizer {
       validationResult.warnings.forEach(w => console.log(`    - ${w}`));
     }
     
-    const planningGrid = this.validator.analyzePlanningGrid(workstreams, timeline);
+    const planningGrid = this.validator.analyzePlanningGrid(alignedWorkstreams, timeline);
     if (planningGrid.conflicts.length > 0) {
       console.log(`[EPM Synthesis] ⚠️ Planning grid conflicts: ${planningGrid.conflicts.length}`);
     }
-    
+
+    // Sprint 1 (P2 Scheduling): Run WBS timeline validation
+    console.log('[EPM Synthesis] 🔍 Running WBS timeline quality gates');
+    const qualityReport = qualityGateRunner.runQualityGate(alignedWorkstreams, timeline, stageGates, businessContext);
+    if (!qualityReport.overallPassed) {
+      console.log(`[EPM Synthesis] ⚠️ WBS validation found ${qualityReport.errorCount} errors, ${qualityReport.warningCount} warnings`);
+      qualityReport.validatorResults.forEach(result => {
+        result.issues.forEach(issue => {
+          if (issue.severity === 'error') {
+            console.log(`    ❌ [${issue.code}] ${issue.message}`);
+            if (issue.suggestion) {
+              console.log(`       💡 ${issue.suggestion}`);
+            }
+          }
+        });
+      });
+    } else {
+      console.log(`[EPM Synthesis] ✓ WBS timeline validation passed`);
+    }
+
     onProgress?.({
       type: 'step-start',
       step: 'financial',
@@ -678,7 +1301,7 @@ export class EPMSynthesizer {
       benefitsRealization = this.benefitsGenerator.generateFromContext(
         strategicContext!.decisions,
         strategicContext!.swotData,
-        workstreams,
+        alignedWorkstreams,
         resourcePlan.internalTeam,
         timeline.totalMonths
       );
@@ -722,7 +1345,7 @@ export class EPMSynthesizer {
     ]);
 
     const validationReport = this.buildValidationReport(
-      workstreams,
+      phasedWorkstreams,
       timeline,
       stageGates,
       validationResult,
@@ -747,6 +1370,39 @@ export class EPMSynthesizer {
     
     const overallConfidence = this.calculateOverallConfidence(confidences);
     
+    const conflictViolations = (userContext?.clarificationConflicts || []).map(
+      (conflict) => `Clarification conflict: ${conflict}`
+    );
+    const combinedViolations = [
+      ...(decisionValidation?.violations || []),
+      ...conflictViolations,
+    ];
+
+    // SPRINT 1 Phase 1: Budget calculation violations
+    let hasBudgetViolation = (decisionValidation?.violations || []).some(v => v.includes('budget'));
+    if (financialPlan?.budgetViolation) {
+      const bv = financialPlan.budgetViolation;
+      const budgetMsg = `Calculated costs ($${(bv.calculatedCost / 1_000_000).toFixed(1)}M) exceed user budget constraint ($${(bv.userConstraint / 1_000_000).toFixed(1)}M) by ${bv.exceedsPercentage.toFixed(1)}%`;
+      combinedViolations.push(budgetMsg);
+      hasBudgetViolation = true;
+    }
+
+    // SPRINT 1 Phase 2: Timeline calculation violations
+    let hasTimelineViolation = (decisionValidation?.violations || []).some(v => v.includes('month'));
+    if (timeline?.timelineViolation) {
+      const timelineMsg = `Timeline constraint cannot accommodate required workstream duration`;
+      combinedViolations.push(timelineMsg);
+      hasTimelineViolation = true;
+    }
+
+    const uniqueViolations = Array.from(new Set(combinedViolations));
+    const needsApproval = (decisionValidation?.needsApproval ?? false) ||
+      conflictViolations.length > 0 ||
+      hasBudgetViolation ||
+      hasTimelineViolation;
+
+    console.log(`[Approval] Budget=${hasBudgetViolation}, Timeline=${hasTimelineViolation}, Clarifications=${conflictViolations.length > 0}`);
+
     const program: EPMProgram = {
       id: `EPM-${Date.now()}`,
       generatedAt: new Date(),
@@ -754,9 +1410,9 @@ export class EPMSynthesizer {
       sourceInsightsCount: insights.insights.length,
       overallConfidence,
       validationReport,
-      
+
       executiveSummary,
-      workstreams,
+      workstreams: phasedWorkstreams,
       timeline,
       resourcePlan,
       financialPlan,
@@ -769,12 +1425,26 @@ export class EPMSynthesizer {
       qaPlan,
       procurement,
       exitStrategy,
-      
+
       extractionRationale: this.generateExtractionRationale(insights, userContext),
+
+      // SPRINT 1: Add requiresApproval flag if constraints violated
+      requiresApproval: needsApproval ? {
+        budget: hasBudgetViolation,
+        timeline: hasTimelineViolation,
+        clarifications: conflictViolations.length > 0,
+        violations: uniqueViolations,
+      } : undefined,
+      constraints: userConstraints,
     };
-    
+
     console.log('[EPM Synthesis] ✓ Program built successfully');
     console.log(`[EPM Synthesis]   Overall confidence: ${(overallConfidence * 100).toFixed(1)}%`);
+
+    if (program.requiresApproval) {
+      console.warn('[EPM Synthesis] ⚠️  REQUIRES USER APPROVAL: Constraint violations detected');
+      console.log(`[Approval] Violations: ${JSON.stringify(program.requiresApproval.violations, null, 2)}`);
+    }
     
     return program;
   }
@@ -821,7 +1491,7 @@ export class EPMSynthesizer {
       qaPlan,
     ] = await Promise.all([
       this.executiveSummaryGenerator.generate(insights, programName),
-      this.riskGenerator.generate(insights),
+      this.riskGenerator.generate(insights, workstreams),
       this.stakeholderGenerator.generate(insights),
       this.qaPlanGenerator.generate(insights),
     ]);
@@ -838,7 +1508,7 @@ export class EPMSynthesizer {
     };
     console.log('[EPM Synthesis] ✓ Assigned risk owners (legacy):', risksWithOwners2.map(r => ({ id: r.id, owner: r.owner })));
     
-    const stageGates = await this.stageGateGenerator.generate(timeline, riskRegister);
+    const stageGates = await this.stageGateGenerator.generate(timeline, riskRegister, workstreams);
     
     const businessContext = insights.marketContext?.industry || '';
     const validationResult = this.validator.validate(workstreams, timeline, stageGates, businessContext);
@@ -931,6 +1601,118 @@ export class EPMSynthesizer {
       
       extractionRationale: this.generateExtractionRationale(insights, userContext),
     };
+  }
+
+  /**
+   * Sprint 1: Deduplicate workstreams by name and timeline hash
+   * Removes duplicate workstreams that have identical name, startMonth, and endMonth
+   */
+  private deduplicateWorkstreams(workstreams: Workstream[]): Workstream[] {
+    const seen = new Map<string, Workstream>();
+    const duplicates: string[] = [];
+
+    for (const ws of workstreams) {
+      // Create hash key from name + timeline
+      const key = `${ws.name.trim().toLowerCase()}:${ws.startMonth}:${ws.endMonth}`;
+
+      if (seen.has(key)) {
+        duplicates.push(`"${ws.name}" (M${ws.startMonth}-M${ws.endMonth})`);
+        console.warn(`[EPM Synthesis] ⚠️ Duplicate workstream detected: ${ws.name} (${ws.startMonth}-${ws.endMonth}), skipping duplicate`);
+        continue;
+      }
+
+      seen.set(key, ws);
+    }
+
+    const deduplicated = Array.from(seen.values());
+
+    if (duplicates.length > 0) {
+      console.log(`[EPM Synthesis] 🔧 Deduplication removed ${duplicates.length} duplicate workstream(s):`);
+      duplicates.forEach(dup => console.log(`  - ${dup}`));
+    }
+
+    return deduplicated;
+  }
+
+  /**
+   * Sprint 1: Assign workstreams to phases with preventive containment enforcement
+   * Ensures workstream dates are constrained to fit within phase boundaries
+   */
+  private assignWorkstreamPhases(workstreams: Workstream[], timeline: Timeline): Workstream[] {
+    if (!timeline?.phases || timeline.phases.length === 0) {
+      return workstreams;
+    }
+
+    return workstreams.map((ws) => {
+      // First, try to find a phase that FULLY CONTAINS the workstream
+      let containingPhase = timeline.phases.find((phase) => {
+        return ws.startMonth >= phase.startMonth && ws.endMonth <= phase.endMonth;
+      });
+
+      // If no containing phase, find the phase with maximum overlap
+      if (!containingPhase) {
+        let maxOverlap = 0;
+        for (const phase of timeline.phases) {
+          // Calculate overlap duration
+          const overlapStart = Math.max(ws.startMonth, phase.startMonth);
+          const overlapEnd = Math.min(ws.endMonth, phase.endMonth);
+          const overlap = Math.max(0, overlapEnd - overlapStart);
+
+          if (overlap > maxOverlap) {
+            maxOverlap = overlap;
+            containingPhase = phase;
+          }
+        }
+      }
+
+      if (!containingPhase) {
+        console.warn(`[EPM Synthesis] ⚠️ Workstream "${ws.name}" (M${ws.startMonth}-M${ws.endMonth}) could not be assigned to any phase`);
+        return ws;
+      }
+
+      // Sprint 1: ENFORCE CONTAINMENT - constrain workstream dates to phase boundaries
+      let adjustedStart = ws.startMonth;
+      let adjustedEnd = ws.endMonth;
+      let wasAdjusted = false;
+
+      if (ws.startMonth < containingPhase.startMonth) {
+        adjustedStart = containingPhase.startMonth;
+        wasAdjusted = true;
+        console.log(`[EPM Synthesis] 🔧 Constrained workstream "${ws.name}" start: M${ws.startMonth} → M${adjustedStart} (phase boundary)`);
+      }
+
+      if (ws.endMonth > containingPhase.endMonth) {
+        adjustedEnd = containingPhase.endMonth;
+        wasAdjusted = true;
+        console.log(`[EPM Synthesis] 🔧 Constrained workstream "${ws.name}" end: M${ws.endMonth} → M${adjustedEnd} (phase boundary)`);
+      }
+
+      // Adjust deliverable dates to fit within constrained workstream
+      let adjustedDeliverables = ws.deliverables;
+      if (wasAdjusted && ws.deliverables) {
+        adjustedDeliverables = ws.deliverables.map((del) => {
+          if (del.dueMonth !== undefined) {
+            const constrainedDueMonth = Math.max(adjustedStart, Math.min(adjustedEnd, del.dueMonth));
+            if (constrainedDueMonth !== del.dueMonth) {
+              console.log(`[EPM Synthesis] 🔧 Adjusted deliverable "${del.name}" due: M${del.dueMonth} → M${constrainedDueMonth}`);
+            }
+            return {
+              ...del,
+              dueMonth: constrainedDueMonth,
+            };
+          }
+          return del;
+        });
+      }
+
+      return {
+        ...ws,
+        phase: containingPhase.name,
+        startMonth: adjustedStart,
+        endMonth: adjustedEnd,
+        deliverables: adjustedDeliverables,
+      };
+    });
   }
 
   /**

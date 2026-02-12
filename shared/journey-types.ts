@@ -22,7 +22,7 @@ export interface StrategicContext {
   insights: {
     // Five Whys results
     rootCauses?: string[];
-    whysPath?: string[];
+    whysPath?: Array<string | { question?: string; answer?: string; option?: string; label?: string }>;
     strategicImplications?: string[];
     
     // BMC results

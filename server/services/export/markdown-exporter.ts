@@ -123,31 +123,56 @@ export function generateFiveWhysTreeMarkdown(tree: any, whysPath?: any[]): strin
 }
 
 export function generateClarificationsMarkdown(clarifications: any): string {
-  if (!clarifications || !clarifications.questions || clarifications.questions.length === 0) {
+  if (!clarifications) {
     return '';
   }
-  
+
+  const hasQuestions = Array.isArray(clarifications.questions) && clarifications.questions.length > 0;
+  const hasLines = Array.isArray(clarifications.lines) && clarifications.lines.length > 0;
+  const hasConflicts = Array.isArray(clarifications.conflicts) && clarifications.conflicts.length > 0;
+
+  if (!hasQuestions && !hasLines && !hasConflicts) {
+    return '';
+  }
+
   const lines: string[] = [];
   lines.push('## Strategic Input Clarifications\n');
-  lines.push('During initial analysis, you provided the following clarifications:\n');
-  
-  clarifications.questions.forEach((q: any) => {
-    lines.push(`**${q.question}**\n`);
-    
-    if (q.options && Array.isArray(q.options)) {
-      q.options.forEach((option: any) => {
-        const isChosen = clarifications.answers && clarifications.answers[q.id] === option.value;
-        const chosenMarker = isChosen ? ' ✓ (You chose this)' : '';
-        lines.push(`- **${option.label}**${chosenMarker}`);
-        if (option.description) {
-          lines.push(`  - ${option.description}`);
-        }
-      });
-    }
-    
+
+  if (hasQuestions) {
+    lines.push('During initial analysis, you provided the following clarifications:\n');
+    clarifications.questions.forEach((q: any) => {
+      lines.push(`**${q.question}**\n`);
+
+      if (q.options && Array.isArray(q.options)) {
+        q.options.forEach((option: any) => {
+          const isChosen = clarifications.answers && clarifications.answers[q.id] === option.value;
+          const chosenMarker = isChosen ? ' ✓ (You chose this)' : '';
+          lines.push(`- **${option.label}**${chosenMarker}`);
+          if (option.description) {
+            lines.push(`  - ${option.description}`);
+          }
+        });
+      }
+
+      lines.push('');
+    });
+  }
+
+  if (hasLines) {
+    clarifications.lines.forEach((line: string) => {
+      lines.push(`- ${line}`);
+    });
     lines.push('');
-  });
-  
+  }
+
+  if (hasConflicts) {
+    lines.push('### Clarification Conflicts\n');
+    clarifications.conflicts.forEach((conflict: string) => {
+      lines.push(`- ${conflict}`);
+    });
+    lines.push('');
+  }
+
   lines.push('\n---\n');
   return lines.join('\n');
 }
@@ -173,7 +198,34 @@ export function generateMarkdownReport(pkg: FullExportPackage): string {
   if (pkg.metadata.versionNumber) {
     lines.push(`**Version:** ${pkg.metadata.versionNumber}`);
   }
+  if (pkg.metadata.acceptanceReport) {
+    const report = pkg.metadata.acceptanceReport;
+    lines.push('');
+    lines.push('**Export Validation:**');
+    lines.push(report.passed ? 'PASS' : 'FAIL');
+  }
   lines.push('\n---\n');
+
+  if (pkg.metadata.acceptanceReport) {
+    const report = pkg.metadata.acceptanceReport;
+    lines.push('## Export Validation Summary\n');
+    lines.push(`**Status:** ${report.passed ? 'PASS' : 'FAIL'}\n`);
+    if (report.criticalIssues.length > 0) {
+      lines.push('**Critical Issues:**');
+      report.criticalIssues.forEach(issue => {
+        lines.push(`- [${issue.code}] ${issue.message}`);
+      });
+      lines.push('');
+    }
+    if (report.warnings.length > 0) {
+      lines.push('**Warnings:**');
+      report.warnings.forEach(issue => {
+        lines.push(`- [${issue.code}] ${issue.message}`);
+      });
+      lines.push('');
+    }
+    lines.push('\n---\n');
+  }
 
   if (pkg.strategy.understanding) {
     const u = pkg.strategy.understanding;

@@ -5,13 +5,53 @@ import {
   journeySessions,
   epmPrograms,
   taskAssignments,
-  frameworkInsights,
   strategyDecisions,
 } from '@shared/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import type { IExporter, ExportResult, FullExportPackage, ExportRequest } from '../../types/interfaces';
+import { buildLinearWhysTree, normalizeWhysPathSteps } from '../../utils/whys-path';
 
 export type { ExportRequest, FullExportPackage, ExportResult, IExporter };
+
+function extractClarificationFallback(understanding: any): { lines: string[]; conflicts: string[] } {
+  const lines: string[] = [];
+  const conflicts: string[] = [];
+
+  const metadata = typeof understanding?.strategyMetadata === 'string'
+    ? (() => {
+        try { return JSON.parse(understanding.strategyMetadata); } catch { return null; }
+      })()
+    : understanding?.strategyMetadata;
+  if (metadata?.clarificationConflicts && Array.isArray(metadata.clarificationConflicts)) {
+    metadata.clarificationConflicts.forEach((item: any) => {
+      if (typeof item === 'string' && item.trim()) {
+        conflicts.push(item.trim());
+      }
+    });
+  }
+
+  const companyContext = typeof understanding?.companyContext === 'string'
+    ? (() => {
+        try { return JSON.parse(understanding.companyContext); } catch { return null; }
+      })()
+    : understanding?.companyContext;
+
+  if (companyContext?.clarifications && typeof companyContext.clarifications === 'object') {
+    Object.values(companyContext.clarifications).forEach((value) => {
+      if (typeof value === 'string' && value.trim()) {
+        lines.push(value.trim());
+      }
+    });
+  }
+
+  const inputText = typeof understanding?.userInput === 'string' ? understanding.userInput : '';
+  const inputLines = extractBulletBlock(inputText, /^clarifications:/i);
+  inputLines.forEach((line) => lines.push(line));
+  const conflictLines = extractBulletBlock(inputText, /^clarification_conflicts:/i);
+  conflictLines.forEach((line) => conflicts.push(line));
+
+  return { lines, conflicts };
+}
 
 export abstract class BaseExporter implements IExporter {
   abstract readonly name: string;
@@ -45,6 +85,63 @@ export function escapeCsvField(field: string | null | undefined): string {
     return `"${str.replace(/"/g, '""')}"`;
   }
   return str;
+}
+
+function parseInlineBullets(value: string): string[] {
+  if (!value) {
+    return [];
+  }
+  const parts = value.split(/\s+-\s+/).map((part) => part.trim()).filter(Boolean);
+  return parts.length > 0 ? parts : [value.trim()];
+}
+
+function extractBulletBlock(inputText: string, headerRegex: RegExp): string[] {
+  if (!inputText) {
+    return [];
+  }
+  const lines = inputText.split('\n');
+  const collected: string[] = [];
+  let inBlock = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (headerRegex.test(trimmed)) {
+      inBlock = true;
+      const afterHeader = trimmed.replace(headerRegex, '').trim();
+      if (afterHeader) {
+        collected.push(...parseInlineBullets(afterHeader));
+      }
+      continue;
+    }
+
+    if (!inBlock) {
+      continue;
+    }
+
+    if (trimmed === '') {
+      continue;
+    }
+
+    if (/^[A-Z_][A-Z0-9_ ]*:\s*$/i.test(trimmed)) {
+      inBlock = false;
+      continue;
+    }
+
+    if (/^\s*-\s+/.test(trimmed)) {
+      collected.push(trimmed.replace(/^\s*-\s+/, '').trim());
+      continue;
+    }
+
+    inBlock = false;
+  }
+
+  return collected.filter(Boolean);
+}
+
+function extractClarificationFallbackFromText(inputText: string): { lines: string[]; conflicts: string[] } {
+  const lines = extractBulletBlock(inputText, /^clarifications:/i);
+  const conflicts = extractBulletBlock(inputText, /^clarification_conflicts:/i);
+  return { lines, conflicts };
 }
 
 export async function loadExportData(
@@ -107,47 +204,32 @@ export async function loadExportData(
     }));
   }
 
-  console.log('[Export Service] loadExportData - Fetching Five Whys tree from framework_insights...');
-  let fiveWhysTree;
-  let whysPath;
-  if (journeySession) {
-    const [fiveWhysInsight] = await db.select()
-      .from(frameworkInsights)
-      .where(
-        and(
-          eq(frameworkInsights.sessionId, journeySession.id),
-          eq(frameworkInsights.frameworkName, 'five_whys')
-        )
-      )
-      .orderBy(desc(frameworkInsights.createdAt))
-      .limit(1);
-    
-    if (fiveWhysInsight?.insights) {
-      const insights = typeof fiveWhysInsight.insights === 'string' 
-        ? JSON.parse(fiveWhysInsight.insights) 
-        : fiveWhysInsight.insights;
-      fiveWhysTree = insights.tree;
-      whysPath = insights.whysPath || [];
-      console.log('[Export Service] Five Whys tree loaded:', fiveWhysTree ? 'Yes' : 'No');
-      console.log('[Export Service] Five Whys path loaded:', whysPath?.length || 0, 'steps');
-    }
-  }
-
-  // Fallback: derive whysPath from strategyVersion.analysisData if missing
-  if ((!whysPath || whysPath.length === 0) && strategyVersion?.analysisData) {
+  console.log('[Export Service] loadExportData - Using canonical Five Whys from analysisData...');
+  let fiveWhysTree: any;
+  let whysPath: Array<{ question: string; answer: string }> = [];
+  if (strategyVersion?.analysisData) {
     const analysisData = typeof strategyVersion.analysisData === 'string'
       ? JSON.parse(strategyVersion.analysisData as any)
       : strategyVersion.analysisData;
     const fiveWhys = analysisData?.five_whys || analysisData?.fiveWhys;
     if (fiveWhys?.whysPath && Array.isArray(fiveWhys.whysPath)) {
-      whysPath = fiveWhys.whysPath;
-      console.log('[Export Service] Five Whys path loaded from strategyVersion.analysisData:', whysPath.length);
+      whysPath = normalizeWhysPathSteps(fiveWhys.whysPath);
+      console.log('[Export Service] Five Whys path loaded from analysisData:', whysPath.length);
+    } else {
+      whysPath = [];
+    }
+    if (fiveWhys?.tree) {
+      fiveWhysTree = fiveWhys.tree;
+    } else if (whysPath.length > 0) {
+      fiveWhysTree = buildLinearWhysTree(whysPath);
     }
   }
 
   console.log('[Export Service] loadExportData - Fetching clarifications from strategic understanding...');
   let clarifications;
+  let requiresApproval;
   if (understanding) {
+    const fallback = extractClarificationFallbackFromText(understanding.userInput || '');
     const metadata = typeof (understanding as any).strategyMetadata === 'string'
       ? JSON.parse((understanding as any).strategyMetadata)
       : (understanding as any).strategyMetadata;
@@ -156,6 +238,7 @@ export async function loadExportData(
     
     let questions = null;
     let answers = null;
+    let conflicts: string[] = [];
     
     if (metadata?.clarificationQuestions) {
       questions = metadata.clarificationQuestions;
@@ -182,15 +265,52 @@ export async function loadExportData(
       answers = metadata.answers;
       console.log('[Export Service] Found answers');
     }
+
+    if (Array.isArray(metadata?.clarificationConflicts)) {
+      conflicts = metadata.clarificationConflicts;
+    } else if (Array.isArray(metadata?.clarificationContext?.conflicts)) {
+      conflicts = metadata.clarificationContext.conflicts;
+    } else if (fallback.conflicts.length > 0) {
+      conflicts = fallback.conflicts;
+    }
+
+    if (metadata?.requiresApproval) {
+      if (typeof metadata.requiresApproval === 'object') {
+        requiresApproval = { ...metadata.requiresApproval };
+      } else {
+        // Convert legacy boolean to object form
+        requiresApproval = {};
+      }
+    }
+    if (conflicts.length > 0) {
+      requiresApproval = { ...(requiresApproval || {}), clarifications: true };
+    }
     
     if (questions && answers) {
       clarifications = {
         questions: Array.isArray(questions) ? questions : [],
         answers: typeof answers === 'object' ? answers : {},
+        lines: fallback.lines.length > 0 ? fallback.lines : undefined,
+        conflicts: conflicts.length > 0 ? conflicts : undefined,
       };
       console.log('[Export Service] Clarifications loaded:', clarifications.questions?.length || 0, 'questions');
+    } else if (conflicts.length > 0 || fallback.lines.length > 0) {
+      clarifications = {
+        lines: fallback.lines.length > 0 ? fallback.lines : undefined,
+        conflicts: conflicts.length > 0 ? conflicts : undefined,
+      };
+      console.log('[Export Service] Clarification conflicts loaded without questions:', conflicts.length);
     } else {
-      console.log('[Export Service] No clarifications found. Questions:', !!questions, 'Answers:', !!answers);
+      const fallback = extractClarificationFallback(understanding);
+      if (fallback.lines.length > 0 || fallback.conflicts.length > 0) {
+        clarifications = {
+          lines: fallback.lines,
+          conflicts: fallback.conflicts.length > 0 ? fallback.conflicts : undefined,
+        };
+        console.log('[Export Service] Clarifications loaded from fallback:', fallback.lines.length);
+      } else {
+        console.log('[Export Service] No clarifications found. Questions:', !!questions, 'Answers:', !!answers);
+      }
     }
   }
 
@@ -262,6 +382,7 @@ export async function loadExportData(
       fiveWhysTree,
       whysPath,
       clarifications,
+      requiresApproval,
     },
     epm: epmProgram ? {
       program: epmProgram,

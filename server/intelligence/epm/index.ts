@@ -17,6 +17,7 @@ export { WorkstreamGenerator, default as WorkstreamGeneratorDefault } from './wo
 export { ResourceAllocator, default as ResourceAllocatorDefault } from './resource-allocator';
 export { AssignmentGenerator, default as AssignmentGeneratorDefault } from './assignment-generator';
 export { RoleInferenceService, normalizeRole, ensureResourceExists, inferSkillsFromCategory } from './role-inference';
+export { qualityGateRunner } from './validators';
 
 export {
   ExecutiveSummaryGenerator,

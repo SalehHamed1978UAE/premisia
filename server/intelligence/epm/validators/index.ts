@@ -1,6 +1,9 @@
-export { BaseValidator, ValidatorContext, ValidatorIssue, ValidatorResult } from './base-validator';
-export { ValidatorRegistry, QualityReport, validatorRegistry } from './validator-registry';
+export { BaseValidator } from './base-validator';
+export type { ValidatorContext, ValidatorIssue, ValidatorResult } from './base-validator';
+export { ValidatorRegistry, validatorRegistry } from './validator-registry';
+export type { QualityReport } from './validator-registry';
 export { DependencyValidator } from './dependency-validator';
 export { IndustryValidator } from './industry-validator';
 export { CompletenessValidator } from './completeness-validator';
+export { WBSTimelineValidator } from './wbs-timeline-validator';
 export { QualityGateRunner, qualityGateRunner } from './quality-gate-runner';

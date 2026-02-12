@@ -1,8 +1,18 @@
 import type { FullExportPackage } from '../../types/interfaces';
+import type { WBSRow } from './wbs-exporter';
 import { getJourney } from '../../journey/journey-registry';
+import { normalizeWhysPathSteps } from '../../utils/whys-path';
 
 type StrategyPayload = FullExportPackage['strategy'];
 type EpmPayload = NonNullable<FullExportPackage['epm']>;
+type EpmPayloadContext = {
+  exportMeta?: FullExportPackage['metadata'];
+  strategyVersion?: any;
+  userInput?: string | null;
+  clarifications?: StrategyPayload['clarifications'] | null;
+  initiativeType?: string | null;
+  wbsRows?: WBSRow[] | null;
+};
 
 const FRAMEWORK_ALIASES: Record<string, string> = {
   five_whys: 'five_whys',
@@ -128,29 +138,12 @@ function deriveWhysPath(
   strategy: StrategyPayload,
   fiveWhys: Record<string, any>,
 ): any[] {
-  const topLevel = Array.isArray(strategy.whysPath) ? strategy.whysPath : [];
   const nestedParsed = parseMaybeJson<any[]>(fiveWhys.whysPath);
-  const nested = Array.isArray(nestedParsed) ? nestedParsed : [];
+  const nestedNormalized = normalizeWhysPathSteps(Array.isArray(nestedParsed) ? nestedParsed : []);
+  if (nestedNormalized.length > 0) return nestedNormalized;
 
-  if (topLevel.length === 0) return nested;
-  if (nested.length === 0) return topLevel;
-
-  // Prefer the richer path for downstream automation:
-  // 1) longer path wins, 2) if equal length, prefer steps with structured answer data.
-  if (nested.length > topLevel.length) return nested;
-  if (topLevel.length > nested.length) return topLevel;
-
-  const structuredScore = (path: any[]) =>
-    path.reduce((score, step) => {
-      if (!step || typeof step !== 'object') return score;
-      let s = score;
-      if (typeof step.answer === 'string' && step.answer.trim().length > 0) s += 3;
-      if (typeof step.question === 'string' && step.question.trim().length > 0) s += 2;
-      if (typeof step.option === 'string' && step.option.trim().length > 0) s += 1;
-      return s;
-    }, 0);
-
-  return structuredScore(nested) > structuredScore(topLevel) ? nested : topLevel;
+  const topLevel = Array.isArray(strategy.whysPath) ? normalizeWhysPathSteps(strategy.whysPath) : [];
+  return topLevel;
 }
 
 function deriveRootCause(
@@ -226,6 +219,61 @@ function deriveBenefitList(benefitsRealization: any): any[] {
   if (Array.isArray(benefitsRealization)) return benefitsRealization;
   if (Array.isArray(benefitsRealization.benefits)) return benefitsRealization.benefits;
   return [];
+}
+
+function formatBenefitId(value: number): string {
+  return `BEN-${String(value).padStart(2, '0')}`;
+}
+
+function normalizeBenefitId(raw: any, fallbackIndex?: number): string | null {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return formatBenefitId(raw);
+  if (typeof raw === 'string') {
+    const match = raw.match(/(\d+)/);
+    if (match) return formatBenefitId(Number(match[1]));
+  }
+  if (typeof fallbackIndex === 'number') return formatBenefitId(fallbackIndex);
+  return null;
+}
+
+function normalizeBenefits(benefitsRaw: any[]): { benefits: any[]; idMap: Map<string, string> } {
+  const idMap = new Map<string, string>();
+  const benefits = benefitsRaw.map((benefit, idx) => {
+    const rawId = benefit?.id ?? benefit?.benefitId ?? benefit?.benefit_id;
+    const normalizedId = normalizeBenefitId(rawId, idx + 1) ?? `BEN-${idx + 1}`;
+    if (typeof rawId === 'string') {
+      idMap.set(rawId, normalizedId);
+    }
+    return {
+      ...benefit,
+      id: normalizedId,
+    };
+  });
+  return { benefits, idMap };
+}
+
+function normalizeKpis(kpisData: any, benefitIdMap: Map<string, string>): any {
+  if (!kpisData) return null;
+  const list = Array.isArray(kpisData?.kpis)
+    ? kpisData.kpis
+    : (Array.isArray(kpisData) ? kpisData : []);
+  if (!Array.isArray(list)) return kpisData;
+
+  const normalizedList = list.map((kpi: any) => {
+    const linked = Array.isArray(kpi?.linkedBenefitIds) ? kpi.linkedBenefitIds : [];
+    const normalizedLinked = linked.map((id: any) => {
+      if (typeof id !== 'string') return id;
+      return benefitIdMap.get(id) ?? normalizeBenefitId(id) ?? id;
+    });
+    return {
+      ...kpi,
+      linkedBenefitIds: normalizedLinked,
+    };
+  });
+
+  if (Array.isArray(kpisData?.kpis)) {
+    return { ...kpisData, kpis: normalizedList };
+  }
+  return normalizedList;
 }
 
 function computeLongestDependencyChain(workstreams: any[]): string[] {
@@ -361,6 +409,76 @@ function normalizeTimeline(program: any, workstreams: any[]): any {
   };
 }
 
+function buildDeliverableLookup(workstreams: any[]): Record<string, { workstreamId?: string; startMonth?: number; endMonth?: number }> {
+  const lookup: Record<string, { workstreamId?: string; startMonth?: number; endMonth?: number }> = {};
+  workstreams.forEach((ws: any) => {
+    const wsId = ws.id;
+    const wsStart = ws.startMonth;
+    const wsEnd = ws.endMonth;
+    (ws.deliverables || []).forEach((d: any) => {
+      const taskId = d.id || d.taskId || d.name;
+      if (!taskId) return;
+      const dueMonth = d.dueMonth ?? d.due_month;
+      lookup[taskId] = {
+        workstreamId: wsId,
+        startMonth: wsStart,
+        endMonth: dueMonth ?? wsEnd ?? wsStart,
+      };
+    });
+  });
+  return lookup;
+}
+
+function parseTaskIdWorkstream(taskId?: string): string | null {
+  if (!taskId) return null;
+  const match = taskId.match(/^(WS\\d+)/i);
+  return match ? match[1] : null;
+}
+
+function monthOffset(from: Date, base: Date): number {
+  const delta = from.getTime() - base.getTime();
+  return Math.max(0, Math.round(delta / (1000 * 60 * 60 * 24 * 30)));
+}
+
+function normalizeAssignments(assignments: any[], workstreams: any[]): any[] {
+  if (!Array.isArray(assignments)) return [];
+
+  const deliverableLookup = buildDeliverableLookup(workstreams);
+  const minAssignedFrom = assignments
+    .map((a) => a.assignedFrom || a.assigned_from)
+    .filter(Boolean)
+    .map((d: any) => new Date(d))
+    .sort((a, b) => a.getTime() - b.getTime())[0];
+
+  return assignments.map((assignment) => {
+    const taskId = assignment.taskId || assignment.task_id;
+    const lookup = taskId ? deliverableLookup[taskId] || {} : {};
+    const existingWorkstreamId = assignment.workstreamId || assignment.workstream_id;
+    const existingStartMonth = assignment.startMonth ?? assignment.start_month;
+    const existingEndMonth = assignment.endMonth ?? assignment.end_month;
+
+    let workstreamId = existingWorkstreamId || lookup.workstreamId || parseTaskIdWorkstream(taskId);
+    let startMonth = existingStartMonth ?? lookup.startMonth;
+    let endMonth = existingEndMonth ?? lookup.endMonth;
+
+    const assignedFrom = assignment.assignedFrom || assignment.assigned_from;
+    const assignedTo = assignment.assignedTo || assignment.assigned_to;
+    if ((startMonth === undefined || endMonth === undefined) && assignedFrom && assignedTo && minAssignedFrom) {
+      const startDate = new Date(assignedFrom);
+      const endDate = new Date(assignedTo);
+      startMonth = startMonth ?? monthOffset(startDate, minAssignedFrom);
+      endMonth = endMonth ?? monthOffset(endDate, minAssignedFrom);
+    }
+
+    return {
+      ...assignment,
+      workstreamId: workstreamId ?? null,
+      startMonth: startMonth ?? null,
+      endMonth: endMonth ?? null,
+    };
+  });
+}
+
 export function buildStrategyJsonPayload(strategy: StrategyPayload): Record<string, any> {
   const parsedAnalysisData = parseMaybeJson<Record<string, any>>(strategy.strategyVersion?.analysisData) || {};
   const fiveWhys = getFiveWhys(parsedAnalysisData);
@@ -384,33 +502,151 @@ export function buildStrategyJsonPayload(strategy: StrategyPayload): Record<stri
   };
 }
 
-export function buildEpmJsonPayload(epm: EpmPayload): Record<string, any> {
+export function buildEpmJsonPayload(
+  epm: EpmPayload,
+  context: EpmPayloadContext = {}
+): Record<string, any> {
   const program = epm.program || {};
   const workstreams = parseMaybeJson<any[]>(program.workstreams) || [];
   const timeline = normalizeTimeline(program, workstreams);
+  const hasTimelineData = (
+    (Array.isArray(timeline?.phases) && timeline.phases.length > 0) ||
+    (Number.isFinite(timeline?.totalMonths) && timeline.totalMonths > 0)
+  );
+  const timelineValue = hasTimelineData ? timeline : null;
   const resourcePlan = parseMaybeJson<any>(program.resourcePlan);
   const riskRegister = parseMaybeJson<any>(program.riskRegister);
   const benefitsRealization = parseMaybeJson<any>(program.benefitsRealization);
   const stageGates = parseMaybeJson<any>(program.stageGates);
+  const financialPlan = parseMaybeJson<any>(program.financialPlan);
+  const kpis = parseMaybeJson<any>(program.kpis);
+  const programId = program.id ?? context.exportMeta?.programId ?? null;
+  const constraintsFromVersion = context.strategyVersion
+    ? {
+        costMin: context.strategyVersion.costMin ?? null,
+        costMax: context.strategyVersion.costMax ?? null,
+        teamSizeMin: context.strategyVersion.teamSizeMin ?? null,
+        teamSizeMax: context.strategyVersion.teamSizeMax ?? null,
+        timelineMonths: context.strategyVersion.timelineMonths ?? null,
+        inputSummary: context.strategyVersion.inputSummary ?? null,
+      }
+    : null;
+  const rawFallbackConstraints = (program as any).constraints ?? (epm as any).constraints ?? epm.metadata?.constraints ?? null;
+  const constraintsFromProgram = rawFallbackConstraints
+    ? {
+        costMin: rawFallbackConstraints.costMin ?? rawFallbackConstraints.budget?.min ?? null,
+        costMax: rawFallbackConstraints.costMax ?? rawFallbackConstraints.budget?.max ?? null,
+        teamSizeMin: rawFallbackConstraints.teamSizeMin ?? null,
+        teamSizeMax: rawFallbackConstraints.teamSizeMax ?? null,
+        timelineMonths: rawFallbackConstraints.timelineMonths ?? rawFallbackConstraints.timeline?.max ?? rawFallbackConstraints.timeline?.min ?? null,
+        inputSummary: context.strategyVersion?.inputSummary ?? null,
+      }
+    : null;
+  const constraints = constraintsFromVersion ?? constraintsFromProgram ?? null;
+  const wbs = Array.isArray(context.wbsRows) ? context.wbsRows : [];
+
+  const normalizedBenefitData = normalizeBenefits(deriveBenefitList(benefitsRealization));
+  const normalizedBenefits = normalizedBenefitData.benefits;
+  const normalizedKpis = normalizeKpis(kpis, normalizedBenefitData.idMap);
+  const normalizedBenefitsRealization = benefitsRealization
+    ? (Array.isArray(benefitsRealization)
+      ? normalizedBenefits
+      : { ...benefitsRealization, benefits: normalizedBenefits })
+    : benefitsRealization;
+
+  const structuredUserInput = {
+    raw: context.userInput ?? null,
+    summary: context.strategyVersion?.inputSummary ?? null,
+    constraints,
+    clarifications: context.clarifications ?? null,
+    initiativeType: context.initiativeType ?? null,
+  };
+  const totalDuration = Number.isFinite(timelineValue?.totalMonths)
+    ? timelineValue?.totalMonths
+    : (Number.isFinite(program.totalDuration) ? program.totalDuration : null);
+  const totalBudget = Number.isFinite(financialPlan?.totalBudget)
+    ? financialPlan?.totalBudget
+    : (Number.isFinite(program.totalBudget) ? program.totalBudget : null);
+
+  const startDateRaw = program.startDate || timelineValue?.startDate || null;
+  const startDateParsed = startDateRaw ? new Date(startDateRaw) : null;
+  const startDate = startDateParsed && !Number.isNaN(startDateParsed.getTime()) ? startDateParsed : null;
+
+  const endDateRaw = program.endDate || timelineValue?.endDate || null;
+  let endDateParsed = endDateRaw ? new Date(endDateRaw) : null;
+  endDateParsed = endDateParsed && !Number.isNaN(endDateParsed.getTime()) ? endDateParsed : null;
+
+  if (!endDateParsed && startDate && Number.isFinite(totalDuration) && totalDuration !== null) {
+    endDateParsed = addMonths(startDate, totalDuration);
+  }
+
   const normalizedProgram = {
     ...program,
+    id: programId ?? program.id,
     workstreams,
-    timeline,
+    timeline: timelineValue,
     resourcePlan,
     riskRegister,
-    benefitsRealization,
+    financialPlan,
+    benefitsRealization: normalizedBenefitsRealization,
     stageGates: stageGates || program.stageGates,
+    kpis: normalizedKpis || program.kpis,
+    totalDuration: totalDuration ?? null,
+    totalBudget: totalBudget ?? null,
+    startDate: startDate ? startDate.toISOString() : null,
+    endDate: endDateParsed ? endDateParsed.toISOString() : null,
+  };
+
+  if (normalizedProgram.totalDuration !== null && timelineValue?.totalMonths !== null && normalizedProgram.totalDuration !== timelineValue?.totalMonths) {
+    console.warn(`[Export] Program totalDuration (${normalizedProgram.totalDuration}) != timeline.totalMonths (${timelineValue?.totalMonths})`);
+  }
+
+  if (normalizedProgram.totalBudget !== null && financialPlan?.totalBudget !== null && normalizedProgram.totalBudget !== financialPlan.totalBudget) {
+    console.warn(`[Export] Program totalBudget (${normalizedProgram.totalBudget}) != financialPlan.totalBudget (${financialPlan.totalBudget})`);
+  }
+
+  const assignments = normalizeAssignments(epm.assignments || [], workstreams);
+  const requiresApproval = (epm as any).requiresApproval ?? (program as any).requiresApproval ?? null;
+  const metadata = {
+    ...(epm.metadata || {}),
+    programId: epm.metadata?.programId ?? programId ?? null,
+    strategyVersionId: epm.metadata?.strategyVersionId ?? program.strategyVersionId ?? null,
+    userId: epm.metadata?.userId ?? program.userId ?? null,
+    status: epm.metadata?.status ?? program.status ?? null,
+    createdAt: epm.metadata?.createdAt ?? program.createdAt ?? null,
+    updatedAt: epm.metadata?.updatedAt ?? program.updatedAt ?? null,
+    sessionId: epm.metadata?.sessionId ?? context.exportMeta?.sessionId ?? context.strategyVersion?.sessionId ?? null,
+    generatedAt: epm.metadata?.generatedAt ?? context.exportMeta?.exportedAt ?? null,
+    constraints,
   };
 
   return {
     ...epm,
+    timeline: timelineValue,
+    constraints,
+    wbs,
+    requiresApproval,
+    metadata,
+    programId: programId ?? null,
     program: normalizedProgram,
     workstreams,
     resourcePlan,
     resources: deriveResources(resourcePlan),
+    financialPlan,
     riskRegister,
     risks: deriveRiskList(riskRegister),
-    benefitsRealization,
-    benefits: deriveBenefitList(benefitsRealization),
+    benefitsRealization: normalizedBenefitsRealization,
+    benefits: normalizedBenefits,
+    kpis: normalizedKpis || null,
+    stageGates: stageGates || program.stageGates || null,
+    assignments,
+    userInput: context.userInput ?? null,
+    userInputStructured: structuredUserInput,
   };
+}
+
+function addMonths(date: Date, months: number): Date {
+  const result = new Date(date);
+  result.setMonth(result.getMonth() + months);
+  return result;
 }
