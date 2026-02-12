@@ -62,15 +62,15 @@ export class AmbiguityDetectorService {
     {
       label: 'Automation model',
       groups: [
-        { id: 'alerts_only', keywords: ['alerts-only', 'alerts only', 'monitoring only', 'manager-driven', 'human-driven', 'manual intervention'] },
-        { id: 'automated_actions', keywords: ['automated actions', 'automatic actions', 'automated interventions', 'auto-remediation', 'autonomous actions', 'automated alerts', 'automated monitoring'] },
+        { id: 'alerts_only', keywords: ['alerts-only', 'alerts only', 'monitoring only'] },
+        { id: 'automated_actions', keywords: ['automated actions', 'automatic actions', 'automated interventions', 'auto-remediation', 'autonomous actions'] },
       ],
     },
     {
       label: 'Sales motion',
       groups: [
-        { id: 'channel_partners', keywords: ['channel partners', 'partner channel', 'resellers', 'channel sales', 'channel partnerships', 'hr consultancies'] },
-        { id: 'direct_sales', keywords: ['direct sales only', 'direct sales', 'sales only', 'no channel', 'direct enterprise sales', 'enterprise sales'] },
+        { id: 'channel_partners', keywords: ['channel partners', 'partner channel', 'resellers', 'channel sales'] },
+        { id: 'direct_sales', keywords: ['direct sales only', 'direct sales', 'sales only', 'no channel'] },
       ],
     },
   ];
@@ -389,14 +389,14 @@ ${clarificationText}${conflictText}`;
       {
         id: 'automation',
         label: 'Automation scope',
-        a: ['automated system actions', 'automated actions', 'system actions', 'automated alerts', 'automated monitoring'],
-        b: ['alerts only', 'recommendations only', 'alerts and recommendations only', 'no automated actions', 'manager-driven', 'human-driven', 'manual intervention'],
+        a: ['automated system actions', 'automated actions', 'system actions'],
+        b: ['alerts only', 'recommendations only', 'alerts and recommendations only', 'no automated actions'],
       },
       {
         id: 'channel',
         label: 'Sales channel',
-        a: ['through channel partners', 'channel partners', 'partner channel', 'channel partnerships', 'hr consultancies'],
-        b: ['sales and lead generation only', 'direct sales', 'sales only', 'direct enterprise sales', 'enterprise sales'],
+        a: ['through channel partners', 'channel partners', 'partner channel'],
+        b: ['sales and lead generation only', 'direct sales', 'sales only'],
       },
     ];
 

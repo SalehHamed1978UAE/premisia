@@ -411,7 +411,7 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
     }
 
     const openai = this.getOpenAI();
-    
+
     const response = await openai.embeddings.create({
       model: EMBEDDING_MODEL,
       input: text,
@@ -419,10 +419,15 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
     });
 
     const embedding = response.data[0].embedding;
+    const actualModel = (response as any).model || EMBEDDING_MODEL;
+
+    if (embedding.length !== EMBEDDING_DIMENSIONS) {
+      console.error(`[StrategicUnderstanding] EMBEDDING DIMENSION MISMATCH: requested ${EMBEDDING_DIMENSIONS} from ${EMBEDDING_MODEL}, got ${embedding.length} from ${actualModel}. Check OPENAI_API_KEY provider.`);
+    }
+
     this.embeddingCache.set(cacheKey, embedding);
-    
-    console.log(`[StrategicUnderstanding] Generated embedding for: ${text.substring(0, 50)}... (dim: ${embedding.length})`);
-    
+    console.log(`[StrategicUnderstanding] Generated embedding for: ${text.substring(0, 50)}... (dim: ${embedding.length}, model: ${actualModel})`);
+
     return embedding;
   }
 
