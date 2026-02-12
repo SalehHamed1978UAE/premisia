@@ -49,7 +49,10 @@ export async function generateFullPassExport(
       }
     : exportPackage.strategy;
 
-  const strategyJson = JSON.stringify(buildStrategyJsonPayload(strategyPayload), null, 2);
+  // Sprint 6.1: Build strategy payload FIRST, then reuse for both strategy.json and epm context
+  // rootCause is derived by deriveRootCause() inside buildStrategyJsonPayload — not on raw DB object
+  const builtStrategy = buildStrategyJsonPayload(strategyPayload);
+  const strategyJson = JSON.stringify(builtStrategy, null, 2);
 
   let wbsRows: ReturnType<typeof generateWBSRows> | null = null;
   try {
@@ -69,10 +72,10 @@ export async function generateFullPassExport(
           initiativeType: strategyPayload?.understanding?.initiativeType,
           programName: strategyPayload?.understanding?.title || null,
           wbsRows,
-          // Sprint 6: Pass Five Whys data from strategy
-          whysPath: strategyPayload?.whysPath || null,
-          rootCause: (strategyPayload as any)?.rootCause || null,
-          fiveWhysTree: strategyPayload?.fiveWhysTree || null,
+          // Sprint 6.1: Use built strategy output for Five Whys data (rootCause is derived, not stored)
+          whysPath: builtStrategy?.whysPath || strategyPayload?.whysPath || null,
+          rootCause: builtStrategy?.rootCause || null,
+          fiveWhysTree: builtStrategy?.fiveWhysTree || strategyPayload?.fiveWhysTree || null,
         }),
         null,
         2

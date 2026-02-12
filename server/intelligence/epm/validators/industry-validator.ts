@@ -7,7 +7,7 @@ export class IndustryValidator extends BaseValidator {
   private industryKeywords: Record<string, string[]> = {
     food_service: ['food safety', 'kitchen', 'restaurant', 'menu', 'chef', 'dining', 'catering', 'culinary', 'food handling', 'haccp'],
     healthcare: ['hipaa', 'patient', 'clinical', 'medical', 'healthcare', 'pharmacy', 'hospital', 'diagnosis', 'treatment'],
-    finance: ['banking', 'trading', 'securities', 'investment', 'loan', 'credit', 'forex', 'asset management'],
+    finance: ['banking', 'bank', 'banks', 'trading', 'securities', 'investment', 'loan', 'credit', 'forex', 'asset management', 'fintech', 'kyc', 'aml'],
     manufacturing: ['assembly line', 'production floor', 'quality control', 'lean manufacturing', 'six sigma', 'warehouse'],
     retail: ['inventory', 'point of sale', 'merchandising', 'storefront', 'e-commerce', 'fulfillment'],
     technology: ['software development', 'devops', 'api', 'database', 'cloud', 'agile', 'sprint'],
@@ -25,7 +25,8 @@ export class IndustryValidator extends BaseValidator {
       return this.createResult(true, [], [], { skipped: true, reason: 'No business context provided' });
     }
     
-    const contextLower = businessContext.toLowerCase();
+    // Sprint 6.1: Normalize underscores → spaces so "software_development" matches "software development"
+    const contextLower = businessContext.replace(/_/g, ' ').toLowerCase();
     const detectedIndustries: string[] = [];
 
     // Detect industries from businessContext classification
@@ -35,13 +36,15 @@ export class IndustryValidator extends BaseValidator {
       }
     }
 
-    // Sprint 6: Also detect industries from workstream content itself
-    // If 3+ keywords from an industry appear across workstreams, it's the user's domain
-    const allWsContent = workstreams.map(ws => `${ws.name} ${ws.description || ''}`).join(' ').toLowerCase();
+    // Sprint 6.1: Detect industries from workstream content using frequency-based approach
+    // If 3+ workstreams mention ANY keyword from an industry, it's the user's domain
     for (const [industry, keywords] of Object.entries(this.industryKeywords)) {
       if (detectedIndustries.includes(industry)) continue;
-      const hitCount = keywords.filter(kw => allWsContent.includes(kw)).length;
-      if (hitCount >= 3) {
+      const wsHitCount = workstreams.filter(ws => {
+        const content = `${ws.name} ${ws.description || ''}`.toLowerCase();
+        return keywords.some(kw => content.includes(kw));
+      }).length;
+      if (wsHitCount >= 3) {
         detectedIndustries.push(industry);
       }
     }
