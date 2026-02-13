@@ -248,10 +248,14 @@ export class EPMSynthesizer {
       elapsedSeconds: Math.round((Date.now() - processStartTime) / 1000)
     });
 
+    // SPRINT 6B FIX: Pass explicit budget/timeline constraints to prevent re-extraction
+    // from AI-generated text. Use constraints from decisionsWithPriority (user's original input).
     const planningContext = await ContextBuilder.fromJourneyInsights(
       insights,
       insights.frameworkType || 'strategy_workspace',
-      userContext?.sessionId
+      userContext?.sessionId,
+      userContext?.budgetRange,      // Pass explicit budget from strategy version
+      userContext?.timelineRange     // Pass explicit timeline from strategy version
     );
 
     console.log(`[EPM Synthesis] ✓ Planning context: Scale=${planningContext.business.scale}, Timeline=${planningContext.execution.timeline.min}-${planningContext.execution.timeline.max}mo`);
