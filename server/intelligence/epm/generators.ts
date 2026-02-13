@@ -38,7 +38,6 @@ import type {
   ExitStrategy,
   StrategyContext,
   RiskCategory,
-  Workstream,
 } from '../types';
 import { aiClients } from '../../ai-clients';
 import {

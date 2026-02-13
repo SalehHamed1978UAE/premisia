@@ -251,7 +251,8 @@ export class EPMSynthesizer {
     const planningContext = await ContextBuilder.fromJourneyInsights(
       insights,
       insights.frameworkType || 'strategy_workspace',
-      userContext?.sessionId
+      userContext?.sessionId,
+      userContext?.budgetRange
     );
 
     console.log(`[EPM Synthesis] ✓ Planning context: Scale=${planningContext.business.scale}, Timeline=${planningContext.execution.timeline.min}-${planningContext.execution.timeline.max}mo`);

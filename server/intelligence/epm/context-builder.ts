@@ -18,7 +18,8 @@ export class ContextBuilder {
   static async fromJourneyInsights(
     insights: StrategyInsights,
     journeyType: string = 'strategy_workspace',
-    sessionId?: string
+    sessionId?: string,
+    explicitBudget?: { min: number; max: number }
   ): Promise<PlanningContext> {
     const scale = this.inferScale(insights);
     let timelineRange = this.inferTimelineRange(scale, insights);
@@ -86,17 +87,30 @@ export class ContextBuilder {
       console.log('[ContextBuilder] ⚠️ No sessionId provided, cannot fetch strategic context');
     }
 
-    const userConstraints = extractUserConstraintsFromText(
-      userInput || businessDescription,
-      insights.marketContext?.budgetRange
-    );
-    if (userConstraints.timeline) {
-      timelineRange = userConstraints.timeline;
-      console.log(`[ContextBuilder] ⏱ Using user timeline constraint: ${timelineRange.min}-${timelineRange.max} months`);
-    }
-    if (userConstraints.budget) {
-      budgetRange = userConstraints.budget;
-      console.log(`[ContextBuilder] 💰 Using user budget constraint: $${budgetRange.min.toLocaleString()}-$${budgetRange.max.toLocaleString()}`);
+    if (explicitBudget) {
+      budgetRange = explicitBudget;
+      console.log(`[ContextBuilder] 💰 Using explicit budget from strategy version: $${budgetRange!.min.toLocaleString()}-$${budgetRange!.max.toLocaleString()}`);
+      const userConstraints = extractUserConstraintsFromText(
+        userInput || businessDescription,
+        insights.marketContext?.budgetRange
+      );
+      if (userConstraints.timeline) {
+        timelineRange = userConstraints.timeline;
+        console.log(`[ContextBuilder] ⏱ Using user timeline constraint: ${timelineRange.min}-${timelineRange.max} months`);
+      }
+    } else {
+      const userConstraints = extractUserConstraintsFromText(
+        userInput || businessDescription,
+        insights.marketContext?.budgetRange
+      );
+      if (userConstraints.timeline) {
+        timelineRange = userConstraints.timeline;
+        console.log(`[ContextBuilder] ⏱ Using user timeline constraint: ${timelineRange.min}-${timelineRange.max} months`);
+      }
+      if (userConstraints.budget) {
+        budgetRange = userConstraints.budget;
+        console.log(`[ContextBuilder] 💰 Using user budget constraint (text-parsed): $${budgetRange.min.toLocaleString()}-$${budgetRange.max.toLocaleString()}`);
+      }
     }
     
     // Infer business type first, then use it for industry if not explicitly set
