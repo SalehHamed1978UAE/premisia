@@ -14,6 +14,10 @@ export class ResourceAllocator {
   /**
    * Generate resource plan with internal team and external resources
    *
+   * SPRINT 6B - CONSTRAINT-FIRST ARCHITECTURE:
+   * This allocator NO LONGER computes maxAffordableFTEs internally.
+   * It receives estimatedFTEs from the upstream CapacityEnvelope.
+   *
    * CONTEXT-AWARE ROLE SELECTION:
    * 1. If strategyContext is provided, use ROLE_TEMPLATES (cafe → cafe roles, restaurant → restaurant roles)
    * 2. Fallback to LLM generation if no context
@@ -28,22 +32,22 @@ export class ResourceAllocator {
   ): Promise<ResourcePlan> {
     const resourceInsights = insights.insights.filter(i => i.type === 'resource');
 
-    // Budget-aware FTE sizing (Sprint 6)
+    // SPRINT 6B: Use capacityEnvelope's maxAffordableFTEs (computed upstream)
     const uncappedFTEs = Math.max(4, Math.min(workstreams.length * 2, 20));
-    let estimatedFTEs = uncappedFTEs;
+    const capacityEnvelope = (userContext as any)?.capacityEnvelope;
 
-    if (userContext?.budgetRange?.max) {
-      // Reverse the cost formula: totalBudget = (FTEs * 150000 + external) * 1.15 * 1.10
-      // So: maxFTEs = floor((budgetMax / 1.265 - externalCost) / 150000)
-      const budgetMax = userContext.budgetRange.max;
-      const estimatedExternal = 100000; // Conservative estimate for external resources
-      const maxAffordableFTEs = Math.floor((budgetMax / 1.265 - estimatedExternal) / 150000);
-
-      if (maxAffordableFTEs < estimatedFTEs) {
-        console.warn(`[ResourceAllocator] Budget ($${(budgetMax / 1e6).toFixed(2)}M) constrains team to ${maxAffordableFTEs} FTEs (optimal: ${estimatedFTEs})`);
-      }
-
-      estimatedFTEs = Math.max(4, Math.min(estimatedFTEs, maxAffordableFTEs));
+    let estimatedFTEs: number;
+    if (capacityEnvelope) {
+      // Use pre-computed capacity from envelope
+      estimatedFTEs = capacityEnvelope.maxAffordableFTEs;
+      console.log(`[ResourceAllocator] SPRINT 6B - Using CapacityEnvelope:`);
+      console.log(`  Uncapped FTEs: ${uncappedFTEs}`);
+      console.log(`  Max affordable FTEs: ${estimatedFTEs} (from envelope)`);
+      console.log(`  Budget-constrained: ${capacityEnvelope.budgetConstrained ? 'YES' : 'NO'}`);
+    } else {
+      // Fallback to uncapped FTEs if no envelope (shouldn't happen in Sprint 6B)
+      estimatedFTEs = uncappedFTEs;
+      console.warn(`[ResourceAllocator] ⚠️ No CapacityEnvelope provided - using uncapped FTEs: ${estimatedFTEs}`);
     }
 
     const finalInitiativeType = initiativeType || 'other';
@@ -76,16 +80,16 @@ export class ResourceAllocator {
     const actualFTEs = internalTeam.reduce((sum, r) => sum + (r.allocation || 1), 0);
     const totalFTEs = Math.ceil(actualFTEs);
 
-    // Budget constraint gap warning
+    // SPRINT 6B: Budget constraint gap warning (using envelope data)
     let budgetConstrained: ResourcePlan['budgetConstrained'];
-    if (userContext?.budgetRange?.max && estimatedFTEs < uncappedFTEs) {
+    if (capacityEnvelope?.budgetConstrained) {
       budgetConstrained = {
         optimalFTEs: uncappedFTEs,
         budgetFTEs: estimatedFTEs,
         gap: uncappedFTEs - estimatedFTEs,
-        warning: `Team sized to ${estimatedFTEs} FTEs to fit $${(userContext.budgetRange.max / 1e6).toFixed(1)}M budget. Optimal staffing is ${uncappedFTEs} FTEs. Consider increasing budget or reducing scope.`,
+        warning: `Team sized to ${estimatedFTEs} FTEs to fit $${(capacityEnvelope.maxBudget / 1e6).toFixed(1)}M budget. Optimal staffing is ${uncappedFTEs} FTEs. Consider increasing budget or reducing scope.`,
       };
-      console.log(`[ResourceAllocator] ⚠️ Budget constrained: ${JSON.stringify(budgetConstrained)}`);
+      console.log(`[ResourceAllocator] ⚠️ Budget constrained (from envelope): ${JSON.stringify(budgetConstrained)}`);
     }
 
     return {

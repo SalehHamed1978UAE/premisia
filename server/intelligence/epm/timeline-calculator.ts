@@ -10,6 +10,10 @@ import type { ITimelineCalculator } from '../../types/interfaces';
 export class TimelineCalculator implements ITimelineCalculator {
   /**
    * Generate timeline from insights and workstreams
+   *
+   * SPRINT 6B - CONSTRAINT-FIRST ARCHITECTURE:
+   * This calculator checks for timelineEnvelope first. If present, it uses
+   * the pre-computed effectiveDuration instead of computing it from workstreams.
    */
   async calculate(
     insights: StrategyInsights,
@@ -17,17 +21,18 @@ export class TimelineCalculator implements ITimelineCalculator {
     userContext?: UserContext
   ): Promise<Timeline> {
     const timelineInsight = insights.insights.find(i => i.type === 'timeline');
-    
+    const timelineEnvelope = (userContext as any)?.timelineEnvelope;
+
     let baseMonths = 12;
     if (insights.marketContext.urgency === 'ASAP') {
       baseMonths = 6;
     } else if (insights.marketContext.urgency === 'Exploratory') {
       baseMonths = 18;
     }
-    
+
     let deadlineMonths = baseMonths;
     if (userContext?.hardDeadlines && userContext.hardDeadlines.length > 0) {
-      const earliestDeadline = Math.min(...userContext.hardDeadlines.map(d => 
+      const earliestDeadline = Math.min(...userContext.hardDeadlines.map(d =>
         Math.ceil((d.date.getTime() - Date.now()) / (30 * 24 * 60 * 60 * 1000))
       ));
       deadlineMonths = earliestDeadline;
@@ -38,9 +43,23 @@ export class TimelineCalculator implements ITimelineCalculator {
       maxWorkstreamEnd = Math.max(...workstreams.map(w => w.endMonth));
     }
 
-    // Use actual workstream duration if available, otherwise fall back to baseMonths
-    const effectiveDuration = maxWorkstreamEnd > 0 ? maxWorkstreamEnd + 1 : baseMonths;
-    const constraintMax = userContext?.timelineRange?.max;
+    // SPRINT 6B: Use timelineEnvelope if available
+    let effectiveDuration: number;
+    let constraintMax: number | undefined;
+
+    if (timelineEnvelope) {
+      effectiveDuration = timelineEnvelope.effectiveDuration;
+      constraintMax = timelineEnvelope.maxMonths;
+      console.log(`[TimelineCalculator] SPRINT 6B - Using TimelineEnvelope:`);
+      console.log(`  Effective duration: ${effectiveDuration}mo (from envelope)`);
+      console.log(`  Max months: ${constraintMax || 'unconstrained'}`);
+      console.log(`  Time-constrained: ${timelineEnvelope.timelineConstrained ? 'YES' : 'NO'}`);
+    } else {
+      // Fallback to workstream-based calculation
+      effectiveDuration = maxWorkstreamEnd > 0 ? maxWorkstreamEnd + 1 : baseMonths;
+      constraintMax = userContext?.timelineRange?.max;
+      console.warn(`[TimelineCalculator] ⚠️ No TimelineEnvelope provided - using workstream-based calculation`);
+    }
 
     let totalMonths: number;
     let timelineViolation: boolean;

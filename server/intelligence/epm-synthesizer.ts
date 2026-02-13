@@ -260,6 +260,22 @@ export class EPMSynthesizer {
     const userConstraints = this.parseUserConstraints(insights, planningContext);
     const enrichedUserContext = this.applyUserConstraintsToContext(userContext, userConstraints);
 
+    // SPRINT 6B: Compute capacity and timeline envelopes BEFORE any generator runs
+    console.log('[EPM Synthesis] 📊 Computing constraint envelopes...');
+    const capacityEnvelope = this.computeCapacityEnvelope(enrichedUserContext, workstreams);
+    const timelineEnvelope = this.computeTimelineEnvelope(enrichedUserContext, workstreams);
+
+    // Attach envelopes to enrichedUserContext for downstream generators
+    const fullyEnrichedContext = {
+      ...enrichedUserContext,
+      capacityEnvelope,
+      timelineEnvelope,
+    };
+
+    console.log('[EPM Synthesis] ✓ Constraint envelopes computed:');
+    console.log(`  - Capacity: ${capacityEnvelope.maxAffordableFTEs} FTEs${capacityEnvelope.budgetConstrained ? ' (budget-constrained)' : ''}`);
+    console.log(`  - Timeline: ${timelineEnvelope.effectiveDuration} months${timelineEnvelope.timelineConstrained ? ' (time-constrained)' : ''}`);
+
     onProgress?.({
       type: 'step-start',
       step: 'intelligent-planning',
@@ -274,7 +290,7 @@ export class EPMSynthesizer {
     const planningConfig = {
       maxDuration: userConstraints.timeline?.max ?? planningContext.execution.timeline?.max,
       budget: userConstraints.budget?.max ?? planningContext.execution.budget?.max,
-      teamSize: enrichedUserContext?.teamAvailability?.currentTeamSize,
+      teamSize: fullyEnrichedContext?.teamAvailability?.currentTeamSize,
     };
 
     const planningResult = await replaceTimelineGeneration(
@@ -301,7 +317,7 @@ export class EPMSynthesizer {
         insights,
         scheduledWorkstreams,
         planningContext,
-        enrichedUserContext,
+        fullyEnrichedContext,
         namingContext,
         strategicContext,
         decisionValidation,
@@ -342,7 +358,7 @@ export class EPMSynthesizer {
         insights,
         timedWorkstreams, // Use WBS Builder workstreams with default timings
         planningContext,
-        enrichedUserContext,
+        fullyEnrichedContext,
         namingContext,
         strategicContext,
         decisionValidation,
@@ -495,6 +511,113 @@ export class EPMSynthesizer {
     }
 
     return base;
+  }
+
+  /**
+   * Compute Capacity Envelope - UPSTREAM budget-aware resource constraints
+   *
+   * SPRINT 6B: This runs BEFORE any generator, establishing the capacity budget
+   * within which ALL downstream components must operate.
+   *
+   * Formula: maxAffordableFTEs = floor((budgetMax / 1.265 - external) / 150000)
+   *   - budgetMax: User's stated maximum budget
+   *   - 1.265 = 1.15 (overhead) * 1.10 (contingency)
+   *   - external: Conservative estimate for external resources
+   *   - 150000: Average annual cost per FTE
+   *
+   * Returns: CapacityEnvelope that defines resource limits for ALL generators
+   */
+  private computeCapacityEnvelope(
+    userContext: UserContext | undefined,
+    workstreams: Workstream[]
+  ): any {
+    const budgetMax = userContext?.budgetRange?.max;
+    const estimatedExternal = 100000; // Conservative estimate for external resources
+
+    if (!budgetMax) {
+      // No budget constraint - compute uncapped FTEs based on workstream complexity
+      const uncappedFTEs = Math.max(4, Math.min(workstreams.length * 2, 20));
+      return {
+        maxBudget: undefined,
+        estimatedExternal,
+        maxAffordableFTEs: uncappedFTEs,
+        budgetConstrained: false,
+        capacityRationale: `Unconstrained: ${uncappedFTEs} FTEs based on ${workstreams.length} workstreams`,
+      };
+    }
+
+    // Budget-constrained: Compute maxAffordableFTEs from budget
+    const maxAffordableFTEs = Math.floor((budgetMax / 1.265 - estimatedExternal) / 150000);
+    const uncappedFTEs = Math.max(4, Math.min(workstreams.length * 2, 20));
+
+    // Ensure minimum viable team (4 FTEs)
+    const effectiveFTEs = Math.max(4, maxAffordableFTEs);
+
+    console.log('[CapacityEnvelope] Budget-aware capacity:');
+    console.log(`  Budget: $${(budgetMax / 1e6).toFixed(2)}M`);
+    console.log(`  Max affordable FTEs: ${maxAffordableFTEs} (formula)`);
+    console.log(`  Uncapped FTEs: ${uncappedFTEs} (workstream-based)`);
+    console.log(`  Effective FTEs: ${effectiveFTEs} (min 4)`);
+
+    if (effectiveFTEs < uncappedFTEs) {
+      console.warn(`[CapacityEnvelope] ⚠️ Budget constrains team to ${effectiveFTEs} FTEs (optimal: ${uncappedFTEs})`);
+    }
+
+    return {
+      maxBudget: budgetMax,
+      estimatedExternal,
+      maxAffordableFTEs: effectiveFTEs,
+      budgetConstrained: effectiveFTEs < uncappedFTEs,
+      capacityRationale: effectiveFTEs < uncappedFTEs
+        ? `Budget-constrained: $${(budgetMax / 1e6).toFixed(1)}M supports ${effectiveFTEs} FTEs (optimal: ${uncappedFTEs})`
+        : `Budget supports ${effectiveFTEs} FTEs for ${workstreams.length} workstreams`,
+    };
+  }
+
+  /**
+   * Compute Timeline Envelope - UPSTREAM time-aware phase distribution
+   *
+   * SPRINT 6B: This runs BEFORE timeline generation, establishing the time budget
+   * within which ALL phases must be distributed.
+   *
+   * Endmonth semantics: EXCLUSIVE (e.g., [0, 24) means months 0-23)
+   *
+   * Returns: TimelineEnvelope that defines schedule limits for timeline calculator
+   */
+  private computeTimelineEnvelope(
+    userContext: UserContext | undefined,
+    workstreams: Workstream[]
+  ): any {
+    const maxMonths = userContext?.timelineRange?.max;
+    const minMonths = userContext?.timelineRange?.min;
+
+    if (!maxMonths) {
+      // No timeline constraint - use default 24-month window
+      const defaultDuration = 24;
+      return {
+        maxMonths: undefined,
+        minMonths: undefined,
+        effectiveDuration: defaultDuration,
+        includesBuffer: false,
+        timelineConstrained: false,
+        scheduleRationale: `Unconstrained: ${defaultDuration} months default`,
+      };
+    }
+
+    // Timeline-constrained: Use maxMonths as hard limit
+    console.log('[TimelineEnvelope] Time-aware schedule:');
+    console.log(`  Max months: ${maxMonths}`);
+    console.log(`  Min months: ${minMonths || 'not specified'}`);
+    console.log(`  Workstreams: ${workstreams.length}`);
+
+    return {
+      maxMonths,
+      minMonths,
+      effectiveDuration: maxMonths,
+      includesBuffer: true, // maxMonths includes stabilization buffer
+      timelineConstrained: true,
+      scheduleRationale: `Timeline-constrained: ${maxMonths} months hard limit`,
+    };
   }
 
   /**

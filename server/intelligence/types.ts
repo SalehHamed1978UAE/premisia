@@ -611,6 +611,66 @@ export interface UserContext {
 }
 
 // ============================================================================
+// Constraint Envelopes (Sprint 6B - Constraint-First Architecture)
+// These define the CAPACITY within which all EPM components must operate
+// Computed UPSTREAM before any generator runs
+// ============================================================================
+
+/**
+ * Capacity Envelope - Budget-aware resource constraints
+ *
+ * Computed from user budget constraints BEFORE resource allocation.
+ * Generators MUST operate within this envelope - no post-hoc capping.
+ *
+ * Formula: maxAffordableFTEs = floor((budgetMax / 1.265 - external) / 150000)
+ */
+export interface CapacityEnvelope {
+  // Budget constraints
+  maxBudget?: number;           // User's maximum budget ($1.8M)
+  estimatedExternal: number;    // Estimated external costs
+
+  // Derived capacity
+  maxAffordableFTEs: number;    // Maximum FTEs budget can support
+
+  // Metadata
+  budgetConstrained: boolean;   // Whether budget is limiting factor
+  capacityRationale?: string;   // Why this capacity was chosen
+}
+
+/**
+ * Timeline Envelope - Time-aware phase distribution
+ *
+ * Computed from user timeline constraints BEFORE timeline generation.
+ * Timeline calculator MUST distribute phases within maxMonths.
+ *
+ * Endmonth semantics: EXCLUSIVE (e.g., [0, 24) means months 0-23)
+ */
+export interface TimelineEnvelope {
+  // Timeline constraints
+  maxMonths?: number;           // User's maximum timeline (24 months)
+  minMonths?: number;           // User's minimum timeline (optional)
+
+  // Derived schedule
+  effectiveDuration: number;    // Actual duration to use
+  includesBuffer: boolean;      // Whether stabilization buffer is included
+
+  // Metadata
+  timelineConstrained: boolean; // Whether timeline is limiting factor
+  scheduleRationale?: string;   // Why this duration was chosen
+}
+
+/**
+ * Enriched User Context (Sprint 6B - Enhanced)
+ *
+ * Includes both original UserContext AND computed capacity envelopes.
+ * ALL generators receive this as their constraint source.
+ */
+export interface EnrichedUserContext extends UserContext {
+  capacityEnvelope?: CapacityEnvelope;
+  timelineEnvelope?: TimelineEnvelope;
+}
+
+// ============================================================================
 // Strategy Context (Architecture Spec Section 5.2)
 // Passed from journey start through ALL downstream components
 // ============================================================================
