@@ -156,71 +156,99 @@ function addScheduleSheet(workbook: XLSX.WorkBook, program: any): void {
 
 function addResourcesSheet(workbook: XLSX.WorkBook, program: any): void {
   const resourcePlan = parseField(program?.resourcePlan);
-  const allocations = resourcePlan?.allocations || [];
-  
-  const headers = ['Role', 'Workstream', 'FTE', 'Start Month', 'End Month', 'Skill Requirements'];
+  const internalTeam = resourcePlan?.internalTeam || [];
+  const externalResources = resourcePlan?.externalResources || [];
+
+  const headers = ['Role', 'Type', 'FTE Allocation', 'Skills', 'Justification'];
   const data = [headers];
-  
-  for (const alloc of allocations) {
+
+  for (const member of internalTeam) {
     data.push([
-      alloc.role || alloc.resourceType,
-      alloc.workstreamId || alloc.workstream || 'Program-wide',
-      alloc.fte?.toFixed(2) || alloc.percentage?.toString() || '0',
-      alloc.startMonth ? `M${alloc.startMonth}` : '',
-      alloc.endMonth ? `M${alloc.endMonth}` : '',
-      Array.isArray(alloc.skills) ? alloc.skills.join(', ') : (alloc.skillRequirements || ''),
+      member.role || '',
+      'Internal',
+      typeof member.allocation === 'number' ? member.allocation.toFixed(2) : '1.00',
+      Array.isArray(member.skills) ? member.skills.join(', ') : '',
+      member.justification || '',
     ]);
   }
-  
-  if (resourcePlan?.summary) {
-    data.push(['']);
-    data.push(['RESOURCE SUMMARY']);
-    data.push(['Total FTE', '', resourcePlan.summary.totalFte?.toFixed(2) || '']);
-    data.push(['Peak FTE', '', resourcePlan.summary.peakFte?.toFixed(2) || '']);
-    data.push(['Key Roles', '', (resourcePlan.summary.keyRoles || []).join(', ')]);
+
+  for (const ext of externalResources) {
+    data.push([
+      ext.type || ext.role || '',
+      'External',
+      '',
+      ext.skills || '',
+      ext.justification || (ext.estimatedCost ? formatCurrency(ext.estimatedCost) : ''),
+    ]);
   }
-  
+
+  data.push(['']);
+  data.push(['RESOURCE SUMMARY']);
+  data.push(['Total FTEs', resourcePlan?.totalFTEs?.toString() || '0']);
+  data.push(['Internal Roles', internalTeam.length.toString()]);
+  data.push(['External Resources', externalResources.length.toString()]);
+  data.push(['Critical Skills', (resourcePlan?.criticalSkills || []).join(', ')]);
+
+  if (resourcePlan?.budgetConstrained) {
+    data.push(['']);
+    data.push(['BUDGET CONSTRAINT']);
+    data.push(['Warning', resourcePlan.budgetConstrained.warning || '']);
+    data.push(['Optimal FTEs', resourcePlan.budgetConstrained.optimalFTEs?.toString() || '']);
+    data.push(['Budget FTEs', resourcePlan.budgetConstrained.budgetFTEs?.toString() || '']);
+  }
+
   const ws = XLSX.utils.aoa_to_sheet(data);
-  setColumnWidths(ws, [25, 30, 10, 12, 12, 40]);
+  setColumnWidths(ws, [30, 10, 15, 40, 40]);
   XLSX.utils.book_append_sheet(workbook, ws, 'Resources');
 }
 
 function addBudgetSheet(workbook: XLSX.WorkBook, program: any): void {
-  const budget = parseField(program?.budget);
+  const financialPlan = parseField(program?.financialPlan) || parseField(program?.budget);
   const workstreams = parseField(program?.workstreams) || [];
-  
-  const headers = ['Category', 'Item', 'Amount', 'Notes'];
+
+  const headers = ['Category', 'Amount', 'Percentage', 'Description'];
   const data = [headers];
-  
-  if (budget?.breakdown) {
-    for (const item of budget.breakdown) {
-      data.push([
-        item.category || 'General',
-        item.name || item.description,
-        formatCurrency(item.amount),
-        item.notes || '',
-      ]);
+
+  const costBreakdown = financialPlan?.costBreakdown || financialPlan?.breakdown || [];
+  for (const item of costBreakdown) {
+    data.push([
+      item.category || 'General',
+      formatCurrency(item.amount),
+      typeof item.percentage === 'number' ? `${item.percentage.toFixed(1)}%` : '',
+      item.description || item.name || '',
+    ]);
+  }
+
+  data.push(['']);
+  data.push(['BUDGET SUMMARY']);
+  data.push(['Total Budget', formatCurrency(financialPlan?.totalBudget || calculateTotalBudget(program))]);
+  data.push(['Contingency', formatCurrency(financialPlan?.contingency || 0)]);
+  data.push(['Contingency %', financialPlan?.contingencyPercentage ? `${financialPlan.contingencyPercentage}%` : '']);
+
+  if (financialPlan?.assumptions) {
+    data.push(['']);
+    data.push(['ASSUMPTIONS']);
+    for (const assumption of financialPlan.assumptions) {
+      data.push([assumption, '', '', '']);
     }
   }
-  
-  for (const ws of workstreams) {
-    if (ws.estimatedCost) {
+
+  if (financialPlan?.cashFlow && financialPlan.cashFlow.length > 0) {
+    data.push(['']);
+    data.push(['CASH FLOW']);
+    data.push(['Quarter', 'Amount', 'Cumulative', '']);
+    for (const cf of financialPlan.cashFlow) {
       data.push([
-        'Workstream',
-        ws.name,
-        formatCurrency(ws.estimatedCost),
+        `Q${cf.quarter}`,
+        formatCurrency(Math.abs(cf.amount)),
+        formatCurrency(Math.abs(cf.cumulative)),
         '',
       ]);
     }
   }
-  
-  data.push(['']);
-  data.push(['BUDGET SUMMARY']);
-  data.push(['Total Program Budget', '', formatCurrency(budget?.totalBudget || calculateTotalBudget(program))]);
-  data.push(['Contingency', '', formatCurrency(budget?.contingency || 0)]);
-  
+
   const ws = XLSX.utils.aoa_to_sheet(data);
-  setColumnWidths(ws, [20, 40, 15, 40]);
+  setColumnWidths(ws, [25, 15, 12, 40]);
   XLSX.utils.book_append_sheet(workbook, ws, 'Budget');
 }
 
@@ -359,36 +387,35 @@ function formatCurrency(amount: number | null | undefined): string {
 }
 
 function calculateTotalBudget(program: any): number {
-  const budget = parseField(program?.budget);
-  if (budget?.totalBudget) return budget.totalBudget;
-  
+  const financialPlan = parseField(program?.financialPlan) || parseField(program?.budget);
+  if (financialPlan?.totalBudget) return financialPlan.totalBudget;
+
   const workstreams = parseField(program?.workstreams) || [];
   return workstreams.reduce((sum: number, ws: any) => sum + (ws.estimatedCost || 0), 0);
 }
 
 function calculateTotalFTE(program: any): string {
   const resourcePlan = parseField(program?.resourcePlan);
-  if (resourcePlan?.summary?.totalFte) return resourcePlan.summary.totalFte.toFixed(2);
-  
-  const allocations = resourcePlan?.allocations || [];
-  const total = allocations.reduce((sum: number, a: any) => sum + (a.fte || 0), 0);
-  return total.toFixed(2);
+  if (resourcePlan?.totalFTEs) return resourcePlan.totalFTEs.toString();
+
+  const internalTeam = resourcePlan?.internalTeam || [];
+  const total = internalTeam.reduce((sum: number, r: any) => sum + (r.allocation || 1), 0);
+  return Math.ceil(total).toString();
 }
 
 function extractRoles(program: any): string[] {
   const resourcePlan = parseField(program?.resourcePlan);
-  const allocations = resourcePlan?.allocations || [];
-  
+  const internalTeam = resourcePlan?.internalTeam || [];
+
   const roles = new Set<string>();
-  for (const alloc of allocations) {
-    if (alloc.role) roles.add(alloc.role);
-    if (alloc.resourceType) roles.add(alloc.resourceType);
+  for (const member of internalTeam) {
+    if (member.role) roles.add(member.role);
   }
-  
+
   if (roles.size === 0) {
     return ['Project Manager', 'Lead', 'Developer', 'Analyst'];
   }
-  
+
   return Array.from(roles);
 }
 
