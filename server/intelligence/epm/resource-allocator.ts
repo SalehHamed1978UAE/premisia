@@ -14,10 +14,6 @@ export class ResourceAllocator {
   /**
    * Generate resource plan with internal team and external resources
    *
-   * SPRINT 6B - CONSTRAINT-FIRST ARCHITECTURE:
-   * This allocator NO LONGER computes maxAffordableFTEs internally.
-   * It receives estimatedFTEs from the upstream CapacityEnvelope.
-   *
    * CONTEXT-AWARE ROLE SELECTION:
    * 1. If strategyContext is provided, use ROLE_TEMPLATES (cafe → cafe roles, restaurant → restaurant roles)
    * 2. Fallback to LLM generation if no context
@@ -32,22 +28,22 @@ export class ResourceAllocator {
   ): Promise<ResourcePlan> {
     const resourceInsights = insights.insights.filter(i => i.type === 'resource');
 
-    // SPRINT 6B: Use capacityEnvelope's maxAffordableFTEs (computed upstream)
+    // Budget-aware FTE sizing (Sprint 6)
     const uncappedFTEs = Math.max(4, Math.min(workstreams.length * 2, 20));
-    const capacityEnvelope = (userContext as any)?.capacityEnvelope;
+    let estimatedFTEs = uncappedFTEs;
 
-    let estimatedFTEs: number;
-    if (capacityEnvelope) {
-      // Use pre-computed capacity from envelope
-      estimatedFTEs = capacityEnvelope.maxAffordableFTEs;
-      console.log(`[ResourceAllocator] SPRINT 6B - Using CapacityEnvelope:`);
-      console.log(`  Uncapped FTEs: ${uncappedFTEs}`);
-      console.log(`  Max affordable FTEs: ${estimatedFTEs} (from envelope)`);
-      console.log(`  Budget-constrained: ${capacityEnvelope.budgetConstrained ? 'YES' : 'NO'}`);
-    } else {
-      // Fallback to uncapped FTEs if no envelope (shouldn't happen in Sprint 6B)
-      estimatedFTEs = uncappedFTEs;
-      console.warn(`[ResourceAllocator] ⚠️ No CapacityEnvelope provided - using uncapped FTEs: ${estimatedFTEs}`);
+    if (userContext?.budgetRange?.max) {
+      // Reverse the cost formula: totalBudget = (FTEs * 150000 + external) * 1.15 * 1.10
+      // So: maxFTEs = floor((budgetMax / 1.265 - externalCost) / 150000)
+      const budgetMax = userContext.budgetRange.max;
+      const estimatedExternal = 100000; // Conservative estimate for external resources
+      const maxAffordableFTEs = Math.floor((budgetMax / 1.265 - estimatedExternal) / 150000);
+
+      if (maxAffordableFTEs < estimatedFTEs) {
+        console.warn(`[ResourceAllocator] Budget ($${(budgetMax / 1e6).toFixed(2)}M) constrains team to ${maxAffordableFTEs} FTEs (optimal: ${estimatedFTEs})`);
+      }
+
+      estimatedFTEs = Math.max(4, Math.min(estimatedFTEs, maxAffordableFTEs));
     }
 
     const finalInitiativeType = initiativeType || 'other';
@@ -73,53 +69,23 @@ export class ResourceAllocator {
       );
     }
 
-    // SPRINT 6B FIX #1: Use envelope's externalResources if available (math consistency)
-    const externalResources = capacityEnvelope?.externalResources || this.generateExternalResources(insights, userContext);
+    const externalResources = this.generateExternalResources(insights, userContext);
     const criticalSkills = Array.from(new Set(internalTeam.flatMap(r => r.skills)));
 
     // Calculate actual FTEs from generated roles (not formula estimate)
-    let actualFTEs = internalTeam.reduce((sum, r) => sum + (r.allocation || 1), 0);
-    let totalFTEs = Math.ceil(actualFTEs);
+    const actualFTEs = internalTeam.reduce((sum, r) => sum + (r.allocation || 1), 0);
+    const totalFTEs = Math.ceil(actualFTEs);
 
-    // SPRINT 6B FIX #2: ENFORCE capacity envelope (not just warn)
-    if (capacityEnvelope && totalFTEs > capacityEnvelope.maxAffordableFTEs) {
-      console.error(
-        `[ResourceAllocator] ❌ ENVELOPE VIOLATION: Generated ${totalFTEs} FTEs but envelope allows ${capacityEnvelope.maxAffordableFTEs}. ` +
-        `Scaling allocations to fit budget constraint.`
-      );
-
-      // Scale allocations proportionally to fit within envelope
-      internalTeam = this.enforceEnvelopeByScalingAllocations(
-        internalTeam,
-        capacityEnvelope.maxAffordableFTEs,
-        totalFTEs
-      );
-
-      // Recompute after scaling
-      actualFTEs = internalTeam.reduce((sum, r) => sum + (r.allocation || 1), 0);
-      totalFTEs = Math.ceil(actualFTEs);
-
-      console.log(`[ResourceAllocator] ✅ After scaling: ${totalFTEs} FTEs (target: ${capacityEnvelope.maxAffordableFTEs})`);
-    }
-
-    // ASSERT: totalFTEs MUST be <= envelope (fail-fast in dev/CI)
-    if (capacityEnvelope && totalFTEs > capacityEnvelope.maxAffordableFTEs) {
-      throw new Error(
-        `[ResourceAllocator] INVARIANT VIOLATED: totalFTEs=${totalFTEs} > maxAffordableFTEs=${capacityEnvelope.maxAffordableFTEs}. ` +
-        `Scaling logic failed to enforce envelope.`
-      );
-    }
-
-    // SPRINT 6B: Budget constraint gap warning (using envelope data)
+    // Budget constraint gap warning
     let budgetConstrained: ResourcePlan['budgetConstrained'];
-    if (capacityEnvelope?.budgetConstrained) {
+    if (userContext?.budgetRange?.max && estimatedFTEs < uncappedFTEs) {
       budgetConstrained = {
         optimalFTEs: uncappedFTEs,
         budgetFTEs: estimatedFTEs,
         gap: uncappedFTEs - estimatedFTEs,
-        warning: `Team sized to ${estimatedFTEs} FTEs to fit $${(capacityEnvelope.maxBudget / 1e6).toFixed(1)}M budget. Optimal staffing is ${uncappedFTEs} FTEs. Consider increasing budget or reducing scope.`,
+        warning: `Team sized to ${estimatedFTEs} FTEs to fit $${(userContext.budgetRange.max / 1e6).toFixed(1)}M budget. Optimal staffing is ${uncappedFTEs} FTEs. Consider increasing budget or reducing scope.`,
       };
-      console.log(`[ResourceAllocator] ⚠️ Budget constrained (from envelope): ${JSON.stringify(budgetConstrained)}`);
+      console.log(`[ResourceAllocator] ⚠️ Budget constrained: ${JSON.stringify(budgetConstrained)}`);
     }
 
     return {
@@ -479,90 +445,6 @@ Return ONLY valid JSON array of role objects. NO markdown, NO code blocks, ONLY 
     }
 
     return filtered;
-  }
-
-  /**
-   * SPRINT 6B FIX #2: Enforce capacity envelope by scaling allocations
-   *
-   * Strategy: Proportional scaling with floor (preserves role mix, systematic)
-   *
-   * HARDENING: Explicit minimum viable team guard
-   * - If trimming results in sub-minimum viable team, throws (HARD_CAP mode)
-   * - MIN_VIABLE_TEAM_FTE derived from domain policy (4 roles minimum)
-   *
-   * @param team - Generated roles (may exceed envelope)
-   * @param maxAffordableFTEs - Envelope limit (authoritative)
-   * @param currentTotalFTEs - Current total before scaling
-   * @returns Scaled team that fits within envelope
-   */
-  private enforceEnvelopeByScalingAllocations(
-    team: ResourceAllocation[],
-    maxAffordableFTEs: number,
-    currentTotalFTEs: number
-  ): ResourceAllocation[] {
-    const MIN_ROLE_FTE = 0.25; // Minimum allocation to keep role viable
-    const MIN_VIABLE_TEAM_FTE = 1.0; // 4 roles at 0.25 FTE each (domain policy)
-    const scaleFactor = maxAffordableFTEs / currentTotalFTEs;
-
-    console.log(`[ResourceAllocator] Scaling allocations by ${(scaleFactor * 100).toFixed(1)}%`);
-
-    const scaled = team.map(role => {
-      const originalAllocation = role.allocation || 1.0;
-      const scaledAllocation = originalAllocation * scaleFactor;
-
-      // Round to nearest quarter (0.25, 0.5, 0.75, 1.0, etc.)
-      const roundedAllocation = Math.round(scaledAllocation * 4) / 4;
-
-      // Apply floor to keep role viable
-      const finalAllocation = Math.max(MIN_ROLE_FTE, roundedAllocation);
-
-      if (originalAllocation !== finalAllocation) {
-        console.log(
-          `[ResourceAllocator]   ${role.role}: ${originalAllocation.toFixed(2)} → ${finalAllocation.toFixed(2)} FTE`
-        );
-      }
-
-      return {
-        ...role,
-        allocation: finalAllocation,
-        months: Math.ceil(role.months * (finalAllocation / originalAllocation)),
-      };
-    });
-
-    // Verify we didn't overshoot due to rounding + floors
-    const newTotal = scaled.reduce((sum, r) => sum + r.allocation, 0);
-    if (newTotal > maxAffordableFTEs) {
-      // Need second pass: trim smallest roles until we fit
-      console.warn(
-        `[ResourceAllocator] ⚠️ After rounding, total=${newTotal.toFixed(2)} still exceeds ${maxAffordableFTEs}. ` +
-        `Trimming smallest roles.`
-      );
-
-      // Sort by allocation ascending, remove smallest until we fit
-      const sorted = [...scaled].sort((a, b) => a.allocation - b.allocation);
-      let trimmed = sorted;
-      let runningTotal = newTotal;
-
-      for (let i = 0; i < sorted.length && runningTotal > maxAffordableFTEs; i++) {
-        runningTotal -= sorted[i].allocation;
-        trimmed = sorted.slice(i + 1);
-        console.log(`[ResourceAllocator]   Removed: ${sorted[i].role} (${sorted[i].allocation} FTE)`);
-      }
-
-      // HARDENING: Explicit minimum viable team guard (HARD_CAP mode)
-      const trimmedTotal = trimmed.reduce((sum, r) => sum + r.allocation, 0);
-      if (trimmedTotal < MIN_VIABLE_TEAM_FTE) {
-        throw new Error(
-          `[ResourceAllocator] Cannot fit minimum viable team within budget envelope. ` +
-          `After trimming: ${trimmedTotal.toFixed(2)} FTE < minimum ${MIN_VIABLE_TEAM_FTE} FTE. ` +
-          `Budget too low for viable program (${trimmed.length} roles remaining).`
-        );
-      }
-
-      return trimmed;
-    }
-
-    return scaled;
   }
 
   /**

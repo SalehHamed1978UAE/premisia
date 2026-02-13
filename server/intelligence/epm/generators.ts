@@ -38,6 +38,7 @@ import type {
   ExitStrategy,
   StrategyContext,
   RiskCategory,
+  Workstream,
 } from '../types';
 import { aiClients } from '../../ai-clients';
 import {
@@ -107,13 +108,6 @@ export class ExecutiveSummaryGenerator {
 
 /**
  * Financial Plan Generator
- *
- * SPRINT 6B - CONSTRAINT-FIRST ARCHITECTURE:
- * This generator NO LONGER caps budget post-hoc. It receives a resourcePlan
- * that has ALREADY been constrained by the CapacityEnvelope upstream.
- *
- * The generator simply computes costs from the constrained resource plan.
- * NO scaling, NO capping, NO contingency overflow.
  */
 export class FinancialPlanGenerator {
   async generate(
@@ -124,64 +118,31 @@ export class FinancialPlanGenerator {
   ): Promise<FinancialPlan> {
     const costInsights = insights.insights.filter(i => i.type === 'cost');
 
-    // SPRINT 6B: Direct cost computation from constrained resource plan
-    // No post-hoc capping needed - ResourceAllocator already constrained team size
     const personnelCost = resourcePlan.totalFTEs * 150000;
     const externalCost = resourcePlan.externalResources.reduce((sum, r) => sum + r.estimatedCost, 0);
     const overheadCost = (personnelCost + externalCost) * 0.15;
+    const computedBudget = personnelCost + externalCost + overheadCost;
+    const constraintMax = userContext?.budgetRange?.max;
+    // Sprint 6: Cap at constraint. Sprint 6.1: Reserve 10% for contingency within the cap
+    // so that totalBudget + contingency never exceeds constraintMax
+    const effectiveCap = constraintMax ? constraintMax / 1.10 : undefined;
+    const totalBudget = effectiveCap ? Math.min(effectiveCap, computedBudget) : computedBudget;
 
-    // Base budget before contingency
-    const baseBudget = personnelCost + externalCost + overheadCost;
-
-    // Cost breakdown (no scaling needed)
+    // Sprint 6.1: Scale breakdown amounts proportionally when budget is capped
+    const scaleFactor = totalBudget < computedBudget ? totalBudget / computedBudget : 1;
     const costBreakdown = [
-      { category: 'Personnel', amount: Math.round(personnelCost), percentage: (personnelCost / baseBudget) * 100, description: 'Internal team costs' },
-      { category: 'External Resources', amount: Math.round(externalCost), percentage: (externalCost / baseBudget) * 100, description: 'Consultants, software, services' },
-      { category: 'Overhead', amount: Math.round(overheadCost), percentage: (overheadCost / baseBudget) * 100, description: 'Infrastructure, admin, facilities' },
+      { category: 'Personnel', amount: Math.round(personnelCost * scaleFactor), percentage: (personnelCost / computedBudget) * 100, description: 'Internal team costs' },
+      { category: 'External Resources', amount: Math.round(externalCost * scaleFactor), percentage: (externalCost / computedBudget) * 100, description: 'Consultants, software, services' },
+      { category: 'Overhead', amount: Math.round(overheadCost * scaleFactor), percentage: (overheadCost / computedBudget) * 100, description: 'Infrastructure, admin, facilities' },
     ];
 
-    const contingency = baseBudget * 0.10;
+    const contingency = totalBudget * 0.10;
+    // Sprint 6: Use actual timeline months instead of hardcoded 12
     const programMonths = timelineMonths || userContext?.timelineRange?.max || 12;
-    const totalBudget = baseBudget + contingency;
     const cashFlow = this.generateCashFlow(totalBudget, programMonths);
 
-    console.log('[FinancialPlanGenerator] SPRINT 6B - No capping:');
-    console.log(`  Personnel: $${(personnelCost / 1e6).toFixed(2)}M`);
-    console.log(`  External: $${(externalCost / 1e6).toFixed(2)}M`);
-    console.log(`  Overhead: $${(overheadCost / 1e6).toFixed(2)}M`);
-    console.log(`  Base budget: $${(baseBudget / 1e6).toFixed(2)}M`);
-    console.log(`  Contingency: $${(contingency / 1e6).toFixed(2)}M (10%)`);
-    console.log(`  Total budget: $${(totalBudget / 1e6).toFixed(2)}M`);
-
-    // SPRINT 6B FIX #3: FAIL-FAST if budget exceeds constraint
-    // This should NEVER happen if envelope is enforced correctly upstream
-    const budgetMax = userContext?.budgetRange?.max;
-    if (budgetMax && totalBudget > budgetMax) {
-      const overage = totalBudget - budgetMax;
-      const overagePct = (overage / budgetMax) * 100;
-
-      console.error(
-        `[FinancialPlanGenerator] ❌ CONSTRAINT VIOLATION: totalBudget=$${(totalBudget / 1e6).toFixed(2)}M exceeds cap=$${(budgetMax / 1e6).toFixed(2)}M by $${(overage / 1e6).toFixed(2)}M (${overagePct.toFixed(1)}%). ` +
-        `This indicates ResourceAllocator did not respect CapacityEnvelope. Check envelope enforcement logic.`
-      );
-
-      throw new Error(
-        `Budget overflow: $${(totalBudget / 1e6).toFixed(2)}M > $${(budgetMax / 1e6).toFixed(2)}M. ` +
-        `ResourcePlan.totalFTEs=${resourcePlan.totalFTEs}, External=$${(externalCost / 1e6).toFixed(2)}M. ` +
-        `Envelope enforcement failed.`
-      );
-    }
-
-    // ASSERT for CI/dev
-    console.assert(
-      !budgetMax || totalBudget <= budgetMax,
-      `FinancialPlan exceeded budget: ${totalBudget} > ${budgetMax}`
-    );
-
-    console.log(`[FinancialPlanGenerator] ✅ Budget validation: $${(totalBudget / 1e6).toFixed(2)}M <= $${budgetMax ? (budgetMax / 1e6).toFixed(2) : '∞'}M`);
-
     return {
-      totalBudget,
+      totalBudget: totalBudget + contingency,
       costBreakdown,
       cashFlow,
       contingency,
@@ -191,7 +152,6 @@ export class FinancialPlanGenerator {
         `${resourcePlan.totalFTEs} FTEs for ${programMonths} months`,
         `15% overhead for infrastructure and support`,
         `10% contingency for risks and unknowns`,
-        `SPRINT 6B: Team size pre-constrained by CapacityEnvelope`,
       ],
       confidence: costInsights.length > 0 ? 0.65 : 0.55,
     };

@@ -251,8 +251,7 @@ export class EPMSynthesizer {
     const planningContext = await ContextBuilder.fromJourneyInsights(
       insights,
       insights.frameworkType || 'strategy_workspace',
-      userContext?.sessionId,
-      userContext?.budgetRange
+      userContext?.sessionId
     );
 
     console.log(`[EPM Synthesis] ✓ Planning context: Scale=${planningContext.business.scale}, Timeline=${planningContext.execution.timeline.min}-${planningContext.execution.timeline.max}mo`);
@@ -260,22 +259,6 @@ export class EPMSynthesizer {
     // SPRINT 1: Parse user constraints from input (not decisions)
     const userConstraints = this.parseUserConstraints(insights, planningContext);
     const enrichedUserContext = this.applyUserConstraintsToContext(userContext, userConstraints);
-
-    // SPRINT 6B: Compute capacity and timeline envelopes BEFORE any generator runs
-    console.log('[EPM Synthesis] 📊 Computing constraint envelopes...');
-    const capacityEnvelope = this.computeCapacityEnvelope(enrichedUserContext, workstreams, insights);
-    const timelineEnvelope = this.computeTimelineEnvelope(enrichedUserContext, workstreams);
-
-    // Attach envelopes to enrichedUserContext for downstream generators
-    const fullyEnrichedContext = {
-      ...enrichedUserContext,
-      capacityEnvelope,
-      timelineEnvelope,
-    };
-
-    console.log('[EPM Synthesis] ✓ Constraint envelopes computed:');
-    console.log(`  - Capacity: ${capacityEnvelope.maxAffordableFTEs} FTEs${capacityEnvelope.budgetConstrained ? ' (budget-constrained)' : ''}`);
-    console.log(`  - Timeline: ${timelineEnvelope.effectiveDuration} months${timelineEnvelope.timelineConstrained ? ' (time-constrained)' : ''}`);
 
     onProgress?.({
       type: 'step-start',
@@ -291,7 +274,7 @@ export class EPMSynthesizer {
     const planningConfig = {
       maxDuration: userConstraints.timeline?.max ?? planningContext.execution.timeline?.max,
       budget: userConstraints.budget?.max ?? planningContext.execution.budget?.max,
-      teamSize: fullyEnrichedContext?.teamAvailability?.currentTeamSize,
+      teamSize: enrichedUserContext?.teamAvailability?.currentTeamSize,
     };
 
     const planningResult = await replaceTimelineGeneration(
@@ -318,7 +301,7 @@ export class EPMSynthesizer {
         insights,
         scheduledWorkstreams,
         planningContext,
-        fullyEnrichedContext,
+        enrichedUserContext,
         namingContext,
         strategicContext,
         decisionValidation,
@@ -359,7 +342,7 @@ export class EPMSynthesizer {
         insights,
         timedWorkstreams, // Use WBS Builder workstreams with default timings
         planningContext,
-        fullyEnrichedContext,
+        enrichedUserContext,
         namingContext,
         strategicContext,
         decisionValidation,
@@ -512,139 +495,6 @@ export class EPMSynthesizer {
     }
 
     return base;
-  }
-
-  /**
-   * Compute Capacity Envelope - UPSTREAM budget-aware resource constraints
-   *
-   * SPRINT 6B FIX #1: Envelope computes ACTUAL external cost first (Option A)
-   * This ensures envelope and generator use the SAME external cost model.
-   *
-   * Formula: maxAffordableFTEs = floor((budgetMax / 1.265 - actualExternal) / 150000)
-   *   - budgetMax: User's stated maximum budget
-   *   - 1.265 = 1.15 (overhead) * 1.10 (contingency)
-   *   - actualExternal: Sum of generateExternalResources() costs
-   *   - 150000: Average annual cost per FTE
-   *
-   * Returns: CapacityEnvelope that defines resource limits for ALL generators
-   */
-  private computeCapacityEnvelope(
-    userContext: UserContext | undefined,
-    workstreams: Workstream[],
-    insights: StrategyInsights
-  ): any {
-    const budgetMax = userContext?.budgetRange?.max;
-
-    // CRITICAL FIX: Compute ACTUAL external resources using the same function
-    // that FinancialPlanGenerator will use. This closes the math loop.
-    const externalResources = this.resourceAllocator.generateExternalResources(insights, userContext);
-    const actualExternal = externalResources.reduce((sum, r) => sum + r.estimatedCost, 0);
-
-    console.log('[CapacityEnvelope] External cost authority:');
-    console.log(`  External resources: ${externalResources.length} items`);
-    console.log(`  Total external cost: $${(actualExternal / 1e6).toFixed(2)}M`);
-
-    if (!budgetMax) {
-      // No budget constraint - compute uncapped FTEs based on workstream complexity
-      const uncappedFTEs = Math.max(4, Math.min(workstreams.length * 2, 20));
-      return {
-        maxBudget: undefined,
-        estimatedExternal: actualExternal,
-        externalResources,  // Store for generator to reuse
-        maxAffordableFTEs: uncappedFTEs,
-        budgetConstrained: false,
-        infeasible: false,
-        capacityRationale: `Unconstrained: ${uncappedFTEs} FTEs based on ${workstreams.length} workstreams`,
-      };
-    }
-
-    // Budget-constrained: Compute maxAffordableFTEs from budget using ACTUAL external
-    const maxAffordableFTEs = Math.floor((budgetMax / 1.265 - actualExternal) / 150000);
-    const uncappedFTEs = Math.max(4, Math.min(workstreams.length * 2, 20));
-
-    // Check for infeasibility BEFORE enforcing floor
-    const infeasible = maxAffordableFTEs < 4;
-    if (infeasible) {
-      console.error(
-        `[CapacityEnvelope] ❌ INFEASIBLE: Budget $${(budgetMax / 1e6).toFixed(2)}M only supports ${maxAffordableFTEs} FTEs, ` +
-        `but minimum viable team is 4 FTEs. Forcing minFTEs=4, but final budget WILL EXCEED constraint.`
-      );
-    }
-
-    // Ensure minimum viable team (4 FTEs)
-    const effectiveFTEs = Math.max(4, maxAffordableFTEs);
-
-    console.log('[CapacityEnvelope] Budget-aware capacity:');
-    console.log(`  Budget: $${(budgetMax / 1e6).toFixed(2)}M`);
-    console.log(`  External: $${(actualExternal / 1e6).toFixed(2)}M (20% of budget)`);
-    console.log(`  Remaining for personnel: $${((budgetMax - actualExternal * 1.265) / 1e6).toFixed(2)}M`);
-    console.log(`  Max affordable FTEs: ${maxAffordableFTEs} (formula)`);
-    console.log(`  Uncapped FTEs: ${uncappedFTEs} (workstream-based)`);
-    console.log(`  Effective FTEs: ${effectiveFTEs} (min 4)`);
-
-    if (effectiveFTEs < uncappedFTEs) {
-      console.warn(`[CapacityEnvelope] ⚠️ Budget constrains team to ${effectiveFTEs} FTEs (optimal: ${uncappedFTEs})`);
-    }
-
-    return {
-      maxBudget: budgetMax,
-      estimatedExternal: actualExternal,
-      externalResources,  // Store for generator to reuse
-      maxAffordableFTEs: effectiveFTEs,
-      budgetConstrained: effectiveFTEs < uncappedFTEs,
-      infeasible,
-      capacityRationale: infeasible
-        ? `⚠️ INFEASIBLE: Budget too low for minimum viable team (requires 4 FTEs, budget supports ${maxAffordableFTEs})`
-        : effectiveFTEs < uncappedFTEs
-          ? `Budget-constrained: $${(budgetMax / 1e6).toFixed(1)}M supports ${effectiveFTEs} FTEs (optimal: ${uncappedFTEs})`
-          : `Budget supports ${effectiveFTEs} FTEs for ${workstreams.length} workstreams`,
-    };
-  }
-
-  /**
-   * Compute Timeline Envelope - UPSTREAM time-aware phase distribution
-   *
-   * SPRINT 6B: This runs BEFORE timeline generation, establishing the time budget
-   * within which ALL phases must be distributed.
-   *
-   * Endmonth semantics: EXCLUSIVE (e.g., [0, 24) means months 0-23)
-   *
-   * Returns: TimelineEnvelope that defines schedule limits for timeline calculator
-   */
-  private computeTimelineEnvelope(
-    userContext: UserContext | undefined,
-    workstreams: Workstream[]
-  ): any {
-    const maxMonths = userContext?.timelineRange?.max;
-    const minMonths = userContext?.timelineRange?.min;
-
-    if (!maxMonths) {
-      // No timeline constraint - use default 24-month window
-      const defaultDuration = 24;
-      return {
-        maxMonths: undefined,
-        minMonths: undefined,
-        effectiveDuration: defaultDuration,
-        includesBuffer: false,
-        timelineConstrained: false,
-        scheduleRationale: `Unconstrained: ${defaultDuration} months default`,
-      };
-    }
-
-    // Timeline-constrained: Use maxMonths as hard limit
-    console.log('[TimelineEnvelope] Time-aware schedule:');
-    console.log(`  Max months: ${maxMonths}`);
-    console.log(`  Min months: ${minMonths || 'not specified'}`);
-    console.log(`  Workstreams: ${workstreams.length}`);
-
-    return {
-      maxMonths,
-      minMonths,
-      effectiveDuration: maxMonths,
-      includesBuffer: true, // maxMonths includes stabilization buffer
-      timelineConstrained: true,
-      scheduleRationale: `Timeline-constrained: ${maxMonths} months hard limit`,
-    };
   }
 
   /**
@@ -1592,76 +1442,6 @@ export class EPMSynthesizer {
       } : undefined,
       constraints: userConstraints,
     };
-
-    // SPRINT 6B FIX #4: Validate 3 critical invariants (fail-fast)
-    console.log('\n═══════════════════════════════════════════════════════════');
-    console.log('[SPRINT 6B INVARIANT CHECK]');
-    console.log('═══════════════════════════════════════════════════════════');
-
-    const capacityEnvelope = (enrichedUserContext as any)?.capacityEnvelope;
-    const budgetMax = enrichedUserContext?.budgetRange?.max;
-    const timelineMax = enrichedUserContext?.timelineRange?.max;
-
-    // Display envelope state
-    if (capacityEnvelope) {
-      console.log(`\n[CapacityEnvelope]`);
-      console.log(`  maxBudget: $${capacityEnvelope.maxBudget ? (capacityEnvelope.maxBudget / 1e6).toFixed(2) + 'M' : 'unconstrained'}`);
-      console.log(`  estimatedExternal: $${(capacityEnvelope.estimatedExternal / 1e6).toFixed(2)}M`);
-      console.log(`  maxAffordableFTEs: ${capacityEnvelope.maxAffordableFTEs}`);
-      console.log(`  budgetConstrained: ${capacityEnvelope.budgetConstrained}`);
-      console.log(`  infeasible: ${capacityEnvelope.infeasible}`);
-    }
-
-    console.log(`\n[Actual Allocation]`);
-    console.log(`  resources.totalFTE: ${resourcePlan.totalFTEs}`);
-    console.log(`  financial.totalBudget: $${(financialPlan.totalBudget / 1e6).toFixed(2)}M`);
-    console.log(`  timeline.totalMonths: ${timeline.totalMonths}`);
-
-    // Validate invariants
-    console.log(`\n[Invariant Validation]`);
-
-    // Invariant 1: FTE bound
-    const invariant1Pass = !capacityEnvelope || resourcePlan.totalFTEs <= capacityEnvelope.maxAffordableFTEs;
-    console.log(
-      `  ${invariant1Pass ? '✅' : '❌'} Invariant 1 (FTE):  ${resourcePlan.totalFTEs} <= ${capacityEnvelope?.maxAffordableFTEs || '∞'} = ${invariant1Pass}`
-    );
-
-    // Invariant 2: Budget bound
-    const invariant2Pass = !budgetMax || financialPlan.totalBudget <= budgetMax;
-    const budgetOverage = budgetMax && !invariant2Pass ? financialPlan.totalBudget - budgetMax : 0;
-    console.log(
-      `  ${invariant2Pass ? '✅' : '❌'} Invariant 2 (Budget): $${(financialPlan.totalBudget / 1e6).toFixed(2)}M <= $${budgetMax ? (budgetMax / 1e6).toFixed(2) : '∞'}M = ${invariant2Pass}` +
-      (budgetOverage > 0 ? ` (overage: $${(budgetOverage / 1e6).toFixed(2)}M)` : '')
-    );
-
-    // Invariant 3: Timeline bound
-    const invariant3Pass = !timelineMax || timeline.totalMonths === timelineMax;
-    console.log(
-      `  ${invariant3Pass ? '✅' : '🟡'} Invariant 3 (Timeline): ${timeline.totalMonths} = ${timelineMax || 'unconstrained'} = ${invariant3Pass}`
-    );
-
-    const allInvariantsPass = invariant1Pass && invariant2Pass && invariant3Pass;
-    console.log(`\n[Overall] ${allInvariantsPass ? '✅ ALL INVARIANTS PASS' : '❌ INVARIANT FAILURE'}`);
-
-    if (!allInvariantsPass) {
-      console.error('[SPRINT 6B] ❌ CRITICAL: One or more invariants violated. Review envelope enforcement logic.');
-    }
-
-    console.log('═══════════════════════════════════════════════════════════\n');
-
-    // ASSERT for CI/dev (fail-fast)
-    if (!invariant1Pass) {
-      throw new Error(
-        `[SPRINT 6B] INVARIANT 1 VIOLATED: totalFTE=${resourcePlan.totalFTEs} > maxAffordableFTEs=${capacityEnvelope?.maxAffordableFTEs}. ` +
-        `ResourceAllocator enforcement failed.`
-      );
-    }
-    if (!invariant2Pass) {
-      throw new Error(
-        `[SPRINT 6B] INVARIANT 2 VIOLATED: totalBudget=$${(financialPlan.totalBudget / 1e6).toFixed(2)}M > budgetMax=$${(budgetMax! / 1e6).toFixed(2)}M. ` +
-        `Budget enforcement failed. Overage: $${(budgetOverage / 1e6).toFixed(2)}M`
-      );
-    }
 
     console.log('[EPM Synthesis] ✓ Program built successfully');
     console.log(`[EPM Synthesis]   Overall confidence: ${(overallConfidence * 100).toFixed(1)}%`);
