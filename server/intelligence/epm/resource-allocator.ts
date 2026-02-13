@@ -486,6 +486,10 @@ Return ONLY valid JSON array of role objects. NO markdown, NO code blocks, ONLY 
    *
    * Strategy: Proportional scaling with floor (preserves role mix, systematic)
    *
+   * HARDENING: Explicit minimum viable team guard
+   * - If trimming results in sub-minimum viable team, throws (HARD_CAP mode)
+   * - MIN_VIABLE_TEAM_FTE derived from domain policy (4 roles minimum)
+   *
    * @param team - Generated roles (may exceed envelope)
    * @param maxAffordableFTEs - Envelope limit (authoritative)
    * @param currentTotalFTEs - Current total before scaling
@@ -497,6 +501,7 @@ Return ONLY valid JSON array of role objects. NO markdown, NO code blocks, ONLY 
     currentTotalFTEs: number
   ): ResourceAllocation[] {
     const MIN_ROLE_FTE = 0.25; // Minimum allocation to keep role viable
+    const MIN_VIABLE_TEAM_FTE = 1.0; // 4 roles at 0.25 FTE each (domain policy)
     const scaleFactor = maxAffordableFTEs / currentTotalFTEs;
 
     console.log(`[ResourceAllocator] Scaling allocations by ${(scaleFactor * 100).toFixed(1)}%`);
@@ -542,6 +547,16 @@ Return ONLY valid JSON array of role objects. NO markdown, NO code blocks, ONLY 
         runningTotal -= sorted[i].allocation;
         trimmed = sorted.slice(i + 1);
         console.log(`[ResourceAllocator]   Removed: ${sorted[i].role} (${sorted[i].allocation} FTE)`);
+      }
+
+      // HARDENING: Explicit minimum viable team guard (HARD_CAP mode)
+      const trimmedTotal = trimmed.reduce((sum, r) => sum + r.allocation, 0);
+      if (trimmedTotal < MIN_VIABLE_TEAM_FTE) {
+        throw new Error(
+          `[ResourceAllocator] Cannot fit minimum viable team within budget envelope. ` +
+          `After trimming: ${trimmedTotal.toFixed(2)} FTE < minimum ${MIN_VIABLE_TEAM_FTE} FTE. ` +
+          `Budget too low for viable program (${trimmed.length} roles remaining).`
+        );
       }
 
       return trimmed;
