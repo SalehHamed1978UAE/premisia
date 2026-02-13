@@ -1652,18 +1652,42 @@ export class EPMSynthesizer {
 
     console.log('═══════════════════════════════════════════════════════════\n');
 
-    // ASSERT for CI/dev (fail-fast)
+    // ASSERT for CI/dev (fail-fast) - only throw for FTE violation (enforcement bug)
     if (!invariant1Pass) {
       throw new Error(
         `[SPRINT 6B] INVARIANT 1 VIOLATED: totalFTE=${resourcePlan.totalFTEs} > maxAffordableFTEs=${capacityEnvelope?.maxAffordableFTEs}. ` +
         `ResourceAllocator enforcement failed.`
       );
     }
-    if (!invariant2Pass) {
-      throw new Error(
-        `[SPRINT 6B] INVARIANT 2 VIOLATED: totalBudget=$${(financialPlan.totalBudget / 1e6).toFixed(2)}M > budgetMax=$${(budgetMax! / 1e6).toFixed(2)}M. ` +
-        `Budget enforcement failed. Overage: $${(budgetOverage / 1e6).toFixed(2)}M`
-      );
+
+    // DUAL-MODE EPM: For budget violations, ADD CONTRADICTION instead of throwing
+    // This allows cost discovery mode and user to see the gap
+    if (!invariant2Pass && budgetMax) {
+      console.warn(`[SPRINT 6B] ⚠️ Budget constraint exceeded - adding contradiction to executive summary`);
+
+      const shortfall = financialPlan.totalBudget - budgetMax;
+      const percentOver = Math.round((shortfall / budgetMax) * 100);
+      const extendedTimeline = Math.ceil(timeline.totalMonths * 1.3);
+
+      // Add as high-priority strategic imperative (contradiction)
+      executiveSummary.strategicImperatives.unshift({
+        action: `Resolve budget constraint violation: secure additional $${(shortfall / 1e6).toFixed(2)}M funding or reduce scope`,
+        priority: 'high',
+        rationale: `Your budget constraint is $${(budgetMax / 1e6).toFixed(2)}M, but your selected strategic decisions and required workstreams will cost $${(financialPlan.totalBudget / 1e6).toFixed(2)}M (${percentOver}% over budget). This includes $${(financialPlan.personnel / 1e6).toFixed(2)}M personnel (${resourcePlan.totalFTEs} FTEs), $${(financialPlan.external / 1e6).toFixed(2)}M external services, and $${(financialPlan.contingency / 1e6).toFixed(2)}M contingency. Options: (1) Secure additional $${(shortfall / 1e6).toFixed(2)}M funding, (2) Modify strategic decisions to reduce scope and costs, (3) Extend timeline to ${extendedTimeline} months to spread costs, or (4) Accept that this plan exceeds your stated budget and proceed with full funding.`
+      });
+
+      // Update executive summary to reflect budget situation
+      if (!budgetMax) {
+        // Cost discovery mode
+        executiveSummary.investmentRequired = `Your plan requires $${(financialPlan.totalBudget / 1e6).toFixed(2)}M over ${timeline.totalMonths} months with ${resourcePlan.totalFTEs} FTEs. This includes $${(financialPlan.personnel / 1e6).toFixed(2)}M personnel, $${(financialPlan.external / 1e6).toFixed(2)}M external services, $${(financialPlan.overhead / 1e6).toFixed(2)}M overhead, and $${(financialPlan.contingency / 1e6).toFixed(2)}M contingency (${financialPlan.contingencyPercentage}%). This establishes the investment needed for your strategic plan.`;
+      } else {
+        // Constrained mode with violation
+        executiveSummary.investmentRequired = `Budget constraint: $${(budgetMax / 1e6).toFixed(2)}M (specified). Actual cost: $${(financialPlan.totalBudget / 1e6).toFixed(2)}M. Shortfall: $${(shortfall / 1e6).toFixed(2)}M (${percentOver}% over). See contradictions above for resolution options.`;
+      }
+    } else if (!budgetMax) {
+      // Cost discovery mode - no budget set
+      console.log(`[DUAL-MODE EPM] 💡 Cost discovery mode - reporting requirements without constraint`);
+      executiveSummary.investmentRequired = `Your plan requires $${(financialPlan.totalBudget / 1e6).toFixed(2)}M over ${timeline.totalMonths} months with ${resourcePlan.totalFTEs} FTEs. This includes $${(financialPlan.personnel / 1e6).toFixed(2)}M personnel, $${(financialPlan.external / 1e6).toFixed(2)}M external services, $${(financialPlan.overhead / 1e6).toFixed(2)}M overhead, and $${(financialPlan.contingency / 1e6).toFixed(2)}M contingency (${financialPlan.contingencyPercentage}%). This establishes the investment needed for your strategic plan.`;
     }
 
     console.log('[EPM Synthesis] ✓ Program built successfully');
