@@ -154,6 +154,33 @@ export class FinancialPlanGenerator {
     console.log(`  Contingency: $${(contingency / 1e6).toFixed(2)}M (10%)`);
     console.log(`  Total budget: $${(totalBudget / 1e6).toFixed(2)}M`);
 
+    // SPRINT 6B FIX #3: FAIL-FAST if budget exceeds constraint
+    // This should NEVER happen if envelope is enforced correctly upstream
+    const budgetMax = userContext?.budgetRange?.max;
+    if (budgetMax && totalBudget > budgetMax) {
+      const overage = totalBudget - budgetMax;
+      const overagePct = (overage / budgetMax) * 100;
+
+      console.error(
+        `[FinancialPlanGenerator] ❌ CONSTRAINT VIOLATION: totalBudget=$${(totalBudget / 1e6).toFixed(2)}M exceeds cap=$${(budgetMax / 1e6).toFixed(2)}M by $${(overage / 1e6).toFixed(2)}M (${overagePct.toFixed(1)}%). ` +
+        `This indicates ResourceAllocator did not respect CapacityEnvelope. Check envelope enforcement logic.`
+      );
+
+      throw new Error(
+        `Budget overflow: $${(totalBudget / 1e6).toFixed(2)}M > $${(budgetMax / 1e6).toFixed(2)}M. ` +
+        `ResourcePlan.totalFTEs=${resourcePlan.totalFTEs}, External=$${(externalCost / 1e6).toFixed(2)}M. ` +
+        `Envelope enforcement failed.`
+      );
+    }
+
+    // ASSERT for CI/dev
+    console.assert(
+      !budgetMax || totalBudget <= budgetMax,
+      `FinancialPlan exceeded budget: ${totalBudget} > ${budgetMax}`
+    );
+
+    console.log(`[FinancialPlanGenerator] ✅ Budget validation: $${(totalBudget / 1e6).toFixed(2)}M <= $${budgetMax ? (budgetMax / 1e6).toFixed(2) : '∞'}M`);
+
     return {
       totalBudget,
       costBreakdown,
