@@ -14,15 +14,20 @@ export class ContextBuilder {
   /**
    * Build planning context from journey insights
    * Now ASYNC to fetch initiative type from database
+   *
+   * SPRINT 6B FIX: Accept explicit budget/timeline constraints to prevent re-extraction
+   * from AI-generated text that can overwrite user's original constraints.
    */
   static async fromJourneyInsights(
     insights: StrategyInsights,
     journeyType: string = 'strategy_workspace',
-    sessionId?: string
+    sessionId?: string,
+    explicitBudgetRange?: { min: number; max: number },
+    explicitTimelineRange?: { min: number; max: number }
   ): Promise<PlanningContext> {
     const scale = this.inferScale(insights);
-    let timelineRange = this.inferTimelineRange(scale, insights);
-    let budgetRange = this.inferBudgetRange(scale, insights);
+    let timelineRange = explicitTimelineRange || this.inferTimelineRange(scale, insights);
+    let budgetRange = explicitBudgetRange || this.inferBudgetRange(scale, insights);
     
     let initiativeType: string | undefined = undefined;
     let businessName: string = 'Unnamed Business';
@@ -86,17 +91,29 @@ export class ContextBuilder {
       console.log('[ContextBuilder] ⚠️ No sessionId provided, cannot fetch strategic context');
     }
 
-    const userConstraints = extractUserConstraintsFromText(
-      userInput || businessDescription,
-      insights.marketContext?.budgetRange
-    );
-    if (userConstraints.timeline) {
-      timelineRange = userConstraints.timeline;
-      console.log(`[ContextBuilder] ⏱ Using user timeline constraint: ${timelineRange.min}-${timelineRange.max} months`);
+    // SPRINT 6B FIX: Only extract constraints from text if NOT already provided explicitly
+    // This prevents overwriting user's original budget/timeline with AI-generated values
+    if (!explicitBudgetRange || !explicitTimelineRange) {
+      const userConstraints = extractUserConstraintsFromText(
+        userInput || businessDescription,
+        insights.marketContext?.budgetRange
+      );
+      if (userConstraints.timeline && !explicitTimelineRange) {
+        timelineRange = userConstraints.timeline;
+        console.log(`[ContextBuilder] ⏱ Extracted timeline from text: ${timelineRange.min}-${timelineRange.max} months`);
+      }
+      if (userConstraints.budget && !explicitBudgetRange) {
+        budgetRange = userConstraints.budget;
+        console.log(`[ContextBuilder] 💰 Extracted budget from text: $${budgetRange.min.toLocaleString()}-$${budgetRange.max.toLocaleString()}`);
+      }
     }
-    if (userConstraints.budget) {
-      budgetRange = userConstraints.budget;
-      console.log(`[ContextBuilder] 💰 Using user budget constraint: $${budgetRange.min.toLocaleString()}-$${budgetRange.max.toLocaleString()}`);
+
+    // Log the final constraints being used
+    if (explicitBudgetRange) {
+      console.log(`[ContextBuilder] ✅ Using EXPLICIT budget constraint: $${budgetRange.min.toLocaleString()}-$${budgetRange.max.toLocaleString()}`);
+    }
+    if (explicitTimelineRange) {
+      console.log(`[ContextBuilder] ✅ Using EXPLICIT timeline constraint: ${timelineRange.min}-${timelineRange.max} months`);
     }
     
     // Infer business type first, then use it for industry if not explicitly set

@@ -604,7 +604,11 @@ export const strategicUnderstanding = pgTable("strategic_understanding", {
   lastEnrichedBy: varchar("last_enriched_by", { length: 50 }),
   lastEnrichedAt: timestamp("last_enriched_at"),
   archived: boolean("archived").notNull().default(false),
-  
+
+  // Budget constraint (optional) - for dual-mode EPM (constrained vs discovery)
+  // Format: { amount?: number, timeline?: number } or null if not set
+  budgetConstraint: jsonb("budget_constraint"),
+
   // Strategy readiness metadata cache
   strategyMetadata: jsonb("strategy_metadata").default(sql`'{}'::jsonb`),
   // Format: { availableEntities: number, availableReferences: number, completedFrameworks: string[], clarificationsProvided: {}, confidence: number, lastUpdated: timestamp }

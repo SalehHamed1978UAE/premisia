@@ -397,7 +397,37 @@ async function processEPMGeneration(
           journeyTitle = understanding.title;
           console.log(`[EPM Generation] ✅ Journey title fetched: "${journeyTitle}"`);
         }
-        if (understanding?.userInput) {
+
+        // DUAL-MODE EPM: Check for explicit budget constraint first
+        const budgetConstraint = understanding?.budgetConstraint as { amount?: number; timeline?: number } | null;
+
+        if (budgetConstraint?.amount || budgetConstraint?.timeline) {
+          // MODE 2: Constrained Planning - user provided explicit budget
+          const updates: any = {};
+          if (budgetConstraint.amount) {
+            if (version.costMin == null) updates.costMin = budgetConstraint.amount;
+            if (version.costMax == null) updates.costMax = budgetConstraint.amount;
+            if (version.teamSizeMin == null || version.teamSizeMax == null) {
+              const teamSize = deriveTeamSizeFromBudget({ min: budgetConstraint.amount, max: budgetConstraint.amount });
+              if (version.teamSizeMin == null) updates.teamSizeMin = teamSize.min;
+              if (version.teamSizeMax == null) updates.teamSizeMax = teamSize.max;
+            }
+            console.log(`[EPM Generation] 🎯 Using EXPLICIT budget constraint: $${(budgetConstraint.amount / 1e6).toFixed(2)}M`);
+          }
+          if (budgetConstraint.timeline) {
+            if (version.timelineMonths == null) {
+              updates.timelineMonths = budgetConstraint.timeline;
+            }
+            console.log(`[EPM Generation] 🎯 Using EXPLICIT timeline constraint: ${budgetConstraint.timeline} months`);
+          }
+          if (Object.keys(updates).length > 0) {
+            await db.update(strategyVersions)
+              .set({ ...updates, updatedAt: new Date() })
+              .where(eq(strategyVersions.id, strategyVersionId));
+            console.log('[EPM Generation] ✅ Persisted explicit budget constraints to strategy_version:', updates);
+          }
+        } else if (understanding?.userInput) {
+          // MODE 1: Cost Discovery - no explicit budget, try to extract from text as fallback
           const userConstraints = extractUserConstraintsFromText(understanding.userInput);
           if (userConstraints.budget || userConstraints.timeline) {
             const updates: any = {};
@@ -409,21 +439,27 @@ async function processEPMGeneration(
                 if (version.teamSizeMin == null) updates.teamSizeMin = teamSize.min;
                 if (version.teamSizeMax == null) updates.teamSizeMax = teamSize.max;
               }
+              console.log(`[EPM Generation] 📝 Extracted budget from user input: $${(userConstraints.budget.max / 1e6).toFixed(2)}M`);
             }
             if (userConstraints.timeline) {
               if (version.timelineMonths == null) {
                 updates.timelineMonths = userConstraints.timeline.max || userConstraints.timeline.min;
               }
+              console.log(`[EPM Generation] 📝 Extracted timeline from user input: ${userConstraints.timeline.max} months`);
             }
             if (Object.keys(updates).length > 0) {
               await db.update(strategyVersions)
                 .set({ ...updates, updatedAt: new Date() })
                 .where(eq(strategyVersions.id, strategyVersionId));
-              console.log('[EPM Generation] ✅ Persisted user constraints to strategy_version:', updates);
+              console.log('[EPM Generation] ✅ Persisted extracted constraints to strategy_version:', updates);
             }
+          } else {
+            console.log('[EPM Generation] 💡 No budget constraint set - running in COST DISCOVERY mode');
           }
+        }
 
-          // Detect clarification conflicts in existing input and store in metadata
+        // Detect clarification conflicts in existing input and store in metadata
+        if (understanding?.userInput) {
           const clarifiedInput = ambiguityDetector.buildClarifiedInput(understanding.userInput, {});
           clarificationConflicts = extractConflictLines(clarifiedInput);
           if (clarificationConflicts.length > 0) {
@@ -441,6 +477,7 @@ async function processEPMGeneration(
             console.warn('[EPM Generation] ⚠️ Clarification conflicts detected:', clarificationConflicts);
           }
         }
+
         if (!understanding) {
           console.warn(`[EPM Generation] ⚠️ No strategic understanding found for id: ${version.sessionId}`);
         }

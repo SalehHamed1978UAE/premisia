@@ -19,6 +19,7 @@ import knowledgeRoutes from "./routes/knowledge";
 import marketingConsultantRoutes from "./routes/marketing-consultant";
 import strategiesHubRoutes from "./routes/strategies-hub";
 import epmCrudRoutes from "./routes/epm-crud";
+import epmDirectRoutes from "./routes/epm-direct";
 import ontologyRoutes from "./routes/ontology";
 import { moduleRegistryRouter } from "./routes/module-registry";
 import customJourneyBuilderRoutes from "./routes/custom-journey-builder";
@@ -315,6 +316,9 @@ Marketing and events: $3k/month`,
 
   // EPM CRUD routes (protected with auth)
   app.use("/api", requireAuth, epmCrudRoutes);
+
+  // EPM Direct synthesis routes (fast-path testing - protected with auth)
+  app.use("/api/epm", requireAuth, epmDirectRoutes);
 
   // Ontology routes (protected with auth)
   app.use("/api/ontology", requireAuth, ontologyRoutes);

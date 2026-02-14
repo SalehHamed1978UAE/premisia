@@ -248,10 +248,14 @@ export class EPMSynthesizer {
       elapsedSeconds: Math.round((Date.now() - processStartTime) / 1000)
     });
 
+    // SPRINT 6B FIX: Pass explicit budget/timeline constraints to prevent re-extraction
+    // from AI-generated text. Use constraints from decisionsWithPriority (user's original input).
     const planningContext = await ContextBuilder.fromJourneyInsights(
       insights,
       insights.frameworkType || 'strategy_workspace',
-      userContext?.sessionId
+      userContext?.sessionId,
+      userContext?.budgetRange,      // Pass explicit budget from strategy version
+      userContext?.timelineRange     // Pass explicit timeline from strategy version
     );
 
     console.log(`[EPM Synthesis] ✓ Planning context: Scale=${planningContext.business.scale}, Timeline=${planningContext.execution.timeline.min}-${planningContext.execution.timeline.max}mo`);
@@ -1443,6 +1447,103 @@ export class EPMSynthesizer {
       constraints: userConstraints,
     };
 
+<<<<<<< HEAD
+=======
+    // SPRINT 6B FIX #4: Validate 3 critical invariants (fail-fast)
+    console.log('\n═══════════════════════════════════════════════════════════');
+    console.log('[SPRINT 6B INVARIANT CHECK]');
+    console.log('═══════════════════════════════════════════════════════════');
+
+    const capacityEnvelope = (enrichedUserContext as any)?.capacityEnvelope;
+    const budgetMax = enrichedUserContext?.budgetRange?.max;
+    const timelineMax = enrichedUserContext?.timelineRange?.max;
+
+    // Display envelope state
+    if (capacityEnvelope) {
+      console.log(`\n[CapacityEnvelope]`);
+      console.log(`  maxBudget: $${capacityEnvelope.maxBudget ? (capacityEnvelope.maxBudget / 1e6).toFixed(2) + 'M' : 'unconstrained'}`);
+      console.log(`  estimatedExternal: $${(capacityEnvelope.estimatedExternal / 1e6).toFixed(2)}M`);
+      console.log(`  maxAffordableFTEs: ${capacityEnvelope.maxAffordableFTEs}`);
+      console.log(`  budgetConstrained: ${capacityEnvelope.budgetConstrained}`);
+      console.log(`  infeasible: ${capacityEnvelope.infeasible}`);
+    }
+
+    console.log(`\n[Actual Allocation]`);
+    console.log(`  resources.totalFTE: ${resourcePlan.totalFTEs}`);
+    console.log(`  financial.totalBudget: $${(financialPlan.totalBudget / 1e6).toFixed(2)}M`);
+    console.log(`  timeline.totalMonths: ${timeline.totalMonths}`);
+
+    // Validate invariants
+    console.log(`\n[Invariant Validation]`);
+
+    // Invariant 1: FTE bound
+    const invariant1Pass = !capacityEnvelope || resourcePlan.totalFTEs <= capacityEnvelope.maxAffordableFTEs;
+    console.log(
+      `  ${invariant1Pass ? '✅' : '❌'} Invariant 1 (FTE):  ${resourcePlan.totalFTEs} <= ${capacityEnvelope?.maxAffordableFTEs || '∞'} = ${invariant1Pass}`
+    );
+
+    // Invariant 2: Budget bound
+    const invariant2Pass = !budgetMax || financialPlan.totalBudget <= budgetMax;
+    const budgetOverage = budgetMax && !invariant2Pass ? financialPlan.totalBudget - budgetMax : 0;
+    console.log(
+      `  ${invariant2Pass ? '✅' : '❌'} Invariant 2 (Budget): $${(financialPlan.totalBudget / 1e6).toFixed(2)}M <= $${budgetMax ? (budgetMax / 1e6).toFixed(2) : '∞'}M = ${invariant2Pass}` +
+      (budgetOverage > 0 ? ` (overage: $${(budgetOverage / 1e6).toFixed(2)}M)` : '')
+    );
+
+    // Invariant 3: Timeline bound
+    const invariant3Pass = !timelineMax || timeline.totalMonths === timelineMax;
+    console.log(
+      `  ${invariant3Pass ? '✅' : '🟡'} Invariant 3 (Timeline): ${timeline.totalMonths} = ${timelineMax || 'unconstrained'} = ${invariant3Pass}`
+    );
+
+    const allInvariantsPass = invariant1Pass && invariant2Pass && invariant3Pass;
+    console.log(`\n[Overall] ${allInvariantsPass ? '✅ ALL INVARIANTS PASS' : '❌ INVARIANT FAILURE'}`);
+
+    if (!allInvariantsPass) {
+      console.error('[SPRINT 6B] ❌ CRITICAL: One or more invariants violated. Review envelope enforcement logic.');
+    }
+
+    console.log('═══════════════════════════════════════════════════════════\n');
+
+    // ASSERT for CI/dev (fail-fast) - only throw for FTE violation (enforcement bug)
+    if (!invariant1Pass) {
+      throw new Error(
+        `[SPRINT 6B] INVARIANT 1 VIOLATED: totalFTE=${resourcePlan.totalFTEs} > maxAffordableFTEs=${capacityEnvelope?.maxAffordableFTEs}. ` +
+        `ResourceAllocator enforcement failed.`
+      );
+    }
+
+    // DUAL-MODE EPM: For budget violations, ADD CONTRADICTION instead of throwing
+    // This allows cost discovery mode and user to see the gap
+    if (!invariant2Pass && budgetMax) {
+      console.warn(`[SPRINT 6B] ⚠️ Budget constraint exceeded - adding contradiction to executive summary`);
+
+      const shortfall = financialPlan.totalBudget - budgetMax;
+      const percentOver = Math.round((shortfall / budgetMax) * 100);
+      const extendedTimeline = Math.ceil(timeline.totalMonths * 1.3);
+
+      // Add as high-priority strategic imperative (contradiction)
+      executiveSummary.strategicImperatives.unshift({
+        action: `Resolve budget constraint violation: secure additional $${(shortfall / 1e6).toFixed(2)}M funding or reduce scope`,
+        priority: 'high',
+        rationale: `Your budget constraint is $${(budgetMax / 1e6).toFixed(2)}M, but your selected strategic decisions and required workstreams will cost $${(financialPlan.totalBudget / 1e6).toFixed(2)}M (${percentOver}% over budget). This includes $${(financialPlan.personnel / 1e6).toFixed(2)}M personnel (${resourcePlan.totalFTEs} FTEs), $${(financialPlan.external / 1e6).toFixed(2)}M external services, and $${(financialPlan.contingency / 1e6).toFixed(2)}M contingency. Options: (1) Secure additional $${(shortfall / 1e6).toFixed(2)}M funding, (2) Modify strategic decisions to reduce scope and costs, (3) Extend timeline to ${extendedTimeline} months to spread costs, or (4) Accept that this plan exceeds your stated budget and proceed with full funding.`
+      });
+
+      // Update executive summary to reflect budget situation
+      if (!budgetMax) {
+        // Cost discovery mode
+        executiveSummary.investmentRequired = `Your plan requires $${(financialPlan.totalBudget / 1e6).toFixed(2)}M over ${timeline.totalMonths} months with ${resourcePlan.totalFTEs} FTEs. This includes $${(financialPlan.personnel / 1e6).toFixed(2)}M personnel, $${(financialPlan.external / 1e6).toFixed(2)}M external services, $${(financialPlan.overhead / 1e6).toFixed(2)}M overhead, and $${(financialPlan.contingency / 1e6).toFixed(2)}M contingency (${financialPlan.contingencyPercentage}%). This establishes the investment needed for your strategic plan.`;
+      } else {
+        // Constrained mode with violation
+        executiveSummary.investmentRequired = `Budget constraint: $${(budgetMax / 1e6).toFixed(2)}M (specified). Actual cost: $${(financialPlan.totalBudget / 1e6).toFixed(2)}M. Shortfall: $${(shortfall / 1e6).toFixed(2)}M (${percentOver}% over). See contradictions above for resolution options.`;
+      }
+    } else if (!budgetMax) {
+      // Cost discovery mode - no budget set
+      console.log(`[DUAL-MODE EPM] 💡 Cost discovery mode - reporting requirements without constraint`);
+      executiveSummary.investmentRequired = `Your plan requires $${(financialPlan.totalBudget / 1e6).toFixed(2)}M over ${timeline.totalMonths} months with ${resourcePlan.totalFTEs} FTEs. This includes $${(financialPlan.personnel / 1e6).toFixed(2)}M personnel, $${(financialPlan.external / 1e6).toFixed(2)}M external services, $${(financialPlan.overhead / 1e6).toFixed(2)}M overhead, and $${(financialPlan.contingency / 1e6).toFixed(2)}M contingency (${financialPlan.contingencyPercentage}%). This establishes the investment needed for your strategic plan.`;
+    }
+
+>>>>>>> 9f7f6e3de4dc4102cdaa7171c6785c4120aced01
     console.log('[EPM Synthesis] ✓ Program built successfully');
     console.log(`[EPM Synthesis]   Overall confidence: ${(overallConfidence * 100).toFixed(1)}%`);
 
