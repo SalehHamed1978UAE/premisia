@@ -1447,8 +1447,6 @@ export class EPMSynthesizer {
       constraints: userConstraints,
     };
 
-<<<<<<< HEAD
-=======
     // SPRINT 6B FIX #4: Validate 3 critical invariants (fail-fast)
     console.log('\n═══════════════════════════════════════════════════════════');
     console.log('[SPRINT 6B INVARIANT CHECK]');
@@ -1543,7 +1541,6 @@ export class EPMSynthesizer {
       executiveSummary.investmentRequired = `Your plan requires $${(financialPlan.totalBudget / 1e6).toFixed(2)}M over ${timeline.totalMonths} months with ${resourcePlan.totalFTEs} FTEs. This includes $${(financialPlan.personnel / 1e6).toFixed(2)}M personnel, $${(financialPlan.external / 1e6).toFixed(2)}M external services, $${(financialPlan.overhead / 1e6).toFixed(2)}M overhead, and $${(financialPlan.contingency / 1e6).toFixed(2)}M contingency (${financialPlan.contingencyPercentage}%). This establishes the investment needed for your strategic plan.`;
     }
 
->>>>>>> 9f7f6e3de4dc4102cdaa7171c6785c4120aced01
     console.log('[EPM Synthesis] ✓ Program built successfully');
     console.log(`[EPM Synthesis]   Overall confidence: ${(overallConfidence * 100).toFixed(1)}%`);
 
