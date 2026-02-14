@@ -31,6 +31,10 @@ export interface ExtractUnderstandingOptions {
   sessionId: string;
   userInput: string;
   companyContext?: any;
+  budgetConstraint?: {
+    amount?: number;
+    timeline?: number;
+  } | null;
 }
 
 export interface EntityExtractionResult {
@@ -101,7 +105,12 @@ export class StrategicUnderstandingService {
     return normalizedInput.includes(normalizedSource);
   }
 
-  async getOrCreateUnderstanding(sessionId: string, userInput: string, companyContext?: any): Promise<StrategicUnderstanding> {
+  async getOrCreateUnderstanding(
+    sessionId: string,
+    userInput: string,
+    companyContext?: any,
+    budgetConstraint?: { amount?: number; timeline?: number } | null
+  ): Promise<StrategicUnderstanding> {
     // STEP 1: Check if understanding exists using secure service
     const existing = await getStrategicUnderstandingBySession(sessionId);
 
@@ -124,6 +133,7 @@ export class StrategicUnderstandingService {
     const understanding = {
       sessionId,
       userInput,
+      budgetConstraint: budgetConstraint || null,
       title,
       companyContext: companyContext || null,
       graphVersion: 1,
@@ -139,10 +149,10 @@ export class StrategicUnderstandingService {
   }
 
   async extractUnderstanding(options: ExtractUnderstandingOptions): Promise<{ understandingId: string; entities: EntityExtractionResult[] }> {
-    const { sessionId, userInput, companyContext } = options;
+    const { sessionId, userInput, companyContext, budgetConstraint } = options;
     
     // Get or create the strategic understanding record
-    const understanding = await this.getOrCreateUnderstanding(sessionId, userInput, companyContext);
+    const understanding = await this.getOrCreateUnderstanding(sessionId, userInput, companyContext, budgetConstraint);
 
     const systemPrompt = `You are a strategic insight extraction expert. Your ONLY job is to extract verifiable insights from user input. Return ONLY valid JSON (no markdown, no explanation).
 

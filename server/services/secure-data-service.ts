@@ -44,6 +44,10 @@ export interface SecureStrategicUnderstanding {
   id?: string;
   sessionId: string;
   userInput: string;
+  budgetConstraint?: {
+    amount?: number;
+    timeline?: number;
+  } | null;
   title?: string | null;
   initiativeType?: string | null;
   initiativeDescription?: string | null;

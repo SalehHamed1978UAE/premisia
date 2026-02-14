@@ -308,10 +308,53 @@ router.post('/validate-manual-location', async (req: Request, res: Response) => 
 
 router.post('/understanding', async (req: Request, res: Response) => {
   try {
-    const { input, clarifications, fileMetadata } = req.body;
+    const { input, clarifications, fileMetadata, budgetConstraint } = req.body;
 
     if (!input || !input.trim()) {
       return res.status(400).json({ error: 'Input text is required' });
+    }
+
+    const parseConstraintNumber = (value: unknown): number | undefined => {
+      if (value === null || value === undefined || value === '') return undefined;
+      if (typeof value === 'number') {
+        if (!Number.isFinite(value) || value <= 0) return undefined;
+        return Math.round(value);
+      }
+      if (typeof value === 'string') {
+        const normalized = value.replace(/[$,\s]/g, '');
+        if (!normalized) return undefined;
+        const parsed = Number(normalized);
+        if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
+        return Math.round(parsed);
+      }
+      return undefined;
+    };
+
+    let normalizedBudgetConstraint: { amount?: number; timeline?: number } | null = null;
+    if (budgetConstraint !== undefined && budgetConstraint !== null) {
+      if (typeof budgetConstraint !== 'object' || Array.isArray(budgetConstraint)) {
+        return res.status(400).json({
+          error: 'budgetConstraint must be an object with optional amount and timeline fields',
+        });
+      }
+
+      const amount = parseConstraintNumber((budgetConstraint as any).amount);
+      const timeline = parseConstraintNumber((budgetConstraint as any).timeline);
+
+      if ((budgetConstraint as any).amount !== undefined && amount === undefined) {
+        return res.status(400).json({ error: 'budgetConstraint.amount must be a positive number' });
+      }
+      if ((budgetConstraint as any).timeline !== undefined && timeline === undefined) {
+        return res.status(400).json({ error: 'budgetConstraint.timeline must be a positive number' });
+      }
+
+      normalizedBudgetConstraint = {};
+      if (amount !== undefined) normalizedBudgetConstraint.amount = amount;
+      if (timeline !== undefined) normalizedBudgetConstraint.timeline = timeline;
+
+      if (Object.keys(normalizedBudgetConstraint).length === 0) {
+        normalizedBudgetConstraint = null;
+      }
     }
 
     // If clarifications provided, incorporate them into the input + detect conflicts
@@ -348,6 +391,7 @@ router.post('/understanding', async (req: Request, res: Response) => {
       sessionId,
       userInput: finalInput,
       companyContext: null,
+      budgetConstraint: normalizedBudgetConstraint,
     });
 
     if (clarificationResult.conflicts.length > 0) {

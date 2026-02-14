@@ -12,6 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Badge } from "@/components/ui/badge";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ClarificationModal } from "@/components/ClarificationModal";
 
 const SUPPORTED_FORMATS = {
@@ -26,6 +27,11 @@ const SUPPORTED_FORMATS = {
 };
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+
+type BudgetConstraint = {
+  amount?: number;
+  timeline?: number;
+};
 
 export default function InputPage() {
   const [, setLocation] = useLocation();
@@ -48,6 +54,9 @@ export default function InputPage() {
   const journeyType = urlParams.get('journeyType');
   const [text, setText] = useState(prefilledText);
   const [isLoadingSummary, setIsLoadingSummary] = useState(false);
+  const [budgetMode, setBudgetMode] = useState<'none' | 'set'>('none');
+  const [budgetAmount, setBudgetAmount] = useState('');
+  const [budgetTimelineMonths, setBudgetTimelineMonths] = useState('');
 
   // Fetch strategic summary from Segment Discovery if discoveryId is present
   useEffect(() => {
@@ -301,6 +310,8 @@ export default function InputPage() {
     }, 300); // Update every 300ms for smoother feel
 
     try {
+      const budgetConstraint = buildBudgetConstraint();
+
       // Create understanding record with optional clarifications and file metadata
       const understandingResponse = await fetch('/api/strategic-consultant/understanding', {
         method: 'POST',
@@ -309,6 +320,7 @@ export default function InputPage() {
           input: input,
           clarifications: clarifications,
           fileMetadata: fileMetadata, // Pass file metadata for enrichment job creation
+          budgetConstraint: budgetConstraint || undefined,
           templateId: templateId || undefined // Pass template ID if running a custom journey
         })
       });
@@ -391,6 +403,26 @@ export default function InputPage() {
     if (file.type.startsWith('image/')) return <Image className="h-4 w-4" />;
     if (file.type.includes('spreadsheet') || file.type.includes('excel')) return <FileSpreadsheet className="h-4 w-4" />;
     return <FileText className="h-4 w-4" />;
+  };
+
+  const buildBudgetConstraint = (): BudgetConstraint | null => {
+    if (budgetMode !== 'set') return null;
+
+    const parseNumeric = (value: string): number | undefined => {
+      if (!value) return undefined;
+      const parsed = Number(value.replace(/[$,\s]/g, ''));
+      if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
+      return Math.round(parsed);
+    };
+
+    const amount = parseNumeric(budgetAmount);
+    const timeline = parseNumeric(budgetTimelineMonths);
+    if (!amount && !timeline) return null;
+
+    const constraint: BudgetConstraint = {};
+    if (amount) constraint.amount = amount;
+    if (timeline) constraint.timeline = timeline;
+    return constraint;
   };
 
   // Handle journey clarifications submission
@@ -781,6 +813,69 @@ export default function InputPage() {
                   disabled={isAnalyzing || isLoadingSummary}
                   className="resize-none"
                 />
+              </div>
+
+              <div className="space-y-3 rounded-lg border p-4">
+                <div className="space-y-1">
+                  <Label>Budget Constraint (Optional)</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Leave empty for cost discovery mode. Set budget/timeline to enforce constraints.
+                  </p>
+                </div>
+
+                <RadioGroup
+                  value={budgetMode}
+                  onValueChange={(value) => setBudgetMode(value as 'none' | 'set')}
+                  className="space-y-2"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="none" id="budget-mode-none" data-testid="radio-budget-none" />
+                    <Label htmlFor="budget-mode-none" className="font-normal">
+                      No - Help me discover costs
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="set" id="budget-mode-set" data-testid="radio-budget-set" />
+                    <Label htmlFor="budget-mode-set" className="font-normal">
+                      Yes - I have budget constraints
+                    </Label>
+                  </div>
+                </RadioGroup>
+
+                {budgetMode === 'set' && (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="budget-amount-input">Budget (USD)</Label>
+                      <Input
+                        id="budget-amount-input"
+                        data-testid="input-budget-amount"
+                        type="number"
+                        inputMode="numeric"
+                        min="1"
+                        step="1"
+                        placeholder="1800000"
+                        value={budgetAmount}
+                        onChange={(e) => setBudgetAmount(e.target.value)}
+                        disabled={isAnalyzing || isLoadingSummary}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="budget-timeline-input">Timeline (months)</Label>
+                      <Input
+                        id="budget-timeline-input"
+                        data-testid="input-budget-timeline"
+                        type="number"
+                        inputMode="numeric"
+                        min="1"
+                        step="1"
+                        placeholder="24"
+                        value={budgetTimelineMonths}
+                        onChange={(e) => setBudgetTimelineMonths(e.target.value)}
+                        disabled={isAnalyzing || isLoadingSummary}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
