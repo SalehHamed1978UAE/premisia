@@ -11,9 +11,9 @@ Rules:
 - Capture the core essence of the strategic question
 - Use clear, professional language
 - Focus on the key decision or scenario
-- Return ONLY the title text, nothing else
 - Do not use quotes around the title
-- Make it actionable and specific`;
+- Make it actionable and specific
+- Return your response as JSON with a single key "title"`;
 
   const userMessage = `Create a concise 5-8 word title for this strategic statement:\n\n"${statement}"`;
 
@@ -24,8 +24,14 @@ Rules:
       maxTokens: 100,
     });
 
-    // Clean up the response - remove quotes if present
-    let title = response.content.trim();
+    // Parse JSON response to extract title, with fallback to raw text
+    let title: string;
+    try {
+      const parsed = JSON.parse(response.content);
+      title = (parsed.title || response.content).trim();
+    } catch {
+      title = response.content.trim();
+    }
     title = title.replace(/^["']|["']$/g, '');
     
     // Truncate if too long (max 200 chars for DB)

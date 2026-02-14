@@ -269,7 +269,7 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
           systemPrompt,
           userMessage,
           maxTokens: 3000,
-        }, "anthropic");
+        });
 
         let parsed;
         

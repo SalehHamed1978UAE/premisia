@@ -101,8 +101,13 @@ export class AIClients {
       max_completion_tokens: maxTokens,
     });
 
+    const content = response.choices[0].message.content;
+    if (!content) {
+      throw new Error(`OpenAI returned empty content (finish_reason: ${response.choices[0].finish_reason})`);
+    }
+
     return {
-      content: response.choices[0].message.content || "",
+      content,
       provider: "openai",
       model: OPENAI_MODEL,
     };
@@ -125,6 +130,10 @@ export class AIClients {
     // Extract text content from response
     const textBlock = response.content.find(block => block.type === 'text');
     const content = textBlock && 'text' in textBlock ? textBlock.text : "";
+
+    if (!content) {
+      throw new Error(`Anthropic returned empty content (stop_reason: ${response.stop_reason})`);
+    }
 
     return {
       content,
@@ -156,8 +165,13 @@ export class AIClients {
       config,
     });
 
+    const content = response.text;
+    if (!content) {
+      throw new Error(`Gemini returned empty content`);
+    }
+
     return {
-      content: response.text || "",
+      content,
       provider: "gemini",
       model: GEMINI_MODEL,
     };
@@ -242,11 +256,11 @@ export class AIClients {
   }
 
   async callWithFallback(request: AIClientRequest, preferredProvider?: AIProvider): Promise<AIClientResponse> {
-    // Priority order: Ollama (free local) → Anthropic (Claude) → OpenAI (GPT-5) → Gemini
+    // Priority order: Ollama (free local) → OpenAI (GPT-5) → Anthropic (Claude) → Gemini
     // When USE_OLLAMA=true, Ollama is first; otherwise skip it
     const defaultOrder: AIProvider[] = process.env.USE_OLLAMA === "true"
-      ? ["ollama" as AIProvider, "anthropic", "openai", "gemini"]
-      : ["anthropic", "openai", "gemini"];
+      ? ["ollama" as AIProvider, "openai", "anthropic", "gemini"]
+      : ["openai", "anthropic", "gemini"];
     
     const providerOrder: AIProvider[] = preferredProvider 
       ? [preferredProvider, ...defaultOrder.filter(p => p !== preferredProvider)]
