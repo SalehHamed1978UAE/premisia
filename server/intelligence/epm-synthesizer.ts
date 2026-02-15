@@ -764,6 +764,7 @@ export class EPMSynthesizer {
 
       return {
         id: decision.id || `decision_${index + 1}`,
+        selectedOptionId: decision.selectedOptionId,
         title,
         optionLabel,
         optionDescription,
@@ -844,6 +845,7 @@ export class EPMSynthesizer {
     workstream: Workstream,
     seed: {
       id: string;
+      selectedOptionId?: string;
       title: string;
       optionLabel: string;
       optionDescription: string;
@@ -871,6 +873,16 @@ export class EPMSynthesizer {
     workstream.deliverables = [...decisionDeliverables, ...workstream.deliverables];
     this.resequenceDeliverables(workstream);
 
+    // Persist canonical decision linkage for integrity validation/export gates.
+    workstream.metadata = {
+      ...(workstream.metadata || {}),
+      decisionId: seed.id,
+      selectedOptionId: seed.selectedOptionId || null,
+      selectedOptionLabel: seed.optionLabel || null,
+      decisionTitle: seed.title || null,
+      decisionLinkSource: 'strategic_decision',
+    };
+
     if (seed.impactAreas.length > 0) {
       const impactLine = `Impact areas: ${seed.impactAreas.join(', ')}.`;
       if (!workstream.description.includes(impactLine)) {
@@ -889,6 +901,7 @@ export class EPMSynthesizer {
   private createDecisionWorkstream(
     seed: {
       id: string;
+      selectedOptionId?: string;
       title: string;
       optionLabel: string;
       optionDescription: string;
@@ -899,7 +912,7 @@ export class EPMSynthesizer {
     index: number,
     planningContext: PlanningContext
   ): Workstream {
-    const name = this.truncateText(`Decision Implementation: ${seed.optionLabel || seed.title}`, 72);
+    const name = `Decision Implementation: ${seed.optionLabel || seed.title}`;
     const description = [
       `Implements selected decision: ${seed.title}.`,
       seed.optionDescription ? `Option detail: ${seed.optionDescription}` : null,
@@ -921,6 +934,13 @@ export class EPMSynthesizer {
       endMonth,
       dependencies: [],
       confidence: 0.9,
+      metadata: {
+        decisionId: seed.id,
+        selectedOptionId: seed.selectedOptionId || null,
+        selectedOptionLabel: seed.optionLabel || null,
+        decisionTitle: seed.title || null,
+        decisionLinkSource: 'strategic_decision',
+      },
     };
 
     this.resequenceDeliverables(workstream);
@@ -930,6 +950,7 @@ export class EPMSynthesizer {
   private buildDecisionDeliverables(
     seed: {
       id: string;
+      selectedOptionId?: string;
       title: string;
       optionLabel: string;
       optionDescription: string;
@@ -2226,19 +2247,37 @@ export class EPMSynthesizer {
         .map((deliverable) => `${deliverable?.name || ''} ${deliverable?.description || ''}`)
         .join(' ');
       const nameText = `${workstream.name || ''}`.toLowerCase();
+      const decisionLink = this.extractDecisionLinkFromWorkstream(workstream);
       return {
         id: workstream.id,
         name: workstream.name,
         nameText,
         isDecisionImplementation: nameText.includes('decision implementation'),
+        decisionLink,
         text: `${workstream.name || ''} ${workstream.description || ''} ${deliverableText}`.toLowerCase(),
       };
     });
+    const linkedOptionIds = new Set(
+      searchableWorkstreams
+        .map((workstream) => workstream.decisionLink.selectedOptionId)
+        .filter((value): value is string => typeof value === 'string' && value.length > 0)
+    );
+    const linkedDecisionIds = new Set(
+      searchableWorkstreams
+        .map((workstream) => workstream.decisionLink.decisionId)
+        .filter((value): value is string => typeof value === 'string' && value.length > 0)
+    );
 
     for (const decision of selectedDecisions) {
       const selectedOption = decision.options.find((option: any) => option.id === decision.selectedOptionId);
       if (!selectedOption) {
         issues.push(`Decision "${decision.id || decision.question || 'unknown'}" selected option id "${decision.selectedOptionId}" not found in options.`);
+        continue;
+      }
+      if (typeof decision.selectedOptionId === 'string' && linkedOptionIds.has(decision.selectedOptionId)) {
+        continue;
+      }
+      if (typeof decision.id === 'string' && linkedDecisionIds.has(decision.id)) {
         continue;
       }
 
@@ -2265,6 +2304,40 @@ export class EPMSynthesizer {
     }
 
     return { issues };
+  }
+
+  private extractDecisionLinkFromWorkstream(workstream: Workstream): {
+    decisionId?: string;
+    selectedOptionId?: string;
+  } {
+    const metadata = workstream?.metadata as Record<string, any> | undefined;
+    if (!metadata || typeof metadata !== 'object') {
+      return {};
+    }
+    const decisionIdCandidates = [
+      metadata.decisionId,
+      metadata.decision_id,
+      metadata.decisionLink?.decisionId,
+      metadata.decisionLink?.decision_id,
+    ];
+    const selectedOptionCandidates = [
+      metadata.selectedOptionId,
+      metadata.selected_option_id,
+      metadata.decisionLink?.selectedOptionId,
+      metadata.decisionLink?.selected_option_id,
+    ];
+
+    const decisionId = decisionIdCandidates.find(
+      (value): value is string => typeof value === 'string' && value.trim().length > 0
+    );
+    const selectedOptionId = selectedOptionCandidates.find(
+      (value): value is string => typeof value === 'string' && value.trim().length > 0
+    );
+
+    return {
+      decisionId,
+      selectedOptionId,
+    };
   }
 
   private matchesDecisionLabel(haystackRaw: string, labelRaw: string): boolean {

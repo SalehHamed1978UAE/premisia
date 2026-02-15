@@ -52,6 +52,7 @@ export interface Workstream {
   endMonth: number;
   dependencies: string[]; // IDs of other workstreams
   confidence: number;
+  metadata?: Record<string, any>;
 }
 
 export interface Deliverable {

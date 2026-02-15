@@ -276,7 +276,13 @@ function normalizeText(value: unknown): string {
     .trim();
 }
 
-function deriveSelectedDecisionLabels(strategyData: any): string[] {
+interface SelectedDecisionRecord {
+  decisionId?: string;
+  selectedOptionId?: string;
+  label: string;
+}
+
+function deriveSelectedDecisions(strategyData: any): SelectedDecisionRecord[] {
   const strategyVersion = strategyData?.strategyVersion || {};
   const normalizedFromVersion = normalizeStrategicDecisions(
     strategyVersion?.decisionsData,
@@ -291,16 +297,47 @@ function deriveSelectedDecisionLabels(strategyData: any): string[] {
     ? normalizedFromVersion.decisions
     : normalizedTopLevel.decisions;
 
-  const labels: string[] = [];
+  const selected: SelectedDecisionRecord[] = [];
   for (const decision of decisionCandidates) {
     const options = Array.isArray(decision?.options) ? decision.options : [];
     const selectedOption = options.find((option: any) => option?.id === decision?.selectedOptionId);
     const label = selectedOption?.label || selectedOption?.name || null;
     if (typeof label === 'string' && label.trim().length > 0) {
-      labels.push(label.trim());
+      selected.push({
+        decisionId: typeof decision?.id === 'string' ? decision.id : undefined,
+        selectedOptionId: typeof decision?.selectedOptionId === 'string' ? decision.selectedOptionId : undefined,
+        label: label.trim(),
+      });
     }
   }
-  return labels;
+  return selected;
+}
+
+function extractDecisionLink(workstream: any): { decisionId?: string; selectedOptionId?: string } {
+  const metadata = workstream?.metadata;
+  if (!metadata || typeof metadata !== 'object') return {};
+
+  const decisionIdCandidates = [
+    metadata.decisionId,
+    metadata.decision_id,
+    metadata.decisionLink?.decisionId,
+    metadata.decisionLink?.decision_id,
+  ];
+  const selectedOptionCandidates = [
+    metadata.selectedOptionId,
+    metadata.selected_option_id,
+    metadata.decisionLink?.selectedOptionId,
+    metadata.decisionLink?.selected_option_id,
+  ];
+
+  const decisionId = decisionIdCandidates.find(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0
+  );
+  const selectedOptionId = selectedOptionCandidates.find(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0
+  );
+
+  return { decisionId, selectedOptionId };
 }
 
 function hasLabelMatch(workstreams: any[], label: string): boolean {
@@ -511,9 +548,19 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
     }
   }
 
-  const selectedDecisionLabels = deriveSelectedDecisionLabels(strategyData);
-  if (selectedDecisionLabels.length > 0 && workstreams.length > 0) {
-    const missingLabels = selectedDecisionLabels.filter((label) => !hasLabelMatch(workstreams, label));
+  const selectedDecisions = deriveSelectedDecisions(strategyData);
+  if (selectedDecisions.length > 0 && workstreams.length > 0) {
+    const links = workstreams.map((workstream: any) => extractDecisionLink(workstream));
+    const missingLabels = selectedDecisions
+      .filter((decision: SelectedDecisionRecord) => {
+        const linkMatch = links.some((link: { decisionId?: string; selectedOptionId?: string }) =>
+          (decision.selectedOptionId && link.selectedOptionId === decision.selectedOptionId) ||
+          (decision.decisionId && link.decisionId === decision.decisionId)
+        );
+        if (linkMatch) return false;
+        return !hasLabelMatch(workstreams, decision.label);
+      })
+      .map((decision: SelectedDecisionRecord) => decision.label);
     if (missingLabels.length > 0) {
       criticalIssues.push({
         severity: 'critical',
