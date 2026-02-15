@@ -1,6 +1,7 @@
 import { getJourney } from '../../journey/journey-registry';
 import { qualityGateRunner } from '../../intelligence/epm/validators/quality-gate-runner';
 import { deriveConstraintMode, shouldEnforceConstraints } from '../../intelligence/epm/constraint-policy';
+import { hasBudgetConstraintSignal } from '../../intelligence/epm/constraint-utils';
 import { normalizeStrategicDecisions } from '../../utils/decision-selection';
 
 type Severity = 'critical' | 'warning';
@@ -647,6 +648,22 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
   );
   const effectiveConstraintMode = deriveConstraintMode(explicitConstraintMode, hasAnyConstraint);
   const enforceConstraints = shouldEnforceConstraints(effectiveConstraintMode);
+  const understandingInput = typeof strategyData?.understanding?.userInput === 'string'
+    ? strategyData.understanding.userInput
+    : (typeof epmData?.userInputStructured?.raw === 'string' ? epmData.userInputStructured.raw : '');
+  const hasBudgetSignalInInput = hasBudgetConstraintSignal(understandingInput || '');
+
+  if (effectiveConstraintMode === 'discovery' && hasBudgetSignalInInput) {
+    criticalIssues.push({
+      severity: 'critical',
+      code: 'DISCOVERY_MODE_BUDGET_SIGNAL_MISMATCH',
+      message: 'Budget intent detected in strategic input while export remains in discovery mode',
+      details: {
+        constraintMode: effectiveConstraintMode,
+      },
+    });
+  }
+
   const financialPlan = parseJson(epmData.program?.financialPlan) || epmData.financialPlan || null;
   const totalBudget = Number(financialPlan?.totalBudget ?? epmData.program?.totalBudget);
   const costMax = Number(constraints?.costMax);

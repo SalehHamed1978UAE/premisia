@@ -3,29 +3,74 @@ export type UserConstraints = {
   timeline?: { min: number; max: number };
 };
 
+const TIMELINE_CONTEXT_PATTERN =
+  /(?:timeline|runway|over|within|for\s+first|for)\s*[^\n]{0,60}?(\d+)(?:\s*(?:-|to)\s*(\d+))?\s*(months?|mo|years?|yrs?|quarters?|qtrs?)/i;
+const CURRENCY_BUDGET_PATTERN =
+  /(?:budget|funding|investment|spend|allocation|runway)[^$\n]{0,80}\$\s*\d+(?:\.\d+)?\s*(?:million|mil|m|k|thousand)?(?:\s*(?:-|to)\s*\$\s*\d+(?:\.\d+)?\s*(?:million|mil|m|k|thousand)?)?/i;
+const PLAIN_BUDGET_PATTERN =
+  /(?:budget|funding|investment|spend|allocation|runway)[^$\n]{0,80}\b\d+(?:\.\d+)?\s*(?:million|mil|k|thousand)\b(?:\s*(?:-|to)\s*\b\d+(?:\.\d+)?\s*(?:million|mil|k|thousand)\b)?/i;
+const BUDGET_SIGNAL_PATTERN =
+  /(?:budget|funding|investment|spend|allocation|runway|cost\s*cap|max(?:imum)?|cap|limit)[^$\n]{0,80}\$?\s*\d+(?:\.\d+)?\s*(?:million|mil|m|k|thousand|billion|bn)?/i;
+const DOLLAR_TIMELINE_SIGNAL_PATTERN =
+  /\$\s*\d+(?:\.\d+)?\s*(?:million|mil|m|k|thousand|billion|bn)?\s*(?:over|within|for)\s*\d+\s*(?:months?|mo|years?|yrs?|quarters?|qtrs?)/i;
+const DISCOVERY_OPT_OUT_PATTERN =
+  /\b(no\s+budget|without\s+budget|help\s+me\s+discover\s+costs|discover\s+costs|cost\s+discovery)\b/i;
+const EXPLICIT_LIMIT_SIGNAL_PATTERN =
+  /(?:max(?:imum)?|cap|limit|ceiling|at\s+most|up\s+to)[^$\n]{0,40}\$?\s*\d+(?:\.\d+)?\s*(?:million|mil|m|k|thousand|billion|bn)?|\$\s*\d+(?:\.\d+)?\s*(?:million|mil|m|k|thousand|billion|bn)?[^$\n]{0,40}(?:max(?:imum)?|cap|limit|ceiling|at\s+most|up\s+to)/i;
+
+function findTimelineInput(rawInput: string): string | undefined {
+  return rawInput.match(TIMELINE_CONTEXT_PATTERN)?.[0];
+}
+
+function findBudgetInput(
+  rawInput: string,
+  timelineInput?: string,
+  fallbackBudget?: string
+): string | undefined {
+  const budgetSearchInput = timelineInput ? rawInput.replace(timelineInput, '') : rawInput;
+  const budgetContextMatch = budgetSearchInput.match(CURRENCY_BUDGET_PATTERN)
+    || budgetSearchInput.match(PLAIN_BUDGET_PATTERN);
+  return budgetContextMatch?.[0] || fallbackBudget;
+}
+
+export function hasBudgetConstraintSignal(
+  rawInput: string,
+  fallbackBudget?: string
+): boolean {
+  const input = rawInput || '';
+  const timelineInput = findTimelineInput(input);
+  const budgetInput = findBudgetInput(input, timelineInput, fallbackBudget);
+  const hasDiscoveryOptOut = DISCOVERY_OPT_OUT_PATTERN.test(input);
+  const hasExplicitLimitSignal = EXPLICIT_LIMIT_SIGNAL_PATTERN.test(input);
+
+  if (hasDiscoveryOptOut && !hasExplicitLimitSignal) {
+    return false;
+  }
+
+  if (budgetInput) return true;
+  return BUDGET_SIGNAL_PATTERN.test(input) || DOLLAR_TIMELINE_SIGNAL_PATTERN.test(input);
+}
+
 export function extractUserConstraintsFromText(
   rawInput: string,
   fallbackBudget?: string
 ): UserConstraints {
   const constraints: UserConstraints = {};
   const input = rawInput || '';
+  const hasDiscoveryOptOut = DISCOVERY_OPT_OUT_PATTERN.test(input);
+  const hasExplicitLimitSignal = EXPLICIT_LIMIT_SIGNAL_PATTERN.test(input);
 
   console.log('[Constraints] Parsing USER constraints from input...');
 
-  const timelineContextPattern =
-    /(?:timeline|runway|over|within|for\s+first)[^\n]{0,60}?(\d+)(?:\s*(?:-|to)\s*(\d+))?\s*(months?|mo|years?|yrs?|quarters?|qtrs?)/i;
-  const timelineContextMatch = input.match(timelineContextPattern);
-  const timelineInput = timelineContextMatch?.[0];
-
-  const currencyBudgetPattern =
-    /(?:budget|funding|investment|spend|allocation|runway)[^$\n]{0,80}\$\s*\d+(?:\.\d+)?\s*(?:million|mil|m|k|thousand)?(?:\s*(?:-|to)\s*\$\s*\d+(?:\.\d+)?\s*(?:million|mil|m|k|thousand)?)?/i;
-  const plainBudgetPattern =
-    /(?:budget|funding|investment|spend|allocation|runway)[^$\n]{0,80}\b\d+(?:\.\d+)?\s*(?:million|mil|k|thousand)\b(?:\s*(?:-|to)\s*\b\d+(?:\.\d+)?\s*(?:million|mil|k|thousand)\b)?/i;
-
-  const budgetSearchInput = timelineInput ? input.replace(timelineInput, '') : input;
-  const budgetContextMatch = budgetSearchInput.match(currencyBudgetPattern)
-    || budgetSearchInput.match(plainBudgetPattern);
-  const budgetInput = budgetContextMatch?.[0] || fallbackBudget;
+  const timelineInput = findTimelineInput(input);
+  let budgetInput = findBudgetInput(input, timelineInput, fallbackBudget);
+  if (hasDiscoveryOptOut && !hasExplicitLimitSignal) {
+    budgetInput = undefined;
+  }
+  if (!budgetInput && hasBudgetConstraintSignal(input, fallbackBudget)) {
+    // Fallback to full text parsing when a budget signal exists but doesn't match strict context extraction.
+    budgetInput = input;
+  }
 
   if (budgetInput) {
     console.log(`[Constraints] Found user budget input: "${budgetInput}"`);

@@ -1137,9 +1137,10 @@ export class StageGateGenerator {
         .map((id) => workstreamById.get(id))
         .filter((ws): ws is Workstream => !!ws);
 
-      // Required workstreams should complete by the end of the phase
+      // Gate deliverables should reflect workstreams completing in THIS phase window,
+      // not every workstream completed up to this phase (prevents gate carry-over duplication).
       const requiredWorkstreams = phaseWorkstreams.filter(
-        (ws) => ws.endMonth <= phase.endMonth
+        (ws) => ws.endMonth >= phase.startMonth && ws.endMonth <= phase.endMonth
       );
 
       const deliverables = requiredWorkstreams.flatMap((ws) => {
@@ -1151,6 +1152,16 @@ export class StageGateGenerator {
         }
         return [`${ws.name} — phase complete`];
       });
+      const uniqueDeliverables = Array.from(
+        new Set(
+          deliverables
+            .map((item) => item?.trim())
+            .filter((item): item is string => Boolean(item))
+        )
+      );
+      if (uniqueDeliverables.length === 0) {
+        uniqueDeliverables.push(`${phase.name} completion review package`);
+      }
 
       return {
         gate: idx + 1,
@@ -1167,7 +1178,7 @@ export class StageGateGenerator {
           `Budget overrun >20%`,
           `${riskRegister.topRisks.slice(0, 2).map(r => `Risk ${r.id} realized`).join(' OR ')}`,
         ],
-        deliverables,
+        deliverables: uniqueDeliverables,
         confidence: 0.85,
       };
     });
@@ -1223,13 +1234,7 @@ export class KPIGenerator {
 
   private generateKPIName(benefit: Benefit): string {
     const base = this.summarizeBenefitName(benefit);
-    const measurement = benefit.measurement?.trim();
-    if (!measurement) return base;
-    const measurementCore = measurement.split(/[;,.]/)[0]?.trim();
-    if (!measurementCore) return base;
-    const baseLower = base.toLowerCase();
-    if (baseLower.includes(measurementCore.toLowerCase())) return base;
-    return `${base} (${measurementCore})`;
+    return base;
   }
 
   private summarizeBenefitName(benefit: Benefit): string {

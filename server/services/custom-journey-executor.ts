@@ -53,6 +53,7 @@ import { FiveWhysCoach } from './five-whys-coach';
 import { SegmentDiscoveryEngine } from './segment-discovery-engine';
 import { OKRGenerator } from '../intelligence/okr-generator';
 import { EPMSynthesizer } from '../intelligence/epm-synthesizer';
+import { extractUserConstraintsFromText } from '../intelligence/epm/constraint-utils';
 import { createOpenAIProvider } from '../../src/lib/intelligent-planning/llm-provider';
 
 // Module ID mapping: registry keys (swot) -> analyzer IDs (swot-analyzer)
@@ -327,16 +328,16 @@ export class CustomJourneyExecutor {
                   // Extract budget/timeline constraints from user input for dual-mode EPM
                   let budgetConstraintValue: { amount?: number; timeline?: number } | null = null;
                   if (userInputText) {
-                    const budgetMatch = userInputText.match(/\$\s*(\d+(?:\.\d+)?)\s*(million|mil|m|M)\b/i);
-                    const timelineMatch = userInputText.match(/(\d+)\s*months?\b/i);
-                    if (budgetMatch || timelineMatch) {
+                    const extractedConstraints = extractUserConstraintsFromText(userInputText);
+                    if (extractedConstraints.budget || extractedConstraints.timeline) {
                       budgetConstraintValue = {};
-                      if (budgetMatch) {
-                        budgetConstraintValue.amount = parseFloat(budgetMatch[1]) * 1_000_000;
+                      if (extractedConstraints.budget) {
+                        // Store explicit budget ceiling as the constrained amount.
+                        budgetConstraintValue.amount = extractedConstraints.budget.max;
                         console.log(`[CustomJourneyExecutor] Extracted budget constraint: $${(budgetConstraintValue.amount / 1e6).toFixed(1)}M`);
                       }
-                      if (timelineMatch) {
-                        budgetConstraintValue.timeline = parseInt(timelineMatch[1], 10);
+                      if (extractedConstraints.timeline) {
+                        budgetConstraintValue.timeline = extractedConstraints.timeline.max;
                         console.log(`[CustomJourneyExecutor] Extracted timeline constraint: ${budgetConstraintValue.timeline} months`);
                       }
                       // Update strategyMetadata to constrained mode
@@ -373,16 +374,15 @@ export class CustomJourneyExecutor {
                     : '';
 
                 if (providedUserInput) {
-                  const budgetMatch = providedUserInput.match(/\$\s*(\d+(?:\.\d+)?)\s*(million|mil|m|M)\b/i);
-                  const timelineMatch = providedUserInput.match(/(\d+)\s*months?\b/i);
+                  const extractedConstraints = extractUserConstraintsFromText(providedUserInput);
 
-                  if (budgetMatch || timelineMatch) {
+                  if (extractedConstraints.budget || extractedConstraints.timeline) {
                     const budgetConstraintValue: { amount?: number; timeline?: number } = {};
-                    if (budgetMatch) {
-                      budgetConstraintValue.amount = parseFloat(budgetMatch[1]) * 1_000_000;
+                    if (extractedConstraints.budget) {
+                      budgetConstraintValue.amount = extractedConstraints.budget.max;
                     }
-                    if (timelineMatch) {
-                      budgetConstraintValue.timeline = parseInt(timelineMatch[1], 10);
+                    if (extractedConstraints.timeline) {
+                      budgetConstraintValue.timeline = extractedConstraints.timeline.max;
                     }
 
                     const existingRow = existingUnderstanding[0] as any;
