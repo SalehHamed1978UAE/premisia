@@ -127,6 +127,15 @@ export interface PlanningContext {
     description: string;
     scale: BusinessScale;
     initiativeType?: string; // Initiative classification from AI (physical_business_launch, software_development, etc.)
+    domainProfile?: {
+      code: string;
+      industryLabel: string;
+      preferredLexicon: string[];
+      forbiddenLexicon: string[];
+      regulatoryContext: string[];
+      confidence: number;
+      evidence: string[];
+    };
   };
   
   // Strategic Context (from journey analysis)

@@ -6,4 +6,6 @@ export { DependencyValidator } from './dependency-validator';
 export { IndustryValidator } from './industry-validator';
 export { CompletenessValidator } from './completeness-validator';
 export { WBSTimelineValidator } from './wbs-timeline-validator';
+export { DomainLexiconValidator } from './domain-lexicon-validator';
+export { TimelineUtilizationValidator } from './timeline-utilization-validator';
 export { QualityGateRunner, qualityGateRunner } from './quality-gate-runner';

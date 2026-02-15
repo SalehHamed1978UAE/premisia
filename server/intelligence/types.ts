@@ -402,6 +402,7 @@ export interface StrategyInsights {
     urgency: 'ASAP' | 'Strategic' | 'Exploratory';
     budgetRange?: string;
     riskTolerance?: 'Conservative' | 'Moderate' | 'Aggressive';
+    domainProfile?: DomainProfile;
   };
   overallConfidence: number;
   initiativeType?: string;  // Added for initiative-aware resource generation
@@ -688,6 +689,24 @@ export type BusinessCategory =
   | 'ecommerce'
   | 'generic';
 
+export type DomainCode =
+  | 'banking_fintech'
+  | 'healthcare'
+  | 'retail_food'
+  | 'retail_general'
+  | 'saas_technology'
+  | 'general';
+
+export interface DomainProfile {
+  code: DomainCode;
+  industryLabel: string;
+  preferredLexicon: string[];
+  forbiddenLexicon: string[];
+  regulatoryContext: string[];
+  confidence: number;
+  evidence: string[];
+}
+
 export type JourneyType =
   | 'market_entry'
   | 'business_model_innovation'
@@ -715,6 +734,7 @@ export interface StrategyContext {
     name: string;                    // "Athletic Footwear Retail"
     keywords: string[];              // ["basketball", "sneakers", "athletic", "footwear"]
   };
+  domainProfile?: DomainProfile;
 
   region: {
     country: string;                 // "UAE"

@@ -1,10 +1,12 @@
-import type { Workstream, Timeline, StageGates } from '../../types';
+import type { Workstream, Timeline, StageGates, ResourcePlan, DomainProfile } from '../../types';
 
 export interface ValidatorContext {
   workstreams: Workstream[];
   timeline: Timeline;
   stageGates: StageGates;
   businessContext?: string;
+  resourcePlan?: ResourcePlan;
+  domainProfile?: DomainProfile;
   metadata?: Record<string, any>;
 }
 

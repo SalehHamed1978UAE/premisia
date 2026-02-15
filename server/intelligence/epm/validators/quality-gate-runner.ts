@@ -4,7 +4,9 @@ import { DependencyValidator } from './dependency-validator';
 import { IndustryValidator } from './industry-validator';
 import { CompletenessValidator } from './completeness-validator';
 import { WBSTimelineValidator } from './wbs-timeline-validator';
-import type { Workstream, Timeline, StageGates } from '../../types';
+import { DomainLexiconValidator } from './domain-lexicon-validator';
+import { TimelineUtilizationValidator } from './timeline-utilization-validator';
+import type { Workstream, Timeline, StageGates, ResourcePlan, DomainProfile } from '../../types';
 
 export class QualityGateRunner {
   private registry: ValidatorRegistry;
@@ -21,6 +23,8 @@ export class QualityGateRunner {
     this.registry.register(new IndustryValidator());
     this.registry.register(new CompletenessValidator());
     this.registry.register(new WBSTimelineValidator());
+    this.registry.register(new DomainLexiconValidator());
+    this.registry.register(new TimelineUtilizationValidator());
 
     this.initialized = true;
     console.log('[QualityGateRunner] Initialized with validators:', this.registry.list().join(', '));
@@ -30,7 +34,9 @@ export class QualityGateRunner {
     workstreams: Workstream[],
     timeline: Timeline,
     stageGates: StageGates,
-    businessContext?: string
+    businessContext?: string,
+    resourcePlan?: ResourcePlan,
+    domainProfile?: DomainProfile
   ): QualityReport {
     if (!this.initialized) {
       this.initialize();
@@ -41,6 +47,8 @@ export class QualityGateRunner {
       timeline,
       stageGates,
       businessContext,
+      resourcePlan,
+      domainProfile,
     };
     
     console.log('[QualityGateRunner] Running quality gate with', this.registry.list().length, 'validators');
@@ -55,7 +63,9 @@ export class QualityGateRunner {
     timeline: Timeline,
     stageGates: StageGates,
     validatorNames: string[],
-    businessContext?: string
+    businessContext?: string,
+    resourcePlan?: ResourcePlan,
+    domainProfile?: DomainProfile
   ): QualityReport {
     if (!this.initialized) {
       this.initialize();
@@ -66,6 +76,8 @@ export class QualityGateRunner {
       timeline,
       stageGates,
       businessContext,
+      resourcePlan,
+      domainProfile,
     };
     
     const report = this.registry.runSelected(context, validatorNames);

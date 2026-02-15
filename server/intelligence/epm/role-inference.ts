@@ -13,7 +13,7 @@
  */
 
 import { getLLMProvider } from '../../lib/llm-provider';
-import type { Workstream, ResourcePlan, ResourceAllocation } from '../types';
+import type { Workstream, ResourcePlan, ResourceAllocation, DomainProfile, DomainCode } from '../types';
 
 export interface InferredOwner {
   workstreamId: string;
@@ -46,28 +46,97 @@ interface BusinessContext {
   geography?: string;
   initiativeType?: string;
   programName?: string;
+  domainProfile?: DomainProfile;
 }
 
 // In-memory cache for role inference (persists for session)
 const roleCache: Map<string, InferredOwner> = new Map();
 
-// Category to skills mapping for resource plan integration
+// Baseline category-to-skills mapping (domain-neutral)
 const CATEGORY_SKILLS: Record<string, string[]> = {
-  construction: ['fit-out', 'build-out', 'interior design', 'renovation'],
-  design: ['interior design', 'space planning', 'architecture'],
-  technology: ['POS systems', 'IT infrastructure', 'digital integration'],
-  tech: ['POS systems', 'IT infrastructure', 'software implementation'],
+  construction: ['implementation planning', 'environment setup', 'vendor coordination'],
+  design: ['solution design', 'service design', 'architecture review'],
+  technology: ['systems architecture', 'integration design', 'platform reliability'],
+  tech: ['systems architecture', 'integration design', 'platform reliability'],
   hr: ['recruitment', 'training', 'onboarding', 'staff management'],
-  training: ['staff training', 'skills development', 'certification'],
-  marketing: ['launch campaigns', 'social media', 'brand building', 'PR'],
-  community: ['community engagement', 'local partnerships', 'events'],
-  compliance: ['regulatory compliance', 'food safety', 'licensing', 'permits'],
-  licensing: ['permits', 'regulatory approval', 'health inspection'],
-  operations: ['operational setup', 'process design', 'supply chain'],
-  supply_chain: ['vendor management', 'inventory', 'logistics'],
+  training: ['skills development', 'certification planning', 'enablement delivery'],
+  marketing: ['go-to-market planning', 'campaign execution', 'brand positioning'],
+  community: ['partner engagement', 'stakeholder communication', 'ecosystem development'],
+  compliance: ['regulatory compliance', 'policy controls', 'audit readiness', 'licensing'],
+  licensing: ['permits', 'regulatory approval', 'compliance documentation'],
+  operations: ['operational setup', 'process design', 'service operations'],
+  supply_chain: ['vendor management', 'capacity planning', 'logistics coordination'],
   finance: ['financial planning', 'budgeting', 'cost control'],
-  culinary: ['menu development', 'food quality', 'recipe standardization'],
+  culinary: ['service quality standards', 'operational playbooks', 'quality control'],
 };
+
+const DOMAIN_CATEGORY_SKILLS: Record<DomainCode, Partial<Record<string, string[]>>> = {
+  banking_fintech: {
+    technology: [
+      'core banking integration (Temenos/Finastra)',
+      'secure transaction processing',
+      'audit logging',
+      'data residency controls',
+    ],
+    tech: [
+      'core banking integration (Temenos/Finastra)',
+      'secure transaction processing',
+      'audit logging',
+      'data residency controls',
+    ],
+    compliance: [
+      'kyc/aml controls',
+      'cbuae/cbb compliance',
+      'suspicious activity reporting workflows',
+      'audit evidence management',
+    ],
+    operations: [
+      'regulated operations readiness',
+      'incident response governance',
+      'service-level controls',
+    ],
+  },
+  healthcare: {
+    compliance: ['patient privacy controls', 'clinical compliance', 'audit readiness'],
+    technology: ['health systems integration', 'data privacy controls', 'availability management'],
+  },
+  retail_food: {
+    compliance: ['food safety', 'health inspections', 'licensing'],
+    technology: ['pos systems', 'inventory integration', 'store operations tooling'],
+  },
+  retail_general: {
+    technology: ['pos systems', 'inventory integration', 'checkout reliability'],
+    operations: ['store operations', 'inventory control', 'vendor logistics'],
+  },
+  saas_technology: {
+    technology: ['api integration', 'cloud reliability', 'release engineering'],
+    compliance: ['security controls', 'data protection', 'audit readiness'],
+  },
+  general: {},
+};
+
+const DOMAIN_FORBIDDEN_TERMS: Record<DomainCode, string[]> = {
+  banking_fintech: ['food safety', 'pos systems', 'restaurant', 'menu', 'haccp'],
+  healthcare: ['pos systems', 'restaurant', 'menu', 'kyc', 'aml'],
+  retail_food: ['kyc', 'aml', 'cbuae', 'cbb'],
+  retail_general: ['kyc', 'aml', 'cbuae', 'cbb', 'hipaa'],
+  saas_technology: ['food safety', 'restaurant', 'menu', 'haccp'],
+  general: [],
+};
+
+function normalizeDomainCode(domainProfile?: DomainProfile | string): DomainCode {
+  if (!domainProfile) return 'general';
+  const code = typeof domainProfile === 'string' ? domainProfile : domainProfile.code;
+  const known: DomainCode[] = [
+    'banking_fintech',
+    'healthcare',
+    'retail_food',
+    'retail_general',
+    'saas_technology',
+    'general',
+  ];
+  return known.includes(code as DomainCode) ? (code as DomainCode) : 'general';
+}
 
 /**
  * Normalize role title for consistent matching
@@ -94,9 +163,16 @@ function getCacheKey(businessType: string, workstreamName: string): string {
 /**
  * Infer skills from category
  */
-export function inferSkillsFromCategory(category: string): string[] {
+export function inferSkillsFromCategory(category: string, domainProfile?: DomainProfile | string): string[] {
   const normalized = category.toLowerCase().replace(/[^a-z_]/g, '');
-  return CATEGORY_SKILLS[normalized] || ['general management'];
+  const domainCode = normalizeDomainCode(domainProfile);
+  const domainOverrides = DOMAIN_CATEGORY_SKILLS[domainCode] || {};
+  const baseSkills = domainOverrides[normalized] || CATEGORY_SKILLS[normalized] || ['general management'];
+  const forbiddenTerms = DOMAIN_FORBIDDEN_TERMS[domainCode] || [];
+
+  return baseSkills.filter((skill) =>
+    !forbiddenTerms.some((term) => skill.toLowerCase().includes(term.toLowerCase()))
+  );
 }
 
 export class RoleInferenceService {
@@ -195,6 +271,9 @@ PROGRAM CONTEXT:
 - Initiative: ${businessContext.initiativeType || 'market_entry'}
 - Program: ${businessContext.programName || 'Strategic Program'}
 - Team size target: At most ${effectiveMaxRoles} unique roles
+- Domain profile: ${businessContext.domainProfile?.industryLabel || 'general'}
+- Preferred lexicon: ${(businessContext.domainProfile?.preferredLexicon || []).slice(0, 6).join(', ') || 'none'}
+- Forbidden lexicon: ${(businessContext.domainProfile?.forbiddenLexicon || []).slice(0, 6).join(', ') || 'none'}
 
 WORKSTREAMS TO STAFF:
 ${workstreamList}
@@ -427,6 +506,8 @@ BUSINESS CONTEXT:
 - Initiative: ${businessContext.initiativeType || 'market_entry'}
 - Total workstreams: ${workstreams.length}
 - Target team size: ${targetMaxRoles} roles max
+- Domain profile: ${businessContext.domainProfile?.industryLabel || 'general'}
+- Forbidden lexicon: ${(businessContext.domainProfile?.forbiddenLexicon || []).slice(0, 8).join(', ') || 'none'}
 
 CURRENT ASSIGNMENTS:
 ${assignmentSummary}
@@ -581,7 +662,8 @@ Return ONLY valid JSON:
 export function ensureResourceExists(
   roleTitle: string,
   resourcePlan: ResourcePlan,
-  category: string
+  category: string,
+  domainProfile?: DomainProfile
 ): void {
   const normalizedRole = normalizeRole(roleTitle);
 
@@ -596,7 +678,7 @@ export function ensureResourceExists(
       role: normalizedRole,
       allocation: 1.0, // 100% allocation
       months: 6, // Default 6 months duration
-      skills: inferSkillsFromCategory(category),
+      skills: inferSkillsFromCategory(category, domainProfile),
       justification: `Added by LLM role inference for ${category} workstreams`,
     });
   }

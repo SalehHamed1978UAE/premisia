@@ -44,6 +44,7 @@ import type {
 import { replaceTimelineGeneration } from '../../src/lib/intelligent-planning/epm-integration';
 import type { PlanningContext, BusinessScale } from '../../src/lib/intelligent-planning/types';
 import { aiClients } from '../ai-clients';
+import { isEPMDomainResilienceEnabled } from '../config';
 
 import {
   ContextBuilder,
@@ -71,6 +72,7 @@ import {
 } from './epm';
 import { extractUserConstraintsFromText } from './epm/constraint-utils';
 import { shouldUseTextConstraintFallback } from './epm/constraint-policy';
+import type { DomainProfile } from './types';
 
 export { ContextBuilder } from './epm';
 
@@ -1315,6 +1317,10 @@ export class EPMSynthesizer {
     } else {
       console.log('[EPM Synthesis] ✓ Decision alignment applied (no count change)');
     }
+
+    const timelineReadyWorkstreams = isEPMDomainResilienceEnabled()
+      ? this.ensureTimelineCoverage(alignedWorkstreams, enrichedUserContext, planningContext)
+      : alignedWorkstreams;
     
     onProgress?.({
       type: 'step-start',
@@ -1323,17 +1329,20 @@ export class EPMSynthesizer {
       elapsedSeconds: Math.round((Date.now() - processStartTime) / 1000)
     });
     
-    const timeline = await this.timelineCalculator.calculate(insights, alignedWorkstreams, enrichedUserContext);
+    let timeline = await this.timelineCalculator.calculate(insights, timelineReadyWorkstreams, enrichedUserContext);
     console.log(`[EPM Synthesis] ✓ Timeline: ${timeline.totalMonths} months, ${timeline.phases.length} phases`);
 
     // Sprint 1: Deduplicate workstreams before phase assignment
-    const deduplicatedWorkstreams = this.deduplicateWorkstreams(alignedWorkstreams);
-    if (deduplicatedWorkstreams.length !== alignedWorkstreams.length) {
-      console.log(`[EPM Synthesis] ✓ Deduplication: ${alignedWorkstreams.length} → ${deduplicatedWorkstreams.length} workstreams`);
+    const deduplicatedWorkstreams = this.deduplicateWorkstreams(timelineReadyWorkstreams);
+    if (deduplicatedWorkstreams.length !== timelineReadyWorkstreams.length) {
+      console.log(`[EPM Synthesis] ✓ Deduplication: ${timelineReadyWorkstreams.length} → ${deduplicatedWorkstreams.length} workstreams`);
     }
 
     // Sprint 1: Assign phases with containment enforcement
     const phasedWorkstreams = this.assignWorkstreamPhases(deduplicatedWorkstreams, timeline);
+    if (isEPMDomainResilienceEnabled()) {
+      timeline = this.syncTimelinePhaseWorkstreams(timeline, phasedWorkstreams);
+    }
     
     onProgress?.({
       type: 'step-start',
@@ -1365,11 +1374,12 @@ export class EPMSynthesizer {
     // LLM-driven workstream owner assignment (replaces hardcoded keyword matching)
     // Uses batch AI call to infer appropriate role for each workstream
     const ownerInferenceContext = {
-      industry: planningContext.business.industry || 'general',
+      industry: planningContext.business.domainProfile?.industryLabel || planningContext.business.industry || 'general',
       businessType: strategyContext?.businessType?.subcategory || strategyContext?.businessType?.category || 'general_business',
       geography: 'unspecified', // TODO: Extract from strategic understanding
       initiativeType: planningContext.business.initiativeType || 'market_entry',
       programName,
+      domainProfile: planningContext.business.domainProfile as DomainProfile | undefined,
     };
     const roleValidationWarnings = await this.assignWorkstreamOwners(phasedWorkstreams, resourcePlan, ownerInferenceContext);
     console.log(`[EPM Synthesis] ✓ Workstream owners assigned via LLM inference`);
@@ -1414,7 +1424,10 @@ export class EPMSynthesizer {
       elapsedSeconds: Math.round((Date.now() - processStartTime) / 1000)
     });
     
-    const businessContext = insights.marketContext?.industry || '';
+    const businessContext = planningContext.business.domainProfile?.industryLabel
+      || planningContext.business.industry
+      || insights.marketContext?.industry
+      || '';
     const validationResult = this.validator.validate(phasedWorkstreams, timeline, stageGates, businessContext);
     if (validationResult.errors.length > 0) {
       console.log(`[EPM Synthesis] ⚠️ Validation found ${validationResult.errors.length} errors, auto-corrected`);
@@ -1425,14 +1438,21 @@ export class EPMSynthesizer {
       validationResult.warnings.forEach(w => console.log(`    - ${w}`));
     }
     
-    const planningGrid = this.validator.analyzePlanningGrid(alignedWorkstreams, timeline);
+    const planningGrid = this.validator.analyzePlanningGrid(phasedWorkstreams, timeline);
     if (planningGrid.conflicts.length > 0) {
       console.log(`[EPM Synthesis] ⚠️ Planning grid conflicts: ${planningGrid.conflicts.length}`);
     }
 
     // Sprint 1 (P2 Scheduling): Run WBS timeline validation
     console.log('[EPM Synthesis] 🔍 Running WBS timeline quality gates');
-    const qualityReport = qualityGateRunner.runQualityGate(alignedWorkstreams, timeline, stageGates, businessContext);
+    const qualityReport = qualityGateRunner.runQualityGate(
+      phasedWorkstreams,
+      timeline,
+      stageGates,
+      businessContext,
+      resourcePlan,
+      planningContext.business.domainProfile as DomainProfile | undefined
+    );
     if (!qualityReport.overallPassed) {
       console.log(`[EPM Synthesis] ⚠️ WBS validation found ${qualityReport.errorCount} errors, ${qualityReport.warningCount} warnings`);
       qualityReport.validatorResults.forEach(result => {
@@ -1979,6 +1999,166 @@ export class EPMSynthesizer {
     });
   }
 
+  private ensureTimelineCoverage(
+    workstreams: Workstream[],
+    userContext: UserContext | undefined,
+    planningContext: PlanningContext
+  ): Workstream[] {
+    const maxMonths = userContext?.timelineRange?.max;
+    if (!maxMonths || workstreams.length === 0) {
+      return workstreams;
+    }
+
+    const currentMaxEnd = Math.max(...workstreams.map((ws) => ws.endMonth));
+    const targetCoverageEnd = Math.max(
+      currentMaxEnd,
+      Math.min(maxMonths - 1, Math.floor(maxMonths * 0.85))
+    );
+    const gapMonths = targetCoverageEnd - currentMaxEnd;
+
+    if (gapMonths < 3) {
+      return workstreams;
+    }
+
+    const anchorIds = [...workstreams]
+      .sort((a, b) => b.endMonth - a.endMonth)
+      .slice(0, 2)
+      .map((ws) => ws.id);
+
+    const nextIndex = this.nextWorkstreamIndex(workstreams);
+    const generated = this.createCoverageWorkstreams(
+      nextIndex,
+      currentMaxEnd + 1,
+      targetCoverageEnd,
+      anchorIds,
+      planningContext
+    );
+
+    if (generated.length === 0) {
+      return workstreams;
+    }
+
+    console.log(
+      `[EPM Synthesis] 🧭 Added ${generated.length} lifecycle workstreams to improve timeline utilization ` +
+      `(M${currentMaxEnd} → M${targetCoverageEnd}, target=${maxMonths}mo)`
+    );
+    generated.forEach((ws) => {
+      console.log(`  - ${ws.id} ${ws.name} (M${ws.startMonth}-M${ws.endMonth})`);
+    });
+
+    return [...workstreams, ...generated];
+  }
+
+  private createCoverageWorkstreams(
+    startIndex: number,
+    startMonth: number,
+    endMonth: number,
+    anchorDependencies: string[],
+    planningContext: PlanningContext
+  ): Workstream[] {
+    if (startMonth > endMonth) {
+      return [];
+    }
+
+    const domainLabel =
+      planningContext.business.domainProfile?.industryLabel ||
+      planningContext.business.industry ||
+      planningContext.business.type ||
+      'target domain';
+
+    const midpoint = Math.floor((startMonth + endMonth) / 2);
+    const phaseOneEnd = Math.max(startMonth, midpoint);
+    const phaseTwoStart = Math.min(endMonth, phaseOneEnd + 1);
+
+    const candidates: Array<{ name: string; description: string; start: number; end: number }> = [
+      {
+        name: `Pilot Operations Hardening (${domainLabel})`,
+        description:
+          `Stabilize pilot operations, tune controls, and close implementation gaps for ${domainLabel} execution before scale-up.`,
+        start: startMonth,
+        end: phaseOneEnd,
+      },
+      {
+        name: `Scale Readiness & Evidence Pack (${domainLabel})`,
+        description:
+          `Prepare scale rollout artifacts, audit evidence, support playbooks, and governance checkpoints for sustained delivery in ${domainLabel}.`,
+        start: phaseTwoStart,
+        end: endMonth,
+      },
+    ].filter((item) => item.start <= item.end);
+
+    const created: Workstream[] = candidates.map((candidate, idx) => {
+      const id = `WS${String(startIndex + idx).padStart(3, '0')}`;
+      const deliverables = this.buildCoverageDeliverables(
+        id,
+        candidate.name,
+        candidate.start,
+        candidate.end
+      );
+
+      return {
+        id,
+        name: candidate.name,
+        description: candidate.description,
+        deliverables,
+        startMonth: candidate.start,
+        endMonth: candidate.end,
+        dependencies: [...anchorDependencies],
+        confidence: 0.82,
+      };
+    });
+
+    return created;
+  }
+
+  private buildCoverageDeliverables(
+    workstreamId: string,
+    workstreamName: string,
+    startMonth: number,
+    endMonth: number
+  ): Deliverable[] {
+    const slots = Math.max(2, Math.min(4, endMonth - startMonth + 1));
+    const labels = [
+      'Runbook and operating model update',
+      'Risk and control tuning package',
+      'Audit evidence and readiness checkpoint',
+      'Scale rollout readiness review',
+    ];
+
+    return labels.slice(0, slots).map((label, idx) => {
+      const progress = (idx + 1) / slots;
+      const dueMonth = Math.round(startMonth + (endMonth - startMonth) * progress);
+      return {
+        id: `${workstreamId}-LC-${idx + 1}`,
+        name: `${workstreamName}: ${label}`,
+        description: `${label} for ${workstreamName.toLowerCase()}.`,
+        dueMonth: Math.max(startMonth, Math.min(endMonth, dueMonth)),
+        effort: '15-30 person-days',
+      };
+    });
+  }
+
+  private syncTimelinePhaseWorkstreams(timeline: Timeline, workstreams: Workstream[]): Timeline {
+    if (!timeline?.phases || timeline.phases.length === 0) {
+      return timeline;
+    }
+
+    const phases = timeline.phases.map((phase) => {
+      const phaseWorkstreamIds = workstreams
+        .filter((ws) => ws.startMonth <= phase.endMonth && ws.endMonth >= phase.startMonth)
+        .map((ws) => ws.id);
+      return {
+        ...phase,
+        workstreamIds: phaseWorkstreamIds,
+      };
+    });
+
+    return {
+      ...timeline,
+      phases,
+    };
+  }
+
   /**
    * Build validation report from validation results
    */
@@ -2023,7 +2203,14 @@ export class EPMSynthesizer {
   private async assignWorkstreamOwners(
     workstreams: Workstream[],
     resourcePlan: ResourcePlan,
-    businessContext?: { industry?: string; businessType?: string; geography?: string; initiativeType?: string; programName?: string }
+    businessContext?: {
+      industry?: string;
+      businessType?: string;
+      geography?: string;
+      initiativeType?: string;
+      programName?: string;
+      domainProfile?: DomainProfile;
+    }
   ): Promise<string[]> {
     if (!resourcePlan.internalTeam || resourcePlan.internalTeam.length === 0) {
       // No resources to assign - use default
@@ -2089,7 +2276,7 @@ export class EPMSynthesizer {
         };
 
         // Ensure the role exists in the resource plan
-        ensureResourceExists(inferred.roleTitle, resourcePlan, inferred.category);
+        ensureResourceExists(inferred.roleTitle, resourcePlan, inferred.category, businessContext?.domainProfile);
 
         console.log(`[EPM Synthesis]   ${ws.name} → ${ws.owner} (${inferred.category})`);
       } else {

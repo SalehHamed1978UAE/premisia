@@ -44,6 +44,41 @@ export class StreamOptimizer implements IOptimizer {
     return /\b(gdpr|hipaa|ccpa)\b/.test(text);
   }
 
+  private resolveIndustryLabel(context: any): string {
+    return (
+      context?.business?.domainProfile?.industryLabel ||
+      context?.business?.industry ||
+      context?.business?.type ||
+      'General Business'
+    );
+  }
+
+  private buildDomainLexiconGuard(context: any): string {
+    const profile = context?.business?.domainProfile;
+    if (!profile) {
+      return '';
+    }
+
+    const preferred = Array.isArray(profile.preferredLexicon) ? profile.preferredLexicon : [];
+    const forbidden = Array.isArray(profile.forbiddenLexicon) ? profile.forbiddenLexicon : [];
+
+    if (preferred.length === 0 && forbidden.length === 0) {
+      return '';
+    }
+
+    const lines: string[] = ['DOMAIN VOCABULARY GUARD:'];
+
+    if (preferred.length > 0) {
+      lines.push(`- Prefer terminology aligned to: ${preferred.slice(0, 8).join(', ')}.`);
+    }
+
+    if (forbidden.length > 0) {
+      lines.push(`- Avoid cross-domain terms such as: ${forbidden.slice(0, 8).join(', ')}.`);
+    }
+
+    return lines.join('\n');
+  }
+
   private buildRegulatoryGuard(context: any): string {
     if (!this.isLikelyGccContext(context)) {
       return '';
@@ -136,6 +171,8 @@ REGULATORY CONTEXT GUARD:
     index: number
   ): Promise<WorkStream> {
     const regulatoryGuard = this.buildRegulatoryGuard(context);
+    const domainLexiconGuard = this.buildDomainLexiconGuard(context);
+    const industryLabel = this.resolveIndustryLabel(context);
 
     const prompt = `
 Generate a concrete workstream for this category:
@@ -146,20 +183,21 @@ Priority: ${category.priority}
 
 Business Context:
 - Name: ${context.business.name}
-- Industry: ${context.business.industry || context.business.type}
+- Industry: ${industryLabel}
 - Type: ${context.business.type}
 - Scale: ${context.business.scale}
 - Description: ${context.business.description}
 
-CRITICAL: Generate content SPECIFICALLY for the "${context.business.industry || context.business.type}" industry.
+CRITICAL: Generate content SPECIFICALLY for the "${industryLabel}" industry.
 Do NOT use generic examples or copy from other industries.
-All deliverables must be relevant to ${context.business.name} in the ${context.business.industry || context.business.type} sector.
+All deliverables must be relevant to ${context.business.name} in the ${industryLabel} sector.
 ${regulatoryGuard ? `\n${regulatoryGuard}` : ''}
+${domainLexiconGuard ? `\n${domainLexiconGuard}` : ''}
 
 Generate:
 1. A clear, actionable name (e.g., "Location Scouting & Lease Negotiation" not just "Physical Infrastructure")
 2. A detailed description of what this workstream entails for THIS specific business
-3. 3-5 key deliverables (concrete outputs specific to ${context.business.industry || context.business.type})
+3. 3-5 key deliverables (concrete outputs specific to ${industryLabel})
 
 The deliverables should be specific, measurable, and industry-appropriate.
 

@@ -6,11 +6,12 @@
  * (e.g., 166 months for a coffee shop)
  */
 
-import type { StrategyInsights, StrategyContext, BusinessCategory, JourneyType } from '../types';
+import type { StrategyInsights, StrategyContext, BusinessCategory, JourneyType, DomainProfile } from '../types';
 import { extractUserConstraintsFromText } from './constraint-utils';
 import type { ConstraintMode } from './constraint-policy';
 import { shouldUseTextConstraintFallback } from './constraint-policy';
 import type { PlanningContext, BusinessScale } from '../../../src/lib/intelligent-planning/types';
+import { detectDomainProfile, resolveIndustryLabel } from './domain-profile';
 
 export class ContextBuilder {
   /**
@@ -115,21 +116,40 @@ export class ContextBuilder {
     }
 
     // Log the final constraints being used
-    if (explicitBudgetRange) {
+    if (explicitBudgetRange && budgetRange) {
       console.log(`[ContextBuilder] ✅ Using EXPLICIT budget constraint: $${budgetRange.min.toLocaleString()}-$${budgetRange.max.toLocaleString()}`);
     }
     if (explicitTimelineRange) {
       console.log(`[ContextBuilder] ✅ Using EXPLICIT timeline constraint: ${timelineRange.min}-${timelineRange.max} months`);
     }
     
-    // Infer business type first, then use it for industry if not explicitly set
+    // Infer business type first, then derive a reusable domain profile.
     const businessType = this.inferBusinessType(insights);
-    const industry = insights.marketContext?.industry || this.inferIndustryFromType(businessType);
+    const combinedDomainText = [
+      userInput,
+      businessDescription,
+      insights.marketContext?.industry,
+      insights.insights.map((i) => i.content).join(' '),
+    ]
+      .filter(Boolean)
+      .join(' ');
+    const domainProfile = detectDomainProfile({
+      sourceText: combinedDomainText,
+      businessType,
+      industryHint: insights.marketContext?.industry,
+    });
+    const inferredIndustry = this.inferIndustryFromType(businessType);
+    const industry = resolveIndustryLabel(
+      insights.marketContext?.industry || inferredIndustry,
+      domainProfile
+    );
     
     console.log('[ContextBuilder] OUTPUT:', {
       businessName,
       businessType,
-      industry
+      industry,
+      domain: domainProfile.code,
+      domainConfidence: domainProfile.confidence,
     });
     
     return {
@@ -139,7 +159,8 @@ export class ContextBuilder {
         industry: industry,
         description: businessDescription || userInput,
         scale,
-        initiativeType
+        initiativeType,
+        domainProfile,
       },
       strategic: {
         insights: insights,
@@ -469,6 +490,8 @@ export class ContextBuilder {
       planningContext.business.description
     );
 
+    const domainProfile = planningContext.business.domainProfile as DomainProfile | undefined;
+
     return {
       sessionId,
       journeyType,
@@ -484,6 +507,7 @@ export class ContextBuilder {
         name: planningContext.business.industry || this.inferIndustryFromType(businessType),
         keywords,
       },
+      domainProfile,
 
       region: {
         country: 'Unknown', // Would need to be extracted from input
