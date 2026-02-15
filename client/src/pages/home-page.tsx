@@ -630,7 +630,7 @@ function PublicLandingPage() {
 
   const handleSignIn = () => {
     setIsSigningIn(true);
-    window.location.href = '/api/login';
+    window.location.href = '/auth';
   };
 
   const scrollToSection = (sectionId: string) => {
