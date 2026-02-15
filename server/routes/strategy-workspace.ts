@@ -4,7 +4,7 @@ import { strategyDecisions, epmPrograms, journeySessions, strategyVersions, stra
 import { eq, desc, inArray, and } from 'drizzle-orm';
 import { BMCAnalyzer, PortersAnalyzer, PESTLEAnalyzer, EPMSynthesizer, getAggregatedAnalysis, normalizeSWOT } from '../intelligence';
 import type { BMCResults, PortersResults, PESTLEResults } from '../intelligence/types';
-import { deriveTeamSizeFromBudget, extractUserConstraintsFromText } from '../intelligence/epm/constraint-utils';
+import { deriveTeamSizeFromBudget, extractUserConstraintsFromText, hasBudgetConstraintSignal } from '../intelligence/epm/constraint-utils';
 import { deriveConstraintMode, shouldUseTextConstraintFallback } from '../intelligence/epm/constraint-policy';
 import { storage } from '../storage';
 import { getEPMProgram, getStrategicUnderstandingBySession } from '../services/secure-data-service';
@@ -401,13 +401,61 @@ async function processEPMGeneration(
           console.log(`[EPM Generation] ✅ Journey title fetched: "${journeyTitle}"`);
         }
 
-        const strategyMetadata = typeof (understanding as any)?.strategyMetadata === 'string'
+        let strategyMetadata = typeof (understanding as any)?.strategyMetadata === 'string'
           ? JSON.parse((understanding as any).strategyMetadata)
           : (understanding as any)?.strategyMetadata || {};
+        const understandingUserInput = typeof understanding?.userInput === 'string' ? understanding.userInput : '';
 
         // DUAL-MODE EPM: Constraint policy decides whether text fallback is allowed.
-        const budgetConstraint = understanding?.budgetConstraint as { amount?: number; timeline?: number } | null;
-        const hasExplicitConstraint = Boolean(budgetConstraint?.amount || budgetConstraint?.timeline);
+        let budgetConstraint = understanding?.budgetConstraint as { amount?: number; timeline?: number } | null;
+        let hasExplicitConstraint = Boolean(budgetConstraint?.amount || budgetConstraint?.timeline);
+
+        // Reconcile constraint state once at generation-time.
+        // If intake missed explicit "$XM over N months" constraints in user text, persist them here
+        // so generation/export mode cannot drift into discovery with explicit budget intent.
+        if (!hasExplicitConstraint && understandingUserInput && hasBudgetConstraintSignal(understandingUserInput)) {
+          const inferredConstraints = extractUserConstraintsFromText(understandingUserInput);
+          const inferredBudgetConstraint: { amount?: number; timeline?: number } = {};
+          if (inferredConstraints.budget?.max) {
+            inferredBudgetConstraint.amount = inferredConstraints.budget.max;
+          }
+          if (inferredConstraints.timeline?.max) {
+            inferredBudgetConstraint.timeline = inferredConstraints.timeline.max;
+          }
+
+          if (Object.keys(inferredBudgetConstraint).length > 0) {
+            budgetConstraint = inferredBudgetConstraint;
+            hasExplicitConstraint = true;
+
+            const updatedMetadata: Record<string, any> = {
+              ...strategyMetadata,
+              constraintPolicy: {
+                mode: 'constrained',
+                source: 'strategy-workspace-reconciliation',
+                updatedAt: new Date().toISOString(),
+                hasExplicitConstraint: true,
+                inferredConstraintApplied: true,
+              },
+            };
+
+            const understandingId = (understanding as any)?.id;
+            if (understandingId) {
+              await db.update(strategicUnderstanding)
+                .set({
+                  budgetConstraint: inferredBudgetConstraint,
+                  strategyMetadata: updatedMetadata,
+                  updatedAt: new Date(),
+                })
+                .where(eq(strategicUnderstanding.id, understandingId));
+            }
+            strategyMetadata = updatedMetadata;
+
+            console.log(
+              '[EPM Generation] ♻️ Reconciled explicit budget/timeline constraints from user input and switched to constrained mode'
+            );
+          }
+        }
+
         const constraintMode = deriveConstraintMode(strategyMetadata?.constraintPolicy?.mode, hasExplicitConstraint);
         constraintModeForRun = constraintMode;
         const allowTextConstraintFallback = shouldUseTextConstraintFallback(constraintMode);
