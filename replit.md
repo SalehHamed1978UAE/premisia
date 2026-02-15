@@ -26,7 +26,7 @@ The frontend uses React, TypeScript, and Vite, with Shadcn/ui (Radix UI and Tail
 - **Frontend**: React, TypeScript, Vite, TanStack Query, Wouter.
 - **Backend**: Node.js with Express.js (ES modules), Passport.js for session-based authentication, Express sessions, and a RESTful API with role-based middleware.
 - **Data Storage**: PostgreSQL with Neon serverless driver and Drizzle ORM for type-safe schema and Zod validation.
-- **Authentication/Authorization**: Session-based authentication via Passport.js with Replit OIDC, HTTP-only cookies, and a three-tier role system (Admin, Editor, Viewer).
+- **Authentication/Authorization**: Supabase JWT authentication (replaced Replit OIDC as of Feb 15, 2026). Supports email/password and Google OAuth sign-in. Backend validates JWTs via `server/supabaseAuth.ts` using `@supabase/supabase-js`. Users table has `supabase_uid` column for linking Supabase auth users to app users. Three-tier role system (Admin, Editor, Viewer) preserved.
 - **AI Multi-Agent System**: An ontology-based architecture with Executive, Builder, QA Specialist Agents, and a Multi-Agent Orchestrator.
 - **Strategic Consultant & EPM Integration**: Converts executive input into AI-analyzed strategic decisions and EPM program structures, supporting Five Whys AI-coaching, Anti-Confirmation Bias Research, Version Management, and Intelligent Framework Selection.
 - **EPM V2 Engine**: Generates EPM programs with industry-appropriate content, proper FTE decimals, validated dependencies, and context-aware risks/benefits. Features LLM-driven workstream owner assignment using `RoleInferenceService`.
@@ -131,6 +131,6 @@ The `getAggregatedAnalysis()` function handles all three cases. Don't assume one
 - **Build Tools**: Vite, esbuild
 - **AI Providers**: OpenAI, Anthropic, Gemini
 - **ORM**: Drizzle ORM
-- **Authentication**: Passport.js with Replit OIDC
+- **Authentication**: Supabase (`@supabase/supabase-js`) — JWT-based auth with email/password and Google OAuth
 - **Encryption**: AWS KMS
 - **Knowledge Graph**: Context Foundry
