@@ -2,6 +2,7 @@ import type { FullExportPackage } from '../../types/interfaces';
 import type { WBSRow } from './wbs-exporter';
 import { getJourney } from '../../journey/journey-registry';
 import { normalizeWhysPathSteps } from '../../utils/whys-path';
+import { deriveConstraintMode, shouldEnforceConstraints } from '../../intelligence/epm/constraint-policy';
 
 type StrategyPayload = FullExportPackage['strategy'];
 type EpmPayload = NonNullable<FullExportPackage['epm']>;
@@ -11,6 +12,7 @@ type EpmPayloadContext = {
   userInput?: string | null;
   clarifications?: StrategyPayload['clarifications'] | null;
   initiativeType?: string | null;
+  constraintMode?: 'auto' | 'discovery' | 'constrained' | null;
   programName?: string | null;
   wbsRows?: WBSRow[] | null;
   // Sprint 6: Five Whys data from strategy
@@ -547,7 +549,20 @@ export function buildEpmJsonPayload(
         inputSummary: context.strategyVersion?.inputSummary ?? null,
       }
     : null;
-  const constraints = constraintsFromVersion ?? constraintsFromProgram ?? null;
+  const resolvedConstraints = constraintsFromVersion ?? constraintsFromProgram ?? null;
+  const hasAnyResolvedConstraint = Boolean(
+    resolvedConstraints &&
+    (
+      resolvedConstraints.costMin != null ||
+      resolvedConstraints.costMax != null ||
+      resolvedConstraints.teamSizeMin != null ||
+      resolvedConstraints.teamSizeMax != null ||
+      resolvedConstraints.timelineMonths != null
+    )
+  );
+  const effectiveConstraintMode = deriveConstraintMode(context.constraintMode, hasAnyResolvedConstraint);
+  const constraints = shouldEnforceConstraints(effectiveConstraintMode) ? resolvedConstraints : null;
+  const constraintHints = shouldEnforceConstraints(effectiveConstraintMode) ? null : resolvedConstraints;
   const wbs = Array.isArray(context.wbsRows) ? context.wbsRows : [];
 
   const normalizedBenefitData = normalizeBenefits(deriveBenefitList(benefitsRealization));
@@ -563,6 +578,7 @@ export function buildEpmJsonPayload(
     raw: context.userInput ?? null,
     summary: context.strategyVersion?.inputSummary ?? null,
     constraints,
+    constraintMode: effectiveConstraintMode,
     clarifications: context.clarifications ?? null,
     initiativeType: context.initiativeType ?? null,
   };
@@ -673,6 +689,8 @@ export function buildEpmJsonPayload(
     sessionId: epm.metadata?.sessionId ?? context.exportMeta?.sessionId ?? context.strategyVersion?.sessionId ?? null,
     generatedAt: epm.metadata?.generatedAt ?? context.exportMeta?.exportedAt ?? null,
     programName: context.programName || (epm as any).metadata?.programName || null,
+    constraintMode: effectiveConstraintMode,
+    constraintHints,
     constraints,
   };
 
@@ -680,6 +698,7 @@ export function buildEpmJsonPayload(
     ...epm,
     timeline: timelineValue,
     constraints,
+    constraintMode: effectiveConstraintMode,
     wbs,
     requiresApproval,
     metadata,

@@ -62,6 +62,18 @@ export async function generateFullPassExport(
     wbsRows = null;
   }
 
+  const understandingMetadata = (() => {
+    const raw = strategyPayload?.understanding?.strategyMetadata;
+    if (!raw) return null;
+    if (typeof raw === 'object') return raw;
+    if (typeof raw !== 'string') return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  })();
+
   const epmJson = exportPackage.epm?.program
     ? JSON.stringify(
         buildEpmJsonPayload(exportPackage.epm, {
@@ -70,6 +82,7 @@ export async function generateFullPassExport(
           userInput: strategyPayload?.understanding?.userInput,
           clarifications: strategyPayload?.clarifications,
           initiativeType: strategyPayload?.understanding?.initiativeType,
+          constraintMode: understandingMetadata?.constraintPolicy?.mode,
           programName: strategyPayload?.understanding?.title || null,
           wbsRows,
           // Sprint 6.1: Use built strategy output for Five Whys data (rootCause is derived, not stored)

@@ -70,6 +70,7 @@ import {
   qualityGateRunner,
 } from './epm';
 import { extractUserConstraintsFromText } from './epm/constraint-utils';
+import { shouldUseTextConstraintFallback } from './epm/constraint-policy';
 
 export { ContextBuilder } from './epm';
 
@@ -255,13 +256,14 @@ export class EPMSynthesizer {
       insights.frameworkType || 'strategy_workspace',
       userContext?.sessionId,
       userContext?.budgetRange,      // Pass explicit budget from strategy version
-      userContext?.timelineRange     // Pass explicit timeline from strategy version
+      userContext?.timelineRange,    // Pass explicit timeline from strategy version
+      userContext?.constraintMode || 'auto',
     );
 
     console.log(`[EPM Synthesis] ✓ Planning context: Scale=${planningContext.business.scale}, Timeline=${planningContext.execution.timeline.min}-${planningContext.execution.timeline.max}mo`);
 
     // SPRINT 1: Parse user constraints from input (not decisions)
-    const userConstraints = this.parseUserConstraints(insights, planningContext);
+    const userConstraints = this.parseUserConstraints(insights, planningContext, userContext);
     const enrichedUserContext = this.applyUserConstraintsToContext(userContext, userConstraints);
 
     // SPRINT 6B: Compute capacity and timeline envelopes BEFORE any generator runs
@@ -478,8 +480,14 @@ export class EPMSynthesizer {
    */
   private parseUserConstraints(
     insights: StrategyInsights,
-    planningContext?: PlanningContext
+    planningContext?: PlanningContext,
+    userContext?: UserContext,
   ): { budget?: { min: number; max: number }; timeline?: { min: number; max: number } } {
+    if (!shouldUseTextConstraintFallback(userContext?.constraintMode)) {
+      console.log(`[EPM Synthesis] 💡 Constraint mode "${userContext?.constraintMode}" - skipping text constraint parsing`);
+      return {};
+    }
+
     const rawUserInput = planningContext?.business?.description || '';
     return extractUserConstraintsFromText(rawUserInput, insights.marketContext?.budgetRange);
   }
@@ -1734,7 +1742,7 @@ export class EPMSynthesizer {
     }
 
     // Enrich userContext with parsed constraints (same as main path)
-    const legacyConstraints = this.parseUserConstraints(insights);
+    const legacyConstraints = this.parseUserConstraints(insights, undefined, userContext);
     const enrichedLegacyContext = this.applyUserConstraintsToContext(userContext, legacyConstraints);
 
     const timeline = await this.timelineCalculator.calculate(insights, workstreams, enrichedLegacyContext);

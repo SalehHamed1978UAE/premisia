@@ -33,6 +33,8 @@ type BudgetConstraint = {
   timeline?: number;
 };
 
+type ConstraintMode = 'discovery' | 'constrained';
+
 export default function InputPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -325,6 +327,7 @@ export default function InputPage() {
 
     try {
       const budgetConstraint = buildBudgetConstraint();
+      const constraintMode = buildConstraintMode();
 
       // Create understanding record with optional clarifications and file metadata
       const understandingResponse = await fetch('/api/strategic-consultant/understanding', {
@@ -335,6 +338,7 @@ export default function InputPage() {
           clarifications: clarifications,
           fileMetadata: fileMetadata, // Pass file metadata for enrichment job creation
           budgetConstraint: budgetConstraint || undefined,
+          constraintMode,
           templateId: templateId || undefined // Pass template ID if running a custom journey
         })
       });
@@ -439,6 +443,10 @@ export default function InputPage() {
     return constraint;
   };
 
+  const buildConstraintMode = (): ConstraintMode => {
+    return budgetMode === 'set' ? 'constrained' : 'discovery';
+  };
+
   // Handle journey clarifications submission
   const handleJourneyClarificationsSubmit = (answers: Record<string, string | string[]>) => {
     setShowClarificationModal(false);
@@ -538,6 +546,9 @@ export default function InputPage() {
     }, 300);
 
     try {
+      const budgetConstraint = buildBudgetConstraint();
+      const constraintMode = buildConstraintMode();
+
       // Create understanding record with journey context and clarifications
       const understandingResponse = await fetch('/api/strategic-consultant/understanding', {
         method: 'POST',
@@ -545,6 +556,8 @@ export default function InputPage() {
         body: JSON.stringify({ 
           input: input,
           clarifications: clarifications,
+          budgetConstraint: budgetConstraint || undefined,
+          constraintMode,
           journeySessionId: journeySessionId,
           currentStep: journeyData?.journey?.steps?.[currentStepIndex]
         })

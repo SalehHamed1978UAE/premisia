@@ -608,6 +608,7 @@ export interface UserContext {
   organizationalContext?: string;
   sessionId?: string;  // Added for initiative type lookup
   clarificationConflicts?: string[];
+  constraintMode?: 'auto' | 'discovery' | 'constrained';
 }
 
 // ============================================================================

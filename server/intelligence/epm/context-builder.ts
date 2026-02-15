@@ -8,6 +8,8 @@
 
 import type { StrategyInsights, StrategyContext, BusinessCategory, JourneyType } from '../types';
 import { extractUserConstraintsFromText } from './constraint-utils';
+import type { ConstraintMode } from './constraint-policy';
+import { shouldUseTextConstraintFallback } from './constraint-policy';
 import type { PlanningContext, BusinessScale } from '../../../src/lib/intelligent-planning/types';
 
 export class ContextBuilder {
@@ -23,7 +25,8 @@ export class ContextBuilder {
     journeyType: string = 'strategy_workspace',
     sessionId?: string,
     explicitBudgetRange?: { min: number; max: number },
-    explicitTimelineRange?: { min: number; max: number }
+    explicitTimelineRange?: { min: number; max: number },
+    constraintMode: ConstraintMode = 'auto',
   ): Promise<PlanningContext> {
     const scale = this.inferScale(insights);
     let timelineRange = explicitTimelineRange || this.inferTimelineRange(scale, insights);
@@ -93,7 +96,8 @@ export class ContextBuilder {
 
     // SPRINT 6B FIX: Only extract constraints from text if NOT already provided explicitly
     // This prevents overwriting user's original budget/timeline with AI-generated values
-    if (!explicitBudgetRange || !explicitTimelineRange) {
+    const allowTextConstraintFallback = shouldUseTextConstraintFallback(constraintMode);
+    if (allowTextConstraintFallback && (!explicitBudgetRange || !explicitTimelineRange)) {
       const userConstraints = extractUserConstraintsFromText(
         userInput || businessDescription,
         insights.marketContext?.budgetRange
@@ -106,6 +110,8 @@ export class ContextBuilder {
         budgetRange = userConstraints.budget;
         console.log(`[ContextBuilder] 💰 Extracted budget from text: $${budgetRange.min.toLocaleString()}-$${budgetRange.max.toLocaleString()}`);
       }
+    } else if (!allowTextConstraintFallback) {
+      console.log(`[ContextBuilder] 💡 Constraint mode "${constraintMode}" - skipping text constraint extraction`);
     }
 
     // Log the final constraints being used

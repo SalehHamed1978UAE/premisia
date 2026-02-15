@@ -36,7 +36,10 @@ export class WorkstreamGenerator implements IWorkstreamGenerator {
       const planningContext = await ContextBuilder.fromJourneyInsights(
         insights,
         insights.frameworkType || 'strategy_workspace',
-        userContext?.sessionId
+        userContext?.sessionId,
+        undefined,
+        undefined,
+        userContext?.constraintMode || 'auto',
       );
       
       console.log('[WorkstreamGenerator] ✓ Planning Context Created:');

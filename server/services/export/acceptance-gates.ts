@@ -1,5 +1,6 @@
 import { getJourney } from '../../journey/journey-registry';
 import { qualityGateRunner } from '../../intelligence/epm/validators/quality-gate-runner';
+import { deriveConstraintMode, shouldEnforceConstraints } from '../../intelligence/epm/constraint-policy';
 
 type Severity = 'critical' | 'warning';
 
@@ -493,12 +494,25 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
   }
 
   // ─── Budget & Timeline Constraint Enforcement ───
+  const explicitConstraintMode = epmData.userInputStructured?.constraintMode || epmData.metadata?.constraintMode;
   const constraints = epmData.constraints || epmData.program?.constraints || epmData.metadata?.constraints || null;
+  const hasAnyConstraint = Boolean(
+    constraints &&
+    (
+      constraints.costMin != null ||
+      constraints.costMax != null ||
+      constraints.teamSizeMin != null ||
+      constraints.teamSizeMax != null ||
+      constraints.timelineMonths != null
+    )
+  );
+  const effectiveConstraintMode = deriveConstraintMode(explicitConstraintMode, hasAnyConstraint);
+  const enforceConstraints = shouldEnforceConstraints(effectiveConstraintMode);
   const financialPlan = parseJson(epmData.program?.financialPlan) || epmData.financialPlan || null;
   const totalBudget = Number(financialPlan?.totalBudget ?? epmData.program?.totalBudget);
   const costMax = Number(constraints?.costMax);
 
-  if (Number.isFinite(totalBudget) && Number.isFinite(costMax) && costMax > 0 && totalBudget > costMax) {
+  if (enforceConstraints && Number.isFinite(totalBudget) && Number.isFinite(costMax) && costMax > 0 && totalBudget > costMax) {
     const overage = totalBudget - costMax;
     const overagePercent = ((overage / costMax) * 100).toFixed(1);
     criticalIssues.push({
@@ -513,7 +527,7 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
   const programTotalMonths = Number(timelineObj?.totalMonths ?? epmData.program?.totalDuration);
   const constraintTimelineMonths = Number(constraints?.timelineMonths);
 
-  if (Number.isFinite(programTotalMonths) && Number.isFinite(constraintTimelineMonths) && constraintTimelineMonths > 0) {
+  if (enforceConstraints && Number.isFinite(programTotalMonths) && Number.isFinite(constraintTimelineMonths) && constraintTimelineMonths > 0) {
     // Flag if program duration is less than half the requested timeline (indicates incomplete scope)
     if (programTotalMonths < constraintTimelineMonths * 0.5) {
       warnings.push({
@@ -536,7 +550,7 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
 
   // ─── requiresApproval Check ───
   const requiresApproval = epmData.requiresApproval;
-  if (Number.isFinite(totalBudget) && Number.isFinite(costMax) && totalBudget > costMax) {
+  if (enforceConstraints && Number.isFinite(totalBudget) && Number.isFinite(costMax) && totalBudget > costMax) {
     if (!requiresApproval || requiresApproval.budget !== true) {
       criticalIssues.push({
         severity: 'critical',

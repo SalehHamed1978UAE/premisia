@@ -33,6 +33,7 @@ import { referenceService } from '../services/reference-service';
 import { journeySummaryService } from '../services/journey-summary-service';
 import { decryptKMS } from '../utils/kms-encryption';
 import { buildLinearWhysTree, normalizeWhysPathSteps, whysPathToText } from '../utils/whys-path';
+import { deriveConstraintMode, normalizeConstraintMode } from '../intelligence/epm/constraint-policy';
 
 const router = Router();
 const upload = multer({ 
@@ -320,7 +321,7 @@ router.post('/validate-manual-location', async (req: Request, res: Response) => 
 
 router.post('/understanding', async (req: Request, res: Response) => {
   try {
-    const { input, clarifications, fileMetadata, budgetConstraint } = req.body;
+    const { input, clarifications, fileMetadata, budgetConstraint, constraintMode } = req.body;
 
     if (!input || !input.trim()) {
       return res.status(400).json({ error: 'Input text is required' });
@@ -369,6 +370,17 @@ router.post('/understanding', async (req: Request, res: Response) => {
       }
     }
 
+    const requestedConstraintMode = normalizeConstraintMode(constraintMode);
+    if (constraintMode !== undefined && requestedConstraintMode === undefined) {
+      return res.status(400).json({
+        error: 'constraintMode must be one of: auto, discovery, constrained',
+      });
+    }
+    const hasExplicitConstraint = Boolean(
+      normalizedBudgetConstraint?.amount || normalizedBudgetConstraint?.timeline
+    );
+    const effectiveConstraintMode = deriveConstraintMode(requestedConstraintMode, hasExplicitConstraint);
+
     // If clarifications provided, incorporate them into the input + detect conflicts
     const clarificationResult = clarifications
       ? ambiguityDetector.buildClarifiedInputWithConflicts(input.trim(), clarifications)
@@ -406,7 +418,7 @@ router.post('/understanding', async (req: Request, res: Response) => {
       budgetConstraint: normalizedBudgetConstraint,
     });
 
-    if (clarificationResult.conflicts.length > 0) {
+    if (clarificationResult.conflicts.length > 0 || requestedConstraintMode !== undefined || hasExplicitConstraint) {
       const [existingMeta] = await db.select({ strategyMetadata: strategicUnderstanding.strategyMetadata })
         .from(strategicUnderstanding)
         .where(eq(strategicUnderstanding.id, result.understandingId))
@@ -416,14 +428,26 @@ router.post('/understanding', async (req: Request, res: Response) => {
         ? existingMeta.strategyMetadata as Record<string, any>
         : {};
 
-      const updatedMetadata = {
+      const updatedMetadata: Record<string, any> = {
         ...baseMetadata,
-        clarificationConflicts: clarificationResult.conflicts,
-        requiresApproval: {
+      };
+
+      if (requestedConstraintMode !== undefined || hasExplicitConstraint) {
+        updatedMetadata.constraintPolicy = {
+          mode: effectiveConstraintMode,
+          source: 'strategic-input',
+          updatedAt: new Date().toISOString(),
+          hasExplicitConstraint,
+        };
+      }
+
+      if (clarificationResult.conflicts.length > 0) {
+        updatedMetadata.clarificationConflicts = clarificationResult.conflicts;
+        updatedMetadata.requiresApproval = {
           ...(baseMetadata.requiresApproval || {}),
           clarifications: true,
-        },
-      };
+        };
+      }
 
       await db.update(strategicUnderstanding)
         .set({

@@ -17,6 +17,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { deriveConstraintMode, shouldEnforceConstraints } from '../server/intelligence/epm/constraint-policy';
 
 interface ValidationIssue {
   check: string;
@@ -89,6 +90,7 @@ interface EPMPackage {
   userInputStructured?: {
     raw?: string | null;
     summary?: string | null;
+    constraintMode?: 'auto' | 'discovery' | 'constrained' | string | null;
     constraints?: {
       costMin?: number | null;
       costMax?: number | null;
@@ -128,6 +130,30 @@ class EPMPackageValidator {
   private criticalIssues: ValidationIssue[] = [];
   private checkResults: CheckResult[] = [];
   private currentCheck: string = '';
+
+  private hasAnyConstraint(constraints: any): boolean {
+    if (!constraints || typeof constraints !== 'object') return false;
+    return (
+      constraints.costMin != null ||
+      constraints.costMax != null ||
+      constraints.teamSizeMin != null ||
+      constraints.teamSizeMax != null ||
+      constraints.timelineMonths != null
+    );
+  }
+
+  private getConstraintMode(pkg: EPMPackage): 'auto' | 'discovery' | 'constrained' {
+    const explicitMode =
+      pkg.userInputStructured?.constraintMode ??
+      (pkg.metadata as any)?.constraintMode;
+
+    const constraints =
+      pkg.userInputStructured?.constraints ??
+      pkg.constraints ??
+      (pkg.metadata as any)?.constraints;
+
+    return deriveConstraintMode(explicitMode, this.hasAnyConstraint(constraints));
+  }
 
   /**
    * Main validation entry point
@@ -663,6 +689,8 @@ class EPMPackageValidator {
    */
   private check15_BudgetConsistency(pkg: EPMPackage): void {
     console.log('✓ Check 15: Budget Consistency');
+    const constraintMode = this.getConstraintMode(pkg);
+    const enforce = shouldEnforceConstraints(constraintMode);
 
     const financialPlan = pkg.financialPlan;
     if (!financialPlan) {
@@ -676,12 +704,16 @@ class EPMPackageValidator {
       return;
     }
 
-    // Extract budget constraints from structured user input (NEW)
+    // Extract budget constraints from structured user input
     const constraints = pkg.userInputStructured?.constraints || pkg.metadata?.constraints;
     let userBudgetMin = constraints?.costMin;
     let userBudgetMax = constraints?.costMax;
 
-    // Fallback: try to extract from legacy userInput field
+    if (!enforce) {
+      return;
+    }
+
+    // Legacy fallback: try to extract from free text when running in auto/constrained mode
     if (!userBudgetMin && !userBudgetMax) {
       const userInput = pkg.userInput || pkg.executiveSummary;
       if (userInput?.budget) {
@@ -733,6 +765,7 @@ class EPMPackageValidator {
   private check16_ConstraintUnitValidation(pkg: EPMPackage): void {
     console.log('✓ Check 16: Constraint Unit Validation');
     this.currentCheck = 'check16_ConstraintUnitValidation';
+    if (!shouldEnforceConstraints(this.getConstraintMode(pkg))) return;
 
     const constraints = pkg.userInputStructured?.constraints;
     if (!constraints) return;
@@ -822,9 +855,10 @@ class EPMPackageValidator {
       this.addError('Financial plan has no totalBudget', 15);
       return;
     }
+    const enforceConstraints = shouldEnforceConstraints(this.getConstraintMode(pkg));
 
     // --- Item A Coordination: budgetViolation field ---
-    if (fp.budgetViolation) {
+    if (enforceConstraints && fp.budgetViolation) {
       const ra = pkg.requiresApproval;
       const hasApprovalFlag = typeof ra === 'object' && ra !== null && ra.budget === true;
       if (!hasApprovalFlag) {
@@ -844,7 +878,7 @@ class EPMPackageValidator {
     }
 
     // --- Item A Coordination: budgetHeadroom field ---
-    if (fp.budgetHeadroom) {
+    if (enforceConstraints && fp.budgetHeadroom) {
       const allocated = fp.budgetHeadroom.allocated ?? 0;
       const calculated = fp.budgetHeadroom.calculated ?? 0;
       if (allocated > 0) {
@@ -878,7 +912,7 @@ class EPMPackageValidator {
     }
 
     // --- Budget within constraints (pre-Item A fallback) ---
-    if (!fp.budgetViolation && !fp.budgetHeadroom) {
+    if (enforceConstraints && !fp.budgetViolation && !fp.budgetHeadroom) {
       const constraints = pkg.userInputStructured?.constraints;
       const costMax = constraints?.costMax;
       const costMin = constraints?.costMin;
@@ -922,6 +956,7 @@ class EPMPackageValidator {
   private check18_TopLevelMetadataPresence(pkg: EPMPackage): void {
     console.log('✓ Check 18: Top-Level Metadata Presence');
     this.currentCheck = 'check18_TopLevelMetadataPresence';
+    const enforceConstraints = shouldEnforceConstraints(this.getConstraintMode(pkg));
 
     // Top-level timeline (Item D creates this)
     const topTimeline = pkg.timeline;
@@ -931,7 +966,7 @@ class EPMPackageValidator {
 
     // Top-level constraints (Item D creates this)
     const topConstraints = pkg.constraints;
-    if (!topConstraints || (typeof topConstraints === 'object' && Object.keys(topConstraints).length === 0)) {
+    if (enforceConstraints && (!topConstraints || (typeof topConstraints === 'object' && Object.keys(topConstraints).length === 0))) {
       this.addWarning('Top-level constraints field missing or empty in epm.json');
     }
 
@@ -1035,6 +1070,7 @@ class EPMPackageValidator {
   private check20_TimelineConstraintEnforcement(pkg: EPMPackage): void {
     console.log('✓ Check 20: Timeline Constraint Enforcement');
     this.currentCheck = 'check20_TimelineConstraintEnforcement';
+    if (!shouldEnforceConstraints(this.getConstraintMode(pkg))) return;
 
     const constraints = pkg.userInputStructured?.constraints;
     const constraintMonths = constraints?.timelineMonths;

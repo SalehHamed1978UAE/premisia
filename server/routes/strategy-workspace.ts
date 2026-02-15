@@ -5,6 +5,7 @@ import { eq, desc, inArray, and } from 'drizzle-orm';
 import { BMCAnalyzer, PortersAnalyzer, PESTLEAnalyzer, EPMSynthesizer, getAggregatedAnalysis, normalizeSWOT } from '../intelligence';
 import type { BMCResults, PortersResults, PESTLEResults } from '../intelligence/types';
 import { deriveTeamSizeFromBudget, extractUserConstraintsFromText } from '../intelligence/epm/constraint-utils';
+import { deriveConstraintMode, shouldUseTextConstraintFallback } from '../intelligence/epm/constraint-policy';
 import { storage } from '../storage';
 import { getEPMProgram, getStrategicUnderstandingBySession } from '../services/secure-data-service';
 import { createOpenAIProvider } from '../../src/lib/intelligent-planning/llm-provider';
@@ -385,6 +386,7 @@ async function processEPMGeneration(
     let initiativeType: string | undefined = undefined;
     let journeyTitle: string | undefined = undefined;
     let clarificationConflicts: string[] = [];
+    let constraintModeForRun: 'auto' | 'discovery' | 'constrained' = 'auto';
     if (version.sessionId) {
       try {
         const understanding = await getStrategicUnderstandingBySession(version.sessionId);
@@ -398,10 +400,18 @@ async function processEPMGeneration(
           console.log(`[EPM Generation] ✅ Journey title fetched: "${journeyTitle}"`);
         }
 
-        // DUAL-MODE EPM: Check for explicit budget constraint first
-        const budgetConstraint = understanding?.budgetConstraint as { amount?: number; timeline?: number } | null;
+        const strategyMetadata = typeof (understanding as any)?.strategyMetadata === 'string'
+          ? JSON.parse((understanding as any).strategyMetadata)
+          : (understanding as any)?.strategyMetadata || {};
 
-        if (budgetConstraint?.amount || budgetConstraint?.timeline) {
+        // DUAL-MODE EPM: Constraint policy decides whether text fallback is allowed.
+        const budgetConstraint = understanding?.budgetConstraint as { amount?: number; timeline?: number } | null;
+        const hasExplicitConstraint = Boolean(budgetConstraint?.amount || budgetConstraint?.timeline);
+        const constraintMode = deriveConstraintMode(strategyMetadata?.constraintPolicy?.mode, hasExplicitConstraint);
+        constraintModeForRun = constraintMode;
+        const allowTextConstraintFallback = shouldUseTextConstraintFallback(constraintMode);
+
+        if (hasExplicitConstraint) {
           // MODE 2: Constrained Planning - user provided explicit budget
           const updates: any = {};
           if (budgetConstraint.amount) {
@@ -424,10 +434,11 @@ async function processEPMGeneration(
             await db.update(strategyVersions)
               .set({ ...updates, updatedAt: new Date() })
               .where(eq(strategyVersions.id, strategyVersionId));
+            Object.assign(version, updates);
             console.log('[EPM Generation] ✅ Persisted explicit budget constraints to strategy_version:', updates);
           }
-        } else if (understanding?.userInput) {
-          // MODE 1: Cost Discovery - no explicit budget, try to extract from text as fallback
+        } else if (allowTextConstraintFallback && understanding?.userInput) {
+          // Legacy MODE (auto): no explicit budget, allow extraction from text as fallback
           const userConstraints = extractUserConstraintsFromText(understanding.userInput);
           if (userConstraints.budget || userConstraints.timeline) {
             const updates: any = {};
@@ -451,11 +462,16 @@ async function processEPMGeneration(
               await db.update(strategyVersions)
                 .set({ ...updates, updatedAt: new Date() })
                 .where(eq(strategyVersions.id, strategyVersionId));
+              Object.assign(version, updates);
               console.log('[EPM Generation] ✅ Persisted extracted constraints to strategy_version:', updates);
             }
           } else {
             console.log('[EPM Generation] 💡 No budget constraint set - running in COST DISCOVERY mode');
           }
+        } else if (constraintMode === 'discovery') {
+          console.log('[EPM Generation] 💡 Discovery mode active - skipping text-based constraint extraction');
+        } else if (constraintMode === 'constrained') {
+          console.log('[EPM Generation] ⚠️ Constrained mode set but no explicit budget/timeline values found');
         }
 
         // Detect clarification conflicts in existing input and store in metadata
@@ -755,12 +771,14 @@ async function processEPMGeneration(
       prioritizedOrder: prioritizedOrder || [],
       sessionId: version.sessionId,  // Pass sessionId for initiative type lookup
       clarificationConflicts,
+      constraintMode: constraintModeForRun,
       budgetRange: versionBudgetRange,
       timelineRange: versionTimelineRange,
     } : {
       prioritizedOrder: prioritizedOrder || [],
       sessionId: version.sessionId,  // Pass sessionId for initiative type lookup
       clarificationConflicts,
+      constraintMode: constraintModeForRun,
       budgetRange: versionBudgetRange,
       timelineRange: versionTimelineRange,
     };
