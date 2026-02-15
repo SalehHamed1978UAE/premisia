@@ -58,6 +58,18 @@ export default function InputPage() {
   const [budgetAmount, setBudgetAmount] = useState('');
   const [budgetTimelineMonths, setBudgetTimelineMonths] = useState('');
 
+  const maybeWarnAmbiguityCheckFailure = (ambiguityResult: any) => {
+    const reasoning = typeof ambiguityResult?.reasoning === 'string' ? ambiguityResult.reasoning : '';
+    const failed = Boolean(ambiguityResult?.error) || /ambiguity check unavailable|error detecting ambiguities/i.test(reasoning);
+    if (!failed) return;
+
+    toast({
+      title: "Ambiguity check unavailable",
+      description: "Continuing without clarification questions for this run.",
+      variant: "default",
+    });
+  };
+
   // Fetch strategic summary from Segment Discovery if discoveryId is present
   useEffect(() => {
     if (!discoveryId) return; // No discovery context to load
@@ -214,6 +226,7 @@ export default function InputPage() {
       }
 
       const ambiguityResult = await ambiguityResponse.json();
+      maybeWarnAmbiguityCheckFailure(ambiguityResult);
       setProgress(60);
 
       if (ambiguityResult.hasAmbiguities) {
@@ -272,6 +285,7 @@ export default function InputPage() {
       }
 
       const ambiguityResult = await ambiguityResponse.json();
+      maybeWarnAmbiguityCheckFailure(ambiguityResult);
 
       if (ambiguityResult.hasAmbiguities) {
         // Show clarification modal
@@ -486,6 +500,7 @@ export default function InputPage() {
       }
 
       const ambiguityResult = await ambiguityResponse.json();
+      maybeWarnAmbiguityCheckFailure(ambiguityResult);
 
       if (ambiguityResult.hasAmbiguities) {
         // Save trimmed input before showing modal (clarifications will be applied when submitted)

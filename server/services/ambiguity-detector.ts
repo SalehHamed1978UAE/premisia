@@ -1,4 +1,6 @@
 import { aiClients } from '../ai-clients.js';
+import { z } from 'zod';
+import { parseAndValidate } from '../utils/parse-ai-json';
 
 export interface AmbiguityQuestion {
   id: string;
@@ -15,12 +17,49 @@ export interface AmbiguityDetectionResult {
   hasAmbiguities: boolean;
   questions: AmbiguityQuestion[];
   reasoning?: string;
+  error?: string;
 }
 
 export interface ClarificationConflictResult {
   clarifiedInput: string;
   conflicts: string[];
 }
+
+const ambiguityOptionSchema = z.object({
+  value: z.string().optional(),
+  label: z.string().optional(),
+  description: z.string().optional(),
+}).passthrough();
+
+const ambiguityQuestionSchema = z.object({
+  id: z.string().optional(),
+  question: z.string(),
+  multiSelect: z.boolean().optional(),
+  options: z.array(ambiguityOptionSchema).default([]),
+}).passthrough();
+
+const ambiguityDetectionSchema = z.object({
+  hasAmbiguities: z.boolean().optional(),
+  questions: z.array(ambiguityQuestionSchema).default([]),
+  reasoning: z.string().optional(),
+}).passthrough();
+
+const semanticConflictSchema = z.object({
+  line1: z.string().optional(),
+  line2: z.string().optional(),
+  type: z.string().optional(),
+  explanation: z.string().optional(),
+}).passthrough();
+
+const semanticUnclearSchema = z.object({
+  line: z.string().optional(),
+  reason: z.string().optional(),
+}).passthrough();
+
+const semanticConflictResultSchema = z.object({
+  conflicts: z.array(semanticConflictSchema).default([]),
+  unclear: z.array(semanticUnclearSchema).default([]),
+}).passthrough();
 
 /**
  * Ambiguity Detector Service
@@ -181,59 +220,85 @@ If NO critical ambiguities found, return:
         systemPrompt: 'You are a strategic planning expert. Detect ambiguities that would lead to wrong business assumptions. Return ONLY valid JSON.',
         userMessage: prompt,
         maxTokens: 1500,
+        expectJson: true,
       });
 
-      // Extract JSON from response
-      let cleanedContent = response.content.trim();
-      
-      // Remove markdown code blocks if present
-      const codeBlockMatch = cleanedContent.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-      if (codeBlockMatch) {
-        cleanedContent = codeBlockMatch[1];
-      }
+      const result = parseAndValidate(
+        response.content,
+        ambiguityDetectionSchema,
+        'ambiguity detection',
+      );
 
-      // Extract JSON object
-      const jsonMatch = cleanedContent.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('No JSON found in AI response');
-      }
+      const normalizedQuestions: AmbiguityQuestion[] = (result.questions || [])
+        .map((question, questionIndex) => {
+          const questionText = (question.question || '').trim();
+          if (!questionText) return null;
 
-      const result = JSON.parse(jsonMatch[0]);
+          const normalizedOptions = (question.options || [])
+            .map((option, optionIndex) => {
+              const rawLabel = (option.label || option.value || '').trim();
+              if (!rawLabel) return null;
+              const rawValue = (option.value || rawLabel)
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '_')
+                .replace(/^_+|_+$/g, '');
+
+              return {
+                value: rawValue || `option_${optionIndex + 1}`,
+                label: rawLabel,
+                description: (option.description || '').trim() || rawLabel,
+              };
+            })
+            .filter((option): option is NonNullable<typeof option> => option !== null);
+
+          if (normalizedOptions.length === 0) return null;
+
+          return {
+            id: (question.id || '').trim() || `ambiguity_${questionIndex + 1}`,
+            question: questionText,
+            multiSelect: question.multiSelect,
+            options: normalizedOptions,
+          };
+        })
+        .filter((question): question is AmbiguityQuestion => question !== null);
 
       // Merge AI-detected questions with pre-computed questions
-      if (result.questions && result.questions.length > 0) {
-        mergedQuestions.push(...result.questions);
+      if (normalizedQuestions.length > 0) {
+        mergedQuestions.push(...normalizedQuestions);
       }
 
-      const hasAmbiguities = mergedQuestions.length > 0;
+      const hasAmbiguities = result.hasAmbiguities ?? mergedQuestions.length > 0;
 
       console.log('[Ambiguity Detector] ✓ Analysis complete:', {
-        hasAmbiguities,
+        hasAmbiguities: hasAmbiguities || mergedQuestions.length > 0,
         totalQuestions: mergedQuestions.length,
         precomputedQuestions: precomputedQuestions.length,
-        aiDetectedQuestions: result.questions?.length || 0,
+        aiDetectedQuestions: normalizedQuestions.length,
       });
 
       return {
-        hasAmbiguities,
+        hasAmbiguities: hasAmbiguities || mergedQuestions.length > 0,
         questions: mergedQuestions,
         reasoning: result.reasoning || 'Questions require clarification',
       };
-    } catch (error) {
-      console.error('[Ambiguity Detector] Error:', error);
+    } catch (error: any) {
+      const errorMessage = error?.message || String(error);
+      console.error('[Ambiguity Detector] Error while detecting ambiguities:', errorMessage);
       // On error, still return pre-computed questions if any
       if (mergedQuestions.length > 0) {
         return {
           hasAmbiguities: true,
           questions: mergedQuestions,
-          reasoning: 'Geographic disambiguation needed',
+          reasoning: 'Geographic disambiguation needed (AI ambiguity check unavailable)',
+          error: errorMessage,
         };
       }
       // Otherwise, assume no ambiguities (fail gracefully)
       return {
         hasAmbiguities: false,
         questions: [],
-        reasoning: 'Error detecting ambiguities - proceeding with input as-is',
+        reasoning: 'Ambiguity check unavailable - proceeding with input as-is',
+        error: errorMessage,
       };
     }
   }
@@ -595,9 +660,14 @@ If no conflicts or unclear items exist, return empty arrays.`;
         systemPrompt,
         userMessage,
         maxTokens: 1024,
+        expectJson: true,
       });
 
-      const parsed = JSON.parse(response.content);
+      const parsed = parseAndValidate(
+        response.content,
+        semanticConflictResultSchema,
+        'semantic clarification conflict detection',
+      );
       const semanticConflicts: string[] = [];
 
       if (parsed.conflicts && Array.isArray(parsed.conflicts)) {

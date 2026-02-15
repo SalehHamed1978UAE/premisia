@@ -224,10 +224,22 @@ router.post('/check-ambiguities', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'userInput is required' });
     }
 
-    // Extract text for location checking vs full input for general ambiguity checking
-    // userInput can be either a string OR an object with { text, fullInput }
-    const textForLocationCheck = typeof userInput === 'string' ? userInput : (userInput.text || '');
-    const fullInputForAmbiguity = typeof userInput === 'string' ? userInput : (userInput.fullInput || userInput.text || userInput);
+    // Extract text for location checking vs full input for general ambiguity checking.
+    // userInput can be a string OR an object with { text, fullInput }.
+    const rawTextForLocationCheck = typeof userInput === 'string' ? userInput : (userInput.text || '');
+    const rawFullInput = typeof userInput === 'string' ? userInput : (userInput.fullInput || userInput.text || userInput);
+    const fullInputForAmbiguity = typeof rawFullInput === 'string' ? rawFullInput : JSON.stringify(rawFullInput);
+
+    // If user typed text is empty (common in file-upload flow), fall back to full input for location checks.
+    const textForLocationCheck = (
+      (rawTextForLocationCheck || '').trim().length > 0
+        ? rawTextForLocationCheck
+        : fullInputForAmbiguity
+    ).slice(0, 5000);
+
+    if (!(rawTextForLocationCheck || '').trim()) {
+      console.log('[Ambiguity Check] No typed text provided; using full input fallback for location disambiguation');
+    }
 
     console.log('[Ambiguity Check] Step 1: Checking for geographic ambiguities...');
     
