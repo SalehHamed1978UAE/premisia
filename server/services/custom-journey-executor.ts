@@ -362,6 +362,56 @@ export class CustomJourneyExecutor {
                   console.error(`[CustomJourneyExecutor] Failed to create understanding:`, insertError.message);
                   throw new Error(`Cannot proceed with user input step: failed to create strategic understanding record - ${insertError.message}`);
                 }
+              } else {
+                // Existing understanding row: keep constraint extraction in sync when users
+                // provide explicit "$XM over N months" style constraints in new input.
+                const inputData = execution.inputData as Record<string, any> || {};
+                const providedUserInput = (typeof inputData.businessContext === 'string' && inputData.businessContext.trim())
+                  ? inputData.businessContext.trim()
+                  : (typeof inputData.userInput === 'string' && inputData.userInput.trim())
+                    ? inputData.userInput.trim()
+                    : '';
+
+                if (providedUserInput) {
+                  const budgetMatch = providedUserInput.match(/\$\s*(\d+(?:\.\d+)?)\s*(million|mil|m|M)\b/i);
+                  const timelineMatch = providedUserInput.match(/(\d+)\s*months?\b/i);
+
+                  if (budgetMatch || timelineMatch) {
+                    const budgetConstraintValue: { amount?: number; timeline?: number } = {};
+                    if (budgetMatch) {
+                      budgetConstraintValue.amount = parseFloat(budgetMatch[1]) * 1_000_000;
+                    }
+                    if (timelineMatch) {
+                      budgetConstraintValue.timeline = parseInt(timelineMatch[1], 10);
+                    }
+
+                    const existingRow = existingUnderstanding[0] as any;
+                    const existingMetadata = (existingRow?.strategyMetadata && typeof existingRow.strategyMetadata === 'object')
+                      ? existingRow.strategyMetadata as Record<string, any>
+                      : {};
+                    const updatedMetadata: Record<string, any> = {
+                      ...existingMetadata,
+                      constraintPolicy: {
+                        mode: 'constrained',
+                        source: 'user-input-extraction',
+                        updatedAt: new Date().toISOString(),
+                        hasExplicitConstraint: true,
+                      },
+                      lastUpdated: new Date().toISOString(),
+                    };
+
+                    await db.update(strategicUnderstanding)
+                      .set({
+                        budgetConstraint: budgetConstraintValue,
+                        strategyMetadata: updatedMetadata,
+                      })
+                      .where(eq(strategicUnderstanding.id, existingRow.id));
+
+                    console.log(
+                      `[CustomJourneyExecutor] Updated existing understanding with extracted constraints for session: ${sessionId}`
+                    );
+                  }
+                }
               }
               
               // Check if a version already exists
