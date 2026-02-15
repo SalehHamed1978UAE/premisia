@@ -196,7 +196,7 @@ Confidence scale:
       systemPrompt,
       userMessage,
       maxTokens: 1500,
-    }, "anthropic");
+    });
 
     const textContent = response.content;
 

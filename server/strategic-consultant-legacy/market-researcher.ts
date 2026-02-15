@@ -198,7 +198,7 @@ Example for "Arabic language differentiates our enterprise software in UAE":
       systemPrompt,
       userMessage,
       maxTokens: 2000,
-    }, "anthropic");
+    });
 
     const textContent = response.content;
 
@@ -552,7 +552,7 @@ Return ONLY valid JSON (no markdown, no explanation):
       systemPrompt,
       userMessage,
       maxTokens: 4000,
-    }, "anthropic");
+    });
 
     const textContent = response.content;
 

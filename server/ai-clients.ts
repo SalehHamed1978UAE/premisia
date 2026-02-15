@@ -3,9 +3,10 @@ import OpenAI from "openai";
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenAI } from "@google/genai";
 import type { AIProvider } from "@shared/schema";
+import { tryNormalizeJsonText } from "./utils/parse-ai-json";
 
-// the newest OpenAI model is "gpt-5" which was released August 7, 2025. do not change this unless explicitly requested by the user
-const OPENAI_MODEL = "gpt-5";
+// Default to GPT-5.2 and keep reasoning disabled for deterministic token usage.
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5.2";
 
 // The newest Anthropic model is "claude-sonnet-4-20250514"
 const ANTHROPIC_MODEL = "claude-sonnet-4-20250514";
@@ -22,6 +23,7 @@ interface AIClientRequest {
   userMessage: string;
   responseSchema?: any;
   maxTokens?: number;
+  expectJson?: boolean;
 }
 
 interface AIClientResponse {
@@ -85,24 +87,46 @@ export class AIClients {
   }
 
   async callOpenAI(request: AIClientRequest): Promise<AIClientResponse> {
-    const { systemPrompt, userMessage, maxTokens = 8192 } = request;
+    const { systemPrompt, userMessage, maxTokens = 8192, responseSchema, expectJson } = request;
 
     const openai = this.getOpenAI();
 
-    // OpenAI gpt-5 doesn't support temperature parameter
-    // Use max_completion_tokens instead of max_tokens for gpt-5
-    const response = await openai.chat.completions.create({
+    const combinedPrompt = `${systemPrompt}\n${userMessage}`.toLowerCase();
+    const inferredJsonExpectation = combinedPrompt.includes('json');
+    const shouldForceJson = expectJson ?? Boolean(responseSchema || inferredJsonExpectation);
+
+    const payload: any = {
       model: OPENAI_MODEL,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage }
       ],
-      response_format: { type: "json_object" },
       max_completion_tokens: maxTokens,
-    });
+      reasoning_effort: "none",
+    };
+
+    if (shouldForceJson) {
+      payload.response_format = { type: "json_object" };
+    }
+
+    // OpenAI gpt-5 doesn't support temperature parameter
+    // Use max_completion_tokens instead of max_tokens for gpt-5
+    const response = await openai.chat.completions.create(payload);
+
+    const content = response.choices[0].message.content || "";
+    const finishReason = response.choices[0].finish_reason || "unknown";
+    if (finishReason === "length") {
+      console.warn(
+        `[AIClients] OpenAI response truncated (finish_reason=length). Content length=${content.length}.`,
+      );
+    }
+
+    if (!content.trim()) {
+      throw new Error(`OpenAI returned empty content (finish_reason=${finishReason})`);
+    }
 
     return {
-      content: response.choices[0].message.content || "",
+      content,
       provider: "openai",
       model: OPENAI_MODEL,
     };
@@ -219,8 +243,8 @@ export class AIClients {
     const providers: AIProvider[] = [];
     if (this.isProviderAvailable("ollama" as AIProvider)) providers.push("ollama" as AIProvider);
     if (this.isProviderAvailable("openai")) providers.push("openai");
-    if (this.isProviderAvailable("anthropic")) providers.push("anthropic");
     if (this.isProviderAvailable("gemini")) providers.push("gemini");
+    if (this.isProviderAvailable("anthropic")) providers.push("anthropic");
     return providers;
   }
 
@@ -235,22 +259,60 @@ export class AIClients {
       return preferredProvider;
     }
 
-    // Default priority: OpenAI > Anthropic > Gemini
+    // Default priority: OpenAI > Gemini > Anthropic
     if (this.isProviderAvailable("openai")) return "openai";
-    if (this.isProviderAvailable("anthropic")) return "anthropic";
-    return "gemini";
+    if (this.isProviderAvailable("gemini")) return "gemini";
+    return "anthropic";
+  }
+
+  private normalizeResponseContent(response: AIClientResponse): AIClientResponse {
+    if (!response.content || typeof response.content !== 'string') {
+      return response;
+    }
+
+    const normalized = tryNormalizeJsonText(
+      response.content,
+      `ai-clients ${response.provider}`,
+    );
+
+    if (!normalized) {
+      return response;
+    }
+
+    return {
+      ...response,
+      content: normalized,
+    };
+  }
+
+  private shouldExpectJson(request: AIClientRequest): boolean {
+    if (typeof request.expectJson === 'boolean') {
+      return request.expectJson;
+    }
+
+    const combinedPrompt = `${request.systemPrompt}\n${request.userMessage}`.toLowerCase();
+    return Boolean(request.responseSchema) || combinedPrompt.includes('json');
   }
 
   async callWithFallback(request: AIClientRequest, preferredProvider?: AIProvider): Promise<AIClientResponse> {
-    // Priority order: Ollama (free local) → Anthropic (Claude) → OpenAI (GPT-5) → Gemini
+    // Priority order: Ollama (free local) → OpenAI (GPT-5.2) → Gemini → Anthropic
     // When USE_OLLAMA=true, Ollama is first; otherwise skip it
     const defaultOrder: AIProvider[] = process.env.USE_OLLAMA === "true"
-      ? ["ollama" as AIProvider, "anthropic", "openai", "gemini"]
-      : ["anthropic", "openai", "gemini"];
+      ? ["ollama" as AIProvider, "openai", "gemini", "anthropic"]
+      : ["openai", "gemini", "anthropic"];
+
+    // Global policy: if OpenAI is available, ignore non-OpenAI explicit preference unless opt-out is set.
+    const allowNonOpenAIPreference = process.env.ALLOW_NON_OPENAI_PREFERRED === "true";
+    const effectivePreferred =
+      preferredProvider &&
+      !(preferredProvider !== "openai" && this.isProviderAvailable("openai") && !allowNonOpenAIPreference)
+        ? preferredProvider
+        : undefined;
     
-    const providerOrder: AIProvider[] = preferredProvider 
-      ? [preferredProvider, ...defaultOrder.filter(p => p !== preferredProvider)]
+    const providerOrder: AIProvider[] = effectivePreferred
+      ? [effectivePreferred, ...defaultOrder.filter(p => p !== effectivePreferred)]
       : defaultOrder;
+    const expectJson = this.shouldExpectJson(request);
 
     const errors: { provider: AIProvider; error: string }[] = [];
 
@@ -261,7 +323,18 @@ export class AIClients {
 
       try {
         console.log(`[AIClients] Attempting provider: ${provider}`);
-        const response = await this.call(provider, request);
+        const response = this.normalizeResponseContent(await this.call(provider, request));
+
+        if (expectJson) {
+          const normalizedCandidate = tryNormalizeJsonText(
+            response.content,
+            `ai-clients-json-check ${provider}`,
+          );
+          if (!normalizedCandidate) {
+            throw new Error('Provider returned non-JSON content for JSON-expected request');
+          }
+        }
+
         console.log(`[AIClients] ✓ Success with provider: ${provider} (model: ${response.model})`);
         return response;
       } catch (error: any) {

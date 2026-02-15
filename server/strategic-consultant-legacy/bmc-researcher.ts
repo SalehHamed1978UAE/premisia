@@ -594,7 +594,7 @@ Step 1: Same concept? Step 2: Different values?`;
         systemPrompt,
         userMessage,
         maxTokens: 500,
-      }, "anthropic");
+      });
 
       const result = parseAIJson(response.content, 'BMC contradiction validation');
       
@@ -966,7 +966,7 @@ Include 3-6 findings. Set confidence to:
       systemPrompt,
       userMessage,
       maxTokens: 4096,
-    }, "anthropic");
+    });
 
     const textContent = response.content;
 
@@ -1079,7 +1079,7 @@ Viability criteria:
       systemPrompt,
       userMessage,
       maxTokens: 4096,
-    }, "anthropic");
+    });
 
     const textContent = response.content;
 

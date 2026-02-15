@@ -1,7 +1,10 @@
 import { z } from 'zod';
 import { aiClients } from '../ai-clients';
 import type { Assumption } from './assumption-extractor';
-import { parseAIJson } from '../utils/parse-ai-json';
+import {
+  flexibleStringArray,
+  parseAndValidate,
+} from '../utils/parse-ai-json';
 
 export interface AssumptionQuery {
   assumption: string;
@@ -43,7 +46,7 @@ const contradictionSchema = z.object({
   contradictions: z.array(z.object({
     assumption: z.string(),
     matchedAssumptionClaim: z.string(), // EXACT quote from assumptions list
-    contradictedBy: z.array(z.string()),
+    contradictedBy: flexibleStringArray(),
     validationStrength: z.enum(['STRONG', 'MODERATE', 'WEAK']),
     impact: z.enum(['HIGH', 'MEDIUM', 'LOW']),
     recommendation: z.string(),
@@ -51,10 +54,22 @@ const contradictionSchema = z.object({
   validations: z.array(z.object({
     assumption: z.string(),
     matchedAssumptionClaim: z.string(), // EXACT quote from assumptions list
-    supportedBy: z.array(z.string()),
+    supportedBy: flexibleStringArray(),
     validationStrength: z.enum(['STRONG', 'MODERATE', 'WEAK']),
   })),
-  insufficient: z.array(z.string()),
+  insufficient: z.array(z.union([
+    z.string(),
+    z.object({}).passthrough(),
+  ])).transform((items) =>
+    items.map((item) =>
+      typeof item === 'string'
+        ? item
+        : (item as any).assumption ||
+          (item as any).description ||
+          (item as any).message ||
+          JSON.stringify(item),
+    ),
+  ),
 });
 
 export class AssumptionValidator {
@@ -115,10 +130,13 @@ Return ONLY valid JSON (no markdown, no explanation):
       systemPrompt,
       userMessage,
       maxTokens: 2000,
-    }, "anthropic");
+    });
 
-    const parsed = parseAIJson(response.content, 'assumption validator query generation');
-    const validated = querySchema.parse(parsed);
+    const validated = parseAndValidate(
+      response.content,
+      querySchema,
+      'assumption validator query generation',
+    );
 
     return validated.queries;
   }
@@ -210,10 +228,13 @@ Return ONLY valid JSON (no markdown, no explanation):
       systemPrompt,
       userMessage,
       maxTokens: 3000,
-    }, "anthropic");
+    });
 
-    const parsed = parseAIJson(response.content, 'assumption validator contradiction detection');
-    const validated = contradictionSchema.parse(parsed);
+    const validated = parseAndValidate(
+      response.content,
+      contradictionSchema,
+      'assumption validator contradiction detection',
+    );
 
     // Add investment amounts and categories from original assumptions
     // Primary: exact matching on matchedAssumptionClaim (Claude provides exact quote)

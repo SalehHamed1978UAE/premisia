@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { aiClients } from '../ai-clients';
-import { parseAIJson } from '../utils/parse-ai-json';
+import { parseAndValidate } from '../utils/parse-ai-json';
 
 export interface Assumption {
   claim: string;
@@ -108,10 +108,13 @@ Return ONLY valid JSON (no markdown, no explanation):
       systemPrompt,
       userMessage,
       maxTokens: 2000,
-    }, "anthropic");
+    });
 
-    const parsed = parseAIJson(response.content, 'assumption extractor');
-    const validated = assumptionSchema.parse(parsed);
+    const validated = parseAndValidate(
+      response.content,
+      assumptionSchema,
+      'assumption extractor',
+    );
 
     return validated;
   }

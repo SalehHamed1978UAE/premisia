@@ -22,7 +22,7 @@ import {
   getStrategicEntitiesByUnderstanding as getEntitiesSecure
 } from "./services/secure-data-service";
 import { encrypt, encryptJSON, decrypt, decryptJSON } from "./utils/encryption";
-import { parseAIJson } from "./utils/parse-ai-json";
+import { parseAndValidate } from "./utils/parse-ai-json";
 
 const EMBEDDING_MODEL = "text-embedding-3-small";
 const EMBEDDING_DIMENSIONS = 1536;
@@ -279,38 +279,15 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
           systemPrompt,
           userMessage,
           maxTokens: 3000,
-        }, "anthropic");
-
-        let parsed;
+        });
         
-        try {
-          // Step 1: Parse JSON from AI response
-          parsed = parseAIJson(response.content, 'entity extraction');
-          console.log('[StrategicUnderstanding] ✓ JSON parsed successfully');
-        } catch (parseError: any) {
-          console.error('[StrategicUnderstanding] JSON parsing failed:', parseError);
-          console.error('[StrategicUnderstanding] Raw AI response (first 500 chars):', response.content.substring(0, 500));
-          throw new Error(`AI returned invalid JSON format. Please try again.`);
-        }
-        
-        try {
-          // Step 2: Validate against schema
-          validated = entityExtractionSchema.parse(parsed);
-          console.log('[StrategicUnderstanding] ✓ Schema validation passed');
-          break; // Success! Exit retry loop
-        } catch (validationError: any) {
-          console.error('[StrategicUnderstanding] Schema validation failed:', validationError);
-          console.error('[StrategicUnderstanding] Parsed JSON:', JSON.stringify(parsed, null, 2).substring(0, 1000));
-          
-          // Extract Zod error details if available
-          if (validationError.errors) {
-            const issues = validationError.errors.map((e: any) => 
-              `${e.path.join('.')}: ${e.message}`
-            ).join('; ');
-            throw new Error(`AI response structure is invalid: ${issues}`);
-          }
-          throw new Error(`AI response structure is invalid. Please try again.`);
-        }
+        validated = parseAndValidate(
+          response.content,
+          entityExtractionSchema,
+          'entity extraction',
+        );
+        console.log('[StrategicUnderstanding] ✓ Schema validation passed');
+        break; // Success! Exit retry loop
       } catch (error: any) {
         lastError = error;
         console.error(`[StrategicUnderstanding] Attempt ${attempt} failed:`, error.message);
