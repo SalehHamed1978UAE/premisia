@@ -65,6 +65,7 @@ interface ResourceMatchResult {
 
 export class AssignmentGenerator {
   private llm = getLLMProvider();
+  private fallbackCursor = 0;
 
   async generate(epmProgram: EPMProgram, programId: string): Promise<TaskAssignment[]> {
     const assignments: TaskAssignment[] = [];
@@ -75,8 +76,8 @@ export class AssignmentGenerator {
     const workstreams: Workstream[] = epmProgram.workstreams || [];
     const resourcePlan = epmProgram.resourcePlan;
     const programContext = {
-      name: epmProgram.name || 'Strategic Program',
-      description: epmProgram.description || '',
+      name: (epmProgram as any).name || epmProgram.executiveSummary?.title || 'Strategic Program',
+      description: (epmProgram as any).description || epmProgram.executiveSummary?.marketOpportunity || '',
     };
 
     if (!workstreams.length) {
@@ -165,13 +166,15 @@ export class AssignmentGenerator {
     // Create assignments from matches
     for (const task of allTasks) {
       const match = matches.find(m => m.taskId === task.taskId);
-      let resource = match
-        ? effectiveResources.find(r => r.id === match.resourceId)
-        : null;
+      let resource: Resource | null = null;
 
-      // If deterministic matching didn't find a candidate, use owner-based matching.
-      if (!resource && task.workstreamOwner) {
+      // Owner-first assignment to preserve accountability and prevent idle owners.
+      if (task.workstreamOwner) {
         resource = this.getOwnerResource(task.workstreamOwner, effectiveResources);
+      }
+
+      if (!resource && match) {
+        resource = effectiveResources.find(r => r.id === match.resourceId) || null;
       }
 
       // Final fallback: round-robin by workload across assignable resources.
@@ -312,6 +315,11 @@ IMPORTANT: Return a match for EVERY task. Use exact taskId and resourceId values
         let score = 0;
         const reasons: string[] = [];
 
+        if (task.workstreamOwner && this.rolesLikelyMatch(task.workstreamOwner, resource.role || '')) {
+          score += 25;
+          reasons.push('owner-match');
+        }
+
         const categoryMatches = Array.from(taskCategories).filter((category) => roleCategories.has(category));
         if (categoryMatches.length > 0) {
           score += categoryMatches.length * 5;
@@ -389,14 +397,18 @@ IMPORTANT: Return a match for EVERY task. Use exact taskId and resourceId values
    * Try to find the resource that matches the workstream owner role
    */
   private getOwnerResource(ownerRole: string, resources: Resource[]): Resource | null {
-    const normalizedOwner = ownerRole.toLowerCase().replace(/[^a-z0-9]/g, '');
     // Exact match first
-    const exact = resources.find(r => r.role.toLowerCase().replace(/[^a-z0-9]/g, '') === normalizedOwner);
+    const exact = resources.find(r => this.rolesLikelyMatch(ownerRole, r.role));
     if (exact) return exact;
-    // Substring match: owner role contains or is contained by resource role
-    const partial = resources.find(r => {
-      const normalizedRole = r.role.toLowerCase().replace(/[^a-z0-9]/g, '');
-      return normalizedRole.includes(normalizedOwner) || normalizedOwner.includes(normalizedRole);
+    // Token-overlap fallback for partial matches.
+    const ownerTokens = new Set(this.normalizeRole(ownerRole).match(/[a-z0-9]{4,}/g) || []);
+    const partial = resources.find((r) => {
+      const roleTokens = new Set(this.normalizeRole(r.role || '').match(/[a-z0-9]{4,}/g) || []);
+      let overlap = 0;
+      ownerTokens.forEach((token) => {
+        if (roleTokens.has(token)) overlap++;
+      });
+      return overlap >= 2;
     });
     return partial || null;
   }
@@ -405,12 +417,31 @@ IMPORTANT: Return a match for EVERY task. Use exact taskId and resourceId values
    * Fallback: Get resource with lowest workload (round-robin effect)
    */
   private getFallbackResource(resources: Resource[], workload: Record<string, number>): Resource {
-    const sorted = [...resources].sort((a, b) => {
-      const workloadA = workload[a.id!] || 0;
-      const workloadB = workload[b.id!] || 0;
-      return workloadA - workloadB;
-    });
-    return sorted[0];
+    if (!resources.length) {
+      throw new Error('No resources available for fallback assignment');
+    }
+
+    const minWorkload = Math.min(...resources.map((r) => workload[r.id!] || 0));
+    const candidates = resources.filter((r) => (workload[r.id!] || 0) === minWorkload);
+    const selected = candidates[this.fallbackCursor % candidates.length] || candidates[0];
+    this.fallbackCursor += 1;
+    return selected;
+  }
+
+  private normalizeRole(value: string): string {
+    return String(value || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private rolesLikelyMatch(a: string, b: string): boolean {
+    const left = this.normalizeRole(a).replace(/\s+/g, '');
+    const right = this.normalizeRole(b).replace(/\s+/g, '');
+    if (!left || !right) return false;
+    if (left === right) return true;
+    return left.includes(right) || right.includes(left);
   }
 
   /**
@@ -563,6 +594,28 @@ IMPORTANT: Return a match for EVERY task. Use exact taskId and resourceId values
             adjustedAssignments[i].notes = note
               ? `${note} [Allocation adjusted from ${originalAllocation}% to prevent overallocation]`
               : `Allocation adjusted from ${originalAllocation}% to prevent overallocation`;
+          }
+        }
+
+        // Rounding can still leave totals >100 (e.g., 102%). Normalize down deterministically.
+        const assignmentIndexes = adjustedAssignments
+          .map((assignment, index) => assignment.resourceId === resourceId ? index : -1)
+          .filter((index) => index >= 0);
+        let roundedTotal = assignmentIndexes.reduce(
+          (sum, index) => sum + adjustedAssignments[index].allocationPercent,
+          0
+        );
+        if (roundedTotal > 100) {
+          const sortedByAllocation = [...assignmentIndexes].sort(
+            (left, right) => adjustedAssignments[right].allocationPercent - adjustedAssignments[left].allocationPercent
+          );
+          for (const index of sortedByAllocation) {
+            if (roundedTotal <= 100) break;
+            const current = adjustedAssignments[index].allocationPercent;
+            if (current <= 1) continue;
+            const reduction = Math.min(current - 1, roundedTotal - 100);
+            adjustedAssignments[index].allocationPercent = current - reduction;
+            roundedTotal -= reduction;
           }
         }
       }

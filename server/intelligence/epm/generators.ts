@@ -1222,7 +1222,7 @@ export class KPIGenerator {
   }
 
   private generateKPIName(benefit: Benefit): string {
-    const base = (benefit.name || benefit.description || 'KPI').trim();
+    const base = this.summarizeBenefitName(benefit);
     const measurement = benefit.measurement?.trim();
     if (!measurement) return base;
     const measurementCore = measurement.split(/[;,.]/)[0]?.trim();
@@ -1230,6 +1230,31 @@ export class KPIGenerator {
     const baseLower = base.toLowerCase();
     if (baseLower.includes(measurementCore.toLowerCase())) return base;
     return `${base} (${measurementCore})`;
+  }
+
+  private summarizeBenefitName(benefit: Benefit): string {
+    const fallback = 'Strategic Outcome KPI';
+    let label = (benefit.name || benefit.description || fallback).trim();
+    if (!label) return fallback;
+
+    label = label.replace(/^decision implementation:\s*/i, '').replace(/\s+/g, ' ').trim();
+
+    const primaryClause = label.split(':')[0]?.trim();
+    if (primaryClause && primaryClause.length >= 8) {
+      label = primaryClause;
+    }
+
+    const vsSplit = label.split(/\s+vs\s+/i);
+    if (vsSplit.length > 1 && vsSplit[0].trim().length >= 8) {
+      label = vsSplit[0].trim();
+    }
+
+    const words = label.split(/\s+/);
+    if (words.length > 10 || label.length > 72) {
+      label = words.slice(0, 8).join(' ');
+    }
+
+    return label.trim() || fallback;
   }
 
   private generateBaseline(benefit: Benefit): string {

@@ -199,15 +199,17 @@ function deriveResources(resourcePlan: any): any[] {
   if (!resourcePlan || typeof resourcePlan !== 'object') return [];
 
   const internal = Array.isArray(resourcePlan.internalTeam)
-    ? resourcePlan.internalTeam.map((resource: any) => ({
+    ? resourcePlan.internalTeam.map((resource: any, idx: number) => ({
         ...resource,
+        id: resource?.id || `INT-${String(idx + 1).padStart(3, '0')}`,
         resourceType: 'internal',
       }))
     : [];
 
   const external = Array.isArray(resourcePlan.externalResources)
-    ? resourcePlan.externalResources.map((resource: any) => ({
+    ? resourcePlan.externalResources.map((resource: any, idx: number) => ({
         ...resource,
+        id: resource?.id || `EXT-${String(idx + 1).padStart(3, '0')}`,
         resourceType: 'external',
       }))
     : [];
@@ -545,6 +547,15 @@ export function buildEpmJsonPayload(
   const stageGates = parseMaybeJson<any>(program.stageGates);
   const financialPlan = parseMaybeJson<any>(program.financialPlan);
   const kpis = parseMaybeJson<any>(program.kpis);
+  const parsedDecisionsData = parseMaybeJson<Record<string, any>>(context.strategyVersion?.decisionsData) || {};
+  const normalizedDecisionSelection = normalizeStrategicDecisions(
+    parsedDecisionsData,
+    context.strategyVersion?.selectedDecisions
+  );
+  const selectedDecisions =
+    Object.keys(normalizedDecisionSelection.selectedDecisions).length > 0
+      ? normalizedDecisionSelection.selectedDecisions
+      : (context.strategyVersion?.selectedDecisions ?? null);
   const programId = program.id ?? context.exportMeta?.programId ?? null;
   const constraintsFromVersion = context.strategyVersion
     ? {
@@ -556,7 +567,8 @@ export function buildEpmJsonPayload(
         inputSummary: context.strategyVersion.inputSummary ?? null,
       }
     : null;
-  const rawFallbackConstraints = (program as any).constraints ?? (epm as any).constraints ?? epm.metadata?.constraints ?? null;
+  const epmMeta = (epm as any)?.metadata || {};
+  const rawFallbackConstraints = (program as any).constraints ?? (epm as any).constraints ?? epmMeta?.constraints ?? null;
   const constraintsFromProgram = rawFallbackConstraints
     ? {
         costMin: rawFallbackConstraints.costMin ?? rawFallbackConstraints.budget?.min ?? null,
@@ -613,7 +625,7 @@ export function buildEpmJsonPayload(
 
   // Fallback: use generatedAt as program start proxy when no explicit start date
   if (!startDate) {
-    const generatedAt = (epm as any).metadata?.generatedAt || context.exportMeta?.exportedAt;
+      const generatedAt = epmMeta?.generatedAt || context.exportMeta?.exportedAt;
     if (generatedAt) {
       const d = new Date(generatedAt);
       if (!Number.isNaN(d.getTime())) startDate = d;
@@ -697,19 +709,20 @@ export function buildEpmJsonPayload(
   }
   const requiresApproval = Object.keys(computedApproval).length > 0 ? computedApproval : null;
   const metadata = {
-    ...(epm.metadata || {}),
-    programId: epm.metadata?.programId ?? programId ?? null,
-    strategyVersionId: epm.metadata?.strategyVersionId ?? program.strategyVersionId ?? null,
-    userId: epm.metadata?.userId ?? program.userId ?? null,
-    status: epm.metadata?.status ?? program.status ?? null,
-    createdAt: epm.metadata?.createdAt ?? program.createdAt ?? null,
-    updatedAt: epm.metadata?.updatedAt ?? program.updatedAt ?? null,
-    sessionId: epm.metadata?.sessionId ?? context.exportMeta?.sessionId ?? context.strategyVersion?.sessionId ?? null,
-    generatedAt: epm.metadata?.generatedAt ?? context.exportMeta?.exportedAt ?? null,
-    programName: context.programName || (epm as any).metadata?.programName || null,
+    ...epmMeta,
+    programId: epmMeta?.programId ?? programId ?? null,
+    strategyVersionId: epmMeta?.strategyVersionId ?? program.strategyVersionId ?? null,
+    userId: epmMeta?.userId ?? program.userId ?? null,
+    status: epmMeta?.status ?? program.status ?? null,
+    createdAt: epmMeta?.createdAt ?? program.createdAt ?? null,
+    updatedAt: epmMeta?.updatedAt ?? program.updatedAt ?? null,
+    sessionId: epmMeta?.sessionId ?? context.exportMeta?.sessionId ?? context.strategyVersion?.sessionId ?? null,
+    generatedAt: epmMeta?.generatedAt ?? context.exportMeta?.exportedAt ?? null,
+    programName: context.programName || epmMeta?.programName || null,
     constraintMode: effectiveConstraintMode,
     constraintHints,
     constraints,
+    selectedDecisions,
   };
 
   return {
@@ -721,7 +734,7 @@ export function buildEpmJsonPayload(
     requiresApproval,
     metadata,
     programId: programId ?? null,
-    programName: context.programName || (epm as any).metadata?.programName || null,
+    programName: context.programName || epmMeta?.programName || null,
     program: normalizedProgram,
     workstreams,
     resourcePlan,

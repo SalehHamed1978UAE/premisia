@@ -1636,10 +1636,14 @@ export class EPMSynthesizer {
 
     // SPRINT 1 Phase 1: Budget calculation violations
     let hasBudgetViolation = (decisionValidation?.violations || []).some(v => v.includes('budget'));
-    if (financialPlan?.budgetViolation) {
-      const bv = financialPlan.budgetViolation;
+    const budgetViolation = (financialPlan as any)?.budgetViolation;
+    if (budgetViolation && typeof budgetViolation === 'object') {
+      const bv = budgetViolation;
       const budgetMsg = `Calculated costs ($${(bv.calculatedCost / 1_000_000).toFixed(1)}M) exceed user budget constraint ($${(bv.userConstraint / 1_000_000).toFixed(1)}M) by ${bv.exceedsPercentage.toFixed(1)}%`;
       combinedViolations.push(budgetMsg);
+      hasBudgetViolation = true;
+    } else if (budgetViolation === true) {
+      combinedViolations.push('Calculated costs exceed user budget constraint.');
       hasBudgetViolation = true;
     }
 
@@ -1758,6 +1762,18 @@ export class EPMSynthesizer {
       );
     }
 
+    const costBreakdown = Array.isArray(financialPlan.costBreakdown) ? financialPlan.costBreakdown : [];
+    const extractCost = (...patterns: RegExp[]): number => {
+      const matched = costBreakdown.find((item: any) => {
+        const category = String(item?.category || '').toLowerCase();
+        return patterns.some((pattern) => pattern.test(category));
+      });
+      return typeof matched?.amount === 'number' ? matched.amount : 0;
+    };
+    const personnelCost = extractCost(/personnel/, /internal/);
+    const externalServicesCost = extractCost(/external/);
+    const overheadCost = extractCost(/overhead/);
+
     // DUAL-MODE EPM: For budget violations, ADD CONTRADICTION instead of throwing
     // This allows cost discovery mode and user to see the gap
     if (!invariant2Pass && budgetMax) {
@@ -1771,21 +1787,15 @@ export class EPMSynthesizer {
       executiveSummary.strategicImperatives.unshift({
         action: `Resolve budget constraint violation: secure additional $${(shortfall / 1e6).toFixed(2)}M funding or reduce scope`,
         priority: 'high',
-        rationale: `Your budget constraint is $${(budgetMax / 1e6).toFixed(2)}M, but your selected strategic decisions and required workstreams will cost $${(financialPlan.totalBudget / 1e6).toFixed(2)}M (${percentOver}% over budget). This includes $${(financialPlan.personnel / 1e6).toFixed(2)}M personnel (${resourcePlan.totalFTEs} FTEs), $${(financialPlan.external / 1e6).toFixed(2)}M external services, and $${(financialPlan.contingency / 1e6).toFixed(2)}M contingency. Options: (1) Secure additional $${(shortfall / 1e6).toFixed(2)}M funding, (2) Modify strategic decisions to reduce scope and costs, (3) Extend timeline to ${extendedTimeline} months to spread costs, or (4) Accept that this plan exceeds your stated budget and proceed with full funding.`
+        rationale: `Your budget constraint is $${(budgetMax / 1e6).toFixed(2)}M, but your selected strategic decisions and required workstreams will cost $${(financialPlan.totalBudget / 1e6).toFixed(2)}M (${percentOver}% over budget). This includes $${(personnelCost / 1e6).toFixed(2)}M personnel (${resourcePlan.totalFTEs} FTEs), $${(externalServicesCost / 1e6).toFixed(2)}M external services, $${(overheadCost / 1e6).toFixed(2)}M overhead, and $${(financialPlan.contingency / 1e6).toFixed(2)}M contingency. Options: (1) Secure additional $${(shortfall / 1e6).toFixed(2)}M funding, (2) Modify strategic decisions to reduce scope and costs, (3) Extend timeline to ${extendedTimeline} months to spread costs, or (4) Accept that this plan exceeds your stated budget and proceed with full funding.`
       });
 
-      // Update executive summary to reflect budget situation
-      if (!budgetMax) {
-        // Cost discovery mode
-        executiveSummary.investmentRequired = `Your plan requires $${(financialPlan.totalBudget / 1e6).toFixed(2)}M over ${timeline.totalMonths} months with ${resourcePlan.totalFTEs} FTEs. This includes $${(financialPlan.personnel / 1e6).toFixed(2)}M personnel, $${(financialPlan.external / 1e6).toFixed(2)}M external services, $${(financialPlan.overhead / 1e6).toFixed(2)}M overhead, and $${(financialPlan.contingency / 1e6).toFixed(2)}M contingency (${financialPlan.contingencyPercentage}%). This establishes the investment needed for your strategic plan.`;
-      } else {
-        // Constrained mode with violation
-        executiveSummary.investmentRequired = `Budget constraint: $${(budgetMax / 1e6).toFixed(2)}M (specified). Actual cost: $${(financialPlan.totalBudget / 1e6).toFixed(2)}M. Shortfall: $${(shortfall / 1e6).toFixed(2)}M (${percentOver}% over). See contradictions above for resolution options.`;
-      }
+      // Constrained mode with violation
+      executiveSummary.investmentRequired = `Budget constraint: $${(budgetMax / 1e6).toFixed(2)}M (specified). Actual cost: $${(financialPlan.totalBudget / 1e6).toFixed(2)}M. Shortfall: $${(shortfall / 1e6).toFixed(2)}M (${percentOver}% over). See contradictions above for resolution options.`;
     } else if (!budgetMax) {
       // Cost discovery mode - no budget set
       console.log(`[DUAL-MODE EPM] 💡 Cost discovery mode - reporting requirements without constraint`);
-      executiveSummary.investmentRequired = `Your plan requires $${(financialPlan.totalBudget / 1e6).toFixed(2)}M over ${timeline.totalMonths} months with ${resourcePlan.totalFTEs} FTEs. This includes $${(financialPlan.personnel / 1e6).toFixed(2)}M personnel, $${(financialPlan.external / 1e6).toFixed(2)}M external services, $${(financialPlan.overhead / 1e6).toFixed(2)}M overhead, and $${(financialPlan.contingency / 1e6).toFixed(2)}M contingency (${financialPlan.contingencyPercentage}%). This establishes the investment needed for your strategic plan.`;
+      executiveSummary.investmentRequired = `Your plan requires $${(financialPlan.totalBudget / 1e6).toFixed(2)}M over ${timeline.totalMonths} months with ${resourcePlan.totalFTEs} FTEs. This includes $${(personnelCost / 1e6).toFixed(2)}M personnel, $${(externalServicesCost / 1e6).toFixed(2)}M external services, $${(overheadCost / 1e6).toFixed(2)}M overhead, and $${(financialPlan.contingency / 1e6).toFixed(2)}M contingency (${financialPlan.contingencyPercentage}%). This establishes the investment needed for your strategic plan.`;
     }
 
     console.log('[EPM Synthesis] ✓ Program built successfully');
