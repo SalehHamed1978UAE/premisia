@@ -325,12 +325,38 @@ export class CustomJourneyExecutor {
                     stratMeta.requiresApproval = { clarifications: true };
                   }
 
+                  // Extract budget/timeline constraints from user input for dual-mode EPM
+                  let budgetConstraintValue: { amount?: number; timeline?: number } | null = null;
+                  if (userInputText) {
+                    const budgetMatch = userInputText.match(/\$\s*(\d+(?:\.\d+)?)\s*(million|mil|m|M)\b/i);
+                    const timelineMatch = userInputText.match(/(\d+)\s*months?\b/i);
+                    if (budgetMatch || timelineMatch) {
+                      budgetConstraintValue = {};
+                      if (budgetMatch) {
+                        budgetConstraintValue.amount = parseFloat(budgetMatch[1]) * 1_000_000;
+                        console.log(`[CustomJourneyExecutor] Extracted budget constraint: $${(budgetConstraintValue.amount / 1e6).toFixed(1)}M`);
+                      }
+                      if (timelineMatch) {
+                        budgetConstraintValue.timeline = parseInt(timelineMatch[1], 10);
+                        console.log(`[CustomJourneyExecutor] Extracted timeline constraint: ${budgetConstraintValue.timeline} months`);
+                      }
+                      // Update strategyMetadata to constrained mode
+                      stratMeta.constraintPolicy = {
+                        mode: 'constrained',
+                        source: 'user-input-extraction',
+                        updatedAt: new Date().toISOString(),
+                        hasExplicitConstraint: true,
+                      };
+                    }
+                  }
+
                   await db.insert(strategicUnderstanding).values({
                     sessionId: sessionId,
                     userInput: userInputText || 'Strategic analysis pending user input',
                     title: journeyName || 'Strategic Analysis',
                     initiativeType: 'software_development',
                     strategyMetadata: stratMeta,
+                    ...(budgetConstraintValue && { budgetConstraint: budgetConstraintValue }),
                   });
                   console.log(`[CustomJourneyExecutor] Created understanding record for session: ${sessionId}`);
                 } catch (insertError: any) {

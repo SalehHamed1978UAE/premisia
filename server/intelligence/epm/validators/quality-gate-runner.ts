@@ -4,6 +4,7 @@ import { DependencyValidator } from './dependency-validator';
 import { IndustryValidator } from './industry-validator';
 import { CompletenessValidator } from './completeness-validator';
 import { WBSTimelineValidator } from './wbs-timeline-validator';
+import { TimelineUtilizationValidator } from './timeline-utilization-validator';
 import type { Workstream, Timeline, StageGates } from '../../types';
 
 export class QualityGateRunner {
@@ -21,6 +22,7 @@ export class QualityGateRunner {
     this.registry.register(new IndustryValidator());
     this.registry.register(new CompletenessValidator());
     this.registry.register(new WBSTimelineValidator());
+    this.registry.register(new TimelineUtilizationValidator());
 
     this.initialized = true;
     console.log('[QualityGateRunner] Initialized with validators:', this.registry.list().join(', '));
