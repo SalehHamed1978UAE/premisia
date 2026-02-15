@@ -242,60 +242,112 @@ export class WBSTimelineValidator extends BaseValidator {
     });
 
     for (const workstream of workstreams) {
-      const wsStart = workstream.startMonth;
-      const wsEnd = workstream.endMonth;
+      const wsStart = Number(workstream.startMonth);
+      const wsEnd = Number(workstream.endMonth);
+      if (!Number.isFinite(wsStart) || !Number.isFinite(wsEnd)) {
+        continue;
+      }
 
-      // Find which phase should contain this workstream
-      let containingPhase: Phase | undefined;
+      // A workstream can legitimately span multiple phases. Use overlap-based matching
+      // (same boundary model as timeline generation) instead of strict containment.
+      const overlappingPhases = phases
+        .map((phase: any) => {
+          const phaseStart = Number(phase.startMonth);
+          const phaseEnd = Number(phase.endMonth);
+          if (!Number.isFinite(phaseStart) || !Number.isFinite(phaseEnd)) return null;
+          const overlapMonths = this.computeMonthOverlap(wsStart, wsEnd, phaseStart, phaseEnd);
+          if (overlapMonths <= 0) return null;
+          return { phase, overlapMonths };
+        })
+        .filter((item): item is { phase: Phase; overlapMonths: number } => item !== null);
 
-      for (const phase of phases) {
-        // Check if workstream overlaps with phase
-        // Note: This assumes phases have startMonth/endMonth or similar fields
-        // Adapt based on actual Phase type structure
-        const phaseStart = (phase as any).startMonth;
-        const phaseEnd = (phase as any).endMonth;
+      if (!workstream.phase) {
+        continue;
+      }
 
-        if (phaseStart !== undefined && phaseEnd !== undefined) {
-          if (wsStart >= phaseStart && wsEnd <= phaseEnd) {
-            containingPhase = phase;
-            break;
+      if (overlappingPhases.length === 0) {
+        issues.push(
+          this.createIssue(
+            'warning',
+            'WBS_PHASE_ALIGNMENT',
+            `Workstream "${workstream.name}" is assigned to phase "${workstream.phase}" but its timeline (${wsStart} to ${wsEnd}) does not overlap any defined phase`,
+            {
+              workstreamId: workstream.id,
+              field: 'phase',
+              suggestion: `Review phase assignment or adjust workstream timeline to match phase boundaries`,
+            }
+          )
+        );
+        continue;
+      }
+
+      const declaredMatchesOverlap = overlappingPhases.some(({ phase }) =>
+        this.phaseLabelsMatch(workstream.phase as string, phase)
+      );
+
+      if (declaredMatchesOverlap) {
+        continue;
+      }
+
+      const dominantPhase = overlappingPhases.reduce((best, current) =>
+        current.overlapMonths > best.overlapMonths ? current : best
+      ).phase;
+
+      issues.push(
+        this.createIssue(
+          'warning',
+          'WBS_PHASE_MISMATCH',
+          `Workstream "${workstream.name}" is assigned to phase "${workstream.phase}" but its timeline most strongly aligns with "${dominantPhase.name}"`,
+          {
+            workstreamId: workstream.id,
+            field: 'phase',
+            suggestion: `Update phase assignment to "${dominantPhase.name}" or adjust workstream timeline`,
           }
-        }
-      }
-
-      // Check if workstream declares a phase
-      if (workstream.phase) {
-        if (!containingPhase) {
-          issues.push(
-            this.createIssue(
-              'warning',
-              'WBS_PHASE_ALIGNMENT',
-              `Workstream "${workstream.name}" is assigned to phase "${workstream.phase}" but its timeline (${wsStart} to ${wsEnd}) does not fall within any defined phase`,
-              {
-                workstreamId: workstream.id,
-                field: 'phase',
-                suggestion: `Review phase assignment or adjust workstream timeline to match a phase boundary`,
-              }
-            )
-          );
-        } else if (containingPhase.name !== workstream.phase) {
-          issues.push(
-            this.createIssue(
-              'warning',
-              'WBS_PHASE_MISMATCH',
-              `Workstream "${workstream.name}" is assigned to phase "${workstream.phase}" but its timeline suggests it belongs to "${containingPhase.name}"`,
-              {
-                workstreamId: workstream.id,
-                field: 'phase',
-                suggestion: `Update phase assignment to "${containingPhase.name}" or adjust workstream timeline`,
-              }
-            )
-          );
-        }
-      }
+        )
+      );
     }
 
     return issues;
+  }
+
+  private computeMonthOverlap(
+    wsStart: number,
+    wsEnd: number,
+    phaseStart: number,
+    phaseEnd: number
+  ): number {
+    if (wsEnd < wsStart || phaseEnd <= phaseStart) {
+      return 0;
+    }
+
+    // Treat workstreams as inclusive [start, end] and phases as half-open [start, end).
+    // This mirrors timeline phase assignment logic: ws.start < phaseEnd && ws.end >= phaseStart.
+    const wsEndExclusive = wsEnd + 1;
+    const overlapStart = Math.max(wsStart, phaseStart);
+    const overlapEnd = Math.min(wsEndExclusive, phaseEnd);
+    return Math.max(0, overlapEnd - overlapStart);
+  }
+
+  private phaseLabelsMatch(declaredPhase: string, phase: Phase): boolean {
+    const declared = declaredPhase.trim().toLowerCase();
+    if (!declared) return false;
+
+    const normalize = (value: string) =>
+      value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
+
+    const declaredNormalized = normalize(declared);
+    const phaseName = ((phase as any).name || '').toString();
+    const phaseNameNormalized = normalize(phaseName);
+    if (declaredNormalized && phaseNameNormalized && declaredNormalized === phaseNameNormalized) {
+      return true;
+    }
+
+    const phaseNumber = ((phase as any).phase ?? '').toString().trim().toLowerCase();
+    if (!phaseNumber) return false;
+    return declared === phaseNumber || declared === `phase ${phaseNumber}`;
   }
 
   /**

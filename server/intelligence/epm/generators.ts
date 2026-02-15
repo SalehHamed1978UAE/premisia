@@ -839,12 +839,13 @@ export class RiskGenerator {
       risks.push(...this.buildWorkstreamRisks(workstreams, risks.length, targetRiskCount - risks.length));
     }
 
-    const topRisks = [...risks].sort((a, b) => b.severity - a.severity).slice(0, 5);
+    const diversifiedRisks = this.ensureMitigationDiversity(risks);
+    const topRisks = [...diversifiedRisks].sort((a, b) => b.severity - a.severity).slice(0, 5);
 
     return {
-      risks,
+      risks: diversifiedRisks,
       topRisks,
-      mitigationBudget: risks.length * 25000,
+      mitigationBudget: diversifiedRisks.length * 25000,
       confidence: riskInsights.length > 0 ? 0.80 : 0.65,
     };
   }
@@ -1023,6 +1024,55 @@ export class RiskGenerator {
     return categoryMitigations[category] || 'Establish monitoring process, define escalation triggers, and review mitigation effectiveness monthly';
   }
 
+  private ensureMitigationDiversity(risks: Risk[]): Risk[] {
+    const buckets = new Map<string, number[]>();
+
+    risks.forEach((risk, index) => {
+      const key = this.normalizeMitigation(risk.mitigation);
+      if (!buckets.has(key)) {
+        buckets.set(key, []);
+      }
+      buckets.get(key)!.push(index);
+    });
+
+    return risks.map((risk, index) => {
+      const key = this.normalizeMitigation(risk.mitigation);
+      const peers = buckets.get(key) || [];
+      if (peers.length <= 1) {
+        return risk;
+      }
+
+      const sequence = peers.indexOf(index) + 1;
+      const focus = this.extractMitigationFocus(risk.description);
+      return {
+        ...risk,
+        mitigation: `${risk.mitigation}; Focus area ${sequence}/${peers.length}: ${focus}.`,
+      };
+    });
+  }
+
+  private normalizeMitigation(value: string): string {
+    return (value || '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private extractMitigationFocus(description: string): string {
+    const cleaned = (description || '')
+      .replace(/^[A-Z]\d*[:\-]\s*/i, '')
+      .replace(/[^\w\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!cleaned) {
+      return 'workstream-specific risk conditions';
+    }
+
+    const tokens = cleaned.split(' ').slice(0, 8);
+    return tokens.join(' ');
+  }
+
   /**
    * Assign owners to risks based on their category and content
    * Uses role-templates for context-aware owner assignment with round-robin fallback
@@ -1148,11 +1198,11 @@ export class KPIGenerator {
 
     kpis.push({
       id: `KPI${String(kpis.length + 1).padStart(3, '0')}`,
-      name: 'Program Progress',
+      name: 'On-time Deliverable Completion',
       category: 'Operational',
-      baseline: '0%',
-      target: '100%',
-      measurement: 'Percentage of deliverables completed',
+      baseline: 'Current on-time completion rate',
+      target: '95% on-time completion rate',
+      measurement: 'Percentage of deliverables completed by planned due month',
       frequency: 'Monthly',
       linkedBenefitIds: [],
       confidence: 0.95,

@@ -122,7 +122,7 @@ export function generateAssignmentsCsv(assignments: any[], workstreams?: any[]):
 
   const parseTaskIdWorkstream = (taskId?: string) => {
     if (!taskId) return '';
-    const match = taskId.match(/^(WS\\d+)/i);
+    const match = taskId.match(/^(WS\d+)/i);
     return match ? match[1] : '';
   };
 
@@ -133,22 +133,25 @@ export function generateAssignmentsCsv(assignments: any[], workstreams?: any[]):
     .sort((a, b) => a.getTime() - b.getTime())[0];
 
   assignments.forEach(assignment => {
-    const lookup = deliverableLookup[assignment.taskId] || {};
-    const workstreamId = lookup.workstreamId || assignment.workstreamId || parseTaskIdWorkstream(assignment.taskId);
+    const taskId = assignment.taskId || assignment.task_id;
+    const lookup = deliverableLookup[taskId] || {};
+    const workstreamId = lookup.workstreamId || assignment.workstreamId || assignment.workstream_id || parseTaskIdWorkstream(taskId);
 
-    let startMonth = lookup.startMonth;
-    let endMonth = lookup.endMonth;
-    if ((startMonth === undefined || endMonth === undefined) && assignment.assignedFrom && assignment.assignedTo && minAssignedFrom) {
-      const start = new Date(assignment.assignedFrom);
-      const end = new Date(assignment.assignedTo);
+    let startMonth = lookup.startMonth ?? assignment.startMonth ?? assignment.start_month;
+    let endMonth = lookup.endMonth ?? assignment.endMonth ?? assignment.end_month;
+    const assignedFrom = assignment.assignedFrom || assignment.assigned_from;
+    const assignedTo = assignment.assignedTo || assignment.assigned_to;
+    if ((startMonth === undefined || endMonth === undefined) && assignedFrom && assignedTo && minAssignedFrom) {
+      const start = new Date(assignedFrom);
+      const end = new Date(assignedTo);
       const monthsFromStart = (d: Date) => Math.max(0, Math.round((d.getTime() - minAssignedFrom.getTime()) / (1000 * 60 * 60 * 24 * 30)));
       startMonth = startMonth ?? monthsFromStart(start);
       endMonth = endMonth ?? monthsFromStart(end);
     }
 
     const row = [
-      escapeCsvField(assignment.taskId),
-      escapeCsvField(assignment.taskName),
+      escapeCsvField(taskId),
+      escapeCsvField(assignment.taskName || assignment.task_name),
       escapeCsvField(workstreamId || ''),
       escapeCsvField(assignment.owner || assignment.resourceName || assignment.resourceRole || ''),
       escapeCsvField(assignment.resourceId),
@@ -157,8 +160,8 @@ export function generateAssignmentsCsv(assignments: any[], workstreams?: any[]):
       escapeCsvField(assignment.resourceType),
       escapeCsvField(assignment.status),
       assignment.allocationPercent?.toString() || '100',
-      assignment.assignedFrom ? format(new Date(assignment.assignedFrom), 'yyyy-MM-dd') : '',
-      assignment.assignedTo ? format(new Date(assignment.assignedTo), 'yyyy-MM-dd') : '',
+      assignedFrom ? format(new Date(assignedFrom), 'yyyy-MM-dd') : '',
+      assignedTo ? format(new Date(assignedTo), 'yyyy-MM-dd') : '',
       startMonth !== undefined ? `Month ${startMonth}` : '',
       endMonth !== undefined ? `Month ${endMonth}` : '',
     ];

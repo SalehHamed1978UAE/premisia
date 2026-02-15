@@ -438,7 +438,7 @@ function buildDeliverableLookup(workstreams: any[]): Record<string, { workstream
 
 function parseTaskIdWorkstream(taskId?: string): string | null {
   if (!taskId) return null;
-  const match = taskId.match(/^(WS\\d+)/i);
+  const match = taskId.match(/^(WS\d+)/i);
   return match ? match[1] : null;
 }
 

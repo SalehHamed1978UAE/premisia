@@ -18,6 +18,48 @@ export class StreamOptimizer implements IOptimizer {
   constructor(private llm: ILLMProvider, onProgress?: (current: number, total: number, name: string) => void) {
     this.onProgress = onProgress;
   }
+
+  private isLikelyGccContext(context: any): boolean {
+    const text = [
+      context?.business?.name,
+      context?.business?.industry,
+      context?.business?.description,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return /\b(gcc|gulf|uae|united arab emirates|bahrain|saudi|ksa|qatar|oman|kuwait|cbuae|cbb|sama|pdpl)\b/.test(text);
+  }
+
+  private includesExplicitNonGccFrameworks(context: any): boolean {
+    const text = [
+      context?.business?.name,
+      context?.business?.description,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return /\b(gdpr|hipaa|ccpa)\b/.test(text);
+  }
+
+  private buildRegulatoryGuard(context: any): string {
+    if (!this.isLikelyGccContext(context)) {
+      return '';
+    }
+
+    if (this.includesExplicitNonGccFrameworks(context)) {
+      return '';
+    }
+
+    return `
+REGULATORY CONTEXT GUARD:
+- This context appears GCC-focused.
+- Use GCC-relevant regulatory references (e.g., UAE PDPL, CBUAE, CBB, SAMA where applicable).
+- Do not introduce GDPR/HIPAA/CCPA unless explicitly requested in the user input.
+    `.trim();
+  }
   
   /**
    * Infer basic sequential dependencies when LLM dependency generation fails
@@ -93,6 +135,8 @@ export class StreamOptimizer implements IOptimizer {
     insights: any,
     index: number
   ): Promise<WorkStream> {
+    const regulatoryGuard = this.buildRegulatoryGuard(context);
+
     const prompt = `
 Generate a concrete workstream for this category:
 
@@ -110,6 +154,7 @@ Business Context:
 CRITICAL: Generate content SPECIFICALLY for the "${context.business.industry || context.business.type}" industry.
 Do NOT use generic examples or copy from other industries.
 All deliverables must be relevant to ${context.business.name} in the ${context.business.industry || context.business.type} sector.
+${regulatoryGuard ? `\n${regulatoryGuard}` : ''}
 
 Generate:
 1. A clear, actionable name (e.g., "Location Scouting & Lease Negotiation" not just "Physical Infrastructure")
