@@ -1,8 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { strategyOntologyService } from '../ontology/strategy-ontology-service';
 import type { StrategyAnalysis, PortersFiveForcesAnalysis } from './strategy-analyzer';
 import type { ResearchFindings } from './market-researcher';
 import type { SWOTOutput } from '../intelligence/swot-analyzer';
+import { aiClients } from '../ai-clients';
+import { parseAIJson } from '../utils/parse-ai-json';
 
 export interface DecisionOption {
   id: string;
@@ -33,14 +34,19 @@ export interface GeneratedDecisions {
 }
 
 export class DecisionGenerator {
-  private anthropic: Anthropic;
+  private async generateJson(
+    prompt: string,
+    maxTokens: number,
+    context: string,
+  ): Promise<any> {
+    const response = await aiClients.callWithFallback({
+      systemPrompt: 'You are a strategic consultant. Return only valid JSON.',
+      userMessage: prompt,
+      maxTokens,
+      expectJson: true,
+    });
 
-  constructor() {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY environment variable is required');
-    }
-    this.anthropic = new Anthropic({ apiKey });
+    return parseAIJson(response.content, context);
   }
 
   async generateDecisions(
@@ -63,14 +69,8 @@ export class DecisionGenerator {
 
     const marketInfo = markets[analysis.recommended_market];
 
-    const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 6000,
-      temperature: 0.4,
-      messages: [
-        {
-          role: 'user',
-          content: `You are a strategic consultant creating decision points for executive review.
+    const generated = await this.generateJson(
+      `You are a strategic consultant creating decision points for executive review.
 
 CONTEXT:
 ${analysis.executive_summary}
@@ -123,21 +123,9 @@ Return ONLY valid JSON (no markdown, no explanation):
   "decision_flow": "Brief explanation of how these decisions build on each other",
   "estimated_completion_time_minutes": 5
 }`,
-        },
-      ],
-    });
-
-    const textContent = response.content
-      .filter((block) => block.type === 'text')
-      .map((block) => (block as Anthropic.TextBlock).text)
-      .join('\n');
-
-    const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('Failed to extract JSON from decision generation response');
-    }
-
-    const generated = JSON.parse(jsonMatch[0]);
+      6000,
+      'decision generation',
+    );
 
     return this.enrichWithOntologyData(generated, analysis);
   }
@@ -197,14 +185,8 @@ Return ONLY valid JSON (no markdown, no explanation):
       portersAnalysis.threat_of_new_entry.strategic_response
     ].filter(Boolean);
 
-    const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 8000,
-      temperature: 0.4,
-      messages: [
-        {
-          role: 'user',
-          content: `You are a strategic consultant creating decision points for executive review.
+    const generated = await this.generateJson(
+      `You are a strategic consultant creating decision points for executive review.
 
 CRITICAL CONSTRAINT: You must generate decisions that are CONSISTENT WITH RESEARCH FINDINGS.
 
@@ -330,21 +312,9 @@ Return ONLY valid JSON (no markdown, no explanation):
   "decision_flow": "Brief explanation of how these decisions build on each other",
   "estimated_completion_time_minutes": 5
 }`,
-        },
-      ],
-    });
-
-    const textContent = response.content
-      .filter((block) => block.type === 'text')
-      .map((block) => (block as Anthropic.TextBlock).text)
-      .join('\n');
-
-    const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      throw new Error('Failed to extract JSON from research-informed decision generation response');
-    }
-
-    const generated = JSON.parse(jsonMatch[0]);
+      8000,
+      'research-informed decision generation',
+    );
 
     // Validate against research before returning
     const validation = this.validateDecisionsAgainstResearch(generated, researchFindings);
@@ -478,14 +448,8 @@ Return ONLY valid JSON (no markdown, no explanation):
         ).join('\n')}`
       : '';
 
-    const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 8000,
-      temperature: 0.4,
-      messages: [
-        {
-          role: 'user',
-          content: `You are a strategic consultant creating decision points based on a Business Model Canvas analysis.
+    const generated = await this.generateJson(
+      `You are a strategic consultant creating decision points based on a Business Model Canvas analysis.
 
 ORIGINAL INPUT:
 ${originalInput.substring(0, 1500)}
@@ -542,24 +506,9 @@ Return ONLY valid JSON (no markdown, no explanation):
   "decision_flow": "Brief explanation of how these decisions build on the BMC analysis",
   "estimated_completion_time_minutes": 5
 }`,
-        },
-      ],
-    });
-
-    const textContent = response.content.find((block): block is Anthropic.TextBlock => block.type === 'text');
-    if (!textContent) {
-      throw new Error('No text content in AI response');
-    }
-
-    // Extract JSON from response (handle markdown code blocks)
-    let responseText = textContent.text.trim();
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.error('Invalid JSON response from AI:', responseText);
-      throw new Error('AI did not return valid JSON for BMC decisions');
-    }
-
-    const generated = JSON.parse(jsonMatch[0]);
+      8000,
+      'BMC decision generation',
+    );
 
     // Basic validation
     const validation = await this.validateDecisions(generated);
@@ -618,14 +567,8 @@ WT Strategies (Minimize Weaknesses, Avoid Threats): ${strategicOptions.wtStrateg
       ? `\nPRIORITY ACTIONS:\n${priorityActions.map((a, i) => `${i + 1}. ${a}`).join('\n')}`
       : '';
 
-    const response = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 8000,
-      temperature: 0.4,
-      messages: [
-        {
-          role: 'user',
-          content: `You are a strategic consultant creating decision points based on a comprehensive SWOT analysis.
+    const generated = await this.generateJson(
+      `You are a strategic consultant creating decision points based on a comprehensive SWOT analysis.
 
 BUSINESS CONTEXT:
 ${businessContext.substring(0, 1500)}
@@ -690,22 +633,9 @@ Return ONLY valid JSON (no markdown, no explanation):
   "decision_flow": "How these decisions connect to the SWOT strategic options",
   "estimated_completion_time_minutes": 5
 }`,
-        },
-      ],
-    });
-
-    const textContent = response.content
-      .filter((block) => block.type === 'text')
-      .map((block) => (block as Anthropic.TextBlock).text)
-      .join('\n');
-
-    const jsonMatch = textContent.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.error('[DecisionGenerator] Failed to extract JSON from SWOT decision generation');
-      throw new Error('Failed to extract JSON from SWOT decision generation response');
-    }
-
-    const generated = JSON.parse(jsonMatch[0]) as GeneratedDecisions;
+      8000,
+      'SWOT decision generation',
+    );
     
     const validation = await this.validateDecisions(generated);
     if (!validation.valid) {
