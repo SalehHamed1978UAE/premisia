@@ -38,7 +38,6 @@ import type {
   ExitStrategy,
   StrategyContext,
   RiskCategory,
-  Workstream,
 } from '../types';
 import { aiClients } from '../../ai-clients';
 import {
@@ -1143,7 +1142,15 @@ export class StageGateGenerator {
         (ws) => ws.endMonth <= phase.endMonth
       );
 
-      const deliverables = requiredWorkstreams.map((ws) => ws.id);
+      const deliverables = requiredWorkstreams.flatMap((ws) => {
+        if (ws.deliverables && ws.deliverables.length > 0) {
+          return ws.deliverables.map((d: any) =>
+            typeof d === 'string' ? d.split(/[.;:]/)[0].trim().substring(0, 80)
+              : d.name || d.title || `${ws.name} deliverable`
+          );
+        }
+        return [`${ws.name} — phase complete`];
+      });
 
       return {
         gate: idx + 1,

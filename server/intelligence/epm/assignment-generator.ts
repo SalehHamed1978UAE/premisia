@@ -51,6 +51,7 @@ interface TaskInfo {
   taskName: string;
   workstreamName: string;
   workstreamId: string;
+  workstreamOwner: string;
   startMonth: number;
   endMonth: number;
 }
@@ -139,6 +140,7 @@ export class AssignmentGenerator {
           taskName: deliverableName,
           workstreamName: workstream.name,
           workstreamId: workstream.id,
+          workstreamOwner: workstream.owner || '',
           startMonth: deliverableStartMonth,
           endMonth: deliverableEndMonth,
         });
@@ -163,9 +165,19 @@ export class AssignmentGenerator {
     // Create assignments from matches
     for (const task of allTasks) {
       const match = matches.find(m => m.taskId === task.taskId);
-      const resource = match
+      let resource = match
         ? effectiveResources.find(r => r.id === match.resourceId)
-        : this.getFallbackResource(effectiveResources, resourceWorkload);
+        : null;
+
+      // If deterministic matching didn't find a candidate, use owner-based matching.
+      if (!resource && task.workstreamOwner) {
+        resource = this.getOwnerResource(task.workstreamOwner, effectiveResources);
+      }
+
+      // Final fallback: round-robin by workload across assignable resources.
+      if (!resource) {
+        resource = this.getFallbackResource(effectiveResources, resourceWorkload);
+      }
 
       if (resource) {
         const durationMonths = Math.max(1, task.endMonth - task.startMonth);
@@ -240,20 +252,16 @@ AVAILABLE TEAM (${resources.length} people):
 ${resources.map(r => `• ${r.id}: ${r.role}${r.skills?.length ? ` — Skills: ${r.skills.join(', ')}` : ''}`).join('\n')}
 
 TASKS TO ASSIGN (${tasks.length} total):
-${tasks.map(t => `• ${t.taskId}: "${t.taskName}" [${t.workstreamName}]`).join('\n')}
+${tasks.map(t => `• ${t.taskId}: "${t.taskName}" [${t.workstreamName}]${t.workstreamOwner ? ` OWNER: ${t.workstreamOwner}` : ''}`).join('\n')}
 
 ASSIGNMENT RULES:
-1. Match by EXPERTISE: Assign tasks to the person whose role/skills best fit the work
-   - "Menu Development" → Chef/Culinary role
-   - "Marketing Campaign" → Marketing role
-   - "POS System Setup" → IT/Technology role
-   - "Staff Training" → HR/Operations role
-   - "Compliance/Licensing" → Compliance/Legal role
-   - "Financial Planning" → Finance role
+1. OWNER FIRST: If a task has an OWNER listed, find the team member whose role best matches that owner title and assign them. The owner is the workstream lead — they should get tasks from their workstream.
 
-2. DISTRIBUTE EVENLY: Each person should get ~${targetPerResource} tasks. Don't overload one person.
+2. Match by EXPERTISE: For tasks without a clear owner match, assign to the person whose role/skills best fit the work content.
 
-3. When in doubt, consider:
+3. DISTRIBUTE ACROSS OWNERS: Each workstream owner should handle their own workstream's tasks. Do NOT concentrate tasks on a few people while leaving others idle.
+
+4. When in doubt, consider:
    - Who would naturally own this work based on their job title?
    - What department would handle this in a real organization?
 
@@ -375,6 +383,22 @@ IMPORTANT: Return a match for EVERY task. Use exact taskId and resourceId values
         .split(/[^a-z0-9]+/)
         .filter((token) => token.length >= 4 && !stopWords.has(token))
     );
+  }
+
+  /**
+   * Try to find the resource that matches the workstream owner role
+   */
+  private getOwnerResource(ownerRole: string, resources: Resource[]): Resource | null {
+    const normalizedOwner = ownerRole.toLowerCase().replace(/[^a-z0-9]/g, '');
+    // Exact match first
+    const exact = resources.find(r => r.role.toLowerCase().replace(/[^a-z0-9]/g, '') === normalizedOwner);
+    if (exact) return exact;
+    // Substring match: owner role contains or is contained by resource role
+    const partial = resources.find(r => {
+      const normalizedRole = r.role.toLowerCase().replace(/[^a-z0-9]/g, '');
+      return normalizedRole.includes(normalizedOwner) || normalizedOwner.includes(normalizedRole);
+    });
+    return partial || null;
   }
 
   /**

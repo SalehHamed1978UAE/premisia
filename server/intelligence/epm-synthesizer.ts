@@ -1379,9 +1379,9 @@ export class EPMSynthesizer {
     // Sprint 1: Assign phases with containment enforcement
     const phasedWorkstreams = this.assignWorkstreamPhases(deduplicatedWorkstreams, timeline);
     if (isEPMDomainResilienceEnabled()) {
+      this.fillEmptyPhases(phasedWorkstreams, timeline, planningContext);
       timeline = this.syncTimelinePhaseWorkstreams(timeline, phasedWorkstreams);
     }
-    
     onProgress?.({
       type: 'step-start',
       step: 'resources',
@@ -2373,6 +2373,65 @@ export class EPMSynthesizer {
       return matchedTokens.length >= 3 && overlapRatio >= 0.75;
     }
     return matchedTokens.length >= Math.max(2, Math.ceil(labelTokens.length * 0.75));
+  }
+
+  /**
+   * Fill empty phases with coverage workstreams to prevent timeline gaps.
+   * If a phase has no workstreams, creates a placeholder workstream for that phase.
+   */
+  private fillEmptyPhases(workstreams: Workstream[], timeline: Timeline, planningContext: PlanningContext): void {
+    if (!timeline?.phases || timeline.phases.length === 0) return;
+
+    const industry = planningContext.business.industry || 'the initiative';
+    let nextIndex = this.nextWorkstreamIndex(workstreams);
+
+    for (const phase of timeline.phases) {
+      const hasWorkstreams = workstreams.some(ws =>
+        ws.startMonth <= phase.endMonth && ws.endMonth >= phase.startMonth
+      );
+
+      if (!hasWorkstreams) {
+        const phaseNameLower = phase.name.toLowerCase();
+        let wsName: string;
+        let wsDescription: string;
+
+        if (phaseNameLower.includes('integration') || phaseNameLower.includes('testing')) {
+          wsName = `Integration Testing & Compliance Validation (${industry})`;
+          wsDescription = `System integration testing, end-to-end validation, compliance verification, and defect remediation for ${industry}. Ensures all components work together and meet regulatory requirements before deployment.`;
+        } else if (phaseNameLower.includes('deployment') || phaseNameLower.includes('stabilization')) {
+          wsName = `Deployment & Operational Stabilization (${industry})`;
+          wsDescription = `Production deployment, monitoring setup, operational hardening, and stabilization activities for ${industry}. Ensures reliable operations and addresses post-deployment issues.`;
+        } else {
+          wsName = `${phase.name} Execution (${industry})`;
+          wsDescription = `Execution activities for the ${phase.name} phase covering ${industry} requirements.`;
+        }
+
+        const wsId = `WS${String(nextIndex).padStart(3, '0')}`;
+        const startMonth = phase.startMonth;
+        const endMonth = Math.min(phase.endMonth, phase.startMonth + 4);
+
+        const ws: Workstream = {
+          id: wsId,
+          name: wsName,
+          description: wsDescription,
+          deliverables: [
+            { id: `${wsId}-D1`, name: `${phase.name}: Runbook and operating model update`, description: `Runbook and operating model update`, dueMonth: startMonth + 1, effort: '1 person-month' },
+            { id: `${wsId}-D2`, name: `${phase.name}: Risk and control tuning package`, description: `Risk and control tuning package`, dueMonth: startMonth + 2, effort: '1 person-month' },
+            { id: `${wsId}-D3`, name: `${phase.name}: Audit evidence and readiness checkpoint`, description: `Audit evidence and readiness checkpoint`, dueMonth: startMonth + 3, effort: '1 person-month' },
+            { id: `${wsId}-D4`, name: `${phase.name}: Phase completion review`, description: `Phase completion review`, dueMonth: endMonth, effort: '1 person-month' },
+          ],
+          phase: phase.name,
+          startMonth,
+          endMonth,
+          dependencies: [],
+          confidence: 0.80,
+        };
+
+        workstreams.push(ws);
+        console.log(`[EPM Synthesis] Added gap-fill workstream "${wsName}" for empty phase "${phase.name}" (M${startMonth}-M${endMonth})`);
+        nextIndex++;
+      }
+    }
   }
 
   /**
