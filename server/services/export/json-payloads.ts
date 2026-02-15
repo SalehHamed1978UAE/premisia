@@ -3,6 +3,7 @@ import type { WBSRow } from './wbs-exporter';
 import { getJourney } from '../../journey/journey-registry';
 import { normalizeWhysPathSteps } from '../../utils/whys-path';
 import { deriveConstraintMode, shouldEnforceConstraints } from '../../intelligence/epm/constraint-policy';
+import { normalizeStrategicDecisions } from '../../utils/decision-selection';
 
 type StrategyPayload = FullExportPackage['strategy'];
 type EpmPayload = NonNullable<FullExportPackage['epm']>;
@@ -488,6 +489,18 @@ function normalizeAssignments(assignments: any[], workstreams: any[]): any[] {
 
 export function buildStrategyJsonPayload(strategy: StrategyPayload): Record<string, any> {
   const parsedAnalysisData = parseMaybeJson<Record<string, any>>(strategy.strategyVersion?.analysisData) || {};
+  const parsedDecisionsData = parseMaybeJson<Record<string, any>>(strategy.strategyVersion?.decisionsData) || {};
+  const normalizedDecisionSelection = normalizeStrategicDecisions(
+    parsedDecisionsData,
+    strategy.strategyVersion?.selectedDecisions
+  );
+  const normalizedDecisionsData = normalizedDecisionSelection.decisions.length > 0
+    ? {
+        ...parsedDecisionsData,
+        decisions: normalizedDecisionSelection.decisions,
+      }
+    : parsedDecisionsData;
+
   const fiveWhys = getFiveWhys(parsedAnalysisData);
   const frameworks = deriveFrameworks(strategy, parsedAnalysisData);
   const whysPath = deriveWhysPath(strategy, fiveWhys);
@@ -500,6 +513,11 @@ export function buildStrategyJsonPayload(strategy: StrategyPayload): Record<stri
       ? {
           ...strategy.strategyVersion,
           analysisData: parsedAnalysisData,
+          decisionsData: normalizedDecisionsData,
+          selectedDecisions:
+            Object.keys(normalizedDecisionSelection.selectedDecisions).length > 0
+              ? normalizedDecisionSelection.selectedDecisions
+              : strategy.strategyVersion.selectedDecisions,
         }
       : strategy.strategyVersion,
     frameworks,

@@ -84,7 +84,7 @@ export class AssignmentGenerator {
     }
 
     const internalTeam: Resource[] = resourcePlan?.internalTeam || [];
-    const externalResources: Resource[] = resourcePlan?.externalResources || [];
+    const externalResources: any[] = resourcePlan?.externalResources || [];
 
     // Assign IDs to resources if missing
     // Note: External resources have 'type' (Consultant, Software) not 'role'
@@ -95,7 +95,7 @@ export class AssignmentGenerator {
         id: r.id || `INT-${String(i + 1).padStart(3, '0')}`,
         type: 'internal',
       })),
-      ...externalResources.map((r: any, i) => ({
+      ...externalResources.map((r, i) => ({
         ...r,
         id: r.id || `EXT-${String(i + 1).padStart(3, '0')}`,
         role: r.role || r.type || 'External Consultant',  // Map type to role for external resources
@@ -108,7 +108,15 @@ export class AssignmentGenerator {
       return [];
     }
 
+    const assignableResources = allResources.filter((resource) => this.isAssignableResource(resource));
+    const effectiveResources = assignableResources.length > 0 ? assignableResources : allResources;
+
     console.log(`[AssignmentGenerator] Found ${workstreams.length} workstreams and ${allResources.length} resources`);
+    if (effectiveResources.length !== allResources.length) {
+      console.log(
+        `[AssignmentGenerator] Filtered non-assignable resources: ${allResources.length - effectiveResources.length}`
+      );
+    }
 
     // Extract all tasks from workstreams
     const allTasks: TaskInfo[] = [];
@@ -142,20 +150,22 @@ export class AssignmentGenerator {
       return [];
     }
 
-    // Use AI to match resources to tasks
-    console.log(`[AssignmentGenerator] Using AI to match ${allTasks.length} tasks to ${allResources.length} resources...`);
-    const matches = await this.getAIResourceMatches(allTasks, allResources, programContext);
+    // Deterministic role-skill matching for resilience across model providers.
+    console.log(
+      `[AssignmentGenerator] Matching ${allTasks.length} tasks to ${effectiveResources.length} assignable resources (deterministic)`
+    );
+    const matches = this.getDeterministicResourceMatches(allTasks, effectiveResources);
 
     // Track resource workload for allocation calculation
     const resourceWorkload: Record<string, number> = {};
-    allResources.forEach(r => resourceWorkload[r.id!] = 0);
+    effectiveResources.forEach(r => resourceWorkload[r.id!] = 0);
 
     // Create assignments from matches
     for (const task of allTasks) {
       const match = matches.find(m => m.taskId === task.taskId);
       const resource = match
-        ? allResources.find(r => r.id === match.resourceId)
-        : this.getFallbackResource(allResources, resourceWorkload);
+        ? effectiveResources.find(r => r.id === match.resourceId)
+        : this.getFallbackResource(effectiveResources, resourceWorkload);
 
       if (resource) {
         const durationMonths = Math.max(1, task.endMonth - task.startMonth);
@@ -190,12 +200,22 @@ export class AssignmentGenerator {
     }
 
     console.log(`[AssignmentGenerator] Generated ${assignments.length} task assignments`);
-    this.logAllocationSummary(assignments, allResources);
+    this.logAllocationSummary(assignments, effectiveResources);
 
     // VALIDATE: Cap resource allocation at <=100%
-    const validatedAssignments = this.validateAndCapAllocations(assignments, allResources);
+    const validatedAssignments = this.validateAndCapAllocations(assignments, effectiveResources);
 
     return validatedAssignments;
+  }
+
+  private isAssignableResource(resource: Resource): boolean {
+    const role = (resource.role || '').toLowerCase();
+    const externalType = (resource.type || '').toLowerCase();
+    const blockedPatterns = /(software|tool|license|platform|system)/;
+    if (resource.type === 'external' && (blockedPatterns.test(role) || blockedPatterns.test(externalType))) {
+      return false;
+    }
+    return true;
   }
 
   /**
@@ -259,6 +279,102 @@ IMPORTANT: Return a match for EVERY task. Use exact taskId and resourceId values
       console.error('[AssignmentGenerator] AI matching failed, using fallback:', error);
       return [];
     }
+  }
+
+  private getDeterministicResourceMatches(
+    tasks: TaskInfo[],
+    resources: Resource[]
+  ): ResourceMatchResult[] {
+    const workload: Record<string, number> = {};
+    resources.forEach((resource) => {
+      if (resource.id) workload[resource.id] = 0;
+    });
+
+    const matches: ResourceMatchResult[] = [];
+
+    for (const task of tasks) {
+      const taskText = `${task.taskName} ${task.workstreamName}`.toLowerCase();
+      const taskCategories = this.classifyCategories(taskText);
+      let best: { resource: Resource; score: number; reason: string } | null = null;
+
+      for (const resource of resources) {
+        if (!resource.id) continue;
+        const roleText = `${resource.role || ''} ${(resource.skills || []).join(' ')}`.toLowerCase();
+        const roleCategories = this.classifyCategories(roleText);
+        let score = 0;
+        const reasons: string[] = [];
+
+        const categoryMatches = Array.from(taskCategories).filter((category) => roleCategories.has(category));
+        if (categoryMatches.length > 0) {
+          score += categoryMatches.length * 5;
+          reasons.push(`category:${categoryMatches.join(',')}`);
+        }
+
+        const taskTokens = this.extractKeywords(taskText);
+        const roleTokens = this.extractKeywords(roleText);
+        const overlap = Array.from(taskTokens).filter((token) => roleTokens.has(token));
+        if (overlap.length > 0) {
+          score += overlap.length * 2;
+          reasons.push(`keyword:${overlap.slice(0, 3).join(',')}`);
+        }
+
+        // Prefer lower workload to balance assignments.
+        const loadPenalty = (workload[resource.id] || 0) * 0.05;
+        score -= loadPenalty;
+
+        if (!best || score > best.score) {
+          best = {
+            resource,
+            score,
+            reason: reasons.join(' | ') || 'best semantic fit',
+          };
+        }
+      }
+
+      if (best?.resource.id) {
+        const confidence = Math.max(0.5, Math.min(0.95, best.score / 20));
+        matches.push({
+          taskId: task.taskId,
+          resourceId: best.resource.id,
+          confidence,
+          reasoning: best.reason,
+        });
+        workload[best.resource.id] = (workload[best.resource.id] || 0) + 1;
+      }
+    }
+
+    return matches;
+  }
+
+  private classifyCategories(text: string): Set<string> {
+    const categoryPatterns: Array<{ category: string; pattern: RegExp }> = [
+      { category: 'compliance', pattern: /(compliance|regulatory|audit|control|aml|kyc|risk|legal|privacy)/ },
+      { category: 'engineering', pattern: /(integration|platform|architecture|build|api|deployment|security|data|automation|devops)/ },
+      { category: 'marketing', pattern: /(marketing|webinar|collateral|campaign|positioning|gtm|channel|sales|partner)/ },
+      { category: 'hr', pattern: /(hr|workforce|training|recruit|onboard|talent|handbook|people)/ },
+      { category: 'operations', pattern: /(operations|readiness|process|implementation|service|support|runbook)/ },
+      { category: 'product', pattern: /(product|roadmap|pricing|tiering|requirements|scope)/ },
+    ];
+
+    const categories = new Set<string>();
+    for (const entry of categoryPatterns) {
+      if (entry.pattern.test(text)) {
+        categories.add(entry.category);
+      }
+    }
+    return categories;
+  }
+
+  private extractKeywords(text: string): Set<string> {
+    const stopWords = new Set([
+      'the', 'and', 'for', 'with', 'from', 'into', 'that', 'this', 'your', 'will', 'only',
+      'model', 'lead', 'plan', 'report', 'module', 'system', 'program', 'strategy',
+    ]);
+    return new Set(
+      text
+        .split(/[^a-z0-9]+/)
+        .filter((token) => token.length >= 4 && !stopWords.has(token))
+    );
   }
 
   /**

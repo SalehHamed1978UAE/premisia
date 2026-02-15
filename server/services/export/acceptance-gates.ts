@@ -1,6 +1,7 @@
 import { getJourney } from '../../journey/journey-registry';
 import { qualityGateRunner } from '../../intelligence/epm/validators/quality-gate-runner';
 import { deriveConstraintMode, shouldEnforceConstraints } from '../../intelligence/epm/constraint-policy';
+import { normalizeStrategicDecisions } from '../../utils/decision-selection';
 
 type Severity = 'critical' | 'warning';
 
@@ -265,6 +266,72 @@ function computeLongestDependencyChain(workstreams: any[]): string[] {
   return path.reverse();
 }
 
+function normalizeText(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return value
+    .toLowerCase()
+    .replace(/[\u2026…]/g, ' ')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function deriveSelectedDecisionLabels(strategyData: any): string[] {
+  const strategyVersion = strategyData?.strategyVersion || {};
+  const normalizedFromVersion = normalizeStrategicDecisions(
+    strategyVersion?.decisionsData,
+    strategyVersion?.selectedDecisions
+  );
+  const normalizedTopLevel = normalizeStrategicDecisions(
+    strategyData?.decisions,
+    strategyVersion?.selectedDecisions
+  );
+
+  const decisionCandidates = normalizedFromVersion.decisions.length > 0
+    ? normalizedFromVersion.decisions
+    : normalizedTopLevel.decisions;
+
+  const labels: string[] = [];
+  for (const decision of decisionCandidates) {
+    const options = Array.isArray(decision?.options) ? decision.options : [];
+    const selectedOption = options.find((option: any) => option?.id === decision?.selectedOptionId);
+    const label = selectedOption?.label || selectedOption?.name || null;
+    if (typeof label === 'string' && label.trim().length > 0) {
+      labels.push(label.trim());
+    }
+  }
+  return labels;
+}
+
+function hasLabelMatch(workstreams: any[], label: string): boolean {
+  const labelNorm = normalizeText(label);
+  if (!labelNorm) return false;
+  const labelTokens = labelNorm.split(' ').filter((token) => token.length >= 4);
+  const decisionWorkstreams = workstreams.filter((workstream) =>
+    normalizeText(workstream?.name || '').includes('decision implementation')
+  );
+  const candidatePool = decisionWorkstreams.length > 0 ? decisionWorkstreams : workstreams;
+
+  return candidatePool.some((workstream) => {
+    const deliverableText = Array.isArray(workstream?.deliverables)
+      ? workstream.deliverables.map((d: any) => `${d?.name || ''} ${d?.description || ''}`).join(' ')
+      : '';
+    const haystack = decisionWorkstreams.length > 0
+      ? normalizeText(`${workstream?.name || ''}`)
+      : normalizeText(`${workstream?.name || ''} ${workstream?.description || ''} ${deliverableText}`);
+    if (!haystack) return false;
+    if (haystack.includes(labelNorm)) return true;
+    const prefixTokenCount = Math.min(5, labelTokens.length);
+    const labelPrefix = labelTokens.slice(0, prefixTokenCount).join(' ');
+    if (labelPrefix && haystack.includes(labelPrefix)) return true;
+    const matched = labelTokens.filter((token) => haystack.includes(token));
+    if (labelTokens.length >= 5) {
+      return matched.length >= 3 && (matched.length / labelTokens.length) >= 0.75;
+    }
+    return matched.length >= Math.max(2, Math.ceil(labelTokens.length * 0.75));
+  });
+}
+
 export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAcceptanceReport {
   const criticalIssues: AcceptanceIssue[] = [];
   const warnings: AcceptanceIssue[] = [];
@@ -430,6 +497,31 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
         maxWorkstreamEnd,
       },
     });
+  }
+
+  if (totalMonths >= 18 && maxWorkstreamEnd > 0) {
+    const coverageRatio = (maxWorkstreamEnd + 1) / totalMonths;
+    if (coverageRatio < 0.7) {
+      criticalIssues.push({
+        severity: 'critical',
+        code: 'TIMELINE_UNDER_UTILIZATION_CRITICAL',
+        message: `Workstreams cover only ${(coverageRatio * 100).toFixed(1)}% of timeline (${maxWorkstreamEnd + 1}/${totalMonths} months)`,
+        details: { coverageRatio, maxWorkstreamEnd, totalMonths },
+      });
+    }
+  }
+
+  const selectedDecisionLabels = deriveSelectedDecisionLabels(strategyData);
+  if (selectedDecisionLabels.length > 0 && workstreams.length > 0) {
+    const missingLabels = selectedDecisionLabels.filter((label) => !hasLabelMatch(workstreams, label));
+    if (missingLabels.length > 0) {
+      criticalIssues.push({
+        severity: 'critical',
+        code: 'DECISION_IMPLEMENTATION_MISMATCH',
+        message: 'Selected strategic decisions are not reflected in generated workstreams',
+        details: { missingDecisionLabels: missingLabels },
+      });
+    }
   }
 
   const hasDependencies = workstreams.some((ws: any) => Array.isArray(ws.dependencies) && ws.dependencies.length > 0);

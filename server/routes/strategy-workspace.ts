@@ -12,13 +12,14 @@ import { createOpenAIProvider } from '../../src/lib/intelligent-planning/llm-pro
 import { backgroundJobService } from '../services/background-job-service';
 import { journeySummaryService } from '../services/journey-summary-service';
 import { journeyRegistry } from '../journey/journey-registry';
-import { isJourneyRegistryV2Enabled } from '../config';
+import { isJourneyRegistryV2Enabled, isEPMStrictIntegrityGatesEnabled } from '../config';
 import type { StrategicContext, JourneyType } from '@shared/journey-types';
 import { container, getService } from '../services/container';
 import { ServiceKeys } from '../types/interfaces';
 import type { EPMRepository, StrategyRepository } from '../repositories';
 import { refreshTokenProactively } from '../replitAuth';
 import { ambiguityDetector } from '../services/ambiguity-detector';
+import { normalizeStrategicDecisions } from '../utils/decision-selection';
 
 const router = Router();
 
@@ -648,10 +649,29 @@ async function processEPMGeneration(
       }
     }
 
+    // Normalize strategic decision selection to a single source of truth.
+    // This prevents stale selectedDecisions maps from overriding decision values.
+    const normalizedDecisionSelection = normalizeStrategicDecisions(decisionsData, selectedDecisions);
+    if (normalizedDecisionSelection.decisions.length > 0) {
+      decisionsData = {
+        ...(decisionsData && typeof decisionsData === 'object' ? decisionsData : {}),
+        decisions: normalizedDecisionSelection.decisions,
+      } as any;
+      selectedDecisions = normalizedDecisionSelection.selectedDecisions;
+      if (normalizedDecisionSelection.mismatches.length > 0) {
+        console.warn('[EPM Generation] ⚠️ Decision selection mismatches normalized:', normalizedDecisionSelection.mismatches);
+      }
+      if (normalizedDecisionSelection.unresolvedDecisionIds.length > 0) {
+        console.warn('[EPM Generation] ⚠️ Decisions missing canonical selection:', normalizedDecisionSelection.unresolvedDecisionIds);
+      }
+    }
+
     // Prepare context for intelligent program naming
     // journeyTitle takes priority - use it directly instead of AI generation
     const namingContext = {
       journeyTitle: journeyTitle, // From strategic_understanding.title - USE THIS!
+      businessSector: initiativeType || null,
+      businessName: journeyTitle || null,
       bmcKeyInsights: bmcAnalysis?.keyInsights || [],
       bmcRecommendations: bmcAnalysis?.recommendations || [],
       selectedDecisions: selectedDecisions || null,
@@ -659,6 +679,7 @@ async function processEPMGeneration(
       framework: effectivePrimaryFramework || 'bmc',
       // Pass Journey Builder SWOT for benefit generation
       journeyBuilderSwot: journeyBuilderSwot,
+      decisionSelectionMismatches: normalizedDecisionSelection.mismatches,
     };
 
     // Fetch user decisions if provided
@@ -836,20 +857,26 @@ async function processEPMGeneration(
       // Clean up temp file
       fs.unlinkSync(tempPath);
 
-      // Log validation result — NEVER block generation, only warn
-      // The export gate (acceptance-gates.ts) is the enforcement point, not here
+      const strictIntegrity = isEPMStrictIntegrityGatesEnabled();
+      // Log validation result and optionally enforce strict integrity gates.
       if (!validationResult.isValid) {
-        console.warn('[EPM Generation] ⚠️  VALIDATION WARNINGS (non-blocking):');
+        console.warn('[EPM Generation] ⚠️  VALIDATION ISSUES DETECTED:');
         validationResult.errors.forEach(e => console.warn(`  - ${e}`));
 
-        // Send validation info via SSE for visibility, but do NOT block
+        // Send validation info via SSE for visibility.
         sendSSEEvent(progressId, {
           type: 'validation_warning',
           errors: validationResult.errors,
           warnings: validationResult.warnings,
           score: validationResult.score,
-          message: `Quality validation flagged ${validationResult.errors.length} issues (score: ${validationResult.score}/100). Proceeding — export gate will enforce.`
+          message: `Quality validation flagged ${validationResult.errors.length} issues (score: ${validationResult.score}/100).`
         });
+
+        if (strictIntegrity) {
+          throw new Error(
+            `EPM integrity gate failed before save (score ${validationResult.score}/100): ${validationResult.errors.join(' | ')}`
+          );
+        }
       }
 
       // Log warnings if any
@@ -861,8 +888,11 @@ async function processEPMGeneration(
       console.log(`[EPM Generation] ✅ Generation continuing (validation score: ${validationResult.score}/100)`);
 
     } catch (validationError: any) {
-      // Validation process errors should never block generation
-      console.error('[EPM Generation] ⚠️  Validation process error (continuing):', validationError.message);
+      const strictIntegrity = isEPMStrictIntegrityGatesEnabled();
+      console.error('[EPM Generation] ⚠️  Validation process error:', validationError.message);
+      if (strictIntegrity) {
+        throw new Error(`Validation process failed under strict integrity mode: ${validationError.message}`);
+      }
     }
 
     // Extract component-level confidence scores

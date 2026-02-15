@@ -80,3 +80,18 @@ export function isEPMDomainResilienceEnabled(): boolean {
   }
   return raw === 'true';
 }
+
+/**
+ * Check if strict EPM integrity gates are enabled.
+ *
+ * When enabled, synthesis/export blocks on structural integrity failures
+ * (decision coherence, severe timeline under-utilization, etc.).
+ */
+export function isEPMStrictIntegrityGatesEnabled(): boolean {
+  const raw = process.env.EPM_STRICT_INTEGRITY_GATES;
+  if (raw === undefined) {
+    // Default-off to preserve existing journey flow; enable explicitly in fix loops.
+    return false;
+  }
+  return raw === 'true';
+}

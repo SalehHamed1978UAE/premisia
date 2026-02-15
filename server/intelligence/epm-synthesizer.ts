@@ -44,7 +44,7 @@ import type {
 import { replaceTimelineGeneration } from '../../src/lib/intelligent-planning/epm-integration';
 import type { PlanningContext, BusinessScale } from '../../src/lib/intelligent-planning/types';
 import { aiClients } from '../ai-clients';
-import { isEPMDomainResilienceEnabled } from '../config';
+import { isEPMDomainResilienceEnabled, isEPMStrictIntegrityGatesEnabled } from '../config';
 
 import {
   ContextBuilder,
@@ -73,6 +73,7 @@ import {
 import { extractUserConstraintsFromText } from './epm/constraint-utils';
 import { shouldUseTextConstraintFallback } from './epm/constraint-policy';
 import type { DomainProfile } from './types';
+import { normalizeStrategicDecisions } from '../utils/decision-selection';
 
 export { ContextBuilder } from './epm';
 
@@ -390,16 +391,18 @@ export class EPMSynthesizer {
     insights: StrategyInsights,
     namingContext?: any
   ): { decisions: any[]; swotData: any } {
-    // Extract decisions from namingContext (works for both legacy and Journey Builder paths)
-    // The route handler already fetches from frameworkInsights if version.decisionsData is empty
-    const decisionsData = namingContext?.decisionsData?.decisions || [];
-    const selectedDecisions = namingContext?.selectedDecisions || {};
-
-    // Merge selection into decisions
-    const decisions = decisionsData.map((d: any) => ({
-      ...d,
-      selectedOptionId: selectedDecisions[d.id] || d.selectedOptionId,
-    }));
+    // Canonicalize decision selection so stale fallback maps do not override chosen values.
+    const normalizedSelection = normalizeStrategicDecisions(
+      namingContext?.decisionsData,
+      namingContext?.selectedDecisions
+    );
+    const decisions = normalizedSelection.decisions;
+    if (normalizedSelection.mismatches.length > 0) {
+      console.warn(
+        '[EPM Synthesis] ⚠️ Decision selection mismatches normalized:',
+        normalizedSelection.mismatches
+      );
+    }
 
     // SWOT extraction with Journey Builder fallback
     // Priority: 1. Journey Builder SWOT (from frameworkInsights), 2. Insights, 3. Market context
@@ -1318,6 +1321,20 @@ export class EPMSynthesizer {
       console.log('[EPM Synthesis] ✓ Decision alignment applied (no count change)');
     }
 
+    const decisionCoherence = this.validateDecisionImplementationCoherence(
+      strategicContext?.decisions || [],
+      alignedWorkstreams
+    );
+    if (decisionCoherence.issues.length > 0) {
+      console.warn(
+        `[EPM Synthesis] ⚠️ Decision coherence issues: ${decisionCoherence.issues.length}`
+      );
+      decisionCoherence.issues.forEach((issue) => console.warn(`    - ${issue}`));
+      if (isEPMStrictIntegrityGatesEnabled()) {
+        throw new Error(`Decision coherence gate failed: ${decisionCoherence.issues.join(' | ')}`);
+      }
+    }
+
     const timelineReadyWorkstreams = isEPMDomainResilienceEnabled()
       ? this.ensureTimelineCoverage(alignedWorkstreams, enrichedUserContext, planningContext)
       : alignedWorkstreams;
@@ -1453,6 +1470,26 @@ export class EPMSynthesizer {
       resourcePlan,
       planningContext.business.domainProfile as DomainProfile | undefined
     );
+    const qualityErrorMessages = qualityReport.validatorResults.flatMap((result) =>
+      result.issues
+        .filter((issue) => issue.severity === 'error')
+        .map((issue) => `[${result.validatorName}] ${issue.code}: ${issue.message}`)
+    );
+    const qualityWarningMessages = qualityReport.validatorResults.flatMap((result) =>
+      result.issues
+        .filter((issue) => issue.severity !== 'error')
+        .map((issue) => `[${result.validatorName}] ${issue.code}: ${issue.message}`)
+    );
+    const strictWarningCodes = new Set([
+      'TIMELINE_UNDER_UTILIZATION',
+      'EMPTY_TIMELINE_PHASE',
+      'EMPTY_STAGE_GATE_DELIVERABLES',
+    ]);
+    const strictWarnings = qualityReport.validatorResults.flatMap((result) =>
+      result.issues
+        .filter((issue) => issue.severity !== 'error' && strictWarningCodes.has(issue.code))
+        .map((issue) => `[${result.validatorName}] ${issue.code}: ${issue.message}`)
+    );
     if (!qualityReport.overallPassed) {
       console.log(`[EPM Synthesis] ⚠️ WBS validation found ${qualityReport.errorCount} errors, ${qualityReport.warningCount} warnings`);
       qualityReport.validatorResults.forEach(result => {
@@ -1467,6 +1504,10 @@ export class EPMSynthesizer {
       });
     } else {
       console.log(`[EPM Synthesis] ✓ WBS timeline validation passed`);
+    }
+    if (isEPMStrictIntegrityGatesEnabled() && (qualityErrorMessages.length > 0 || strictWarnings.length > 0)) {
+      const gateIssues = [...qualityErrorMessages, ...strictWarnings];
+      throw new Error(`Quality gate failed: ${gateIssues.join(' | ')}`);
     }
 
     onProgress?.({
@@ -1530,13 +1571,21 @@ export class EPMSynthesizer {
       this.exitStrategyGenerator.generate(insights, riskRegister),
     ]);
 
+    const mergedValidationResult = {
+      errors: [...validationResult.errors, ...qualityErrorMessages],
+      corrections: validationResult.corrections,
+      warnings: [...(validationResult.warnings || []), ...qualityWarningMessages],
+    };
     const validationReport = this.buildValidationReport(
       phasedWorkstreams,
       timeline,
       stageGates,
-      validationResult,
+      mergedValidationResult,
       planningGrid,
-      roleValidationWarnings
+      [
+        ...roleValidationWarnings,
+        ...decisionCoherence.issues.map((issue) => `[DecisionCoherence] ${issue}`),
+      ]
     );
     
     const confidences = [
@@ -2004,7 +2053,7 @@ export class EPMSynthesizer {
     userContext: UserContext | undefined,
     planningContext: PlanningContext
   ): Workstream[] {
-    const maxMonths = userContext?.timelineRange?.max;
+    const maxMonths = userContext?.timelineRange?.max || planningContext.execution?.timeline?.max;
     if (!maxMonths || workstreams.length === 0) {
       return workstreams;
     }
@@ -2159,6 +2208,100 @@ export class EPMSynthesizer {
     };
   }
 
+  private validateDecisionImplementationCoherence(
+    decisions: any[],
+    workstreams: Workstream[]
+  ): { issues: string[] } {
+    const issues: string[] = [];
+    const selectedDecisions = (decisions || []).filter(
+      (decision: any) => decision?.selectedOptionId && Array.isArray(decision?.options)
+    );
+
+    if (selectedDecisions.length === 0) {
+      return { issues };
+    }
+
+    const searchableWorkstreams = workstreams.map((workstream) => {
+      const deliverableText = (workstream.deliverables || [])
+        .map((deliverable) => `${deliverable?.name || ''} ${deliverable?.description || ''}`)
+        .join(' ');
+      const nameText = `${workstream.name || ''}`.toLowerCase();
+      return {
+        id: workstream.id,
+        name: workstream.name,
+        nameText,
+        isDecisionImplementation: nameText.includes('decision implementation'),
+        text: `${workstream.name || ''} ${workstream.description || ''} ${deliverableText}`.toLowerCase(),
+      };
+    });
+
+    for (const decision of selectedDecisions) {
+      const selectedOption = decision.options.find((option: any) => option.id === decision.selectedOptionId);
+      if (!selectedOption) {
+        issues.push(`Decision "${decision.id || decision.question || 'unknown'}" selected option id "${decision.selectedOptionId}" not found in options.`);
+        continue;
+      }
+
+      const selectedLabel = `${selectedOption.label || selectedOption.name || selectedOption.id || ''}`.trim();
+      if (!selectedLabel) {
+        continue;
+      }
+
+      const decisionCandidates = searchableWorkstreams.filter((workstream) => workstream.isDecisionImplementation);
+      const candidatePool = decisionCandidates.length > 0 ? decisionCandidates : searchableWorkstreams;
+
+      const hasMatch = candidatePool.some((workstream) =>
+        this.matchesDecisionLabel(
+          decisionCandidates.length > 0 ? workstream.nameText : workstream.text,
+          selectedLabel
+        )
+      );
+
+      if (!hasMatch) {
+        issues.push(
+          `Selected option "${selectedLabel}" is not represented in generated workstreams for decision "${decision.id || decision.question || 'unknown'}".`
+        );
+      }
+    }
+
+    return { issues };
+  }
+
+  private matchesDecisionLabel(haystackRaw: string, labelRaw: string): boolean {
+    const normalize = (value: string) =>
+      value
+        .toLowerCase()
+        .replace(/[\u2026…]/g, ' ')
+        .replace(/[^\w\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const haystack = normalize(haystackRaw);
+    const label = normalize(labelRaw);
+    if (!haystack || !label) return false;
+    if (haystack.includes(label)) return true;
+
+    const labelTokens = label
+      .split(' ')
+      .filter((token) => token.length >= 4);
+    if (labelTokens.length === 0) {
+      return haystack.includes(label);
+    }
+
+    const prefixTokenCount = Math.min(5, labelTokens.length);
+    const labelPrefix = labelTokens.slice(0, prefixTokenCount).join(' ');
+    if (labelPrefix && haystack.includes(labelPrefix)) {
+      return true;
+    }
+
+    const matchedTokens = labelTokens.filter((token) => haystack.includes(token));
+    const overlapRatio = matchedTokens.length / labelTokens.length;
+    if (labelTokens.length >= 5) {
+      return matchedTokens.length >= 3 && overlapRatio >= 0.75;
+    }
+    return matchedTokens.length >= Math.max(2, Math.ceil(labelTokens.length * 0.75));
+  }
+
   /**
    * Build validation report from validation results
    */
@@ -2166,13 +2309,14 @@ export class EPMSynthesizer {
     workstreams: Workstream[],
     timeline: Timeline,
     stageGates: StageGates,
-    validationResult: { errors: string[]; corrections: string[] },
+    validationResult: { errors: string[]; corrections: string[]; warnings?: string[] },
     planningGrid: { conflicts: string[]; maxUtilization: number; totalTasks: number },
     roleValidationWarnings: string[] = []
   ): EPMValidationReport {
     // Combine all warnings: validation errors + planning conflicts + role validation
     const allWarnings = [
       ...validationResult.errors,
+      ...(validationResult.warnings || []),
       ...planningGrid.conflicts,
       ...roleValidationWarnings,
     ];
