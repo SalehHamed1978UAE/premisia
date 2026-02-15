@@ -13,9 +13,13 @@ export function deriveConstraintMode(
   requestedMode: unknown,
   hasExplicitConstraint: boolean,
 ): ConstraintMode {
+  // Explicit constraints always win over requested discovery mode.
+  // This prevents contradictory states like { mode: "discovery", budgetConstraint: {...} }.
+  if (hasExplicitConstraint) return 'constrained';
+
   const normalized = normalizeConstraintMode(requestedMode);
   if (normalized) return normalized;
-  return hasExplicitConstraint ? 'constrained' : 'auto';
+  return 'auto';
 }
 
 export function shouldUseTextConstraintFallback(mode: ConstraintMode | undefined): boolean {

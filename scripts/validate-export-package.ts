@@ -18,6 +18,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { deriveConstraintMode, shouldEnforceConstraints } from '../server/intelligence/epm/constraint-policy';
+import { hasBudgetConstraintSignal } from '../server/intelligence/epm/constraint-utils';
 
 interface ValidationIssue {
   check: string;
@@ -204,6 +205,7 @@ class EPMPackageValidator {
     this.check18_TopLevelMetadataPresence(epmPackage);
     this.check19_ClarificationsExtraction(epmPackage);
     this.check20_TimelineConstraintEnforcement(epmPackage);
+    this.check21_DiscoveryBudgetSignalMismatch(epmPackage);
 
     return this.getResult();
   }
@@ -1142,6 +1144,35 @@ class EPMPackageValidator {
     }
   }
 
+  /**
+   * Check 21: Discovery/Budget Intent Mismatch
+   * Mirrors export acceptance gate DISCOVERY_MODE_BUDGET_SIGNAL_MISMATCH.
+   * Penalty: 15 points (critical)
+   */
+  private check21_DiscoveryBudgetSignalMismatch(pkg: EPMPackage): void {
+    console.log('✓ Check 21: Discovery/Budget Intent Alignment');
+    this.currentCheck = 'check21_DiscoveryBudgetSignalMismatch';
+
+    const mode = this.getConstraintMode(pkg);
+    if (mode !== 'discovery') return;
+
+    const rawInput =
+      (typeof pkg.userInputStructured?.raw === 'string' ? pkg.userInputStructured.raw : undefined) ||
+      (typeof pkg.userInput === 'string' ? pkg.userInput : '') ||
+      '';
+    if (!rawInput) return;
+
+    if (hasBudgetConstraintSignal(rawInput)) {
+      this.addHighSeverityError(
+        'Budget intent detected in strategic input while export remains in discovery mode.',
+        15,
+        'userInputStructured.constraintMode',
+        'constrained',
+        mode
+      );
+    }
+  }
+
   // ═══════════════════════════════════════════════════════════════════════
   // Helpers
   // ═══════════════════════════════════════════════════════════════════════
@@ -1217,7 +1248,7 @@ class EPMPackageValidator {
   private getResult(): ValidationResult {
     const isValid = this.errors.length === 0 && this.score >= 70;
     const grade = this.getGrade(this.score);
-    const totalChecks = 20;
+    const totalChecks = 21;
 
     console.log('\n╔════════════════════════════════════════════════════════════════════════════╗');
     console.log('║                           VALIDATION RESULTS                                ║');
@@ -1261,7 +1292,7 @@ class EPMPackageValidator {
       checkResults: this.checkResults,
       metadata: {
         validatedAt: new Date().toISOString(),
-        validatorVersion: '2.0.0-sprint1',
+        validatorVersion: '2.1.0-sprint1',
         totalChecks,
         checksRun: totalChecks,
       },

@@ -34,6 +34,7 @@ import { journeySummaryService } from '../services/journey-summary-service';
 import { decryptKMS } from '../utils/kms-encryption';
 import { buildLinearWhysTree, normalizeWhysPathSteps, whysPathToText } from '../utils/whys-path';
 import { deriveConstraintMode, normalizeConstraintMode } from '../intelligence/epm/constraint-policy';
+import { extractUserConstraintsFromText } from '../intelligence/epm/constraint-utils';
 
 const router = Router();
 const upload = multer({ 
@@ -370,6 +371,23 @@ router.post('/understanding', async (req: Request, res: Response) => {
       }
     }
 
+    // Defensive inference: if users mention explicit "$XM over N months" style constraints
+    // in free text but leave UI mode as discovery, infer and persist constraints.
+    const inferredFromText = extractUserConstraintsFromText(input.trim());
+    let inferredConstraintApplied = false;
+    if (inferredFromText.budget || inferredFromText.timeline) {
+      const merged = { ...(normalizedBudgetConstraint || {}) } as { amount?: number; timeline?: number };
+      if (merged.amount === undefined && inferredFromText.budget?.max) {
+        merged.amount = inferredFromText.budget.max;
+        inferredConstraintApplied = true;
+      }
+      if (merged.timeline === undefined && inferredFromText.timeline?.max) {
+        merged.timeline = inferredFromText.timeline.max;
+        inferredConstraintApplied = true;
+      }
+      normalizedBudgetConstraint = Object.keys(merged).length > 0 ? merged : null;
+    }
+
     const requestedConstraintMode = normalizeConstraintMode(constraintMode);
     if (constraintMode !== undefined && requestedConstraintMode === undefined) {
       return res.status(400).json({
@@ -435,9 +453,10 @@ router.post('/understanding', async (req: Request, res: Response) => {
       if (requestedConstraintMode !== undefined || hasExplicitConstraint) {
         updatedMetadata.constraintPolicy = {
           mode: effectiveConstraintMode,
-          source: 'strategic-input',
+          source: inferredConstraintApplied ? 'strategic-input-inferred' : 'strategic-input',
           updatedAt: new Date().toISOString(),
           hasExplicitConstraint,
+          inferredConstraintApplied,
         };
       }
 

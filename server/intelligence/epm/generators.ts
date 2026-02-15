@@ -1131,6 +1131,7 @@ export class StageGateGenerator {
     for (const ws of workstreams) {
       if (ws?.id) workstreamById.set(ws.id, ws);
     }
+    const emittedWorkstreamIds = new Set<string>();
 
     const gates = timeline.phases.map((phase, idx) => {
       const phaseWorkstreams = (phase.workstreamIds || [])
@@ -1140,8 +1141,12 @@ export class StageGateGenerator {
       // Gate deliverables should reflect workstreams completing in THIS phase window,
       // not every workstream completed up to this phase (prevents gate carry-over duplication).
       const requiredWorkstreams = phaseWorkstreams.filter(
-        (ws) => ws.endMonth >= phase.startMonth && ws.endMonth <= phase.endMonth
+        (ws) =>
+          ws.endMonth >= phase.startMonth &&
+          ws.endMonth <= phase.endMonth &&
+          !emittedWorkstreamIds.has(ws.id)
       );
+      requiredWorkstreams.forEach((ws) => emittedWorkstreamIds.add(ws.id));
 
       const deliverables = requiredWorkstreams.flatMap((ws) => {
         if (ws.deliverables && ws.deliverables.length > 0) {
