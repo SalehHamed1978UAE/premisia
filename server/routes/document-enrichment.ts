@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import { backgroundJobService } from '../services/background-job-service';
-import { isAuthenticated } from '../replitAuth';
+import { isAuthenticated } from '../supabaseAuth';
 
 const router = Router();
 

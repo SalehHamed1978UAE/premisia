@@ -14,7 +14,7 @@ import { FrameworkSelector } from '../strategic-consultant-legacy/framework-sele
 import { BMCResearcher } from '../strategic-consultant-legacy/bmc-researcher';
 import { storage } from '../storage';
 import { unlink } from 'fs/promises';
-import { refreshTokenProactively } from '../replitAuth';
+import { refreshTokenProactively } from '../supabaseAuth';
 import { db } from '../db';
 import { strategicUnderstanding, journeySessions, strategyVersions, epmPrograms, bmcAnalyses, strategicEntities, strategicRelationships, frameworkInsights } from '@shared/schema';
 import { eq, and, inArray } from 'drizzle-orm';

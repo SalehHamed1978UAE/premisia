@@ -16,7 +16,7 @@ import type { StrategicContext, JourneyType } from '@shared/journey-types';
 import { container, getService } from '../services/container';
 import { ServiceKeys } from '../types/interfaces';
 import type { EPMRepository, StrategyRepository } from '../repositories';
-import { refreshTokenProactively } from '../replitAuth';
+import { refreshTokenProactively } from '../supabaseAuth';
 import { ambiguityDetector } from '../services/ambiguity-detector';
 
 const router = Router();

@@ -28,8 +28,11 @@ export interface IStorage {
   // User management
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getUserBySupabaseUid(uid: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  upsertUser(user: UpsertUser): Promise<User>; // For Replit Auth
+  upsertUser(user: UpsertUser): Promise<User>;
+  updateUserSupabaseUid(userId: string, supabaseUid: string): Promise<void>;
   
   // Location management
   createLocation(location: InsertLocation): Promise<Location>;
@@ -222,6 +225,20 @@ export class DatabaseStorage implements IStorage {
   async getUserByUsername(username: string): Promise<User | undefined> {
     // Legacy method - kept for backward compatibility
     return undefined;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user || undefined;
+  }
+
+  async getUserBySupabaseUid(uid: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.supabaseUid, uid));
+    return user || undefined;
+  }
+
+  async updateUserSupabaseUid(userId: string, supabaseUid: string): Promise<void> {
+    await db.update(users).set({ supabaseUid }).where(eq(users.id, userId));
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {

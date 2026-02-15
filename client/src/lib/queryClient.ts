@@ -1,4 +1,13 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { getAccessToken } from "./supabase";
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const token = await getAccessToken();
+  if (token) {
+    return { Authorization: `Bearer ${token}` };
+  }
+  return {};
+}
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -18,9 +27,15 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  const authHeaders = await getAuthHeaders();
+  const headers: Record<string, string> = {
+    ...authHeaders,
+    ...(data ? { "Content-Type": "application/json" } : {}),
+  };
+
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
@@ -35,34 +50,32 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    // Build URL from queryKey, handling objects as query parameters
     const pathSegments: string[] = [];
     const params = new URLSearchParams();
-    
+
     for (const segment of queryKey) {
       if (typeof segment === 'object' && segment !== null && !Array.isArray(segment)) {
-        // Add object properties as query parameters
         for (const [key, value] of Object.entries(segment)) {
           if (value !== undefined && value !== null) {
             params.append(key, String(value));
           }
         }
       } else if (segment !== undefined && segment !== null) {
-        // Add all other segments (string, number, boolean) to the path
         const segmentStr = String(segment);
         pathSegments.push(segmentStr.startsWith('/') ? segmentStr : '/' + segmentStr);
       }
     }
-    
-    // Build final URL
+
     let url = pathSegments.join('');
     const queryString = params.toString();
     if (queryString) {
       url += '?' + queryString;
     }
-    
+
+    const authHeaders = await getAuthHeaders();
     const res = await fetch(url, {
       credentials: "include",
+      headers: authHeaders,
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {

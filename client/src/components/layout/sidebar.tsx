@@ -24,7 +24,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ isOpen = false, onToggle = () => {} }: SidebarProps) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [location, setLocation] = useLocation();
 
   const navigate = (path: string) => {
@@ -244,7 +244,7 @@ export function Sidebar({ isOpen = false, onToggle = () => {} }: SidebarProps) {
               className="h-9 w-9 text-red-400 hover:text-red-300"
               title="Logout"
               aria-label="Logout"
-              onClick={() => window.location.href = '/api/logout'}
+              onClick={() => logout()}
               data-testid="button-logout"
             >
               <LogOut className="h-5 w-5" />

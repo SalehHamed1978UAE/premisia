@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { setupAuthMiddleware, isAuthenticated } from "./replitAuth";
+import { initializeSupabaseAuth, isAuthenticated } from "./supabaseAuth";
 import { storage } from "./storage";
 import { insertProgramSchema, insertWorkstreamSchema, insertStageGateSchema, insertTaskSchema, insertKpiSchema, insertRiskSchema, insertBenefitSchema, insertFundingSourceSchema, insertExpenseSchema, insertResourceSchema, insertSessionContextSchema, orchestratorTaskSchema, backgroundJobs, journeySessions, strategicUnderstanding, sessionContext, references, strategyVersions, epmPrograms } from "@shared/schema";
 import { ontologyService } from "./ontology-service";
@@ -33,23 +33,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize module catalog and journey config system
   initializeModuleSystem();
   
-  // Setup auth middleware synchronously (session, passport)
-  // This MUST happen before route registration for req.user to be populated
-  setupAuthMiddleware(app);
-  
-  // Complete auth setup (OIDC config + strategy registration + auth routes)
-  // This registers /api/login, /api/callback, /api/logout
-  // Skip OIDC setup only when BOTH DEV_AUTH_BYPASS=true AND NODE_ENV=development
-  const shouldSkipOIDC = process.env.DEV_AUTH_BYPASS === 'true' && process.env.NODE_ENV === 'development';
-  if (!shouldSkipOIDC) {
-    const { finishAuthSetup } = await import('./replitAuth.js');
-    await finishAuthSetup(app);
-    console.log('[Auth] OIDC authentication configured');
-  } else {
-    console.log('[Auth] Skipping OIDC setup (DEV_AUTH_BYPASS=true in development)');
-  }
+  // Initialize Supabase Auth (JWT-based, no sessions)
+  initializeSupabaseAuth();
+  console.log('[Auth] Supabase authentication initialized');
 
-  // Auth user endpoint for Replit Auth
+  // Auth user endpoint
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;

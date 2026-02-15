@@ -198,6 +198,7 @@ export const users = pgTable("users", {
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
+  supabaseUid: varchar("supabase_uid").unique(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 

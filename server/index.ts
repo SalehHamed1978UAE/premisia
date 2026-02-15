@@ -2,7 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { createServer } from "node:http";
 import path from "node:path";
 // NOTE: registerRoutes is imported lazily inside server.listen() to prevent
-// module-load crashes if REPLIT_DOMAINS or other auth secrets are missing
+// module-load crashes if auth secrets are missing
 import { setupVite, serveStatic, log } from "./vite";
 import { validateEncryptionKey } from "./utils/encryption";
 import { backgroundJobService } from "./services/background-job-service";
