@@ -1378,10 +1378,10 @@ export class EPMSynthesizer {
 
     // Sprint 1: Assign phases with containment enforcement
     const phasedWorkstreams = this.assignWorkstreamPhases(deduplicatedWorkstreams, timeline);
-    if (isEPMDomainResilienceEnabled()) {
-      this.fillEmptyPhases(phasedWorkstreams, timeline, planningContext);
-      timeline = this.syncTimelinePhaseWorkstreams(timeline, phasedWorkstreams);
-    }
+    // Always enforce phase coverage to avoid empty lifecycle phases in exported plans.
+    // Domain resilience still controls upstream augmentation, but structural phase coverage is mandatory.
+    this.fillEmptyPhases(phasedWorkstreams, timeline, planningContext);
+    timeline = this.syncTimelinePhaseWorkstreams(timeline, phasedWorkstreams);
     onProgress?.({
       type: 'step-start',
       step: 'resources',

@@ -358,20 +358,49 @@ ${clarificationText}${conflictText}`;
     return parts.length > 0 ? parts : [value.trim()];
   }
 
+  private isClarificationsHeaderLine(line: string): boolean {
+    const trimmed = line.trim();
+    if (!trimmed) return false;
+    const stripped = trimmed.replace(/^\*+\s*/, '').replace(/\s*\*+$/, '');
+    return /^clarifications:/i.test(stripped);
+  }
+
+  private dedupeClarificationLines(lines: string[]): string[] {
+    const seen = new Set<string>();
+    const output: string[] = [];
+    for (const line of lines) {
+      const normalized = this.normalizeForMatch(line);
+      if (!normalized) continue;
+      if (seen.has(normalized)) continue;
+      seen.add(normalized);
+      output.push(line.trim());
+    }
+    return output;
+  }
+
   extractClarificationLines(input: string): string[] {
     const lines = input.split('\n');
-    const clarifications: string[] = [];
+    const blocks: string[][] = [];
+    let currentBlock: string[] = [];
     let inBlock = false;
+
+    const flushBlock = () => {
+      if (currentBlock.length > 0) {
+        blocks.push(currentBlock);
+        currentBlock = [];
+      }
+    };
 
     for (const line of lines) {
       const trimmed = line.trim();
       // Strip markdown formatting from header (e.g., *CLARIFICATIONS:*, **CLARIFICATIONS:**)
       const stripped = trimmed.replace(/^\*+\s*/, '').replace(/\s*\*+$/, '');
-      if (/^clarifications:/i.test(stripped)) {
+      if (this.isClarificationsHeaderLine(trimmed)) {
+        flushBlock();
         inBlock = true;
         const afterHeader = stripped.replace(/^clarifications:/i, '').trim();
         if (afterHeader) {
-          this.parseInlineBullets(afterHeader).forEach(item => clarifications.push(item));
+          this.parseInlineBullets(afterHeader).forEach(item => currentBlock.push(item));
         }
         continue;
       }
@@ -384,9 +413,10 @@ ${clarificationText}${conflictText}`;
           if (inlineText.length > 1) {
             // Split by sentence boundaries
             const sentences = inlineText.split(/\.\s+/).map(s => s.trim().replace(/\.$/, '')).filter(Boolean);
-            sentences.forEach(s => {
-              if (s.length > 1) clarifications.push(s);
-            });
+            const sentenceBlock = sentences.filter((s) => s.length > 1);
+            if (sentenceBlock.length > 0) {
+              blocks.push(sentenceBlock);
+            }
           }
         }
         continue;
@@ -395,6 +425,7 @@ ${clarificationText}${conflictText}`;
         continue;
       }
       if (/^[A-Z_][A-Z0-9_ ]*:\s*$/i.test(trimmed)) {
+        flushBlock();
         inBlock = false;
         continue;
       }
@@ -402,15 +433,21 @@ ${clarificationText}${conflictText}`;
       if (/^[-*•⁠]\s+/.test(trimmed) || /^[•⁠]\s*/.test(trimmed)) {
         const cleaned = trimmed.replace(/^[-*•⁠]+\s*/, '').trim();
         if (cleaned.length > 1) {
-          clarifications.push(cleaned);
+          currentBlock.push(cleaned);
         }
         continue;
       }
       // End block on first non-bullet line
+      flushBlock();
       inBlock = false;
     }
 
-    return clarifications;
+    flushBlock();
+
+    // Keep the most recent clarification block to avoid carrying stale legacy answers
+    // when multiple CLARIFICATIONS sections exist in the same input payload.
+    const latestBlock = blocks.length > 0 ? blocks[blocks.length - 1] : [];
+    return this.dedupeClarificationLines(latestBlock);
   }
 
   /**
@@ -423,12 +460,23 @@ ${clarificationText}${conflictText}`;
 
     for (const line of lines) {
       const trimmed = line.trim();
-      if (/^clarifications:/i.test(trimmed)) {
+      if (this.isClarificationsHeaderLine(trimmed)) {
         inBlock = true;
         continue;
       }
+      if (!inBlock) {
+        const inlineMatch = line.match(/\bCLARIFICATIONS:\s*/i);
+        if (inlineMatch && inlineMatch.index !== undefined) {
+          const prefix = line.slice(0, inlineMatch.index).trimEnd();
+          if (prefix) {
+            output.push(prefix);
+          }
+          inBlock = true;
+          continue;
+        }
+      }
       if (inBlock) {
-        if (trimmed === '' || /^[-*]\s+/.test(trimmed)) {
+        if (trimmed === '' || /^[-*•⁠]\s+/.test(trimmed)) {
           continue;
         }
         // End block when encountering non-bullet content
@@ -540,7 +588,13 @@ ${clarificationText}${conflictText}`;
     clarifications: Record<string, string>
   ): ClarificationConflictResult {
     const baseInput = this.stripClarificationBlocks(originalInput);
-    const clarificationLines = this.extractClarificationLinesFromRecord(clarifications);
+    const existingLines = this.extractClarificationLines(originalInput);
+    const incomingLines = this.extractClarificationLinesFromRecord(clarifications);
+    // Prefer newly provided clarifications when available; fallback to latest existing block.
+    const sourceLines = incomingLines.length > 0 ? incomingLines : existingLines;
+    const clarificationLines = this.dedupeClarificationLines(
+      sourceLines.filter((line) => !this.isPlaceholderClarification(line))
+    );
     const conflicts = this.detectClarificationConflicts(clarificationLines);
 
     if (clarificationLines.length === 0) {

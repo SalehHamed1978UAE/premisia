@@ -176,7 +176,11 @@ export function deriveMetric(option: DecisionOption, category: BenefitCategory):
 /**
  * Derive target from option data
  */
-export function deriveTarget(option: DecisionOption, category: BenefitCategory): string {
+export function deriveTarget(
+  option: DecisionOption,
+  category: BenefitCategory,
+  decisionQuestion?: string
+): string {
   // Use explicit target if available
   if (option.target) {
     return option.target;
@@ -184,6 +188,7 @@ export function deriveTarget(option: DecisionOption, category: BenefitCategory):
 
   // Look for percentage in description
   const desc = option.description || '';
+  const combinedText = `${option.label || ''} ${option.description || ''} ${decisionQuestion || ''}`.toLowerCase();
   const percentMatch = desc.match(/(\d+)%/);
   if (percentMatch) {
     return `${percentMatch[1]}% improvement vs baseline`;
@@ -195,10 +200,33 @@ export function deriveTarget(option: DecisionOption, category: BenefitCategory):
     return `Complete within ${timeMatch[1]} ${timeMatch[2]}`;
   }
 
+  const monthMatch = combinedText.match(/month[\s-]*(\d{1,2})/i);
+  const impliedMonth = monthMatch ? parseInt(monthMatch[1], 10) : undefined;
+
+  if (/(production|go[- ]?live|deployment|rollout)/i.test(combinedText)) {
+    const month = impliedMonth || 10;
+    return `Production go-live by Month ${month} with zero critical compliance defects`;
+  }
+
+  if (/(mvp|scope|workflow|pilot)/i.test(combinedText)) {
+    const month = impliedMonth || 10;
+    return `MVP scope delivered by Month ${month} with <=15% rework after UAT`;
+  }
+
+  if (/(channel|partner|go[- ]?to[- ]?market|gtm|pipeline|sales)/i.test(combinedText)) {
+    const month = impliedMonth || 6;
+    return `At least 30% of qualified pipeline sourced via target channel mix by Month ${month}`;
+  }
+
+  if (/(pricing|commercial|package|tier|subscription|margin)/i.test(combinedText)) {
+    const month = impliedMonth || 4;
+    return `Commercial model approved with >=60% gross margin by Month ${month}`;
+  }
+
   // Default targets by category
   const categoryTargets: Record<BenefitCategory, string> = {
     Financial: '+15% revenue growth or -10% cost reduction within 6 months',
-    Strategic: 'Measurable competitive advantage by Month 6',
+    Strategic: `Defined strategic milestone achieved${impliedMonth ? ` by Month ${impliedMonth}` : ' within 6 months'}`,
     Operational: '+20% operational efficiency within 6 months',
     Customer: 'NPS 60+ and 40% repeat customer rate by Month 6',
   };

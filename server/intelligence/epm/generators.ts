@@ -260,7 +260,7 @@ export class BenefitsGenerator {
         description: buildBenefitDescription(decision, option),
         category: category as any,
         measurement: deriveMetric(option, category),
-        target: deriveTarget(option, category),
+        target: deriveTarget(option, category, decision.question),
         realizationMonth: this.parseTimeframeToMonth(deriveTimeframe(option, programTimeline)),
         responsibleParty: pickOwner(decision, workstreams, resources),
         confidence: 0.8,
