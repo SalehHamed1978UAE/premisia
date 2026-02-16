@@ -12,6 +12,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '../db';
 import { strategyVersions, backgroundJobs } from '@shared/schema';
 import { EPMSynthesizer } from '../intelligence/epm-synthesizer';
+import { createOpenAIProvider } from '../../src/lib/intelligent-planning/llm-provider';
 import { BackgroundJobService } from '../services/background-job-service';
 import type { StrategyInsights } from '../intelligence/types';
 import { nanoid } from 'nanoid';
@@ -19,8 +20,21 @@ import fs from 'fs/promises';
 import path from 'path';
 
 const router = express.Router();
-const epmSynthesizer = new EPMSynthesizer();
 const backgroundJobService = new BackgroundJobService();
+const DEFAULT_DIRECT_MODEL = process.env.EPM_DIRECT_MODEL || 'gpt-5.2';
+
+function createDirectSynthesizer(): EPMSynthesizer {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY is required for /api/epm direct synthesis routes');
+  }
+
+  const llm = createOpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY,
+    model: DEFAULT_DIRECT_MODEL,
+  });
+
+  return new EPMSynthesizer(llm);
+}
 
 /**
  * POST /api/epm/synthesize-direct
@@ -53,6 +67,7 @@ const backgroundJobService = new BackgroundJobService();
  */
 router.post('/synthesize-direct', async (req, res) => {
   try {
+    const epmSynthesizer = createDirectSynthesizer();
     const {
       insights,
       userContext = {},
@@ -373,6 +388,7 @@ router.get('/fixtures/list', async (req, res) => {
  */
 router.post('/fixtures/load', async (req, res) => {
   try {
+    const epmSynthesizer = createDirectSynthesizer();
     const { fixtureName, overrideConstraints, saveToDatabase = false } = req.body;
 
     if (!fixtureName) {

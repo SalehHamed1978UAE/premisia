@@ -464,10 +464,18 @@ async function processEPMGeneration(
           // MODE 2: Constrained Planning - user provided explicit budget
           const updates: any = {};
           if (budgetConstraint.amount) {
-            if (version.costMin == null) updates.costMin = budgetConstraint.amount;
+            // Treat explicit UI-entered amount as a budget ceiling.
+            // Do not force costMin=costMax, which causes false "outside range" warnings.
             if (version.costMax == null) updates.costMax = budgetConstraint.amount;
+            if (version.costMin != null && version.costMin > budgetConstraint.amount) {
+              updates.costMin = budgetConstraint.amount;
+            }
             if (version.teamSizeMin == null || version.teamSizeMax == null) {
-              const teamSize = deriveTeamSizeFromBudget({ min: budgetConstraint.amount, max: budgetConstraint.amount });
+              const heuristicBudget = {
+                min: Math.round(budgetConstraint.amount * 0.65),
+                max: budgetConstraint.amount,
+              };
+              const teamSize = deriveTeamSizeFromBudget(heuristicBudget);
               if (version.teamSizeMin == null) updates.teamSizeMin = teamSize.min;
               if (version.teamSizeMax == null) updates.teamSizeMax = teamSize.max;
             }
@@ -492,8 +500,20 @@ async function processEPMGeneration(
           if (userConstraints.budget || userConstraints.timeline) {
             const updates: any = {};
             if (userConstraints.budget) {
-              if (version.costMin == null) updates.costMin = userConstraints.budget.min;
-              if (version.costMax == null) updates.costMax = userConstraints.budget.max;
+              const isCeilingSignal =
+                userConstraints.budget.min === userConstraints.budget.max &&
+                /(?:max(?:imum)?|cap|limit|ceiling|at\s+most|up\s+to)\b/i.test(understanding.userInput || '');
+
+              if (isCeilingSignal) {
+                if (version.costMax == null) updates.costMax = userConstraints.budget.max;
+                if (version.costMin != null && version.costMin > userConstraints.budget.max) {
+                  updates.costMin = userConstraints.budget.max;
+                }
+              } else {
+                if (version.costMin == null) updates.costMin = userConstraints.budget.min;
+                if (version.costMax == null) updates.costMax = userConstraints.budget.max;
+              }
+
               if (version.teamSizeMin == null || version.teamSizeMax == null) {
                 const teamSize = deriveTeamSizeFromBudget(userConstraints.budget);
                 if (version.teamSizeMin == null) updates.teamSizeMin = teamSize.min;
