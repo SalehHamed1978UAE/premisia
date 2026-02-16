@@ -38,6 +38,164 @@ import { EPMPackageValidator } from './validate-export-package';
 
 type JsonRecord = Record<string, any>;
 
+function hasSupportedAnalysisData(analysisData: JsonRecord): boolean {
+  if (!analysisData || typeof analysisData !== 'object') return false;
+  const keys = Object.keys(analysisData);
+  return keys.includes('bmc') ||
+    keys.includes('swot') ||
+    keys.includes('porters') ||
+    keys.includes('porters_analysis') ||
+    keys.includes('pestle');
+}
+
+function normalizeFrameworkName(name: string): string {
+  const value = name.toLowerCase();
+  if (value === 'bmc_research') return 'bmc';
+  if (value === 'fivewhys') return 'five_whys';
+  if (value === 'porter') return 'porters';
+  if (value === 'porters_analysis') return 'porters';
+  return value;
+}
+
+async function loadAnalysisDataFromDb(strategy: JsonRecord): Promise<JsonRecord | null> {
+  const strategyVersion = strategy?.strategyVersion || {};
+  const understanding = strategy?.understanding || {};
+  const journeySession = strategy?.journeySession || {};
+
+  const versionId = firstString(strategyVersion?.id);
+  const sessionId = firstString(strategyVersion?.sessionId) || firstString(understanding?.sessionId);
+  const understandingId = firstString(understanding?.id);
+  const journeySessionId = firstString(journeySession?.id);
+  const versionNumber = Number(strategyVersion?.versionNumber);
+
+  try {
+    const [{ db }, schema, drizzle] = await Promise.all([
+      import('../server/db'),
+      import('../shared/schema'),
+      import('drizzle-orm'),
+    ]);
+    const { strategyVersions, frameworkInsights } = schema as any;
+    const { eq, and, desc } = drizzle as any;
+
+    if (versionId) {
+      const rows = await db
+        .select({ analysisData: strategyVersions.analysisData })
+        .from(strategyVersions)
+        .where(eq(strategyVersions.id, versionId))
+        .limit(1);
+      const found = parseMaybeJson<JsonRecord>(rows?.[0]?.analysisData) || {};
+      if (hasSupportedAnalysisData(found)) {
+        console.log(`[Replay] Loaded analysisData from DB by strategyVersion.id=${versionId}`);
+        return found;
+      }
+    }
+
+    if (sessionId) {
+      let query = db
+        .select({
+          versionNumber: strategyVersions.versionNumber,
+          analysisData: strategyVersions.analysisData,
+        })
+        .from(strategyVersions)
+        .where(eq(strategyVersions.sessionId, sessionId));
+
+      if (Number.isFinite(versionNumber) && versionNumber > 0) {
+        query = query.where(and(
+          eq(strategyVersions.sessionId, sessionId),
+          eq(strategyVersions.versionNumber, versionNumber)
+        ));
+      }
+
+      const rows = await query.orderBy(desc(strategyVersions.versionNumber)).limit(5);
+      for (const row of rows) {
+        const found = parseMaybeJson<JsonRecord>(row?.analysisData) || {};
+        if (hasSupportedAnalysisData(found)) {
+          console.log(
+            `[Replay] Loaded analysisData from DB by sessionId=${sessionId}, versionNumber=${row?.versionNumber}`
+          );
+          return found;
+        }
+      }
+    }
+
+    const out: JsonRecord = {};
+    const appendFrameworkRows = async (rows: any[]) => {
+      for (const row of rows) {
+        const frameworkNameRaw = firstString(row?.frameworkName);
+        if (!frameworkNameRaw) continue;
+        const frameworkName = normalizeFrameworkName(frameworkNameRaw);
+        const insights = parseMaybeJson<JsonRecord>(row?.insights) || row?.insights || null;
+        if (!insights) continue;
+        if (!(frameworkName in out)) out[frameworkName] = insights;
+        if (frameworkName === 'porters' && !('porters_analysis' in out)) {
+          out.porters_analysis = insights;
+        }
+      }
+    };
+
+    if (journeySessionId) {
+      const rows = await db
+        .select({
+          frameworkName: frameworkInsights.frameworkName,
+          insights: frameworkInsights.insights,
+        })
+        .from(frameworkInsights)
+        .where(eq(frameworkInsights.sessionId, journeySessionId))
+        .orderBy(desc(frameworkInsights.createdAt))
+        .limit(50);
+      await appendFrameworkRows(rows);
+      if (hasSupportedAnalysisData(out)) {
+        console.log(`[Replay] Loaded framework insights from DB by journeySession.id=${journeySessionId}`);
+        return out;
+      }
+    }
+
+    if (understandingId) {
+      const rows = await db
+        .select({
+          frameworkName: frameworkInsights.frameworkName,
+          insights: frameworkInsights.insights,
+        })
+        .from(frameworkInsights)
+        .where(eq(frameworkInsights.understandingId, understandingId))
+        .orderBy(desc(frameworkInsights.createdAt))
+        .limit(50);
+      await appendFrameworkRows(rows);
+      if (hasSupportedAnalysisData(out)) {
+        console.log(`[Replay] Loaded framework insights from DB by understanding.id=${understandingId}`);
+        return out;
+      }
+    }
+
+    return null;
+  } catch (error: any) {
+    console.warn('[Replay] DB fallback unavailable:', error?.message || error);
+    return null;
+  }
+}
+
+async function resolveAnalysisData(strategy: JsonRecord): Promise<JsonRecord> {
+  const strategyVersion = strategy?.strategyVersion || {};
+
+  const fromStrategy =
+    parseMaybeJson<JsonRecord>(strategyVersion.analysisData) ||
+    parseMaybeJson<JsonRecord>(strategy?.analysisData) ||
+    {};
+
+  if (hasSupportedAnalysisData(fromStrategy)) {
+    return fromStrategy;
+  }
+
+  const fromDb = await loadAnalysisDataFromDb(strategy);
+  if (fromDb && hasSupportedAnalysisData(fromDb)) {
+    return fromDb;
+  }
+
+  throw new Error(
+    'No supported framework data found in strategy JSON or DB (expected bmc/swot/porters/pestle).'
+  );
+}
+
 function parseArgs(argv: string[]): Record<string, string> {
   const args: Record<string, string> = {};
   for (let i = 0; i < argv.length; i += 1) {
@@ -139,7 +297,7 @@ function buildBmcResults(bmc: JsonRecord): BMCResults {
 }
 
 async function buildInsights(strategy: JsonRecord): Promise<StrategyInsights> {
-  const analysisData = parseMaybeJson<JsonRecord>(strategy?.strategyVersion?.analysisData) || {};
+  const analysisData = await resolveAnalysisData(strategy);
 
   const bmcData = parseMaybeJson<JsonRecord>(analysisData.bmc);
   if (bmcData) {
