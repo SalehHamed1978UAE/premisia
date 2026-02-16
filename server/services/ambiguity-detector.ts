@@ -219,7 +219,7 @@ If NO critical ambiguities found, return:
       const response = await aiClients.callWithFallback({
         systemPrompt: 'You are a strategic planning expert. Detect ambiguities that would lead to wrong business assumptions. Return ONLY valid JSON.',
         userMessage: prompt,
-        maxTokens: 3000,
+        maxTokens: 8192,
         expectJson: true,
       });
 
