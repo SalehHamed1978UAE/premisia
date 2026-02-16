@@ -1381,6 +1381,7 @@ export class EPMSynthesizer {
     // Always enforce phase coverage to avoid empty lifecycle phases in exported plans.
     // Domain resilience still controls upstream augmentation, but structural phase coverage is mandatory.
     this.fillEmptyPhases(phasedWorkstreams, timeline, planningContext);
+    this.fillInternalTimelineGaps(phasedWorkstreams, timeline, planningContext);
     timeline = this.syncTimelinePhaseWorkstreams(timeline, phasedWorkstreams);
     onProgress?.({
       type: 'step-start',
@@ -2441,6 +2442,103 @@ export class EPMSynthesizer {
         console.log(`[EPM Synthesis] Added gap-fill workstream "${wsName}" for empty phase "${phase.name}" (M${startMonth}-M${endMonth})`);
         nextIndex++;
       }
+    }
+  }
+
+  /**
+   * Fill significant internal idle gaps to preserve execution continuity.
+   * Prevents long no-work spans within active program timelines.
+   */
+  private fillInternalTimelineGaps(workstreams: Workstream[], timeline: Timeline, planningContext: PlanningContext): void {
+    const totalMonths = Number(timeline?.totalMonths || 0);
+    if (!Number.isFinite(totalMonths) || totalMonths <= 0) return;
+
+    const activeByMonth = Array(totalMonths).fill(false);
+    for (const ws of workstreams) {
+      const start = Math.max(0, Number(ws.startMonth || 0));
+      const end = Math.min(totalMonths - 1, Number(ws.endMonth || 0));
+      if (end < start) continue;
+      for (let month = start; month <= end; month += 1) {
+        activeByMonth[month] = true;
+      }
+    }
+
+    const gaps: Array<{ start: number; end: number; months: number }> = [];
+    let currentStart: number | null = null;
+    for (let month = 0; month < totalMonths; month += 1) {
+      if (!activeByMonth[month]) {
+        if (currentStart === null) currentStart = month;
+      } else if (currentStart !== null) {
+        gaps.push({ start: currentStart, end: month - 1, months: month - currentStart });
+        currentStart = null;
+      }
+    }
+    if (currentStart !== null) {
+      gaps.push({ start: currentStart, end: totalMonths - 1, months: totalMonths - currentStart });
+    }
+
+    const meaningfulGaps = gaps.filter((gap) => gap.months >= 3);
+    if (meaningfulGaps.length === 0) return;
+
+    const industry = planningContext.business.industry || 'the initiative';
+    let nextIndex = this.nextWorkstreamIndex(workstreams);
+
+    for (const gap of meaningfulGaps) {
+      const alreadyCovered = workstreams.some((ws) => ws.startMonth <= gap.end && ws.endMonth >= gap.start);
+      if (alreadyCovered) continue;
+
+      const wsId = `WS${String(nextIndex).padStart(3, '0')}`;
+      const tailGap = gap.end >= totalMonths - 2;
+      const wsName = tailGap
+        ? `Deployment & Stabilization Execution (${industry})`
+        : `Execution Continuity & Risk Control (${industry})`;
+
+      const ws: Workstream = {
+        id: wsId,
+        name: wsName,
+        description: tailGap
+          ? `Execute deployment hardening, cutover support, and stabilization activities for ${industry}.`
+          : `Bridge internal delivery gap for ${industry} with continuity, control tuning, and readiness activities.`,
+        deliverables: [
+          {
+            id: `${wsId}-G1`,
+            name: `${wsName}: Continuity control check`,
+            description: 'Continuity control check',
+            dueMonth: Math.min(gap.end, gap.start + 1),
+            effort: '1 person-month',
+          },
+          {
+            id: `${wsId}-G2`,
+            name: `${wsName}: Readiness evidence package`,
+            description: 'Readiness evidence package',
+            dueMonth: Math.min(gap.end, gap.start + Math.max(1, Math.floor(gap.months / 2))),
+            effort: '1 person-month',
+          },
+          {
+            id: `${wsId}-G3`,
+            name: `${wsName}: Gap closure review`,
+            description: 'Gap closure review',
+            dueMonth: gap.end,
+            effort: '1 person-month',
+          },
+        ],
+        phase: timeline.phases.find((phase) => gap.start >= phase.startMonth && gap.start <= phase.endMonth)?.name,
+        startMonth: gap.start,
+        endMonth: gap.end,
+        dependencies: [],
+        confidence: 0.8,
+        metadata: {
+          syntheticCoverage: 'internal_gap',
+          gapStart: gap.start,
+          gapEnd: gap.end,
+        } as any,
+      };
+
+      workstreams.push(ws);
+      nextIndex += 1;
+      console.log(
+        `[EPM Synthesis] Added internal-gap workstream "${ws.name}" for M${gap.start}-M${gap.end} (${gap.months} months)`
+      );
     }
   }
 

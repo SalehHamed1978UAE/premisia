@@ -543,6 +543,14 @@ ${clarificationText}${conflictText}`;
         .filter(({ e, idx }) => keep.has(idx) && this.matchesAny(e.text, rule.b));
 
       if (matchesA.length > 0 && matchesB.length > 0) {
+        const normalizedMatched = new Set(
+          [...matchesA, ...matchesB].map((m) => this.normalizeForMatch(m.e.text))
+        );
+        // Same statement duplicated across sources is not a conflict.
+        if (normalizedMatched.size <= 1) {
+          continue;
+        }
+
         conflicts.push(`${rule.label} conflict: "${matchesA[0].e.text}" vs "${matchesB[0].e.text}"`);
 
         const inputA = matchesA.some(m => m.e.source === 'input');
@@ -654,9 +662,12 @@ ${conflicts.map((line) => `- ${line}`).join('\n')}`;
         // A single line containing both keywords (e.g. "both channel partners and direct sales")
         // is the user describing their intent, not a contradiction between separate statements.
         const allMatchedIndices = new Set(matchedEntries.flatMap((e) => Array.from(e.indices)));
-        if (allMatchedIndices.size > 1) {
+        const uniqueNormalizedLines = new Set(
+          matchedEntries.flatMap((e) => e.lines.map((line) => this.normalizeForMatch(line)))
+        );
+        if (allMatchedIndices.size > 1 && uniqueNormalizedLines.size > 1) {
           const summary = matchedEntries
-            .map((e) => e.lines.join('; '))
+            .map((e) => Array.from(new Set(e.lines)).join('; '))
             .join(' vs ');
           conflicts.push(`${rule.label} conflict: ${summary}`);
         }

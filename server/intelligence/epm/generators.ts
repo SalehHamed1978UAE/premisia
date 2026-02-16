@@ -1134,7 +1134,14 @@ export class StageGateGenerator {
     const emittedWorkstreamIds = new Set<string>();
 
     const gates = timeline.phases.map((phase, idx) => {
-      const phaseWorkstreams = (phase.workstreamIds || [])
+      const uniquePhaseWorkstreamIds = Array.from(
+        new Set(
+          (phase.workstreamIds || [])
+            .filter((id: any): id is string => typeof id === 'string' && id.trim().length > 0)
+        )
+      );
+
+      const phaseWorkstreams = uniquePhaseWorkstreamIds
         .map((id) => workstreamById.get(id))
         .filter((ws): ws is Workstream => !!ws);
 
@@ -1148,15 +1155,29 @@ export class StageGateGenerator {
       );
       requiredWorkstreams.forEach((ws) => emittedWorkstreamIds.add(ws.id));
 
-      const deliverables = requiredWorkstreams.flatMap((ws) => {
-        if (ws.deliverables && ws.deliverables.length > 0) {
-          return ws.deliverables.map((d: any) =>
-            typeof d === 'string' ? d.split(/[.;:]/)[0].trim().substring(0, 80)
-              : d.name || d.title || `${ws.name} deliverable`
-          );
+      // Keep gate deliverables concise and unique by selecting one representative completion artifact per workstream.
+      const deliverables = requiredWorkstreams.map((ws) => {
+        const phaseDeliverables = (ws.deliverables || []).filter((d: any) => {
+          const dueMonth = typeof d?.dueMonth === 'number' ? d.dueMonth : Number(d?.dueMonth);
+          return Number.isFinite(dueMonth) && dueMonth >= phase.startMonth && dueMonth <= phase.endMonth;
+        });
+        const source = phaseDeliverables.length > 0 ? phaseDeliverables : (ws.deliverables || []);
+        const representative = source.length > 0 ? source[source.length - 1] : null;
+
+        const rawName = representative
+          ? (typeof representative === 'string'
+            ? representative.trim()
+            : String((representative as any).name || (representative as any).title || '').trim())
+          : '';
+        if (!rawName) {
+          return `${ws.name} completion package`;
         }
-        return [`${ws.name} — phase complete`];
+        if (rawName.toLowerCase().includes(ws.name.toLowerCase())) {
+          return rawName;
+        }
+        return `${ws.name}: ${rawName}`;
       });
+
       const uniqueDeliverables = Array.from(
         new Set(
           deliverables
@@ -1231,8 +1252,10 @@ export class KPIGenerator {
       confidence: 0.95,
     });
 
+    const deduplicatedTargets = this.ensureUniqueTargets(kpis);
+
     return {
-      kpis,
+      kpis: deduplicatedTargets,
       confidence: 0.75,
     };
   }
@@ -1327,6 +1350,45 @@ export class KPIGenerator {
     }
     
     return '+15% improvement vs current state';
+  }
+
+  private normalizeTarget(value: string): string {
+    return (value || '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private ensureUniqueTargets(kpis: KPIs['kpis']): KPIs['kpis'] {
+    const seen = new Map<string, number>();
+    return kpis.map((kpi) => {
+      const normalized = this.normalizeTarget(kpi.target);
+      const occurrence = seen.get(normalized) || 0;
+      seen.set(normalized, occurrence + 1);
+      if (occurrence === 0 || !normalized) return kpi;
+      return {
+        ...kpi,
+        target: this.makeDistinctTarget(kpi.target, kpi.name, occurrence),
+      };
+    });
+  }
+
+  private makeDistinctTarget(target: string, kpiName: string, occurrence: number): string {
+    const normalized = target.trim();
+    const percentMatch = normalized.match(/^([+-]?)(\d+)%\s+(.+)$/);
+    if (percentMatch) {
+      const sign = percentMatch[1] || '+';
+      const base = Number(percentMatch[2]);
+      const remainder = percentMatch[3];
+      const stepped = Math.max(1, base + (occurrence * 2));
+      return `${sign}${stepped}% ${remainder}`;
+    }
+
+    if (/^100%\s+compliance/i.test(normalized)) {
+      return `100% compliance score with ${kpiName.toLowerCase()} evidence closure`;
+    }
+
+    return `${normalized} for ${kpiName}`;
   }
 }
 
