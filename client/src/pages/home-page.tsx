@@ -3,7 +3,11 @@ import { useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Sparkles, Archive, FileText, ArrowRight, CheckCircle, Menu, TrendingUp, Target, Calendar, ShieldCheck, Zap, Rocket, Building2, Users, Brain, Lock, DollarSign, BarChart, PlayCircle, Star, Check } from "lucide-react";
+import { Sparkles, Archive, FileText, ArrowRight, CheckCircle, Menu, TrendingUp, Target, Calendar, ShieldCheck, Zap, Rocket, Building2, Users, Brain, Lock, DollarSign, BarChart, PlayCircle, Star, Check, Loader2, Mail, AlertCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -539,7 +543,7 @@ function Dashboard({ summary }: { summary: DashboardSummary }) {
 }
 
 function PublicLandingPage() {
-  const [isSigningIn, setIsSigningIn] = useState(false);
+  const { loginWithGoogle, loginWithEmail, signUpWithEmail, sendMagicLink } = useAuth();
   const [scrolled, setScrolled] = useState(false);
   const [statsAnimated, setStatsAnimated] = useState(false);
   const statsRef = useRef<HTMLDivElement>(null);
@@ -549,6 +553,14 @@ function PublicLandingPage() {
     availability: 0,
     clicks: 0
   });
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authConfirmPassword, setAuthConfirmPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authSuccess, setAuthSuccess] = useState("");
+  const [isAuthSubmitting, setIsAuthSubmitting] = useState(false);
+  const [showMagicLink, setShowMagicLink] = useState(false);
+  const [authTab, setAuthTab] = useState("signin");
 
   useEffect(() => {
     // Navbar scroll effect
@@ -629,8 +641,71 @@ function PublicLandingPage() {
   };
 
   const handleSignIn = () => {
-    setIsSigningIn(true);
-    window.location.href = '/auth';
+    document.getElementById('signin')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleAuthGoogleSignIn = async () => {
+    setAuthError("");
+    setIsAuthSubmitting(true);
+    try {
+      await loginWithGoogle();
+    } catch (err: any) {
+      setAuthError(err.message || "Failed to sign in with Google");
+      setIsAuthSubmitting(false);
+    }
+  };
+
+  const handleAuthEmailSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError("");
+    setAuthSuccess("");
+    setIsAuthSubmitting(true);
+    try {
+      await loginWithEmail(authEmail, authPassword);
+    } catch (err: any) {
+      setAuthError(err.message || "Failed to sign in");
+    } finally {
+      setIsAuthSubmitting(false);
+    }
+  };
+
+  const handleAuthEmailSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError("");
+    setAuthSuccess("");
+    if (authPassword !== authConfirmPassword) {
+      setAuthError("Passwords do not match");
+      return;
+    }
+    if (authPassword.length < 6) {
+      setAuthError("Password must be at least 6 characters");
+      return;
+    }
+    setIsAuthSubmitting(true);
+    try {
+      await signUpWithEmail(authEmail, authPassword);
+      setAuthSuccess("Account created! Please check your email to verify your account.");
+    } catch (err: any) {
+      setAuthError(err.message || "Failed to create account");
+    } finally {
+      setIsAuthSubmitting(false);
+    }
+  };
+
+  const handleAuthMagicLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError("");
+    setAuthSuccess("");
+    setIsAuthSubmitting(true);
+    try {
+      await sendMagicLink(authEmail);
+      setAuthSuccess("Magic link sent! Please check your email.");
+      setShowMagicLink(false);
+    } catch (err: any) {
+      setAuthError(err.message || "Failed to send magic link");
+    } finally {
+      setIsAuthSubmitting(false);
+    }
   };
 
   const scrollToSection = (sectionId: string) => {
@@ -944,22 +1019,10 @@ function PublicLandingPage() {
               </button>
               <button
                 onClick={handleSignIn}
-                disabled={isSigningIn}
-                className={cn(
-                  "px-4 md:px-6 py-2 md:py-3 bg-gradient-to-r from-[#3b82f6] to-[#10b981] text-white rounded-lg font-semibold transition-all duration-300",
-                  !isSigningIn && "hover:-translate-y-0.5 hover:shadow-[0_10px_30px_rgba(59,130,246,0.3)]",
-                  isSigningIn && "opacity-90 cursor-not-allowed"
-                )}
+                className="px-4 md:px-6 py-2 md:py-3 bg-gradient-to-r from-[#3b82f6] to-[#10b981] text-white rounded-lg font-semibold transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_10px_30px_rgba(59,130,246,0.3)]"
                 data-testid="button-login"
               >
-                {isSigningIn ? (
-                  <span className="flex items-center gap-2">
-                    <GeometricLoader type="dots" size="small" />
-                    <span>Signing in...</span>
-                  </span>
-                ) : (
-                  "Login"
-                )}
+                Login
               </button>
             </div>
           </div>
@@ -990,23 +1053,11 @@ function PublicLandingPage() {
                 </p>
                 <div className="hero-buttons flex flex-col sm:flex-row gap-5">
                   <button 
-                    onClick={handleSignIn}
-                    disabled={isSigningIn}
-                    className={cn(
-                      "px-6 md:px-8 py-3 md:py-4 bg-gradient-to-r from-[#3b82f6] to-[#10b981] text-white rounded-xl text-base md:text-lg font-semibold transition-all duration-300",
-                      !isSigningIn && "hover:-translate-y-0.5 hover:shadow-[0_10px_40px_rgba(59,130,246,0.4)]",
-                      isSigningIn && "opacity-90 cursor-not-allowed"
-                    )}
+                    onClick={() => document.getElementById('signin')?.scrollIntoView({ behavior: 'smooth' })}
+                    className="px-6 md:px-8 py-3 md:py-4 bg-gradient-to-r from-[#3b82f6] to-[#10b981] text-white rounded-xl text-base md:text-lg font-semibold transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_10px_40px_rgba(59,130,246,0.4)]"
                     data-testid="button-cta-try-free"
                   >
-                    {isSigningIn ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <GeometricLoader type="orbit" size="small" />
-                        <span>Starting...</span>
-                      </span>
-                    ) : (
-                      "🚀 Try It Now - It's Free"
-                    )}
+                    🚀 Try It Now - It's Free
                   </button>
                   <button 
                     onClick={() => scrollToSection('features')}
@@ -1015,6 +1066,118 @@ function PublicLandingPage() {
                   >
                     👀 See How It Works
                   </button>
+                </div>
+
+                {/* Sign In Section */}
+                <div id="signin" className="mt-12 w-full max-w-md mx-auto md:mx-0">
+                  <div className="rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 p-6 shadow-2xl">
+                    <h3 className="text-xl font-bold text-white text-center mb-4">Get Started</h3>
+
+                    {authError && (
+                      <Alert variant="destructive" className="mb-4">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>{authError}</AlertDescription>
+                      </Alert>
+                    )}
+                    {authSuccess && (
+                      <Alert className="mb-4 border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
+                        <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                        <AlertDescription className="text-green-800 dark:text-green-200">{authSuccess}</AlertDescription>
+                      </Alert>
+                    )}
+
+                    <Button onClick={handleAuthGoogleSignIn} disabled={isAuthSubmitting} className="w-full h-12 text-base font-medium mb-4" size="lg">
+                      {isAuthSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <SiGoogle className="mr-2 h-5 w-5" />}
+                      Sign in with Google
+                    </Button>
+
+                    <div className="relative mb-4">
+                      <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-white/20" /></div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-[#1a2030] px-2 text-gray-400">or</span>
+                      </div>
+                    </div>
+
+                    {!showMagicLink ? (
+                      <Tabs value={authTab} onValueChange={setAuthTab} className="w-full">
+                        <TabsList className="grid w-full grid-cols-2 bg-white/10">
+                          <TabsTrigger value="signin" className="data-[state=active]:bg-white/20 data-[state=active]:text-white text-gray-400">Sign In</TabsTrigger>
+                          <TabsTrigger value="signup" className="data-[state=active]:bg-white/20 data-[state=active]:text-white text-gray-400">Create Account</TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent value="signin" className="space-y-4 mt-4">
+                          <form onSubmit={handleAuthEmailSignIn} className="space-y-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="landing-signin-email" className="text-gray-300">Email</Label>
+                              <Input id="landing-signin-email" type="email" placeholder="name@example.com" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} required disabled={isAuthSubmitting} className="bg-white/10 border-white/20 text-white placeholder:text-gray-500" />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="landing-signin-password" className="text-gray-300">Password</Label>
+                              <Input id="landing-signin-password" type="password" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} required disabled={isAuthSubmitting} className="bg-white/10 border-white/20 text-white placeholder:text-gray-500" />
+                            </div>
+                            <Button type="submit" className="w-full bg-gradient-to-r from-[#3b82f6] to-[#10b981] text-white" disabled={isAuthSubmitting}>
+                              {isAuthSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                              Sign In
+                            </Button>
+                          </form>
+                        </TabsContent>
+
+                        <TabsContent value="signup" className="space-y-4 mt-4">
+                          <form onSubmit={handleAuthEmailSignUp} className="space-y-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="landing-signup-email" className="text-gray-300">Email</Label>
+                              <Input id="landing-signup-email" type="email" placeholder="name@example.com" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} required disabled={isAuthSubmitting} className="bg-white/10 border-white/20 text-white placeholder:text-gray-500" />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="landing-signup-password" className="text-gray-300">Password</Label>
+                              <Input id="landing-signup-password" type="password" placeholder="At least 6 characters" value={authPassword} onChange={(e) => setAuthPassword(e.target.value)} required disabled={isAuthSubmitting} className="bg-white/10 border-white/20 text-white placeholder:text-gray-500" />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="landing-confirm-password" className="text-gray-300">Confirm Password</Label>
+                              <Input id="landing-confirm-password" type="password" placeholder="Re-enter your password" value={authConfirmPassword} onChange={(e) => setAuthConfirmPassword(e.target.value)} required disabled={isAuthSubmitting} className="bg-white/10 border-white/20 text-white placeholder:text-gray-500" />
+                            </div>
+                            <Button type="submit" className="w-full bg-gradient-to-r from-[#3b82f6] to-[#10b981] text-white" disabled={isAuthSubmitting}>
+                              {isAuthSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                              Create Account
+                            </Button>
+                            <p className="text-xs text-gray-400 text-center">
+                              By creating an account, you'll receive a verification email to confirm your address
+                            </p>
+                          </form>
+                        </TabsContent>
+                      </Tabs>
+                    ) : (
+                      <form onSubmit={handleAuthMagicLink} className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="landing-magic-email" className="text-gray-300">Email</Label>
+                          <Input id="landing-magic-email" type="email" placeholder="name@example.com" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} required disabled={isAuthSubmitting} className="bg-white/10 border-white/20 text-white placeholder:text-gray-500" />
+                        </div>
+                        <Button type="submit" className="w-full bg-gradient-to-r from-[#3b82f6] to-[#10b981] text-white" disabled={isAuthSubmitting}>
+                          {isAuthSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
+                          Send Login Link
+                        </Button>
+                        <button type="button" onClick={() => setShowMagicLink(false)} className="text-sm text-gray-400 hover:text-white transition-colors w-full text-center">
+                          Back to email/password
+                        </button>
+                      </form>
+                    )}
+
+                    {!showMagicLink && (
+                      <button onClick={() => setShowMagicLink(true)} className="text-sm text-gray-400 hover:text-white transition-colors w-full text-center mt-4">
+                        Email me a login link instead
+                      </button>
+                    )}
+
+                    <div className="mt-6 p-4 bg-white/5 rounded-lg border border-white/10">
+                      <h4 className="text-sm font-semibold text-white mb-2">Secure Authentication</h4>
+                      <div className="space-y-1 text-xs text-gray-400">
+                        <p>Google OAuth 2.0 / PKCE authentication</p>
+                        <p>Email verification for new accounts</p>
+                        <p>Secure magic link authentication</p>
+                        <p>Your data is encrypted and protected</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -1570,22 +1733,10 @@ function PublicLandingPage() {
             </p>
             <button 
               onClick={handleSignIn}
-              disabled={isSigningIn}
-              className={cn(
-                "px-8 md:px-12 py-4 md:py-5 bg-gradient-to-r from-[#3b82f6] to-[#10b981] text-white rounded-xl text-lg md:text-xl font-bold transition-all duration-300",
-                !isSigningIn && "hover:-translate-y-1 hover:shadow-[0_20px_50px_rgba(59,130,246,0.5)]",
-                isSigningIn && "opacity-90 cursor-not-allowed"
-              )}
+              className="px-8 md:px-12 py-4 md:py-5 bg-gradient-to-r from-[#3b82f6] to-[#10b981] text-white rounded-xl text-lg md:text-xl font-bold transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_20px_50px_rgba(59,130,246,0.5)]"
               data-testid="button-cta-final"
             >
-              {isSigningIn ? (
-                <span className="flex items-center justify-center gap-2">
-                  <GeometricLoader type="orbit" size="small" />
-                  <span>Starting...</span>
-                </span>
-              ) : (
-                "Start Building Your Strategy →"
-              )}
+              Start Building Your Strategy →
             </button>
             <p className="text-xs md:text-sm text-gray-500 mt-4 md:mt-6">
               No credit card required • Free to start • Takes 2 minutes
