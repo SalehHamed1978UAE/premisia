@@ -1,0 +1,95 @@
+~/workspace$ git checkout main
+git merge feat/supabase-auth-port
+git push
+Updating files: 100% (48/48), done.
+Switched to branch 'main'
+Your branch is behind 'origin/main' by 1 commit, and can be fast-forwarded.
+  (use "git pull" to update your local branch)
+Updating 872625bc..56a308fb
+Updating files: 100% (48/48), done.
+Fast-forward
+ .env.example                                                          |  10 +++----
+ attached_assets/Screenshot_2026-02-15_at_9.09.05_PM_1771175349900.png | Bin 0 -> 76943 bytes
+ attached_assets/Screenshot_2026-02-15_at_9.14.21_PM_1771175665381.png | Bin 0 -> 86554 bytes
+ attached_assets/Screenshot_2026-02-15_at_9.17.21_PM_1771175844103.png | Bin 0 -> 169476 bytes
+ attached_assets/Screenshot_2026-02-15_at_9.17.46_PM_1771175868396.png | Bin 0 -> 89282 bytes
+ attached_assets/Screenshot_2026-02-15_at_9.19.10_PM_1771175955087.png | Bin 0 -> 146447 bytes
+ attached_assets/Screenshot_2026-02-15_at_9.20.49_PM_1771176053666.png | Bin 0 -> 194433 bytes
+ attached_assets/Screenshot_2026-02-15_at_9.23.18_PM_1771176202190.png | Bin 0 -> 150855 bytes
+ attached_assets/Screenshot_2026-02-15_at_9.23.58_PM_1771176242824.png | Bin 0 -> 193735 bytes
+ attached_assets/Screenshot_2026-02-15_at_9.25.49_PM_1771176352053.png | Bin 0 -> 45038 bytes
+ attached_assets/Screenshot_2026-02-15_at_9.31.08_PM_1771176671168.png | Bin 0 -> 76097 bytes
+ attached_assets/Screenshot_2026-02-15_at_9.36.28_PM_1771176990794.png | Bin 0 -> 75916 bytes
+ attached_assets/Screenshot_2026-02-16_at_6.55.52_PM_1771253790675.png | Bin 0 -> 97766 bytes
+ attached_assets/Screenshot_2026-02-16_at_6.58.18_PM_1771253904108.png | Bin 0 -> 222864 bytes
+ attached_assets/Screenshot_2026-02-16_at_7.00.14_PM_1771254072474.png | Bin 0 -> 513679 bytes
+ attached_assets/Screenshot_2026-02-16_at_7.00.32_PM_1771254072474.png | Bin 0 -> 232285 bytes
+ attached_assets/Screenshot_2026-02-16_at_7.00.44_PM_1771254072473.png | Bin 0 -> 136097 bytes
+ attached_assets/Screenshot_2026-02-16_at_7.00.57_PM_1771254072472.png | Bin 0 -> 255054 bytes
+ attached_assets/Screenshot_2026-02-16_at_7.03.12_PM_1771254195693.png | Bin 0 -> 52417 bytes
+ attached_assets/Screenshot_2026-02-16_at_7.04.41_PM_1771254284586.png | Bin 0 -> 372890 bytes
+ attached_assets/Screenshot_2026-02-16_at_7.09.46_PM_1771254591360.png | Bin 0 -> 73333 bytes
+ attached_assets/Screenshot_2026-02-16_at_7.10.17_PM_1771254619857.png | Bin 0 -> 431373 bytes
+ attached_assets/Screenshot_2026-02-16_at_7.11.55_PM_1771254718637.png | Bin 0 -> 82895 bytes
+ attached_assets/Screenshot_2026-02-16_at_7.13.34_PM_1771254822877.png | Bin 0 -> 57582 bytes
+ client/src/components/layout/sidebar.tsx                              |   4 +--
+ client/src/hooks/use-auth.tsx                                         | 108 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++-------
+ client/src/lib/queryClient.ts                                         |  29 +++++++++++++-----
+ client/src/lib/supabase.ts                                            |  41 +++++++++++++++++++++++++
+ client/src/pages/auth-page.tsx                                        | 243 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++---------------------------------
+ client/src/pages/home-page.tsx                                        | 245 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++-----------------------------
+ migrations/add_supabase_uid.sql                                       |   9 ++++++
+ package-lock.json                                                     | 103 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++---
+ package.json                                                          |   1 +
+ replit.md                                                             |   4 +--
+ server/index.ts                                                       |   2 +-
+ server/intelligence/epm-synthesizer.ts                                |  83 +++++++++++++++++++++++++++++++++++++++++++++++----
+ server/intelligence/epm/assignment-generator.ts                       |  48 ++++++++++++++++++++++--------
+ server/intelligence/epm/generators.ts                                 |  10 ++++++-
+ server/intelligence/epm/validators/quality-gate-runner.ts             |   2 ++
+ server/intelligence/epm/validators/timeline-utilization-validator.ts  |  86 +++++++++++++++++++++++++++++++++++++++++++++++++++++
+ server/routes.ts                                                      |  22 ++++----------
+ server/routes/document-enrichment.ts                                  |   2 +-
+ server/routes/strategic-consultant-legacy.ts                          |   2 +-
+ server/routes/strategy-workspace.ts                                   |   2 +-
+ server/services/custom-journey-executor.ts                            |  26 ++++++++++++++++
+ server/storage.ts                                                     |  19 +++++++++++-
+ server/supabaseAuth.ts                                                | 173 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ shared/schema.ts                                                      |   1 +
+ 48 files changed, 1102 insertions(+), 173 deletions(-)
+ create mode 100644 attached_assets/Screenshot_2026-02-15_at_9.09.05_PM_1771175349900.png
+ create mode 100644 attached_assets/Screenshot_2026-02-15_at_9.14.21_PM_1771175665381.png
+ create mode 100644 attached_assets/Screenshot_2026-02-15_at_9.17.21_PM_1771175844103.png
+ create mode 100644 attached_assets/Screenshot_2026-02-15_at_9.17.46_PM_1771175868396.png
+ create mode 100644 attached_assets/Screenshot_2026-02-15_at_9.19.10_PM_1771175955087.png
+ create mode 100644 attached_assets/Screenshot_2026-02-15_at_9.20.49_PM_1771176053666.png
+ create mode 100644 attached_assets/Screenshot_2026-02-15_at_9.23.18_PM_1771176202190.png
+ create mode 100644 attached_assets/Screenshot_2026-02-15_at_9.23.58_PM_1771176242824.png
+ create mode 100644 attached_assets/Screenshot_2026-02-15_at_9.25.49_PM_1771176352053.png
+ create mode 100644 attached_assets/Screenshot_2026-02-15_at_9.31.08_PM_1771176671168.png
+ create mode 100644 attached_assets/Screenshot_2026-02-15_at_9.36.28_PM_1771176990794.png
+ create mode 100644 attached_assets/Screenshot_2026-02-16_at_6.55.52_PM_1771253790675.png
+ create mode 100644 attached_assets/Screenshot_2026-02-16_at_6.58.18_PM_1771253904108.png
+ create mode 100644 attached_assets/Screenshot_2026-02-16_at_7.00.14_PM_1771254072474.png
+ create mode 100644 attached_assets/Screenshot_2026-02-16_at_7.00.32_PM_1771254072474.png
+ create mode 100644 attached_assets/Screenshot_2026-02-16_at_7.00.44_PM_1771254072473.png
+ create mode 100644 attached_assets/Screenshot_2026-02-16_at_7.00.57_PM_1771254072472.png
+ create mode 100644 attached_assets/Screenshot_2026-02-16_at_7.03.12_PM_1771254195693.png
+ create mode 100644 attached_assets/Screenshot_2026-02-16_at_7.04.41_PM_1771254284586.png
+ create mode 100644 attached_assets/Screenshot_2026-02-16_at_7.09.46_PM_1771254591360.png
+ create mode 100644 attached_assets/Screenshot_2026-02-16_at_7.10.17_PM_1771254619857.png
+ create mode 100644 attached_assets/Screenshot_2026-02-16_at_7.11.55_PM_1771254718637.png
+ create mode 100644 attached_assets/Screenshot_2026-02-16_at_7.13.34_PM_1771254822877.png
+ create mode 100644 client/src/lib/supabase.ts
+ create mode 100644 migrations/add_supabase_uid.sql
+ create mode 100644 server/intelligence/epm/validators/timeline-utilization-validator.ts
+ create mode 100644 server/supabaseAuth.ts
+Enumerating objects: 96, done.
+Counting objects: 100% (96/96), done.
+Delta compression using up to 8 threads
+Compressing objects: 100% (86/86), done.
+Writing objects: 100% (86/86), 3.16 MiB | 6.19 MiB/s, done.
+Total 86 (delta 59), reused 0 (delta 0), pack-reused 0 (from 0)
+remote: Resolving deltas: 100% (59/59), completed with 10 local objects.
+To https://github.com/SalehHamed1978UAE/premisia.git
+   6a92d585..56a308fb  main -> main
