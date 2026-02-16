@@ -3847,6 +3847,153 @@ router.get('/bmc-knowledge/:programId', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'EPM program not found' });
     }
 
+    const toArray = (value: unknown): any[] => Array.isArray(value) ? value : [];
+    const toText = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
+    const normalizeConfidence = (value: unknown): 'high' | 'medium' | 'low' | undefined => {
+      const normalized = toText(value).toLowerCase();
+      if (!normalized) return undefined;
+      if (normalized === 'high' || normalized === 'strong') return 'high';
+      if (normalized === 'medium' || normalized === 'moderate') return 'medium';
+      if (normalized === 'low' || normalized === 'weak') return 'low';
+      return undefined;
+    };
+
+    const extractBmcPayload = (analysisData: any): any | null => {
+      if (!analysisData || typeof analysisData !== 'object') return null;
+      if (analysisData.bmc && typeof analysisData.bmc === 'object') return analysisData.bmc;
+      if (analysisData.bmc_research && typeof analysisData.bmc_research === 'object') return analysisData.bmc_research;
+      if (analysisData.business_model_canvas && typeof analysisData.business_model_canvas === 'object') return analysisData.business_model_canvas;
+      if (Array.isArray(analysisData.frameworks)) {
+        const frameworkEntry = analysisData.frameworks.find((f: any) => {
+          const name = toText(f?.framework || f?.frameworkName).toLowerCase();
+          return name === 'bmc' || name.includes('business_model') || name.includes('business-model') || name.includes('canvas');
+        });
+        if (frameworkEntry && typeof frameworkEntry === 'object') return frameworkEntry;
+      }
+      return null;
+    };
+
+    const mapFallbackAssumptions = (bmcPayload: any) => {
+      const assumptions = toArray(bmcPayload?.assumptions);
+      return assumptions
+        .map((assumption: any, idx: number) => {
+          const claim = toText(assumption?.claim ?? assumption?.text ?? assumption);
+          if (!claim) return null;
+          return {
+            id: `bmc-assumption-${idx}`,
+            type: 'assumption',
+            claim,
+            source: toText(assumption?.source) || 'BMC analysis',
+            evidence: toText(assumption?.evidence) || null,
+            confidence: normalizeConfidence(assumption?.confidence) || 'medium',
+            discoveredBy: 'user_input',
+          };
+        })
+        .filter(Boolean);
+    };
+
+    const mapFallbackFindings = (bmcPayload: any) => {
+      const mapped: any[] = [];
+      const blocks = toArray(bmcPayload?.blocks);
+      for (const [blockIdx, block] of blocks.entries()) {
+        const blockName = toText(block?.blockName || block?.name) || `Block ${blockIdx + 1}`;
+        const findings = toArray(block?.findings);
+        for (const [findingIdx, finding] of findings.entries()) {
+          const claim = toText(finding?.fact || finding?.claim || finding);
+          if (!claim) continue;
+          mapped.push({
+            id: `bmc-finding-${blockIdx}-${findingIdx}`,
+            type: 'opportunity',
+            claim,
+            source: blockName,
+            evidence: toText(finding?.citation || finding?.evidence || block?.description) || null,
+            confidence: normalizeConfidence(finding?.confidence || block?.confidence) || 'medium',
+            discoveredBy: 'bmc_agent',
+          });
+        }
+      }
+
+      if (mapped.length === 0) {
+        const keyInsights = toArray(bmcPayload?.keyInsights);
+        keyInsights.forEach((insight, idx) => {
+          const claim = toText(insight);
+          if (!claim) return;
+          mapped.push({
+            id: `bmc-key-insight-${idx}`,
+            type: 'opportunity',
+            claim,
+            source: 'BMC key insight',
+            evidence: null,
+            confidence: normalizeConfidence(bmcPayload?.overallConfidence >= 0.7 ? 'high' : 'medium') || 'medium',
+            discoveredBy: 'bmc_agent',
+          });
+        });
+      }
+
+      const uniqueByClaim = new Set<string>();
+      return mapped.filter((item) => {
+        const key = item.claim.toLowerCase();
+        if (!key || uniqueByClaim.has(key)) return false;
+        uniqueByClaim.add(key);
+        return true;
+      });
+    };
+
+    const mapFallbackContradictions = (bmcPayload: any) => {
+      const contradictions = toArray(bmcPayload?.contradictions);
+      return contradictions
+        .map((entry: any, idx: number) => {
+          if (typeof entry === 'string') {
+            const text = toText(entry);
+            if (!text) return null;
+            return {
+              userClaim: {
+                id: `fallback-user-claim-${idx}`,
+                claim: 'Potential contradiction in strategic assumptions',
+                discoveredBy: 'user_input',
+              },
+              researchClaim: {
+                id: `fallback-research-claim-${idx}`,
+                claim: text,
+                discoveredBy: 'bmc_agent',
+              },
+              evidence: '',
+            };
+          }
+
+          const userClaimText = toText(
+            entry?.userClaim?.claim ??
+            entry?.userClaim ??
+            entry?.assumption ??
+            entry?.inputClaim ??
+            entry?.userAssumption
+          );
+          const researchClaimText = toText(
+            entry?.researchClaim?.claim ??
+            entry?.researchClaim ??
+            entry?.finding ??
+            entry?.researchFinding ??
+            entry?.evidenceClaim ??
+            entry?.marketEvidence
+          );
+          if (!userClaimText || !researchClaimText) return null;
+          return {
+            userClaim: {
+              id: `fallback-user-claim-${idx}`,
+              claim: userClaimText,
+              discoveredBy: 'user_input',
+            },
+            researchClaim: {
+              id: `fallback-research-claim-${idx}`,
+              claim: researchClaimText,
+              discoveredBy: 'bmc_agent',
+            },
+            evidence: toText(entry?.evidence || entry?.reasoning || entry?.explanation),
+          };
+        })
+        .filter(Boolean);
+    };
+
     // STEP 2: Get strategy version to find sessionId
     const [strategyVersion] = await db
       .select()
@@ -3854,7 +4001,7 @@ router.get('/bmc-knowledge/:programId', async (req: Request, res: Response) => {
       .where(eq(strategyVersions.id, program.strategyVersionId))
       .limit(1);
 
-    if (!strategyVersion || !strategyVersion.sessionId) {
+    if (!strategyVersion) {
       // No session ID means no knowledge graph data available
       return res.json({
         userAssumptions: [],
@@ -3864,15 +4011,41 @@ router.get('/bmc-knowledge/:programId', async (req: Request, res: Response) => {
       });
     }
 
+    let fallbackBmcPayload = extractBmcPayload(strategyVersion.analysisData as any);
+
     // STEP 3: Get strategic understanding
-    const understanding = await getStrategicUnderstandingBySession(strategyVersion.sessionId);
+    const understanding = strategyVersion.sessionId
+      ? await getStrategicUnderstandingBySession(strategyVersion.sessionId)
+      : null;
+
+    // Fallback: load BMC insights from framework_insights for journey-based runs
+    if (!fallbackBmcPayload && understanding?.id) {
+      const frameworkRows = await db
+        .select()
+        .from(frameworkInsights)
+        .where(and(
+          eq(frameworkInsights.understandingId, understanding.id),
+          inArray(frameworkInsights.frameworkName, ['bmc', 'business_model_canvas', 'business-model-canvas'])
+        ));
+      if (frameworkRows.length > 0) {
+        const latest = frameworkRows
+          .slice()
+          .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())[0];
+        fallbackBmcPayload = latest?.insights ?? null;
+      }
+    }
 
     if (!understanding || !understanding.id) {
+      // If we cannot resolve understanding, still return BMC fallback data from version/framework tables.
+      const fallbackAssumptions = fallbackBmcPayload ? mapFallbackAssumptions(fallbackBmcPayload) : [];
+      const fallbackFindings = fallbackBmcPayload ? mapFallbackFindings(fallbackBmcPayload) : [];
+      const fallbackContradictions = fallbackBmcPayload ? mapFallbackContradictions(fallbackBmcPayload) : [];
+      const fallbackGaps = fallbackBmcPayload ? toArray(fallbackBmcPayload.criticalGaps).filter((g) => toText(g).length > 0) : [];
       return res.json({
-        userAssumptions: [],
-        researchFindings: [],
-        contradictions: [],
-        criticalGaps: []
+        userAssumptions: fallbackAssumptions,
+        researchFindings: fallbackFindings,
+        contradictions: fallbackContradictions,
+        criticalGaps: fallbackGaps,
       });
     }
 
@@ -3939,12 +4112,25 @@ router.get('/bmc-knowledge/:programId', async (req: Request, res: Response) => {
 
     const criticalGaps = bmcAnalysisRecords[0]?.criticalGaps || [];
 
+    // Journey-mode fallback: if entity graph has sparse BMC nodes, recover from stored framework payloads
+    const fallbackAssumptions = fallbackBmcPayload ? mapFallbackAssumptions(fallbackBmcPayload) : [];
+    const fallbackFindings = fallbackBmcPayload ? mapFallbackFindings(fallbackBmcPayload) : [];
+    const fallbackContradictions = fallbackBmcPayload ? mapFallbackContradictions(fallbackBmcPayload) : [];
+    const fallbackGaps = fallbackBmcPayload
+      ? toArray(fallbackBmcPayload.criticalGaps).map((g) => toText(g)).filter(Boolean)
+      : [];
+
+    const mergedAssumptions = userAssumptions.length > 0 ? userAssumptions : fallbackAssumptions;
+    const mergedFindings = researchFindings.length > 0 ? researchFindings : fallbackFindings;
+    const mergedContradictions = validContradictions.length > 0 ? validContradictions : fallbackContradictions;
+    const mergedCriticalGaps = criticalGaps.length > 0 ? criticalGaps : fallbackGaps;
+
     // Return the knowledge graph data
     res.json({
-      userAssumptions,
-      researchFindings,
-      contradictions: validContradictions,
-      criticalGaps
+      userAssumptions: mergedAssumptions,
+      researchFindings: mergedFindings,
+      contradictions: mergedContradictions,
+      criticalGaps: mergedCriticalGaps,
     });
   } catch (error: any) {
     console.error('Error in /bmc-knowledge/:programId:', error);
