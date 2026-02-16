@@ -8,4 +8,6 @@ export { CompletenessValidator } from './completeness-validator';
 export { WBSTimelineValidator } from './wbs-timeline-validator';
 export { DomainLexiconValidator } from './domain-lexicon-validator';
 export { TimelineUtilizationValidator } from './timeline-utilization-validator';
+export { WorkstreamSemanticAlignmentValidator } from './workstream-semantic-alignment-validator';
+export { KPIQualityValidator } from './kpi-quality-validator';
 export { QualityGateRunner, qualityGateRunner } from './quality-gate-runner';

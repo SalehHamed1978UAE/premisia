@@ -72,6 +72,12 @@ import {
 } from './epm';
 import { extractUserConstraintsFromText } from './epm/constraint-utils';
 import { shouldUseTextConstraintFallback } from './epm/constraint-policy';
+import {
+  analyzeWorkstreamDeclaredTheme,
+  analyzeWorkstreamDeliverableTheme,
+  getCanonicalWorkstreamName,
+  isSemanticRepairCandidate,
+} from './epm/workstream-theme';
 import type { DomainProfile } from './types';
 import { normalizeStrategicDecisions } from '../utils/decision-selection';
 
@@ -1356,9 +1362,18 @@ export class EPMSynthesizer {
       }
     }
 
+    const semanticRepair = this.repairWorkstreamSemanticAlignment(alignedWorkstreams);
+    const semanticallyAlignedWorkstreams = semanticRepair.workstreams;
+    if (semanticRepair.repairs.length > 0) {
+      console.log(`[EPM Synthesis] 🔧 Semantic alignment repairs: ${semanticRepair.repairs.length}`);
+      semanticRepair.repairs.forEach((repair) => console.log(`  - ${repair}`));
+    } else {
+      console.log('[EPM Synthesis] ✓ Semantic alignment repair pass: no changes');
+    }
+
     const timelineReadyWorkstreams = isEPMDomainResilienceEnabled()
-      ? this.ensureTimelineCoverage(alignedWorkstreams, enrichedUserContext, planningContext)
-      : alignedWorkstreams;
+      ? this.ensureTimelineCoverage(semanticallyAlignedWorkstreams, enrichedUserContext, planningContext)
+      : semanticallyAlignedWorkstreams;
     
     onProgress?.({
       type: 'step-start',
@@ -1437,7 +1452,7 @@ export class EPMSynthesizer {
       qaPlan,
     ] = await Promise.all([
       this.executiveSummaryGenerator.generate(insights, programName),
-      this.riskGenerator.generate(insights, alignedWorkstreams),
+      this.riskGenerator.generate(insights, semanticallyAlignedWorkstreams),
       this.stakeholderGenerator.generate(insights),
       this.qaPlanGenerator.generate(insights),
     ]);
@@ -1509,12 +1524,12 @@ export class EPMSynthesizer {
       resourcePlan,
       planningContext.business.domainProfile as DomainProfile | undefined
     );
-    const qualityErrorMessages = qualityReport.validatorResults.flatMap((result) =>
+    let qualityErrorMessages = qualityReport.validatorResults.flatMap((result) =>
       result.issues
         .filter((issue) => issue.severity === 'error')
         .map((issue) => `[${result.validatorName}] ${issue.code}: ${issue.message}`)
     );
-    const qualityWarningMessages = qualityReport.validatorResults.flatMap((result) =>
+    let qualityWarningMessages = qualityReport.validatorResults.flatMap((result) =>
       result.issues
         .filter((issue) => issue.severity !== 'error')
         .map((issue) => `[${result.validatorName}] ${issue.code}: ${issue.message}`)
@@ -1567,7 +1582,7 @@ export class EPMSynthesizer {
       benefitsRealization = this.benefitsGenerator.generateFromContext(
         strategicContext!.decisions,
         strategicContext!.swotData,
-        alignedWorkstreams,
+        semanticallyAlignedWorkstreams,
         resourcePlan.internalTeam,
         timeline.totalMonths
       );
@@ -1609,6 +1624,39 @@ export class EPMSynthesizer {
       this.procurementGenerator.generate(insights, financialPlan),
       this.exitStrategyGenerator.generate(insights, riskRegister),
     ]);
+
+    const kpiQualityReport = qualityGateRunner.runSelectedValidators(
+      phasedWorkstreams,
+      timeline,
+      stageGates,
+      ['KPIQualityValidator'],
+      businessContext,
+      resourcePlan,
+      planningContext.business.domainProfile as DomainProfile | undefined,
+      kpis.kpis
+    );
+    const kpiQualityErrors = kpiQualityReport.validatorResults.flatMap((result) =>
+      result.issues
+        .filter((issue) => issue.severity === 'error')
+        .map((issue) => `[${result.validatorName}] ${issue.code}: ${issue.message}`)
+    );
+    const kpiQualityWarnings = kpiQualityReport.validatorResults.flatMap((result) =>
+      result.issues
+        .filter((issue) => issue.severity !== 'error')
+        .map((issue) => `[${result.validatorName}] ${issue.code}: ${issue.message}`)
+    );
+    if (kpiQualityErrors.length > 0 || kpiQualityWarnings.length > 0) {
+      console.log(
+        `[EPM Synthesis] ⚠️ KPI quality gate: ${kpiQualityErrors.length} errors, ${kpiQualityWarnings.length} warnings`
+      );
+    } else {
+      console.log('[EPM Synthesis] ✓ KPI quality gate passed');
+    }
+    qualityErrorMessages = [...qualityErrorMessages, ...kpiQualityErrors];
+    qualityWarningMessages = [...qualityWarningMessages, ...kpiQualityWarnings];
+    if (isEPMStrictIntegrityGatesEnabled() && kpiQualityErrors.length > 0) {
+      throw new Error(`KPI quality gate failed: ${kpiQualityErrors.join(' | ')}`);
+    }
 
     const mergedValidationResult = {
       errors: [...validationResult.errors, ...qualityErrorMessages],
@@ -1825,6 +1873,50 @@ export class EPMSynthesizer {
     }
     
     return program;
+  }
+
+  private repairWorkstreamSemanticAlignment(
+    workstreams: Workstream[]
+  ): { workstreams: Workstream[]; repairs: string[] } {
+    const repaired = workstreams.map((ws) => ({
+      ...ws,
+      deliverables: (ws.deliverables || []).map((d) => ({ ...d })),
+      dependencies: [...(ws.dependencies || [])],
+      metadata: ws.metadata ? { ...ws.metadata } : undefined,
+    }));
+    const repairs: string[] = [];
+
+    for (const ws of repaired) {
+      if (!isSemanticRepairCandidate(ws)) continue;
+
+      const declared = analyzeWorkstreamDeclaredTheme(ws);
+      const dominant = analyzeWorkstreamDeliverableTheme(ws);
+
+      if (dominant.theme === 'general' || dominant.score < 2) continue;
+      if (declared.theme === dominant.theme) continue;
+      if (dominant.score < declared.score + 2) continue;
+
+      const canonicalName = getCanonicalWorkstreamName(dominant.theme);
+      if (!canonicalName || ws.name === canonicalName) continue;
+
+      const previousName = ws.name;
+      ws.name = canonicalName;
+      ws.metadata = {
+        ...(ws.metadata || {}),
+        semanticRepair: {
+          previousName,
+          renamedTo: canonicalName,
+          dominantTheme: dominant.theme,
+          dominantScore: dominant.score,
+          declaredTheme: declared.theme,
+          declaredScore: declared.score,
+        },
+      };
+
+      repairs.push(`${ws.id}: "${previousName}" -> "${canonicalName}"`);
+    }
+
+    return { workstreams: repaired, repairs };
   }
 
   /**

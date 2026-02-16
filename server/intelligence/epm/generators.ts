@@ -1218,12 +1218,18 @@ export class StageGateGenerator {
  * KPI Generator
  */
 export class KPIGenerator {
+  private static readonly GENERIC_TARGET_RE =
+    /(complete within \d+\s*months?|production go-live by month \d+|go-live by month \d+|launch by month \d+)/i;
+  private static readonly TRAILING_FRAGMENT_RE = /\b(to|from|by|for|with|and|or|the|a|an|of)$/i;
+  private static readonly GENERIC_MEASUREMENT_RE = /(strategic kpi tracking|current baseline|quarterly tracking)/i;
+
   async generate(insights: StrategyInsights, benefitsRealization: BenefitsRealization): Promise<KPIs> {
     const kpis = benefitsRealization.benefits.map((benefit, idx) => {
       let kpiCategory: 'Financial' | 'Operational' | 'Strategic' | 'Customer' = 'Strategic';
       if (benefit.category === 'Financial') kpiCategory = 'Financial';
       else if (benefit.category === 'Operational') kpiCategory = 'Operational';
       else if (benefit.category === 'Strategic') kpiCategory = 'Strategic';
+      const measurement = this.sanitizeMeasurement(benefit.measurement, benefit);
       const rawTarget = benefit.target || (benefit.estimatedValue
         ? `+${benefit.estimatedValue.toLocaleString()}`
         : this.generateMeasurableTarget(benefit));
@@ -1234,7 +1240,7 @@ export class KPIGenerator {
         category: kpiCategory,
         baseline: this.generateBaseline(benefit),
         target: this.sanitizeTarget(rawTarget, benefit),
-        measurement: benefit.measurement,
+        measurement,
         frequency: benefit.category === 'Financial' ? 'Monthly' as const : 'Quarterly' as const,
         linkedBenefitIds: [benefit.id],
         confidence: benefit.confidence,
@@ -1278,6 +1284,11 @@ export class KPIGenerator {
       label = primaryClause;
     }
 
+    const resolveSplit = label.split(/\s+to\s+resolve\b/i);
+    if (resolveSplit.length > 1 && resolveSplit[0].trim().length >= 12) {
+      label = resolveSplit[0].trim();
+    }
+
     const vsSplit = label.split(/\s+vs\s+/i);
     if (vsSplit.length > 1 && vsSplit[0].trim().length >= 8) {
       label = vsSplit[0].trim();
@@ -1288,17 +1299,19 @@ export class KPIGenerator {
       label = words.slice(0, 8).join(' ');
     }
 
+    label = this.stripTrailingFragments(label);
+
     return label.trim() || fallback;
   }
 
   private ensureMeaningfulKpiName(label: string, benefit: Benefit): string {
-    const trimmed = (label || '').trim();
+    const trimmed = this.stripTrailingFragments((label || '').trim());
     const words = trimmed.split(/\s+/).filter(Boolean);
-    if (trimmed.length >= 10 && words.length >= 3) {
+    if (trimmed.length >= 10 && words.length >= 3 && !KPIGenerator.TRAILING_FRAGMENT_RE.test(trimmed)) {
       return trimmed;
     }
 
-    const measurement = (benefit.measurement || '').trim();
+    const measurement = this.sanitizeMeasurement(benefit.measurement, benefit).trim();
     if (measurement.length >= 8) {
       const firstClause = measurement.split(/[.;:]/)[0].trim();
       const composed = `${trimmed || 'Strategic Outcome'} ${firstClause}`
@@ -1326,6 +1339,10 @@ export class KPIGenerator {
       normalized = this.generateMeasurableTarget(benefit);
     }
 
+    if (KPIGenerator.GENERIC_TARGET_RE.test(normalized)) {
+      normalized = this.generateSpecificTarget(benefit);
+    }
+
     // Avoid undefined "vs baseline" phrasing that fails KPI quality checks.
     if (/\bbaseline\b/i.test(normalized) && !/from\s+[\d.]+/i.test(normalized)) {
       normalized = normalized.replace(/\bbaseline\b/ig, 'current state');
@@ -1335,11 +1352,75 @@ export class KPIGenerator {
   }
 
   private generateBaseline(benefit: Benefit): string {
-    const measurement = benefit.measurement?.trim();
+    const measurement = this.sanitizeMeasurement(benefit.measurement, benefit).trim();
     if (measurement) {
       return `Current ${measurement}`;
     }
     return 'Current baseline';
+  }
+
+  private sanitizeMeasurement(measurement: string | undefined, benefit: Benefit): string {
+    const normalized = (measurement || '').trim();
+    if (!normalized || KPIGenerator.GENERIC_MEASUREMENT_RE.test(normalized)) {
+      return this.generateMeasurement(benefit);
+    }
+    return normalized;
+  }
+
+  private generateMeasurement(benefit: Benefit): string {
+    const text = `${benefit.name || ''} ${benefit.description || ''}`.toLowerCase();
+
+    if (/(compliance|privacy|regulatory|audit|soc2|gdpr|control)/.test(text)) {
+      return 'Control adherence rate and critical audit finding closure';
+    }
+    if (/(market|gtm|sales|pipeline|lead|positioning|pricing)/.test(text)) {
+      return 'Qualified pipeline conversion rate and revenue per active user';
+    }
+    if (/(talent|recruit|onboard|training|workforce|employee)/.test(text)) {
+      return 'Time-to-hire and onboarding completion rate';
+    }
+    if (/(integration|api|platform|scalability|latency|throughput)/.test(text)) {
+      return 'Integration success rate and API latency SLA attainment';
+    }
+    if (/(operations|release|deployment|stabilization|incident|support)/.test(text)) {
+      return 'Deployment success rate and severity-1 incident frequency';
+    }
+
+    if (benefit.category === 'Financial') return 'Net new revenue and gross margin impact';
+    if (benefit.category === 'Operational') return 'Cycle time and throughput improvement';
+    return 'Strategic objective attainment index';
+  }
+
+  private generateSpecificTarget(benefit: Benefit): string {
+    const text = `${benefit.name || ''} ${benefit.description || ''}`.toLowerCase();
+
+    if (/(compliance|privacy|regulatory|audit|soc2|gdpr|control)/.test(text)) {
+      return '100% critical controls implemented and 0 unresolved critical audit findings';
+    }
+    if (/(market|gtm|sales|pipeline|lead|positioning|pricing)/.test(text)) {
+      return '+15% qualified pipeline growth and >=20% lead-to-opportunity conversion';
+    }
+    if (/(talent|recruit|onboard|training|workforce|employee)/.test(text)) {
+      return '-25% time-to-hire and >=90% onboarding completion within first 30 days';
+    }
+    if (/(integration|api|platform|scalability|latency|throughput)/.test(text)) {
+      return '>=99.5% integration success and <250ms p95 API latency';
+    }
+    if (/(operations|release|deployment|stabilization|incident|support)/.test(text)) {
+      return '>=98% deployment success rate and <2 Sev-1 incidents per quarter';
+    }
+
+    if (benefit.category === 'Financial') return '+12% improvement in revenue contribution';
+    if (benefit.category === 'Operational') return '+20% throughput improvement vs current state';
+    return '+15% improvement in strategic objective attainment';
+  }
+
+  private stripTrailingFragments(value: string): string {
+    let cleaned = (value || '').replace(/[,:;.\s]+$/g, '').trim();
+    while (KPIGenerator.TRAILING_FRAGMENT_RE.test(cleaned)) {
+      cleaned = cleaned.replace(/\b(to|from|by|for|with|and|or|the|a|an|of)$/i, '').trim();
+    }
+    return cleaned;
   }
 
   private generateMeasurableTarget(benefit: { description: string; category: string; measurement?: string }): string {
@@ -1419,6 +1500,9 @@ export class KPIGenerator {
 
   private makeDistinctTarget(target: string, kpiName: string, occurrence: number): string {
     const normalized = target.trim();
+    if (/^\+?100%\s+/i.test(normalized)) {
+      return `${normalized} (${kpiName.toLowerCase()} scope)`;
+    }
     const percentMatch = normalized.match(/^([+-]?)(\d+)%\s+(.+)$/);
     if (percentMatch) {
       const sign = percentMatch[1] || '+';

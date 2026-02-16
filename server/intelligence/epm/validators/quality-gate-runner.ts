@@ -6,7 +6,10 @@ import { CompletenessValidator } from './completeness-validator';
 import { WBSTimelineValidator } from './wbs-timeline-validator';
 import { DomainLexiconValidator } from './domain-lexicon-validator';
 import { TimelineUtilizationValidator } from './timeline-utilization-validator';
+import { WorkstreamSemanticAlignmentValidator } from './workstream-semantic-alignment-validator';
+import { KPIQualityValidator } from './kpi-quality-validator';
 import type { Workstream, Timeline, StageGates, ResourcePlan, DomainProfile } from '../../types';
+import type { KPI } from '../../types';
 
 export class QualityGateRunner {
   private registry: ValidatorRegistry;
@@ -25,6 +28,8 @@ export class QualityGateRunner {
     this.registry.register(new WBSTimelineValidator());
     this.registry.register(new DomainLexiconValidator());
     this.registry.register(new TimelineUtilizationValidator());
+    this.registry.register(new WorkstreamSemanticAlignmentValidator());
+    this.registry.register(new KPIQualityValidator());
 
     this.initialized = true;
     console.log('[QualityGateRunner] Initialized with validators:', this.registry.list().join(', '));
@@ -36,7 +41,8 @@ export class QualityGateRunner {
     stageGates: StageGates,
     businessContext?: string,
     resourcePlan?: ResourcePlan,
-    domainProfile?: DomainProfile
+    domainProfile?: DomainProfile,
+    kpis?: KPI[]
   ): QualityReport {
     if (!this.initialized) {
       this.initialize();
@@ -49,6 +55,7 @@ export class QualityGateRunner {
       businessContext,
       resourcePlan,
       domainProfile,
+      kpis,
     };
     
     console.log('[QualityGateRunner] Running quality gate with', this.registry.list().length, 'validators');
@@ -65,7 +72,8 @@ export class QualityGateRunner {
     validatorNames: string[],
     businessContext?: string,
     resourcePlan?: ResourcePlan,
-    domainProfile?: DomainProfile
+    domainProfile?: DomainProfile,
+    kpis?: KPI[]
   ): QualityReport {
     if (!this.initialized) {
       this.initialize();
@@ -78,6 +86,7 @@ export class QualityGateRunner {
       businessContext,
       resourcePlan,
       domainProfile,
+      kpis,
     };
     
     const report = this.registry.runSelected(context, validatorNames);

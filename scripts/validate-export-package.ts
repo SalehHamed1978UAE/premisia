@@ -243,25 +243,47 @@ class EPMPackageValidator {
 
     if (!pkg.workstreams) return;
 
+    const totalMonths =
+      Number(pkg.timeline?.totalMonths) ||
+      Number(pkg.program?.timeline?.totalMonths) ||
+      0;
+    const inferredMaxMonth = pkg.workstreams.reduce((max, ws) => {
+      const start = Number(ws.startMonth ?? 0);
+      const end = Number(ws.endMonth ?? 0);
+      return Math.max(max, start, end);
+    }, 0);
+    const maxMonth = totalMonths > 0 ? totalMonths - 1 : inferredMaxMonth;
+
     pkg.workstreams.forEach(ws => {
-      // Check for zero timelines (the bug we found)
-      if (ws.startMonth === 0 && ws.endMonth === 0) {
-        this.addError(`Workstream "${ws.name}" has invalid timeline (all zeros)`, 15);
+      const startMonth = Number(ws.startMonth ?? 0);
+      const endMonth = Number(ws.endMonth ?? 0);
+
+      // Month 0 is valid in 0-based timelines; only negatives are invalid.
+      if (startMonth < 0 || endMonth < 0) {
+        this.addError(`Workstream "${ws.name}" has negative timeline month`, 15);
       }
 
       // Check timeline logic
-      if (ws.startMonth > ws.endMonth) {
+      if (startMonth > endMonth) {
         this.addError(`Workstream "${ws.name}" ends before it starts`, 10);
+      }
+
+      if (endMonth > maxMonth) {
+        this.addWarning(`Workstream "${ws.name}" ends after timeline boundary (M${endMonth} > M${maxMonth})`);
       }
 
       // Check deliverable timelines
       if (ws.deliverables) {
         ws.deliverables.forEach((d: any) => {
-          if (d.dueMonth === 0) {
-            this.addError(`Deliverable "${d.name}" has invalid due month (0)`, 5);
+          const dueMonth = Number(d.dueMonth ?? 0);
+          if (dueMonth < 0) {
+            this.addError(`Deliverable "${d.name}" has invalid due month (${d.dueMonth})`, 5);
           }
-          if (d.dueMonth < ws.startMonth || d.dueMonth > ws.endMonth) {
+          if (dueMonth < startMonth || dueMonth > endMonth) {
             this.addWarning(`Deliverable "${d.name}" due outside workstream timeline`);
+          }
+          if (dueMonth > maxMonth) {
+            this.addWarning(`Deliverable "${d.name}" due after timeline boundary (M${dueMonth} > M${maxMonth})`);
           }
         });
       }
