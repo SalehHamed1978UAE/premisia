@@ -468,9 +468,57 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
   }
 
   const workstreams = Array.isArray(epmData.workstreams) ? epmData.workstreams : [];
+  const assignments = Array.isArray(epmData.assignments) ? epmData.assignments : [];
   const byId = new Map<string, any>();
   for (const ws of workstreams) {
     if (typeof ws?.id === 'string') byId.set(ws.id, ws);
+  }
+
+  // Ensure assignment task IDs align to canonical deliverable IDs across files.
+  // This protects downstream systems (CSV/Jira/MS Project) that join by task ID.
+  if (workstreams.length > 0 && assignments.length > 0) {
+    const deliverableIds = new Set<string>();
+    for (const ws of workstreams) {
+      for (const deliverable of ws?.deliverables || []) {
+        if (!deliverable) continue;
+        const idCandidate = typeof deliverable === 'string'
+          ? ''
+          : (typeof deliverable?.id === 'string' ? deliverable.id : (typeof deliverable?.taskId === 'string' ? deliverable.taskId : ''));
+        const normalized = idCandidate.trim();
+        if (normalized.length > 0) {
+          deliverableIds.add(normalized);
+        }
+      }
+    }
+
+    const assignmentTaskIds = new Set<string>();
+    for (const assignment of assignments) {
+      const idCandidate = typeof assignment?.taskId === 'string'
+        ? assignment.taskId
+        : (typeof assignment?.task_id === 'string' ? assignment.task_id : '');
+      const normalized = idCandidate.trim();
+      if (normalized.length > 0) {
+        assignmentTaskIds.add(normalized);
+      }
+    }
+
+    if (deliverableIds.size > 0 && assignmentTaskIds.size > 0) {
+      const missingAssignmentIds = Array.from(deliverableIds).filter((id) => !assignmentTaskIds.has(id));
+      const orphanAssignmentIds = Array.from(assignmentTaskIds).filter((id) => !deliverableIds.has(id));
+      if (missingAssignmentIds.length > 0 || orphanAssignmentIds.length > 0) {
+        criticalIssues.push({
+          severity: 'critical',
+          code: 'DELIVERABLE_ID_LINKAGE_MISMATCH',
+          message: 'Assignment task IDs are not fully aligned with workstream deliverable IDs',
+          details: {
+            deliverableCount: deliverableIds.size,
+            assignmentTaskCount: assignmentTaskIds.size,
+            missingAssignmentIds: missingAssignmentIds.slice(0, 12),
+            orphanAssignmentIds: orphanAssignmentIds.slice(0, 12),
+          },
+        });
+      }
+    }
   }
 
   for (const ws of workstreams) {
@@ -547,6 +595,37 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
         details: { coverageRatio, maxWorkstreamEnd, totalMonths },
       });
     }
+  }
+
+  if (Array.isArray(timeline?.phases) && timeline.phases.length > 0) {
+    for (const phase of timeline.phases) {
+      const phaseStart = Number(phase?.startMonth || 0);
+      const phaseEnd = Number(phase?.endMonth || phaseStart);
+      const hasCompletingWorkstream = workstreams.some((ws: any) => {
+        const wsEnd = Number(ws?.endMonth);
+        return Number.isFinite(wsEnd) && wsEnd >= phaseStart && wsEnd <= phaseEnd;
+      });
+      if (!hasCompletingWorkstream) {
+        warnings.push({
+          severity: 'warning',
+          code: 'PHASE_WITHOUT_COMPLETION_WORKSTREAM',
+          message: `Phase "${phase?.name || 'Unnamed'}" has no workstream completing within its window (M${phaseStart}-M${phaseEnd})`,
+          details: { phase: phase?.name, phaseStart, phaseEnd },
+        });
+      }
+    }
+  }
+
+  const syntheticGateDeliverables = (Array.isArray(stageGates?.gates) ? stageGates.gates : [])
+    .flatMap((gate: any) => (Array.isArray(gate?.deliverables) ? gate.deliverables : []))
+    .filter((value: any) => typeof value === 'string' && value.toLowerCase().includes('completion review package'));
+  if (syntheticGateDeliverables.length > 0) {
+    warnings.push({
+      severity: 'warning',
+      code: 'STAGE_GATE_SYNTHETIC_DELIVERABLE',
+      message: `Stage gates include ${syntheticGateDeliverables.length} synthetic completion placeholder deliverable(s)`,
+      details: { sample: syntheticGateDeliverables.slice(0, 8) },
+    });
   }
 
   const selectedDecisions = deriveSelectedDecisions(strategyData);

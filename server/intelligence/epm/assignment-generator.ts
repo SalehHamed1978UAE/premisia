@@ -131,10 +131,18 @@ export class AssignmentGenerator {
       for (let i = 0; i < deliverables.length; i++) {
         const deliverable = deliverables[i];
         const deliverableName = this.extractDeliverableName(deliverable, i);
-        const taskId = `${workstream.id}-D${i + 1}`;
+        const taskId = this.extractDeliverableId(workstream.id, deliverable, i);
 
-        const deliverableStartMonth = wsStartMonth + Math.floor(i * wsDuration / Math.max(deliverables.length, 1));
-        const deliverableEndMonth = Math.min(wsStartMonth + Math.ceil((i + 1) * wsDuration / Math.max(deliverables.length, 1)), wsEndMonth);
+        const calculatedStartMonth = wsStartMonth + Math.floor(i * wsDuration / Math.max(deliverables.length, 1));
+        const calculatedEndMonth = Math.min(
+          wsStartMonth + Math.ceil((i + 1) * wsDuration / Math.max(deliverables.length, 1)),
+          wsEndMonth
+        );
+        const explicitDueMonth = this.extractDeliverableDueMonth(deliverable);
+        const deliverableEndMonth = explicitDueMonth !== null
+          ? Math.min(wsEndMonth, Math.max(wsStartMonth, explicitDueMonth))
+          : calculatedEndMonth;
+        const deliverableStartMonth = Math.min(calculatedStartMonth, deliverableEndMonth);
 
         allTasks.push({
           taskId,
@@ -462,6 +470,27 @@ IMPORTANT: Return a match for EVERY task. Use exact taskId and resourceId values
     }
 
     return `Deliverable ${index + 1}`;
+  }
+
+  /**
+   * Preserve the canonical deliverable ID so assignments, WBS, and EPM exports
+   * stay linkable by exact ID across files.
+   */
+  private extractDeliverableId(workstreamId: string, deliverable: any, index: number): string {
+    if (deliverable && typeof deliverable === 'object') {
+      const explicitId = (deliverable.id || deliverable.taskId || deliverable.deliverableId || '').toString().trim();
+      if (explicitId.length > 0) {
+        return explicitId;
+      }
+    }
+    return `${workstreamId}-D${index + 1}`;
+  }
+
+  private extractDeliverableDueMonth(deliverable: any): number | null {
+    if (!deliverable || typeof deliverable !== 'object') return null;
+    const raw = deliverable.dueMonth ?? deliverable.due_month;
+    const value = typeof raw === 'number' ? raw : Number(raw);
+    return Number.isFinite(value) ? value : null;
   }
 
   /**

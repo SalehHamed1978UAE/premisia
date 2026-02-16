@@ -326,7 +326,7 @@ export class EPMSynthesizer {
         insights,
         scheduledWorkstreams,
         planningContext,
-        fullyEnrichedContext,
+        fullyEnrichedContext as UserContext,
         namingContext,
         strategicContext,
         decisionValidation,
@@ -367,7 +367,7 @@ export class EPMSynthesizer {
         insights,
         timedWorkstreams, // Use WBS Builder workstreams with default timings
         planningContext,
-        fullyEnrichedContext,
+        fullyEnrichedContext as UserContext,
         namingContext,
         strategicContext,
         decisionValidation,
@@ -1454,7 +1454,7 @@ export class EPMSynthesizer {
     };
     console.log('[EPM Synthesis] ✓ Assigned risk owners (buildV2Program):', risksWithOwners.map(r => ({ id: r.id, owner: r.owner })));
     
-    const stageGates = await this.stageGateGenerator.generate(timeline, riskRegister, phasedWorkstreams);
+    let stageGates = await this.stageGateGenerator.generate(timeline, riskRegister, phasedWorkstreams);
     
     onProgress?.({
       type: 'step-start',
@@ -1467,7 +1467,7 @@ export class EPMSynthesizer {
       || planningContext.business.industry
       || insights.marketContext?.industry
       || '';
-    const validationResult = this.validator.validate(phasedWorkstreams, timeline, stageGates, businessContext);
+    let validationResult = this.validator.validate(phasedWorkstreams, timeline, stageGates, businessContext);
     if (validationResult.errors.length > 0) {
       console.log(`[EPM Synthesis] ⚠️ Validation found ${validationResult.errors.length} errors, auto-corrected`);
       validationResult.corrections.forEach(c => console.log(`    - ${c}`));
@@ -1475,6 +1475,23 @@ export class EPMSynthesizer {
     if (validationResult.warnings.length > 0) {
       console.log(`[EPM Synthesis] ⚠️ Validation warnings: ${validationResult.warnings.length}`);
       validationResult.warnings.forEach(w => console.log(`    - ${w}`));
+    }
+
+    // Validation may shift phase boundaries; re-apply mandatory phase coverage and
+    // regenerate stage gates on the corrected timeline so late phases cannot become empty.
+    if (validationResult.corrections.length > 0) {
+      this.fillEmptyPhases(phasedWorkstreams, timeline, planningContext);
+      this.fillInternalTimelineGaps(phasedWorkstreams, timeline, planningContext);
+      timeline = this.syncTimelinePhaseWorkstreams(timeline, phasedWorkstreams);
+      stageGates = await this.stageGateGenerator.generate(timeline, riskRegister, phasedWorkstreams);
+
+      const revalidated = this.validator.validate(phasedWorkstreams, timeline, stageGates, businessContext);
+      validationResult = {
+        valid: revalidated.valid,
+        errors: revalidated.errors,
+        corrections: Array.from(new Set([...(validationResult.corrections || []), ...(revalidated.corrections || [])])),
+        warnings: Array.from(new Set([...(validationResult.warnings || []), ...(revalidated.warnings || [])])),
+      };
     }
     
     const planningGrid = this.validator.analyzePlanningGrid(phasedWorkstreams, timeline);
@@ -2387,21 +2404,29 @@ export class EPMSynthesizer {
   }
 
   /**
-   * Fill empty phases with coverage workstreams to prevent timeline gaps.
-   * If a phase has no workstreams, creates a placeholder workstream for that phase.
+   * Fill phases without a completion workstream.
+   * Stage gates require at least one workstream completing in each phase window.
    */
   private fillEmptyPhases(workstreams: Workstream[], timeline: Timeline, planningContext: PlanningContext): void {
     if (!timeline?.phases || timeline.phases.length === 0) return;
 
     const industry = planningContext.business.industry || 'the initiative';
+    const totalMonths = Number(timeline.totalMonths || 0);
     let nextIndex = this.nextWorkstreamIndex(workstreams);
 
     for (const phase of timeline.phases) {
-      const hasWorkstreams = workstreams.some(ws =>
-        ws.startMonth <= phase.endMonth && ws.endMonth >= phase.startMonth
+      const phaseStart = Number(phase.startMonth || 0);
+      const rawPhaseEnd = Number(phase.endMonth || phaseStart);
+      const phaseEnd = Number.isFinite(totalMonths) && totalMonths > 0
+        ? Math.min(rawPhaseEnd, totalMonths - 1)
+        : rawPhaseEnd;
+      if (phaseEnd < phaseStart) continue;
+
+      const hasCompletingWorkstream = workstreams.some((ws) =>
+        Number(ws.endMonth) >= phaseStart && Number(ws.endMonth) <= phaseEnd
       );
 
-      if (!hasWorkstreams) {
+      if (!hasCompletingWorkstream) {
         const phaseNameLower = phase.name.toLowerCase();
         let wsName: string;
         let wsDescription: string;
@@ -2418,19 +2443,14 @@ export class EPMSynthesizer {
         }
 
         const wsId = `WS${String(nextIndex).padStart(3, '0')}`;
-        const startMonth = phase.startMonth;
-        const endMonth = Math.min(phase.endMonth, phase.startMonth + 4);
+        const startMonth = phaseStart;
+        const endMonth = phaseEnd;
 
         const ws: Workstream = {
           id: wsId,
           name: wsName,
           description: wsDescription,
-          deliverables: [
-            { id: `${wsId}-D1`, name: `${phase.name}: Runbook and operating model update`, description: `Runbook and operating model update`, dueMonth: startMonth + 1, effort: '1 person-month' },
-            { id: `${wsId}-D2`, name: `${phase.name}: Risk and control tuning package`, description: `Risk and control tuning package`, dueMonth: startMonth + 2, effort: '1 person-month' },
-            { id: `${wsId}-D3`, name: `${phase.name}: Audit evidence and readiness checkpoint`, description: `Audit evidence and readiness checkpoint`, dueMonth: startMonth + 3, effort: '1 person-month' },
-            { id: `${wsId}-D4`, name: `${phase.name}: Phase completion review`, description: `Phase completion review`, dueMonth: endMonth, effort: '1 person-month' },
-          ],
+          deliverables: this.buildPhaseCoverageDeliverables(wsId, phase.name, startMonth, endMonth),
           phase: phase.name,
           startMonth,
           endMonth,
@@ -2439,10 +2459,39 @@ export class EPMSynthesizer {
         };
 
         workstreams.push(ws);
-        console.log(`[EPM Synthesis] Added gap-fill workstream "${wsName}" for empty phase "${phase.name}" (M${startMonth}-M${endMonth})`);
+        console.log(
+          `[EPM Synthesis] Added phase-completion workstream "${wsName}" for phase "${phase.name}" (M${startMonth}-M${endMonth})`
+        );
         nextIndex++;
       }
     }
+  }
+
+  private buildPhaseCoverageDeliverables(
+    workstreamId: string,
+    phaseName: string,
+    startMonth: number,
+    endMonth: number
+  ): Deliverable[] {
+    const templates = [
+      { label: 'Runbook and operating model update', effort: '1 person-month' },
+      { label: 'Risk and control tuning package', effort: '1 person-month' },
+      { label: 'Audit evidence and readiness checkpoint', effort: '1 person-month' },
+      { label: 'Phase completion review', effort: '1 person-month' },
+    ];
+    const slots = Math.max(2, Math.min(4, endMonth - startMonth + 1));
+
+    return templates.slice(0, slots).map((template, index) => {
+      const progress = (index + 1) / slots;
+      const dueMonth = Math.round(startMonth + (endMonth - startMonth) * progress);
+      return {
+        id: `${workstreamId}-D${index + 1}`,
+        name: `${phaseName}: ${template.label}`,
+        description: template.label,
+        dueMonth: Math.max(startMonth, Math.min(endMonth, dueMonth)),
+        effort: template.effort,
+      };
+    });
   }
 
   /**

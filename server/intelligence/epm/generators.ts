@@ -1165,9 +1165,7 @@ export class StageGateGenerator {
         const representative = source.length > 0 ? source[source.length - 1] : null;
 
         const rawName = representative
-          ? (typeof representative === 'string'
-            ? representative.trim()
-            : String((representative as any).name || (representative as any).title || '').trim())
+          ? String((representative as any).name || (representative as any).title || '').trim()
           : '';
         if (!rawName) {
           return `${ws.name} completion package`;
@@ -1226,13 +1224,16 @@ export class KPIGenerator {
       if (benefit.category === 'Financial') kpiCategory = 'Financial';
       else if (benefit.category === 'Operational') kpiCategory = 'Operational';
       else if (benefit.category === 'Strategic') kpiCategory = 'Strategic';
+      const rawTarget = benefit.target || (benefit.estimatedValue
+        ? `+${benefit.estimatedValue.toLocaleString()}`
+        : this.generateMeasurableTarget(benefit));
       
       return {
         id: `KPI${String(idx + 1).padStart(3, '0')}`,
         name: this.generateKPIName(benefit),
         category: kpiCategory,
         baseline: this.generateBaseline(benefit),
-        target: benefit.target || (benefit.estimatedValue ? `+${benefit.estimatedValue.toLocaleString()}` : this.generateMeasurableTarget(benefit)),
+        target: this.sanitizeTarget(rawTarget, benefit),
         measurement: benefit.measurement,
         frequency: benefit.category === 'Financial' ? 'Monthly' as const : 'Quarterly' as const,
         linkedBenefitIds: [benefit.id],
@@ -1262,7 +1263,7 @@ export class KPIGenerator {
 
   private generateKPIName(benefit: Benefit): string {
     const base = this.summarizeBenefitName(benefit);
-    return base;
+    return this.ensureMeaningfulKpiName(base, benefit);
   }
 
   private summarizeBenefitName(benefit: Benefit): string {
@@ -1288,6 +1289,49 @@ export class KPIGenerator {
     }
 
     return label.trim() || fallback;
+  }
+
+  private ensureMeaningfulKpiName(label: string, benefit: Benefit): string {
+    const trimmed = (label || '').trim();
+    const words = trimmed.split(/\s+/).filter(Boolean);
+    if (trimmed.length >= 10 && words.length >= 3) {
+      return trimmed;
+    }
+
+    const measurement = (benefit.measurement || '').trim();
+    if (measurement.length >= 8) {
+      const firstClause = measurement.split(/[.;:]/)[0].trim();
+      const composed = `${trimmed || 'Strategic Outcome'} ${firstClause}`
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (composed.length > 72) {
+        return composed.slice(0, 72).trim();
+      }
+      return composed;
+    }
+
+    if (benefit.category === 'Financial') {
+      return `${trimmed || 'Financial'} Value Impact`;
+    }
+    if (benefit.category === 'Operational') {
+      return `${trimmed || 'Operational'} Performance Outcome`;
+    }
+
+    return `${trimmed || 'Strategic'} Outcome Metric`;
+  }
+
+  private sanitizeTarget(target: string, benefit: Benefit): string {
+    let normalized = (target || '').trim();
+    if (!normalized) {
+      normalized = this.generateMeasurableTarget(benefit);
+    }
+
+    // Avoid undefined "vs baseline" phrasing that fails KPI quality checks.
+    if (/\bbaseline\b/i.test(normalized) && !/from\s+[\d.]+/i.test(normalized)) {
+      normalized = normalized.replace(/\bbaseline\b/ig, 'current state');
+    }
+
+    return normalized;
   }
 
   private generateBaseline(benefit: Benefit): string {
