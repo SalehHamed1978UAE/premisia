@@ -3502,6 +3502,19 @@ router.post('/journeys/execute-background', async (req: Request, res: Response) 
       });
     }
 
+    if (journeyType) {
+      const journey = journeyRegistry.getJourney(journeyType as JourneyType);
+      if (!journey) {
+        return res.status(404).json({ error: 'Journey not found' });
+      }
+      if (!journey.available) {
+        return res.status(400).json({
+          error: 'This journey is not yet available',
+          journeyName: journey.name,
+        });
+      }
+    }
+
     // Get strategic understanding
     const understanding = await getStrategicUnderstanding(understandingId);
     if (!understanding) {

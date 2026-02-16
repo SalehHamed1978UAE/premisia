@@ -10,6 +10,35 @@ import { JourneyDefinition, JourneyType, FrameworkName } from '@shared/journey-t
 import { moduleRegistry } from '../modules/registry';
 import type { JourneyConfig } from '../modules/journey-config';
 
+const DEFAULT_PUBLISHED_JOURNEYS: JourneyType[] = ['business_model_innovation'];
+
+function loadPublishedJourneys(): ReadonlySet<JourneyType> {
+  const raw = process.env.PUBLISHED_JOURNEYS?.trim();
+  if (!raw) {
+    return new Set(DEFAULT_PUBLISHED_JOURNEYS);
+  }
+
+  const parsed = raw
+    .split(',')
+    .map(value => value.trim())
+    .filter((value): value is JourneyType => value.length > 0);
+
+  return new Set(parsed.length > 0 ? parsed : DEFAULT_PUBLISHED_JOURNEYS);
+}
+
+const PUBLISHED_JOURNEYS = loadPublishedJourneys();
+
+function applyAvailabilityPolicy(journey: JourneyDefinition | undefined): JourneyDefinition | undefined {
+  if (!journey) {
+    return journey;
+  }
+
+  return {
+    ...journey,
+    available: journey.available && PUBLISHED_JOURNEYS.has(journey.type),
+  };
+}
+
 export const JOURNEYS: Record<JourneyType, JourneyDefinition> = {
   /**
    * Business Model Innovation Journey
@@ -313,10 +342,10 @@ export function getJourney(type: JourneyType): JourneyDefinition {
   const configJourney = moduleRegistry.getJourney(type);
   if (configJourney) {
     console.log(`[JourneyRegistry] Using config-based journey: ${type}`);
-    return configToDefinition(configJourney);
+    return applyAvailabilityPolicy(configToDefinition(configJourney)) as JourneyDefinition;
   }
   
-  return JOURNEYS[type];
+  return applyAvailabilityPolicy(JOURNEYS[type]) as JourneyDefinition;
 }
 
 /**
@@ -324,15 +353,18 @@ export function getJourney(type: JourneyType): JourneyDefinition {
  * Merges config-based and hard-coded journeys, config takes precedence
  */
 export function getAvailableJourneys(): JourneyDefinition[] {
-  const configJourneys = moduleRegistry.listAvailableJourneys();
+  const configJourneys = moduleRegistry.listJourneys();
   const configIds = new Set(configJourneys.map(j => j.id));
   
-  const fromConfig = configJourneys.map(configToDefinition);
+  const fromConfig = configJourneys
+    .map(configToDefinition)
+    .map(journey => applyAvailabilityPolicy(journey) as JourneyDefinition);
   
   const fromHardcoded = Object.values(JOURNEYS)
-    .filter(j => j.available && !configIds.has(j.type));
+    .filter(j => !configIds.has(j.type))
+    .map(journey => applyAvailabilityPolicy(journey) as JourneyDefinition);
   
-  return [...fromConfig, ...fromHardcoded];
+  return [...fromConfig, ...fromHardcoded].filter(journey => journey.available);
 }
 
 /**
@@ -342,10 +374,13 @@ export function getAllJourneys(): JourneyDefinition[] {
   const configJourneys = moduleRegistry.listJourneys();
   const configIds = new Set(configJourneys.map(j => j.id));
   
-  const fromConfig = configJourneys.map(configToDefinition);
+  const fromConfig = configJourneys
+    .map(configToDefinition)
+    .map(journey => applyAvailabilityPolicy(journey) as JourneyDefinition);
   
   const fromHardcoded = Object.values(JOURNEYS)
-    .filter(j => !configIds.has(j.type));
+    .filter(j => !configIds.has(j.type))
+    .map(journey => applyAvailabilityPolicy(journey) as JourneyDefinition);
   
   return [...fromConfig, ...fromHardcoded];
 }
@@ -354,11 +389,7 @@ export function getAllJourneys(): JourneyDefinition[] {
  * Check if a journey is available
  */
 export function isJourneyAvailable(type: JourneyType): boolean {
-  const configJourney = moduleRegistry.getJourney(type);
-  if (configJourney) {
-    return configJourney.available;
-  }
-  return JOURNEYS[type]?.available ?? false;
+  return getJourney(type)?.available ?? false;
 }
 
 /**
