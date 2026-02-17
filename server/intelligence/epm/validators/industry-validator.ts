@@ -16,6 +16,17 @@ export class IndustryValidator extends BaseValidator {
     hospitality: ['hotel', 'guest services', 'booking', 'concierge', 'housekeeping'],
     transportation: ['logistics', 'fleet management', 'route optimization', 'cargo', 'freight'],
   };
+
+  private containsKeyword(content: string, keyword: string): boolean {
+    if (!content || !keyword) return false;
+    const escaped = keyword
+      .trim()
+      .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      .replace(/\s+/g, '\\s+');
+    if (!escaped) return false;
+    const re = new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i');
+    return re.test(content);
+  }
   
   validate(context: ValidatorContext): ValidatorResult {
     const issues: ValidatorIssue[] = [];
@@ -31,7 +42,7 @@ export class IndustryValidator extends BaseValidator {
 
     // Detect industries from businessContext classification
     for (const [industry, keywords] of Object.entries(this.industryKeywords)) {
-      if (keywords.some(kw => contextLower.includes(kw))) {
+      if (keywords.some((kw) => this.containsKeyword(contextLower, kw))) {
         detectedIndustries.push(industry);
       }
     }
@@ -42,7 +53,7 @@ export class IndustryValidator extends BaseValidator {
       if (detectedIndustries.includes(industry)) continue;
       const wsHitCount = workstreams.filter(ws => {
         const content = `${ws.name} ${ws.description || ''}`.toLowerCase();
-        return keywords.some(kw => content.includes(kw));
+        return keywords.some((kw) => this.containsKeyword(content, kw));
       }).length;
       if (wsHitCount >= 3) {
         detectedIndustries.push(industry);
@@ -55,7 +66,7 @@ export class IndustryValidator extends BaseValidator {
       for (const [industry, keywords] of Object.entries(this.industryKeywords)) {
         if (detectedIndustries.includes(industry)) continue;
         
-        const matchedKeyword = keywords.find(kw => wsContent.includes(kw));
+        const matchedKeyword = keywords.find((kw) => this.containsKeyword(wsContent, kw));
         if (matchedKeyword) {
           issues.push(this.createIssue(
             'warning',

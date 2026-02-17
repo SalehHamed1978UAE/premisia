@@ -1177,7 +1177,12 @@ export class EPMSynthesizer {
 
   private truncateText(text: string, maxLength: number): string {
     if (text.length <= maxLength) return text;
-    return `${text.slice(0, Math.max(0, maxLength - 1)).trim()}…`;
+    const trimmed = text.slice(0, Math.max(0, maxLength)).trim();
+    const lastSpace = trimmed.lastIndexOf(' ');
+    if (lastSpace > Math.floor(maxLength * 0.6)) {
+      return trimmed.slice(0, lastSpace).trim();
+    }
+    return trimmed;
   }
 
   private wouldCreateCycle(workstreams: Workstream[], currentId: string, dependencyId: string): boolean {

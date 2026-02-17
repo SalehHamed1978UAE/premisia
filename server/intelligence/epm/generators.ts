@@ -1127,6 +1127,56 @@ export class StageGateGenerator {
     riskRegister: RiskRegister,
     workstreams: Workstream[] = []
   ): Promise<StageGates> {
+    const minGateDeliverables = 2;
+
+    const normalizeGateDeliverableLabel = (ws: Workstream, rawName: string): string => {
+      const trimmed = String(rawName || '').trim();
+      if (!trimmed) return `${ws.name} completion package`;
+      if (trimmed.toLowerCase().includes(String(ws.name || '').toLowerCase())) {
+        return trimmed;
+      }
+      return `${ws.name}: ${trimmed}`;
+    };
+
+    const phaseScopedDeliverableLabels = (
+      ws: Workstream,
+      phase: { startMonth: number; endMonth: number },
+      maxLabels: number,
+      includeFallback: boolean
+    ): string[] => {
+      const deliverables = Array.isArray(ws.deliverables) ? ws.deliverables : [];
+      const inPhase = deliverables
+        .filter((d: any) => {
+          const dueMonth = typeof d?.dueMonth === 'number' ? d.dueMonth : Number(d?.dueMonth);
+          return Number.isFinite(dueMonth) && dueMonth >= phase.startMonth && dueMonth <= phase.endMonth;
+        })
+        .sort((a: any, b: any) => Number(a.dueMonth || 0) - Number(b.dueMonth || 0));
+
+      const fallback = includeFallback
+        ? deliverables
+            .filter((d: any) => {
+              const dueMonth = typeof d?.dueMonth === 'number' ? d.dueMonth : Number(d?.dueMonth);
+              return Number.isFinite(dueMonth) && dueMonth <= phase.endMonth;
+            })
+            .sort((a: any, b: any) => Number(a.dueMonth || 0) - Number(b.dueMonth || 0))
+        : [];
+
+      const source = inPhase.length > 0 ? inPhase : fallback;
+      if (source.length === 0) {
+        return includeFallback ? [`${ws.name} completion package`] : [];
+      }
+
+      const selected = source.slice(-Math.max(1, maxLabels));
+      return Array.from(
+        new Set(
+          selected
+            .map((item: any) => String(item?.name || item?.title || '').trim())
+            .filter((name: string) => name.length > 0)
+            .map((name: string) => normalizeGateDeliverableLabel(ws, name))
+        )
+      );
+    };
+
     const workstreamById = new Map<string, Workstream>();
     for (const ws of workstreams) {
       if (ws?.id) workstreamById.set(ws.id, ws);
@@ -1155,34 +1205,66 @@ export class StageGateGenerator {
       );
       requiredWorkstreams.forEach((ws) => emittedWorkstreamIds.add(ws.id));
 
-      // Keep gate deliverables concise and unique by selecting one representative completion artifact per workstream.
-      const deliverables = requiredWorkstreams.map((ws) => {
-        const phaseDeliverables = (ws.deliverables || []).filter((d: any) => {
-          const dueMonth = typeof d?.dueMonth === 'number' ? d.dueMonth : Number(d?.dueMonth);
-          return Number.isFinite(dueMonth) && dueMonth >= phase.startMonth && dueMonth <= phase.endMonth;
-        });
-        const source = phaseDeliverables.length > 0 ? phaseDeliverables : (ws.deliverables || []);
-        const representative = source.length > 0 ? source[source.length - 1] : null;
+      const baseDeliverables: string[] = [];
+      const supplementalDeliverables: string[] = [];
 
-        const rawName = representative
-          ? String((representative as any).name || (representative as any).title || '').trim()
-          : '';
-        if (!rawName) {
-          return `${ws.name} completion package`;
-        }
-        if (rawName.toLowerCase().includes(ws.name.toLowerCase())) {
-          return rawName;
-        }
-        return `${ws.name}: ${rawName}`;
+      requiredWorkstreams.forEach((ws) => {
+        const scoped = phaseScopedDeliverableLabels(ws, phase, 2, true);
+        if (scoped[0]) baseDeliverables.push(scoped[0]);
+        if (scoped.length > 1) supplementalDeliverables.push(...scoped.slice(1));
       });
+
+      if (baseDeliverables.length < minGateDeliverables) {
+        const requiredIds = new Set(requiredWorkstreams.map((ws) => ws.id));
+        const supportWorkstreams = phaseWorkstreams
+          .filter((ws) => !requiredIds.has(ws.id))
+          .sort((a, b) => Number(b.endMonth || 0) - Number(a.endMonth || 0));
+
+        supportWorkstreams.forEach((ws) => {
+          supplementalDeliverables.push(...phaseScopedDeliverableLabels(ws, phase, 1, false));
+        });
+
+        const currentCount = new Set([...baseDeliverables, ...supplementalDeliverables]).size;
+        if (currentCount < minGateDeliverables) {
+          const activeCrossPhase = workstreams
+            .filter((ws) =>
+              !requiredIds.has(ws.id) &&
+              Number(ws.startMonth || 0) <= Number(phase.endMonth || 0) &&
+              Number(ws.endMonth || 0) >= Number(phase.startMonth || 0)
+            )
+            .sort((a, b) => Number(b.endMonth || 0) - Number(a.endMonth || 0));
+
+          activeCrossPhase.forEach((ws) => {
+            supplementalDeliverables.push(...phaseScopedDeliverableLabels(ws, phase, 1, false));
+          });
+        }
+
+        const finalCount = new Set([...baseDeliverables, ...supplementalDeliverables]).size;
+        if (finalCount < minGateDeliverables) {
+          const recentAdjacent = workstreams
+            .filter((ws) =>
+              !requiredIds.has(ws.id) &&
+              Number(ws.endMonth || 0) <= Number(phase.endMonth || 0) &&
+              Number(ws.endMonth || 0) >= Number(phase.startMonth || 0) - 2
+            )
+            .sort((a, b) => Number(b.endMonth || 0) - Number(a.endMonth || 0));
+
+          recentAdjacent.forEach((ws) => {
+            supplementalDeliverables.push(...phaseScopedDeliverableLabels(ws, phase, 1, true));
+          });
+        }
+      }
 
       const uniqueDeliverables = Array.from(
         new Set(
-          deliverables
+          [...baseDeliverables, ...supplementalDeliverables]
             .map((item) => item?.trim())
             .filter((item): item is string => Boolean(item))
         )
       );
+      if (uniqueDeliverables.length > 6) {
+        uniqueDeliverables.splice(6);
+      }
       if (uniqueDeliverables.length === 0) {
         uniqueDeliverables.push(`${phase.name} completion review package`);
       }
