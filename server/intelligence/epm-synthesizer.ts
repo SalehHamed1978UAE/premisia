@@ -44,6 +44,7 @@ import type {
 import { replaceTimelineGeneration } from '../../src/lib/intelligent-planning/epm-integration';
 import type { PlanningContext, BusinessScale } from '../../src/lib/intelligent-planning/types';
 import { aiClients } from '../ai-clients';
+import { isEPMDomainResilienceEnabled, isEPMStrictIntegrityGatesEnabled } from '../config';
 
 import {
   ContextBuilder,
@@ -70,6 +71,15 @@ import {
   qualityGateRunner,
 } from './epm';
 import { extractUserConstraintsFromText } from './epm/constraint-utils';
+import { shouldUseTextConstraintFallback } from './epm/constraint-policy';
+import {
+  analyzeWorkstreamDeclaredTheme,
+  analyzeWorkstreamDeliverableTheme,
+  getCanonicalWorkstreamName,
+  isSemanticRepairCandidate,
+} from './epm/workstream-theme';
+import type { DomainProfile } from './types';
+import { normalizeStrategicDecisions } from '../utils/decision-selection';
 
 export { ContextBuilder } from './epm';
 
@@ -255,14 +265,31 @@ export class EPMSynthesizer {
       insights.frameworkType || 'strategy_workspace',
       userContext?.sessionId,
       userContext?.budgetRange,      // Pass explicit budget from strategy version
-      userContext?.timelineRange     // Pass explicit timeline from strategy version
+      userContext?.timelineRange,    // Pass explicit timeline from strategy version
+      userContext?.constraintMode || 'auto',
     );
 
     console.log(`[EPM Synthesis] ✓ Planning context: Scale=${planningContext.business.scale}, Timeline=${planningContext.execution.timeline.min}-${planningContext.execution.timeline.max}mo`);
 
     // SPRINT 1: Parse user constraints from input (not decisions)
-    const userConstraints = this.parseUserConstraints(insights, planningContext);
+    const userConstraints = this.parseUserConstraints(insights, planningContext, userContext);
     const enrichedUserContext = this.applyUserConstraintsToContext(userContext, userConstraints);
+
+    // SPRINT 6B: Compute capacity and timeline envelopes BEFORE any generator runs
+    console.log('[EPM Synthesis] 📊 Computing constraint envelopes...');
+    const capacityEnvelope = this.computeCapacityEnvelope(enrichedUserContext, workstreams, insights);
+    const timelineEnvelope = this.computeTimelineEnvelope(enrichedUserContext, workstreams);
+
+    // Attach envelopes to enrichedUserContext for downstream generators
+    const fullyEnrichedContext = {
+      ...enrichedUserContext,
+      capacityEnvelope,
+      timelineEnvelope,
+    };
+
+    console.log('[EPM Synthesis] ✓ Constraint envelopes computed:');
+    console.log(`  - Capacity: ${capacityEnvelope.maxAffordableFTEs} FTEs${capacityEnvelope.budgetConstrained ? ' (budget-constrained)' : ''}`);
+    console.log(`  - Timeline: ${timelineEnvelope.effectiveDuration} months${timelineEnvelope.timelineConstrained ? ' (time-constrained)' : ''}`);
 
     onProgress?.({
       type: 'step-start',
@@ -278,7 +305,7 @@ export class EPMSynthesizer {
     const planningConfig = {
       maxDuration: userConstraints.timeline?.max ?? planningContext.execution.timeline?.max,
       budget: userConstraints.budget?.max ?? planningContext.execution.budget?.max,
-      teamSize: enrichedUserContext?.teamAvailability?.currentTeamSize,
+      teamSize: fullyEnrichedContext?.teamAvailability?.currentTeamSize,
     };
 
     const planningResult = await replaceTimelineGeneration(
@@ -305,7 +332,7 @@ export class EPMSynthesizer {
         insights,
         scheduledWorkstreams,
         planningContext,
-        enrichedUserContext,
+        fullyEnrichedContext as UserContext,
         namingContext,
         strategicContext,
         decisionValidation,
@@ -346,7 +373,7 @@ export class EPMSynthesizer {
         insights,
         timedWorkstreams, // Use WBS Builder workstreams with default timings
         planningContext,
-        enrichedUserContext,
+        fullyEnrichedContext as UserContext,
         namingContext,
         strategicContext,
         decisionValidation,
@@ -370,25 +397,18 @@ export class EPMSynthesizer {
     insights: StrategyInsights,
     namingContext?: any
   ): { decisions: any[]; swotData: any } {
-    // Extract decisions from namingContext (works for both legacy and Journey Builder paths)
-    // The route handler already fetches from frameworkInsights if version.decisionsData is empty
-    const decisionsData = namingContext?.decisionsData?.decisions || [];
-    const selectedDecisions = namingContext?.selectedDecisions || {};
-
-    // Merge selection into decisions — default to recommended option when no explicit selection
-    const decisions = decisionsData.map((d: any) => {
-      const explicitSelection = selectedDecisions[d.id] || d.selectedOptionId;
-      if (explicitSelection) {
-        return { ...d, selectedOptionId: explicitSelection };
-      }
-      // No explicit selection: find and use the recommended option
-      const recommendedOption = (d.options || []).find((o: any) => o.recommended === true);
-      const selectedOptionId = recommendedOption?.id || null;
-      if (selectedOptionId) {
-        console.log(`[EPM Synthesis] Decision "${(d.question || '').substring(0, 60)}..." → defaulting to recommended option: ${recommendedOption.label?.substring(0, 50)}`);
-      }
-      return { ...d, selectedOptionId };
-    });
+    // Canonicalize decision selection so stale fallback maps do not override chosen values.
+    const normalizedSelection = normalizeStrategicDecisions(
+      namingContext?.decisionsData,
+      namingContext?.selectedDecisions
+    );
+    const decisions = normalizedSelection.decisions;
+    if (normalizedSelection.mismatches.length > 0) {
+      console.warn(
+        '[EPM Synthesis] ⚠️ Decision selection mismatches normalized:',
+        normalizedSelection.mismatches
+      );
+    }
 
     // SWOT extraction with Journey Builder fallback
     // Priority: 1. Journey Builder SWOT (from frameworkInsights), 2. Insights, 3. Market context
@@ -471,8 +491,14 @@ export class EPMSynthesizer {
    */
   private parseUserConstraints(
     insights: StrategyInsights,
-    planningContext?: PlanningContext
+    planningContext?: PlanningContext,
+    userContext?: UserContext,
   ): { budget?: { min: number; max: number }; timeline?: { min: number; max: number } } {
+    if (!shouldUseTextConstraintFallback(userContext?.constraintMode)) {
+      console.log(`[EPM Synthesis] 💡 Constraint mode "${userContext?.constraintMode}" - skipping text constraint parsing`);
+      return {};
+    }
+
     const rawUserInput = planningContext?.business?.description || '';
     return extractUserConstraintsFromText(rawUserInput, insights.marketContext?.budgetRange);
   }
@@ -508,6 +534,139 @@ export class EPMSynthesizer {
     }
 
     return base;
+  }
+
+  /**
+   * Compute Capacity Envelope - UPSTREAM budget-aware resource constraints
+   *
+   * SPRINT 6B FIX #1: Envelope computes ACTUAL external cost first (Option A)
+   * This ensures envelope and generator use the SAME external cost model.
+   *
+   * Formula: maxAffordableFTEs = floor((budgetMax / 1.265 - actualExternal) / 150000)
+   *   - budgetMax: User's stated maximum budget
+   *   - 1.265 = 1.15 (overhead) * 1.10 (contingency)
+   *   - actualExternal: Sum of generateExternalResources() costs
+   *   - 150000: Average annual cost per FTE
+   *
+   * Returns: CapacityEnvelope that defines resource limits for ALL generators
+   */
+  private computeCapacityEnvelope(
+    userContext: UserContext | undefined,
+    workstreams: Workstream[],
+    insights: StrategyInsights
+  ): any {
+    const budgetMax = userContext?.budgetRange?.max;
+
+    // CRITICAL FIX: Compute ACTUAL external resources using the same function
+    // that FinancialPlanGenerator will use. This closes the math loop.
+    const externalResources = this.resourceAllocator.generateExternalResources(insights, userContext);
+    const actualExternal = externalResources.reduce((sum, r) => sum + r.estimatedCost, 0);
+
+    console.log('[CapacityEnvelope] External cost authority:');
+    console.log(`  External resources: ${externalResources.length} items`);
+    console.log(`  Total external cost: $${(actualExternal / 1e6).toFixed(2)}M`);
+
+    if (!budgetMax) {
+      // No budget constraint - compute uncapped FTEs based on workstream complexity
+      const uncappedFTEs = Math.max(4, Math.min(workstreams.length * 2, 20));
+      return {
+        maxBudget: undefined,
+        estimatedExternal: actualExternal,
+        externalResources,  // Store for generator to reuse
+        maxAffordableFTEs: uncappedFTEs,
+        budgetConstrained: false,
+        infeasible: false,
+        capacityRationale: `Unconstrained: ${uncappedFTEs} FTEs based on ${workstreams.length} workstreams`,
+      };
+    }
+
+    // Budget-constrained: Compute maxAffordableFTEs from budget using ACTUAL external
+    const maxAffordableFTEs = Math.floor((budgetMax / 1.265 - actualExternal) / 150000);
+    const uncappedFTEs = Math.max(4, Math.min(workstreams.length * 2, 20));
+
+    // Check for infeasibility BEFORE enforcing floor
+    const infeasible = maxAffordableFTEs < 4;
+    if (infeasible) {
+      console.error(
+        `[CapacityEnvelope] ❌ INFEASIBLE: Budget $${(budgetMax / 1e6).toFixed(2)}M only supports ${maxAffordableFTEs} FTEs, ` +
+        `but minimum viable team is 4 FTEs. Forcing minFTEs=4, but final budget WILL EXCEED constraint.`
+      );
+    }
+
+    // Ensure minimum viable team (4 FTEs)
+    const effectiveFTEs = Math.max(4, maxAffordableFTEs);
+
+    console.log('[CapacityEnvelope] Budget-aware capacity:');
+    console.log(`  Budget: $${(budgetMax / 1e6).toFixed(2)}M`);
+    console.log(`  External: $${(actualExternal / 1e6).toFixed(2)}M (20% of budget)`);
+    console.log(`  Remaining for personnel: $${((budgetMax - actualExternal * 1.265) / 1e6).toFixed(2)}M`);
+    console.log(`  Max affordable FTEs: ${maxAffordableFTEs} (formula)`);
+    console.log(`  Uncapped FTEs: ${uncappedFTEs} (workstream-based)`);
+    console.log(`  Effective FTEs: ${effectiveFTEs} (min 4)`);
+
+    if (effectiveFTEs < uncappedFTEs) {
+      console.warn(`[CapacityEnvelope] ⚠️ Budget constrains team to ${effectiveFTEs} FTEs (optimal: ${uncappedFTEs})`);
+    }
+
+    return {
+      maxBudget: budgetMax,
+      estimatedExternal: actualExternal,
+      externalResources,  // Store for generator to reuse
+      maxAffordableFTEs: effectiveFTEs,
+      budgetConstrained: effectiveFTEs < uncappedFTEs,
+      infeasible,
+      capacityRationale: infeasible
+        ? `⚠️ INFEASIBLE: Budget too low for minimum viable team (requires 4 FTEs, budget supports ${maxAffordableFTEs})`
+        : effectiveFTEs < uncappedFTEs
+          ? `Budget-constrained: $${(budgetMax / 1e6).toFixed(1)}M supports ${effectiveFTEs} FTEs (optimal: ${uncappedFTEs})`
+          : `Budget supports ${effectiveFTEs} FTEs for ${workstreams.length} workstreams`,
+    };
+  }
+
+  /**
+   * Compute Timeline Envelope - UPSTREAM time-aware phase distribution
+   *
+   * SPRINT 6B: This runs BEFORE timeline generation, establishing the time budget
+   * within which ALL phases must be distributed.
+   *
+   * Endmonth semantics: EXCLUSIVE (e.g., [0, 24) means months 0-23)
+   *
+   * Returns: TimelineEnvelope that defines schedule limits for timeline calculator
+   */
+  private computeTimelineEnvelope(
+    userContext: UserContext | undefined,
+    workstreams: Workstream[]
+  ): any {
+    const maxMonths = userContext?.timelineRange?.max;
+    const minMonths = userContext?.timelineRange?.min;
+
+    if (!maxMonths) {
+      // No timeline constraint - use default 24-month window
+      const defaultDuration = 24;
+      return {
+        maxMonths: undefined,
+        minMonths: undefined,
+        effectiveDuration: defaultDuration,
+        includesBuffer: false,
+        timelineConstrained: false,
+        scheduleRationale: `Unconstrained: ${defaultDuration} months default`,
+      };
+    }
+
+    // Timeline-constrained: Use maxMonths as hard limit
+    console.log('[TimelineEnvelope] Time-aware schedule:');
+    console.log(`  Max months: ${maxMonths}`);
+    console.log(`  Min months: ${minMonths || 'not specified'}`);
+    console.log(`  Workstreams: ${workstreams.length}`);
+
+    return {
+      maxMonths,
+      minMonths,
+      effectiveDuration: maxMonths,
+      includesBuffer: true, // maxMonths includes stabilization buffer
+      timelineConstrained: true,
+      scheduleRationale: `Timeline-constrained: ${maxMonths} months hard limit`,
+    };
   }
 
   /**
@@ -611,6 +770,7 @@ export class EPMSynthesizer {
 
       return {
         id: decision.id || `decision_${index + 1}`,
+        selectedOptionId: decision.selectedOptionId,
         title,
         optionLabel,
         optionDescription,
@@ -691,6 +851,7 @@ export class EPMSynthesizer {
     workstream: Workstream,
     seed: {
       id: string;
+      selectedOptionId?: string;
       title: string;
       optionLabel: string;
       optionDescription: string;
@@ -718,6 +879,16 @@ export class EPMSynthesizer {
     workstream.deliverables = [...decisionDeliverables, ...workstream.deliverables];
     this.resequenceDeliverables(workstream);
 
+    // Persist canonical decision linkage for integrity validation/export gates.
+    workstream.metadata = {
+      ...(workstream.metadata || {}),
+      decisionId: seed.id,
+      selectedOptionId: seed.selectedOptionId || null,
+      selectedOptionLabel: seed.optionLabel || null,
+      decisionTitle: seed.title || null,
+      decisionLinkSource: 'strategic_decision',
+    };
+
     if (seed.impactAreas.length > 0) {
       const impactLine = `Impact areas: ${seed.impactAreas.join(', ')}.`;
       if (!workstream.description.includes(impactLine)) {
@@ -736,6 +907,7 @@ export class EPMSynthesizer {
   private createDecisionWorkstream(
     seed: {
       id: string;
+      selectedOptionId?: string;
       title: string;
       optionLabel: string;
       optionDescription: string;
@@ -746,7 +918,7 @@ export class EPMSynthesizer {
     index: number,
     planningContext: PlanningContext
   ): Workstream {
-    const name = this.truncateText(`Decision Implementation: ${seed.optionLabel || seed.title}`, 72);
+    const name = `Decision Implementation: ${seed.optionLabel || seed.title}`;
     const description = [
       `Implements selected decision: ${seed.title}.`,
       seed.optionDescription ? `Option detail: ${seed.optionDescription}` : null,
@@ -768,6 +940,13 @@ export class EPMSynthesizer {
       endMonth,
       dependencies: [],
       confidence: 0.9,
+      metadata: {
+        decisionId: seed.id,
+        selectedOptionId: seed.selectedOptionId || null,
+        selectedOptionLabel: seed.optionLabel || null,
+        decisionTitle: seed.title || null,
+        decisionLinkSource: 'strategic_decision',
+      },
     };
 
     this.resequenceDeliverables(workstream);
@@ -777,6 +956,7 @@ export class EPMSynthesizer {
   private buildDecisionDeliverables(
     seed: {
       id: string;
+      selectedOptionId?: string;
       title: string;
       optionLabel: string;
       optionDescription: string;
@@ -1172,6 +1352,36 @@ export class EPMSynthesizer {
     } else {
       console.log('[EPM Synthesis] ✓ Decision alignment applied (no count change)');
     }
+
+    const decisionCoherence = this.validateDecisionImplementationCoherence(
+      strategicContext?.decisions || [],
+      alignedWorkstreams
+    );
+    if (decisionCoherence.issues.length > 0) {
+      console.warn(
+        `[EPM Synthesis] ⚠️ Decision coherence issues: ${decisionCoherence.issues.length}`
+      );
+      decisionCoherence.issues.forEach((issue) => console.warn(`    - ${issue}`));
+      if (isEPMStrictIntegrityGatesEnabled()) {
+        throw new Error(`Decision coherence gate failed: ${decisionCoherence.issues.join(' | ')}`);
+      }
+    }
+
+    const semanticRepair = this.repairWorkstreamSemanticAlignment(
+      alignedWorkstreams,
+      planningContext.business.domainProfile?.code
+    );
+    const semanticallyAlignedWorkstreams = semanticRepair.workstreams;
+    if (semanticRepair.repairs.length > 0) {
+      console.log(`[EPM Synthesis] 🔧 Semantic alignment repairs: ${semanticRepair.repairs.length}`);
+      semanticRepair.repairs.forEach((repair) => console.log(`  - ${repair}`));
+    } else {
+      console.log('[EPM Synthesis] ✓ Semantic alignment repair pass: no changes');
+    }
+
+    const timelineReadyWorkstreams = isEPMDomainResilienceEnabled()
+      ? this.ensureTimelineCoverage(semanticallyAlignedWorkstreams, enrichedUserContext, planningContext)
+      : semanticallyAlignedWorkstreams;
     
     onProgress?.({
       type: 'step-start',
@@ -1180,21 +1390,22 @@ export class EPMSynthesizer {
       elapsedSeconds: Math.round((Date.now() - processStartTime) / 1000)
     });
     
-    const timeline = await this.timelineCalculator.calculate(insights, alignedWorkstreams, enrichedUserContext);
+    let timeline = await this.timelineCalculator.calculate(insights, timelineReadyWorkstreams, enrichedUserContext);
     console.log(`[EPM Synthesis] ✓ Timeline: ${timeline.totalMonths} months, ${timeline.phases.length} phases`);
 
     // Sprint 1: Deduplicate workstreams before phase assignment
-    const deduplicatedWorkstreams = this.deduplicateWorkstreams(alignedWorkstreams);
-    if (deduplicatedWorkstreams.length !== alignedWorkstreams.length) {
-      console.log(`[EPM Synthesis] ✓ Deduplication: ${alignedWorkstreams.length} → ${deduplicatedWorkstreams.length} workstreams`);
+    const deduplicatedWorkstreams = this.deduplicateWorkstreams(timelineReadyWorkstreams);
+    if (deduplicatedWorkstreams.length !== timelineReadyWorkstreams.length) {
+      console.log(`[EPM Synthesis] ✓ Deduplication: ${timelineReadyWorkstreams.length} → ${deduplicatedWorkstreams.length} workstreams`);
     }
 
     // Sprint 1: Assign phases with containment enforcement
     const phasedWorkstreams = this.assignWorkstreamPhases(deduplicatedWorkstreams, timeline);
-
-    // Fill empty phases with coverage workstreams to prevent timeline gaps
+    // Always enforce phase coverage to avoid empty lifecycle phases in exported plans.
+    // Domain resilience still controls upstream augmentation, but structural phase coverage is mandatory.
     this.fillEmptyPhases(phasedWorkstreams, timeline, planningContext);
-
+    this.fillInternalTimelineGaps(phasedWorkstreams, timeline, planningContext);
+    timeline = this.syncTimelinePhaseWorkstreams(timeline, phasedWorkstreams);
     onProgress?.({
       type: 'step-start',
       step: 'resources',
@@ -1225,11 +1436,12 @@ export class EPMSynthesizer {
     // LLM-driven workstream owner assignment (replaces hardcoded keyword matching)
     // Uses batch AI call to infer appropriate role for each workstream
     const ownerInferenceContext = {
-      industry: planningContext.business.industry || 'general',
+      industry: planningContext.business.domainProfile?.industryLabel || planningContext.business.industry || 'general',
       businessType: strategyContext?.businessType?.subcategory || strategyContext?.businessType?.category || 'general_business',
       geography: 'unspecified', // TODO: Extract from strategic understanding
       initiativeType: planningContext.business.initiativeType || 'market_entry',
       programName,
+      domainProfile: planningContext.business.domainProfile as DomainProfile | undefined,
     };
     const roleValidationWarnings = await this.assignWorkstreamOwners(phasedWorkstreams, resourcePlan, ownerInferenceContext);
     console.log(`[EPM Synthesis] ✓ Workstream owners assigned via LLM inference`);
@@ -1248,7 +1460,7 @@ export class EPMSynthesizer {
       qaPlan,
     ] = await Promise.all([
       this.executiveSummaryGenerator.generate(insights, programName),
-      this.riskGenerator.generate(insights, alignedWorkstreams),
+      this.riskGenerator.generate(insights, semanticallyAlignedWorkstreams),
       this.stakeholderGenerator.generate(insights),
       this.qaPlanGenerator.generate(insights),
     ]);
@@ -1265,7 +1477,7 @@ export class EPMSynthesizer {
     };
     console.log('[EPM Synthesis] ✓ Assigned risk owners (buildV2Program):', risksWithOwners.map(r => ({ id: r.id, owner: r.owner })));
     
-    const stageGates = await this.stageGateGenerator.generate(timeline, riskRegister, phasedWorkstreams);
+    let stageGates = await this.stageGateGenerator.generate(timeline, riskRegister, phasedWorkstreams);
     
     onProgress?.({
       type: 'step-start',
@@ -1274,8 +1486,11 @@ export class EPMSynthesizer {
       elapsedSeconds: Math.round((Date.now() - processStartTime) / 1000)
     });
     
-    const businessContext = insights.marketContext?.industry || '';
-    const validationResult = this.validator.validate(phasedWorkstreams, timeline, stageGates, businessContext);
+    const businessContext = planningContext.business.domainProfile?.industryLabel
+      || planningContext.business.industry
+      || insights.marketContext?.industry
+      || '';
+    let validationResult = this.validator.validate(phasedWorkstreams, timeline, stageGates, businessContext);
     if (validationResult.errors.length > 0) {
       console.log(`[EPM Synthesis] ⚠️ Validation found ${validationResult.errors.length} errors, auto-corrected`);
       validationResult.corrections.forEach(c => console.log(`    - ${c}`));
@@ -1284,15 +1499,59 @@ export class EPMSynthesizer {
       console.log(`[EPM Synthesis] ⚠️ Validation warnings: ${validationResult.warnings.length}`);
       validationResult.warnings.forEach(w => console.log(`    - ${w}`));
     }
+
+    // Validation may shift phase boundaries; re-apply mandatory phase coverage and
+    // regenerate stage gates on the corrected timeline so late phases cannot become empty.
+    if (validationResult.corrections.length > 0) {
+      this.fillEmptyPhases(phasedWorkstreams, timeline, planningContext);
+      this.fillInternalTimelineGaps(phasedWorkstreams, timeline, planningContext);
+      timeline = this.syncTimelinePhaseWorkstreams(timeline, phasedWorkstreams);
+      stageGates = await this.stageGateGenerator.generate(timeline, riskRegister, phasedWorkstreams);
+
+      const revalidated = this.validator.validate(phasedWorkstreams, timeline, stageGates, businessContext);
+      validationResult = {
+        valid: revalidated.valid,
+        errors: revalidated.errors,
+        corrections: Array.from(new Set([...(validationResult.corrections || []), ...(revalidated.corrections || [])])),
+        warnings: Array.from(new Set([...(validationResult.warnings || []), ...(revalidated.warnings || [])])),
+      };
+    }
     
-    const planningGrid = this.validator.analyzePlanningGrid(alignedWorkstreams, timeline);
+    const planningGrid = this.validator.analyzePlanningGrid(phasedWorkstreams, timeline);
     if (planningGrid.conflicts.length > 0) {
       console.log(`[EPM Synthesis] ⚠️ Planning grid conflicts: ${planningGrid.conflicts.length}`);
     }
 
     // Sprint 1 (P2 Scheduling): Run WBS timeline validation
     console.log('[EPM Synthesis] 🔍 Running WBS timeline quality gates');
-    const qualityReport = qualityGateRunner.runQualityGate(alignedWorkstreams, timeline, stageGates, businessContext);
+    const qualityReport = qualityGateRunner.runQualityGate(
+      phasedWorkstreams,
+      timeline,
+      stageGates,
+      businessContext,
+      resourcePlan,
+      planningContext.business.domainProfile as DomainProfile | undefined
+    );
+    let qualityErrorMessages = qualityReport.validatorResults.flatMap((result) =>
+      result.issues
+        .filter((issue) => issue.severity === 'error')
+        .map((issue) => `[${result.validatorName}] ${issue.code}: ${issue.message}`)
+    );
+    let qualityWarningMessages = qualityReport.validatorResults.flatMap((result) =>
+      result.issues
+        .filter((issue) => issue.severity !== 'error')
+        .map((issue) => `[${result.validatorName}] ${issue.code}: ${issue.message}`)
+    );
+    const strictWarningCodes = new Set([
+      'TIMELINE_UNDER_UTILIZATION',
+      'EMPTY_TIMELINE_PHASE',
+      'EMPTY_STAGE_GATE_DELIVERABLES',
+    ]);
+    const strictWarnings = qualityReport.validatorResults.flatMap((result) =>
+      result.issues
+        .filter((issue) => issue.severity !== 'error' && strictWarningCodes.has(issue.code))
+        .map((issue) => `[${result.validatorName}] ${issue.code}: ${issue.message}`)
+    );
     if (!qualityReport.overallPassed) {
       console.log(`[EPM Synthesis] ⚠️ WBS validation found ${qualityReport.errorCount} errors, ${qualityReport.warningCount} warnings`);
       qualityReport.validatorResults.forEach(result => {
@@ -1307,6 +1566,10 @@ export class EPMSynthesizer {
       });
     } else {
       console.log(`[EPM Synthesis] ✓ WBS timeline validation passed`);
+    }
+    if (isEPMStrictIntegrityGatesEnabled() && (qualityErrorMessages.length > 0 || strictWarnings.length > 0)) {
+      const gateIssues = [...qualityErrorMessages, ...strictWarnings];
+      throw new Error(`Quality gate failed: ${gateIssues.join(' | ')}`);
     }
 
     onProgress?.({
@@ -1327,7 +1590,7 @@ export class EPMSynthesizer {
       benefitsRealization = this.benefitsGenerator.generateFromContext(
         strategicContext!.decisions,
         strategicContext!.swotData,
-        alignedWorkstreams,
+        semanticallyAlignedWorkstreams,
         resourcePlan.internalTeam,
         timeline.totalMonths
       );
@@ -1370,13 +1633,54 @@ export class EPMSynthesizer {
       this.exitStrategyGenerator.generate(insights, riskRegister),
     ]);
 
+    const kpiQualityReport = qualityGateRunner.runSelectedValidators(
+      phasedWorkstreams,
+      timeline,
+      stageGates,
+      ['KPIQualityValidator'],
+      businessContext,
+      resourcePlan,
+      planningContext.business.domainProfile as DomainProfile | undefined,
+      kpis.kpis
+    );
+    const kpiQualityErrors = kpiQualityReport.validatorResults.flatMap((result) =>
+      result.issues
+        .filter((issue) => issue.severity === 'error')
+        .map((issue) => `[${result.validatorName}] ${issue.code}: ${issue.message}`)
+    );
+    const kpiQualityWarnings = kpiQualityReport.validatorResults.flatMap((result) =>
+      result.issues
+        .filter((issue) => issue.severity !== 'error')
+        .map((issue) => `[${result.validatorName}] ${issue.code}: ${issue.message}`)
+    );
+    if (kpiQualityErrors.length > 0 || kpiQualityWarnings.length > 0) {
+      console.log(
+        `[EPM Synthesis] ⚠️ KPI quality gate: ${kpiQualityErrors.length} errors, ${kpiQualityWarnings.length} warnings`
+      );
+    } else {
+      console.log('[EPM Synthesis] ✓ KPI quality gate passed');
+    }
+    qualityErrorMessages = [...qualityErrorMessages, ...kpiQualityErrors];
+    qualityWarningMessages = [...qualityWarningMessages, ...kpiQualityWarnings];
+    if (isEPMStrictIntegrityGatesEnabled() && kpiQualityErrors.length > 0) {
+      throw new Error(`KPI quality gate failed: ${kpiQualityErrors.join(' | ')}`);
+    }
+
+    const mergedValidationResult = {
+      errors: [...validationResult.errors, ...qualityErrorMessages],
+      corrections: validationResult.corrections,
+      warnings: [...(validationResult.warnings || []), ...qualityWarningMessages],
+    };
     const validationReport = this.buildValidationReport(
       phasedWorkstreams,
       timeline,
       stageGates,
-      validationResult,
+      mergedValidationResult,
       planningGrid,
-      roleValidationWarnings
+      [
+        ...roleValidationWarnings,
+        ...decisionCoherence.issues.map((issue) => `[DecisionCoherence] ${issue}`),
+      ]
     );
     
     const confidences = [
@@ -1406,10 +1710,14 @@ export class EPMSynthesizer {
 
     // SPRINT 1 Phase 1: Budget calculation violations
     let hasBudgetViolation = (decisionValidation?.violations || []).some(v => v.includes('budget'));
-    if (financialPlan?.budgetViolation) {
-      const bv = financialPlan.budgetViolation;
+    const budgetViolation = (financialPlan as any)?.budgetViolation;
+    if (budgetViolation && typeof budgetViolation === 'object') {
+      const bv = budgetViolation;
       const budgetMsg = `Calculated costs ($${(bv.calculatedCost / 1_000_000).toFixed(1)}M) exceed user budget constraint ($${(bv.userConstraint / 1_000_000).toFixed(1)}M) by ${bv.exceedsPercentage.toFixed(1)}%`;
       combinedViolations.push(budgetMsg);
+      hasBudgetViolation = true;
+    } else if (budgetViolation === true) {
+      combinedViolations.push('Calculated costs exceed user budget constraint.');
       hasBudgetViolation = true;
     }
 
@@ -1528,6 +1836,18 @@ export class EPMSynthesizer {
       );
     }
 
+    const costBreakdown = Array.isArray(financialPlan.costBreakdown) ? financialPlan.costBreakdown : [];
+    const extractCost = (...patterns: RegExp[]): number => {
+      const matched = costBreakdown.find((item: any) => {
+        const category = String(item?.category || '').toLowerCase();
+        return patterns.some((pattern) => pattern.test(category));
+      });
+      return typeof matched?.amount === 'number' ? matched.amount : 0;
+    };
+    const personnelCost = extractCost(/personnel/, /internal/);
+    const externalServicesCost = extractCost(/external/);
+    const overheadCost = extractCost(/overhead/);
+
     // DUAL-MODE EPM: For budget violations, ADD CONTRADICTION instead of throwing
     // This allows cost discovery mode and user to see the gap
     if (!invariant2Pass && budgetMax) {
@@ -1541,21 +1861,15 @@ export class EPMSynthesizer {
       executiveSummary.strategicImperatives.unshift({
         action: `Resolve budget constraint violation: secure additional $${(shortfall / 1e6).toFixed(2)}M funding or reduce scope`,
         priority: 'high',
-        rationale: `Your budget constraint is $${(budgetMax / 1e6).toFixed(2)}M, but your selected strategic decisions and required workstreams will cost $${(financialPlan.totalBudget / 1e6).toFixed(2)}M (${percentOver}% over budget). This includes $${(financialPlan.personnel / 1e6).toFixed(2)}M personnel (${resourcePlan.totalFTEs} FTEs), $${(financialPlan.external / 1e6).toFixed(2)}M external services, and $${(financialPlan.contingency / 1e6).toFixed(2)}M contingency. Options: (1) Secure additional $${(shortfall / 1e6).toFixed(2)}M funding, (2) Modify strategic decisions to reduce scope and costs, (3) Extend timeline to ${extendedTimeline} months to spread costs, or (4) Accept that this plan exceeds your stated budget and proceed with full funding.`
+        rationale: `Your budget constraint is $${(budgetMax / 1e6).toFixed(2)}M, but your selected strategic decisions and required workstreams will cost $${(financialPlan.totalBudget / 1e6).toFixed(2)}M (${percentOver}% over budget). This includes $${(personnelCost / 1e6).toFixed(2)}M personnel (${resourcePlan.totalFTEs} FTEs), $${(externalServicesCost / 1e6).toFixed(2)}M external services, $${(overheadCost / 1e6).toFixed(2)}M overhead, and $${(financialPlan.contingency / 1e6).toFixed(2)}M contingency. Options: (1) Secure additional $${(shortfall / 1e6).toFixed(2)}M funding, (2) Modify strategic decisions to reduce scope and costs, (3) Extend timeline to ${extendedTimeline} months to spread costs, or (4) Accept that this plan exceeds your stated budget and proceed with full funding.`
       });
 
-      // Update executive summary to reflect budget situation
-      if (!budgetMax) {
-        // Cost discovery mode
-        executiveSummary.investmentRequired = `Your plan requires $${(financialPlan.totalBudget / 1e6).toFixed(2)}M over ${timeline.totalMonths} months with ${resourcePlan.totalFTEs} FTEs. This includes $${(financialPlan.personnel / 1e6).toFixed(2)}M personnel, $${(financialPlan.external / 1e6).toFixed(2)}M external services, $${(financialPlan.overhead / 1e6).toFixed(2)}M overhead, and $${(financialPlan.contingency / 1e6).toFixed(2)}M contingency (${financialPlan.contingencyPercentage}%). This establishes the investment needed for your strategic plan.`;
-      } else {
-        // Constrained mode with violation
-        executiveSummary.investmentRequired = `Budget constraint: $${(budgetMax / 1e6).toFixed(2)}M (specified). Actual cost: $${(financialPlan.totalBudget / 1e6).toFixed(2)}M. Shortfall: $${(shortfall / 1e6).toFixed(2)}M (${percentOver}% over). See contradictions above for resolution options.`;
-      }
+      // Constrained mode with violation
+      executiveSummary.investmentRequired = `Budget constraint: $${(budgetMax / 1e6).toFixed(2)}M (specified). Actual cost: $${(financialPlan.totalBudget / 1e6).toFixed(2)}M. Shortfall: $${(shortfall / 1e6).toFixed(2)}M (${percentOver}% over). See contradictions above for resolution options.`;
     } else if (!budgetMax) {
       // Cost discovery mode - no budget set
       console.log(`[DUAL-MODE EPM] 💡 Cost discovery mode - reporting requirements without constraint`);
-      executiveSummary.investmentRequired = `Your plan requires $${(financialPlan.totalBudget / 1e6).toFixed(2)}M over ${timeline.totalMonths} months with ${resourcePlan.totalFTEs} FTEs. This includes $${(financialPlan.personnel / 1e6).toFixed(2)}M personnel, $${(financialPlan.external / 1e6).toFixed(2)}M external services, $${(financialPlan.overhead / 1e6).toFixed(2)}M overhead, and $${(financialPlan.contingency / 1e6).toFixed(2)}M contingency (${financialPlan.contingencyPercentage}%). This establishes the investment needed for your strategic plan.`;
+      executiveSummary.investmentRequired = `Your plan requires $${(financialPlan.totalBudget / 1e6).toFixed(2)}M over ${timeline.totalMonths} months with ${resourcePlan.totalFTEs} FTEs. This includes $${(personnelCost / 1e6).toFixed(2)}M personnel, $${(externalServicesCost / 1e6).toFixed(2)}M external services, $${(overheadCost / 1e6).toFixed(2)}M overhead, and $${(financialPlan.contingency / 1e6).toFixed(2)}M contingency (${financialPlan.contingencyPercentage}%). This establishes the investment needed for your strategic plan.`;
     }
 
     console.log('[EPM Synthesis] ✓ Program built successfully');
@@ -1567,6 +1881,96 @@ export class EPMSynthesizer {
     }
     
     return program;
+  }
+
+  private repairWorkstreamSemanticAlignment(
+    workstreams: Workstream[],
+    domainCode?: DomainProfile['code']
+  ): { workstreams: Workstream[]; repairs: string[] } {
+    const repaired = workstreams.map((ws) => ({
+      ...ws,
+      deliverables: (ws.deliverables || []).map((d) => ({ ...d })),
+      dependencies: [...(ws.dependencies || [])],
+      metadata: ws.metadata ? { ...ws.metadata } : undefined,
+    }));
+    const repairs: string[] = [];
+
+    const domainReplacements: Record<string, Array<{ pattern: RegExp; replacement: string }>> = {
+      ports_logistics: [
+        { pattern: /\bsaas\b/gi, replacement: 'operations' },
+        { pattern: /\bsite reliability engineering\b/gi, replacement: 'operational reliability' },
+        { pattern: /\bplatform reliability\b/gi, replacement: 'operational reliability' },
+        { pattern: /\bapi integration\b/gi, replacement: 'systems integration' },
+        { pattern: /\bapi\b/gi, replacement: 'data interface' },
+        { pattern: /\bdevops\b/gi, replacement: 'operations' },
+        { pattern: /\bproduct roadmap\b/gi, replacement: 'execution roadmap' },
+      ],
+    };
+
+    const applyDomainReplacements = (value: string): string => {
+      if (!domainCode || !value) return value;
+      const replacements = domainReplacements[domainCode] || [];
+      let next = value;
+      for (const item of replacements) {
+        next = next.replace(item.pattern, item.replacement);
+      }
+      return next;
+    };
+
+    const hasDomainLexiconLeak = (value: string): boolean => {
+      if (!domainCode || !value) return false;
+      if (domainCode !== 'ports_logistics') return false;
+      return /\b(saas|api|platform reliability|site reliability engineering|devops|product roadmap)\b/i.test(value);
+    };
+
+    for (const ws of repaired) {
+      if (!isSemanticRepairCandidate(ws)) continue;
+
+      const declared = analyzeWorkstreamDeclaredTheme(ws);
+      const dominant = analyzeWorkstreamDeliverableTheme(ws);
+      const shouldRepairDomainLeak =
+        domainCode === 'ports_logistics' &&
+        (
+          hasDomainLexiconLeak(ws.name) ||
+          hasDomainLexiconLeak(ws.description) ||
+          (ws.deliverables || []).some((d) => hasDomainLexiconLeak(d.name || '') || hasDomainLexiconLeak(d.description || ''))
+        );
+
+      if (dominant.theme === 'general' || dominant.score < 2) continue;
+      if (!shouldRepairDomainLeak) {
+        if (declared.theme === dominant.theme) continue;
+        if (dominant.score < declared.score + 2) continue;
+      }
+
+      const canonicalName = getCanonicalWorkstreamName(dominant.theme, domainCode);
+      if (!canonicalName && !shouldRepairDomainLeak) continue;
+
+      const previousName = ws.name;
+      ws.name = applyDomainReplacements(canonicalName || ws.name);
+      ws.description = applyDomainReplacements(ws.description || '');
+      ws.deliverables = (ws.deliverables || []).map((deliverable) => ({
+        ...deliverable,
+        name: applyDomainReplacements(deliverable.name || ''),
+        description: applyDomainReplacements(deliverable.description || ''),
+      }));
+      ws.metadata = {
+        ...(ws.metadata || {}),
+        semanticRepair: {
+          previousName,
+          renamedTo: ws.name,
+          dominantTheme: dominant.theme,
+          dominantScore: dominant.score,
+          declaredTheme: declared.theme,
+          declaredScore: declared.score,
+          domainCode: domainCode || null,
+          domainLeakRepaired: shouldRepairDomainLeak,
+        },
+      };
+
+      repairs.push(`${ws.id}: "${previousName}" -> "${ws.name}"`);
+    }
+
+    return { workstreams: repaired, repairs };
   }
 
   /**
@@ -1602,7 +2006,7 @@ export class EPMSynthesizer {
     }
 
     // Enrich userContext with parsed constraints (same as main path)
-    const legacyConstraints = this.parseUserConstraints(insights);
+    const legacyConstraints = this.parseUserConstraints(insights, undefined, userContext);
     const enrichedLegacyContext = this.applyUserConstraintsToContext(userContext, legacyConstraints);
 
     const timeline = await this.timelineCalculator.calculate(insights, workstreams, enrichedLegacyContext);
@@ -1839,22 +2243,336 @@ export class EPMSynthesizer {
     });
   }
 
+  private ensureTimelineCoverage(
+    workstreams: Workstream[],
+    userContext: UserContext | undefined,
+    planningContext: PlanningContext
+  ): Workstream[] {
+    const maxMonths = userContext?.timelineRange?.max || planningContext.execution?.timeline?.max;
+    if (!maxMonths || workstreams.length === 0) {
+      return workstreams;
+    }
+
+    const currentMaxEnd = Math.max(...workstreams.map((ws) => ws.endMonth));
+    const targetCoverageEnd = Math.max(
+      currentMaxEnd,
+      Math.min(maxMonths - 1, Math.floor(maxMonths * 0.85))
+    );
+    const gapMonths = targetCoverageEnd - currentMaxEnd;
+
+    if (gapMonths < 3) {
+      return workstreams;
+    }
+
+    const anchorIds = [...workstreams]
+      .sort((a, b) => b.endMonth - a.endMonth)
+      .slice(0, 2)
+      .map((ws) => ws.id);
+
+    const nextIndex = this.nextWorkstreamIndex(workstreams);
+    const generated = this.createCoverageWorkstreams(
+      nextIndex,
+      currentMaxEnd + 1,
+      targetCoverageEnd,
+      anchorIds,
+      planningContext
+    );
+
+    if (generated.length === 0) {
+      return workstreams;
+    }
+
+    console.log(
+      `[EPM Synthesis] 🧭 Added ${generated.length} lifecycle workstreams to improve timeline utilization ` +
+      `(M${currentMaxEnd} → M${targetCoverageEnd}, target=${maxMonths}mo)`
+    );
+    generated.forEach((ws) => {
+      console.log(`  - ${ws.id} ${ws.name} (M${ws.startMonth}-M${ws.endMonth})`);
+    });
+
+    return [...workstreams, ...generated];
+  }
+
+  private createCoverageWorkstreams(
+    startIndex: number,
+    startMonth: number,
+    endMonth: number,
+    anchorDependencies: string[],
+    planningContext: PlanningContext
+  ): Workstream[] {
+    if (startMonth > endMonth) {
+      return [];
+    }
+
+    const domainLabel =
+      planningContext.business.domainProfile?.industryLabel ||
+      planningContext.business.industry ||
+      planningContext.business.type ||
+      'target domain';
+
+    const midpoint = Math.floor((startMonth + endMonth) / 2);
+    const phaseOneEnd = Math.max(startMonth, midpoint);
+    const phaseTwoStart = Math.min(endMonth, phaseOneEnd + 1);
+
+    const candidates: Array<{ name: string; description: string; start: number; end: number }> = [
+      {
+        name: `Pilot Operations Hardening (${domainLabel})`,
+        description:
+          `Stabilize pilot operations, tune controls, and close implementation gaps for ${domainLabel} execution before scale-up.`,
+        start: startMonth,
+        end: phaseOneEnd,
+      },
+      {
+        name: `Scale Readiness & Evidence Pack (${domainLabel})`,
+        description:
+          `Prepare scale rollout artifacts, audit evidence, support playbooks, and governance checkpoints for sustained delivery in ${domainLabel}.`,
+        start: phaseTwoStart,
+        end: endMonth,
+      },
+    ].filter((item) => item.start <= item.end);
+
+    const created: Workstream[] = candidates.map((candidate, idx) => {
+      const id = `WS${String(startIndex + idx).padStart(3, '0')}`;
+      const deliverables = this.buildCoverageDeliverables(
+        id,
+        candidate.name,
+        candidate.start,
+        candidate.end
+      );
+
+      return {
+        id,
+        name: candidate.name,
+        description: candidate.description,
+        deliverables,
+        startMonth: candidate.start,
+        endMonth: candidate.end,
+        dependencies: [...anchorDependencies],
+        confidence: 0.82,
+      };
+    });
+
+    return created;
+  }
+
+  private buildCoverageDeliverables(
+    workstreamId: string,
+    workstreamName: string,
+    startMonth: number,
+    endMonth: number
+  ): Deliverable[] {
+    const slots = Math.max(2, Math.min(4, endMonth - startMonth + 1));
+    const labels = [
+      'Runbook and operating model update',
+      'Risk and control tuning package',
+      'Audit evidence and readiness checkpoint',
+      'Scale rollout readiness review',
+    ];
+
+    return labels.slice(0, slots).map((label, idx) => {
+      const progress = (idx + 1) / slots;
+      const dueMonth = Math.round(startMonth + (endMonth - startMonth) * progress);
+      return {
+        id: `${workstreamId}-LC-${idx + 1}`,
+        name: `${workstreamName}: ${label}`,
+        description: `${label} for ${workstreamName.toLowerCase()}.`,
+        dueMonth: Math.max(startMonth, Math.min(endMonth, dueMonth)),
+        effort: '15-30 person-days',
+      };
+    });
+  }
+
+  private syncTimelinePhaseWorkstreams(timeline: Timeline, workstreams: Workstream[]): Timeline {
+    if (!timeline?.phases || timeline.phases.length === 0) {
+      return timeline;
+    }
+
+    const phases = timeline.phases.map((phase) => {
+      const phaseWorkstreamIds = workstreams
+        .filter((ws) => ws.startMonth <= phase.endMonth && ws.endMonth >= phase.startMonth)
+        .map((ws) => ws.id);
+      return {
+        ...phase,
+        workstreamIds: phaseWorkstreamIds,
+      };
+    });
+
+    return {
+      ...timeline,
+      phases,
+    };
+  }
+
+  private validateDecisionImplementationCoherence(
+    decisions: any[],
+    workstreams: Workstream[]
+  ): { issues: string[] } {
+    const issues: string[] = [];
+    const selectedDecisions = (decisions || []).filter(
+      (decision: any) => decision?.selectedOptionId && Array.isArray(decision?.options)
+    );
+
+    if (selectedDecisions.length === 0) {
+      return { issues };
+    }
+
+    const searchableWorkstreams = workstreams.map((workstream) => {
+      const deliverableText = (workstream.deliverables || [])
+        .map((deliverable) => `${deliverable?.name || ''} ${deliverable?.description || ''}`)
+        .join(' ');
+      const nameText = `${workstream.name || ''}`.toLowerCase();
+      const decisionLink = this.extractDecisionLinkFromWorkstream(workstream);
+      return {
+        id: workstream.id,
+        name: workstream.name,
+        nameText,
+        isDecisionImplementation: nameText.includes('decision implementation'),
+        decisionLink,
+        text: `${workstream.name || ''} ${workstream.description || ''} ${deliverableText}`.toLowerCase(),
+      };
+    });
+    const linkedOptionIds = new Set(
+      searchableWorkstreams
+        .map((workstream) => workstream.decisionLink.selectedOptionId)
+        .filter((value): value is string => typeof value === 'string' && value.length > 0)
+    );
+    const linkedDecisionIds = new Set(
+      searchableWorkstreams
+        .map((workstream) => workstream.decisionLink.decisionId)
+        .filter((value): value is string => typeof value === 'string' && value.length > 0)
+    );
+
+    for (const decision of selectedDecisions) {
+      const selectedOption = decision.options.find((option: any) => option.id === decision.selectedOptionId);
+      if (!selectedOption) {
+        issues.push(`Decision "${decision.id || decision.question || 'unknown'}" selected option id "${decision.selectedOptionId}" not found in options.`);
+        continue;
+      }
+      if (typeof decision.selectedOptionId === 'string' && linkedOptionIds.has(decision.selectedOptionId)) {
+        continue;
+      }
+      if (typeof decision.id === 'string' && linkedDecisionIds.has(decision.id)) {
+        continue;
+      }
+
+      const selectedLabel = `${selectedOption.label || selectedOption.name || selectedOption.id || ''}`.trim();
+      if (!selectedLabel) {
+        continue;
+      }
+
+      const decisionCandidates = searchableWorkstreams.filter((workstream) => workstream.isDecisionImplementation);
+      const candidatePool = decisionCandidates.length > 0 ? decisionCandidates : searchableWorkstreams;
+
+      const hasMatch = candidatePool.some((workstream) =>
+        this.matchesDecisionLabel(
+          decisionCandidates.length > 0 ? workstream.nameText : workstream.text,
+          selectedLabel
+        )
+      );
+
+      if (!hasMatch) {
+        issues.push(
+          `Selected option "${selectedLabel}" is not represented in generated workstreams for decision "${decision.id || decision.question || 'unknown'}".`
+        );
+      }
+    }
+
+    return { issues };
+  }
+
+  private extractDecisionLinkFromWorkstream(workstream: Workstream): {
+    decisionId?: string;
+    selectedOptionId?: string;
+  } {
+    const metadata = workstream?.metadata as Record<string, any> | undefined;
+    if (!metadata || typeof metadata !== 'object') {
+      return {};
+    }
+    const decisionIdCandidates = [
+      metadata.decisionId,
+      metadata.decision_id,
+      metadata.decisionLink?.decisionId,
+      metadata.decisionLink?.decision_id,
+    ];
+    const selectedOptionCandidates = [
+      metadata.selectedOptionId,
+      metadata.selected_option_id,
+      metadata.decisionLink?.selectedOptionId,
+      metadata.decisionLink?.selected_option_id,
+    ];
+
+    const decisionId = decisionIdCandidates.find(
+      (value): value is string => typeof value === 'string' && value.trim().length > 0
+    );
+    const selectedOptionId = selectedOptionCandidates.find(
+      (value): value is string => typeof value === 'string' && value.trim().length > 0
+    );
+
+    return {
+      decisionId,
+      selectedOptionId,
+    };
+  }
+
+  private matchesDecisionLabel(haystackRaw: string, labelRaw: string): boolean {
+    const normalize = (value: string) =>
+      value
+        .toLowerCase()
+        .replace(/[\u2026…]/g, ' ')
+        .replace(/[^\w\s]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const haystack = normalize(haystackRaw);
+    const label = normalize(labelRaw);
+    if (!haystack || !label) return false;
+    if (haystack.includes(label)) return true;
+
+    const labelTokens = label
+      .split(' ')
+      .filter((token) => token.length >= 4);
+    if (labelTokens.length === 0) {
+      return haystack.includes(label);
+    }
+
+    const prefixTokenCount = Math.min(5, labelTokens.length);
+    const labelPrefix = labelTokens.slice(0, prefixTokenCount).join(' ');
+    if (labelPrefix && haystack.includes(labelPrefix)) {
+      return true;
+    }
+
+    const matchedTokens = labelTokens.filter((token) => haystack.includes(token));
+    const overlapRatio = matchedTokens.length / labelTokens.length;
+    if (labelTokens.length >= 5) {
+      return matchedTokens.length >= 3 && overlapRatio >= 0.75;
+    }
+    return matchedTokens.length >= Math.max(2, Math.ceil(labelTokens.length * 0.75));
+  }
+
   /**
-   * Fill empty phases with coverage workstreams to prevent timeline gaps.
-   * If a phase has no workstreams, creates a placeholder workstream for that phase.
+   * Fill phases without a completion workstream.
+   * Stage gates require at least one workstream completing in each phase window.
    */
   private fillEmptyPhases(workstreams: Workstream[], timeline: Timeline, planningContext: PlanningContext): void {
     if (!timeline?.phases || timeline.phases.length === 0) return;
 
     const industry = planningContext.business.industry || 'the initiative';
+    const totalMonths = Number(timeline.totalMonths || 0);
     let nextIndex = this.nextWorkstreamIndex(workstreams);
 
     for (const phase of timeline.phases) {
-      const hasWorkstreams = workstreams.some(ws =>
-        ws.startMonth < phase.endMonth && ws.endMonth > phase.startMonth
+      const phaseStart = Number(phase.startMonth || 0);
+      const rawPhaseEnd = Number(phase.endMonth || phaseStart);
+      const phaseEnd = Number.isFinite(totalMonths) && totalMonths > 0
+        ? Math.min(rawPhaseEnd, totalMonths - 1)
+        : rawPhaseEnd;
+      if (phaseEnd < phaseStart) continue;
+
+      const hasCompletingWorkstream = workstreams.some((ws) =>
+        Number(ws.endMonth) >= phaseStart && Number(ws.endMonth) <= phaseEnd
       );
 
-      if (!hasWorkstreams) {
+      if (!hasCompletingWorkstream) {
         const phaseNameLower = phase.name.toLowerCase();
         let wsName: string;
         let wsDescription: string;
@@ -1871,19 +2589,14 @@ export class EPMSynthesizer {
         }
 
         const wsId = `WS${String(nextIndex).padStart(3, '0')}`;
-        const startMonth = phase.startMonth;
-        const endMonth = Math.min(phase.endMonth, phase.startMonth + 4);
+        const startMonth = phaseStart;
+        const endMonth = phaseEnd;
 
         const ws: Workstream = {
           id: wsId,
           name: wsName,
           description: wsDescription,
-          deliverables: [
-            { id: `${wsId}-D1`, name: `${phase.name}: Runbook and operating model update`, description: `Runbook and operating model update`, dueMonth: startMonth + 1, effort: '1 person-month' },
-            { id: `${wsId}-D2`, name: `${phase.name}: Risk and control tuning package`, description: `Risk and control tuning package`, dueMonth: startMonth + 2, effort: '1 person-month' },
-            { id: `${wsId}-D3`, name: `${phase.name}: Audit evidence and readiness checkpoint`, description: `Audit evidence and readiness checkpoint`, dueMonth: startMonth + 3, effort: '1 person-month' },
-            { id: `${wsId}-D4`, name: `${phase.name}: Phase completion review`, description: `Phase completion review`, dueMonth: endMonth, effort: '1 person-month' },
-          ],
+          deliverables: this.buildPhaseCoverageDeliverables(wsId, phase.name, startMonth, endMonth),
           phase: phase.name,
           startMonth,
           endMonth,
@@ -1892,9 +2605,135 @@ export class EPMSynthesizer {
         };
 
         workstreams.push(ws);
-        console.log(`[EPM Synthesis] Added gap-fill workstream "${wsName}" for empty phase "${phase.name}" (M${startMonth}-M${endMonth})`);
+        console.log(
+          `[EPM Synthesis] Added phase-completion workstream "${wsName}" for phase "${phase.name}" (M${startMonth}-M${endMonth})`
+        );
         nextIndex++;
       }
+    }
+  }
+
+  private buildPhaseCoverageDeliverables(
+    workstreamId: string,
+    phaseName: string,
+    startMonth: number,
+    endMonth: number
+  ): Deliverable[] {
+    const templates = [
+      { label: 'Runbook and operating model update', effort: '1 person-month' },
+      { label: 'Risk and control tuning package', effort: '1 person-month' },
+      { label: 'Audit evidence and readiness checkpoint', effort: '1 person-month' },
+      { label: 'Phase completion review', effort: '1 person-month' },
+    ];
+    const slots = Math.max(2, Math.min(4, endMonth - startMonth + 1));
+
+    return templates.slice(0, slots).map((template, index) => {
+      const progress = (index + 1) / slots;
+      const dueMonth = Math.round(startMonth + (endMonth - startMonth) * progress);
+      return {
+        id: `${workstreamId}-D${index + 1}`,
+        name: `${phaseName}: ${template.label}`,
+        description: template.label,
+        dueMonth: Math.max(startMonth, Math.min(endMonth, dueMonth)),
+        effort: template.effort,
+      };
+    });
+  }
+
+  /**
+   * Fill significant internal idle gaps to preserve execution continuity.
+   * Prevents long no-work spans within active program timelines.
+   */
+  private fillInternalTimelineGaps(workstreams: Workstream[], timeline: Timeline, planningContext: PlanningContext): void {
+    const totalMonths = Number(timeline?.totalMonths || 0);
+    if (!Number.isFinite(totalMonths) || totalMonths <= 0) return;
+
+    const activeByMonth = Array(totalMonths).fill(false);
+    for (const ws of workstreams) {
+      const start = Math.max(0, Number(ws.startMonth || 0));
+      const end = Math.min(totalMonths - 1, Number(ws.endMonth || 0));
+      if (end < start) continue;
+      for (let month = start; month <= end; month += 1) {
+        activeByMonth[month] = true;
+      }
+    }
+
+    const gaps: Array<{ start: number; end: number; months: number }> = [];
+    let currentStart: number | null = null;
+    for (let month = 0; month < totalMonths; month += 1) {
+      if (!activeByMonth[month]) {
+        if (currentStart === null) currentStart = month;
+      } else if (currentStart !== null) {
+        gaps.push({ start: currentStart, end: month - 1, months: month - currentStart });
+        currentStart = null;
+      }
+    }
+    if (currentStart !== null) {
+      gaps.push({ start: currentStart, end: totalMonths - 1, months: totalMonths - currentStart });
+    }
+
+    const meaningfulGaps = gaps.filter((gap) => gap.months >= 3);
+    if (meaningfulGaps.length === 0) return;
+
+    const industry = planningContext.business.industry || 'the initiative';
+    let nextIndex = this.nextWorkstreamIndex(workstreams);
+
+    for (const gap of meaningfulGaps) {
+      const alreadyCovered = workstreams.some((ws) => ws.startMonth <= gap.end && ws.endMonth >= gap.start);
+      if (alreadyCovered) continue;
+
+      const wsId = `WS${String(nextIndex).padStart(3, '0')}`;
+      const tailGap = gap.end >= totalMonths - 2;
+      const wsName = tailGap
+        ? `Deployment & Stabilization Execution (${industry})`
+        : `Execution Continuity & Risk Control (${industry})`;
+
+      const ws: Workstream = {
+        id: wsId,
+        name: wsName,
+        description: tailGap
+          ? `Execute deployment hardening, cutover support, and stabilization activities for ${industry}.`
+          : `Bridge internal delivery gap for ${industry} with continuity, control tuning, and readiness activities.`,
+        deliverables: [
+          {
+            id: `${wsId}-G1`,
+            name: `${wsName}: Continuity control check`,
+            description: 'Continuity control check',
+            dueMonth: Math.min(gap.end, gap.start + 1),
+            effort: '1 person-month',
+          },
+          {
+            id: `${wsId}-G2`,
+            name: `${wsName}: Readiness evidence package`,
+            description: 'Readiness evidence package',
+            dueMonth: Math.min(gap.end, gap.start + Math.max(1, Math.floor(gap.months / 2))),
+            effort: '1 person-month',
+          },
+          {
+            id: `${wsId}-G3`,
+            name: `${wsName}: Gap closure review`,
+            description: 'Gap closure review',
+            dueMonth: gap.end,
+            effort: '1 person-month',
+          },
+        ],
+        phase: timeline.phases.find((phase) => gap.start >= phase.startMonth && gap.start <= phase.endMonth)?.name,
+        startMonth: gap.start,
+        endMonth: gap.end,
+        dependencies: [],
+        confidence: 0.8,
+        metadata: {
+          syntheticCoverage: 'internal_gap',
+          gapStart: gap.start,
+          gapEnd: gap.end,
+        } as any,
+      };
+
+      workstreams.push(ws);
+      nextIndex += 1;
+      console.log(
+        `[EPM Synthesis] Added internal-gap workstream "${ws.name}" for M${gap.start}-M${gap.end} (${gap.months} months)`
+      );
     }
   }
 
@@ -1905,13 +2744,14 @@ export class EPMSynthesizer {
     workstreams: Workstream[],
     timeline: Timeline,
     stageGates: StageGates,
-    validationResult: { errors: string[]; corrections: string[] },
+    validationResult: { errors: string[]; corrections: string[]; warnings?: string[] },
     planningGrid: { conflicts: string[]; maxUtilization: number; totalTasks: number },
     roleValidationWarnings: string[] = []
   ): EPMValidationReport {
     // Combine all warnings: validation errors + planning conflicts + role validation
     const allWarnings = [
       ...validationResult.errors,
+      ...(validationResult.warnings || []),
       ...planningGrid.conflicts,
       ...roleValidationWarnings,
     ];
@@ -1942,7 +2782,14 @@ export class EPMSynthesizer {
   private async assignWorkstreamOwners(
     workstreams: Workstream[],
     resourcePlan: ResourcePlan,
-    businessContext?: { industry?: string; businessType?: string; geography?: string; initiativeType?: string; programName?: string }
+    businessContext?: {
+      industry?: string;
+      businessType?: string;
+      geography?: string;
+      initiativeType?: string;
+      programName?: string;
+      domainProfile?: DomainProfile;
+    }
   ): Promise<string[]> {
     if (!resourcePlan.internalTeam || resourcePlan.internalTeam.length === 0) {
       // No resources to assign - use default
@@ -2008,7 +2855,7 @@ export class EPMSynthesizer {
         };
 
         // Ensure the role exists in the resource plan
-        ensureResourceExists(inferred.roleTitle, resourcePlan, inferred.category);
+        ensureResourceExists(inferred.roleTitle, resourcePlan, inferred.category, businessContext?.domainProfile);
 
         console.log(`[EPM Synthesis]   ${ws.name} → ${ws.owner} (${inferred.category})`);
       } else {

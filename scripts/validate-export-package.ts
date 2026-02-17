@@ -17,6 +17,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { deriveConstraintMode, shouldEnforceConstraints } from '../server/intelligence/epm/constraint-policy';
+import { hasBudgetConstraintSignal } from '../server/intelligence/epm/constraint-utils';
 
 interface ValidationIssue {
   check: string;
@@ -89,6 +91,7 @@ interface EPMPackage {
   userInputStructured?: {
     raw?: string | null;
     summary?: string | null;
+    constraintMode?: 'auto' | 'discovery' | 'constrained' | string | null;
     constraints?: {
       costMin?: number | null;
       costMax?: number | null;
@@ -128,6 +131,30 @@ class EPMPackageValidator {
   private criticalIssues: ValidationIssue[] = [];
   private checkResults: CheckResult[] = [];
   private currentCheck: string = '';
+
+  private hasAnyConstraint(constraints: any): boolean {
+    if (!constraints || typeof constraints !== 'object') return false;
+    return (
+      constraints.costMin != null ||
+      constraints.costMax != null ||
+      constraints.teamSizeMin != null ||
+      constraints.teamSizeMax != null ||
+      constraints.timelineMonths != null
+    );
+  }
+
+  private getConstraintMode(pkg: EPMPackage): 'auto' | 'discovery' | 'constrained' {
+    const explicitMode =
+      pkg.userInputStructured?.constraintMode ??
+      (pkg.metadata as any)?.constraintMode;
+
+    const constraints =
+      pkg.userInputStructured?.constraints ??
+      pkg.constraints ??
+      (pkg.metadata as any)?.constraints;
+
+    return deriveConstraintMode(explicitMode, this.hasAnyConstraint(constraints));
+  }
 
   /**
    * Main validation entry point
@@ -178,6 +205,7 @@ class EPMPackageValidator {
     this.check18_TopLevelMetadataPresence(epmPackage);
     this.check19_ClarificationsExtraction(epmPackage);
     this.check20_TimelineConstraintEnforcement(epmPackage);
+    this.check21_DiscoveryBudgetSignalMismatch(epmPackage);
 
     return this.getResult();
   }
@@ -215,25 +243,47 @@ class EPMPackageValidator {
 
     if (!pkg.workstreams) return;
 
+    const totalMonths =
+      Number(pkg.timeline?.totalMonths) ||
+      Number(pkg.program?.timeline?.totalMonths) ||
+      0;
+    const inferredMaxMonth = pkg.workstreams.reduce((max, ws) => {
+      const start = Number(ws.startMonth ?? 0);
+      const end = Number(ws.endMonth ?? 0);
+      return Math.max(max, start, end);
+    }, 0);
+    const maxMonth = totalMonths > 0 ? totalMonths - 1 : inferredMaxMonth;
+
     pkg.workstreams.forEach(ws => {
-      // Check for zero timelines (the bug we found)
-      if (ws.startMonth === 0 && ws.endMonth === 0) {
-        this.addError(`Workstream "${ws.name}" has invalid timeline (all zeros)`, 15);
+      const startMonth = Number(ws.startMonth ?? 0);
+      const endMonth = Number(ws.endMonth ?? 0);
+
+      // Month 0 is valid in 0-based timelines; only negatives are invalid.
+      if (startMonth < 0 || endMonth < 0) {
+        this.addError(`Workstream "${ws.name}" has negative timeline month`, 15);
       }
 
       // Check timeline logic
-      if (ws.startMonth > ws.endMonth) {
+      if (startMonth > endMonth) {
         this.addError(`Workstream "${ws.name}" ends before it starts`, 10);
+      }
+
+      if (endMonth > maxMonth) {
+        this.addWarning(`Workstream "${ws.name}" ends after timeline boundary (M${endMonth} > M${maxMonth})`);
       }
 
       // Check deliverable timelines
       if (ws.deliverables) {
         ws.deliverables.forEach((d: any) => {
-          if (d.dueMonth === 0) {
-            this.addError(`Deliverable "${d.name}" has invalid due month (0)`, 5);
+          const dueMonth = Number(d.dueMonth ?? 0);
+          if (dueMonth < 0) {
+            this.addError(`Deliverable "${d.name}" has invalid due month (${d.dueMonth})`, 5);
           }
-          if (d.dueMonth < ws.startMonth || d.dueMonth > ws.endMonth) {
+          if (dueMonth < startMonth || dueMonth > endMonth) {
             this.addWarning(`Deliverable "${d.name}" due outside workstream timeline`);
+          }
+          if (dueMonth > maxMonth) {
+            this.addWarning(`Deliverable "${d.name}" due after timeline boundary (M${dueMonth} > M${maxMonth})`);
           }
         });
       }
@@ -663,6 +713,8 @@ class EPMPackageValidator {
    */
   private check15_BudgetConsistency(pkg: EPMPackage): void {
     console.log('✓ Check 15: Budget Consistency');
+    const constraintMode = this.getConstraintMode(pkg);
+    const enforce = shouldEnforceConstraints(constraintMode);
 
     const financialPlan = pkg.financialPlan;
     if (!financialPlan) {
@@ -676,12 +728,16 @@ class EPMPackageValidator {
       return;
     }
 
-    // Extract budget constraints from structured user input (NEW)
+    // Extract budget constraints from structured user input
     const constraints = pkg.userInputStructured?.constraints || pkg.metadata?.constraints;
     let userBudgetMin = constraints?.costMin;
     let userBudgetMax = constraints?.costMax;
 
-    // Fallback: try to extract from legacy userInput field
+    if (!enforce) {
+      return;
+    }
+
+    // Legacy fallback: try to extract from free text when running in auto/constrained mode
     if (!userBudgetMin && !userBudgetMax) {
       const userInput = pkg.userInput || pkg.executiveSummary;
       if (userInput?.budget) {
@@ -733,6 +789,7 @@ class EPMPackageValidator {
   private check16_ConstraintUnitValidation(pkg: EPMPackage): void {
     console.log('✓ Check 16: Constraint Unit Validation');
     this.currentCheck = 'check16_ConstraintUnitValidation';
+    if (!shouldEnforceConstraints(this.getConstraintMode(pkg))) return;
 
     const constraints = pkg.userInputStructured?.constraints;
     if (!constraints) return;
@@ -822,9 +879,10 @@ class EPMPackageValidator {
       this.addError('Financial plan has no totalBudget', 15);
       return;
     }
+    const enforceConstraints = shouldEnforceConstraints(this.getConstraintMode(pkg));
 
     // --- Item A Coordination: budgetViolation field ---
-    if (fp.budgetViolation) {
+    if (enforceConstraints && fp.budgetViolation) {
       const ra = pkg.requiresApproval;
       const hasApprovalFlag = typeof ra === 'object' && ra !== null && ra.budget === true;
       if (!hasApprovalFlag) {
@@ -844,7 +902,7 @@ class EPMPackageValidator {
     }
 
     // --- Item A Coordination: budgetHeadroom field ---
-    if (fp.budgetHeadroom) {
+    if (enforceConstraints && fp.budgetHeadroom) {
       const allocated = fp.budgetHeadroom.allocated ?? 0;
       const calculated = fp.budgetHeadroom.calculated ?? 0;
       if (allocated > 0) {
@@ -878,7 +936,7 @@ class EPMPackageValidator {
     }
 
     // --- Budget within constraints (pre-Item A fallback) ---
-    if (!fp.budgetViolation && !fp.budgetHeadroom) {
+    if (enforceConstraints && !fp.budgetViolation && !fp.budgetHeadroom) {
       const constraints = pkg.userInputStructured?.constraints;
       const costMax = constraints?.costMax;
       const costMin = constraints?.costMin;
@@ -922,6 +980,7 @@ class EPMPackageValidator {
   private check18_TopLevelMetadataPresence(pkg: EPMPackage): void {
     console.log('✓ Check 18: Top-Level Metadata Presence');
     this.currentCheck = 'check18_TopLevelMetadataPresence';
+    const enforceConstraints = shouldEnforceConstraints(this.getConstraintMode(pkg));
 
     // Top-level timeline (Item D creates this)
     const topTimeline = pkg.timeline;
@@ -931,7 +990,7 @@ class EPMPackageValidator {
 
     // Top-level constraints (Item D creates this)
     const topConstraints = pkg.constraints;
-    if (!topConstraints || (typeof topConstraints === 'object' && Object.keys(topConstraints).length === 0)) {
+    if (enforceConstraints && (!topConstraints || (typeof topConstraints === 'object' && Object.keys(topConstraints).length === 0))) {
       this.addWarning('Top-level constraints field missing or empty in epm.json');
     }
 
@@ -1035,6 +1094,7 @@ class EPMPackageValidator {
   private check20_TimelineConstraintEnforcement(pkg: EPMPackage): void {
     console.log('✓ Check 20: Timeline Constraint Enforcement');
     this.currentCheck = 'check20_TimelineConstraintEnforcement';
+    if (!shouldEnforceConstraints(this.getConstraintMode(pkg))) return;
 
     const constraints = pkg.userInputStructured?.constraints;
     const constraintMonths = constraints?.timelineMonths;
@@ -1103,6 +1163,35 @@ class EPMPackageValidator {
           actualMonths
         );
       }
+    }
+  }
+
+  /**
+   * Check 21: Discovery/Budget Intent Mismatch
+   * Mirrors export acceptance gate DISCOVERY_MODE_BUDGET_SIGNAL_MISMATCH.
+   * Penalty: 15 points (critical)
+   */
+  private check21_DiscoveryBudgetSignalMismatch(pkg: EPMPackage): void {
+    console.log('✓ Check 21: Discovery/Budget Intent Alignment');
+    this.currentCheck = 'check21_DiscoveryBudgetSignalMismatch';
+
+    const mode = this.getConstraintMode(pkg);
+    if (mode !== 'discovery') return;
+
+    const rawInput =
+      (typeof pkg.userInputStructured?.raw === 'string' ? pkg.userInputStructured.raw : undefined) ||
+      (typeof pkg.userInput === 'string' ? pkg.userInput : '') ||
+      '';
+    if (!rawInput) return;
+
+    if (hasBudgetConstraintSignal(rawInput, undefined, { strictIntent: true })) {
+      this.addHighSeverityError(
+        'Budget intent detected in strategic input while export remains in discovery mode.',
+        15,
+        'userInputStructured.constraintMode',
+        'constrained',
+        mode
+      );
     }
   }
 
@@ -1181,7 +1270,7 @@ class EPMPackageValidator {
   private getResult(): ValidationResult {
     const isValid = this.errors.length === 0 && this.score >= 70;
     const grade = this.getGrade(this.score);
-    const totalChecks = 20;
+    const totalChecks = 21;
 
     console.log('\n╔════════════════════════════════════════════════════════════════════════════╗');
     console.log('║                           VALIDATION RESULTS                                ║');
@@ -1225,7 +1314,7 @@ class EPMPackageValidator {
       checkResults: this.checkResults,
       metadata: {
         validatedAt: new Date().toISOString(),
-        validatorVersion: '2.0.0-sprint1',
+        validatorVersion: '2.1.0-sprint1',
         totalChecks,
         checksRun: totalChecks,
       },

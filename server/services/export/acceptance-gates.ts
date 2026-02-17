@@ -1,5 +1,8 @@
 import { getJourney } from '../../journey/journey-registry';
 import { qualityGateRunner } from '../../intelligence/epm/validators/quality-gate-runner';
+import { deriveConstraintMode, shouldEnforceConstraints } from '../../intelligence/epm/constraint-policy';
+import { hasBudgetConstraintSignal } from '../../intelligence/epm/constraint-utils';
+import { normalizeStrategicDecisions } from '../../utils/decision-selection';
 
 type Severity = 'critical' | 'warning';
 
@@ -264,6 +267,109 @@ function computeLongestDependencyChain(workstreams: any[]): string[] {
   return path.reverse();
 }
 
+function normalizeText(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return value
+    .toLowerCase()
+    .replace(/[\u2026…]/g, ' ')
+    .replace(/[^\w\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+interface SelectedDecisionRecord {
+  decisionId?: string;
+  selectedOptionId?: string;
+  label: string;
+}
+
+function deriveSelectedDecisions(strategyData: any): SelectedDecisionRecord[] {
+  const strategyVersion = strategyData?.strategyVersion || {};
+  const normalizedFromVersion = normalizeStrategicDecisions(
+    strategyVersion?.decisionsData,
+    strategyVersion?.selectedDecisions
+  );
+  const normalizedTopLevel = normalizeStrategicDecisions(
+    strategyData?.decisions,
+    strategyVersion?.selectedDecisions
+  );
+
+  const decisionCandidates = normalizedFromVersion.decisions.length > 0
+    ? normalizedFromVersion.decisions
+    : normalizedTopLevel.decisions;
+
+  const selected: SelectedDecisionRecord[] = [];
+  for (const decision of decisionCandidates) {
+    const options = Array.isArray(decision?.options) ? decision.options : [];
+    const selectedOption = options.find((option: any) => option?.id === decision?.selectedOptionId);
+    const label = selectedOption?.label || selectedOption?.name || null;
+    if (typeof label === 'string' && label.trim().length > 0) {
+      selected.push({
+        decisionId: typeof decision?.id === 'string' ? decision.id : undefined,
+        selectedOptionId: typeof decision?.selectedOptionId === 'string' ? decision.selectedOptionId : undefined,
+        label: label.trim(),
+      });
+    }
+  }
+  return selected;
+}
+
+function extractDecisionLink(workstream: any): { decisionId?: string; selectedOptionId?: string } {
+  const metadata = workstream?.metadata;
+  if (!metadata || typeof metadata !== 'object') return {};
+
+  const decisionIdCandidates = [
+    metadata.decisionId,
+    metadata.decision_id,
+    metadata.decisionLink?.decisionId,
+    metadata.decisionLink?.decision_id,
+  ];
+  const selectedOptionCandidates = [
+    metadata.selectedOptionId,
+    metadata.selected_option_id,
+    metadata.decisionLink?.selectedOptionId,
+    metadata.decisionLink?.selected_option_id,
+  ];
+
+  const decisionId = decisionIdCandidates.find(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0
+  );
+  const selectedOptionId = selectedOptionCandidates.find(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0
+  );
+
+  return { decisionId, selectedOptionId };
+}
+
+function hasLabelMatch(workstreams: any[], label: string): boolean {
+  const labelNorm = normalizeText(label);
+  if (!labelNorm) return false;
+  const labelTokens = labelNorm.split(' ').filter((token) => token.length >= 4);
+  const decisionWorkstreams = workstreams.filter((workstream) =>
+    normalizeText(workstream?.name || '').includes('decision implementation')
+  );
+  const candidatePool = decisionWorkstreams.length > 0 ? decisionWorkstreams : workstreams;
+
+  return candidatePool.some((workstream) => {
+    const deliverableText = Array.isArray(workstream?.deliverables)
+      ? workstream.deliverables.map((d: any) => `${d?.name || ''} ${d?.description || ''}`).join(' ')
+      : '';
+    const haystack = decisionWorkstreams.length > 0
+      ? normalizeText(`${workstream?.name || ''}`)
+      : normalizeText(`${workstream?.name || ''} ${workstream?.description || ''} ${deliverableText}`);
+    if (!haystack) return false;
+    if (haystack.includes(labelNorm)) return true;
+    const prefixTokenCount = Math.min(5, labelTokens.length);
+    const labelPrefix = labelTokens.slice(0, prefixTokenCount).join(' ');
+    if (labelPrefix && haystack.includes(labelPrefix)) return true;
+    const matched = labelTokens.filter((token) => haystack.includes(token));
+    if (labelTokens.length >= 5) {
+      return matched.length >= 3 && (matched.length / labelTokens.length) >= 0.75;
+    }
+    return matched.length >= Math.max(2, Math.ceil(labelTokens.length * 0.75));
+  });
+}
+
 export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAcceptanceReport {
   const criticalIssues: AcceptanceIssue[] = [];
   const warnings: AcceptanceIssue[] = [];
@@ -362,9 +468,57 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
   }
 
   const workstreams = Array.isArray(epmData.workstreams) ? epmData.workstreams : [];
+  const assignments = Array.isArray(epmData.assignments) ? epmData.assignments : [];
   const byId = new Map<string, any>();
   for (const ws of workstreams) {
     if (typeof ws?.id === 'string') byId.set(ws.id, ws);
+  }
+
+  // Ensure assignment task IDs align to canonical deliverable IDs across files.
+  // This protects downstream systems (CSV/Jira/MS Project) that join by task ID.
+  if (workstreams.length > 0 && assignments.length > 0) {
+    const deliverableIds = new Set<string>();
+    for (const ws of workstreams) {
+      for (const deliverable of ws?.deliverables || []) {
+        if (!deliverable) continue;
+        const idCandidate = typeof deliverable === 'string'
+          ? ''
+          : (typeof deliverable?.id === 'string' ? deliverable.id : (typeof deliverable?.taskId === 'string' ? deliverable.taskId : ''));
+        const normalized = idCandidate.trim();
+        if (normalized.length > 0) {
+          deliverableIds.add(normalized);
+        }
+      }
+    }
+
+    const assignmentTaskIds = new Set<string>();
+    for (const assignment of assignments) {
+      const idCandidate = typeof assignment?.taskId === 'string'
+        ? assignment.taskId
+        : (typeof assignment?.task_id === 'string' ? assignment.task_id : '');
+      const normalized = idCandidate.trim();
+      if (normalized.length > 0) {
+        assignmentTaskIds.add(normalized);
+      }
+    }
+
+    if (deliverableIds.size > 0 && assignmentTaskIds.size > 0) {
+      const missingAssignmentIds = Array.from(deliverableIds).filter((id) => !assignmentTaskIds.has(id));
+      const orphanAssignmentIds = Array.from(assignmentTaskIds).filter((id) => !deliverableIds.has(id));
+      if (missingAssignmentIds.length > 0 || orphanAssignmentIds.length > 0) {
+        criticalIssues.push({
+          severity: 'critical',
+          code: 'DELIVERABLE_ID_LINKAGE_MISMATCH',
+          message: 'Assignment task IDs are not fully aligned with workstream deliverable IDs',
+          details: {
+            deliverableCount: deliverableIds.size,
+            assignmentTaskCount: assignmentTaskIds.size,
+            missingAssignmentIds: missingAssignmentIds.slice(0, 12),
+            orphanAssignmentIds: orphanAssignmentIds.slice(0, 12),
+          },
+        });
+      }
+    }
   }
 
   for (const ws of workstreams) {
@@ -431,6 +585,72 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
     });
   }
 
+  if (totalMonths >= 18 && maxWorkstreamEnd > 0) {
+    const coverageRatio = (maxWorkstreamEnd + 1) / totalMonths;
+    if (coverageRatio < 0.7) {
+      criticalIssues.push({
+        severity: 'critical',
+        code: 'TIMELINE_UNDER_UTILIZATION_CRITICAL',
+        message: `Workstreams cover only ${(coverageRatio * 100).toFixed(1)}% of timeline (${maxWorkstreamEnd + 1}/${totalMonths} months)`,
+        details: { coverageRatio, maxWorkstreamEnd, totalMonths },
+      });
+    }
+  }
+
+  if (Array.isArray(timeline?.phases) && timeline.phases.length > 0) {
+    for (const phase of timeline.phases) {
+      const phaseStart = Number(phase?.startMonth || 0);
+      const phaseEnd = Number(phase?.endMonth || phaseStart);
+      const hasCompletingWorkstream = workstreams.some((ws: any) => {
+        const wsEnd = Number(ws?.endMonth);
+        return Number.isFinite(wsEnd) && wsEnd >= phaseStart && wsEnd <= phaseEnd;
+      });
+      if (!hasCompletingWorkstream) {
+        warnings.push({
+          severity: 'warning',
+          code: 'PHASE_WITHOUT_COMPLETION_WORKSTREAM',
+          message: `Phase "${phase?.name || 'Unnamed'}" has no workstream completing within its window (M${phaseStart}-M${phaseEnd})`,
+          details: { phase: phase?.name, phaseStart, phaseEnd },
+        });
+      }
+    }
+  }
+
+  const syntheticGateDeliverables = (Array.isArray(stageGates?.gates) ? stageGates.gates : [])
+    .flatMap((gate: any) => (Array.isArray(gate?.deliverables) ? gate.deliverables : []))
+    .filter((value: any) => typeof value === 'string' && value.toLowerCase().includes('completion review package'));
+  if (syntheticGateDeliverables.length > 0) {
+    warnings.push({
+      severity: 'warning',
+      code: 'STAGE_GATE_SYNTHETIC_DELIVERABLE',
+      message: `Stage gates include ${syntheticGateDeliverables.length} synthetic completion placeholder deliverable(s)`,
+      details: { sample: syntheticGateDeliverables.slice(0, 8) },
+    });
+  }
+
+  const selectedDecisions = deriveSelectedDecisions(strategyData);
+  if (selectedDecisions.length > 0 && workstreams.length > 0) {
+    const links = workstreams.map((workstream: any) => extractDecisionLink(workstream));
+    const missingLabels = selectedDecisions
+      .filter((decision: SelectedDecisionRecord) => {
+        const linkMatch = links.some((link: { decisionId?: string; selectedOptionId?: string }) =>
+          (decision.selectedOptionId && link.selectedOptionId === decision.selectedOptionId) ||
+          (decision.decisionId && link.decisionId === decision.decisionId)
+        );
+        if (linkMatch) return false;
+        return !hasLabelMatch(workstreams, decision.label);
+      })
+      .map((decision: SelectedDecisionRecord) => decision.label);
+    if (missingLabels.length > 0) {
+      criticalIssues.push({
+        severity: 'critical',
+        code: 'DECISION_IMPLEMENTATION_MISMATCH',
+        message: 'Selected strategic decisions are not reflected in generated workstreams',
+        details: { missingDecisionLabels: missingLabels },
+      });
+    }
+  }
+
   const hasDependencies = workstreams.some((ws: any) => Array.isArray(ws.dependencies) && ws.dependencies.length > 0);
   const expectedCriticalPath = computeLongestDependencyChain(workstreams);
   const actualCriticalPath = normalizeCriticalPathToIds(Array.isArray(timeline?.criticalPath) ? timeline.criticalPath : [], workstreams);
@@ -452,11 +672,25 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
   }
 
   if (Array.isArray(workstreams) && workstreams.length > 0 && timeline && stageGates) {
+    const qualityBusinessContext = [
+      strategyData?.understanding?.initiativeType,
+      strategyData?.understanding?.initiativeDescription,
+      strategyData?.understanding?.userInput,
+    ]
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      .join('\n');
+    const qualityResourcePlan = epmData.resourcePlan || epmData.program?.resourcePlan;
+    const qualityDomainProfile = epmData.domainProfile || epmData.metadata?.domainProfile;
+    const qualityKpis = epmData.kpis || epmData.program?.kpis;
+
     const report = qualityGateRunner.runQualityGate(
       JSON.parse(JSON.stringify(workstreams)),
       JSON.parse(JSON.stringify(timeline)),
       JSON.parse(JSON.stringify(stageGates)),
-      strategyData?.understanding?.initiativeType || strategyData?.understanding?.userInput || ''
+      qualityBusinessContext,
+      qualityResourcePlan ? JSON.parse(JSON.stringify(qualityResourcePlan)) : undefined,
+      qualityDomainProfile ? JSON.parse(JSON.stringify(qualityDomainProfile)) : undefined,
+      qualityKpis ? JSON.parse(JSON.stringify(qualityKpis)) : undefined
     );
 
     // Map ALL validator results to individual AcceptanceIssues (Item E fix)
@@ -493,12 +727,43 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
   }
 
   // ─── Budget & Timeline Constraint Enforcement ───
+  const explicitConstraintMode = epmData.userInputStructured?.constraintMode || epmData.metadata?.constraintMode;
   const constraints = epmData.constraints || epmData.program?.constraints || epmData.metadata?.constraints || null;
+  const hasAnyConstraint = Boolean(
+    constraints &&
+    (
+      constraints.costMin != null ||
+      constraints.costMax != null ||
+      constraints.teamSizeMin != null ||
+      constraints.teamSizeMax != null ||
+      constraints.timelineMonths != null
+    )
+  );
+  const effectiveConstraintMode = deriveConstraintMode(explicitConstraintMode, hasAnyConstraint);
+  const enforceConstraints = shouldEnforceConstraints(effectiveConstraintMode);
+  const understandingInput = typeof strategyData?.understanding?.userInput === 'string'
+    ? strategyData.understanding.userInput
+    : (typeof epmData?.userInputStructured?.raw === 'string' ? epmData.userInputStructured.raw : '');
+  const hasBudgetSignalInInput = hasBudgetConstraintSignal(understandingInput || '', undefined, {
+    strictIntent: true,
+  });
+
+  if (effectiveConstraintMode === 'discovery' && hasBudgetSignalInInput) {
+    criticalIssues.push({
+      severity: 'critical',
+      code: 'DISCOVERY_MODE_BUDGET_SIGNAL_MISMATCH',
+      message: 'Budget intent detected in strategic input while export remains in discovery mode',
+      details: {
+        constraintMode: effectiveConstraintMode,
+      },
+    });
+  }
+
   const financialPlan = parseJson(epmData.program?.financialPlan) || epmData.financialPlan || null;
   const totalBudget = Number(financialPlan?.totalBudget ?? epmData.program?.totalBudget);
   const costMax = Number(constraints?.costMax);
 
-  if (Number.isFinite(totalBudget) && Number.isFinite(costMax) && costMax > 0 && totalBudget > costMax) {
+  if (enforceConstraints && Number.isFinite(totalBudget) && Number.isFinite(costMax) && costMax > 0 && totalBudget > costMax) {
     const overage = totalBudget - costMax;
     const overagePercent = ((overage / costMax) * 100).toFixed(1);
     criticalIssues.push({
@@ -513,7 +778,7 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
   const programTotalMonths = Number(timelineObj?.totalMonths ?? epmData.program?.totalDuration);
   const constraintTimelineMonths = Number(constraints?.timelineMonths);
 
-  if (Number.isFinite(programTotalMonths) && Number.isFinite(constraintTimelineMonths) && constraintTimelineMonths > 0) {
+  if (enforceConstraints && Number.isFinite(programTotalMonths) && Number.isFinite(constraintTimelineMonths) && constraintTimelineMonths > 0) {
     // Flag if program duration is less than half the requested timeline (indicates incomplete scope)
     if (programTotalMonths < constraintTimelineMonths * 0.5) {
       warnings.push({
@@ -536,7 +801,7 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
 
   // ─── requiresApproval Check ───
   const requiresApproval = epmData.requiresApproval;
-  if (Number.isFinite(totalBudget) && Number.isFinite(costMax) && totalBudget > costMax) {
+  if (enforceConstraints && Number.isFinite(totalBudget) && Number.isFinite(costMax) && totalBudget > costMax) {
     if (!requiresApproval || requiresApproval.budget !== true) {
       criticalIssues.push({
         severity: 'critical',

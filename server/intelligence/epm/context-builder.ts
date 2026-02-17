@@ -6,9 +6,12 @@
  * (e.g., 166 months for a coffee shop)
  */
 
-import type { StrategyInsights, StrategyContext, BusinessCategory, JourneyType } from '../types';
+import type { StrategyInsights, StrategyContext, BusinessCategory, JourneyType, DomainProfile } from '../types';
 import { extractUserConstraintsFromText } from './constraint-utils';
+import type { ConstraintMode } from './constraint-policy';
+import { shouldUseTextConstraintFallback } from './constraint-policy';
 import type { PlanningContext, BusinessScale } from '../../../src/lib/intelligent-planning/types';
+import { detectDomainProfile, resolveIndustryLabel } from './domain-profile';
 
 export class ContextBuilder {
   /**
@@ -23,7 +26,8 @@ export class ContextBuilder {
     journeyType: string = 'strategy_workspace',
     sessionId?: string,
     explicitBudgetRange?: { min: number; max: number },
-    explicitTimelineRange?: { min: number; max: number }
+    explicitTimelineRange?: { min: number; max: number },
+    constraintMode: ConstraintMode = 'auto',
   ): Promise<PlanningContext> {
     const scale = this.inferScale(insights);
     let timelineRange = explicitTimelineRange || this.inferTimelineRange(scale, insights);
@@ -93,7 +97,8 @@ export class ContextBuilder {
 
     // SPRINT 6B FIX: Only extract constraints from text if NOT already provided explicitly
     // This prevents overwriting user's original budget/timeline with AI-generated values
-    if (!explicitBudgetRange || !explicitTimelineRange) {
+    const allowTextConstraintFallback = shouldUseTextConstraintFallback(constraintMode);
+    if (allowTextConstraintFallback && (!explicitBudgetRange || !explicitTimelineRange)) {
       const userConstraints = extractUserConstraintsFromText(
         userInput || businessDescription,
         insights.marketContext?.budgetRange
@@ -106,24 +111,49 @@ export class ContextBuilder {
         budgetRange = userConstraints.budget;
         console.log(`[ContextBuilder] 💰 Extracted budget from text: $${budgetRange.min.toLocaleString()}-$${budgetRange.max.toLocaleString()}`);
       }
+    } else if (!allowTextConstraintFallback) {
+      console.log(`[ContextBuilder] 💡 Constraint mode "${constraintMode}" - skipping text constraint extraction`);
     }
 
     // Log the final constraints being used
-    if (explicitBudgetRange) {
+    if (explicitBudgetRange && budgetRange) {
       console.log(`[ContextBuilder] ✅ Using EXPLICIT budget constraint: $${budgetRange.min.toLocaleString()}-$${budgetRange.max.toLocaleString()}`);
     }
     if (explicitTimelineRange) {
       console.log(`[ContextBuilder] ✅ Using EXPLICIT timeline constraint: ${timelineRange.min}-${timelineRange.max} months`);
     }
     
-    // Infer business type first, then use it for industry if not explicitly set
-    const businessType = this.inferBusinessType(insights);
-    const industry = insights.marketContext?.industry || this.inferIndustryFromType(businessType);
+    // Infer business type first, then derive a reusable domain profile.
+    const businessType = this.inferBusinessType(
+      insights,
+      initiativeType,
+      [userInput, businessDescription].filter(Boolean).join(' ')
+    );
+    const combinedDomainText = [
+      userInput,
+      businessDescription,
+      insights.marketContext?.industry,
+      insights.insights.map((i) => i.content).join(' '),
+    ]
+      .filter(Boolean)
+      .join(' ');
+    const domainProfile = detectDomainProfile({
+      sourceText: combinedDomainText,
+      businessType,
+      industryHint: insights.marketContext?.industry,
+    });
+    const inferredIndustry = this.inferIndustryFromType(businessType);
+    const industry = resolveIndustryLabel(
+      insights.marketContext?.industry || inferredIndustry,
+      domainProfile
+    );
     
     console.log('[ContextBuilder] OUTPUT:', {
       businessName,
       businessType,
-      industry
+      industry,
+      domain: domainProfile.code,
+      domainConfidence: domainProfile.confidence,
     });
     
     return {
@@ -133,7 +163,8 @@ export class ContextBuilder {
         industry: industry,
         description: businessDescription || userInput,
         scale,
-        initiativeType
+        initiativeType,
+        domainProfile,
       },
       strategic: {
         insights: insights,
@@ -259,8 +290,28 @@ export class ContextBuilder {
    * Infer business type from insights
    * Uses a more intelligent approach: check for specific industry context BEFORE generic patterns
    */
-  private static inferBusinessType(insights: StrategyInsights): string {
-    const contextText = insights.insights.map(i => i.content).join(' ').toLowerCase();
+  private static inferBusinessType(
+    insights: StrategyInsights,
+    initiativeTypeHint?: string,
+    supplementalContext?: string
+  ): string {
+    const contextText = [
+      insights.insights.map(i => i.content).join(' '),
+      supplementalContext || '',
+      initiativeTypeHint || '',
+    ].join(' ').toLowerCase();
+    const normalizedInitiativeHint = (initiativeTypeHint || '').toLowerCase();
+
+    // Operational improvement programs (e.g., EBITDA/cost optimization in ports/logistics)
+    // should not be forced into SaaS/platform business types just because documents mention technology.
+    const hasOperationalSignals = /\b(ebitda|cost[-\s]?to[-\s]?serve|working capital|value capture|procurement|outsourcing|yield management)\b/.test(contextText);
+    const hasPortsSignals = /\b(ad ports|ports group|ports?\b|logistics|maritime|shipping|terminal|fleet|cargo)\b/.test(contextText);
+    if (
+      normalizedInitiativeHint.includes('process_improvement') ||
+      (hasOperationalSignals && hasPortsSignals)
+    ) {
+      return 'professional_services';
+    }
     
     // SPECIFIC RETAIL TYPES - must check BEFORE generic "store/shop" patterns
     // Footwear/Athletic retail
@@ -463,6 +514,8 @@ export class ContextBuilder {
       planningContext.business.description
     );
 
+    const domainProfile = planningContext.business.domainProfile as DomainProfile | undefined;
+
     return {
       sessionId,
       journeyType,
@@ -478,6 +531,7 @@ export class ContextBuilder {
         name: planningContext.business.industry || this.inferIndustryFromType(businessType),
         keywords,
       },
+      domainProfile,
 
       region: {
         country: 'Unknown', // Would need to be extracted from input
