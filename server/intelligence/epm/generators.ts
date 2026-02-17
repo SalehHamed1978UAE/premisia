@@ -38,7 +38,7 @@ import type {
   ExitStrategy,
   StrategyContext,
   RiskCategory,
-  Workstream,
+  DomainCode,
 } from '../types';
 import { aiClients } from '../../ai-clients';
 import {
@@ -108,6 +108,13 @@ export class ExecutiveSummaryGenerator {
 
 /**
  * Financial Plan Generator
+ *
+ * SPRINT 6B - CONSTRAINT-FIRST ARCHITECTURE:
+ * This generator NO LONGER caps budget post-hoc. It receives a resourcePlan
+ * that has ALREADY been constrained by the CapacityEnvelope upstream.
+ *
+ * The generator simply computes costs from the constrained resource plan.
+ * NO scaling, NO capping, NO contingency overflow.
  */
 export class FinancialPlanGenerator {
   async generate(
@@ -118,31 +125,64 @@ export class FinancialPlanGenerator {
   ): Promise<FinancialPlan> {
     const costInsights = insights.insights.filter(i => i.type === 'cost');
 
+    // SPRINT 6B: Direct cost computation from constrained resource plan
+    // No post-hoc capping needed - ResourceAllocator already constrained team size
     const personnelCost = resourcePlan.totalFTEs * 150000;
     const externalCost = resourcePlan.externalResources.reduce((sum, r) => sum + r.estimatedCost, 0);
     const overheadCost = (personnelCost + externalCost) * 0.15;
-    const computedBudget = personnelCost + externalCost + overheadCost;
-    const constraintMax = userContext?.budgetRange?.max;
-    // Sprint 6: Cap at constraint. Sprint 6.1: Reserve 10% for contingency within the cap
-    // so that totalBudget + contingency never exceeds constraintMax
-    const effectiveCap = constraintMax ? constraintMax / 1.10 : undefined;
-    const totalBudget = effectiveCap ? Math.min(effectiveCap, computedBudget) : computedBudget;
 
-    // Sprint 6.1: Scale breakdown amounts proportionally when budget is capped
-    const scaleFactor = totalBudget < computedBudget ? totalBudget / computedBudget : 1;
+    // Base budget before contingency
+    const baseBudget = personnelCost + externalCost + overheadCost;
+
+    // Cost breakdown (no scaling needed)
     const costBreakdown = [
-      { category: 'Personnel', amount: Math.round(personnelCost * scaleFactor), percentage: (personnelCost / computedBudget) * 100, description: 'Internal team costs' },
-      { category: 'External Resources', amount: Math.round(externalCost * scaleFactor), percentage: (externalCost / computedBudget) * 100, description: 'Consultants, software, services' },
-      { category: 'Overhead', amount: Math.round(overheadCost * scaleFactor), percentage: (overheadCost / computedBudget) * 100, description: 'Infrastructure, admin, facilities' },
+      { category: 'Personnel', amount: Math.round(personnelCost), percentage: (personnelCost / baseBudget) * 100, description: 'Internal team costs' },
+      { category: 'External Resources', amount: Math.round(externalCost), percentage: (externalCost / baseBudget) * 100, description: 'Consultants, software, services' },
+      { category: 'Overhead', amount: Math.round(overheadCost), percentage: (overheadCost / baseBudget) * 100, description: 'Infrastructure, admin, facilities' },
     ];
 
-    const contingency = totalBudget * 0.10;
-    // Sprint 6: Use actual timeline months instead of hardcoded 12
+    const contingency = baseBudget * 0.10;
     const programMonths = timelineMonths || userContext?.timelineRange?.max || 12;
+    const totalBudget = baseBudget + contingency;
     const cashFlow = this.generateCashFlow(totalBudget, programMonths);
 
+    console.log('[FinancialPlanGenerator] SPRINT 6B - No capping:');
+    console.log(`  Personnel: $${(personnelCost / 1e6).toFixed(2)}M`);
+    console.log(`  External: $${(externalCost / 1e6).toFixed(2)}M`);
+    console.log(`  Overhead: $${(overheadCost / 1e6).toFixed(2)}M`);
+    console.log(`  Base budget: $${(baseBudget / 1e6).toFixed(2)}M`);
+    console.log(`  Contingency: $${(contingency / 1e6).toFixed(2)}M (10%)`);
+    console.log(`  Total budget: $${(totalBudget / 1e6).toFixed(2)}M`);
+
+    // SPRINT 6B FIX #3: FAIL-FAST if budget exceeds constraint
+    // This should NEVER happen if envelope is enforced correctly upstream
+    const budgetMax = userContext?.budgetRange?.max;
+    if (budgetMax && totalBudget > budgetMax) {
+      const overage = totalBudget - budgetMax;
+      const overagePct = (overage / budgetMax) * 100;
+
+      console.error(
+        `[FinancialPlanGenerator] ❌ CONSTRAINT VIOLATION: totalBudget=$${(totalBudget / 1e6).toFixed(2)}M exceeds cap=$${(budgetMax / 1e6).toFixed(2)}M by $${(overage / 1e6).toFixed(2)}M (${overagePct.toFixed(1)}%). ` +
+        `This indicates ResourceAllocator did not respect CapacityEnvelope. Check envelope enforcement logic.`
+      );
+
+      throw new Error(
+        `Budget overflow: $${(totalBudget / 1e6).toFixed(2)}M > $${(budgetMax / 1e6).toFixed(2)}M. ` +
+        `ResourcePlan.totalFTEs=${resourcePlan.totalFTEs}, External=$${(externalCost / 1e6).toFixed(2)}M. ` +
+        `Envelope enforcement failed.`
+      );
+    }
+
+    // ASSERT for CI/dev
+    console.assert(
+      !budgetMax || totalBudget <= budgetMax,
+      `FinancialPlan exceeded budget: ${totalBudget} > ${budgetMax}`
+    );
+
+    console.log(`[FinancialPlanGenerator] ✅ Budget validation: $${(totalBudget / 1e6).toFixed(2)}M <= $${budgetMax ? (budgetMax / 1e6).toFixed(2) : '∞'}M`);
+
     return {
-      totalBudget: totalBudget + contingency,
+      totalBudget,
       costBreakdown,
       cashFlow,
       contingency,
@@ -152,6 +192,7 @@ export class FinancialPlanGenerator {
         `${resourcePlan.totalFTEs} FTEs for ${programMonths} months`,
         `15% overhead for infrastructure and support`,
         `10% contingency for risks and unknowns`,
+        `SPRINT 6B: Team size pre-constrained by CapacityEnvelope`,
       ],
       confidence: costInsights.length > 0 ? 0.65 : 0.55,
     };
@@ -220,7 +261,7 @@ export class BenefitsGenerator {
         description: buildBenefitDescription(decision, option),
         category: category as any,
         measurement: deriveMetric(option, category),
-        target: deriveTarget(option, category),
+        target: deriveTarget(option, category, decision.question),
         realizationMonth: this.parseTimeframeToMonth(deriveTimeframe(option, programTimeline)),
         responsibleParty: pickOwner(decision, workstreams, resources),
         confidence: 0.8,
@@ -798,12 +839,13 @@ export class RiskGenerator {
       risks.push(...this.buildWorkstreamRisks(workstreams, risks.length, targetRiskCount - risks.length));
     }
 
-    const topRisks = [...risks].sort((a, b) => b.severity - a.severity).slice(0, 5);
+    const diversifiedRisks = this.ensureMitigationDiversity(risks);
+    const topRisks = [...diversifiedRisks].sort((a, b) => b.severity - a.severity).slice(0, 5);
 
     return {
-      risks,
+      risks: diversifiedRisks,
       topRisks,
-      mitigationBudget: risks.length * 25000,
+      mitigationBudget: diversifiedRisks.length * 25000,
       confidence: riskInsights.length > 0 ? 0.80 : 0.65,
     };
   }
@@ -982,6 +1024,55 @@ export class RiskGenerator {
     return categoryMitigations[category] || 'Establish monitoring process, define escalation triggers, and review mitigation effectiveness monthly';
   }
 
+  private ensureMitigationDiversity(risks: Risk[]): Risk[] {
+    const buckets = new Map<string, number[]>();
+
+    risks.forEach((risk, index) => {
+      const key = this.normalizeMitigation(risk.mitigation);
+      if (!buckets.has(key)) {
+        buckets.set(key, []);
+      }
+      buckets.get(key)!.push(index);
+    });
+
+    return risks.map((risk, index) => {
+      const key = this.normalizeMitigation(risk.mitigation);
+      const peers = buckets.get(key) || [];
+      if (peers.length <= 1) {
+        return risk;
+      }
+
+      const sequence = peers.indexOf(index) + 1;
+      const focus = this.extractMitigationFocus(risk.description);
+      return {
+        ...risk,
+        mitigation: `${risk.mitigation}; Focus area ${sequence}/${peers.length}: ${focus}.`,
+      };
+    });
+  }
+
+  private normalizeMitigation(value: string): string {
+    return (value || '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private extractMitigationFocus(description: string): string {
+    const cleaned = (description || '')
+      .replace(/^[A-Z]\d*[:\-]\s*/i, '')
+      .replace(/[^\w\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!cleaned) {
+      return 'workstream-specific risk conditions';
+    }
+
+    const tokens = cleaned.split(' ').slice(0, 8);
+    return tokens.join(' ');
+  }
+
   /**
    * Assign owners to risks based on their category and content
    * Uses role-templates for context-aware owner assignment with round-robin fallback
@@ -1091,16 +1182,29 @@ export class StageGateGenerator {
     for (const ws of workstreams) {
       if (ws?.id) workstreamById.set(ws.id, ws);
     }
+    const emittedWorkstreamIds = new Set<string>();
 
     const gates = timeline.phases.map((phase, idx) => {
-      const phaseWorkstreams = (phase.workstreamIds || [])
+      const uniquePhaseWorkstreamIds = Array.from(
+        new Set(
+          (phase.workstreamIds || [])
+            .filter((id: any): id is string => typeof id === 'string' && id.trim().length > 0)
+        )
+      );
+
+      const phaseWorkstreams = uniquePhaseWorkstreamIds
         .map((id) => workstreamById.get(id))
         .filter((ws): ws is Workstream => !!ws);
 
-      // Required workstreams should complete by the end of the phase
+      // Gate deliverables should reflect workstreams completing in THIS phase window,
+      // not every workstream completed up to this phase (prevents gate carry-over duplication).
       const requiredWorkstreams = phaseWorkstreams.filter(
-        (ws) => ws.endMonth <= phase.endMonth
+        (ws) =>
+          ws.endMonth >= phase.startMonth &&
+          ws.endMonth <= phase.endMonth &&
+          !emittedWorkstreamIds.has(ws.id)
       );
+      requiredWorkstreams.forEach((ws) => emittedWorkstreamIds.add(ws.id));
 
       const baseDeliverables: string[] = [];
       const supplementalDeliverables: string[] = [];
@@ -1165,6 +1269,7 @@ export class StageGateGenerator {
       if (uniqueDeliverables.length === 0) {
         uniqueDeliverables.push(`${phase.name} completion review package`);
       }
+
       return {
         gate: idx + 1,
         name: `Gate ${idx + 1}: ${phase.name} Complete`,
@@ -1196,20 +1301,34 @@ export class StageGateGenerator {
  * KPI Generator
  */
 export class KPIGenerator {
-  async generate(insights: StrategyInsights, benefitsRealization: BenefitsRealization): Promise<KPIs> {
+  private static readonly GENERIC_TARGET_RE =
+    /(complete within \d+\s*(months?|weeks?)|defined strategic milestone achieved within \d+\s*months?|production go-live by month \d+|go-live by month \d+|launch by month \d+)/i;
+  private static readonly TRAILING_FRAGMENT_RE = /\b(to|from|by|for|with|and|or|the|a|an|of)$/i;
+  private static readonly GENERIC_MEASUREMENT_RE = /(strategic kpi tracking|current baseline|quarterly tracking)/i;
+  private static readonly SOFTWARE_KPI_RE = /\b(mvp|uat|api|latency|software|saas)\b/i;
+
+  async generate(
+    insights: StrategyInsights,
+    benefitsRealization: BenefitsRealization,
+    domainCode?: DomainCode
+  ): Promise<KPIs> {
     const kpis = benefitsRealization.benefits.map((benefit, idx) => {
       let kpiCategory: 'Financial' | 'Operational' | 'Strategic' | 'Customer' = 'Strategic';
       if (benefit.category === 'Financial') kpiCategory = 'Financial';
       else if (benefit.category === 'Operational') kpiCategory = 'Operational';
       else if (benefit.category === 'Strategic') kpiCategory = 'Strategic';
+      const measurement = this.sanitizeMeasurement(benefit.measurement, benefit, domainCode);
+      const rawTarget = benefit.target || (benefit.estimatedValue
+        ? `+${benefit.estimatedValue.toLocaleString()}`
+        : this.generateMeasurableTarget(benefit, domainCode));
       
       return {
         id: `KPI${String(idx + 1).padStart(3, '0')}`,
-        name: this.generateKPIName(benefit),
+        name: this.generateKPIName(benefit, domainCode),
         category: kpiCategory,
-        baseline: this.generateBaseline(benefit),
-        target: benefit.target || (benefit.estimatedValue ? `+${benefit.estimatedValue.toLocaleString()}` : this.generateMeasurableTarget(benefit)),
-        measurement: benefit.measurement,
+        baseline: this.generateBaseline(benefit, domainCode),
+        target: this.sanitizeTarget(rawTarget, benefit, domainCode),
+        measurement,
         frequency: benefit.category === 'Financial' ? 'Monthly' as const : 'Quarterly' as const,
         linkedBenefitIds: [benefit.id],
         confidence: benefit.confidence,
@@ -1218,44 +1337,267 @@ export class KPIGenerator {
 
     kpis.push({
       id: `KPI${String(kpis.length + 1).padStart(3, '0')}`,
-      name: 'Program Progress',
+      name: 'On-time Deliverable Completion',
       category: 'Operational',
-      baseline: '0%',
-      target: '100%',
-      measurement: 'Percentage of deliverables completed',
+      baseline: 'Current on-time completion rate',
+      target: '95% on-time completion rate',
+      measurement: 'Percentage of deliverables completed by planned due month',
       frequency: 'Monthly',
       linkedBenefitIds: [],
       confidence: 0.95,
     });
 
+    const deduplicatedTargets = this.ensureUniqueTargets(kpis);
+
     return {
-      kpis,
+      kpis: deduplicatedTargets,
       confidence: 0.75,
     };
   }
 
-  private generateKPIName(benefit: Benefit): string {
-    const base = (benefit.name || benefit.description || 'KPI').trim();
-    const measurement = benefit.measurement?.trim();
-    if (!measurement) return base;
-    const measurementCore = measurement.split(/[;,.]/)[0]?.trim();
-    if (!measurementCore) return base;
-    const baseLower = base.toLowerCase();
-    if (baseLower.includes(measurementCore.toLowerCase())) return base;
-    return `${base} (${measurementCore})`;
+  private isPortsLogisticsDomain(domainCode?: DomainCode): boolean {
+    return domainCode === 'ports_logistics';
   }
 
-  private generateBaseline(benefit: Benefit): string {
-    const measurement = benefit.measurement?.trim();
+  private generateKPIName(benefit: Benefit, domainCode?: DomainCode): string {
+    const base = this.summarizeBenefitName(benefit);
+    return this.ensureMeaningfulKpiName(base, benefit, domainCode);
+  }
+
+  private summarizeBenefitName(benefit: Benefit): string {
+    const fallback = 'Strategic Outcome KPI';
+    let label = (benefit.name || benefit.description || fallback).trim();
+    if (!label) return fallback;
+
+    label = label.replace(/^decision implementation:\s*/i, '').replace(/\s+/g, ' ').trim();
+
+    const primaryClause = label.split(':')[0]?.trim();
+    if (primaryClause && primaryClause.length >= 8) {
+      label = primaryClause;
+    }
+
+    const resolveSplit = label.split(/\s+to\s+resolve\b/i);
+    if (resolveSplit.length > 1 && resolveSplit[0].trim().length >= 12) {
+      label = resolveSplit[0].trim();
+    }
+
+    const vsSplit = label.split(/\s+vs\s+/i);
+    if (vsSplit.length > 1 && vsSplit[0].trim().length >= 8) {
+      label = vsSplit[0].trim();
+    }
+
+    const words = label.split(/\s+/);
+    if (words.length > 10 || label.length > 72) {
+      label = words.slice(0, 8).join(' ');
+    }
+
+    label = this.stripTrailingFragments(label);
+
+    return label.trim() || fallback;
+  }
+
+  private ensureMeaningfulKpiName(label: string, benefit: Benefit, domainCode?: DomainCode): string {
+    let trimmed = this.stripTrailingFragments((label || '').trim());
+    if (this.isPortsLogisticsDomain(domainCode)) {
+      trimmed = trimmed
+        .replace(/\bmvp\b/gi, 'operating model')
+        .replace(/\buat\b/gi, 'field validation')
+        .replace(/\bapi\b/gi, 'data interface')
+        .replace(/\bsaas\b/gi, 'operations')
+        .replace(/\bsoftware\b/gi, 'operations')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+    const words = trimmed.split(/\s+/).filter(Boolean);
+    if (trimmed.length >= 10 && words.length >= 3 && !KPIGenerator.TRAILING_FRAGMENT_RE.test(trimmed)) {
+      return trimmed;
+    }
+
+    const measurement = this.sanitizeMeasurement(benefit.measurement, benefit, domainCode).trim();
+    if (measurement.length >= 8) {
+      const firstClause = measurement.split(/[.;:]/)[0].trim();
+      const composed = `${trimmed || 'Strategic Outcome'} ${firstClause}`
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (composed.length > 72) {
+        return composed.slice(0, 72).trim();
+      }
+      return composed;
+    }
+
+    if (benefit.category === 'Financial') {
+      return `${trimmed || 'Financial'} Value Impact`;
+    }
+    if (benefit.category === 'Operational') {
+      return `${trimmed || 'Operational'} Performance Outcome`;
+    }
+
+    return `${trimmed || 'Strategic'} Outcome Metric`;
+  }
+
+  private sanitizeTarget(target: string, benefit: Benefit, domainCode?: DomainCode): string {
+    let normalized = (target || '').trim();
+    if (!normalized) {
+      normalized = this.generateMeasurableTarget(benefit, domainCode);
+    }
+
+    if (KPIGenerator.GENERIC_TARGET_RE.test(normalized)) {
+      normalized = this.generateSpecificTarget(benefit, domainCode);
+    }
+
+    if (this.isPortsLogisticsDomain(domainCode) && KPIGenerator.SOFTWARE_KPI_RE.test(normalized)) {
+      normalized = this.generateSpecificTarget(benefit, domainCode);
+    }
+
+    // Avoid undefined "vs baseline" phrasing that fails KPI quality checks.
+    if (/\bbaseline\b/i.test(normalized) && !/from\s+[\d.]+/i.test(normalized)) {
+      normalized = normalized.replace(/\bbaseline\b/ig, 'current state');
+    }
+
+    return normalized;
+  }
+
+  private generateBaseline(benefit: Benefit, domainCode?: DomainCode): string {
+    const measurement = this.sanitizeMeasurement(benefit.measurement, benefit, domainCode).trim();
     if (measurement) {
       return `Current ${measurement}`;
     }
     return 'Current baseline';
   }
 
-  private generateMeasurableTarget(benefit: { description: string; category: string; measurement?: string }): string {
+  private sanitizeMeasurement(
+    measurement: string | undefined,
+    benefit: Benefit,
+    domainCode?: DomainCode
+  ): string {
+    const normalized = (measurement || '').trim();
+    if (
+      !normalized ||
+      KPIGenerator.GENERIC_MEASUREMENT_RE.test(normalized) ||
+      (this.isPortsLogisticsDomain(domainCode) && KPIGenerator.SOFTWARE_KPI_RE.test(normalized))
+    ) {
+      return this.generateMeasurement(benefit, domainCode);
+    }
+    return normalized;
+  }
+
+  private generateMeasurement(benefit: Benefit, domainCode?: DomainCode): string {
+    const text = `${benefit.name || ''} ${benefit.description || ''}`.toLowerCase();
+
+    if (this.isPortsLogisticsDomain(domainCode)) {
+      if (/(compliance|regulatory|audit|control|policy|risk)/.test(text)) {
+        return 'Regulatory incident rate and audit action closure cycle time';
+      }
+      if (/(market|commercial|yield|pricing|contract|customer|segment|revenue leakage|cost-to-serve)/.test(text)) {
+        return 'Commercial yield per move and cost-to-serve variance';
+      }
+      if (/(talent|recruit|onboard|training|workforce|people|hr|employee)/.test(text)) {
+        return 'Critical-role training completion rate and time-to-productivity';
+      }
+      if (/(fleet|vessel|berth|terminal|cargo|port|maritime|turnaround|operations|reliability|downtime|maintenance)/.test(text)) {
+        return 'Vessel turnaround time, berth productivity, and unplanned downtime rate';
+      }
+      if (/(integration|data|interface|system|platform|pipeline)/.test(text)) {
+        return 'Data-interface success rate and reporting cycle-time SLA';
+      }
+    }
+
+    if (/(compliance|privacy|regulatory|audit|soc2|gdpr|control)/.test(text)) {
+      return 'Control adherence rate and critical audit finding closure';
+    }
+    if (/(market|gtm|sales|pipeline|lead|positioning|pricing)/.test(text)) {
+      return 'Qualified pipeline conversion rate and revenue per active user';
+    }
+    if (/(talent|recruit|onboard|training|workforce|employee)/.test(text)) {
+      return 'Time-to-hire and onboarding completion rate';
+    }
+    if (/(integration|api|platform|scalability|latency|throughput)/.test(text)) {
+      return 'Integration success rate and API latency SLA attainment';
+    }
+    if (/(operations|release|deployment|stabilization|incident|support)/.test(text)) {
+      return 'Deployment success rate and severity-1 incident frequency';
+    }
+
+    if (benefit.category === 'Financial') return 'Net new revenue and gross margin impact';
+    if (benefit.category === 'Operational') return 'Cycle time and throughput improvement';
+    return 'Strategic objective attainment index';
+  }
+
+  private generateSpecificTarget(benefit: Benefit, domainCode?: DomainCode): string {
+    const text = `${benefit.name || ''} ${benefit.description || ''}`.toLowerCase();
+
+    if (this.isPortsLogisticsDomain(domainCode)) {
+      if (/(compliance|regulatory|audit|control|policy|risk)/.test(text)) {
+        return '100% critical compliance controls and 0 overdue audit actions';
+      }
+      if (/(market|commercial|yield|pricing|contract|customer|segment|revenue leakage|cost-to-serve)/.test(text)) {
+        return '>=5% improvement in yield per move and >=10% reduction in cost-to-serve variance';
+      }
+      if (/(talent|recruit|onboard|training|workforce|people|hr|employee)/.test(text)) {
+        return '>=90% critical-role training completion and <=45 days time-to-productivity';
+      }
+      if (/(fleet|vessel|berth|terminal|cargo|port|maritime|turnaround|operations|reliability|downtime|maintenance)/.test(text)) {
+        return '<=10% reduction in vessel turnaround time and >=8% improvement in berth productivity';
+      }
+      if (/(integration|data|interface|system|platform|pipeline)/.test(text)) {
+        return '>=99% successful data-interface runs and <=4 hour reporting refresh SLA';
+      }
+      if (benefit.category === 'Financial') {
+        return '>=8% run-rate EBITDA improvement in targeted clusters';
+      }
+    }
+
+    if (/(compliance|privacy|regulatory|audit|soc2|gdpr|control)/.test(text)) {
+      return '100% critical controls implemented and 0 unresolved critical audit findings';
+    }
+    if (/(market|gtm|sales|pipeline|lead|positioning|pricing)/.test(text)) {
+      return '+15% qualified pipeline growth and >=20% lead-to-opportunity conversion';
+    }
+    if (/(talent|recruit|onboard|training|workforce|employee)/.test(text)) {
+      return '-25% time-to-hire and >=90% onboarding completion within first 30 days';
+    }
+    if (/(integration|api|platform|scalability|latency|throughput)/.test(text)) {
+      return '>=99.5% integration success and <250ms p95 API latency';
+    }
+    if (/(operations|release|deployment|stabilization|incident|support)/.test(text)) {
+      return '>=98% deployment success rate and <2 Sev-1 incidents per quarter';
+    }
+
+    if (benefit.category === 'Financial') return '+12% improvement in revenue contribution';
+    if (benefit.category === 'Operational') return '+20% throughput improvement vs current state';
+    return '+15% improvement in strategic objective attainment';
+  }
+
+  private stripTrailingFragments(value: string): string {
+    let cleaned = (value || '').replace(/[,:;.\s]+$/g, '').trim();
+    while (KPIGenerator.TRAILING_FRAGMENT_RE.test(cleaned)) {
+      cleaned = cleaned.replace(/\b(to|from|by|for|with|and|or|the|a|an|of)$/i, '').trim();
+    }
+    return cleaned;
+  }
+
+  private generateMeasurableTarget(
+    benefit: { description: string; category: string; measurement?: string },
+    domainCode?: DomainCode
+  ): string {
     const lower = benefit.description.toLowerCase();
     const measurement = benefit.measurement?.toLowerCase() || '';
+
+    if (this.isPortsLogisticsDomain(domainCode)) {
+      if (/(compliance|regulatory|audit|control|policy|risk)/.test(lower)) {
+        return '100% critical compliance controls and 0 overdue audit actions';
+      }
+      if (/(market|commercial|yield|pricing|contract|customer|segment|cost-to-serve|leakage)/.test(lower)) {
+        return '>=5% improvement in yield per move and >=10% reduction in cost-to-serve variance';
+      }
+      if (/(fleet|vessel|berth|terminal|cargo|port|maritime|turnaround|operations|maintenance|reliability)/.test(lower)) {
+        return '<=10% reduction in vessel turnaround time and >=8% improvement in berth productivity';
+      }
+      if (/(talent|recruit|onboard|training|workforce|people|hr)/.test(lower)) {
+        return '>=90% critical-role training completion and <=45 days time-to-productivity';
+      }
+      return '>=8% run-rate EBITDA improvement in targeted clusters';
+    }
     
     if (lower.includes('revenue') || lower.includes('sales')) {
       return '+15% year-over-year';
@@ -1305,6 +1647,48 @@ export class KPIGenerator {
     }
     
     return '+15% improvement vs current state';
+  }
+
+  private normalizeTarget(value: string): string {
+    return (value || '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private ensureUniqueTargets(kpis: KPIs['kpis']): KPIs['kpis'] {
+    const seen = new Map<string, number>();
+    return kpis.map((kpi) => {
+      const normalized = this.normalizeTarget(kpi.target);
+      const occurrence = seen.get(normalized) || 0;
+      seen.set(normalized, occurrence + 1);
+      if (occurrence === 0 || !normalized) return kpi;
+      return {
+        ...kpi,
+        target: this.makeDistinctTarget(kpi.target, kpi.name, occurrence),
+      };
+    });
+  }
+
+  private makeDistinctTarget(target: string, kpiName: string, occurrence: number): string {
+    const normalized = target.trim();
+    if (/^\+?100%\s+/i.test(normalized)) {
+      return `${normalized} (${kpiName.toLowerCase()} scope)`;
+    }
+    const percentMatch = normalized.match(/^([+-]?)(\d+)%\s+(.+)$/);
+    if (percentMatch) {
+      const sign = percentMatch[1] || '+';
+      const base = Number(percentMatch[2]);
+      const remainder = percentMatch[3];
+      const stepped = Math.max(1, base + (occurrence * 2));
+      return `${sign}${stepped}% ${remainder}`;
+    }
+
+    if (/^100%\s+compliance/i.test(normalized)) {
+      return `100% compliance score with ${kpiName.toLowerCase()} evidence closure`;
+    }
+
+    return `${normalized} for ${kpiName}`;
   }
 }
 

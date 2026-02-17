@@ -117,7 +117,7 @@ const DOMAIN_CANONICAL_NAMES: Partial<Record<DomainCode, Partial<Record<Exclude<
     talent: 'Talent & Capability Enablement',
     marketing: 'Market & Commercial Strategy',
     compliance: 'Regulatory Compliance & Risk Controls',
-    operations: 'Execution & Operational Governance',
+    operations: 'Port Operations & Execution Management',
   },
 };
 

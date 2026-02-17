@@ -1371,12 +1371,22 @@ export class EPMSynthesizer {
       alignedWorkstreams,
       planningContext.business.domainProfile?.code
     );
-    const semanticallyAlignedWorkstreams = semanticRepair.workstreams;
+    const nameRepair = this.ensureUniqueWorkstreamNames(
+      semanticRepair.workstreams,
+      planningContext.business.domainProfile?.code
+    );
+    const semanticallyAlignedWorkstreams = nameRepair.workstreams;
     if (semanticRepair.repairs.length > 0) {
       console.log(`[EPM Synthesis] 🔧 Semantic alignment repairs: ${semanticRepair.repairs.length}`);
       semanticRepair.repairs.forEach((repair) => console.log(`  - ${repair}`));
     } else {
       console.log('[EPM Synthesis] ✓ Semantic alignment repair pass: no changes');
+    }
+    if (nameRepair.repairs.length > 0) {
+      console.log(`[EPM Synthesis] 🔧 Workstream name repairs: ${nameRepair.repairs.length}`);
+      nameRepair.repairs.forEach((repair) => console.log(`  - ${repair}`));
+    } else {
+      console.log('[EPM Synthesis] ✓ Workstream name uniqueness pass: no changes');
     }
 
     const timelineReadyWorkstreams = isEPMDomainResilienceEnabled()
@@ -1400,11 +1410,20 @@ export class EPMSynthesizer {
     }
 
     // Sprint 1: Assign phases with containment enforcement
-    const phasedWorkstreams = this.assignWorkstreamPhases(deduplicatedWorkstreams, timeline);
+    let phasedWorkstreams = this.assignWorkstreamPhases(deduplicatedWorkstreams, timeline);
     // Always enforce phase coverage to avoid empty lifecycle phases in exported plans.
     // Domain resilience still controls upstream augmentation, but structural phase coverage is mandatory.
     this.fillEmptyPhases(phasedWorkstreams, timeline, planningContext);
     this.fillInternalTimelineGaps(phasedWorkstreams, timeline, planningContext);
+    const postPhaseNameRepair = this.ensureUniqueWorkstreamNames(
+      phasedWorkstreams,
+      planningContext.business.domainProfile?.code
+    );
+    phasedWorkstreams = postPhaseNameRepair.workstreams;
+    if (postPhaseNameRepair.repairs.length > 0) {
+      console.log(`[EPM Synthesis] 🔧 Post-phase name repairs: ${postPhaseNameRepair.repairs.length}`);
+      postPhaseNameRepair.repairs.forEach((repair) => console.log(`  - ${repair}`));
+    }
     timeline = this.syncTimelinePhaseWorkstreams(timeline, phasedWorkstreams);
     onProgress?.({
       type: 'step-start',
@@ -1628,7 +1647,11 @@ export class EPMSynthesizer {
       procurement,
       exitStrategy,
     ] = await Promise.all([
-      this.kpiGenerator.generate(insights, benefitsRealization),
+      this.kpiGenerator.generate(
+        insights,
+        benefitsRealization,
+        planningContext.business.domainProfile?.code
+      ),
       this.procurementGenerator.generate(insights, financialPlan),
       this.exitStrategyGenerator.generate(insights, riskRegister),
     ]);
@@ -1968,6 +1991,78 @@ export class EPMSynthesizer {
       };
 
       repairs.push(`${ws.id}: "${previousName}" -> "${ws.name}"`);
+    }
+
+    return { workstreams: repaired, repairs };
+  }
+
+  private ensureUniqueWorkstreamNames(
+    workstreams: Workstream[],
+    domainCode?: DomainProfile['code']
+  ): { workstreams: Workstream[]; repairs: string[] } {
+    const repaired = workstreams.map((ws) => ({
+      ...ws,
+      deliverables: (ws.deliverables || []).map((d) => ({ ...d })),
+      dependencies: [...(ws.dependencies || [])],
+      metadata: ws.metadata ? { ...ws.metadata } : undefined,
+    }));
+    const repairs: string[] = [];
+    const seenNames = new Set<string>();
+    const totals = new Map<string, number>();
+
+    for (const ws of repaired) {
+      const normalized = (ws.name || '').trim().toLowerCase();
+      if (!normalized) continue;
+      totals.set(normalized, (totals.get(normalized) || 0) + 1);
+    }
+
+    for (let index = 0; index < repaired.length; index += 1) {
+      const ws = repaired[index];
+      const original = (ws.name || '').trim() || `Workstream ${index + 1}`;
+      const normalized = original.toLowerCase();
+      const duplicateName = (totals.get(normalized) || 0) > 1 || seenNames.has(normalized);
+      if (!duplicateName && !seenNames.has(normalized)) {
+        ws.name = original;
+        seenNames.add(normalized);
+        continue;
+      }
+
+      const dominant = analyzeWorkstreamDeliverableTheme(ws);
+      const canonical = getCanonicalWorkstreamName(dominant.theme, domainCode);
+      const candidates = [canonical, original]
+        .map((value) => (value || '').trim())
+        .filter(Boolean);
+
+      let renamed = candidates.find((candidate) => !seenNames.has(candidate.toLowerCase())) || '';
+      if (!renamed) {
+        const base = candidates[0] || `Workstream ${index + 1}`;
+        renamed = `${base} (M${ws.startMonth}-M${ws.endMonth})`;
+      }
+
+      let uniqueName = renamed;
+      let suffix = 2;
+      while (seenNames.has(uniqueName.toLowerCase())) {
+        uniqueName = `${renamed} ${suffix}`;
+        suffix += 1;
+      }
+
+      if (uniqueName !== original) {
+        repairs.push(`${ws.id}: "${original}" -> "${uniqueName}"`);
+        ws.name = uniqueName;
+        ws.metadata = {
+          ...(ws.metadata || {}),
+          nameRepair: {
+            previousName: original,
+            renamedTo: uniqueName,
+            reason: 'duplicate_workstream_name',
+            domainCode: domainCode || null,
+          },
+        };
+      } else {
+        ws.name = original;
+      }
+
+      seenNames.add(ws.name.toLowerCase());
     }
 
     return { workstreams: repaired, repairs };
