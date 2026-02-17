@@ -38,6 +38,7 @@ import type {
   ExitStrategy,
   StrategyContext,
   RiskCategory,
+  DomainCode,
 } from '../types';
 import { aiClients } from '../../ai-clients';
 import {
@@ -1301,27 +1302,32 @@ export class StageGateGenerator {
  */
 export class KPIGenerator {
   private static readonly GENERIC_TARGET_RE =
-    /(complete within \d+\s*months?|production go-live by month \d+|go-live by month \d+|launch by month \d+)/i;
+    /(complete within \d+\s*(months?|weeks?)|defined strategic milestone achieved within \d+\s*months?|production go-live by month \d+|go-live by month \d+|launch by month \d+)/i;
   private static readonly TRAILING_FRAGMENT_RE = /\b(to|from|by|for|with|and|or|the|a|an|of)$/i;
   private static readonly GENERIC_MEASUREMENT_RE = /(strategic kpi tracking|current baseline|quarterly tracking)/i;
+  private static readonly SOFTWARE_KPI_RE = /\b(mvp|uat|api|latency|software|saas)\b/i;
 
-  async generate(insights: StrategyInsights, benefitsRealization: BenefitsRealization): Promise<KPIs> {
+  async generate(
+    insights: StrategyInsights,
+    benefitsRealization: BenefitsRealization,
+    domainCode?: DomainCode
+  ): Promise<KPIs> {
     const kpis = benefitsRealization.benefits.map((benefit, idx) => {
       let kpiCategory: 'Financial' | 'Operational' | 'Strategic' | 'Customer' = 'Strategic';
       if (benefit.category === 'Financial') kpiCategory = 'Financial';
       else if (benefit.category === 'Operational') kpiCategory = 'Operational';
       else if (benefit.category === 'Strategic') kpiCategory = 'Strategic';
-      const measurement = this.sanitizeMeasurement(benefit.measurement, benefit);
+      const measurement = this.sanitizeMeasurement(benefit.measurement, benefit, domainCode);
       const rawTarget = benefit.target || (benefit.estimatedValue
         ? `+${benefit.estimatedValue.toLocaleString()}`
-        : this.generateMeasurableTarget(benefit));
+        : this.generateMeasurableTarget(benefit, domainCode));
       
       return {
         id: `KPI${String(idx + 1).padStart(3, '0')}`,
-        name: this.generateKPIName(benefit),
+        name: this.generateKPIName(benefit, domainCode),
         category: kpiCategory,
-        baseline: this.generateBaseline(benefit),
-        target: this.sanitizeTarget(rawTarget, benefit),
+        baseline: this.generateBaseline(benefit, domainCode),
+        target: this.sanitizeTarget(rawTarget, benefit, domainCode),
         measurement,
         frequency: benefit.category === 'Financial' ? 'Monthly' as const : 'Quarterly' as const,
         linkedBenefitIds: [benefit.id],
@@ -1349,9 +1355,13 @@ export class KPIGenerator {
     };
   }
 
-  private generateKPIName(benefit: Benefit): string {
+  private isPortsLogisticsDomain(domainCode?: DomainCode): boolean {
+    return domainCode === 'ports_logistics';
+  }
+
+  private generateKPIName(benefit: Benefit, domainCode?: DomainCode): string {
     const base = this.summarizeBenefitName(benefit);
-    return this.ensureMeaningfulKpiName(base, benefit);
+    return this.ensureMeaningfulKpiName(base, benefit, domainCode);
   }
 
   private summarizeBenefitName(benefit: Benefit): string {
@@ -1386,14 +1396,24 @@ export class KPIGenerator {
     return label.trim() || fallback;
   }
 
-  private ensureMeaningfulKpiName(label: string, benefit: Benefit): string {
-    const trimmed = this.stripTrailingFragments((label || '').trim());
+  private ensureMeaningfulKpiName(label: string, benefit: Benefit, domainCode?: DomainCode): string {
+    let trimmed = this.stripTrailingFragments((label || '').trim());
+    if (this.isPortsLogisticsDomain(domainCode)) {
+      trimmed = trimmed
+        .replace(/\bmvp\b/gi, 'operating model')
+        .replace(/\buat\b/gi, 'field validation')
+        .replace(/\bapi\b/gi, 'data interface')
+        .replace(/\bsaas\b/gi, 'operations')
+        .replace(/\bsoftware\b/gi, 'operations')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
     const words = trimmed.split(/\s+/).filter(Boolean);
     if (trimmed.length >= 10 && words.length >= 3 && !KPIGenerator.TRAILING_FRAGMENT_RE.test(trimmed)) {
       return trimmed;
     }
 
-    const measurement = this.sanitizeMeasurement(benefit.measurement, benefit).trim();
+    const measurement = this.sanitizeMeasurement(benefit.measurement, benefit, domainCode).trim();
     if (measurement.length >= 8) {
       const firstClause = measurement.split(/[.;:]/)[0].trim();
       const composed = `${trimmed || 'Strategic Outcome'} ${firstClause}`
@@ -1415,14 +1435,18 @@ export class KPIGenerator {
     return `${trimmed || 'Strategic'} Outcome Metric`;
   }
 
-  private sanitizeTarget(target: string, benefit: Benefit): string {
+  private sanitizeTarget(target: string, benefit: Benefit, domainCode?: DomainCode): string {
     let normalized = (target || '').trim();
     if (!normalized) {
-      normalized = this.generateMeasurableTarget(benefit);
+      normalized = this.generateMeasurableTarget(benefit, domainCode);
     }
 
     if (KPIGenerator.GENERIC_TARGET_RE.test(normalized)) {
-      normalized = this.generateSpecificTarget(benefit);
+      normalized = this.generateSpecificTarget(benefit, domainCode);
+    }
+
+    if (this.isPortsLogisticsDomain(domainCode) && KPIGenerator.SOFTWARE_KPI_RE.test(normalized)) {
+      normalized = this.generateSpecificTarget(benefit, domainCode);
     }
 
     // Avoid undefined "vs baseline" phrasing that fails KPI quality checks.
@@ -1433,24 +1457,50 @@ export class KPIGenerator {
     return normalized;
   }
 
-  private generateBaseline(benefit: Benefit): string {
-    const measurement = this.sanitizeMeasurement(benefit.measurement, benefit).trim();
+  private generateBaseline(benefit: Benefit, domainCode?: DomainCode): string {
+    const measurement = this.sanitizeMeasurement(benefit.measurement, benefit, domainCode).trim();
     if (measurement) {
       return `Current ${measurement}`;
     }
     return 'Current baseline';
   }
 
-  private sanitizeMeasurement(measurement: string | undefined, benefit: Benefit): string {
+  private sanitizeMeasurement(
+    measurement: string | undefined,
+    benefit: Benefit,
+    domainCode?: DomainCode
+  ): string {
     const normalized = (measurement || '').trim();
-    if (!normalized || KPIGenerator.GENERIC_MEASUREMENT_RE.test(normalized)) {
-      return this.generateMeasurement(benefit);
+    if (
+      !normalized ||
+      KPIGenerator.GENERIC_MEASUREMENT_RE.test(normalized) ||
+      (this.isPortsLogisticsDomain(domainCode) && KPIGenerator.SOFTWARE_KPI_RE.test(normalized))
+    ) {
+      return this.generateMeasurement(benefit, domainCode);
     }
     return normalized;
   }
 
-  private generateMeasurement(benefit: Benefit): string {
+  private generateMeasurement(benefit: Benefit, domainCode?: DomainCode): string {
     const text = `${benefit.name || ''} ${benefit.description || ''}`.toLowerCase();
+
+    if (this.isPortsLogisticsDomain(domainCode)) {
+      if (/(compliance|regulatory|audit|control|policy|risk)/.test(text)) {
+        return 'Regulatory incident rate and audit action closure cycle time';
+      }
+      if (/(market|commercial|yield|pricing|contract|customer|segment|revenue leakage|cost-to-serve)/.test(text)) {
+        return 'Commercial yield per move and cost-to-serve variance';
+      }
+      if (/(talent|recruit|onboard|training|workforce|people|hr|employee)/.test(text)) {
+        return 'Critical-role training completion rate and time-to-productivity';
+      }
+      if (/(fleet|vessel|berth|terminal|cargo|port|maritime|turnaround|operations|reliability|downtime|maintenance)/.test(text)) {
+        return 'Vessel turnaround time, berth productivity, and unplanned downtime rate';
+      }
+      if (/(integration|data|interface|system|platform|pipeline)/.test(text)) {
+        return 'Data-interface success rate and reporting cycle-time SLA';
+      }
+    }
 
     if (/(compliance|privacy|regulatory|audit|soc2|gdpr|control)/.test(text)) {
       return 'Control adherence rate and critical audit finding closure';
@@ -1473,8 +1523,29 @@ export class KPIGenerator {
     return 'Strategic objective attainment index';
   }
 
-  private generateSpecificTarget(benefit: Benefit): string {
+  private generateSpecificTarget(benefit: Benefit, domainCode?: DomainCode): string {
     const text = `${benefit.name || ''} ${benefit.description || ''}`.toLowerCase();
+
+    if (this.isPortsLogisticsDomain(domainCode)) {
+      if (/(compliance|regulatory|audit|control|policy|risk)/.test(text)) {
+        return '100% critical compliance controls and 0 overdue audit actions';
+      }
+      if (/(market|commercial|yield|pricing|contract|customer|segment|revenue leakage|cost-to-serve)/.test(text)) {
+        return '>=5% improvement in yield per move and >=10% reduction in cost-to-serve variance';
+      }
+      if (/(talent|recruit|onboard|training|workforce|people|hr|employee)/.test(text)) {
+        return '>=90% critical-role training completion and <=45 days time-to-productivity';
+      }
+      if (/(fleet|vessel|berth|terminal|cargo|port|maritime|turnaround|operations|reliability|downtime|maintenance)/.test(text)) {
+        return '<=10% reduction in vessel turnaround time and >=8% improvement in berth productivity';
+      }
+      if (/(integration|data|interface|system|platform|pipeline)/.test(text)) {
+        return '>=99% successful data-interface runs and <=4 hour reporting refresh SLA';
+      }
+      if (benefit.category === 'Financial') {
+        return '>=8% run-rate EBITDA improvement in targeted clusters';
+      }
+    }
 
     if (/(compliance|privacy|regulatory|audit|soc2|gdpr|control)/.test(text)) {
       return '100% critical controls implemented and 0 unresolved critical audit findings';
@@ -1505,9 +1576,28 @@ export class KPIGenerator {
     return cleaned;
   }
 
-  private generateMeasurableTarget(benefit: { description: string; category: string; measurement?: string }): string {
+  private generateMeasurableTarget(
+    benefit: { description: string; category: string; measurement?: string },
+    domainCode?: DomainCode
+  ): string {
     const lower = benefit.description.toLowerCase();
     const measurement = benefit.measurement?.toLowerCase() || '';
+
+    if (this.isPortsLogisticsDomain(domainCode)) {
+      if (/(compliance|regulatory|audit|control|policy|risk)/.test(lower)) {
+        return '100% critical compliance controls and 0 overdue audit actions';
+      }
+      if (/(market|commercial|yield|pricing|contract|customer|segment|cost-to-serve|leakage)/.test(lower)) {
+        return '>=5% improvement in yield per move and >=10% reduction in cost-to-serve variance';
+      }
+      if (/(fleet|vessel|berth|terminal|cargo|port|maritime|turnaround|operations|maintenance|reliability)/.test(lower)) {
+        return '<=10% reduction in vessel turnaround time and >=8% improvement in berth productivity';
+      }
+      if (/(talent|recruit|onboard|training|workforce|people|hr)/.test(lower)) {
+        return '>=90% critical-role training completion and <=45 days time-to-productivity';
+      }
+      return '>=8% run-rate EBITDA improvement in targeted clusters';
+    }
     
     if (lower.includes('revenue') || lower.includes('sales')) {
       return '+15% year-over-year';

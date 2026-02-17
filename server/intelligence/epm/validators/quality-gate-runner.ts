@@ -7,6 +7,7 @@ import { WBSTimelineValidator } from './wbs-timeline-validator';
 import { DomainLexiconValidator } from './domain-lexicon-validator';
 import { TimelineUtilizationValidator } from './timeline-utilization-validator';
 import { WorkstreamSemanticAlignmentValidator } from './workstream-semantic-alignment-validator';
+import { WorkstreamNameUniquenessValidator } from './workstream-name-uniqueness-validator';
 import { KPIQualityValidator } from './kpi-quality-validator';
 import type { Workstream, Timeline, StageGates, ResourcePlan, DomainProfile } from '../../types';
 import type { KPI } from '../../types';
@@ -29,6 +30,7 @@ export class QualityGateRunner {
     this.registry.register(new DomainLexiconValidator());
     this.registry.register(new TimelineUtilizationValidator());
     this.registry.register(new WorkstreamSemanticAlignmentValidator());
+    this.registry.register(new WorkstreamNameUniquenessValidator());
     this.registry.register(new KPIQualityValidator());
 
     this.initialized = true;

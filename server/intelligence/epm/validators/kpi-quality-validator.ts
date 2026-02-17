@@ -1,7 +1,7 @@
 import { BaseValidator, ValidatorContext, ValidatorIssue, ValidatorResult } from './base-validator';
 
 const TRAILING_FRAGMENT_RE = /\b(to|from|by|for|with|and|or|the|a|an|of)$/i;
-const GENERIC_TARGET_RE = /(complete within \d+\s*months?|production go-live by month \d+|go-live by month \d+|launch by month \d+)/i;
+const GENERIC_TARGET_RE = /(complete within \d+\s*(months?|weeks?)|defined strategic milestone achieved within \d+\s*months?|production go-live by month \d+|go-live by month \d+|launch by month \d+)/i;
 const GENERIC_MEASUREMENT_RE = /(strategic kpi tracking|current baseline|quarterly tracking)/i;
 
 export class KPIQualityValidator extends BaseValidator {
