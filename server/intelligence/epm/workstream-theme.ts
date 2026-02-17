@@ -1,4 +1,4 @@
-import type { Workstream } from '../types';
+import type { DomainCode, Workstream } from '../types';
 
 export type WorkstreamTheme =
   | 'performance'
@@ -110,6 +110,17 @@ const CANONICAL_NAMES: Record<Exclude<WorkstreamTheme, 'general'>, string> = {
   operations: 'Operations & Release Management',
 };
 
+const DOMAIN_CANONICAL_NAMES: Partial<Record<DomainCode, Partial<Record<Exclude<WorkstreamTheme, 'general'>, string>>>> = {
+  ports_logistics: {
+    performance: 'Operational Efficiency & Reliability',
+    integration: 'Systems Integration & Data Backbone',
+    talent: 'Talent & Capability Enablement',
+    marketing: 'Market & Commercial Strategy',
+    compliance: 'Regulatory Compliance & Risk Controls',
+    operations: 'Execution & Operational Governance',
+  },
+};
+
 function normalize(text: string): string {
   return text.toLowerCase();
 }
@@ -154,8 +165,13 @@ export function analyzeWorkstreamDeliverableTheme(workstream: Workstream): Theme
   return analyzeText(text);
 }
 
-export function getCanonicalWorkstreamName(theme: WorkstreamTheme): string | null {
+export function getCanonicalWorkstreamName(theme: WorkstreamTheme, domainCode?: DomainCode): string | null {
   if (theme === 'general') return null;
+  if (domainCode) {
+    const domainNames = DOMAIN_CANONICAL_NAMES[domainCode];
+    const domainCanonical = domainNames?.[theme as Exclude<WorkstreamTheme, 'general'>];
+    if (domainCanonical) return domainCanonical;
+  }
   return CANONICAL_NAMES[theme];
 }
 

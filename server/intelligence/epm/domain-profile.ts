@@ -71,6 +71,45 @@ const DOMAIN_DEFINITIONS: DomainDefinition[] = [
     regulatoryContext: ['HIPAA'],
   },
   {
+    code: 'ports_logistics',
+    industryLabel: 'Ports, Logistics & Maritime Operations',
+    signals: [
+      'ad ports',
+      'ports group',
+      'logistics',
+      'maritime',
+      'shipping',
+      'terminal',
+      'cargo',
+      'fleet',
+      'throughput',
+      'bunker',
+      'charter',
+      'dry dock',
+      'cost to serve',
+      'yield management',
+      'ebitda',
+    ],
+    preferredLexicon: [
+      'operational efficiency',
+      'port operations',
+      'logistics optimization',
+      'fleet reliability',
+      'cost-to-serve governance',
+      'commercial yield management',
+    ],
+    forbiddenLexicon: [
+      'saas',
+      'technology / saas',
+      'site reliability engineering',
+      'platform reliability',
+      'api integration',
+      'devops',
+      'product roadmap',
+    ],
+    regulatoryContext: ['Port authority regulations', 'Maritime safety and compliance'],
+  },
+  {
     code: 'retail_food',
     industryLabel: 'Food & Beverage',
     signals: [
@@ -159,7 +198,12 @@ function inferDomainScore(text: string, definition: DomainDefinition): { score: 
   const evidence: string[] = [];
 
   for (const signal of definition.signals) {
-    if (text.includes(signal.toLowerCase())) {
+    const escaped = signal
+      .toLowerCase()
+      .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      .replace(/\s+/g, '\\s+');
+    const re = new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i');
+    if (re.test(text)) {
       score += signal.length > 5 ? 2 : 1;
       evidence.push(signal);
     }
@@ -177,6 +221,14 @@ function mapBusinessTypeBias(businessType?: string): Partial<Record<DomainCode, 
   }
   if (type.includes('retail')) {
     return { retail_general: 3 };
+  }
+  if (
+    type.includes('ports') ||
+    type.includes('logistics') ||
+    type.includes('maritime') ||
+    type.includes('shipping')
+  ) {
+    return { ports_logistics: 3 };
   }
   if (type.includes('saas') || type.includes('software')) {
     return { saas_technology: 2 };

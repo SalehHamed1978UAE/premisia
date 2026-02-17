@@ -100,6 +100,34 @@ const DOMAIN_CATEGORY_SKILLS: Record<DomainCode, Partial<Record<string, string[]
     compliance: ['patient privacy controls', 'clinical compliance', 'audit readiness'],
     technology: ['health systems integration', 'data privacy controls', 'availability management'],
   },
+  ports_logistics: {
+    operations: [
+      'port operations optimization',
+      'fleet reliability controls',
+      'terminal throughput governance',
+      'cost-to-serve execution',
+    ],
+    supply_chain: [
+      'cargo flow optimization',
+      'vendor and subcontractor governance',
+      'logistics performance management',
+    ],
+    compliance: [
+      'maritime compliance',
+      'operational risk controls',
+      'audit evidence management',
+    ],
+    technology: [
+      'operational systems integration',
+      'control tower analytics',
+      'data quality governance',
+    ],
+    tech: [
+      'operational systems integration',
+      'control tower analytics',
+      'data quality governance',
+    ],
+  },
   retail_food: {
     compliance: ['food safety', 'health inspections', 'licensing'],
     technology: ['pos systems', 'inventory integration', 'store operations tooling'],
@@ -118,6 +146,7 @@ const DOMAIN_CATEGORY_SKILLS: Record<DomainCode, Partial<Record<string, string[]
 const DOMAIN_FORBIDDEN_TERMS: Record<DomainCode, string[]> = {
   banking_fintech: ['food safety', 'pos systems', 'restaurant', 'menu', 'haccp'],
   healthcare: ['pos systems', 'restaurant', 'menu', 'kyc', 'aml'],
+  ports_logistics: ['saas', 'site reliability engineering', 'api integration', 'devops', 'product roadmap'],
   retail_food: ['kyc', 'aml', 'cbuae', 'cbb'],
   retail_general: ['kyc', 'aml', 'cbuae', 'cbb', 'hipaa'],
   saas_technology: ['food safety', 'restaurant', 'menu', 'haccp'],
@@ -130,6 +159,7 @@ function normalizeDomainCode(domainProfile?: DomainProfile | string): DomainCode
   const known: DomainCode[] = [
     'banking_fintech',
     'healthcare',
+    'ports_logistics',
     'retail_food',
     'retail_general',
     'saas_technology',

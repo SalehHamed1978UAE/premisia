@@ -124,7 +124,11 @@ export class ContextBuilder {
     }
     
     // Infer business type first, then derive a reusable domain profile.
-    const businessType = this.inferBusinessType(insights);
+    const businessType = this.inferBusinessType(
+      insights,
+      initiativeType,
+      [userInput, businessDescription].filter(Boolean).join(' ')
+    );
     const combinedDomainText = [
       userInput,
       businessDescription,
@@ -286,8 +290,28 @@ export class ContextBuilder {
    * Infer business type from insights
    * Uses a more intelligent approach: check for specific industry context BEFORE generic patterns
    */
-  private static inferBusinessType(insights: StrategyInsights): string {
-    const contextText = insights.insights.map(i => i.content).join(' ').toLowerCase();
+  private static inferBusinessType(
+    insights: StrategyInsights,
+    initiativeTypeHint?: string,
+    supplementalContext?: string
+  ): string {
+    const contextText = [
+      insights.insights.map(i => i.content).join(' '),
+      supplementalContext || '',
+      initiativeTypeHint || '',
+    ].join(' ').toLowerCase();
+    const normalizedInitiativeHint = (initiativeTypeHint || '').toLowerCase();
+
+    // Operational improvement programs (e.g., EBITDA/cost optimization in ports/logistics)
+    // should not be forced into SaaS/platform business types just because documents mention technology.
+    const hasOperationalSignals = /\b(ebitda|cost[-\s]?to[-\s]?serve|working capital|value capture|procurement|outsourcing|yield management)\b/.test(contextText);
+    const hasPortsSignals = /\b(ad ports|ports group|ports?\b|logistics|maritime|shipping|terminal|fleet|cargo)\b/.test(contextText);
+    if (
+      normalizedInitiativeHint.includes('process_improvement') ||
+      (hasOperationalSignals && hasPortsSignals)
+    ) {
+      return 'professional_services';
+    }
     
     // SPECIFIC RETAIL TYPES - must check BEFORE generic "store/shop" patterns
     // Footwear/Athletic retail

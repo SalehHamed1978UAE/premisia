@@ -693,6 +693,7 @@ export type BusinessCategory =
 export type DomainCode =
   | 'banking_fintech'
   | 'healthcare'
+  | 'ports_logistics'
   | 'retail_food'
   | 'retail_general'
   | 'saas_technology'

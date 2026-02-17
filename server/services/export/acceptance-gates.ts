@@ -672,11 +672,25 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
   }
 
   if (Array.isArray(workstreams) && workstreams.length > 0 && timeline && stageGates) {
+    const qualityBusinessContext = [
+      strategyData?.understanding?.initiativeType,
+      strategyData?.understanding?.initiativeDescription,
+      strategyData?.understanding?.userInput,
+    ]
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      .join('\n');
+    const qualityResourcePlan = epmData.resourcePlan || epmData.program?.resourcePlan;
+    const qualityDomainProfile = epmData.domainProfile || epmData.metadata?.domainProfile;
+    const qualityKpis = epmData.kpis || epmData.program?.kpis;
+
     const report = qualityGateRunner.runQualityGate(
       JSON.parse(JSON.stringify(workstreams)),
       JSON.parse(JSON.stringify(timeline)),
       JSON.parse(JSON.stringify(stageGates)),
-      strategyData?.understanding?.initiativeType || strategyData?.understanding?.userInput || ''
+      qualityBusinessContext,
+      qualityResourcePlan ? JSON.parse(JSON.stringify(qualityResourcePlan)) : undefined,
+      qualityDomainProfile ? JSON.parse(JSON.stringify(qualityDomainProfile)) : undefined,
+      qualityKpis ? JSON.parse(JSON.stringify(qualityKpis)) : undefined
     );
 
     // Map ALL validator results to individual AcceptanceIssues (Item E fix)
@@ -730,7 +744,9 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
   const understandingInput = typeof strategyData?.understanding?.userInput === 'string'
     ? strategyData.understanding.userInput
     : (typeof epmData?.userInputStructured?.raw === 'string' ? epmData.userInputStructured.raw : '');
-  const hasBudgetSignalInInput = hasBudgetConstraintSignal(understandingInput || '');
+  const hasBudgetSignalInInput = hasBudgetConstraintSignal(understandingInput || '', undefined, {
+    strictIntent: true,
+  });
 
   if (effectiveConstraintMode === 'discovery' && hasBudgetSignalInInput) {
     criticalIssues.push({

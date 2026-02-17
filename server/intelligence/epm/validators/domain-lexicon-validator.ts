@@ -6,6 +6,10 @@ const CRITICAL_FORBIDDEN_TERMS = new Set([
   'pos systems',
   'haccp',
   'technology / saas',
+  'saas',
+  'api integration',
+  'site reliability engineering',
+  'platform reliability',
 ]);
 
 function includesTerm(text: string, term: string): boolean {
@@ -92,4 +96,3 @@ export class DomainLexiconValidator extends BaseValidator {
     });
   }
 }
-

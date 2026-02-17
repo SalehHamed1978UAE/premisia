@@ -1184,7 +1184,7 @@ class EPMPackageValidator {
       '';
     if (!rawInput) return;
 
-    if (hasBudgetConstraintSignal(rawInput)) {
+    if (hasBudgetConstraintSignal(rawInput, undefined, { strictIntent: true })) {
       this.addHighSeverityError(
         'Budget intent detected in strategic input while export remains in discovery mode.',
         15,

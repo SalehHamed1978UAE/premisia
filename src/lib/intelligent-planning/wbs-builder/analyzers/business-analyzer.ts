@@ -16,6 +16,7 @@ export class BusinessAnalyzer implements IAnalyzer {
    */
   async process(input: AnalysisInput): Promise<BusinessIntent> {
     const { insights, context, strategyProfile } = input;
+    const forceOperationalInitiative = this.shouldForceOperationalInitiative(input);
     
     console.log(`[${this.name}] Analyzing business intent...`);
     console.log(`[${this.name}] Business: ${context.business.name}`);
@@ -25,7 +26,12 @@ export class BusinessAnalyzer implements IAnalyzer {
       console.log(`[${this.name}] STRATEGY OVERRIDE: Archetype=${strategyProfile.archetype}, Digital Intensity=${strategyProfile.digitalIntensity}%`);
     }
     
-    const prompt = this.buildAnalysisPrompt(insights, context, strategyProfile);
+    const prompt = this.buildAnalysisPrompt(
+      insights,
+      context,
+      strategyProfile,
+      forceOperationalInitiative
+    );
     
     const result = await this.llm.generateStructured<BusinessIntent>({
       prompt,
@@ -55,6 +61,20 @@ export class BusinessAnalyzer implements IAnalyzer {
       console.log(`[${this.name}] Applying strategy tech role override: ${strategyProfile.technologyRoleOverride}`);
       result.technologyRole = strategyProfile.technologyRoleOverride;
     }
+
+    if (forceOperationalInitiative) {
+      if (
+        result.initiativeType === 'software_development' ||
+        result.initiativeType === 'business_launch' ||
+        result.initiativeType === 'product_launch'
+      ) {
+        result.initiativeType = 'digital_transformation';
+      }
+      if (result.technologyRole === 'core_product') {
+        result.technologyRole = 'operational_tool';
+      }
+      result.isPhysical = true;
+    }
     
     console.log(`[${this.name}] Detected initiative type: ${result.initiativeType}`);
     console.log(`[${this.name}] Technology role: ${result.technologyRole}`);
@@ -67,7 +87,12 @@ export class BusinessAnalyzer implements IAnalyzer {
    * Build analysis prompt with business context
    * STRATEGY-AWARE: Includes BMC strategic recommendations
    */
-  private buildAnalysisPrompt(insights: any, context: any, strategyProfile?: any): string {
+  private buildAnalysisPrompt(
+    insights: any,
+    context: any,
+    strategyProfile?: any,
+    forceOperationalInitiative: boolean = false
+  ): string {
     let strategySection = '';
     
     if (strategyProfile) {
@@ -80,7 +105,7 @@ Platform Development Needed: ${strategyProfile.needsPlatform ? 'YES' : 'NO'}
 Recommended Tech Role: ${strategyProfile.technologyRoleOverride || 'To be determined'}
 
 CRITICAL: The BMC analysis has determined that this business should follow a ${strategyProfile.archetype} model.
-This means the strategy RECOMMENDS ${strategyProfile.needsPlatform ? 'building platform/technology capabilities' : 'minimal technology focus'}.
+This means the strategy RECOMMENDS ${strategyProfile.needsPlatform ? 'technology-enabled execution capabilities' : 'minimal technology focus'}.
 
 You MUST respect the strategic recommendations above. If BMC says platform development is needed,
 then technology is a strategic enabler regardless of the base business type.
@@ -95,6 +120,7 @@ Name: ${context.business.name}
 Description: ${context.business.description}
 Industry: ${context.business.industry}
 Scale: ${context.business.scale}
+Intake Initiative Hint: ${context.business.initiativeType || 'not provided'}
 ${strategySection}
 === STRATEGIC INSIGHTS ===
 ${JSON.stringify(insights, null, 2)}
@@ -121,6 +147,12 @@ Critical distinctions to make:
    - Is it a physical product, a service, software, or combination?
 
 === CRITICAL REASONING ===
+${forceOperationalInitiative ? `
+INTAKE GUARDRAIL:
+- This appears to be an operational/process-improvement program (not a software product build).
+- Classify as digital_transformation unless there is explicit evidence the business is selling a new software product.
+- Mentions of "platform", "API", dashboards, or control towers in internal programs do NOT imply software_development.
+` : ''}
 
 Example 1: "Open a coffee shop in Brooklyn"
 - Initiative type: business_launch (opening a NEW business)
@@ -166,5 +198,22 @@ Return the BusinessIntent JSON object.
       return false;
     }
     return true;
+  }
+
+  private shouldForceOperationalInitiative(input: AnalysisInput): boolean {
+    const hint = String(input.context?.business?.initiativeType || '').toLowerCase();
+    if (hint.includes('process_improvement') || hint.includes('cost_optimization')) {
+      return true;
+    }
+
+    const blob = [
+      input.context?.business?.name || '',
+      input.context?.business?.description || '',
+      JSON.stringify(input.insights || {}),
+    ].join(' ').toLowerCase();
+
+    const operationalSignals = /\b(ebitda|cost[-\s]?to[-\s]?serve|working capital|value capture|procurement|outsourcing|yield management)\b/.test(blob);
+    const infrastructureSignals = /\b(ports?|logistics|maritime|shipping|terminal|fleet|cargo)\b/.test(blob);
+    return operationalSignals && infrastructureSignals;
   }
 }

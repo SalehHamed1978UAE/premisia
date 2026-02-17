@@ -1367,7 +1367,10 @@ export class EPMSynthesizer {
       }
     }
 
-    const semanticRepair = this.repairWorkstreamSemanticAlignment(alignedWorkstreams);
+    const semanticRepair = this.repairWorkstreamSemanticAlignment(
+      alignedWorkstreams,
+      planningContext.business.domainProfile?.code
+    );
     const semanticallyAlignedWorkstreams = semanticRepair.workstreams;
     if (semanticRepair.repairs.length > 0) {
       console.log(`[EPM Synthesis] 🔧 Semantic alignment repairs: ${semanticRepair.repairs.length}`);
@@ -1881,7 +1884,8 @@ export class EPMSynthesizer {
   }
 
   private repairWorkstreamSemanticAlignment(
-    workstreams: Workstream[]
+    workstreams: Workstream[],
+    domainCode?: DomainProfile['code']
   ): { workstreams: Workstream[]; repairs: string[] } {
     const repaired = workstreams.map((ws) => ({
       ...ws,
@@ -1891,34 +1895,79 @@ export class EPMSynthesizer {
     }));
     const repairs: string[] = [];
 
+    const domainReplacements: Record<string, Array<{ pattern: RegExp; replacement: string }>> = {
+      ports_logistics: [
+        { pattern: /\bsaas\b/gi, replacement: 'operations' },
+        { pattern: /\bsite reliability engineering\b/gi, replacement: 'operational reliability' },
+        { pattern: /\bplatform reliability\b/gi, replacement: 'operational reliability' },
+        { pattern: /\bapi integration\b/gi, replacement: 'systems integration' },
+        { pattern: /\bapi\b/gi, replacement: 'data interface' },
+        { pattern: /\bdevops\b/gi, replacement: 'operations' },
+        { pattern: /\bproduct roadmap\b/gi, replacement: 'execution roadmap' },
+      ],
+    };
+
+    const applyDomainReplacements = (value: string): string => {
+      if (!domainCode || !value) return value;
+      const replacements = domainReplacements[domainCode] || [];
+      let next = value;
+      for (const item of replacements) {
+        next = next.replace(item.pattern, item.replacement);
+      }
+      return next;
+    };
+
+    const hasDomainLexiconLeak = (value: string): boolean => {
+      if (!domainCode || !value) return false;
+      if (domainCode !== 'ports_logistics') return false;
+      return /\b(saas|api|platform reliability|site reliability engineering|devops|product roadmap)\b/i.test(value);
+    };
+
     for (const ws of repaired) {
       if (!isSemanticRepairCandidate(ws)) continue;
 
       const declared = analyzeWorkstreamDeclaredTheme(ws);
       const dominant = analyzeWorkstreamDeliverableTheme(ws);
+      const shouldRepairDomainLeak =
+        domainCode === 'ports_logistics' &&
+        (
+          hasDomainLexiconLeak(ws.name) ||
+          hasDomainLexiconLeak(ws.description) ||
+          (ws.deliverables || []).some((d) => hasDomainLexiconLeak(d.name || '') || hasDomainLexiconLeak(d.description || ''))
+        );
 
       if (dominant.theme === 'general' || dominant.score < 2) continue;
-      if (declared.theme === dominant.theme) continue;
-      if (dominant.score < declared.score + 2) continue;
+      if (!shouldRepairDomainLeak) {
+        if (declared.theme === dominant.theme) continue;
+        if (dominant.score < declared.score + 2) continue;
+      }
 
-      const canonicalName = getCanonicalWorkstreamName(dominant.theme);
-      if (!canonicalName || ws.name === canonicalName) continue;
+      const canonicalName = getCanonicalWorkstreamName(dominant.theme, domainCode);
+      if (!canonicalName && !shouldRepairDomainLeak) continue;
 
       const previousName = ws.name;
-      ws.name = canonicalName;
+      ws.name = applyDomainReplacements(canonicalName || ws.name);
+      ws.description = applyDomainReplacements(ws.description || '');
+      ws.deliverables = (ws.deliverables || []).map((deliverable) => ({
+        ...deliverable,
+        name: applyDomainReplacements(deliverable.name || ''),
+        description: applyDomainReplacements(deliverable.description || ''),
+      }));
       ws.metadata = {
         ...(ws.metadata || {}),
         semanticRepair: {
           previousName,
-          renamedTo: canonicalName,
+          renamedTo: ws.name,
           dominantTheme: dominant.theme,
           dominantScore: dominant.score,
           declaredTheme: declared.theme,
           declaredScore: declared.score,
+          domainCode: domainCode || null,
+          domainLeakRepaired: shouldRepairDomainLeak,
         },
       };
 
-      repairs.push(`${ws.id}: "${previousName}" -> "${canonicalName}"`);
+      repairs.push(`${ws.id}: "${previousName}" -> "${ws.name}"`);
     }
 
     return { workstreams: repaired, repairs };

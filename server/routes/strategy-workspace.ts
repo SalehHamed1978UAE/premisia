@@ -413,7 +413,11 @@ async function processEPMGeneration(
         // Reconcile constraint state once at generation-time.
         // If intake missed explicit "$XM over N months" constraints in user text, persist them here
         // so generation/export mode cannot drift into discovery with explicit budget intent.
-        if (!hasExplicitConstraint && understandingUserInput && hasBudgetConstraintSignal(understandingUserInput)) {
+        if (
+          !hasExplicitConstraint &&
+          understandingUserInput &&
+          hasBudgetConstraintSignal(understandingUserInput, undefined, { strictIntent: true })
+        ) {
           const inferredConstraints = extractUserConstraintsFromText(understandingUserInput);
           const inferredBudgetConstraint: { amount?: number; timeline?: number } = {};
           if (inferredConstraints.budget?.max) {
