@@ -62,3 +62,36 @@ export function isKnowledgeGraphEnabled(): boolean {
 export function isNeo4jConfigured(): boolean {
   return Boolean(process.env.NEO4J_URI && process.env.NEO4J_PASSWORD);
 }
+
+/**
+ * Check if cross-journey EPM domain resilience is enabled.
+ *
+ * Enables:
+ * - Domain profile propagation through EPM generation
+ * - Domain-aware role skill injection guards
+ * - Timeline utilization coverage safeguards
+ * - Additional quality gates for lexicon/timeline consistency
+ */
+export function isEPMDomainResilienceEnabled(): boolean {
+  const raw = process.env.EPM_DOMAIN_RESILIENCE_V1;
+  if (raw === undefined) {
+    // Default-on for safety: disable explicitly with EPM_DOMAIN_RESILIENCE_V1=false if needed.
+    return true;
+  }
+  return raw === 'true';
+}
+
+/**
+ * Check if strict EPM integrity gates are enabled.
+ *
+ * When enabled, synthesis/export blocks on structural integrity failures
+ * (decision coherence, severe timeline under-utilization, etc.).
+ */
+export function isEPMStrictIntegrityGatesEnabled(): boolean {
+  const raw = process.env.EPM_STRICT_INTEGRITY_GATES;
+  if (raw === undefined) {
+    // Default-off to preserve existing journey flow; enable explicitly in fix loops.
+    return false;
+  }
+  return raw === 'true';
+}
