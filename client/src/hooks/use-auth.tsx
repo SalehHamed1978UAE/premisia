@@ -1,4 +1,4 @@
-import { createContext, ReactNode, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, ReactNode, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { User as SelectUser } from "@shared/schema";
 import { supabase, getAccessToken } from "../lib/supabase";
 import { queryClient } from "../lib/queryClient";
@@ -44,8 +44,12 @@ async function fetchInternalUser(retries = 2): Promise<SelectUser | null> {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SelectUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const initializedRef = useRef(false);
 
-  const loadUser = useCallback(async () => {
+  const loadUser = useCallback(async (setLoadingFlag = false) => {
+    if (setLoadingFlag) {
+      setIsLoading(true);
+    }
     try {
       const internalUser = await fetchInternalUser();
       setUser(internalUser);
@@ -57,18 +61,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    loadUser();
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        loadUser();
+      if (!initializedRef.current) {
+        initializedRef.current = true;
+        if (session) {
+          loadUser();
+        } else {
+          setUser(null);
+          setIsLoading(false);
+        }
       } else {
-        setUser(null);
-        setIsLoading(false);
+        if (session) {
+          loadUser(true);
+        } else {
+          setUser(null);
+          setIsLoading(false);
+        }
       }
     });
 
-    return () => subscription.unsubscribe();
+    const timer = setTimeout(() => {
+      if (!initializedRef.current) {
+        initializedRef.current = true;
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session) {
+            loadUser();
+          } else {
+            setIsLoading(false);
+          }
+        });
+      }
+    }, 3000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timer);
+    };
   }, [loadUser]);
 
   const loginWithGoogle = async () => {
