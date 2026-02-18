@@ -16,6 +16,7 @@ import { CheckCircle2, AlertCircle, Loader2, ArrowRight, Info } from 'lucide-rea
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { queryClient } from '@/lib/queryClient';
+import { getAccessToken } from '@/lib/supabase';
 
 interface ClassificationData {
   initiativeType: string;
@@ -96,7 +97,10 @@ export default function ClassificationPage() {
     
     const loadTemplate = async () => {
       try {
-        const response = await fetch(`/api/journey-builder/templates/${templateId}`);
+        const token = await getAccessToken();
+        const response = await fetch(`/api/journey-builder/templates/${templateId}`, {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        });
         if (response.ok) {
           const data = await response.json();
           console.log('[ClassificationPage] Template loaded:', data.template?.name, 'Steps:', data.template?.steps?.length);
@@ -115,7 +119,10 @@ export default function ClassificationPage() {
   const loadClassification = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(`/api/strategic-consultant/understanding/${understandingId}`);
+      const token = await getAccessToken();
+      const response = await fetch(`/api/strategic-consultant/understanding/${understandingId}`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
       
       if (!response.ok) {
         throw new Error('Failed to load classification');
@@ -154,9 +161,13 @@ export default function ClassificationPage() {
     try {
       setIsUpdating(true);
       
+      const token = await getAccessToken();
       const response = await fetch('/api/strategic-consultant/classification', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           understandingId,
           initiativeType: selectedType,
@@ -190,9 +201,13 @@ export default function ClassificationPage() {
           // CASE 1: Custom journey from Journey Builder
           console.log('[ClassificationPage] Custom journey detected, starting execution...');
           try {
+            const tokenForCustom = await getAccessToken();
             const startResponse = await fetch('/api/journey-builder/start-custom-journey', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                'Content-Type': 'application/json',
+                ...(tokenForCustom ? { 'Authorization': `Bearer ${tokenForCustom}` } : {}),
+              },
               body: JSON.stringify({
                 understandingId,
                 templateId,
@@ -205,10 +220,15 @@ export default function ClassificationPage() {
 
               // Trigger journey execution in background
               console.log('[ClassificationPage] Triggering custom journey execution for session:', journeySessionId);
-              fetch(`/api/strategic-consultant/journeys/${journeySessionId}/execute`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-              }).catch(err => console.error('[ClassificationPage] Execution trigger failed:', err));
+              getAccessToken().then(execToken => {
+                fetch(`/api/strategic-consultant/journeys/${journeySessionId}/execute`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    ...(execToken ? { 'Authorization': `Bearer ${execToken}` } : {}),
+                  },
+                }).catch(err => console.error('[ClassificationPage] Execution trigger failed:', err));
+              });
 
               // Navigate to the first framework in the custom journey
               const frameworkRoute = getFrameworkRoute(firstFramework, understandingId!, journeySessionId);
@@ -234,9 +254,13 @@ export default function ClassificationPage() {
               understandingId,
             };
 
+            const tokenForExec = await getAccessToken();
             const response = await fetch('/api/strategic-consultant/journeys/execute', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                'Content-Type': 'application/json',
+                ...(tokenForExec ? { 'Authorization': `Bearer ${tokenForExec}` } : {}),
+              },
               body: JSON.stringify(payload),
             });
 

@@ -11,6 +11,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { getAccessToken } from "@/lib/supabase";
 
 interface EPMProgram {
   title: string;
@@ -89,9 +90,13 @@ export default function EPMPage() {
   const integrateMutation = useMutation({
     mutationFn: async () => {
       setIsIntegrating(true);
+      const token = await getAccessToken();
       const response = await fetch(`/api/strategic-consultant/integrate/${sessionId}/${versionNumber}`, {
         method: 'POST',
         credentials: 'include',
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
       });
       if (!response.ok) {
         const error = await response.json();
@@ -127,9 +132,13 @@ export default function EPMPage() {
       const timeout = setTimeout(() => controller.abort(), 180000);
 
       try {
+        const token = await getAccessToken();
         const response = await fetch('/api/strategic-consultant/convert-to-epm', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify({ sessionId, versionNumber }),
           signal: controller.signal
         });

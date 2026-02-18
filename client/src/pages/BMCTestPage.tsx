@@ -9,6 +9,7 @@ import { FrameworkSelection, type FrameworkSelectionData } from '@/components/st
 import { BMCCanvas, type BMCAnalysis } from '@/components/strategic-consultant/BMCCanvas';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { getAccessToken } from '@/lib/supabase';
 
 export default function BMCTestPage() {
   const [, setLocation] = useLocation();
@@ -80,10 +81,12 @@ export default function BMCTestPage() {
     
     try {
       console.log('[BMC-FRONTEND] Fetching:', '/api/strategic-consultant/bmc-research');
+      const token = await getAccessToken();
       const response = await fetch('/api/strategic-consultant/bmc-research', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
         credentials: 'include',
         body: JSON.stringify({ input, sessionId, versionNumber: 1 }),

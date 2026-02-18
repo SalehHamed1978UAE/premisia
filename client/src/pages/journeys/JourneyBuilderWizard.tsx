@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Lightbulb, ArrowRight, Check, AlertCircle, Zap, Loader2 } from 'lucide-react';
+import { getAccessToken } from '@/lib/supabase';
 
 interface Framework {
   id: string;
@@ -38,7 +39,10 @@ export function JourneyBuilderWizard({ onClose, onSave }: JourneyBuilderWizardPr
   const { data, isLoading: loadingFrameworks } = useQuery({
     queryKey: ['frameworks'],
     queryFn: async () => {
-      const res = await fetch('/api/journey-builder/frameworks');
+      const token = await getAccessToken();
+      const res = await fetch('/api/journey-builder/frameworks', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
       if (!res.ok) throw new Error('Failed to fetch frameworks');
       const json = await res.json();
       return json.frameworks as Framework[];
@@ -55,9 +59,13 @@ export function JourneyBuilderWizard({ onClose, onSave }: JourneyBuilderWizardPr
         return { frameworkKey: fk, name: fw?.name || fk };
       });
 
+      const token = await getAccessToken();
       const res = await fetch('/api/journey-builder/analyze', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ steps, userGoal }),
       });
 
@@ -88,9 +96,13 @@ export function JourneyBuilderWizard({ onClose, onSave }: JourneyBuilderWizardPr
         };
       });
 
+      const token = await getAccessToken();
       const res = await fetch('/api/journey-builder/journeys', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           name: journeyName,
           description: journeyDescription,

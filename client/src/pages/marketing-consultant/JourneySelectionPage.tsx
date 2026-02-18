@@ -7,6 +7,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, CheckCircle2, Clock, ArrowRight, Target, Crosshair, BarChart3 } from "lucide-react";
+import { getAccessToken } from "@/lib/supabase";
 
 interface BetaStatus {
   available: boolean;
@@ -104,9 +105,13 @@ export default function MarketingJourneySelectionPage() {
     setStartingJourney(journeyId);
 
     try {
+      const token = await getAccessToken();
       const response = await fetch('/api/marketing-consultant/beta/increment', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
       });
 
       if (!response.ok) {

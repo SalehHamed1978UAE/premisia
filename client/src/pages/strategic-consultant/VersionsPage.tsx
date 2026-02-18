@@ -10,6 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { getAccessToken } from "@/lib/supabase";
 
 interface Version {
   versionNumber: number;
@@ -54,9 +55,13 @@ export default function VersionsPage() {
     queryKey: ['/api/strategic-consultant/versions/compare', sessionId, compareVersion1, compareVersion2],
     enabled: showComparison && !!sessionId && compareVersion1 !== null && compareVersion2 !== null,
     queryFn: async () => {
+      const token = await getAccessToken();
       const response = await fetch('/api/strategic-consultant/versions/compare', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           sessionId,
           version1: compareVersion1,

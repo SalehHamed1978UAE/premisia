@@ -10,6 +10,7 @@ import { JourneyBuilderWizard } from './JourneyBuilderWizard';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { getAccessToken } from '@/lib/supabase';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -69,7 +70,10 @@ export function JourneyHub() {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['journey-registry'],
     queryFn: async () => {
-      const res = await fetch('/api/strategic-consultant/journey-registry');
+      const token = await getAccessToken();
+      const res = await fetch('/api/strategic-consultant/journey-registry', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
       if (!res.ok) throw new Error('Failed to fetch journeys');
       const json = await res.json();
       return json.journeys as Journey[];
@@ -79,7 +83,10 @@ export function JourneyHub() {
   const { data: customJourneysData, isLoading: customLoading, refetch: refetchCustom } = useQuery({
     queryKey: ['custom-journey-configs'],
     queryFn: async () => {
-      const res = await fetch('/api/custom-journey-builder/configs');
+      const token = await getAccessToken();
+      const res = await fetch('/api/custom-journey-builder/configs', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
       if (!res.ok) throw new Error('Failed to fetch custom journeys');
       const json = await res.json();
       return json.configs as CustomJourneyConfig[];
@@ -89,7 +96,10 @@ export function JourneyHub() {
   const { data: myTemplatesData, isLoading: templatesLoading, refetch: refetchTemplates } = useQuery({
     queryKey: ['my-journey-templates'],
     queryFn: async () => {
-      const res = await fetch('/api/journey-builder/my-templates');
+      const token = await getAccessToken();
+      const res = await fetch('/api/journey-builder/my-templates', {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
       if (!res.ok) throw new Error('Failed to fetch my templates');
       const json = await res.json();
       return json.templates as JourneyTemplate[];

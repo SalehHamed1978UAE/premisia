@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, CheckCircle2, Clock, ArrowRight } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
+import { getAccessToken } from "@/lib/supabase";
 
 export default function JourneySelectionPage() {
   const [, params] = useRoute("/strategic-consultant/journey-selection/:understandingId");
@@ -44,7 +45,10 @@ export default function JourneySelectionPage() {
   const { data: understanding, isLoading: loadingUnderstanding } = useQuery({
     queryKey: ['/api/strategic-consultant/understanding', understandingId],
     queryFn: async () => {
-      const res = await fetch(`/api/strategic-consultant/understanding/${understandingId}`);
+      const token = await getAccessToken();
+      const res = await fetch(`/api/strategic-consultant/understanding/${understandingId}`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
       if (!res.ok) throw new Error('Failed to fetch understanding');
       return res.json();
     },
@@ -91,9 +95,13 @@ export default function JourneySelectionPage() {
       
       console.log('[JourneySelection] Executing journey:', payload);
 
+      const token = await getAccessToken();
       const response = await fetch('/api/strategic-consultant/journeys/execute', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(payload),
       });
 

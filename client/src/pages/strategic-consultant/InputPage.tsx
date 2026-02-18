@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Badge } from "@/components/ui/badge";
 import { ClarificationModal } from "@/components/ClarificationModal";
+import { getAccessToken } from "@/lib/supabase";
 
 const SUPPORTED_FORMATS = {
   'application/pdf': '.pdf',
@@ -56,8 +57,12 @@ export default function InputPage() {
     const fetchSummary = async () => {
       setIsLoadingSummary(true);
       try {
+        const token = await getAccessToken();
+        const summaryHeaders: Record<string, string> = {};
+        if (token) summaryHeaders['Authorization'] = `Bearer ${token}`;
         const res = await fetch(`/api/marketing-consultant/strategic-summary/${discoveryId}`, {
           credentials: 'include',
+          headers: summaryHeaders,
         });
         if (res.ok) {
           const data = await res.json();
@@ -107,7 +112,10 @@ export default function InputPage() {
     queryKey: ['journey', journeySessionId],
     queryFn: async () => {
       if (!journeySessionId) return null;
-      const res = await fetch(`/api/journey-builder/${journeySessionId}`);
+      const token = await getAccessToken();
+      const journeyHeaders: Record<string, string> = {};
+      if (token) journeyHeaders['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`/api/journey-builder/${journeySessionId}`, { headers: journeyHeaders });
       if (!res.ok) throw new Error('Failed to fetch journey');
       return res.json();
     },
@@ -154,9 +162,13 @@ export default function InputPage() {
       const formData = new FormData();
       formData.append('file', file);
 
+      const extractToken = await getAccessToken();
+      const extractHeaders: Record<string, string> = {};
+      if (extractToken) extractHeaders['Authorization'] = `Bearer ${extractToken}`;
       const extractResponse = await fetch('/api/strategic-consultant/extract-file', {
         method: 'POST',
         credentials: 'include',
+        headers: extractHeaders,
         body: formData,
       });
 
@@ -189,9 +201,12 @@ export default function InputPage() {
         : content;
 
       // Check for ambiguities - send as object so backend can separate location checking from general ambiguity checking
+      const ambiguityToken = await getAccessToken();
+      const ambiguityHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (ambiguityToken) ambiguityHeaders['Authorization'] = `Bearer ${ambiguityToken}`;
       const ambiguityResponse = await fetch('/api/strategic-consultant/check-ambiguities', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: ambiguityHeaders,
         body: JSON.stringify({ 
           userInput: {
             text: userText || '',  // User's text only (for location disambiguation)
@@ -252,9 +267,12 @@ export default function InputPage() {
     // Step 1: Check for ambiguities first
     setIsCheckingAmbiguities(true);
     try {
+      const ambToken = await getAccessToken();
+      const ambHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (ambToken) ambHeaders['Authorization'] = `Bearer ${ambToken}`;
       const ambiguityResponse = await fetch('/api/strategic-consultant/check-ambiguities', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: ambHeaders,
         body: JSON.stringify({ userInput: text.trim() })
       });
 
@@ -302,9 +320,12 @@ export default function InputPage() {
 
     try {
       // Create understanding record with optional clarifications and file metadata
+      const undToken = await getAccessToken();
+      const undHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (undToken) undHeaders['Authorization'] = `Bearer ${undToken}`;
       const understandingResponse = await fetch('/api/strategic-consultant/understanding', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: undHeaders,
         body: JSON.stringify({ 
           input: input,
           clarifications: clarifications,
@@ -443,9 +464,12 @@ export default function InputPage() {
     // Step 1: Check for ambiguities first (same as normal flow)
     setIsCheckingAmbiguities(true);
     try {
+      const jAmbToken = await getAccessToken();
+      const jAmbHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (jAmbToken) jAmbHeaders['Authorization'] = `Bearer ${jAmbToken}`;
       const ambiguityResponse = await fetch('/api/strategic-consultant/check-ambiguities', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: jAmbHeaders,
         body: JSON.stringify({ userInput: text.trim() })
       });
 
@@ -492,9 +516,12 @@ export default function InputPage() {
 
     try {
       // Create understanding record with journey context and clarifications
+      const jUndToken = await getAccessToken();
+      const jUndHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (jUndToken) jUndHeaders['Authorization'] = `Bearer ${jUndToken}`;
       const understandingResponse = await fetch('/api/strategic-consultant/understanding', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: jUndHeaders,
         body: JSON.stringify({ 
           input: input,
           clarifications: clarifications,
@@ -516,9 +543,12 @@ export default function InputPage() {
       // Mark journey step as complete and get next step info
       let stepCompletion;
       if (journeySessionId) {
+        const complToken = await getAccessToken();
+        const complHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (complToken) complHeaders['Authorization'] = `Bearer ${complToken}`;
         const completeResponse = await fetch(`/api/journey-builder/${journeySessionId}/complete-step`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: complHeaders,
           body: JSON.stringify({
             stepId: journeyData?.journey?.steps?.[currentStepIndex]?.id,
             result: { understandingId, sessionId }

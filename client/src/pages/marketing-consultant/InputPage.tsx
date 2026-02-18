@@ -12,6 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { formatDistanceToNow } from "date-fns";
+import { getAccessToken } from "@/lib/supabase";
 
 interface Discovery {
   id: string;
@@ -114,9 +115,12 @@ export default function MarketingInputPage() {
     try {
       // Step 1: Check for ambiguities in the input
       setProgress(20);
+      const ambToken = await getAccessToken();
+      const ambHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (ambToken) ambHeaders['Authorization'] = `Bearer ${ambToken}`;
       const ambiguityResponse = await fetch('/api/marketing-consultant/check-ambiguities', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: ambHeaders,
         body: JSON.stringify({ userInput: text.trim() }),
         credentials: 'include'
       });
@@ -130,9 +134,12 @@ export default function MarketingInputPage() {
       setProgress(50);
 
       // Step 2: Create understanding record
+      const undToken = await getAccessToken();
+      const undHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (undToken) undHeaders['Authorization'] = `Bearer ${undToken}`;
       const understandingResponse = await fetch('/api/marketing-consultant/understanding', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: undHeaders,
         body: JSON.stringify({
           input: text.trim(),
           clarifications
