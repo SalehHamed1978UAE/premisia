@@ -1,5 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
-import { getAccessToken } from "./supabase";
+import { getAccessToken, supabase } from "./supabase";
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const token = await getAccessToken();
@@ -12,10 +12,11 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     if (res.status === 401) {
-      if (window.location.pathname !== '/auth') {
-        window.location.href = '/auth';
-      }
-      throw new Error('401: Unauthorized');
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session) {
+          queryClient.clear();
+        }
+      });
     }
     const text = (await res.text()) || res.statusText;
     throw new Error(`${res.status}: ${text}`);

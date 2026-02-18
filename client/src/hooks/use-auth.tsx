@@ -16,16 +16,29 @@ type AuthContextType = {
 
 export const AuthContext = createContext<AuthContextType | null>(null);
 
-async function fetchInternalUser(): Promise<SelectUser | null> {
+async function fetchInternalUser(retries = 2): Promise<SelectUser | null> {
   const token = await getAccessToken();
   if (!token) return null;
 
-  const res = await fetch('/api/auth/user', {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  try {
+    const res = await fetch('/api/auth/user', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
 
-  if (!res.ok) return null;
-  return res.json();
+    if (res.status === 401 && retries > 0) {
+      await new Promise(r => setTimeout(r, 1000));
+      const { data: { session } } = await supabase.auth.refreshSession();
+      if (session) {
+        return fetchInternalUser(retries - 1);
+      }
+      return null;
+    }
+
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

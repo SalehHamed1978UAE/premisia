@@ -107,6 +107,7 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
 
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log(`[Supabase Auth] No token for ${req.method} ${req.path}`);
     return res.status(401).json({ message: "Unauthorized - No token provided" });
   }
 
@@ -121,11 +122,12 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
     const { data: { user: supabaseUser }, error } = await supabaseAdmin.auth.getUser(token);
 
     if (error || !supabaseUser) {
-      console.error('[Supabase Auth] Token verification failed:', error);
+      console.error('[Supabase Auth] Token verification failed:', error?.message || 'No user returned');
       return res.status(401).json({ message: "Unauthorized - Invalid token" });
     }
 
     const internalUser = await upsertUser(supabaseUser);
+    console.log(`[Supabase Auth] ✓ ${supabaseUser.email} → ${req.method} ${req.path}`);
 
     (req as any).user = {
       ...internalUser,
@@ -138,8 +140,8 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
     };
 
     return next();
-  } catch (error) {
-    console.error('[Supabase Auth] Authentication error:', error);
+  } catch (error: any) {
+    console.error('[Supabase Auth] Authentication error:', error?.message || error);
     return res.status(401).json({ message: "Unauthorized" });
   }
 };
