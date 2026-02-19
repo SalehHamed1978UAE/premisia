@@ -1,0 +1,51 @@
+Now run these exactly (one block at a time) so we can pin the real failure:
+
+  cd /home/runner/workspace
+
+  # 1) Persist missing server URL in this session
+  export SUPABASE_URL="$VITE_SUPABASE_URL"
+
+  # 2) Verify users table has supabase_uid (critical for auth middleware)
+  psql "$DATABASE_URL" -At -c "SELECT column_name FROM information_schema.columns WHERE table_name='users' AND column_name='supabase_uid';"
+
+  If step 2 prints nothing, run:
+
+  psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER TABLE users ADD COLUMN IF NOT EXISTS supabase_uid varchar;"
+  psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE UNIQUE INDEX IF NOT EXISTS users_supabase_uid_unique ON users(supabase_uid) WHERE supabase_uid IS NOT NULL;"
+
+  Then continue:
+
+  # 3) Confirm anon key and service-role key belong to SAME Supabase project
+  python3 - <<'PY'
+  import os, base64, json
+  def iss(jwt):
+      p = jwt.split('.')
+      if len(p) < 2: return "not-jwt"
+      s = p[1] + "=" * (-len(p[1]) % 4)
+      return json.loads(base64.urlsafe_b64decode(s.encode())).get("iss")
+  url = os.getenv("SUPABASE_URL","")
+  anon = iss(os.getenv("VITE_SUPABASE_ANON_KEY",""))
+  svc = iss(os.getenv("SUPABASE_SERVICE_ROLE_KEY",""))
+  print("SUPABASE_URL =", url)
+  print("ANON_ISS     =", anon)
+  print("SERVICE_ISS  =", svc)
+  print("MATCH        =", anon == svc and (url in anon if isinstance(anon,str) else False))
+  PY
+
+  # 4) Clean restart
+  pkill -f "node.*server/index|node.*dist/index|vite" || true
+  nohup npm run dev > /tmp/premisia-dev.log 2>&1 &
+  sleep 12
+  curl -sS http://localhost:5000/health && echo
+
+  # 5) Live auth watcher (keep running)
+  tail -f /tmp/premisia-dev.log | rg --line-buffered "Supabase Auth|/api/auth/user|Token verification failed|No token|Unauthorized|Authentication error|Admin client not
+  initialized"
+
+  Now reproduce once in browser (login -> strategic consultant -> kickout), stop watcher with Ctrl+C, and paste output.
+
+  Also do this in Replit UI (permanent):
+
+  1. Add SUPABASE_URL secret in Dev Secrets.
+  2. Add SUPABASE_URL secret in Deployment Secrets.
+  3. Republish.
