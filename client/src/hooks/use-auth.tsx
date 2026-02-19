@@ -1,4 +1,4 @@
-import { createContext, ReactNode, useContext, useEffect, useState, useCallback, useRef } from "react";
+import { createContext, ReactNode, useContext, useEffect, useState, useCallback } from "react";
 import { User as SelectUser } from "@shared/schema";
 import { supabase, getAccessToken, isSupabaseConfigured, supabaseConfigError } from "../lib/supabase";
 import { queryClient } from "../lib/queryClient";
@@ -21,38 +21,45 @@ async function fetchInternalUser(retries = 2): Promise<SelectUser | null> {
   const token = await getAccessToken();
   if (!token) return null;
 
-  try {
-    const res = await fetch('/api/auth/user', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+  const res = await fetch('/api/auth/user', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
 
-    if (res.status === 401 && retries > 0) {
-      await new Promise(r => setTimeout(r, 1000));
+  if (res.status === 401) {
+    if (retries > 0) {
+      await new Promise((r) => setTimeout(r, 1000));
       const { data: { session } } = await supabase.auth.refreshSession();
       if (session) {
         return fetchInternalUser(retries - 1);
       }
-      return null;
     }
-
-    if (!res.ok) return null;
-    return res.json();
-  } catch {
     return null;
   }
+
+  if (!res.ok) {
+    const details = await res.text().catch(() => "");
+    throw new Error(`Failed to fetch internal user: ${res.status} ${details}`);
+  }
+
+  return res.json();
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SelectUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const initializedRef = useRef(false);
 
   const loadUser = useCallback(async () => {
     try {
       const internalUser = await fetchInternalUser();
-      setUser(internalUser);
-    } catch {
-      setUser(null);
+      if (internalUser) {
+        setUser(internalUser);
+        return true;
+      }
+      setUser((previous) => previous ?? null);
+      return false;
+    } catch (error) {
+      console.error('[Auth] Failed to load internal user:', error);
+      return false;
     }
   }, []);
 
@@ -81,25 +88,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
         }
       } finally {
-        if (!cancelled) {
-          initializedRef.current = true;
-          setIsLoading(false);
-        }
+        if (!cancelled) setIsLoading(false);
       }
     };
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (cancelled || !initializedRef.current) return;
-      if (session) {
-        setIsLoading(true);
-        await loadUser();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (cancelled) return;
+
+      void (async () => {
+        if (session) {
+          setIsLoading(true);
+          await loadUser();
+          if (!cancelled) setIsLoading(false);
+          return;
+        }
+
         if (!cancelled) {
+          setUser(null);
           setIsLoading(false);
         }
-      } else if (!cancelled) {
-        setUser(null);
-        setIsLoading(false);
-      }
+      })();
     });
 
     bootstrap();
