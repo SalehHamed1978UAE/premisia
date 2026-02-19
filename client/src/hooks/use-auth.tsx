@@ -75,6 +75,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const bootstrap = async () => {
       try {
         setIsLoading(true);
+        // Explicitly handle OAuth PKCE callback code. This avoids relying only on
+        // implicit URL detection and fixes cases where users remain in login limbo.
+        const query = new URLSearchParams(window.location.search);
+        const oauthCode = query.get('code');
+        if (oauthCode) {
+          try {
+            await supabase.auth.exchangeCodeForSession(oauthCode);
+          } catch (exchangeError) {
+            console.error('[Auth] Failed to exchange OAuth code for session:', exchangeError);
+          } finally {
+            // Remove OAuth artifacts from URL after processing.
+            const cleaned = new URL(window.location.href);
+            cleaned.searchParams.delete('code');
+            cleaned.searchParams.delete('state');
+            window.history.replaceState({}, document.title, `${cleaned.pathname}${cleaned.search}${cleaned.hash}`);
+          }
+        }
+
         const { data: { session } } = await supabase.auth.getSession();
         if (cancelled) return;
 
