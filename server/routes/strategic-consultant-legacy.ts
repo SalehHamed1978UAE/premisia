@@ -33,6 +33,8 @@ import { referenceService } from '../services/reference-service';
 import { journeySummaryService } from '../services/journey-summary-service';
 import { decryptKMS } from '../utils/kms-encryption';
 import { buildLinearWhysTree, normalizeWhysPathSteps, whysPathToText } from '../utils/whys-path';
+import { deriveConstraintMode, normalizeConstraintMode } from '../intelligence/epm/constraint-policy';
+import { extractUserConstraintsFromText } from '../intelligence/epm/constraint-utils';
 
 const router = Router();
 const upload = multer({ 
@@ -308,11 +310,81 @@ router.post('/validate-manual-location', async (req: Request, res: Response) => 
 
 router.post('/understanding', async (req: Request, res: Response) => {
   try {
-    const { input, clarifications, fileMetadata } = req.body;
+    const { input, clarifications, fileMetadata, budgetConstraint, constraintMode } = req.body;
 
     if (!input || !input.trim()) {
       return res.status(400).json({ error: 'Input text is required' });
     }
+
+    const parseConstraintNumber = (value: unknown): number | undefined => {
+      if (value === null || value === undefined || value === '') return undefined;
+      if (typeof value === 'number') {
+        if (!Number.isFinite(value) || value <= 0) return undefined;
+        return Math.round(value);
+      }
+      if (typeof value === 'string') {
+        const normalized = value.replace(/[$,\s]/g, '');
+        if (!normalized) return undefined;
+        const parsed = Number(normalized);
+        if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
+        return Math.round(parsed);
+      }
+      return undefined;
+    };
+
+    let normalizedBudgetConstraint: { amount?: number; timeline?: number } | null = null;
+    if (budgetConstraint !== undefined && budgetConstraint !== null) {
+      if (typeof budgetConstraint !== 'object' || Array.isArray(budgetConstraint)) {
+        return res.status(400).json({
+          error: 'budgetConstraint must be an object with optional amount and timeline fields',
+        });
+      }
+
+      const amount = parseConstraintNumber((budgetConstraint as any).amount);
+      const timeline = parseConstraintNumber((budgetConstraint as any).timeline);
+
+      if ((budgetConstraint as any).amount !== undefined && amount === undefined) {
+        return res.status(400).json({ error: 'budgetConstraint.amount must be a positive number' });
+      }
+      if ((budgetConstraint as any).timeline !== undefined && timeline === undefined) {
+        return res.status(400).json({ error: 'budgetConstraint.timeline must be a positive number' });
+      }
+
+      normalizedBudgetConstraint = {};
+      if (amount !== undefined) normalizedBudgetConstraint.amount = amount;
+      if (timeline !== undefined) normalizedBudgetConstraint.timeline = timeline;
+
+      if (Object.keys(normalizedBudgetConstraint).length === 0) {
+        normalizedBudgetConstraint = null;
+      }
+    }
+
+    // Infer explicit budget/timeline constraints from free text when present.
+    const inferredFromText = extractUserConstraintsFromText(input.trim());
+    let inferredConstraintApplied = false;
+    if (inferredFromText.budget || inferredFromText.timeline) {
+      const merged = { ...(normalizedBudgetConstraint || {}) } as { amount?: number; timeline?: number };
+      if (merged.amount === undefined && inferredFromText.budget?.max) {
+        merged.amount = inferredFromText.budget.max;
+        inferredConstraintApplied = true;
+      }
+      if (merged.timeline === undefined && inferredFromText.timeline?.max) {
+        merged.timeline = inferredFromText.timeline.max;
+        inferredConstraintApplied = true;
+      }
+      normalizedBudgetConstraint = Object.keys(merged).length > 0 ? merged : null;
+    }
+
+    const requestedConstraintMode = normalizeConstraintMode(constraintMode);
+    if (constraintMode !== undefined && requestedConstraintMode === undefined) {
+      return res.status(400).json({
+        error: 'constraintMode must be one of: auto, discovery, constrained',
+      });
+    }
+    const hasExplicitConstraint = Boolean(
+      normalizedBudgetConstraint?.amount || normalizedBudgetConstraint?.timeline
+    );
+    const effectiveConstraintMode = deriveConstraintMode(requestedConstraintMode, hasExplicitConstraint);
 
     // If clarifications provided, incorporate them into the input + detect conflicts
     const clarificationResult = clarifications
@@ -348,9 +420,10 @@ router.post('/understanding', async (req: Request, res: Response) => {
       sessionId,
       userInput: finalInput,
       companyContext: null,
+      budgetConstraint: normalizedBudgetConstraint,
     });
 
-    if (clarificationResult.conflicts.length > 0) {
+    if (clarificationResult.conflicts.length > 0 || requestedConstraintMode !== undefined || hasExplicitConstraint) {
       const [existingMeta] = await db.select({ strategyMetadata: strategicUnderstanding.strategyMetadata })
         .from(strategicUnderstanding)
         .where(eq(strategicUnderstanding.id, result.understandingId))
@@ -360,14 +433,27 @@ router.post('/understanding', async (req: Request, res: Response) => {
         ? existingMeta.strategyMetadata as Record<string, any>
         : {};
 
-      const updatedMetadata = {
+      const updatedMetadata: Record<string, any> = {
         ...baseMetadata,
-        clarificationConflicts: clarificationResult.conflicts,
-        requiresApproval: {
+      };
+
+      if (requestedConstraintMode !== undefined || hasExplicitConstraint) {
+        updatedMetadata.constraintPolicy = {
+          mode: effectiveConstraintMode,
+          source: inferredConstraintApplied ? 'strategic-input-inferred' : 'strategic-input',
+          updatedAt: new Date().toISOString(),
+          hasExplicitConstraint,
+          inferredConstraintApplied,
+        };
+      }
+
+      if (clarificationResult.conflicts.length > 0) {
+        updatedMetadata.clarificationConflicts = clarificationResult.conflicts;
+        updatedMetadata.requiresApproval = {
           ...(baseMetadata.requiresApproval || {}),
           clarifications: true,
-        },
-      };
+        };
+      }
 
       await db.update(strategicUnderstanding)
         .set({
