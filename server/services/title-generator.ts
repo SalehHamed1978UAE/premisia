@@ -21,7 +21,7 @@ Rules:
     const response = await aiClients.callWithFallback({
       systemPrompt,
       userMessage,
-      maxTokens: 100,
+      maxTokens: 500,
     });
 
     // Parse JSON response to extract title, with fallback to raw text

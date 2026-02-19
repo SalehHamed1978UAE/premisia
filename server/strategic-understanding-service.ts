@@ -268,7 +268,7 @@ Now extract entities from the provided user input. Return ONLY valid JSON:`;
         const response = await aiClients.callWithFallback({
           systemPrompt,
           userMessage,
-          maxTokens: 3000,
+          maxTokens: 8192,
         });
 
         let parsed;
