@@ -71,6 +71,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     let cancelled = false;
+    const waitForSession = async (attempts = 20, delayMs = 250) => {
+      for (let i = 0; i < attempts; i++) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) return session;
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+      return null;
+    };
 
     const bootstrap = async () => {
       try {
@@ -79,7 +87,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           window.location.search.includes('code=') ||
           window.location.search.includes('state=');
 
-        const { data: { session } } = await supabase.auth.getSession();
+        // With detectSessionInUrl=true Supabase handles code exchange automatically,
+        // but callback session propagation can be delayed by a few seconds.
+        const session = hasOauthParams
+          ? await waitForSession()
+          : (await supabase.auth.getSession()).data.session;
         if (cancelled) return;
 
         if (session) {
@@ -107,6 +119,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       void (async () => {
         if (session) {
+          if (window.location.search.includes('code=') || window.location.search.includes('state=')) {
+            const cleaned = new URL(window.location.href);
+            cleaned.searchParams.delete('code');
+            cleaned.searchParams.delete('state');
+            window.history.replaceState({}, document.title, `${cleaned.pathname}${cleaned.search}${cleaned.hash}`);
+          }
           setIsLoading(true);
           await loadUser();
           if (!cancelled) setIsLoading(false);
