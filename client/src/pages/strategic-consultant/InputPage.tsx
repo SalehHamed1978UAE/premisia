@@ -324,11 +324,9 @@ export default function InputPage() {
       setIsCheckingAmbiguities(false);
       toast({
         title: "Check failed",
-        description: "Could not check for ambiguities. Proceeding with original input.",
-        variant: "default"
+        description: "Could not check for ambiguities. Please retry in a few seconds.",
+        variant: "destructive"
       });
-      // Proceed anyway on error
-      await startStrategicUnderstanding(text.trim(), null);
     }
   };
 
@@ -555,11 +553,9 @@ export default function InputPage() {
       setIsCheckingAmbiguities(false);
       toast({
         title: "Check failed",
-        description: "Could not check for ambiguities. Proceeding with original input.",
-        variant: "default"
+        description: "Could not check for ambiguities. Please retry in a few seconds.",
+        variant: "destructive"
       });
-      // Proceed anyway on error
-      await startJourneyStepUnderstanding(text.trim(), null);
     }
   };
 

@@ -1,4 +1,6 @@
 import { aiClients } from '../ai-clients.js';
+import { z } from 'zod';
+import { parseAIJson } from '../utils/parse-ai-json';
 
 export interface AmbiguityQuestion {
   id: string;
@@ -15,7 +17,27 @@ export interface AmbiguityDetectionResult {
   hasAmbiguities: boolean;
   questions: AmbiguityQuestion[];
   reasoning?: string;
+  error?: string;
 }
+
+const ambiguityOptionSchema = z.object({
+  value: z.string().min(1),
+  label: z.string().min(1),
+  description: z.string().min(1),
+});
+
+const ambiguityQuestionSchema = z.object({
+  id: z.string().min(1),
+  question: z.string().min(1),
+  multiSelect: z.boolean().optional(),
+  options: z.array(ambiguityOptionSchema).min(1),
+});
+
+const ambiguityResponseSchema = z.object({
+  hasAmbiguities: z.boolean().optional(),
+  questions: z.array(ambiguityQuestionSchema).optional(),
+  reasoning: z.string().optional(),
+});
 
 export interface ClarificationConflictResult {
   clarifiedInput: string;
@@ -183,22 +205,8 @@ If NO critical ambiguities found, return:
         maxTokens: 4096,
       });
 
-      // Extract JSON from response
-      let cleanedContent = response.content.trim();
-      
-      // Remove markdown code blocks if present
-      const codeBlockMatch = cleanedContent.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-      if (codeBlockMatch) {
-        cleanedContent = codeBlockMatch[1];
-      }
-
-      // Extract JSON object
-      const jsonMatch = cleanedContent.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
-        throw new Error('No JSON found in AI response');
-      }
-
-      const result = JSON.parse(jsonMatch[0]);
+      const parsed = parseAIJson(response.content, 'ambiguity detector');
+      const result = ambiguityResponseSchema.parse(parsed);
 
       // Merge AI-detected questions with pre-computed questions
       if (result.questions && result.questions.length > 0) {
@@ -227,14 +235,12 @@ If NO critical ambiguities found, return:
           hasAmbiguities: true,
           questions: mergedQuestions,
           reasoning: 'Geographic disambiguation needed',
+          error: error instanceof Error ? error.message : String(error),
         };
       }
-      // Otherwise, assume no ambiguities (fail gracefully)
-      return {
-        hasAmbiguities: false,
-        questions: [],
-        reasoning: 'Error detecting ambiguities - proceeding with input as-is',
-      };
+      throw error instanceof Error
+        ? error
+        : new Error('Ambiguity detection unavailable');
     }
   }
 

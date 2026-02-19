@@ -11,6 +11,7 @@ import type {
   StageGate as ValidatorStageGate, 
   Deliverable as ValidatorDeliverable 
 } from '../intelligence/types';
+import { createAnthropicClientWithFallback } from '../utils/anthropic-fallback';
 
 /**
  * Resource plan structure expected by exporters
@@ -163,11 +164,7 @@ export class EPMConverter {
   private anthropic: Anthropic;
 
   constructor() {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY environment variable is required');
-    }
-    this.anthropic = new Anthropic({ apiKey });
+    this.anthropic = createAnthropicClientWithFallback(process.env.ANTHROPIC_API_KEY);
   }
 
   async convertToEPM(

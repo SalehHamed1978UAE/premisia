@@ -4,12 +4,11 @@ import { segmentDiscoveryResults, betaUsageCounters, users } from '@shared/schem
 import { eq, sql, desc } from 'drizzle-orm';
 import Anthropic from '@anthropic-ai/sdk';
 import { encryptKMS, decryptKMS, encryptJSONKMS, decryptJSONKMS } from '../utils/kms-encryption';
+import { createAnthropicClientWithFallback } from '../utils/anthropic-fallback';
 
 const router = Router();
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+const anthropic: Anthropic = createAnthropicClientWithFallback(process.env.ANTHROPIC_API_KEY);
 
 const OFFERING_TYPES = [
   'b2b_software',

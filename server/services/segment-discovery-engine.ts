@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { createAnthropicClientWithFallback } from '../utils/anthropic-fallback';
 
 const AI_TIMEOUT_MS = 90000; // 90 second timeout for standard AI calls
 const AI_TIMEOUT_LONG_MS = 180000; // 180 second timeout for large AI calls (gene library)
@@ -204,7 +205,7 @@ export class SegmentDiscoveryEngine {
   private anthropic: Anthropic;
 
   constructor() {
-    this.anthropic = new Anthropic();
+    this.anthropic = createAnthropicClientWithFallback(process.env.ANTHROPIC_API_KEY);
   }
 
   private getB2BGeneLibraryPrompt(context: DiscoveryContext): string {

@@ -13,7 +13,7 @@ import logoLight from "@assets/Untitled (3600 x 1000 px)_1762102046406.png";
 import logoDark from "@assets/Untitled (3600 x 1000 px)-modified_1762102046405.png";
 
 export default function AuthPage() {
-  const { user, isLoading, loginWithGoogle, loginWithEmail, signUpWithEmail, sendMagicLink } = useAuth();
+  const { user, isLoading, loginWithGoogle, loginWithEmail, signUpWithEmail, sendMagicLink, authConfigError } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -184,6 +184,12 @@ export default function AuthPage() {
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
+              {authConfigError && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{authConfigError}</AlertDescription>
+                </Alert>
+              )}
               {success && (
                 <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
                   <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
@@ -191,7 +197,7 @@ export default function AuthPage() {
                 </Alert>
               )}
 
-              <Button onClick={handleGoogleSignIn} disabled={isSubmitting} className="w-full h-12 text-base font-medium" size="lg">
+              <Button onClick={handleGoogleSignIn} disabled={isSubmitting || !!authConfigError} className="w-full h-12 text-base font-medium" size="lg">
                 {isSubmitting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <SiGoogle className="mr-2 h-5 w-5" />}
                 Sign in with Google
               </Button>
@@ -214,13 +220,13 @@ export default function AuthPage() {
                     <form onSubmit={handleEmailSignIn} className="space-y-4">
                       <div className="space-y-2">
                         <Label htmlFor="signin-email">Email</Label>
-                        <Input id="signin-email" type="email" placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isSubmitting} />
+                        <Input id="signin-email" type="email" placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isSubmitting || !!authConfigError} />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="signin-password">Password</Label>
-                        <Input id="signin-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={isSubmitting} />
+                        <Input id="signin-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={isSubmitting || !!authConfigError} />
                       </div>
-                      <Button type="submit" className="w-full" disabled={isSubmitting}>
+                      <Button type="submit" className="w-full" disabled={isSubmitting || !!authConfigError}>
                         {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                         Sign In
                       </Button>
@@ -231,17 +237,17 @@ export default function AuthPage() {
                     <form onSubmit={handleEmailSignUp} className="space-y-4">
                       <div className="space-y-2">
                         <Label htmlFor="signup-email">Email</Label>
-                        <Input id="signup-email" type="email" placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isSubmitting} />
+                        <Input id="signup-email" type="email" placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isSubmitting || !!authConfigError} />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="signup-password">Password</Label>
-                        <Input id="signup-password" type="password" placeholder="At least 6 characters" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={isSubmitting} />
+                        <Input id="signup-password" type="password" placeholder="At least 6 characters" value={password} onChange={(e) => setPassword(e.target.value)} required disabled={isSubmitting || !!authConfigError} />
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="confirm-password">Confirm Password</Label>
-                        <Input id="confirm-password" type="password" placeholder="Re-enter your password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required disabled={isSubmitting} />
+                        <Input id="confirm-password" type="password" placeholder="Re-enter your password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required disabled={isSubmitting || !!authConfigError} />
                       </div>
-                      <Button type="submit" className="w-full" disabled={isSubmitting}>
+                      <Button type="submit" className="w-full" disabled={isSubmitting || !!authConfigError}>
                         {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                         Create Account
                       </Button>
@@ -255,9 +261,9 @@ export default function AuthPage() {
                 <form onSubmit={handleMagicLink} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="magic-email">Email</Label>
-                    <Input id="magic-email" type="email" placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isSubmitting} />
+                    <Input id="magic-email" type="email" placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={isSubmitting || !!authConfigError} />
                   </div>
-                  <Button type="submit" className="w-full" disabled={isSubmitting}>
+                  <Button type="submit" className="w-full" disabled={isSubmitting || !!authConfigError}>
                     {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
                     Send Login Link
                   </Button>

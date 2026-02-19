@@ -21,6 +21,7 @@ interface AIClientRequest {
   systemPrompt: string;
   userMessage: string;
   responseSchema?: any;
+  responseMimeType?: "application/json" | "text/plain";
   maxTokens?: number;
 }
 
@@ -158,7 +159,7 @@ export class AIClients {
   }
 
   async callGemini(request: AIClientRequest, retryCount = 0): Promise<AIClientResponse> {
-    const { systemPrompt, userMessage, maxTokens = 8192, responseSchema } = request;
+    const { systemPrompt, userMessage, maxTokens = 8192, responseSchema, responseMimeType } = request;
 
     const gemini = this.getGemini();
 
@@ -166,9 +167,19 @@ export class AIClients {
 
     const config: any = {
       systemInstruction: systemPrompt,
-      responseMimeType: "application/json",
       maxOutputTokens: effectiveMaxTokens,
     };
+
+    const shouldForceJson = Boolean(
+      responseSchema ||
+      responseMimeType === "application/json" ||
+      /json/i.test(systemPrompt) ||
+      /json/i.test(userMessage.slice(0, 400))
+    );
+
+    if (shouldForceJson) {
+      config.responseMimeType = "application/json";
+    }
 
     if (responseSchema) {
       config.responseSchema = responseSchema;

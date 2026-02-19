@@ -4,6 +4,7 @@ import { ResearchFindings, Source, Finding } from './market-researcher';
 import { groundStrategicAnalysis, isContextFoundryConfigured, orchestrateAnalysis, OrchestrationResult } from '../services/grounded-analysis-service';
 import { ContextBundle } from '../services/context-foundry-client';
 import { whysPathToText } from '../utils/whys-path';
+import { createAnthropicClientWithFallback } from '../utils/anthropic-fallback';
 
 export interface FiveWhysAnalysis {
   problem_statement: string;
@@ -95,11 +96,7 @@ export class StrategyAnalyzer {
   private useGrounding: boolean;
 
   constructor(options?: { useGrounding?: boolean }) {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY environment variable is required');
-    }
-    this.anthropic = new Anthropic({ apiKey });
+    this.anthropic = createAnthropicClientWithFallback(process.env.ANTHROPIC_API_KEY);
     this.useGrounding = options?.useGrounding ?? isContextFoundryConfigured();
   }
 

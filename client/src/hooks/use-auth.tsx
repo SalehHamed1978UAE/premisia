@@ -1,6 +1,6 @@
 import { createContext, ReactNode, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { User as SelectUser } from "@shared/schema";
-import { supabase, getAccessToken } from "../lib/supabase";
+import { supabase, getAccessToken, isSupabaseConfigured, supabaseConfigError } from "../lib/supabase";
 import { queryClient } from "../lib/queryClient";
 
 type AuthContextType = {
@@ -12,6 +12,7 @@ type AuthContextType = {
   signUpWithEmail: (email: string, password: string) => Promise<void>;
   sendMagicLink: (email: string) => Promise<void>;
   logout: () => Promise<void>;
+  authConfigError: string | null;
 };
 
 export const AuthContext = createContext<AuthContextType | null>(null);
@@ -46,60 +47,73 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const initializedRef = useRef(false);
 
-  const loadUser = useCallback(async (setLoadingFlag = false) => {
-    if (setLoadingFlag) {
-      setIsLoading(true);
-    }
+  const loadUser = useCallback(async () => {
     try {
       const internalUser = await fetchInternalUser();
       setUser(internalUser);
     } catch {
       setUser(null);
-    } finally {
-      setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!initializedRef.current) {
-        initializedRef.current = true;
+    if (!isSupabaseConfigured) {
+      setUser(null);
+      setIsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const bootstrap = async () => {
+      try {
+        setIsLoading(true);
+        const { data: { session } } = await supabase.auth.getSession();
+        if (cancelled) return;
+
         if (session) {
-          loadUser();
+          await loadUser();
         } else {
           setUser(null);
-          setIsLoading(false);
         }
-      } else {
-        if (session) {
-          loadUser(true);
-        } else {
+      } catch {
+        if (!cancelled) {
           setUser(null);
+        }
+      } finally {
+        if (!cancelled) {
+          initializedRef.current = true;
           setIsLoading(false);
         }
+      }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (cancelled || !initializedRef.current) return;
+      if (session) {
+        setIsLoading(true);
+        await loadUser();
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      } else if (!cancelled) {
+        setUser(null);
+        setIsLoading(false);
       }
     });
 
-    const timer = setTimeout(() => {
-      if (!initializedRef.current) {
-        initializedRef.current = true;
-        supabase.auth.getSession().then(({ data: { session } }) => {
-          if (session) {
-            loadUser();
-          } else {
-            setIsLoading(false);
-          }
-        });
-      }
-    }, 3000);
+    bootstrap();
 
     return () => {
+      cancelled = true;
       subscription.unsubscribe();
-      clearTimeout(timer);
     };
   }, [loadUser]);
 
   const loginWithGoogle = async () => {
+    if (!isSupabaseConfigured) {
+      throw new Error(supabaseConfigError || "Supabase is not configured");
+    }
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -110,11 +124,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const loginWithEmail = async (email: string, password: string) => {
+    if (!isSupabaseConfigured) {
+      throw new Error(supabaseConfigError || "Supabase is not configured");
+    }
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
   };
 
   const signUpWithEmail = async (email: string, password: string) => {
+    if (!isSupabaseConfigured) {
+      throw new Error(supabaseConfigError || "Supabase is not configured");
+    }
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -126,6 +146,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const sendMagicLink = async (email: string) => {
+    if (!isSupabaseConfigured) {
+      throw new Error(supabaseConfigError || "Supabase is not configured");
+    }
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
@@ -136,6 +159,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    if (!isSupabaseConfigured) {
+      setUser(null);
+      queryClient.clear();
+      window.location.href = '/auth';
+      return;
+    }
     await supabase.auth.signOut();
     setUser(null);
     queryClient.clear();
@@ -153,6 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signUpWithEmail,
         sendMagicLink,
         logout,
+        authConfigError: supabaseConfigError,
       }}
     >
       {children}

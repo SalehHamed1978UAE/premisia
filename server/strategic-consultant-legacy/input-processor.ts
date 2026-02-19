@@ -3,6 +3,7 @@ import mammoth from 'mammoth';
 import * as XLSX from 'xlsx';
 import { readFileSync } from 'fs';
 import { createRequire } from 'module';
+import { createAnthropicClientWithFallback } from '../utils/anthropic-fallback';
 
 const require = createRequire(import.meta.url);
 const pdf = require('pdf-parse');
@@ -22,11 +23,7 @@ export class InputProcessor {
   private anthropic: Anthropic;
 
   constructor() {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY environment variable is required');
-    }
-    this.anthropic = new Anthropic({ apiKey });
+    this.anthropic = createAnthropicClientWithFallback(process.env.ANTHROPIC_API_KEY);
   }
 
   async processText(text: string): Promise<ProcessedInput> {

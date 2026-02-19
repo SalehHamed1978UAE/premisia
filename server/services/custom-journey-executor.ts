@@ -80,7 +80,7 @@ const FRAMEWORK_KEY_TO_MODULE_ID: Record<string, string> = {
   'epm': 'epm-generator',
   // User input steps (not AI modules)
   'strategic_decisions': 'strategic-decisions',
-  'strategic_understanding': 'strategic-understanding',
+  'strategic-understanding': 'strategic-understanding',
   'prioritization': 'prioritization',
 };
 

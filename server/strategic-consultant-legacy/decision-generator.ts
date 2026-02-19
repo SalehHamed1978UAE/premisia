@@ -3,6 +3,7 @@ import { strategyOntologyService } from '../ontology/strategy-ontology-service';
 import type { StrategyAnalysis, PortersFiveForcesAnalysis } from './strategy-analyzer';
 import type { ResearchFindings } from './market-researcher';
 import type { SWOTOutput } from '../intelligence/swot-analyzer';
+import { createAnthropicClientWithFallback } from '../utils/anthropic-fallback';
 
 export interface DecisionOption {
   id: string;
@@ -36,11 +37,7 @@ export class DecisionGenerator {
   private anthropic: Anthropic;
 
   constructor() {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY environment variable is required');
-    }
-    this.anthropic = new Anthropic({ apiKey });
+    this.anthropic = createAnthropicClientWithFallback(process.env.ANTHROPIC_API_KEY);
   }
 
   async generateDecisions(
