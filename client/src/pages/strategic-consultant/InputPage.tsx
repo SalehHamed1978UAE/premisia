@@ -47,8 +47,25 @@ export default function InputPage() {
   const discoveryId = urlParams.get('discoveryId');
   const templateId = urlParams.get('templateId');
   const journeyType = urlParams.get('journeyType');
-  const [text, setText] = useState(prefilledText);
+  const [text, setText] = useState(() => {
+    if (prefilledText) return prefilledText;
+    try {
+      return sessionStorage.getItem('strategic-input-draft') || '';
+    } catch {
+      return '';
+    }
+  });
   const [isLoadingSummary, setIsLoadingSummary] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (text) {
+        sessionStorage.setItem('strategic-input-draft', text);
+      } else {
+        sessionStorage.removeItem('strategic-input-draft');
+      }
+    } catch {}
+  }, [text]);
 
   // Fetch strategic summary from Segment Discovery if discoveryId is present
   useEffect(() => {
@@ -354,6 +371,7 @@ export default function InputPage() {
         if (templateId) params.set('templateId', templateId);
         if (journeyType) params.set('journeyType', journeyType);
         const queryString = params.toString();
+        try { sessionStorage.removeItem('strategic-input-draft'); } catch {}
         setLocation(`/strategic-consultant/classification/${understandingId}${queryString ? '?' + queryString : ''}`);
       }, 300);
 
@@ -569,6 +587,7 @@ export default function InputPage() {
       if (stepCompletion?.completed) {
         // Journey complete - navigate to classification
         setTimeout(() => {
+          try { sessionStorage.removeItem('strategic-input-draft'); } catch {}
           setLocation(`/strategic-consultant/classification/${understandingId}`);
         }, 300);
       } else {
