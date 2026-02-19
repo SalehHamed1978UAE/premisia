@@ -103,6 +103,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
+        // Supabase can briefly emit a null session during refresh/handshake.
+        // Re-check once before treating it as a real logout.
+        setIsLoading(true);
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        const { data: { session: recheckedSession } } = await supabase.auth.getSession();
+
+        if (recheckedSession) {
+          await loadUser();
+          if (!cancelled) setIsLoading(false);
+          return;
+        }
+
         if (!cancelled) {
           setUser(null);
           setIsLoading(false);
