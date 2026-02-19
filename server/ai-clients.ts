@@ -64,7 +64,7 @@ export class AIClients {
 
   private getGemini(): GoogleGenAI {
     if (!this.gemini) {
-      const apiKey = process.env.GEMINI_API_KEY;
+      const apiKey = process.env.GEMINI_API_KEY || process.env.AI_INTEGRATIONS_GEMINI_API_KEY;
       if (!apiKey) {
         throw new Error("GEMINI_API_KEY environment variable is not set");
       }
@@ -155,14 +155,12 @@ export class AIClients {
 
     const gemini = this.getGemini();
 
-    // Build config with optional schema enforcement
     const config: any = {
       systemInstruction: systemPrompt,
+      responseMimeType: "application/json",
     };
 
-    // Add JSON schema enforcement if provided
     if (responseSchema) {
-      config.responseMimeType = "application/json";
       config.responseSchema = responseSchema;
     }
 
@@ -228,7 +226,7 @@ export class AIClients {
       case "anthropic":
         return !!process.env.ANTHROPIC_API_KEY;
       case "gemini":
-        return !!process.env.GEMINI_API_KEY;
+        return !!(process.env.GEMINI_API_KEY || process.env.AI_INTEGRATIONS_GEMINI_API_KEY);
       case "ollama" as AIProvider:
         // Ollama is available if USE_OLLAMA=true (local dev)
         return process.env.USE_OLLAMA === "true";
