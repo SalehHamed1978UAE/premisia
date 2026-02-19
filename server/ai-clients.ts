@@ -68,7 +68,14 @@ export class AIClients {
       if (!apiKey) {
         throw new Error("GEMINI_API_KEY environment variable is not set");
       }
-      this.gemini = new GoogleGenAI({ apiKey });
+      const opts: any = { apiKey };
+      if (!process.env.GEMINI_API_KEY && process.env.AI_INTEGRATIONS_GEMINI_BASE_URL) {
+        opts.httpOptions = {
+          apiVersion: "",
+          baseUrl: process.env.AI_INTEGRATIONS_GEMINI_BASE_URL,
+        };
+      }
+      this.gemini = new GoogleGenAI(opts);
     }
     return this.gemini;
   }
@@ -150,21 +157,23 @@ export class AIClients {
     };
   }
 
-  async callGemini(request: AIClientRequest): Promise<AIClientResponse> {
-    const { systemPrompt, userMessage, responseSchema } = request;
+  async callGemini(request: AIClientRequest, retryCount = 0): Promise<AIClientResponse> {
+    const { systemPrompt, userMessage, maxTokens = 8192, responseSchema } = request;
 
     const gemini = this.getGemini();
+
+    const effectiveMaxTokens = Math.min(maxTokens * Math.pow(2, retryCount), 32768);
 
     const config: any = {
       systemInstruction: systemPrompt,
       responseMimeType: "application/json",
+      maxOutputTokens: effectiveMaxTokens,
     };
 
     if (responseSchema) {
       config.responseSchema = responseSchema;
     }
 
-    // Generate content using the @google/genai API
     const response = await gemini.models.generateContent({
       model: GEMINI_MODEL,
       contents: userMessage,
@@ -173,7 +182,11 @@ export class AIClients {
 
     const content = response.text;
     if (!content) {
-      throw new Error(`Gemini returned empty content`);
+      if (retryCount < 2 && effectiveMaxTokens < 32768) {
+        console.warn(`[AIClients] Gemini returned empty content, retrying with ${Math.min(effectiveMaxTokens * 2, 32768)} tokens...`);
+        return this.callGemini(request, retryCount + 1);
+      }
+      throw new Error(`Gemini returned empty content (max_tokens: ${effectiveMaxTokens})`);
     }
 
     return {
