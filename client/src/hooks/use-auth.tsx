@@ -72,6 +72,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let cancelled = false;
 
+    const waitForSession = async (attempts = 10, delayMs = 300) => {
+      for (let i = 0; i < attempts; i++) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) return session;
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+      return null;
+    };
+
     const bootstrap = async () => {
       try {
         setIsLoading(true);
@@ -80,11 +89,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const query = new URLSearchParams(window.location.search);
         const oauthCode = query.get('code');
         if (oauthCode) {
+          // Supabase auto-processing can be slightly delayed; wait briefly first.
+          let callbackSession = await waitForSession(8, 250);
           try {
-            await supabase.auth.exchangeCodeForSession(oauthCode);
+            if (!callbackSession) {
+              const { data, error } = await supabase.auth.exchangeCodeForSession(oauthCode);
+              if (error) throw error;
+              callbackSession = data.session ?? null;
+            }
           } catch (exchangeError) {
-            console.error('[Auth] Failed to exchange OAuth code for session:', exchangeError);
+            const message = exchangeError instanceof Error ? exchangeError.message : String(exchangeError);
+            // AbortError may happen during race with internal auto-handler; treat as transient.
+            if (!/abort/i.test(message)) {
+              console.error('[Auth] Failed to exchange OAuth code for session:', exchangeError);
+            }
           } finally {
+            // Final check after exchange path.
+            if (!callbackSession) {
+              await waitForSession(6, 250);
+            }
             // Remove OAuth artifacts from URL after processing.
             const cleaned = new URL(window.location.href);
             cleaned.searchParams.delete('code');
