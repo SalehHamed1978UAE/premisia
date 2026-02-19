@@ -84,13 +84,14 @@ export class AIClients {
     return this.ollama;
   }
 
-  async callOpenAI(request: AIClientRequest): Promise<AIClientResponse> {
+  async callOpenAI(request: AIClientRequest, retryCount = 0): Promise<AIClientResponse> {
     const { systemPrompt, userMessage, maxTokens = 8192 } = request;
 
     const openai = this.getOpenAI();
 
-    // OpenAI gpt-5 doesn't support temperature parameter
-    // Use max_completion_tokens instead of max_tokens for gpt-5
+    const effectiveMaxTokens = maxTokens * Math.pow(2, retryCount);
+    const cappedTokens = Math.min(effectiveMaxTokens, 32768);
+
     const response = await openai.chat.completions.create({
       model: OPENAI_MODEL,
       messages: [
@@ -98,12 +99,19 @@ export class AIClients {
         { role: "user", content: userMessage }
       ],
       response_format: { type: "json_object" },
-      max_completion_tokens: maxTokens,
+      max_completion_tokens: cappedTokens,
     });
 
     const content = response.choices[0].message.content;
+    const finishReason = response.choices[0].finish_reason;
+
+    if (!content && finishReason === 'length' && retryCount < 2 && cappedTokens < 32768) {
+      console.warn(`[AIClients] OpenAI truncated at ${cappedTokens} tokens, retrying with ${Math.min(cappedTokens * 2, 32768)}...`);
+      return this.callOpenAI(request, retryCount + 1);
+    }
+
     if (!content) {
-      throw new Error(`OpenAI returned empty content (finish_reason: ${response.choices[0].finish_reason})`);
+      throw new Error(`OpenAI returned empty content (finish_reason: ${finishReason}, max_tokens: ${cappedTokens})`);
     }
 
     return {
