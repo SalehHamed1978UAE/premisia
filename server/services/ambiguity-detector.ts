@@ -196,8 +196,12 @@ Key information gaps to probe:
       console.log(`[Ambiguity Detector] Including ${precomputedQuestions.length} pre-computed question(s)`);
     }
 
-    const truncatedInput = userInput.length > 2000 ? userInput.substring(0, 2000) + '...' : userInput;
-    const wordCount = userInput.trim().split(/\s+/).length;
+    const cleanedInput = this.stripClarificationBlocks(userInput);
+    if (cleanedInput.length !== userInput.length) {
+      console.log(`[Ambiguity Detector] Stripped stale CLARIFICATIONS block from input (${userInput.length} → ${cleanedInput.length} chars)`);
+    }
+    const truncatedInput = cleanedInput.length > 2000 ? cleanedInput.substring(0, 2000) + '...' : cleanedInput;
+    const wordCount = cleanedInput.trim().split(/\s+/).length;
     const frameworkContext = this.getFrameworkGapContext(journeyType);
 
     const adaptiveInstruction = wordCount > 150
@@ -424,7 +428,8 @@ ${clarificationText}${conflictText}`;
 
     for (const line of lines) {
       const trimmed = line.trim();
-      if (/^clarifications:/i.test(trimmed)) {
+      const stripped = trimmed.replace(/^\*+\s*/, '').replace(/\s*\*+$/, '');
+      if (/^clarifications:/i.test(stripped) || /^clarification_conflicts:/i.test(stripped)) {
         inBlock = true;
         continue;
       }

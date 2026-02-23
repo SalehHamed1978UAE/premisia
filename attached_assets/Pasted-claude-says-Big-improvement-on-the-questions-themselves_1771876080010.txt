@@ -1,0 +1,26 @@
+claude says: Big improvement on the questions themselves — they're now strategic and framework-relevant:
+
+Q1 targets Porter's (competitive positioning)
+Q2 targets strategic priorities and execution risk
+
+The descriptions explain implications for analysis. That's exactly what you wanted.
+But there's a problem.
+Look at the clarifications at the bottom:
+What you wroteWhat the system shows"self-hosted private cloud within bank premises"SaaS Subscription"mid-market banks (50-500 employees)"Mid-Market Banks (redundant)"automated alerts for low-risk AND manual human-driven review for high-risk"Full Automation"channel partners like Deloitte and PwC while also maintaining direct enterprise sales"Direct Sales Only
+Three of four are wrong. The system is either:
+
+Ignoring your detailed input and applying default generic answers
+Showing cached/stale clarifications from a previous session
+Running a second classification pass that contradicts what you wrote
+
+For an input this detailed, the adaptive logic should have skipped most questions entirely — not contradicted explicit statements.
+Tell Replit: the new questions are good, but there's a bug where clarifications are being set incorrectly despite clear input. Check whether there's a separate classification step overriding user-provided specifics.
+
+because th einput i provided was:  We are building a FinTech Regulatory Compliance Automation Platform targeting mid-market banks (50-500 employees) in the GCC region. Budget constraint: $1.8M maximum over 24 months. Timeline: Proof of concept by month 4, production deployment by month 10, full regulatory certification by month 18. The platform automates KYC/AML screening, transaction monitoring, and suspicious activity reporting using NLP and graph analytics. It must integrate with core banking systems (Temenos, Finastra) and local central bank APIs. CONSTRAINTS: Must operate on self-hosted private cloud within bank premises for data sovereignty. Comply with UAE CBUAE regulations and Bahrain CBB guidelines. Maximum team size of 18 FTEs. CLARIFICATIONS: We plan to sell through channel partners like Deloitte and PwC advisory practices while also maintaining a direct enterprise sales team for tier-1 banks. We want automated alerts for low-risk transactions AND manual human-driven review for high-risk cases. Our target is both UAE and Bahrain markets initially with Saudi expansion in year two.
+
+
+*CLARIFICATIONS:*
+- SaaS Subscription
+- Mid-Market Banks
+- Full Automation
+- Direct Sales Only
