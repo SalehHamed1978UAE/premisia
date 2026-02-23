@@ -137,67 +137,24 @@ export class AmbiguityDetectorService {
       console.log(`[Ambiguity Detector] Including ${precomputedQuestions.length} pre-computed question(s)`);
     }
 
-    const prompt = `Analyze this business idea for ambiguities that would affect strategic planning:
+    const truncatedInput = userInput.length > 1500 ? userInput.substring(0, 1500) + '...' : userInput;
+    const prompt = `Analyze for strategic ambiguities:
 
-"${userInput}"
+"${truncatedInput}"
 
-COMMON AMBIGUITIES TO CHECK:
+Check: Technology role, Customer type (B2B/B2C), Delivery mode, Business model, Market scope.
+Skip categories the input already answers clearly.
+Max 3 questions. Each question: 2-3 options, labels under 5 words, no descriptions.
 
-1. **Technology Role Ambiguity**
-   - Does "AI tutoring" mean using AI to tutor students, OR teaching students about AI?
-   - Does "tech consulting" mean advising on technology, OR providing tech services?
+Return JSON: {"hasAmbiguities":true/false,"questions":[{"id":"q1","question":"...?","multiSelect":false,"options":[{"value":"a","label":"Short"}]}],"reasoning":"One sentence"}
 
-2. **Customer Type Ambiguity**
-   - B2B (selling to businesses) or B2C (selling to consumers)?
-   - Who is the actual customer?
-
-3. **Delivery Mode Ambiguity**
-   - Physical location (store, office) or digital (app, website, online)?
-   - In-person or remote?
-
-4. **Business Model Ambiguity**
-   - Product (selling goods) or service (providing services)?
-   - One-time purchase or subscription?
-
-5. **Market Scope Ambiguity**
-   - Local/regional or national/international?
-   - Geographic boundaries unclear?
-
-INSTRUCTIONS:
-- Identify ONLY the most CRITICAL ambiguities (maximum 5 questions)
-- Skip ambiguities the input already answers clearly
-- For each ambiguity, generate a clear multiple-choice question
-- Provide 2-3 specific options (not "other")
-- Keep questions simple and direct
-- Keep option labels under 5 words and descriptions under 15 words
-- Keep reasoning under 30 words
-
-Return as JSON:
-{
-  "hasAmbiguities": true/false,
-  "questions": [
-    {
-      "id": "unique_id",
-      "question": "Clear question?",
-      "multiSelect": false,
-      "options": [
-        {"value": "option_a", "label": "Short label", "description": "Brief description"}
-      ]
-    }
-  ],
-  "reasoning": "Brief explanation"
-}
-
-Set "multiSelect": true ONLY if options are NOT mutually exclusive.
-
-If NO critical ambiguities found, return:
-{"hasAmbiguities": false, "questions": [], "reasoning": "Input is clear"}`;
+If clear: {"hasAmbiguities":false,"questions":[],"reasoning":"Input is clear"}`;
 
     try {
       const response = await aiClients.callWithFallback({
-        systemPrompt: 'You are a strategic planning expert. Detect ambiguities that would lead to wrong business assumptions. Return ONLY valid JSON. Be concise — maximum 5 questions, short labels and descriptions.',
+        systemPrompt: 'Strategic planning expert. Return ONLY compact valid JSON. Maximum 3 questions.',
         userMessage: prompt,
-        maxTokens: 1500,
+        maxTokens: 800,
       });
 
       const parsed = parseAIJson(response.content, 'ambiguity detector');

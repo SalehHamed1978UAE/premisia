@@ -231,39 +231,41 @@ router.post('/check-ambiguities', async (req: Request, res: Response) => {
     const textForLocationCheck = typeof userInput === 'string' ? userInput : (userInput.text || '');
     const fullInputForAmbiguity = typeof userInput === 'string' ? userInput : (userInput.fullInput || userInput.text || userInput);
 
-    console.log('[Ambiguity Check] Step 1: Checking for geographic ambiguities...');
+    console.log('[Ambiguity Check] Running location resolution and ambiguity detection in parallel...');
     
-    // Step 1: Resolve geographic locations using Nominatim (only check user's text input, not document content)
-    // Gracefully handle external API failures (e.g., 503 errors) by treating them as "no locations found"
-    let locationResult: any = { autoResolved: [], questions: [] };
-    try {
-      locationResult = await locationResolver.resolveAll(textForLocationCheck);
-      
-      // Store auto-resolved locations (high-confidence matches)
-      for (const location of locationResult.autoResolved) {
-        await storage.createLocation({
-          rawQuery: location.rawQuery,
-          displayName: location.displayName,
-          lat: location.lat.toString(),
-          lon: location.lon.toString(),
-          countryCode: location.countryCode,
-          adminLevels: location.adminLevels,
-        });
-        console.log(`[Ambiguity Check] Auto-resolved location: ${location.rawQuery} → ${location.displayName}`);
+    const locationPromise = (async () => {
+      try {
+        const locationResult = await locationResolver.resolveAll(textForLocationCheck);
+        for (const location of locationResult.autoResolved) {
+          await storage.createLocation({
+            rawQuery: location.rawQuery,
+            displayName: location.displayName,
+            lat: location.lat.toString(),
+            lon: location.lon.toString(),
+            countryCode: location.countryCode,
+            adminLevels: location.adminLevels,
+          });
+          console.log(`[Ambiguity Check] Auto-resolved location: ${location.rawQuery} → ${location.displayName}`);
+        }
+        return locationResult;
+      } catch (locationError: any) {
+        console.warn('[Ambiguity Check] Geographic resolution failed, continuing without location data:', locationError.message);
+        return { autoResolved: [], questions: [] };
       }
-    } catch (locationError: any) {
-      console.warn('[Ambiguity Check] Geographic resolution failed (external API unavailable), continuing without location data:', locationError.message);
-      // Continue with empty location result - don't block the entire flow
-    }
+    })();
 
-    console.log('[Ambiguity Check] Step 2: Checking for other ambiguities...');
+    const ambiguityPromise = ambiguityDetector.detectAmbiguities(fullInputForAmbiguity, []);
+
+    const [locationResult, aiResult] = await Promise.all([locationPromise, ambiguityPromise]);
+
+    const mergedQuestions = [...(locationResult.questions || []), ...(aiResult.questions || [])];
+    const result = {
+      hasAmbiguities: mergedQuestions.length > 0,
+      questions: mergedQuestions,
+      reasoning: aiResult.reasoning || 'Questions require clarification',
+    };
     
-    // Step 2: Check for other ambiguities using full input including document content
-    const result = await ambiguityDetector.detectAmbiguities(
-      fullInputForAmbiguity,
-      locationResult.questions
-    );
-    
+    console.log(`[Ambiguity Check] ✓ Complete: ${mergedQuestions.length} questions (${locationResult.questions?.length || 0} location, ${aiResult.questions?.length || 0} AI)`);
     res.json(result);
   } catch (error: any) {
     console.error('[Strategic Consultant] Error checking ambiguities:', error);
