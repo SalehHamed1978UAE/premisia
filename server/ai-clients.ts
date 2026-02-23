@@ -286,11 +286,11 @@ export class AIClients {
   }
 
   async callWithFallback(request: AIClientRequest, preferredProvider?: AIProvider): Promise<AIClientResponse> {
-    // Priority order: Ollama (free local) → OpenAI (GPT-5) → Anthropic (Claude) → Gemini
-    // When USE_OLLAMA=true, Ollama is first; otherwise skip it
+    // Priority order: Anthropic (Claude) → OpenAI (GPT-5) → Gemini
+    // Claude is more concise and avoids the token truncation issues seen with GPT-5
     const defaultOrder: AIProvider[] = process.env.USE_OLLAMA === "true"
-      ? ["ollama" as AIProvider, "openai", "anthropic", "gemini"]
-      : ["openai", "anthropic", "gemini"];
+      ? ["ollama" as AIProvider, "anthropic", "openai", "gemini"]
+      : ["anthropic", "openai", "gemini"];
     
     const providerOrder: AIProvider[] = preferredProvider 
       ? [preferredProvider, ...defaultOrder.filter(p => p !== preferredProvider)]
