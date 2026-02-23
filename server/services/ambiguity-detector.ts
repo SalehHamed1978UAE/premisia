@@ -196,12 +196,8 @@ Key information gaps to probe:
       console.log(`[Ambiguity Detector] Including ${precomputedQuestions.length} pre-computed question(s)`);
     }
 
-    const cleanedInput = this.stripClarificationBlocks(userInput);
-    if (cleanedInput.length !== userInput.length) {
-      console.log(`[Ambiguity Detector] Stripped stale CLARIFICATIONS block from input (${userInput.length} → ${cleanedInput.length} chars)`);
-    }
-    const truncatedInput = cleanedInput.length > 2000 ? cleanedInput.substring(0, 2000) + '...' : cleanedInput;
-    const wordCount = cleanedInput.trim().split(/\s+/).length;
+    const truncatedInput = userInput.length > 2000 ? userInput.substring(0, 2000) + '...' : userInput;
+    const wordCount = userInput.trim().split(/\s+/).length;
     const frameworkContext = this.getFrameworkGapContext(journeyType);
 
     const adaptiveInstruction = wordCount > 150
