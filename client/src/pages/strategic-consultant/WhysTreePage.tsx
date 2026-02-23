@@ -259,16 +259,13 @@ export default function WhysTreePage() {
 
       setIsLoadingUnderstanding(true);
       try {
-        const response = await fetch(`/api/strategic-consultant/understanding/${understandingId}`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch understanding");
-        }
+        const response = await apiRequest("GET", `/api/strategic-consultant/understanding/${understandingId}`);
         const data = (await response.json()) as UnderstandingResponse;
 
         const storedJourneySessionId = localStorage.getItem(`current-journey-session-${data.id}`);
         if (storedJourneySessionId) {
           try {
-            const journeyResponse = await fetch(`/api/strategic-consultant/journey-sessions/${storedJourneySessionId}`);
+            const journeyResponse = await apiRequest("GET", `/api/strategic-consultant/journey-sessions/${storedJourneySessionId}`);
             if (journeyResponse.ok) {
               const journeyData = await journeyResponse.json();
               if (journeyData.journeyType) {
