@@ -1,0 +1,55 @@
+ Yes, I’m aware, and Replit’s summary is mostly right.
+
+  Corrections to that summary
+
+  1. A lot of “fix” churn was real, but several commits were effectively no-op
+     for app code (only screenshots/local state), so signal was noisy.
+  2. The biggest EPM regression I verified is validator inconsistency: export
+     acceptance can fail while CLI validator still says pass.
+  3. Gemini risk is plausible, but by February 23, 2026 you had a commit
+     prioritizing Claude again (10f36c15).
+  4. The “web-search 401” explanation is plausible from logs, but in current
+     code /api/web-search is not auth-guarded, so that specific root cause is
+     not fully proven from code alone.
+
+  What you changed since February 17, 2026
+
+  1. Auth/OAuth migration and stabilization (largest area): redirect loops,
+     callback/session race fixes, token propagation, Supabase updates.
+  2. API auth retrofit across many pages/components/hooks (authFetch style
+     migration).
+  3. AI provider behavior changes (Gemini fallback and later Claude
+     prioritization).
+  4. Ambiguity/clarification pipeline rewrites (prompting, journey-specific
+     questions, clarification handling).
+  5. EPM/export reliability fixes (generation crash import fix, export 401 fix,
+     executive summary cleanup).
+
+  What went wrong
+
+  1. Auth strategy oscillated repeatedly (manual code exchange <-> no manual
+     exchange <-> wait-for-session), causing instability and repeated
+     regressions.
+  2. Auth rollout was partial at first, then broadened later, so failures
+     surfaced in waves.
+  3. Too many concurrent changes across auth + ambiguity + AI provider + EPM/
+     export made regressions hard to isolate.
+  4. Validation pipeline divergence created false confidence (CLI pass while
+     export artifact fails).
+  5. Some commits with strong messages had little/no actual code effect, making
+     diagnosis harder.
+
+  Net assessment
+
+  - Your feeling is accurate: after February 17, 2026, there was high-change,
+    high-regression churn.
+  - Rolling back to that known-good point is reasonable.
+  - Safer approach than full rollback: rollback to that baseline, then cherry-
+    pick only essential auth fixes.
+
+  If you want, I can do this next:
+
+  1. Create a safety branch from current main.
+  2. Reset working branch to your chosen baseline (bfddc8ca or c8fa4e13).
+  3. Cherry-pick a minimal vetted fix set.
+  4. Run a validation/build checklist and give a go/no-go report.

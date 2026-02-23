@@ -1,0 +1,46 @@
+ I’ll quickly verify whether the “web-search 401” is truly an auth bug or a
+  different failure mode, then I’ll give you a concrete recommendation (rollback
+  vs targeted fix) based on that evidence.
+
+• Explored
+  └ Read routes.ts
+    Search app\.use\(|requireAuth|/api/web-search|BRAVE_SEARCH_API_KEY|
+authorization
+           in routes.ts
+
+────────────────────────────────────────────────────────────────────────────────
+
+• I verified one important detail before recommending: /api/web-search is
+  currently not auth-protected in server routes, so the “401 due missing auth
+  token on web-search” explanation is likely incomplete. I’ll now give you the
+  safest path based on what we can prove.
+
+• Targeted fix plan, not full rollback.
+
+  Why:
+
+  1. The “web-search 401 = missing auth token” root cause is not strongly
+     supported by current code. /api/web-search is not behind requireAuth in
+     routes.ts (/Users/salehyahyahamed/Desktop/Projects/Premisia/
+     Premisia_10Feb2026/server/routes.ts:568).
+  2. Full rollback would throw away a lot of working auth stabilization and
+     create another large migration cycle.
+  3. The proven regression is validator inconsistency and output-quality drift,
+     which can be fixed surgically.
+
+  What I recommend doing now:
+
+  1. Lock EPM generation to Claude-only for critical generation paths (no Gemini
+     fallback for EPM/strategy synthesis).
+  2. Add hard-fail telemetry around research ingestion (if search returns empty/
+     failed beyond threshold, block generation with explicit error instead of
+     continuing silently).
+  3. Unify validation so pre-save and export use the same acceptance gate logic
+     (eliminate “CLI pass vs export fail” split).
+  4. Keep your current branch, create a safety branch, and patch only those
+     three areas.
+  5. Re-run with your burnout ZIP scenario and compare report.md,
+     validation.json, and validator output for consistency.
+
+  If you want, I’ll implement these targeted fixes now in this order and give
+  you a before/after quality report.

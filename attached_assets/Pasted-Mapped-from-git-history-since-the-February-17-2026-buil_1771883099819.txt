@@ -1,0 +1,76 @@
+Mapped from git history since the February 17, 2026 build window.
+
+  - Baseline used: bfddc8ca (2026-02-17 21:00:59 +0400, explicit build/zip
+    validation note) and post-fix publish c8fa4e13 (2026-02-17 18:21:35 UTC).
+  - Since then: 71 commits total, 34 meaningful code commits (36 if counting the
+    two late Feb 17 EPM commits), 19 auth/session-related commits, 10 “Published
+    your App” deployments.
+
+  Every meaningful change since that date
+
+  1. 029db16d (2026-02-17): EPM uniqueness + KPI semantics hardening.
+  2. c8352432 (2026-02-17): restored constraint-policy/decision-selection
+     modules.
+  3. 5c15534d (2026-02-18): claimed route-registration fix.
+  4. e1a3a584 (2026-02-18): sign-in redirect loop fix attempt.
+  5. 9348de9e (2026-02-18): second redirect loop fix.
+  6. 4f5e0b7b (2026-02-18): auth token injection across many client API calls.
+  7. d772aa61 (2026-02-18): ambiguity detector token limit increase.
+  8. a570a882 (2026-02-19): preserve strategic input text in UI.
+  9. 3639e780 (2026-02-19): AI response handling + favicon assets.
+  10. b24f6b88 (2026-02-19): strategic-understanding/title generator changes.
+  11. d87203fe (2026-02-19): Gemini fallback enabled.
+  12. 49fe2def (2026-02-19): Gemini + batch integration expansion.
+  13. 054dec57 (2026-02-19): budget selector/constraint persistence restore.
+  14. 31225b8a (2026-02-19): broad auth + ambiguity-flow hardening.
+  15. 836f9b5a (2026-02-19): OAuth bootstrap race removal, /api/auth/user
+     stabilization.
+  16. 982b909a (2026-02-19): null-session guard before logout.
+  17. 3a129b76 (2026-02-19): Supabase setup docs.
+  18. 1575826c (2026-02-19): explicit OAuth code exchange added.
+  19. a91c1bb0 (2026-02-19): callback recovery/race hardening.
+  20. cede1b4f (2026-02-19): claimed login/upload fixes.
+  21. c645c399 (2026-02-19): claimed Google OAuth race fix.
+  22. d96619db (2026-02-19): removed manual OAuth exchange.
+  23. 5a10c7a8 (2026-02-20): wait for callback session propagation.
+  24. 06db7b3d (2026-02-22): Supabase dependency upgrade.
+  25. 2413b900 (2026-02-23): background jobs + input-analysis changes.
+  26. a6b3565b (2026-02-23): parallelized ambiguity checks.
+  27. 10f36c15 (2026-02-23): Anthropic prioritization.
+  28. 94a1fcd3 (2026-02-23): ambiguity validation reliability fixes.
+  29. d3e9ba0e (2026-02-23): auth added for Five Whys fetches.
+  30. 7547d9e8 (2026-02-23): auth retrofit across many pages/components/hooks.
+  31. 53532e2d (2026-02-23): SSE auth token changes.
+  32. efd2ede1 (2026-02-23): question tailoring by journey/input.
+  33. 9732d36a (2026-02-23): outdated clarification handling tweaks.
+  34. 99b2d177 (2026-02-23): preserved clarification blocks.
+  35. e9e9d872 (2026-02-23): fixed EPM generation auth import error.
+  36. 8fc15d81 (2026-02-23): export download fix + executive summary cleanup.
+
+  What went wrong
+
+  1. Auth/OAuth instability loop: repeated contradictory strategies (explicit
+     code exchange -> remove it -> wait for callback propagation) indicates
+     unresolved race behavior across Feb 18-20.
+  2. Auth rollout was incomplete initially: later large retrofit (7547d9e8,
+     53532e2d, d3e9ba0e) suggests many endpoints/pages were still
+     unauthenticated or inconsistent.
+  3. Several “fix” commits were effectively no-op for app code (only
+     screenshots/local agent state), e.g. 5c15534d, cede1b4f, c645c399, plus
+     update commits touching .local only.
+  4. Ambiguity/clarification churn on Feb 23 changed core prompting repeatedly;
+     output quality regressed toward noisy clarification/conflict text.
+  5. EPM/export pipeline had runtime breakages late (explicitly fixed by
+     e9e9d872 and 8fc15d81).
+  6. Validation regression remains: strict export acceptance can fail while CLI
+     validator reports pass.
+     Evidence from Feb 23 GCC ZIP: FAIL in report.md (/tmp/epm_zip_review/
+     report.md:15) and validation.json (/tmp/epm_zip_review/data/
+     validation.json:2), while script run reported 100/100 pass.
+  7. By contrast, your Feb 17 burnout ZIP stayed consistent/releasable: PASS in
+     report.md (/tmp/burnout_zip_review/report.md:15) and validation.json
+     passed.
+
+  If you want, I can now generate a rollback plan with exact target commit
+  options (c8fa4e13 vs bfddc8ca), plus a safe cherry-pick list of only the fixes
+  worth keeping.
