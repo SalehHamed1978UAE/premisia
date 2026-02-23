@@ -23,7 +23,7 @@ export interface AmbiguityDetectionResult {
 const ambiguityOptionSchema = z.object({
   value: z.string().min(1),
   label: z.string().min(1),
-  description: z.string().min(1),
+  description: z.string().optional().default(""),
 });
 
 const ambiguityQuestionSchema = z.object({
@@ -154,7 +154,7 @@ If clear: {"hasAmbiguities":false,"questions":[],"reasoning":"Input is clear"}`;
       const response = await aiClients.callWithFallback({
         systemPrompt: 'Strategic planning expert. Return ONLY compact valid JSON. Maximum 3 questions.',
         userMessage: prompt,
-        maxTokens: 800,
+        maxTokens: 2048,
       });
 
       const parsed = parseAIJson(response.content, 'ambiguity detector');
