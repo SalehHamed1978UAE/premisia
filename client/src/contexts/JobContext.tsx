@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import { useQuery } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { useLocation } from 'wouter';
+import { getAccessToken } from '@/lib/supabase';
 
 interface BackgroundJob {
   id: string;
@@ -40,9 +41,13 @@ export function JobProvider({ children }: { children: ReactNode }) {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['all-user-jobs'],
     queryFn: async () => {
-      const res = await fetch('/api/background-jobs?limit=50');
+      const token = await getAccessToken();
+      if (!token) return { jobs: [] };
+      const res = await fetch('/api/background-jobs?limit=50', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (!res.ok) {
-        if (res.status === 401) return { jobs: [] }; // Not authenticated
+        if (res.status === 401) return { jobs: [] };
         throw new Error('Failed to fetch jobs');
       }
       return res.json();

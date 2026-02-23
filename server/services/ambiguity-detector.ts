@@ -164,10 +164,13 @@ COMMON AMBIGUITIES TO CHECK:
    - Geographic boundaries unclear?
 
 INSTRUCTIONS:
-- Identify CRITICAL ambiguities that would lead to wrong strategic decisions
+- Identify ONLY the most CRITICAL ambiguities (maximum 5 questions)
+- Skip ambiguities the input already answers clearly
 - For each ambiguity, generate a clear multiple-choice question
 - Provide 2-3 specific options (not "other")
 - Keep questions simple and direct
+- Keep option labels under 5 words and descriptions under 15 words
+- Keep reasoning under 30 words
 
 Return as JSON:
 {
@@ -176,33 +179,25 @@ Return as JSON:
     {
       "id": "unique_id",
       "question": "Clear question?",
-      "multiSelect": true/false,
+      "multiSelect": false,
       "options": [
-        {
-          "value": "option_a",
-          "label": "Short label",
-          "description": "What this means"
-        }
+        {"value": "option_a", "label": "Short label", "description": "Brief description"}
       ]
     }
   ],
-  "reasoning": "Why these ambiguities matter"
+  "reasoning": "Brief explanation"
 }
 
-NOTE: Set "multiSelect": true if options are NOT mutually exclusive (user can select multiple). Set "multiSelect": false or omit if options are mutually exclusive (user must choose one).
+Set "multiSelect": true ONLY if options are NOT mutually exclusive.
 
 If NO critical ambiguities found, return:
-{
-  "hasAmbiguities": false,
-  "questions": [],
-  "reasoning": "Input is clear"
-}`;
+{"hasAmbiguities": false, "questions": [], "reasoning": "Input is clear"}`;
 
     try {
       const response = await aiClients.callWithFallback({
-        systemPrompt: 'You are a strategic planning expert. Detect ambiguities that would lead to wrong business assumptions. Return ONLY valid JSON.',
+        systemPrompt: 'You are a strategic planning expert. Detect ambiguities that would lead to wrong business assumptions. Return ONLY valid JSON. Be concise — maximum 5 questions, short labels and descriptions.',
         userMessage: prompt,
-        maxTokens: 4096,
+        maxTokens: 1500,
       });
 
       const parsed = parseAIJson(response.content, 'ambiguity detector');

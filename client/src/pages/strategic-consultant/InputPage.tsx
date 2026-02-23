@@ -232,35 +232,47 @@ export default function InputPage() {
       const ambiguityToken = await getAccessToken();
       const ambiguityHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
       if (ambiguityToken) ambiguityHeaders['Authorization'] = `Bearer ${ambiguityToken}`;
-      const ambiguityResponse = await fetch('/api/strategic-consultant/check-ambiguities', {
-        method: 'POST',
-        headers: ambiguityHeaders,
-        body: JSON.stringify({ 
-          userInput: {
-            text: userText || '',  // User's text only (for location disambiguation)
-            fullInput: finalInput   // Full input including document (for general ambiguity detection)
-          }
-        })
-      });
+      const ambiguityController = new AbortController();
+      const ambiguityTimeout = setTimeout(() => ambiguityController.abort(), 60000);
+      try {
+        const ambiguityResponse = await fetch('/api/strategic-consultant/check-ambiguities', {
+          method: 'POST',
+          headers: ambiguityHeaders,
+          signal: ambiguityController.signal,
+          body: JSON.stringify({ 
+            userInput: {
+              text: userText || '',
+              fullInput: finalInput
+            }
+          })
+        });
+        clearTimeout(ambiguityTimeout);
 
-      if (!ambiguityResponse.ok) {
-        throw new Error('Failed to check ambiguities');
-      }
+        if (!ambiguityResponse.ok) {
+          throw new Error('Failed to check ambiguities');
+        }
 
-      const ambiguityResult = await ambiguityResponse.json();
-      setProgress(60);
+        const ambiguityResult = await ambiguityResponse.json();
+        setProgress(60);
 
-      if (ambiguityResult.hasAmbiguities) {
-        // Show clarification modal
-        setText(finalInput); // Save extracted content to state for later use
-        setPendingFileMetadata(fileMetadata); // Save file metadata for later use
-        setClarificationQuestions(ambiguityResult.questions);
-        setShowClarificationModal(true);
-        setIsAnalyzing(false);
-        setProgress(0);
-      } else {
-        // No ambiguities, proceed directly to understanding with file metadata
-        await startStrategicUnderstanding(finalInput, null, fileMetadata);
+        if (ambiguityResult.hasAmbiguities) {
+          setText(finalInput);
+          setPendingFileMetadata(fileMetadata);
+          setClarificationQuestions(ambiguityResult.questions);
+          setShowClarificationModal(true);
+          setIsAnalyzing(false);
+          setProgress(0);
+        } else {
+          await startStrategicUnderstanding(finalInput, null, fileMetadata);
+        }
+      } catch (ambErr: any) {
+        clearTimeout(ambiguityTimeout);
+        if (ambErr.name === 'AbortError') {
+          console.log('[InputPage] Ambiguity check timed out, proceeding without disambiguation');
+          await startStrategicUnderstanding(finalInput, null, fileMetadata);
+        } else {
+          throw ambErr;
+        }
       }
 
     } catch (error: any) {
@@ -298,27 +310,40 @@ export default function InputPage() {
       const ambToken = await getAccessToken();
       const ambHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
       if (ambToken) ambHeaders['Authorization'] = `Bearer ${ambToken}`;
-      const ambiguityResponse = await fetch('/api/strategic-consultant/check-ambiguities', {
-        method: 'POST',
-        headers: ambHeaders,
-        body: JSON.stringify({ userInput: text.trim() })
-      });
+      const ambController = new AbortController();
+      const ambTimeout = setTimeout(() => ambController.abort(), 60000);
+      try {
+        const ambiguityResponse = await fetch('/api/strategic-consultant/check-ambiguities', {
+          method: 'POST',
+          headers: ambHeaders,
+          signal: ambController.signal,
+          body: JSON.stringify({ userInput: text.trim() })
+        });
+        clearTimeout(ambTimeout);
 
-      if (!ambiguityResponse.ok) {
-        throw new Error('Failed to check ambiguities');
-      }
+        if (!ambiguityResponse.ok) {
+          throw new Error('Failed to check ambiguities');
+        }
 
-      const ambiguityResult = await ambiguityResponse.json();
+        const ambiguityResult = await ambiguityResponse.json();
 
-      if (ambiguityResult.hasAmbiguities) {
-        // Show clarification modal
-        setClarificationQuestions(ambiguityResult.questions);
-        setShowClarificationModal(true);
-        setIsCheckingAmbiguities(false);
-      } else {
-        // No ambiguities, proceed directly
-        setIsCheckingAmbiguities(false);
-        await startStrategicUnderstanding(text.trim(), null);
+        if (ambiguityResult.hasAmbiguities) {
+          setClarificationQuestions(ambiguityResult.questions);
+          setShowClarificationModal(true);
+          setIsCheckingAmbiguities(false);
+        } else {
+          setIsCheckingAmbiguities(false);
+          await startStrategicUnderstanding(text.trim(), null);
+        }
+      } catch (ambErr: any) {
+        clearTimeout(ambTimeout);
+        if (ambErr.name === 'AbortError') {
+          console.log('[InputPage] Ambiguity check timed out, proceeding without disambiguation');
+          setIsCheckingAmbiguities(false);
+          await startStrategicUnderstanding(text.trim(), null);
+        } else {
+          throw ambErr;
+        }
       }
     } catch (error: any) {
       setIsCheckingAmbiguities(false);
@@ -523,31 +548,43 @@ export default function InputPage() {
       const jAmbToken = await getAccessToken();
       const jAmbHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
       if (jAmbToken) jAmbHeaders['Authorization'] = `Bearer ${jAmbToken}`;
-      const ambiguityResponse = await fetch('/api/strategic-consultant/check-ambiguities', {
-        method: 'POST',
-        headers: jAmbHeaders,
-        body: JSON.stringify({ userInput: text.trim() })
-      });
+      const jAmbController = new AbortController();
+      const jAmbTimeout = setTimeout(() => jAmbController.abort(), 60000);
+      try {
+        const ambiguityResponse = await fetch('/api/strategic-consultant/check-ambiguities', {
+          method: 'POST',
+          headers: jAmbHeaders,
+          signal: jAmbController.signal,
+          body: JSON.stringify({ userInput: text.trim() })
+        });
+        clearTimeout(jAmbTimeout);
 
-      if (!ambiguityResponse.ok) {
-        throw new Error('Failed to check ambiguities');
-      }
+        if (!ambiguityResponse.ok) {
+          throw new Error('Failed to check ambiguities');
+        }
 
-      const ambiguityResult = await ambiguityResponse.json();
+        const ambiguityResult = await ambiguityResponse.json();
 
-      if (ambiguityResult.hasAmbiguities) {
-        // Save trimmed input before showing modal (clarifications will be applied when submitted)
-        const trimmedInput = text.trim();
-        setText(trimmedInput);
-        
-        // Show clarification modal
-        setClarificationQuestions(ambiguityResult.questions);
-        setShowClarificationModal(true);
-        setIsCheckingAmbiguities(false);
-      } else {
-        // No ambiguities, proceed directly
-        setIsCheckingAmbiguities(false);
-        await startJourneyStepUnderstanding(text.trim(), null);
+        if (ambiguityResult.hasAmbiguities) {
+          const trimmedInput = text.trim();
+          setText(trimmedInput);
+          
+          setClarificationQuestions(ambiguityResult.questions);
+          setShowClarificationModal(true);
+          setIsCheckingAmbiguities(false);
+        } else {
+          setIsCheckingAmbiguities(false);
+          await startJourneyStepUnderstanding(text.trim(), null);
+        }
+      } catch (ambErr: any) {
+        clearTimeout(jAmbTimeout);
+        if (ambErr.name === 'AbortError') {
+          console.log('[InputPage] Ambiguity check timed out, proceeding without disambiguation');
+          setIsCheckingAmbiguities(false);
+          await startJourneyStepUnderstanding(text.trim(), null);
+        } else {
+          throw ambErr;
+        }
       }
     } catch (error: any) {
       setIsCheckingAmbiguities(false);
