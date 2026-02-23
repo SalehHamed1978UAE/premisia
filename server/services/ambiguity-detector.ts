@@ -124,35 +124,143 @@ export class AmbiguityDetectorService {
    * @param userInput - The text to analyze
    * @param precomputedQuestions - Optional pre-computed questions (e.g., from geographic disambiguation)
    */
+  private getFrameworkGapContext(journeyType?: string): string {
+    const journeyGaps: Record<string, string> = {
+      market_entry_strategy: `This analysis will run PESTLE → Porter's Five Forces → SWOT.
+Key information gaps to probe:
+- Geographic/regulatory context (which markets? what regulatory environment?)
+- Competitive landscape (who are the main competitors? what's the market structure?)
+- Internal capabilities (what resources/expertise does the team bring?)
+- Market timing (why now? what's the trigger or opportunity?)`,
+
+      business_model_innovation: `This analysis will run Five Whys root-cause → Business Model Canvas.
+Key information gaps to probe:
+- The specific business problem or trigger (what's failing or what opportunity exists?)
+- Revenue/monetization approach (how will this make money?)
+- Customer segment specificity (who exactly is the target buyer, and how do they buy today?)
+- Delivery/operational model (how will the product or service reach customers?)`,
+
+      crisis_recovery: `This analysis will run Five Whys → SWOT → Business Model Canvas.
+Key information gaps to probe:
+- The crisis trigger (what happened? what's the timeline and severity?)
+- Current organizational state (what resources/capabilities remain intact?)
+- Stakeholder impact (who is most affected — customers, employees, investors?)
+- Recovery constraints (timeline pressure, budget limitations, regulatory requirements?)`,
+
+      competitive_strategy: `This analysis will run Porter's Five Forces → BMC → Blue Ocean Strategy.
+Key information gaps to probe:
+- Specific competitors and their positioning (who are the top 2-3 rivals?)
+- Current competitive advantages or disadvantages (what do you do better/worse?)
+- Customer switching behavior (why do customers choose you vs alternatives?)
+- Differentiation aspirations (where do you want to create uncontested space?)`,
+
+      digital_transformation: `This analysis will run PESTLE → BMC → Ansoff Matrix.
+Key information gaps to probe:
+- Current operating model (what does the business look like today — analog vs digital?)
+- Technology landscape (what systems exist? what's the tech maturity?)
+- Transformation scope (incremental improvement or fundamental redesign?)
+- Change readiness (team capabilities, budget, organizational appetite for change?)`,
+
+      growth_strategy: `This analysis will run PESTLE → Ansoff Matrix → BMC.
+Key information gaps to probe:
+- Current products and markets (what do you sell today, and to whom?)
+- Growth ambition (organic expansion vs new markets vs new products?)
+- Resource constraints (funding, team size, timeline for growth?)
+- Market conditions (growing, mature, or declining market?)`,
+
+      market_segmentation_discovery: `This analysis will run Segment Discovery.
+Key information gaps to probe:
+- Current customer base (who buys today? any patterns noticed?)
+- Segmentation criteria (geographic, behavioral, demographic, or needs-based?)
+- Purchase decision factors (price, quality, convenience, brand — what matters most?)
+- Channel and distribution (how do customers find and buy the product?)`,
+    };
+
+    return journeyGaps[journeyType || ''] || `No specific journey selected yet. Focus on the most impactful strategic gaps:
+- Strategic intent (what's the goal — growth, defense, transformation, recovery?)
+- Customer and market clarity (who is the customer, what market, what geography?)
+- Competitive context (is there competition? what alternatives exist?)
+- Resource and constraint awareness (budget, timeline, team size, key limitations?)`;
+  }
+
   async detectAmbiguities(
     userInput: string,
-    precomputedQuestions: AmbiguityQuestion[] = []
+    precomputedQuestions: AmbiguityQuestion[] = [],
+    journeyType?: string
   ): Promise<AmbiguityDetectionResult> {
-    console.log('[Ambiguity Detector] Analyzing input for ambiguities...');
+    console.log('[Ambiguity Detector] Analyzing input for ambiguities...', { journeyType: journeyType || 'none', inputLength: userInput.length });
 
-    // If we have pre-computed questions, start with those
     const mergedQuestions: AmbiguityQuestion[] = [...precomputedQuestions];
     
     if (precomputedQuestions.length > 0) {
       console.log(`[Ambiguity Detector] Including ${precomputedQuestions.length} pre-computed question(s)`);
     }
 
-    const truncatedInput = userInput.length > 1500 ? userInput.substring(0, 1500) + '...' : userInput;
-    const prompt = `Analyze for strategic ambiguities:
+    const truncatedInput = userInput.length > 2000 ? userInput.substring(0, 2000) + '...' : userInput;
+    const wordCount = userInput.trim().split(/\s+/).length;
+    const frameworkContext = this.getFrameworkGapContext(journeyType);
 
+    const adaptiveInstruction = wordCount > 150
+      ? 'The input is detailed. Only ask about critical gaps the frameworks cannot infer. 1-2 questions maximum.'
+      : wordCount > 60
+        ? 'The input has moderate detail. Ask about the most important missing dimensions. 2-3 questions maximum.'
+        : 'The input is brief. Ask up to 3 questions to fill the most critical gaps for analysis.';
+
+    const prompt = `You are conducting a strategic intake interview. Your goal is to ask clarifying questions that will directly improve the quality of the downstream strategic analysis.
+
+## Business Input to Analyze
 "${truncatedInput}"
 
-Check: Technology role, Customer type (B2B/B2C), Delivery mode, Business model, Market scope.
-Skip categories the input already answers clearly.
-Max 3 questions. Each question: 2-3 options, labels under 5 words, no descriptions.
+## Framework Context
+${frameworkContext}
 
-Return JSON: {"hasAmbiguities":true/false,"questions":[{"id":"q1","question":"...?","multiSelect":false,"options":[{"value":"a","label":"Short"}]}],"reasoning":"One sentence"}
+## Adaptive Guidance
+Input is ${wordCount} words. ${adaptiveInstruction}
 
-If clear: {"hasAmbiguities":false,"questions":[],"reasoning":"Input is clear"}`;
+## Rules
+1. SKIP any dimension the input already addresses clearly — do not re-ask what's obvious.
+2. Each question should probe something the analysis frameworks NEED but the input doesn't provide.
+3. Questions should feel like a senior consultant asking smart follow-ups, not a form with checkboxes.
+4. Each option needs a label (up to 10 words) AND a description (1 sentence explaining what this choice implies for the analysis).
+5. Provide 3-4 options per question. Options should be meaningfully distinct, not just synonyms.
+6. If the input is already comprehensive enough for quality analysis, return no questions.
+
+## Response Format
+Return ONLY valid JSON:
+{
+  "hasAmbiguities": true,
+  "questions": [
+    {
+      "id": "q1",
+      "question": "What is the primary strategic trigger for this initiative?",
+      "multiSelect": false,
+      "options": [
+        {
+          "value": "revenue_decline",
+          "label": "Revenue is declining",
+          "description": "Analysis will focus on competitive threats and market shifts causing the decline."
+        },
+        {
+          "value": "market_opportunity",
+          "label": "New market opportunity identified",
+          "description": "Analysis will focus on market sizing, entry barriers, and competitive positioning."
+        },
+        {
+          "value": "operational_pressure",
+          "label": "Operational costs are unsustainable",
+          "description": "Analysis will focus on process optimization, automation, and cost restructuring."
+        }
+      ]
+    }
+  ],
+  "reasoning": "Brief explanation of why these questions matter for the analysis."
+}
+
+If the input is clear enough: {"hasAmbiguities": false, "questions": [], "reasoning": "Input provides sufficient context for analysis."}`;
 
     try {
       const response = await aiClients.callWithFallback({
-        systemPrompt: 'Strategic planning expert. Return ONLY compact valid JSON. Maximum 3 questions.',
+        systemPrompt: 'You are a senior strategic consultant conducting an intake interview for a client engagement. Your questions should reveal the strategic context that analytical frameworks need to produce actionable insights — not classify the business into generic categories. Return ONLY valid JSON. Maximum 3 questions.',
         userMessage: prompt,
         maxTokens: 2048,
       });

@@ -317,7 +317,7 @@ export default function InputPage() {
           method: 'POST',
           headers: ambHeaders,
           signal: ambController.signal,
-          body: JSON.stringify({ userInput: text.trim() })
+          body: JSON.stringify({ userInput: text.trim(), journeyType: journeyType || undefined })
         });
         clearTimeout(ambTimeout);
 

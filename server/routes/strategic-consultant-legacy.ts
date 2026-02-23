@@ -220,18 +220,16 @@ router.post('/check-sanity', async (req: Request, res: Response) => {
  */
 router.post('/check-ambiguities', async (req: Request, res: Response) => {
   try {
-    const { userInput } = req.body;
+    const { userInput, journeyType } = req.body;
 
     if (!userInput) {
       return res.status(400).json({ error: 'userInput is required' });
     }
 
-    // Extract text for location checking vs full input for general ambiguity checking
-    // userInput can be either a string OR an object with { text, fullInput }
     const textForLocationCheck = typeof userInput === 'string' ? userInput : (userInput.text || '');
     const fullInputForAmbiguity = typeof userInput === 'string' ? userInput : (userInput.fullInput || userInput.text || userInput);
 
-    console.log('[Ambiguity Check] Running location resolution and ambiguity detection in parallel...');
+    console.log('[Ambiguity Check] Running location resolution and ambiguity detection in parallel...', { journeyType: journeyType || 'not specified' });
     
     const locationPromise = (async () => {
       try {
@@ -254,7 +252,7 @@ router.post('/check-ambiguities', async (req: Request, res: Response) => {
       }
     })();
 
-    const ambiguityPromise = ambiguityDetector.detectAmbiguities(fullInputForAmbiguity, []);
+    const ambiguityPromise = ambiguityDetector.detectAmbiguities(fullInputForAmbiguity, [], journeyType || undefined);
 
     const [locationResult, aiResult] = await Promise.all([locationPromise, ambiguityPromise]);
 
