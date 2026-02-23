@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Download, FileSpreadsheet, FileText, Package, FileCode } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { authFetch } from '@/lib/queryClient';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,9 +32,6 @@ export function ExportDropdown({
   const [isExporting, setIsExporting] = useState(false);
   const { toast } = useToast();
 
-  // Detect if user is on mobile device
-  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
   const buildExportUrl = (format: string) => {
     const params = new URLSearchParams();
 
@@ -58,27 +56,8 @@ export function ExportDropdown({
     try {
       const exportUrl = buildExportUrl(format);
 
-      // Mobile browsers don't support programmatic downloads well
-      // Open the download URL directly
-      if (isMobile) {
-        console.log(`[Export] Mobile detected - opening ${formatName} download URL directly`);
-        window.location.href = exportUrl;
-
-        toast({
-          title: `${formatName} export started`,
-          description: 'Your download will begin shortly',
-        });
-
-        setIsExporting(false);
-        return;
-      }
-
-      // Desktop: Use blob download for better UX
-      console.log(`[Export] Desktop - using blob download for ${formatName}`);
-      const response = await fetch(exportUrl, {
-        method: 'GET',
-        credentials: 'include',
-      });
+      console.log(`[Export] Using authenticated blob download for ${formatName}`);
+      const response = await authFetch(exportUrl);
 
       console.log(`[Export] ${formatName} Response status:`, response.status);
 

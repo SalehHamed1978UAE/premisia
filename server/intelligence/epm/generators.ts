@@ -2001,7 +2001,19 @@ Generate ONLY the program name, nothing else.`;
         maxTokens: 100,
       });
       
-      const programName = result.content.trim();
+      let programName = result.content.trim();
+      
+      programName = programName.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
+      
+      try {
+        const parsed = JSON.parse(programName);
+        if (parsed && typeof parsed === 'object' && parsed.title) {
+          programName = String(parsed.title).trim();
+        }
+      } catch {
+      }
+      
+      programName = programName.replace(/^["']|["']$/g, '');
       
       if (programName && programName.length > 0 && programName.length <= 150) {
         return programName;
