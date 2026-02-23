@@ -10,6 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, authFetch } from "@/lib/queryClient";
+import { getAccessToken } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ResearchExperience } from "@/components/research-experience/ResearchExperience";
@@ -170,113 +171,110 @@ export default function ResearchPage() {
 
     setIsResearching(true);
     const startTime = Date.now();
-
-    // Use unified endpoint for ALL journey types
-    // Backend handles framework routing based on journey session
-    const eventSource = new EventSource(`/api/strategic-consultant/journey-research/stream/${sessionId}`);
-    console.log(`[ResearchPage] Using unified journey research endpoint for ${journeyType}`);
-
-    console.log('[ResearchPage] Connecting to research stream:', eventSource.url);
-
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log('[ResearchPage] Received message:', data.type || 'unknown', data);
-
-        // Handle debug event - log debugInput to console for QA verification
-        if (data.type === 'debug' && data.debugInput) {
-          console.log('[ResearchPage] 🔍 Debug Input:', data.debugInput);
-        }
-
-        // Append log entry for streaming events
-        if (data.type === 'context' || data.type === 'query' || data.type === 'synthesis' || data.type === 'progress' || data.type === 'complete' || data.type === 'debug') {
-          const logEntry = {
-            id: `${data.type}-${Date.now()}-${Math.random()}`,
-            timestamp: new Date().toISOString(),
-            type: data.type as 'context' | 'query' | 'synthesis' | 'progress' | 'complete' | 'debug',
-            message: data.message || data.query || data.debugInput || `${data.block || 'Unknown'}`,
-            meta: data.purpose ? { purpose: data.purpose, queryType: data.queryType } : (data.progress !== undefined ? { progress: data.progress.toString() } : undefined),
-          };
-          setLogEntries(prev => [...prev, logEntry]);
-        }
-
-        if (data.type === 'progress' || data.type === 'query') {
-          setProgress(data.progress || 0);
-          setCurrentQuery(data.message || data.query || '');
-        } else if (data.type === 'complete') {
-          setProgress(100);
-          setResearchData(data.data);
-          setIsResearching(false);
-          
-          // Capture nextUrl from complete event
-          if (data.data.nextUrl) {
-            setNextUrl(data.data.nextUrl);
-          }
-          
-          // Capture BMC analysis for 9-block canvas display
-          if (data.data.bmcAnalysis) {
-            setBmcAnalysis(data.data.bmcAnalysis);
-            // Disable auto-advance when we have BMC analysis so user can review the 9-block
-            setAutoAdvance(false);
-          }
-          
-          localStorage.setItem(`strategic-versionNumber-${sessionId}`, data.data.versionNumber.toString());
-          toast({
-            title: "Research complete ✓",
-            description: `Analyzed ${data.data.sourcesAnalyzed} sources in ${data.data.timeElapsed}`,
-          });
-          eventSource.close();
-        } else if (data.type === 'error') {
-          console.error('[ResearchPage] Research error from backend:', data.error);
-          setError(data.error || 'Research failed');
-          setIsResearching(false);
-          toast({
-            title: "Research failed",
-            description: data.error || "Failed to conduct market research",
-            variant: "destructive",
-          });
-          eventSource.close();
-        }
-      } catch (parseError) {
-        console.error('[ResearchPage] Error parsing SSE message:', parseError, event.data);
-      }
-    };
-
-    eventSource.onerror = (event) => {
-      console.error('[ResearchPage] EventSource error:', {
-        readyState: eventSource.readyState,
-        url: eventSource.url,
-        event
-      });
-      
-      const errorMessage = eventSource.readyState === EventSource.CLOSED 
-        ? 'Connection closed by server - the research request may have timed out or encountered an error'
-        : 'Connection to research stream failed - check your network connection';
-      
-      setError(errorMessage);
-      setIsResearching(false);
-      hasInitiatedResearch.current = false; // Reset to allow retries
-      eventSource.close();
-      
-      toast({
-        title: "Connection Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
-    };
-
-    eventSource.onopen = () => {
-      console.log('[ResearchPage] EventSource connection opened successfully');
-      // Mark as initiated only after successful connection (prevents Strict Mode double execution)
-      hasInitiatedResearch.current = true;
-    };
+    let eventSource: EventSource | null = null;
 
     const timerInterval = setInterval(() => {
       setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
     }, 1000);
 
+    (async () => {
+      const token = await getAccessToken();
+      const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
+      const es = new EventSource(`/api/strategic-consultant/journey-research/stream/${sessionId}${tokenParam}`);
+      eventSource = es;
+      console.log(`[ResearchPage] Using unified journey research endpoint for ${journeyType}`);
+      console.log('[ResearchPage] Connecting to research stream:', es.url);
+
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('[ResearchPage] Received message:', data.type || 'unknown', data);
+
+          if (data.type === 'debug' && data.debugInput) {
+            console.log('[ResearchPage] Debug Input:', data.debugInput);
+          }
+
+          if (data.type === 'context' || data.type === 'query' || data.type === 'synthesis' || data.type === 'progress' || data.type === 'complete' || data.type === 'debug') {
+            const logEntry = {
+              id: `${data.type}-${Date.now()}-${Math.random()}`,
+              timestamp: new Date().toISOString(),
+              type: data.type as 'context' | 'query' | 'synthesis' | 'progress' | 'complete' | 'debug',
+              message: data.message || data.query || data.debugInput || `${data.block || 'Unknown'}`,
+              meta: data.purpose ? { purpose: data.purpose, queryType: data.queryType } : (data.progress !== undefined ? { progress: data.progress.toString() } : undefined),
+            };
+            setLogEntries(prev => [...prev, logEntry]);
+          }
+
+          if (data.type === 'progress' || data.type === 'query') {
+            setProgress(data.progress || 0);
+            setCurrentQuery(data.message || data.query || '');
+          } else if (data.type === 'complete') {
+            setProgress(100);
+            setResearchData(data.data);
+            setIsResearching(false);
+            
+            if (data.data.nextUrl) {
+              setNextUrl(data.data.nextUrl);
+            }
+            
+            if (data.data.bmcAnalysis) {
+              setBmcAnalysis(data.data.bmcAnalysis);
+              setAutoAdvance(false);
+            }
+            
+            localStorage.setItem(`strategic-versionNumber-${sessionId}`, data.data.versionNumber.toString());
+            toast({
+              title: "Research complete",
+              description: `Analyzed ${data.data.sourcesAnalyzed} sources in ${data.data.timeElapsed}`,
+            });
+            es.close();
+          } else if (data.type === 'error') {
+            console.error('[ResearchPage] Research error from backend:', data.error);
+            setError(data.error || 'Research failed');
+            setIsResearching(false);
+            toast({
+              title: "Research failed",
+              description: data.error || "Failed to conduct market research",
+              variant: "destructive",
+            });
+            es.close();
+          }
+        } catch (parseError) {
+          console.error('[ResearchPage] Error parsing SSE message:', parseError, event.data);
+        }
+      };
+
+      es.onerror = (event) => {
+        console.error('[ResearchPage] EventSource error:', {
+          readyState: es.readyState,
+          url: es.url,
+          event
+        });
+        
+        const errorMessage = es.readyState === EventSource.CLOSED 
+          ? 'Connection closed by server - the research request may have timed out or encountered an error'
+          : 'Connection to research stream failed - check your network connection';
+        
+        setError(errorMessage);
+        setIsResearching(false);
+        hasInitiatedResearch.current = false;
+        es.close();
+        
+        toast({
+          title: "Connection Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      };
+
+      es.onopen = () => {
+        console.log('[ResearchPage] EventSource connection opened successfully');
+        hasInitiatedResearch.current = true;
+      };
+    })();
+
     return () => {
-      eventSource.close();
+      eventSource?.close();
       clearInterval(timerInterval);
     };
   }, [sessionId, loadingJourney, journeySession, toast]);

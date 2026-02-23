@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useLocation, useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { authFetch } from "@/lib/queryClient";
+import { getAccessToken } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -280,7 +281,7 @@ export default function SegmentDiscoveryPage() {
     pollingIntervalRef.current = setInterval(poll, POLL_INTERVAL_MS);
   };
 
-  const connectToSSE = (retryAttempt = 0) => {
+  const connectToSSE = async (retryAttempt = 0) => {
     if (!understandingId) return;
 
     restoreProgress();
@@ -290,7 +291,9 @@ export default function SegmentDiscoveryPage() {
       return;
     }
 
-    const eventSource = new EventSource(`/api/marketing-consultant/discovery-stream/${understandingId}`);
+    const token = await getAccessToken();
+    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
+    const eventSource = new EventSource(`/api/marketing-consultant/discovery-stream/${understandingId}${tokenParam}`);
     eventSourceRef.current = eventSource;
 
     eventSource.onmessage = (event) => {

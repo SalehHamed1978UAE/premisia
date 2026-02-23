@@ -106,12 +106,13 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
   }
 
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  const queryToken = req.query.token as string | undefined;
+  if (!authHeader?.startsWith('Bearer ') && !queryToken) {
     console.log(`[Supabase Auth] No token for ${req.method} ${req.path}`);
     return res.status(401).json({ message: "Unauthorized - No token provided" });
   }
 
-  const token = authHeader.substring(7);
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : queryToken!;
 
   if (!supabaseAdmin) {
     console.error('[Supabase Auth] Admin client not initialized');

@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, authFetch } from "@/lib/queryClient";
+import { getAccessToken } from "@/lib/supabase";
 import { PlanningProgressTracker } from "@/components/intelligent-planning/PlanningProgressTracker";
 import { MinimizedJobTracker } from "@/components/MinimizedJobTracker";
 import { useJobs } from "@/contexts/JobContext";
@@ -284,105 +285,105 @@ export default function PrioritizationPage() {
   useEffect(() => {
     if (!progressId) return;
     
-    const eventSource = new EventSource(`/api/strategy-workspace/epm/progress/${progressId}`);
-    eventSourceRef.current = eventSource;
+    let eventSource: EventSource | null = null;
+    let timeoutId: NodeJS.Timeout | null = null;
+
+    (async () => {
+      const token = await getAccessToken();
+      const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
+      const es = new EventSource(`/api/strategy-workspace/epm/progress/${progressId}${tokenParam}`);
+      eventSource = es;
+      eventSourceRef.current = es;
     
-    // Timeout: if no events received for 10 minutes, assume failure
-    let timeoutId = setTimeout(() => {
-      eventSource.close();
-      setShowProgress(false);
-      toast({
-        title: "Generation Timeout",
-        description: "EPM generation took too long. Please try again or check your results later.",
-        variant: "destructive",
-      });
-    }, 10 * 60 * 1000); // 10 minute timeout
-    
-    eventSource.onmessage = (event) => {
-      // Reset timeout on any message
-      clearTimeout(timeoutId);
       timeoutId = setTimeout(() => {
-        eventSource.close();
+        es.close();
         setShowProgress(false);
         toast({
           title: "Generation Timeout",
-          description: "No progress updates received. The generation may have completed - check your programs list.",
+          description: "EPM generation took too long. Please try again or check your results later.",
           variant: "destructive",
         });
       }, 10 * 60 * 1000);
-      
-      const data = JSON.parse(event.data);
-      console.log('[Progress] Received SSE event:', data);
-      
-      // Track current progress for minimized view
-      if (data.progress !== undefined) {
-        setCurrentProgress(data.progress);
-      }
-      if (data.description || data.message) {
-        setCurrentMessage(data.description || data.message);
-      }
-      
-      // Update the progress tracker via window method
-      if ((window as any).__updatePlanningProgress) {
-        (window as any).__updatePlanningProgress(data);
-      }
-      
-      // Handle completion
-      if (data.type === 'complete') {
-        clearTimeout(timeoutId);
-        eventSource.close();
-        setShowProgress(false);
-
-        // Check if program ID exists
-        if (!data.epmProgramId) {
-          console.error('[Progress] ❌ EPM completed but no program ID returned!', data);
+    
+      es.onmessage = (event) => {
+        if (timeoutId) clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => {
+          es.close();
+          setShowProgress(false);
           toast({
-            title: "EPM Generation Issue",
-            description: "EPM was generated but could not be retrieved. Please check your programs list.",
+            title: "Generation Timeout",
+            description: "No progress updates received. The generation may have completed - check your programs list.",
             variant: "destructive",
           });
-          return;
-        }
-
-        console.log('[Progress] ✅ EPM generation complete with ID:', data.epmProgramId);
-        
-        toast({
-          title: "EPM Program Generated",
-          description: `Created with ${Math.round(parseFloat(data.overallConfidence || '0') * 100)}% confidence`,
-        });
-
-        // Navigate to EPM view with valid program ID
-        console.log('[Progress] Navigating to:', `/strategy-workspace/epm/${data.epmProgramId}`);
-        setLocation(`/strategy-workspace/epm/${data.epmProgramId}`);
-      }
+        }, 10 * 60 * 1000);
       
-      // Handle errors
-      if (data.type === 'error') {
-        clearTimeout(timeoutId);
-        eventSource.close();
+        const data = JSON.parse(event.data);
+        console.log('[Progress] Received SSE event:', data);
+      
+        if (data.progress !== undefined) {
+          setCurrentProgress(data.progress);
+        }
+        if (data.description || data.message) {
+          setCurrentMessage(data.description || data.message);
+        }
+      
+        if ((window as any).__updatePlanningProgress) {
+          (window as any).__updatePlanningProgress(data);
+        }
+      
+        if (data.type === 'complete') {
+          if (timeoutId) clearTimeout(timeoutId);
+          es.close();
+          setShowProgress(false);
+
+          if (!data.epmProgramId) {
+            console.error('[Progress] EPM completed but no program ID returned!', data);
+            toast({
+              title: "EPM Generation Issue",
+              description: "EPM was generated but could not be retrieved. Please check your programs list.",
+              variant: "destructive",
+            });
+            return;
+          }
+
+          console.log('[Progress] EPM generation complete with ID:', data.epmProgramId);
+        
+          toast({
+            title: "EPM Program Generated",
+            description: `Created with ${Math.round(parseFloat(data.overallConfidence || '0') * 100)}% confidence`,
+          });
+
+          console.log('[Progress] Navigating to:', `/strategy-workspace/epm/${data.epmProgramId}`);
+          setLocation(`/strategy-workspace/epm/${data.epmProgramId}`);
+        }
+      
+        if (data.type === 'error') {
+          if (timeoutId) clearTimeout(timeoutId);
+          es.close();
+          setShowProgress(false);
+          toast({
+            title: "EPM Generation Failed",
+            description: data.message || "Please try again",
+            variant: "destructive",
+          });
+        }
+      };
+    
+      es.onerror = () => {
+        if (timeoutId) clearTimeout(timeoutId);
+        es.close();
         setShowProgress(false);
         toast({
-          title: "EPM Generation Failed",
-          description: data.message || "Please try again",
+          title: "Connection Error",
+          description: "Lost connection to progress updates. The generation may still be running - check your programs list.",
           variant: "destructive",
         });
-      }
-    };
-    
-    eventSource.onerror = () => {
-      clearTimeout(timeoutId);
-      eventSource.close();
-      setShowProgress(false);
-      toast({
-        title: "Connection Error",
-        description: "Lost connection to progress updates. The generation may still be running - check your programs list.",
-        variant: "destructive",
-      });
-    };
+      };
+    })();
     
     return () => {
-      clearTimeout(timeoutId);
-      eventSource.close();
+      if (timeoutId) clearTimeout(timeoutId);
+      eventSource?.close();
     };
   }, [progressId, setLocation, toast]);
 

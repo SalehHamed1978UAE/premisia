@@ -26,6 +26,7 @@ import { ModuleNode, type ModuleNodeData } from './components/ModuleNode';
 import { ModulePalette, type Module } from './components/ModulePalette';
 import { ConfigSidebar } from './components/ConfigSidebar';
 import { apiRequest } from '@/lib/queryClient';
+import { getAccessToken } from '@/lib/supabase';
 
 interface ValidationResult {
   success: boolean;
@@ -460,7 +461,9 @@ export default function JourneyBuilderPage() {
       });
       setExecutionProgress(initialProgress);
 
-      const eventSource = new EventSource(`/api/custom-journey-builder/executions/${newExecutionId}/stream`);
+      const sseToken = await getAccessToken();
+      const sseTokenParam = sseToken ? `?token=${encodeURIComponent(sseToken)}` : '';
+      const eventSource = new EventSource(`/api/custom-journey-builder/executions/${newExecutionId}/stream${sseTokenParam}`);
       eventSourceRef.current = eventSource;
 
       eventSource.onmessage = handleSSEEvent;
