@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { PESTLEResults } from "@/components/strategic-consultant/PESTLEResults";
 import { getNextPageUrl } from "@/hooks/useJourneyNavigation";
+import { authFetch } from "@/lib/queryClient";
 
 interface PESTLEExecuteResponse {
   success: boolean;
@@ -52,7 +53,7 @@ export default function PESTLEResultsPage() {
     queryKey: ['journey-session', sessionId],
     queryFn: async () => {
       if (!sessionId) return null;
-      const res = await fetch(`/api/strategic-consultant/journey-sessions/by-session/${sessionId}`);
+      const res = await authFetch(`/api/strategic-consultant/journey-sessions/by-session/${sessionId}`);
       if (!res.ok) {
         console.warn(`[PESTLEResultsPage] Journey session not found for ${sessionId}`);
         return null;
@@ -66,7 +67,7 @@ export default function PESTLEResultsPage() {
   const { data: existingData, isLoading: isLoadingExisting } = useQuery({
     queryKey: ['pestle-results', sessionId],
     queryFn: async () => {
-      const response = await fetch(`/api/strategic-consultant/frameworks/pestle/${sessionId}`);
+      const response = await authFetch(`/api/strategic-consultant/frameworks/pestle/${sessionId}`);
       if (!response.ok) {
         if (response.status === 404) return null;
         throw new Error('Failed to fetch PESTLE results');
@@ -80,7 +81,7 @@ export default function PESTLEResultsPage() {
   // Mutation to execute PESTLE analysis
   const executePestle = useMutation({
     mutationFn: async (sid: string) => {
-      const res = await fetch(`/api/strategic-consultant/frameworks/pestle/execute/${sid}`, {
+      const res = await authFetch(`/api/strategic-consultant/frameworks/pestle/execute/${sid}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });

@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useLocation, useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { authFetch } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -140,7 +141,7 @@ export default function SegmentDiscoveryPage() {
       try {
         const savedProgress = restoreProgress();
         
-        const statusResponse = await fetch(`/api/marketing-consultant/discovery-status/${understandingId}`);
+        const statusResponse = await authFetch(`/api/marketing-consultant/discovery-status/${understandingId}`);
         
         if (statusResponse.ok) {
           const statusData = await statusResponse.json();
@@ -169,7 +170,7 @@ export default function SegmentDiscoveryPage() {
           // If status is 'pending', fall through to call start-discovery
         }
 
-        const response = await fetch(`/api/marketing-consultant/start-discovery/${understandingId}`, {
+        const response = await authFetch(`/api/marketing-consultant/start-discovery/${understandingId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         });
@@ -245,7 +246,7 @@ export default function SegmentDiscoveryPage() {
     
     const poll = async () => {
       try {
-        const response = await fetch(`/api/marketing-consultant/discovery-status/${understandingId}`);
+        const response = await authFetch(`/api/marketing-consultant/discovery-status/${understandingId}`);
         if (!response.ok) {
           throw new Error('Poll failed');
         }
@@ -439,7 +440,7 @@ export default function SegmentDiscoveryPage() {
 
   const checkForResults = async () => {
     try {
-      const response = await fetch(`/api/marketing-consultant/discovery-status/${understandingId}`);
+      const response = await authFetch(`/api/marketing-consultant/discovery-status/${understandingId}`);
       if (!response.ok) throw new Error('Failed to check status');
       const data = await response.json();
       

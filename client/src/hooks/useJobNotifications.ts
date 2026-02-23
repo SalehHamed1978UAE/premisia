@@ -3,6 +3,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useEffect, useRef } from 'react';
 import { useLocation } from 'wouter';
 import { useDocumentInsights } from '@/contexts/DocumentInsightsContext';
+import { authFetch } from '@/lib/queryClient';
 
 interface BackgroundJob {
   id: string;
@@ -28,7 +29,7 @@ export function useJobNotifications() {
   const { data } = useQuery({
     queryKey: ['job-notifications'],
     queryFn: async () => {
-      const res = await fetch('/api/background-jobs/recent-completions');
+      const res = await authFetch('/api/background-jobs/recent-completions');
       if (!res.ok) throw new Error('Failed to fetch job notifications');
       return res.json();
     },
@@ -40,7 +41,7 @@ export function useJobNotifications() {
   const { data: enrichmentData } = useQuery({
     queryKey: ['enrichment-notifications'],
     queryFn: async () => {
-      const res = await fetch('/api/document-enrichment/notifications');
+      const res = await authFetch('/api/document-enrichment/notifications');
       if (!res.ok) throw new Error('Failed to fetch enrichment notifications');
       return res.json();
     },

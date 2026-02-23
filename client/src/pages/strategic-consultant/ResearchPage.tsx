@@ -9,7 +9,7 @@ import { Loader2, CheckCircle2, ExternalLink, ChevronDown, AlertCircle, RefreshC
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, authFetch } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ResearchExperience } from "@/components/research-experience/ResearchExperience";
@@ -130,7 +130,7 @@ export default function ResearchPage() {
     queryKey: ['journey-session', sessionId],
     queryFn: async () => {
       if (!sessionId) return null;
-      const res = await fetch(`/api/strategic-consultant/journey-sessions/by-session/${sessionId}`);
+      const res = await authFetch(`/api/strategic-consultant/journey-sessions/by-session/${sessionId}`);
       if (!res.ok) {
         console.warn(`[ResearchPage] Journey session not found for ${sessionId}, will use fallback`);
         return null;

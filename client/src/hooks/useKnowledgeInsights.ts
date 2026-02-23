@@ -5,6 +5,7 @@
  */
 
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
+import { authFetch } from '@/lib/queryClient';
 
 // ============================================================================
 // Types (PostgreSQL-based API response format)
@@ -96,7 +97,7 @@ export function useKnowledgeInsights(
         };
       }
 
-      const response = await fetch(`/api/knowledge/insights/${sessionId}`);
+      const response = await authFetch(`/api/knowledge/insights/${sessionId}`);
       
       if (!response.ok) {
         const error = await response.json();

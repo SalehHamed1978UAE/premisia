@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useLocation } from "wouter";
+import { authFetch } from "@/lib/queryClient";
 
 interface StrategyVersion {
   id: string;
@@ -35,7 +36,7 @@ export function Strategies() {
   const { data: versions, isLoading, error } = useQuery<StrategyVersion[]>({
     queryKey: ['/api/strategic-consultant/versions'],
     queryFn: async () => {
-      const res = await fetch('/api/strategic-consultant/versions/all', {
+      const res = await authFetch('/api/strategic-consultant/versions/all', {
         credentials: 'include',
       });
       if (!res.ok) throw new Error('Failed to fetch strategy versions');

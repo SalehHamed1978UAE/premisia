@@ -4,7 +4,7 @@
  */
 
 import { useQuery, useMutation, UseQueryResult } from '@tanstack/react-query';
-import { queryClient, apiRequest } from '@/lib/queryClient';
+import { queryClient, apiRequest, authFetch } from '@/lib/queryClient';
 
 // ============================================================================
 // Types (matching backend schema)
@@ -83,7 +83,7 @@ export function useTaskAssignments(programId: string): UseQueryResult<TaskAssign
   return useQuery({
     queryKey: assignmentKeys.byProgram(programId),
     queryFn: async () => {
-      const response = await fetch(`/api/task-assignments/program/${programId}`);
+      const response = await authFetch(`/api/task-assignments/program/${programId}`);
       if (!response.ok) throw new Error('Failed to fetch assignments');
       const data = await response.json();
       return data.assignments;
@@ -99,7 +99,7 @@ export function useTaskAssignmentsByTask(taskId: string): UseQueryResult<TaskAss
   return useQuery({
     queryKey: assignmentKeys.byTask(taskId),
     queryFn: async () => {
-      const response = await fetch(`/api/task-assignments/task/${taskId}`);
+      const response = await authFetch(`/api/task-assignments/task/${taskId}`);
       if (!response.ok) throw new Error('Failed to fetch task assignments');
       const data = await response.json();
       return data.assignments;
@@ -115,7 +115,7 @@ export function useResourceWorkload(programId: string): UseQueryResult<ResourceW
   return useQuery({
     queryKey: assignmentKeys.workload(programId),
     queryFn: async () => {
-      const response = await fetch(`/api/task-assignments/program/${programId}/workload`);
+      const response = await authFetch(`/api/task-assignments/program/${programId}/workload`);
       if (!response.ok) throw new Error('Failed to fetch workload');
       const data = await response.json();
       return data.workload;

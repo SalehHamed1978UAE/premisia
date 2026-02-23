@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, authFetch } from "@/lib/queryClient";
 import { PlanningProgressTracker } from "@/components/intelligent-planning/PlanningProgressTracker";
 import { MinimizedJobTracker } from "@/components/MinimizedJobTracker";
 import { useJobs } from "@/contexts/JobContext";
@@ -174,7 +174,7 @@ export default function PrioritizationPage() {
     queryKey: ['/api/background-jobs/by-session', sessionId],
     enabled: !!sessionId,
     queryFn: async () => {
-      const res = await fetch(`/api/background-jobs/by-session/${sessionId}`);
+      const res = await authFetch(`/api/background-jobs/by-session/${sessionId}`);
       if (!res.ok) throw new Error('Failed to fetch job');
       return res.json();
     },

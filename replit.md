@@ -104,6 +104,12 @@ The `getAggregatedAnalysis()` function handles all three cases. Don't assume one
 
 **NOT used in this codebase:** Redis, BullMQ, Winston/Pino, Feature flags
 
+## Client-Side API Authentication Pattern
+- **NEVER use bare `fetch()` for API calls** — always use `authFetch()` or `apiRequest()` from `client/src/lib/queryClient.ts`
+- `authFetch(url, options)` — adds Supabase auth token, does NOT throw on non-200 (use when caller checks `response.ok`)
+- `apiRequest(method, url, data)` — adds auth token AND throws on non-200 (use when errors should propagate)
+- Both functions get the token via `getAccessToken()` from `client/src/lib/supabase.ts`
+
 # Recent Bug Fixes
 
 ## EPM Initialization Fix for Business Model Innovation (Feb 3, 2026)
@@ -129,7 +135,7 @@ The `getAggregatedAnalysis()` function handles all three cases. Don't assume one
 - **Form Management/Validation**: `react-hook-form`, Zod
 - **Date Utilities**: `date-fns`
 - **Build Tools**: Vite, esbuild
-- **AI Providers**: OpenAI, Anthropic, Gemini
+- **AI Providers**: Anthropic (primary), Gemini (fallback), OpenAI (embeddings only)
 - **ORM**: Drizzle ORM
 - **Authentication**: Supabase (`@supabase/supabase-js`) — JWT-based auth with email/password and Google OAuth
 - **Encryption**: AWS KMS

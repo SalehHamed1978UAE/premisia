@@ -15,6 +15,7 @@ import {
   User
 } from "lucide-react";
 import { useProgram } from "@/contexts/ProgramContext";
+import { authFetch } from "@/lib/queryClient";
 import type { Task } from "@shared/schema";
 
 export function Timeline() {
@@ -24,7 +25,7 @@ export function Timeline() {
     queryKey: ['/api/tasks', selectedProgramId],
     queryFn: async () => {
       if (!selectedProgramId) return [];
-      const res = await fetch(`/api/tasks?programId=${selectedProgramId}`, {
+      const res = await authFetch(`/api/tasks?programId=${selectedProgramId}`, {
         credentials: 'include',
       });
       if (!res.ok) throw new Error('Failed to fetch tasks');

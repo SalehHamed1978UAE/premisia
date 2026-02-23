@@ -6,6 +6,7 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
+import { authFetch } from '@/lib/queryClient';
 
 interface JourneySession {
   id: string;
@@ -107,7 +108,7 @@ export function useJourneyNavigation(
     queryKey: ['journey-session', sessionId],
     queryFn: async () => {
       if (!sessionId) throw new Error('No session ID');
-      const res = await fetch(`/api/strategic-consultant/journey-sessions/by-session/${sessionId}`);
+      const res = await authFetch(`/api/strategic-consultant/journey-sessions/by-session/${sessionId}`);
       if (!res.ok) {
         if (res.status === 404) {
           // No journey session found - return default navigation

@@ -23,6 +23,20 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+export async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const authHeaders = await getAuthHeaders();
+  const existingHeaders = options.headers instanceof Headers
+    ? Object.fromEntries(options.headers.entries())
+    : (options.headers as Record<string, string>) || {};
+  return fetch(url, {
+    ...options,
+    headers: {
+      ...authHeaders,
+      ...existingHeaders,
+    },
+  });
+}
+
 export async function apiRequest(
   method: string,
   url: string,

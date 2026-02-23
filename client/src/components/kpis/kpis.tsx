@@ -25,7 +25,7 @@ import {
   Calendar
 } from "lucide-react";
 import type { Kpi, KpiMeasurement } from "@shared/schema";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { queryClient, apiRequest, authFetch } from "@/lib/queryClient";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 export function KPIs() {
@@ -46,7 +46,7 @@ export function KPIs() {
     queryKey: ['/api/kpis', selectedProgramId],
     queryFn: async () => {
       if (!selectedProgramId) return [];
-      const res = await fetch(`/api/kpis?programId=${selectedProgramId}`, {
+      const res = await authFetch(`/api/kpis?programId=${selectedProgramId}`, {
         credentials: 'include',
       });
       if (!res.ok) throw new Error('Failed to fetch KPIs');
@@ -59,7 +59,7 @@ export function KPIs() {
     queryKey: ['/api/kpis', selectedKpi, 'measurements'],
     queryFn: async () => {
       if (!selectedKpi) return [];
-      const res = await fetch(`/api/kpis/${selectedKpi}/measurements`, {
+      const res = await authFetch(`/api/kpis/${selectedKpi}/measurements`, {
         credentials: 'include',
       });
       if (!res.ok) throw new Error('Failed to fetch measurements');

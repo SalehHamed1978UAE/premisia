@@ -9,7 +9,7 @@ import { Loader2, CheckCircle2, AlertCircle, Edit, Save } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, authFetch, queryClient } from "@/lib/queryClient";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Textarea } from "@/components/ui/textarea";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
@@ -110,9 +110,7 @@ export default function EPMProgramView() {
   const { data: sessionData } = useQuery<{ sessionId: string | null }>({
     queryKey: ['/api/strategy-workspace/epm', programId, 'session'],
     queryFn: async () => {
-      const res = await fetch(`/api/strategy-workspace/epm/${programId}/session`, {
-        credentials: 'include',
-      });
+      const res = await authFetch(`/api/strategy-workspace/epm/${programId}/session`);
       if (!res.ok) return { sessionId: null };
       return res.json();
     },
@@ -136,9 +134,7 @@ export default function EPMProgramView() {
   } = useQuery({
     queryKey: ['/api/strategic-consultant/bmc-knowledge', programId],
     queryFn: async () => {
-      const res = await fetch(`/api/strategic-consultant/bmc-knowledge/${programId}`, {
-        credentials: 'include',
-      });
+      const res = await authFetch(`/api/strategic-consultant/bmc-knowledge/${programId}`);
       if (!res.ok) throw new Error('Failed to fetch BMC knowledge data');
       return res.json();
     },

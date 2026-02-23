@@ -18,7 +18,7 @@ import {
   Shield
 } from "lucide-react";
 import type { Risk, RiskMitigation } from "@shared/schema";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, authFetch } from "@/lib/queryClient";
 
 export function Risks() {
   const { selectedProgramId } = useProgram();
@@ -30,7 +30,7 @@ export function Risks() {
     queryKey: ['/api/risks', selectedProgramId],
     queryFn: async () => {
       if (!selectedProgramId) return [];
-      const res = await fetch(`/api/risks?programId=${selectedProgramId}`, {
+      const res = await authFetch(`/api/risks?programId=${selectedProgramId}`, {
         credentials: 'include',
       });
       if (!res.ok) throw new Error('Failed to fetch risks');
@@ -43,7 +43,7 @@ export function Risks() {
     queryKey: ['/api/risks', selectedRisk, 'mitigations'],
     queryFn: async () => {
       if (!selectedRisk) return [];
-      const res = await fetch(`/api/risks/${selectedRisk}/mitigations`, {
+      const res = await authFetch(`/api/risks/${selectedRisk}/mitigations`, {
         credentials: 'include',
       });
       if (!res.ok) throw new Error('Failed to fetch mitigations');

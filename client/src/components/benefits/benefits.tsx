@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import type { Benefit } from "@shared/schema";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, authFetch } from "@/lib/queryClient";
 
 export function Benefits() {
   const { selectedProgramId } = useProgram();
@@ -29,7 +29,7 @@ export function Benefits() {
     queryKey: ['/api/benefits', selectedProgramId],
     queryFn: async () => {
       if (!selectedProgramId) return [];
-      const res = await fetch(`/api/benefits?programId=${selectedProgramId}`, {
+      const res = await authFetch(`/api/benefits?programId=${selectedProgramId}`, {
         credentials: 'include',
       });
       if (!res.ok) throw new Error('Failed to fetch benefits');

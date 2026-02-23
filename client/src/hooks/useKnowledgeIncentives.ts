@@ -5,6 +5,7 @@
  */
 
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
+import { authFetch } from '@/lib/queryClient';
 
 // ============================================================================
 // Types
@@ -70,7 +71,7 @@ export function useKnowledgeIncentives(
   return useQuery({
     queryKey: incentivesKeys.bySession(sessionId),
     queryFn: async () => {
-      const response = await fetch(`/api/knowledge/incentives?sessionId=${sessionId}`);
+      const response = await authFetch(`/api/knowledge/incentives?sessionId=${sessionId}`);
       
       if (!response.ok) {
         const error = await response.json();

@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { SWOTResults } from "@/components/strategic-consultant/SWOTResults";
 import { getNextPageUrl } from "@/hooks/useJourneyNavigation";
+import { authFetch } from "@/lib/queryClient";
 
 interface SWOTFactor {
   factor: string;
@@ -65,7 +66,7 @@ export default function SWOTResultsPage() {
     queryKey: ['journey-session', sessionId],
     queryFn: async () => {
       if (!sessionId) return null;
-      const res = await fetch(`/api/strategic-consultant/journey-sessions/by-session/${sessionId}`);
+      const res = await authFetch(`/api/strategic-consultant/journey-sessions/by-session/${sessionId}`);
       if (!res.ok) {
         console.warn(`[SWOTResultsPage] Journey session not found for ${sessionId}`);
         return null;
@@ -79,7 +80,7 @@ export default function SWOTResultsPage() {
   const { data: existingData, isLoading: isLoadingExisting } = useQuery({
     queryKey: ['swot-results', sessionId],
     queryFn: async () => {
-      const response = await fetch(`/api/strategic-consultant/frameworks/swot/${sessionId}`);
+      const response = await authFetch(`/api/strategic-consultant/frameworks/swot/${sessionId}`);
       if (!response.ok) {
         // 404 is expected if SWOT hasn't been run yet
         if (response.status === 404) {
@@ -96,7 +97,7 @@ export default function SWOTResultsPage() {
   // Execute SWOT analysis mutation
   const executeSWOT = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`/api/strategic-consultant/frameworks/swot/execute/${sessionId}`, {
+      const res = await authFetch(`/api/strategic-consultant/frameworks/swot/execute/${sessionId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

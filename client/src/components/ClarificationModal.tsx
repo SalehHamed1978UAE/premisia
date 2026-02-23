@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { AlertCircle, CheckCircle, Loader2, MapPin } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { authFetch } from '@/lib/queryClient';
 
 interface ClarificationQuestion {
   id: string;
@@ -68,7 +69,7 @@ export function ClarificationModal({ questions, onSubmit, onSkip }: Clarificatio
         const manualEntry = manualEntries[question.id].trim();
 
         try {
-          const res = await fetch('/api/strategic-consultant/validate-manual-location', {
+          const res = await authFetch('/api/strategic-consultant/validate-manual-location', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userInput: manualEntry })

@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { PortersResults } from "@/components/strategic-consultant/PortersResults";
 import { getNextPageUrl } from "@/hooks/useJourneyNavigation";
+import { authFetch } from "@/lib/queryClient";
 
 interface PortersData {
   threatOfNewEntrants: { score: number; analysis: string; barriers: string[]; risks: string[] };
@@ -44,7 +45,7 @@ export default function PortersResultsPage() {
     queryKey: ['journey-session', sessionId],
     queryFn: async () => {
       if (!sessionId) return null;
-      const res = await fetch(`/api/strategic-consultant/journey-sessions/by-session/${sessionId}`);
+      const res = await authFetch(`/api/strategic-consultant/journey-sessions/by-session/${sessionId}`);
       if (!res.ok) {
         console.warn(`[PortersResultsPage] Journey session not found for ${sessionId}`);
         return null;
@@ -65,7 +66,7 @@ export default function PortersResultsPage() {
   // Mutation to execute Porter's Five Forces analysis
   const executeMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`/api/strategic-consultant/frameworks/porters/execute/${sessionId}`, {
+      const res = await authFetch(`/api/strategic-consultant/frameworks/porters/execute/${sessionId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

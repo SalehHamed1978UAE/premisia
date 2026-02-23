@@ -12,7 +12,7 @@ import { AssumptionComparisonView } from "@/components/trend-analysis/Assumption
 import { TrendSynthesisView } from "@/components/trend-analysis/TrendSynthesisView";
 import { TrendAnalysisResult, TrendProgressMessage } from "@/types/trend-analysis";
 import { DeleteAnalysisDialog } from "@/components/DeleteAnalysisDialog";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, authFetch, queryClient } from "@/lib/queryClient";
 
 export default function TrendAnalysisPage() {
   const [, params] = useRoute("/strategic-consultant/trend-analysis/:sessionId/:versionNumber");
@@ -123,7 +123,7 @@ export default function TrendAnalysisPage() {
     setCurrentStep(1);
 
     try {
-      const response = await fetch(`/api/trend-analysis/${understandingId}`, {
+      const response = await authFetch(`/api/trend-analysis/${understandingId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

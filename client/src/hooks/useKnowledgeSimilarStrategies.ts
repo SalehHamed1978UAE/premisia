@@ -5,6 +5,7 @@
  */
 
 import { useQuery, UseQueryResult } from '@tanstack/react-query';
+import { authFetch } from '@/lib/queryClient';
 
 // ============================================================================
 // Types
@@ -69,7 +70,7 @@ export function useKnowledgeSimilarStrategies(
   return useQuery({
     queryKey: similarStrategiesKeys.bySession(sessionId),
     queryFn: async () => {
-      const response = await fetch(`/api/knowledge/similar-strategies?sessionId=${sessionId}`);
+      const response = await authFetch(`/api/knowledge/similar-strategies?sessionId=${sessionId}`);
       
       if (!response.ok) {
         const error = await response.json();

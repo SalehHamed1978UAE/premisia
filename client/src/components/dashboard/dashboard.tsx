@@ -9,6 +9,7 @@ import { useProgram } from "@/contexts/ProgramContext";
 import { WelcomeModal } from "@/components/onboarding/WelcomeModal";
 import { useLocation } from "wouter";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
+import { authFetch } from "@/lib/queryClient";
 import { useKnowledgeInsights } from "@/hooks/useKnowledgeInsights";
 import { KnowledgeInsightsCard } from "@/components/knowledge/KnowledgeInsightsCard";
 import { 
@@ -57,7 +58,7 @@ export function Dashboard() {
     queryKey: ['/api/dashboard/summary', selectedProgramId],
     queryFn: async () => {
       if (!selectedProgramId) return null;
-      const res = await fetch(`/api/dashboard/summary?programId=${selectedProgramId}`, {
+      const res = await authFetch(`/api/dashboard/summary?programId=${selectedProgramId}`, {
         credentials: 'include',
       });
       if (!res.ok) throw new Error('Failed to fetch dashboard summary');
@@ -70,7 +71,7 @@ export function Dashboard() {
   const { data: latestUnderstanding } = useQuery<{ understandingId: string | null }>({
     queryKey: ['/api/strategies/latest-understanding'],
     queryFn: async () => {
-      const res = await fetch('/api/strategies/latest-understanding', {
+      const res = await authFetch('/api/strategies/latest-understanding', {
         credentials: 'include',
       });
       if (!res.ok) return { understandingId: null };

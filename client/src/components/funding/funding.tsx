@@ -25,7 +25,7 @@ import {
   FileText
 } from "lucide-react";
 import type { FundingSource, Expense } from "@shared/schema";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { queryClient, apiRequest, authFetch } from "@/lib/queryClient";
 
 export function Funding() {
   const { toast } = useToast();
@@ -49,7 +49,7 @@ export function Funding() {
     queryKey: ['/api/funding/sources', selectedProgramId],
     queryFn: async () => {
       if (!selectedProgramId) return [];
-      const res = await fetch(`/api/funding/sources?programId=${selectedProgramId}`, {
+      const res = await authFetch(`/api/funding/sources?programId=${selectedProgramId}`, {
         credentials: 'include',
       });
       if (!res.ok) throw new Error('Failed to fetch funding sources');
@@ -62,7 +62,7 @@ export function Funding() {
     queryKey: ['/api/funding/expenses', selectedProgramId],
     queryFn: async () => {
       if (!selectedProgramId) return [];
-      const res = await fetch(`/api/funding/expenses?programId=${selectedProgramId}`, {
+      const res = await authFetch(`/api/funding/expenses?programId=${selectedProgramId}`, {
         credentials: 'include',
       });
       if (!res.ok) throw new Error('Failed to fetch expenses');
