@@ -120,16 +120,45 @@ function List({ items, className = "" }: { items: ListItem[]; className?: string
   );
 }
 
+function sanitizeProgramTitle(rawTitle?: string | null): string {
+  let normalized = String(rawTitle || '').trim();
+  if (!normalized) return '';
+
+  normalized = normalized
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+
+  const jsonMatch = normalized.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed && typeof parsed === 'object' && typeof (parsed as any).title === 'string') {
+        normalized = String((parsed as any).title).trim();
+      }
+    } catch {
+      // Keep raw text if parsing fails
+    }
+  }
+
+  return normalized
+    .replace(/^["']+|["']+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 // ============================================================================
 // 1. Executive Summary Formatter
 // ============================================================================
 
 export function ExecutiveSummaryFormatter({ data }: { data: ExecutiveSummary }) {
+  const programTitle = sanitizeProgramTitle(data.title);
+
   return (
     <div className="space-y-6">
-      {data.title && (
+      {programTitle && (
         <div className="pb-4 border-b">
-          <h2 className="text-2xl font-bold">{data.title}</h2>
+          <h2 className="text-2xl font-bold">{programTitle}</h2>
         </div>
       )}
 

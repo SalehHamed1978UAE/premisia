@@ -36,6 +36,9 @@ page_sequence:
   - path: /strategic-consultant/research/:sessionId
     module: bmc-analyzer
     condition: null
+  - path: /bmc/results/:sessionId/:versionNumber
+    module: bmc-analyzer
+    condition: null
   - path: /strategy-workspace/decisions/:sessionId/:versionNumber
     module: epm-generator
     condition: requiresDecisions

@@ -2999,13 +2999,23 @@ router.get('/journey-research/stream/:sessionId', async (req: Request, res: Resp
       console.log(`[JOURNEY-RESEARCH] ✓ Created strategy version ${targetVersionNumber}`);
     }
 
-    // Build next URL based on journey page sequence
-    const decisionPageIndex = journeyDef.pageSequence.findIndex(p => p.includes('decisions'));
-    let nextUrl = `/strategy-workspace/decisions/${sessionId}/${targetVersionNumber}`;
-    if (decisionPageIndex > 0) {
-      nextUrl = journeyDef.pageSequence[decisionPageIndex]
+    // Build next URL based on journey page sequence.
+    // This route always completes the research phase, so prefer the page that
+    // immediately follows research in the configured journey sequence.
+    const resolvePageUrl = (pathPattern: string): string =>
+      pathPattern
         .replace(':sessionId', sessionId)
         .replace(':versionNumber', targetVersionNumber.toString());
+
+    let nextUrl = `/strategy-workspace/decisions/${sessionId}/${targetVersionNumber}`;
+    const researchPageIndex = journeyDef.pageSequence.findIndex((p) => p.includes('/research/:sessionId'));
+    if (researchPageIndex >= 0 && researchPageIndex + 1 < journeyDef.pageSequence.length) {
+      nextUrl = resolvePageUrl(journeyDef.pageSequence[researchPageIndex + 1]);
+    } else {
+      const decisionPageIndex = journeyDef.pageSequence.findIndex((p) => p.includes('decisions'));
+      if (decisionPageIndex >= 0) {
+        nextUrl = resolvePageUrl(journeyDef.pageSequence[decisionPageIndex]);
+      }
     }
 
     // Clear keepalive

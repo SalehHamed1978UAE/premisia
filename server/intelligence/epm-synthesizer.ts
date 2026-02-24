@@ -919,7 +919,7 @@ export class EPMSynthesizer {
     index: number,
     planningContext: PlanningContext
   ): Workstream {
-    const name = `Decision Implementation: ${seed.optionLabel || seed.title}`;
+    const name = this.formatDecisionWorkstreamName(seed.optionLabel || seed.title);
     const description = [
       `Implements selected decision: ${seed.title}.`,
       seed.optionDescription ? `Option detail: ${seed.optionDescription}` : null,
@@ -952,6 +952,20 @@ export class EPMSynthesizer {
 
     this.resequenceDeliverables(workstream);
     return workstream;
+  }
+
+  private formatDecisionWorkstreamName(rawLabel: string): string {
+    const base = this.truncateText(
+      String(rawLabel || 'Strategic decision')
+        .replace(/^decision implementation:\s*/i, '')
+        .trim(),
+      96
+    );
+    if (!base) return 'Implement strategic decision';
+    if (/^(implement|launch|build|deploy|establish|optimi[sz]e|integrat|expand|enable)\b/i.test(base)) {
+      return base;
+    }
+    return `Implement ${base}`;
   }
 
   private buildDecisionDeliverables(

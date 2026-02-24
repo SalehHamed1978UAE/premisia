@@ -1916,6 +1916,44 @@ export class ExitStrategyGenerator {
  * Program Name Generator
  */
 export class ProgramNameGenerator {
+  private normalizeProgramName(rawName: string): string {
+    let normalized = String(rawName || '').trim();
+    if (!normalized) return '';
+
+    normalized = normalized
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim();
+
+    const jsonMatch = normalized.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed && typeof parsed === 'object' && typeof (parsed as any).title === 'string') {
+          normalized = String((parsed as any).title).trim();
+        }
+      } catch {
+        // Ignore parse failures and keep normalized text.
+      }
+    } else {
+      try {
+        const parsed = JSON.parse(normalized);
+        if (parsed && typeof parsed === 'object' && typeof (parsed as any).title === 'string') {
+          normalized = String((parsed as any).title).trim();
+        }
+      } catch {
+        // Ignore parse failures and keep normalized text.
+      }
+    }
+
+    normalized = normalized
+      .replace(/^["']+|["']+$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    return normalized;
+  }
+
   async generate(
     insights: StrategyInsights,
     userContext?: UserContext,
@@ -1933,8 +1971,11 @@ export class ProgramNameGenerator {
       // PRIORITY: Use journey title if available (from strategic_understanding)
       // This is the user-facing name they see in the journey, so use it directly
       if (namingContext?.journeyTitle && namingContext.journeyTitle.trim().length > 0) {
-        console.log(`[ProgramNameGenerator] 🎯 Using journey title: "${namingContext.journeyTitle}"`);
-        return namingContext.journeyTitle.trim();
+        const sanitizedJourneyTitle = this.normalizeProgramName(namingContext.journeyTitle);
+        if (sanitizedJourneyTitle) {
+          console.log(`[ProgramNameGenerator] 🎯 Using journey title: "${sanitizedJourneyTitle}"`);
+          return sanitizedJourneyTitle;
+        }
       }
       
       const keyInsights = namingContext?.bmcKeyInsights || [];
@@ -2003,33 +2044,21 @@ Generate ONLY the program name, nothing else.`;
         maxTokens: 100,
       });
       
-      let programName = result.content.trim();
-      
-      programName = programName.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
-      
-      try {
-        const parsed = JSON.parse(programName);
-        if (parsed && typeof parsed === 'object' && parsed.title) {
-          programName = String(parsed.title).trim();
-        }
-      } catch {
-      }
-      
-      programName = programName.replace(/^["']|["']$/g, '');
+      const programName = this.normalizeProgramName(result.content);
       
       if (programName && programName.length > 0 && programName.length <= 150) {
         return programName;
       }
       
-      return this.generateFallbackProgramName(selectedDecisions, decisionsData, framework);
+      return this.normalizeProgramName(this.generateFallbackProgramName(selectedDecisions, decisionsData, framework));
       
     } catch (error) {
       console.error('[ProgramNameGenerator] Program name generation failed:', error);
-      return this.generateFallbackProgramName(
+      return this.normalizeProgramName(this.generateFallbackProgramName(
         namingContext?.selectedDecisions,
         namingContext?.decisionsData,
         namingContext?.framework || 'bmc'
-      );
+      ));
     }
   }
 
