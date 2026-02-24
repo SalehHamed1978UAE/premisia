@@ -968,6 +968,183 @@ export class EPMSynthesizer {
     return `Implement ${base}`;
   }
 
+  private sanitizeProgramTitleText(rawTitle?: string): string {
+    let normalized = String(rawTitle || '').trim();
+    if (!normalized) return '';
+
+    normalized = normalized
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim();
+
+    const jsonMatch = normalized.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed && typeof parsed === 'object' && typeof (parsed as any).title === 'string') {
+          normalized = String((parsed as any).title).trim();
+        }
+      } catch {
+        // Keep normalized text on parse failures.
+      }
+    }
+
+    return normalized
+      .replace(/^["']+|["']+$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private isPlaceholderText(value?: string): boolean {
+    const text = String(value || '').trim().toLowerCase();
+    if (!text) return true;
+    return (
+      text === 'none' ||
+      text === 'none specified' ||
+      text === 'not specified' ||
+      text === 'n/a' ||
+      text === 'na' ||
+      text === 'tbd' ||
+      text === 'placeholder' ||
+      text === 'unknown' ||
+      text === '-'
+    );
+  }
+
+  private imperativeText(imperative: string | { action?: string; description?: string; name?: string }): string {
+    if (typeof imperative === 'string') return imperative.trim();
+    if (!imperative || typeof imperative !== 'object') return '';
+    return String(imperative.action || imperative.description || imperative.name || '').trim();
+  }
+
+  private applyContentQualityRepairs(params: {
+    executiveSummary: ExecutiveSummary;
+    workstreams: Workstream[];
+    resourcePlan: ResourcePlan;
+    riskRegister: RiskRegister;
+    strategicDecisions: any[];
+    domainCode?: DomainProfile['code'];
+  }): string[] {
+    const repairs: string[] = [];
+    const { executiveSummary, workstreams, resourcePlan, riskRegister } = params;
+
+    const sanitizedTitle = this.sanitizeProgramTitleText(executiveSummary.title || '');
+    if (sanitizedTitle && sanitizedTitle !== executiveSummary.title) {
+      executiveSummary.title = sanitizedTitle;
+      repairs.push('Sanitized executive summary title');
+    }
+
+    const defaultOwner = resourcePlan.internalTeam.find((resource) => typeof resource.role === 'string' && resource.role.trim().length > 0)?.role?.trim()
+      || 'Program Manager';
+
+    workstreams.forEach((ws, index) => {
+      const originalName = String(ws.name || '').trim();
+      if (!originalName) {
+        ws.name = `Workstream ${index + 1}`;
+        repairs.push(`Assigned fallback name for workstream ${ws.id || index + 1}`);
+      }
+      if (!ws.owner || String(ws.owner).trim().length === 0) {
+        ws.owner = defaultOwner;
+        repairs.push(`Assigned owner "${defaultOwner}" to ${ws.id || ws.name}`);
+      }
+    });
+
+    const finalNameRepair = this.ensureUniqueWorkstreamNames(workstreams, params.domainCode);
+    if (finalNameRepair.repairs.length > 0) {
+      workstreams.splice(0, workstreams.length, ...finalNameRepair.workstreams);
+      repairs.push(...finalNameRepair.repairs.map((repair) => `Resolved duplicate name: ${repair}`));
+    }
+
+    const cleanedImperatives = (Array.isArray(executiveSummary.strategicImperatives) ? executiveSummary.strategicImperatives : [])
+      .filter((item) => !this.isPlaceholderText(this.imperativeText(item as any)));
+    executiveSummary.strategicImperatives = cleanedImperatives;
+
+    const cleanedSuccessFactors = (Array.isArray(executiveSummary.keySuccessFactors) ? executiveSummary.keySuccessFactors : [])
+      .map((value) => String(value || '').trim())
+      .filter((value) => value.length > 0 && !this.isPlaceholderText(value));
+    executiveSummary.keySuccessFactors = cleanedSuccessFactors;
+
+    const selectedDecisionLabels = (params.strategicDecisions || [])
+      .map((decision: any) => {
+        const selectedOptionId = decision?.selectedOptionId;
+        const selectedOption = Array.isArray(decision?.options)
+          ? decision.options.find((option: any) => option?.id === selectedOptionId)
+          : null;
+        return String(selectedOption?.label || decision?.title || '').trim();
+      })
+      .filter((label: string) => label.length > 0);
+
+    while (executiveSummary.strategicImperatives.length < 2) {
+      const nextLabel = selectedDecisionLabels[executiveSummary.strategicImperatives.length]
+        || workstreams[executiveSummary.strategicImperatives.length]?.name
+        || 'Core delivery scope';
+      executiveSummary.strategicImperatives.push({
+        action: `Execute ${nextLabel} with measurable monthly governance`,
+        priority: 'high',
+        rationale: 'Ensures selected strategy is translated into executable delivery outcomes.',
+      });
+      repairs.push('Added missing strategic imperative coverage');
+    }
+
+    while (executiveSummary.keySuccessFactors.length < 2) {
+      const fallback = workstreams[executiveSummary.keySuccessFactors.length];
+      const factor = fallback
+        ? `${fallback.owner || defaultOwner} accountable for ${fallback.name} delivery milestones`
+        : 'Maintain decision-to-workstream traceability and monthly KPI evidence';
+      executiveSummary.keySuccessFactors.push(factor);
+      repairs.push('Added missing key success factor coverage');
+    }
+
+    const minRiskCount = Math.max(3, Math.ceil(workstreams.length / 2));
+    const existingRiskIds = new Set(
+      (riskRegister.risks || [])
+        .map((risk) => String(risk.id || '').trim())
+        .filter((id) => id.length > 0)
+    );
+    let autoRiskIndex = 1;
+    while ((riskRegister.risks || []).length < minRiskCount && workstreams.length > 0) {
+      const ws = workstreams[(riskRegister.risks || []).length % workstreams.length];
+      let riskId = `R-AUTO-${String(autoRiskIndex).padStart(3, '0')}`;
+      while (existingRiskIds.has(riskId)) {
+        autoRiskIndex += 1;
+        riskId = `R-AUTO-${String(autoRiskIndex).padStart(3, '0')}`;
+      }
+      existingRiskIds.add(riskId);
+      autoRiskIndex += 1;
+
+      const owner = String(ws.owner || defaultOwner).trim() || defaultOwner;
+      riskRegister.risks.push({
+        id: riskId,
+        description: `Execution risk for ${ws.name}: schedule slippage due to dependency/resource pressure`,
+        category: 'Execution',
+        probability: 45,
+        impact: 'Medium',
+        severity: 55,
+        mitigation: `Run weekly dependency and scope-control reviews led by ${owner}.`,
+        contingency: `If slippage exceeds tolerance, activate rephasing and contingency plan for ${ws.name}.`,
+        owner,
+        confidence: 0.7,
+      });
+      repairs.push(`Added risk coverage entry for ${ws.name}`);
+    }
+    riskRegister.topRisks = [...(riskRegister.risks || [])]
+      .sort((a, b) => (Number(b.severity) || 0) - (Number(a.severity) || 0))
+      .slice(0, 5);
+
+    const highPriorityRisks = (riskRegister.risks || []).filter((risk) => {
+      const impact = String(risk.impact || '').toLowerCase();
+      return impact === 'high' || impact === 'critical' || (Number(risk.severity) || 0) >= 70;
+    }).length;
+    executiveSummary.riskSummary = `${riskRegister.risks.length} risks identified, with ${highPriorityRisks} high-priority risks requiring immediate mitigation.`;
+
+    if (this.isPlaceholderText(executiveSummary.marketOpportunity)) {
+      executiveSummary.marketOpportunity = `Strategic opportunity synthesized across ${workstreams.length} workstreams with explicit execution ownership and risk controls.`;
+      repairs.push('Replaced placeholder market opportunity');
+    }
+
+    return repairs;
+  }
+
   private buildDecisionDeliverables(
     seed: {
       id: string;
@@ -1510,6 +1687,21 @@ export class EPMSynthesizer {
       topRisks: risksWithOwners.slice().sort((a, b) => b.severity - a.severity).slice(0, 5)
     };
     console.log('[EPM Synthesis] ✓ Assigned risk owners (buildV2Program):', risksWithOwners.map(r => ({ id: r.id, owner: r.owner })));
+
+    const contentRepairs = this.applyContentQualityRepairs({
+      executiveSummary,
+      workstreams: phasedWorkstreams,
+      resourcePlan,
+      riskRegister,
+      strategicDecisions: strategicContext?.decisions || [],
+      domainCode: planningContext.business.domainProfile?.code,
+    });
+    if (contentRepairs.length > 0) {
+      console.log(`[EPM Synthesis] 🔧 Content quality repairs: ${contentRepairs.length}`);
+      contentRepairs.forEach((repair) => console.log(`  - ${repair}`));
+    } else {
+      console.log('[EPM Synthesis] ✓ Content quality repair pass: no changes');
+    }
     
     let stageGates = await this.stageGateGenerator.generate(timeline, riskRegister, phasedWorkstreams);
     
@@ -1707,6 +1899,7 @@ export class EPMSynthesizer {
     const presaveAcceptanceReport = this.runPresaveExportAcceptance(
       insights,
       {
+        executiveSummary,
         workstreams: phasedWorkstreams,
         timeline,
         stageGates,
@@ -1733,8 +1926,26 @@ export class EPMSynthesizer {
     }
     qualityErrorMessages = [...qualityErrorMessages, ...acceptanceCriticalMessages];
     qualityWarningMessages = [...qualityWarningMessages, ...acceptanceWarningMessages];
-    if (isEPMStrictIntegrityGatesEnabled() && acceptanceCriticalMessages.length > 0) {
-      throw new Error(`Presave export acceptance failed: ${acceptanceCriticalMessages.join(' | ')}`);
+    const alwaysBlockAcceptanceCodes = new Set([
+      'EXEC_SUMMARY_TITLE_ARTIFACT',
+      'EXEC_SUMMARY_TITLE_MISSING',
+      'EXEC_SUMMARY_COVERAGE_INSUFFICIENT',
+      'EXEC_SUMMARY_PLACEHOLDER_CONTENT',
+      'WORKSTREAM_OWNER_MISSING',
+      'WORKSTREAM_NAME_DUPLICATE',
+      'RISK_COVERAGE_INSUFFICIENT',
+    ]);
+    const hardBlockAcceptanceMessages = presaveAcceptanceReport.criticalIssues
+      .filter((issue) => alwaysBlockAcceptanceCodes.has(issue.code))
+      .map((issue) => `[ExportAcceptance:${issue.code}] ${issue.message}`);
+    if (
+      hardBlockAcceptanceMessages.length > 0 ||
+      (isEPMStrictIntegrityGatesEnabled() && acceptanceCriticalMessages.length > 0)
+    ) {
+      const blocker = hardBlockAcceptanceMessages.length > 0
+        ? hardBlockAcceptanceMessages
+        : acceptanceCriticalMessages;
+      throw new Error(`Presave export acceptance failed: ${blocker.join(' | ')}`);
     }
 
     const mergedValidationResult = {
@@ -2180,6 +2391,20 @@ export class EPMSynthesizer {
     };
     console.log('[EPM Synthesis] ✓ Assigned risk owners (legacy):', risksWithOwners2.map(r => ({ id: r.id, owner: r.owner })));
     
+    const legacyContentRepairs = this.applyContentQualityRepairs({
+      executiveSummary,
+      workstreams,
+      resourcePlan,
+      riskRegister,
+      strategicDecisions: [],
+    });
+    if (legacyContentRepairs.length > 0) {
+      console.log(`[EPM Synthesis] 🔧 Content quality repairs (legacy): ${legacyContentRepairs.length}`);
+      legacyContentRepairs.forEach((repair) => console.log(`  - ${repair}`));
+    } else {
+      console.log('[EPM Synthesis] ✓ Content quality repair pass (legacy): no changes');
+    }
+
     const stageGates = await this.stageGateGenerator.generate(timeline, riskRegister, workstreams);
     
     const businessContext = insights.marketContext?.industry || '';
@@ -2226,6 +2451,7 @@ export class EPMSynthesizer {
     const presaveAcceptanceReport = this.runPresaveExportAcceptance(
       insights,
       {
+        executiveSummary,
         workstreams,
         timeline,
         stageGates,
@@ -2237,6 +2463,27 @@ export class EPMSynthesizer {
       },
       userContext
     );
+    const alwaysBlockAcceptanceCodes = new Set([
+      'EXEC_SUMMARY_TITLE_ARTIFACT',
+      'EXEC_SUMMARY_TITLE_MISSING',
+      'EXEC_SUMMARY_COVERAGE_INSUFFICIENT',
+      'EXEC_SUMMARY_PLACEHOLDER_CONTENT',
+      'WORKSTREAM_OWNER_MISSING',
+      'WORKSTREAM_NAME_DUPLICATE',
+      'RISK_COVERAGE_INSUFFICIENT',
+    ]);
+    const hardBlockAcceptanceMessages = presaveAcceptanceReport.criticalIssues
+      .filter((issue) => alwaysBlockAcceptanceCodes.has(issue.code))
+      .map((issue) => `[ExportAcceptance:${issue.code}] ${issue.message}`);
+    if (
+      hardBlockAcceptanceMessages.length > 0 ||
+      (isEPMStrictIntegrityGatesEnabled() && presaveAcceptanceReport.criticalIssues.length > 0)
+    ) {
+      const blocker = hardBlockAcceptanceMessages.length > 0
+        ? hardBlockAcceptanceMessages
+        : presaveAcceptanceReport.criticalIssues.map((issue) => `[ExportAcceptance:${issue.code}] ${issue.message}`);
+      throw new Error(`Presave export acceptance failed (legacy): ${blocker.join(' | ')}`);
+    }
     
     const validationReport = this.buildValidationReport(
       workstreams,
@@ -2905,6 +3152,7 @@ export class EPMSynthesizer {
   private runPresaveExportAcceptance(
     insights: StrategyInsights,
     epm: {
+      executiveSummary: ExecutiveSummary;
       workstreams: Workstream[];
       timeline: Timeline;
       stageGates: StageGates;
@@ -2932,6 +3180,7 @@ export class EPMSynthesizer {
 
     const epmPayload = {
       program: {
+        executiveSummary: epm.executiveSummary,
         timeline: epm.timeline,
         stageGates: epm.stageGates,
         resourcePlan: epm.resourcePlan,

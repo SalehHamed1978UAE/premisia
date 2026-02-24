@@ -19,6 +19,7 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { deriveConstraintMode, shouldEnforceConstraints } from '../server/intelligence/epm/constraint-policy';
 import { hasBudgetConstraintSignal } from '../server/intelligence/epm/constraint-utils';
+import { validateExportAcceptance } from '../server/services/export/acceptance-gates';
 
 interface ValidationIssue {
   check: string;
@@ -54,6 +55,7 @@ interface ValidationResult {
 }
 
 interface EPMPackage {
+  assignments?: any[];
   workstreams?: any[];
   timeline?: any;
   constraints?: any;
@@ -206,6 +208,7 @@ class EPMPackageValidator {
     this.check19_ClarificationsExtraction(epmPackage);
     this.check20_TimelineConstraintEnforcement(epmPackage);
     this.check21_DiscoveryBudgetSignalMismatch(epmPackage);
+    this.check22_ExportAcceptanceParity(epmPackage);
 
     return this.getResult();
   }
@@ -1195,6 +1198,69 @@ class EPMPackageValidator {
     }
   }
 
+  /**
+   * Check 22: Shared Export Acceptance Parity
+   * Runs the same acceptance-gates family used by presave/export.
+   * This prevents CLI "pass" when export acceptance would fail.
+   */
+  private check22_ExportAcceptanceParity(pkg: EPMPackage): void {
+    console.log('✓ Check 22: Export Acceptance Parity');
+    this.currentCheck = 'check22_ExportAcceptanceParity';
+
+    const frameworks = Array.isArray((pkg as any)?.frameworks)
+      ? (pkg as any).frameworks
+      : (Array.isArray(pkg.metadata?.frameworks) ? pkg.metadata.frameworks : []);
+    const metadataJourneyType =
+      (pkg.metadata && typeof pkg.metadata === 'object'
+        ? (pkg.metadata.journeyType || pkg.metadata.journey)
+        : null) || null;
+
+    const strategyPayload = {
+      understanding: {
+        sessionId: pkg.metadata?.sessionId || null,
+      },
+      journeySession: {
+        journeyType: typeof metadataJourneyType === 'string' ? metadataJourneyType : null,
+        metadata: {
+          frameworks,
+        },
+      },
+      frameworks,
+    };
+
+    const epmPayload = {
+      program: {
+        ...(pkg.program || {}),
+        executiveSummary: (pkg.program as any)?.executiveSummary || pkg.executiveSummary || null,
+      },
+      assignments: Array.isArray(pkg.assignments) ? pkg.assignments : [],
+      workstreams: Array.isArray(pkg.workstreams) ? pkg.workstreams : [],
+      resources: Array.isArray(pkg.resources) ? pkg.resources : [],
+      risks: Array.isArray(pkg.risks) ? pkg.risks : [],
+      benefits: Array.isArray(pkg.benefits) ? pkg.benefits : [],
+    };
+
+    const acceptanceReport = validateExportAcceptance({
+      mode: 'presave',
+      strategyJson: JSON.stringify(strategyPayload),
+      epmJson: JSON.stringify(epmPayload),
+    });
+
+    for (const issue of acceptanceReport.criticalIssues) {
+      this.addHighSeverityError(
+        `[${issue.code}] ${issue.message}`,
+        this.getAcceptancePenalty(issue.code),
+        `acceptance.${issue.code}`,
+        'no critical issue',
+        issue.details ?? issue.message
+      );
+    }
+
+    for (const issue of acceptanceReport.warnings) {
+      this.addWarning(`[${issue.code}] ${issue.message}`);
+    }
+  }
+
   // ═══════════════════════════════════════════════════════════════════════
   // Helpers
   // ═══════════════════════════════════════════════════════════════════════
@@ -1255,6 +1321,22 @@ class EPMPackageValidator {
   }
 
   /**
+   * Penalty mapping for shared export acceptance critical gates.
+   */
+  private getAcceptancePenalty(code: string): number {
+    const contentCriticalCodes = new Set([
+      'EXEC_SUMMARY_TITLE_ARTIFACT',
+      'EXEC_SUMMARY_TITLE_MISSING',
+      'EXEC_SUMMARY_COVERAGE_INSUFFICIENT',
+      'EXEC_SUMMARY_PLACEHOLDER_CONTENT',
+      'WORKSTREAM_OWNER_MISSING',
+      'WORKSTREAM_NAME_DUPLICATE',
+      'RISK_COVERAGE_INSUFFICIENT',
+    ]);
+    return contentCriticalCodes.has(code) ? 15 : 10;
+  }
+
+  /**
    * Compute letter grade from score
    */
   private getGrade(score: number): string {
@@ -1270,7 +1352,7 @@ class EPMPackageValidator {
   private getResult(): ValidationResult {
     const isValid = this.errors.length === 0 && this.score >= 70;
     const grade = this.getGrade(this.score);
-    const totalChecks = 21;
+    const totalChecks = 22;
 
     console.log('\n╔════════════════════════════════════════════════════════════════════════════╗');
     console.log('║                           VALIDATION RESULTS                                ║');
@@ -1314,7 +1396,7 @@ class EPMPackageValidator {
       checkResults: this.checkResults,
       metadata: {
         validatedAt: new Date().toISOString(),
-        validatorVersion: '2.1.0-sprint1',
+        validatorVersion: '2.2.0-quality-lane',
         totalChecks,
         checksRun: totalChecks,
       },

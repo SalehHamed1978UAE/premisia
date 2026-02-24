@@ -280,6 +280,78 @@ function normalizeText(value: unknown): string {
     .trim();
 }
 
+function sanitizeTitleText(value: unknown): string {
+  let text = typeof value === 'string' ? value.trim() : '';
+  if (!text) return '';
+
+  text = text
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed && typeof parsed === 'object' && typeof (parsed as any).title === 'string') {
+        text = String((parsed as any).title).trim();
+      }
+    } catch {
+      // Keep text when JSON parsing fails.
+    }
+  }
+
+  return text.replace(/^["']+|["']+$/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function hasTitleArtifact(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  const raw = value.trim();
+  if (!raw) return false;
+  if (/```/.test(raw)) return true;
+  const jsonLike = raw.match(/\{[\s\S]*\}/);
+  if (!jsonLike) return false;
+  try {
+    const parsed = JSON.parse(jsonLike[0]);
+    return Boolean(parsed && typeof parsed === 'object' && typeof (parsed as any).title === 'string');
+  } catch {
+    return false;
+  }
+}
+
+function isPlaceholderText(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  const text = value.trim().toLowerCase();
+  if (!text) return true;
+  return (
+    text === 'none' ||
+    text === 'none specified' ||
+    text === 'not specified' ||
+    text === 'n/a' ||
+    text === 'na' ||
+    text === 'tbd' ||
+    text === 'placeholder' ||
+    text === 'no data' ||
+    text === 'no details available' ||
+    text === 'unknown' ||
+    text === '-'
+  );
+}
+
+function normalizeSummaryList(raw: any): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((item) => {
+      if (typeof item === 'string') return item.trim();
+      if (item && typeof item === 'object') {
+        const candidate = item.action || item.description || item.name || item.title || '';
+        return typeof candidate === 'string' ? candidate.trim() : '';
+      }
+      return '';
+    })
+    .filter((value) => value.length > 0);
+}
+
 interface SelectedDecisionRecord {
   decisionId?: string;
   selectedOptionId?: string;
@@ -482,6 +554,106 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
 
   const workstreams = Array.isArray(epmData.workstreams) ? epmData.workstreams : [];
   const assignments = Array.isArray(epmData.assignments) ? epmData.assignments : [];
+  const risks = Array.isArray(epmData.risks) ? epmData.risks : [];
+  const executiveSummary = parseJson(epmData.program?.executiveSummary)
+    || parseJson(epmData.executiveSummary)
+    || epmData.program?.executiveSummary
+    || epmData.executiveSummary
+    || {};
+
+  // Content quality gates (shared by presave + export)
+  const rawProgramTitle = executiveSummary?.title ?? epmData.programName ?? epmData.program?.programName;
+  const normalizedProgramTitle = sanitizeTitleText(rawProgramTitle);
+  if (hasTitleArtifact(rawProgramTitle)) {
+    criticalIssues.push({
+      severity: 'critical',
+      code: 'EXEC_SUMMARY_TITLE_ARTIFACT',
+      message: 'Executive summary title contains JSON/code-fence artifact text',
+      details: { rawTitle: rawProgramTitle, normalizedTitle: normalizedProgramTitle },
+    });
+  }
+  if (!normalizedProgramTitle) {
+    criticalIssues.push({
+      severity: 'critical',
+      code: 'EXEC_SUMMARY_TITLE_MISSING',
+      message: 'Executive summary title is missing or empty',
+    });
+  }
+
+  const strategicImperatives = normalizeSummaryList(executiveSummary?.strategicImperatives);
+  const keySuccessFactors = normalizeSummaryList(executiveSummary?.keySuccessFactors);
+  const marketOpportunity = typeof executiveSummary?.marketOpportunity === 'string'
+    ? executiveSummary.marketOpportunity.trim()
+    : '';
+  const riskSummaryText = typeof executiveSummary?.riskSummary === 'string'
+    ? executiveSummary.riskSummary.trim()
+    : '';
+
+  if (strategicImperatives.length < 2 || keySuccessFactors.length < 2) {
+    criticalIssues.push({
+      severity: 'critical',
+      code: 'EXEC_SUMMARY_COVERAGE_INSUFFICIENT',
+      message: 'Executive summary lacks minimum strategic imperatives/key success factors coverage',
+      details: {
+        strategicImperatives: strategicImperatives.length,
+        keySuccessFactors: keySuccessFactors.length,
+      },
+    });
+  }
+
+  if (
+    isPlaceholderText(marketOpportunity) ||
+    isPlaceholderText(riskSummaryText) ||
+    strategicImperatives.some(isPlaceholderText) ||
+    keySuccessFactors.some(isPlaceholderText)
+  ) {
+    criticalIssues.push({
+      severity: 'critical',
+      code: 'EXEC_SUMMARY_PLACEHOLDER_CONTENT',
+      message: 'Executive summary contains placeholder/empty content',
+    });
+  }
+
+  const ownerlessWorkstreams = workstreams
+    .filter((ws: any) => typeof ws?.owner !== 'string' || ws.owner.trim().length === 0)
+    .map((ws: any) => ws?.id || ws?.name || '(unknown)');
+  if (ownerlessWorkstreams.length > 0) {
+    criticalIssues.push({
+      severity: 'critical',
+      code: 'WORKSTREAM_OWNER_MISSING',
+      message: `One or more workstreams are missing owners (${ownerlessWorkstreams.length})`,
+      details: { workstreamIds: ownerlessWorkstreams.slice(0, 20) },
+    });
+  }
+
+  const nameCounts = new Map<string, number>();
+  for (const ws of workstreams) {
+    const key = normalizeText(ws?.name || '');
+    if (!key) continue;
+    nameCounts.set(key, (nameCounts.get(key) || 0) + 1);
+  }
+  const duplicateNames = Array.from(nameCounts.entries())
+    .filter(([, count]) => count > 1)
+    .map(([name, count]) => ({ name, count }));
+  if (duplicateNames.length > 0) {
+    criticalIssues.push({
+      severity: 'critical',
+      code: 'WORKSTREAM_NAME_DUPLICATE',
+      message: 'Duplicate workstream names detected',
+      details: { duplicates: duplicateNames },
+    });
+  }
+
+  const minRiskCount = Math.max(3, Math.ceil(workstreams.length / 2));
+  if (workstreams.length > 0 && risks.length < minRiskCount) {
+    criticalIssues.push({
+      severity: 'critical',
+      code: 'RISK_COVERAGE_INSUFFICIENT',
+      message: `Risk coverage too low for workstream count (${risks.length}/${workstreams.length})`,
+      details: { risks: risks.length, workstreams: workstreams.length, minimum: minRiskCount },
+    });
+  }
+
   const byId = new Map<string, any>();
   for (const ws of workstreams) {
     if (typeof ws?.id === 'string') byId.set(ws.id, ws);

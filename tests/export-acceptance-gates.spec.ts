@@ -14,6 +14,19 @@ function buildValidStrategyJson(): string {
 function buildValidEpmJson(overrides: Record<string, any> = {}): string {
   const base = {
     program: {
+      executiveSummary: {
+        title: 'FinTech RegTech Platform Program',
+        marketOpportunity: 'Regulated banks require faster compliance execution with stronger evidence traceability.',
+        strategicImperatives: [
+          { action: 'Operationalize compliance automation across onboarding and monitoring flows' },
+          { action: 'Establish auditable governance for model and policy change control' },
+        ],
+        keySuccessFactors: [
+          'Named owners accountable for each workstream milestone',
+          'Monthly KPI evidence linked to strategic decision outcomes',
+        ],
+        riskSummary: '3 risks identified, with 1 high-priority risk requiring immediate mitigation.',
+      },
       timeline: {
         totalMonths: 6,
         phases: [
@@ -34,6 +47,7 @@ function buildValidEpmJson(overrides: Record<string, any> = {}): string {
       {
         id: 'WS001',
         name: 'Foundation',
+        owner: 'Program Manager',
         description: 'Setup',
         startMonth: 0,
         endMonth: 1,
@@ -43,6 +57,7 @@ function buildValidEpmJson(overrides: Record<string, any> = {}): string {
       {
         id: 'WS002',
         name: 'Build',
+        owner: 'Engineering Lead',
         description: 'Build core',
         startMonth: 2,
         endMonth: 3,
@@ -52,6 +67,7 @@ function buildValidEpmJson(overrides: Record<string, any> = {}): string {
       {
         id: 'WS003',
         name: 'Launch',
+        owner: 'Operations Lead',
         description: 'Go live',
         startMonth: 4,
         endMonth: 5,
@@ -60,7 +76,11 @@ function buildValidEpmJson(overrides: Record<string, any> = {}): string {
       },
     ],
     resources: [{ id: 'R1' }],
-    risks: [{ id: 'K1' }],
+    risks: [
+      { id: 'K1', impact: 'High', severity: 75 },
+      { id: 'K2', impact: 'Medium', severity: 55 },
+      { id: 'K3', impact: 'Medium', severity: 50 },
+    ],
     benefits: [{ id: 'B1' }],
   };
 
@@ -75,7 +95,7 @@ function validCsvs() {
     assignmentsCsv: 'ID\nA1\nA2\n',
     workstreamsCsv: 'ID\nWS001\nWS002\nWS003\n',
     resourcesCsv: 'ID\nR1\n',
-    risksCsv: 'ID\nK1\n',
+    risksCsv: 'ID\nK1\nK2\nK3\n',
     benefitsCsv: 'ID\nB1\n',
   };
 }
@@ -180,5 +200,33 @@ describe('Export acceptance gates', () => {
 
     expect(report.passed).toBe(false);
     expect(report.criticalIssues.some((i) => i.code === 'TIMELINE_PHASE_COVERAGE')).toBe(true);
+  });
+
+  it('fails when executive summary title contains JSON artifact text', () => {
+    const epm = JSON.parse(buildValidEpmJson());
+    epm.program.executiveSummary.title = '```json {\"title\":\"Bad Artifact\"} ```';
+
+    const report = validateExportAcceptance({
+      strategyJson: buildValidStrategyJson(),
+      epmJson: JSON.stringify(epm),
+      ...validCsvs(),
+    });
+
+    expect(report.passed).toBe(false);
+    expect(report.criticalIssues.some((i) => i.code === 'EXEC_SUMMARY_TITLE_ARTIFACT')).toBe(true);
+  });
+
+  it('fails when workstream names are duplicated', () => {
+    const epm = JSON.parse(buildValidEpmJson());
+    epm.workstreams[1].name = epm.workstreams[0].name;
+
+    const report = validateExportAcceptance({
+      strategyJson: buildValidStrategyJson(),
+      epmJson: JSON.stringify(epm),
+      ...validCsvs(),
+    });
+
+    expect(report.passed).toBe(false);
+    expect(report.criticalIssues.some((i) => i.code === 'WORKSTREAM_NAME_DUPLICATE')).toBe(true);
   });
 });
