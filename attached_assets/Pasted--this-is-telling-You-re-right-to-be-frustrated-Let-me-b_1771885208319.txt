@@ -1,0 +1,212 @@
+ this is telling: "You're right to be frustrated. Let me break down what
+  Replit is doing:
+
+    Replit's "Fix" Pattern
+    Problem: Routes to wrong page
+    Replit's Response: Skip strategic_understanding
+    Reality: Band-aid
+    ────────────────────────────────────────
+    Problem: No version found
+    Replit's Response: Hide from wizard
+    Reality: Band-aid
+    ────────────────────────────────────────
+    Problem: Frameworks don't execute
+    Replit's Response: Not addressed
+    Reality: THE ACTUAL PROBLEM
+    The Real Issue Replit Keeps Avoiding
+
+    Even if you hide strategic_understanding from the wizard, your journey will
+    STILL break when it tries to run SWOT because:
+
+    1. There is NO execution engine for wizard-created journeys
+    2. The user_journeys table stores steps but nothing runs them
+    3. No code calls the SWOT analyzer
+    4. No code accumulates the output
+    5. No code passes SWOT output to Strategic Decisions
+
+    Hiding strategic_understanding just moves the 404 error from step 1 to step
+  2.
+
+    What Replit Needs to Hear
+
+    Stop proposing workarounds.
+
+    The wizard journey system (journey_templates + user_journeys) has NO
+  execution
+     engine. You built tables to store journey definitions but never built the
+    code to EXECUTE them.
+
+    I've given you exact instructions in /Users/saleh/Downloads/
+  Premisia_Claude/RE
+    PLIT_INSTRUCTIONS_WIZARD_JOURNEY_FIX.md
+
+    The fix is to wire wizard journeys to use JourneyOrchestrator - the
+  executor
+    that already works for Strategic Journeys. This is not optional. Without an
+    executor, wizard journeys will never work regardless of what frameworks you
+    hide.
+
+    Read the instructions file and implement it properly. "
+
+
+• I’m going to verify that claim directly against your codebase: whether wizard
+  journeys are only stored or actually executed, and whether they invoke
+  analyzers like swot. I’ll trace the execution path from route entrypoint to
+  executor with file/line evidence.
+
+• Explored
+  └ Search user_journeys|journey_templates|JourneyOrchestrator|executeJourney|
+           runJourney|custom journey|wizard in server
+    Search swotAnalyzer|frameworkRegistry\.execute\(|executeRealAnalyzer|
+           strategic_decisions|prioritization|user_input_required in server
+    List routes
+
+────────────────────────────────────────────────────────────────────────────────
+
+• I found direct references to JourneyOrchestrator and swot execution paths for
+  custom/wizard journeys. I’m pulling the exact call chain now (route → service
+  → orchestrator → framework execution) so we can tell whether this is still a
+  real gap or an outdated diagnosis.
+
+
+• Explored
+  └ Read journey-builder.ts, journey-builder-service.ts, journey-
+orchestrator.ts,
+         strategic-consultant-legacy.ts, ClassificationPage.tsx, schema.ts
+    Search start-custom-journey|/api/journeys/start|/api/journeys/|complete-
+step|
+           journey-builder/start in client
+    Read JourneyBuilderPage.tsx, JourneyLauncherModal.tsx, InputPage.tsx
+    Search journey-builder|custom-journey-builder|/api/journeys in routes.ts
+    Read journey-builder.ts
+    Search async completeStep|completeStep\( in journey-builder-service.ts
+    Read journey-builder-service.ts
+    Search journeySession=|journeySessionId|/strategic-consultant/input\?|/
+           strategic-consultant\?journeySession in client
+    Read strategic-consultant-legacy.ts, register-frameworks.ts, framework-
+executor-
+         registry.ts, swot-executor.ts
+
+─ Worked for 1m 35s ────────────────────────────────────────────────────────────
+
+• Short answer: it’s half-right.
+
+  1. It is right about the architectural smell: you have two journey systems.
+
+  - user_journeys flow only stores/tracks steps and results: journey-builder-
+    service.ts:159 (/Users/salehyahyahamed/Desktop/Projects/Premisia/
+    Premisia_10Feb2026/server/services/journey-builder-service.ts:159), journey-
+    builder.ts:190 (/Users/salehyahyahamed/Desktop/Projects/Premisia/
+    Premisia_10Feb2026/server/routes/journey-builder.ts:190)
+  - Custom start also creates a second “compatibility” journey with a different
+    session id: journey-builder-service.ts:420 (/Users/salehyahyahamed/Desktop/
+    Projects/Premisia/Premisia_10Feb2026/server/services/journey-builder-
+    service.ts:420), journey-builder-service.ts:107 (/Users/salehyahyahamed/
+    Desktop/Projects/Premisia/Premisia_10Feb2026/server/services/journey-
+    builder-service.ts:107)
+
+  2. It is wrong on “no execution engine exists.”
+
+  - Custom journey path does run an executor:
+      - start custom journey: journey-builder.ts:120 (/Users/salehyahyahamed/
+        Desktop/Projects/Premisia/Premisia_10Feb2026/server/routes/journey-
+        builder.ts:120)
+      - calls orchestrator start: journey-builder-service.ts:410 (/Users/
+        salehyahyahamed/Desktop/Projects/Premisia/Premisia_10Feb2026/server/
+        services/journey-builder-service.ts:410)
+      - triggers execution endpoint: ClassificationPage.tsx:224 (/Users/
+        salehyahyahamed/Desktop/Projects/Premisia/Premisia_10Feb2026/client/src/
+        pages/strategic-consultant/ClassificationPage.tsx:224), strategic-
+        consultant-legacy.ts:775 (/Users/salehyahyahamed/Desktop/Projects/
+        Premisia/Premisia_10Feb2026/server/routes/strategic-consultant-
+        legacy.ts:775)
+      - executes frameworks through registry: journey-orchestrator.ts:349 (/
+        Users/salehyahyahamed/Desktop/Projects/Premisia/Premisia_10Feb2026/
+        server/journey/journey-orchestrator.ts:349), journey-orchestrator.ts:495
+        (/Users/salehyahyahamed/Desktop/Projects/Premisia/Premisia_10Feb2026/
+        server/journey/journey-orchestrator.ts:495)
+      - swot is registered/executed: register-frameworks.ts:44 (/Users/
+        salehyahyahamed/Desktop/Projects/Premisia/Premisia_10Feb2026/server/
+        journey/register-frameworks.ts:44), swot-executor.ts:20 (/Users/
+        salehyahyahamed/Desktop/Projects/Premisia/Premisia_10Feb2026/server/
+        journey/executors/swot-executor.ts:20)
+
+  3. The “band-aid” criticism is valid.
+
+  - strategic_understanding is explicitly filtered out of custom template steps:
+    journey-builder-service.ts:394 (/Users/salehyahyahamed/Desktop/Projects/
+    Premisia/Premisia_10Feb2026/server/services/journey-builder-service.ts:394)
+
+  So the real issue is not “no executor”; it’s split-brain flow + session
+  mismatch + selective step filtering. That’s why fixes look contradictory.
+
+
+› ok, so whats the plan?
+
+
+• Plan (recommended, no full rollback)
+
+  1. Unify execution authority
+
+  - Keep JourneyOrchestrator as the only executor for wizard/template journeys.
+  - Stop creating a second independent runtime path from user_journeys.
+  - File: journey-builder-service.ts (/Users/salehyahyahamed/Desktop/Projects/
+    Premisia/Premisia_10Feb2026/server/services/journey-builder-service.ts)
+
+  2. Fix session split-brain
+
+  - Make one canonical execution session ID end-to-end (create → execute →
+    framework pages → decisions).
+  - Remove/replace compatibility behavior that creates extra journey session
+    IDs.
+  - Files: journey-builder-service.ts (/Users/salehyahyahamed/Desktop/Projects/
+    Premisia/Premisia_10Feb2026/server/services/journey-builder-service.ts),
+    ClassificationPage.tsx (/Users/salehyahyahamed/Desktop/Projects/Premisia/
+    Premisia_10Feb2026/client/src/pages/strategic-consultant/
+    ClassificationPage.tsx), InputPage.tsx (/Users/salehyahyahamed/Desktop/
+    Projects/Premisia/Premisia_10Feb2026/client/src/pages/strategic-consultant/
+    InputPage.tsx)
+
+  3. Replace brittle step filtering with explicit step policy
+
+  - Don’t blindly hide strategic_understanding.
+  - Treat it as intake-only when understanding already exists; otherwise run
+    proper intake path.
+  - Keep strategic_decisions as a pause/user-input step.
+  - Files: journey-builder-service.ts (/Users/salehyahyahamed/Desktop/Projects/
+    Premisia/Premisia_10Feb2026/server/services/journey-builder-service.ts),
+    journey-orchestrator.ts (/Users/salehyahyahamed/Desktop/Projects/Premisia/
+    Premisia_10Feb2026/server/journey/journey-orchestrator.ts)
+
+  4. Navigation should come from executor state, not guessed routes
+
+  - Use orchestrator state (paused, nextStepRedirectUrl, currentFrameworkIndex)
+    as source of truth.
+  - Framework pages should show “still running” and poll instead of failing hard
+    when insight/version is not ready.
+  - Files: strategic-consultant-legacy.ts (/Users/salehyahyahamed/Desktop/
+    Projects/Premisia/Premisia_10Feb2026/server/routes/strategic-consultant-
+    legacy.ts), FrameworkInsightPage.tsx (/Users/salehyahyahamed/Desktop/
+    Projects/Premisia/Premisia_10Feb2026/client/src/pages/strategic-consultant/
+    FrameworkInsightPage.tsx)
+
+  5. Add regression tests for the exact breakages
+
+  - Custom template: strategic_understanding -> swot -> strategic_decisions
+  - Custom template: pestle -> porters -> swot -> strategic_decisions
+  - Assert SWOT executor runs and decisions page is reachable without 404/
+    version-missing.
+  - Files: test suite under tests (/Users/salehyahyahamed/Desktop/Projects/
+    Premisia/Premisia_10Feb2026/tests)
+
+  6. Roll out behind a flag
+
+  - Add feature flag (for example UNIFIED_WIZARD_EXECUTION) and canary it first.
+
+  Timebox
+
+  - Stabilization (steps 1-4): ~1 working day.
+  - Tests + canary rollout: ~0.5-1 day.
+
+  If you want, I can start implementing steps 1 and 2 immediately (highest
+  impact, lowest risk).
