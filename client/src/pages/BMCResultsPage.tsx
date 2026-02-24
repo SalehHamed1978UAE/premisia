@@ -36,6 +36,8 @@ interface Version {
   finalizedAt?: string;
   analysis?: {
     bmc_research?: BMCResult;
+    bmc?: BMCResult;
+    frameworks?: Array<Record<string, any>>;
   };
   decisions?: any;
   selectedDecisions?: any;
@@ -55,7 +57,18 @@ export default function BMCResultsPage() {
   });
 
   const versionData = response?.version;
-  const bmcResult = versionData?.analysis?.bmc_research;
+  const frameworkBmc =
+    versionData?.analysis?.frameworks?.find((framework: any) => {
+      const name = String(framework?.framework || framework?.frameworkName || '').toLowerCase().replace(/[\s-]+/g, '_');
+      return name === 'bmc' || name === 'bmc_research' || Array.isArray(framework?.blocks);
+    }) || null;
+  const bmcResult =
+    versionData?.analysis?.bmc_research ||
+    versionData?.analysis?.bmc ||
+    frameworkBmc?.output ||
+    frameworkBmc?.data ||
+    frameworkBmc ||
+    null;
 
   const handleDownloadJSON = () => {
     if (!bmcResult) return;

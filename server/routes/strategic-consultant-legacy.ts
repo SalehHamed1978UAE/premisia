@@ -55,6 +55,65 @@ const bmcResearcher = new BMCResearcher();
 const journeyOrchestrator = new JourneyOrchestrator();
 const shouldBlockClarificationConflicts = () => process.env.CLARIFICATION_CONFLICTS_BLOCK === 'true';
 
+function normalizeFrameworkName(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return value.toLowerCase().replace(/[\s-]+/g, '_').trim();
+}
+
+function pickBmcCandidate(entry: any): any | null {
+  if (!entry || typeof entry !== 'object') return null;
+
+  const candidate = (() => {
+    if (entry.output && typeof entry.output === 'object') return entry.output;
+    if (entry.data && typeof entry.data === 'object') return entry.data;
+    return entry;
+  })();
+
+  const frameworkName = normalizeFrameworkName(entry.framework || entry.frameworkName || entry.name);
+  const looksLikeBmc = Array.isArray(candidate?.blocks) || frameworkName === 'bmc' || frameworkName === 'bmc_research' || frameworkName === 'business_model_canvas';
+  return looksLikeBmc ? candidate : null;
+}
+
+function normalizeAnalysisPayload(raw: any): Record<string, any> {
+  let analysis = raw;
+  if (typeof analysis === 'string') {
+    try {
+      analysis = JSON.parse(analysis);
+    } catch {
+      analysis = {};
+    }
+  }
+  if (!analysis || typeof analysis !== 'object') {
+    analysis = {};
+  }
+
+  const normalized: Record<string, any> = { ...analysis };
+
+  const directBmc =
+    (normalized.bmc_research && typeof normalized.bmc_research === 'object' ? normalized.bmc_research : null) ||
+    (normalized.bmc && typeof normalized.bmc === 'object' ? normalized.bmc : null) ||
+    (normalized.bmcResults && typeof normalized.bmcResults === 'object' ? normalized.bmcResults : null) ||
+    (normalized.business_model_canvas && typeof normalized.business_model_canvas === 'object' ? normalized.business_model_canvas : null);
+
+  let resolvedBmc = directBmc;
+  if (!resolvedBmc && Array.isArray(normalized.frameworks)) {
+    for (const frameworkEntry of normalized.frameworks) {
+      const candidate = pickBmcCandidate(frameworkEntry);
+      if (candidate) {
+        resolvedBmc = candidate;
+        break;
+      }
+    }
+  }
+
+  if (resolvedBmc) {
+    if (!normalized.bmc) normalized.bmc = resolvedBmc;
+    if (!normalized.bmc_research) normalized.bmc_research = resolvedBmc;
+  }
+
+  return normalized;
+}
+
 /**
  * POST /api/strategic-consultant/extract-file
  * Extract text content from uploaded file only (no analysis)
@@ -1038,7 +1097,7 @@ router.get('/versions/:sessionId', async (req: Request, res: Response) => {
         hasSelectedDecisions: !!v.selectedDecisions,
         hasProgram: !!v.programStructure,
         decisions: v.decisions,  // Include AI-generated decisions for DecisionSummaryPage
-        analysis: v.analysis,    // Include analysis data for frontend access
+        analysis: normalizeAnalysisPayload(v.analysis), // Include normalized analysis for frontend access
       })),
     });
   } catch (error: any) {
@@ -1064,7 +1123,7 @@ router.get('/versions/:sessionId/:versionNumber', async (req: Request, res: Resp
     });
 
     // Merge framework insights from journey-based flows
-    let analysisData = version.analysisData || {};
+    let analysisData = normalizeAnalysisPayload(version.analysisData || {});
     
     // Try to find journey session and its framework insights
     // First resolve URL sessionId to understanding
@@ -1102,6 +1161,7 @@ router.get('/versions/:sessionId/:versionNumber', async (req: Request, res: Resp
             ...analysisData,
             frameworks: frameworkResults,
           };
+          analysisData = normalizeAnalysisPayload(analysisData);
         }
       }
     }
@@ -2946,6 +3006,7 @@ router.get('/journey-research/stream/:sessionId', async (req: Request, res: Resp
 
     const targetVersionNumber = journeySession.versionNumber || 1;
     const existingVersion = await storage.getStrategyVersion(sessionId, targetVersionNumber);
+    const normalizedFrameworkResults = normalizeAnalysisPayload(frameworkResults);
 
     const mergeAnalysis = (existingAnalysis: any, newAnalysis: any) => {
       const merged = { ...newAnalysis, ...existingAnalysis };
@@ -2967,7 +3028,7 @@ router.get('/journey-research/stream/:sessionId', async (req: Request, res: Resp
           ? JSON.parse(existingVersion.analysisData as any)
           : existingVersion.analysisData || {};
 
-      const mergedAnalysis = mergeAnalysis(existingAnalysis, frameworkResults);
+      const mergedAnalysis = normalizeAnalysisPayload(mergeAnalysis(existingAnalysis, normalizedFrameworkResults));
 
       await storage.updateStrategyVersion(existingVersion.id, {
         analysisData: mergedAnalysis,
@@ -2990,7 +3051,7 @@ router.get('/journey-research/stream/:sessionId', async (req: Request, res: Resp
         sessionId,
         versionNumber: targetVersionNumber,
         versionLabel: `${journeyDef.name} v${targetVersionNumber}`,
-        analysisData: frameworkResults,
+        analysisData: normalizedFrameworkResults,
         decisionsData: decisions,
         status: 'draft',
         createdBy: userId,
@@ -3032,7 +3093,7 @@ router.get('/journey-research/stream/:sessionId', async (req: Request, res: Resp
         decisions,
         versionNumber: targetVersionNumber,
         nextUrl,
-        bmcAnalysis: frameworkResults.bmc,
+        bmcAnalysis: normalizedFrameworkResults.bmc_research || normalizedFrameworkResults.bmc || null,
         sourcesAnalyzed: Object.keys(frameworkResults).length,
         timeElapsed: 'completed',
         journeyType,
