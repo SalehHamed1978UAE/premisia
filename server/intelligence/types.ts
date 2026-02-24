@@ -369,6 +369,12 @@ export interface EPMValidationReport {
   warnings: string[];
   corrections: string[];
   completenessScore: number;
+  exportAcceptance?: {
+    mode: 'presave' | 'export';
+    passed: boolean;
+    criticalIssues: string[];
+    warnings: string[];
+  };
   planningGrid?: {
     conflicts: string[];
     maxUtilization: number;

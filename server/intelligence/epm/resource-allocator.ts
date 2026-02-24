@@ -183,7 +183,8 @@ For each role, provide:
 
 Return ONLY valid JSON array of role objects. NO markdown, NO code blocks, ONLY the JSON array.`;
 
-    const response = await aiClients.callWithFallback({
+    // Keep critical EPM staffing synthesis on Claude-only for output consistency.
+    const response = await aiClients.call("anthropic", {
       systemPrompt: 'You are an HR and resource planning expert. Generate ONLY valid JSON matching the requested format. NO markdown code blocks. The roles MUST match the specific business being described.',
       userMessage: prompt,
       maxTokens: 2000,

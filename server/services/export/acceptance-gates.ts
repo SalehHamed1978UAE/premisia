@@ -19,7 +19,9 @@ export interface ExportAcceptanceReport {
   warnings: AcceptanceIssue[];
 }
 
-interface ExportAcceptanceInput {
+export type ExportAcceptanceMode = 'export' | 'presave';
+
+export interface ExportAcceptanceInput {
   strategyJson: string;
   epmJson: string | null;
   assignmentsCsv?: string | null;
@@ -27,6 +29,7 @@ interface ExportAcceptanceInput {
   resourcesCsv?: string | null;
   risksCsv?: string | null;
   benefitsCsv?: string | null;
+  mode?: ExportAcceptanceMode;
 }
 
 const FRAMEWORK_ALIASES: Record<string, string> = {
@@ -373,6 +376,7 @@ function hasLabelMatch(workstreams: any[], label: string): boolean {
 export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAcceptanceReport {
   const criticalIssues: AcceptanceIssue[] = [];
   const warnings: AcceptanceIssue[] = [];
+  const mode: ExportAcceptanceMode = input.mode || 'export';
 
   const strategyData = parseJson(input.strategyJson);
   if (!strategyData) {
@@ -450,11 +454,20 @@ export function validateExportAcceptance(input: ExportAcceptanceInput): ExportAc
   for (const check of countChecks) {
     const csvRows = countCsvRows(check.csv);
     if (!check.csv && check.jsonCount > 0) {
-      criticalIssues.push({
-        severity: 'critical',
-        code: 'CSV_MISSING',
-        message: `${check.name}.csv missing while epm.json has ${check.jsonCount} rows`,
-      });
+      if (mode === 'presave') {
+        warnings.push({
+          severity: 'warning',
+          code: 'PRESAVE_CSV_PARITY_DEFERRED',
+          message: `${check.name}.csv not available during presave validation; CSV parity will be enforced at export time`,
+          details: { jsonCount: check.jsonCount, mode },
+        });
+      } else {
+        criticalIssues.push({
+          severity: 'critical',
+          code: 'CSV_MISSING',
+          message: `${check.name}.csv missing while epm.json has ${check.jsonCount} rows`,
+        });
+      }
       continue;
     }
     if (check.csv && csvRows !== check.jsonCount) {

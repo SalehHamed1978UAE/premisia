@@ -80,6 +80,7 @@ import {
 } from './epm/workstream-theme';
 import type { DomainProfile } from './types';
 import { normalizeStrategicDecisions } from '../utils/decision-selection';
+import { validateExportAcceptance, type ExportAcceptanceReport } from '../services/export/acceptance-gates';
 
 export { ContextBuilder } from './epm';
 
@@ -1689,6 +1690,39 @@ export class EPMSynthesizer {
       throw new Error(`KPI quality gate failed: ${kpiQualityErrors.join(' | ')}`);
     }
 
+    const presaveAcceptanceReport = this.runPresaveExportAcceptance(
+      insights,
+      {
+        workstreams: phasedWorkstreams,
+        timeline,
+        stageGates,
+        resourcePlan,
+        riskRegister,
+        benefitsRealization,
+        financialPlan,
+        kpis,
+      },
+      userContext
+    );
+    const acceptanceCriticalMessages = presaveAcceptanceReport.criticalIssues.map(
+      (issue) => `[ExportAcceptance:${issue.code}] ${issue.message}`
+    );
+    const acceptanceWarningMessages = presaveAcceptanceReport.warnings.map(
+      (issue) => `[ExportAcceptance:${issue.code}] ${issue.message}`
+    );
+    if (acceptanceCriticalMessages.length > 0 || acceptanceWarningMessages.length > 0) {
+      console.log(
+        `[EPM Synthesis] ⚠️ Presave export acceptance: ${acceptanceCriticalMessages.length} critical, ${acceptanceWarningMessages.length} warnings`
+      );
+    } else {
+      console.log('[EPM Synthesis] ✓ Presave export acceptance passed');
+    }
+    qualityErrorMessages = [...qualityErrorMessages, ...acceptanceCriticalMessages];
+    qualityWarningMessages = [...qualityWarningMessages, ...acceptanceWarningMessages];
+    if (isEPMStrictIntegrityGatesEnabled() && acceptanceCriticalMessages.length > 0) {
+      throw new Error(`Presave export acceptance failed: ${acceptanceCriticalMessages.join(' | ')}`);
+    }
+
     const mergedValidationResult = {
       errors: [...validationResult.errors, ...qualityErrorMessages],
       corrections: validationResult.corrections,
@@ -1703,7 +1737,8 @@ export class EPMSynthesizer {
       [
         ...roleValidationWarnings,
         ...decisionCoherence.issues.map((issue) => `[DecisionCoherence] ${issue}`),
-      ]
+      ],
+      presaveAcceptanceReport
     );
     
     const confidences = [
@@ -2173,13 +2208,30 @@ export class EPMSynthesizer {
       this.procurementGenerator.generate(insights, financialPlan),
       this.exitStrategyGenerator.generate(insights, riskRegister),
     ]);
+
+    const presaveAcceptanceReport = this.runPresaveExportAcceptance(
+      insights,
+      {
+        workstreams,
+        timeline,
+        stageGates,
+        resourcePlan,
+        riskRegister,
+        benefitsRealization,
+        financialPlan,
+        kpis,
+      },
+      userContext
+    );
     
     const validationReport = this.buildValidationReport(
       workstreams,
       timeline,
       stageGates,
       validationResult,
-      planningGrid
+      planningGrid,
+      [],
+      presaveAcceptanceReport
     );
     
     const confidences = [
@@ -2833,6 +2885,65 @@ export class EPMSynthesizer {
   }
 
   /**
+   * Run export acceptance checks during synthesis so save-time and export-time
+   * quality gates use the same core validation family.
+   */
+  private runPresaveExportAcceptance(
+    insights: StrategyInsights,
+    epm: {
+      workstreams: Workstream[];
+      timeline: Timeline;
+      stageGates: StageGates;
+      resourcePlan: ResourcePlan;
+      riskRegister: RiskRegister;
+      benefitsRealization: BenefitsRealization;
+      financialPlan: FinancialPlan;
+      kpis: KPIs;
+    },
+    userContext?: UserContext
+  ): ExportAcceptanceReport {
+    const strategyPayload = {
+      understanding: {
+        sessionId: userContext?.sessionId || null,
+      },
+      frameworks: [insights.frameworkType],
+      journeySession: {
+        // Keep journeyType null for presave runs where the journey context can be unavailable.
+        journeyType: null,
+        metadata: {
+          frameworks: [insights.frameworkType],
+        },
+      },
+    };
+
+    const epmPayload = {
+      program: {
+        timeline: epm.timeline,
+        stageGates: epm.stageGates,
+        resourcePlan: epm.resourcePlan,
+        riskRegister: epm.riskRegister,
+        benefitsRealization: epm.benefitsRealization,
+        financialPlan: epm.financialPlan,
+        kpis: epm.kpis,
+      },
+      assignments: [],
+      workstreams: epm.workstreams,
+      resources: [
+        ...(epm.resourcePlan?.internalTeam || []),
+        ...(epm.resourcePlan?.externalResources || []),
+      ],
+      risks: epm.riskRegister?.risks || [],
+      benefits: epm.benefitsRealization?.benefits || [],
+    };
+
+    return validateExportAcceptance({
+      mode: 'presave',
+      strategyJson: JSON.stringify(strategyPayload),
+      epmJson: JSON.stringify(epmPayload),
+    });
+  }
+
+  /**
    * Build validation report from validation results
    */
   private buildValidationReport(
@@ -2841,7 +2952,8 @@ export class EPMSynthesizer {
     stageGates: StageGates,
     validationResult: { errors: string[]; corrections: string[]; warnings?: string[] },
     planningGrid: { conflicts: string[]; maxUtilization: number; totalTasks: number },
-    roleValidationWarnings: string[] = []
+    roleValidationWarnings: string[] = [],
+    exportAcceptanceReport?: ExportAcceptanceReport
   ): EPMValidationReport {
     // Combine all warnings: validation errors + planning conflicts + role validation
     const allWarnings = [
@@ -2857,6 +2969,16 @@ export class EPMSynthesizer {
       warnings: allWarnings,
       corrections: validationResult.corrections,
       completenessScore: 1.0 - (validationResult.errors.length * 0.05),
+      exportAcceptance: exportAcceptanceReport ? {
+        mode: 'presave',
+        passed: exportAcceptanceReport.passed,
+        criticalIssues: exportAcceptanceReport.criticalIssues.map(
+          (issue) => `${issue.code}: ${issue.message}`
+        ),
+        warnings: exportAcceptanceReport.warnings.map(
+          (issue) => `${issue.code}: ${issue.message}`
+        ),
+      } : undefined,
       planningGrid: {
         conflicts: planningGrid.conflicts,
         maxUtilization: planningGrid.maxUtilization,

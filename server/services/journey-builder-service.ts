@@ -16,6 +16,75 @@ import { JourneyOrchestrator } from "../journey/journey-orchestrator";
  * - Each journey creates its own knowledge graph (isolated)
  */
 export class JourneyBuilderService {
+  private readonly frameworkKeyMap: Record<string, string> = {
+    business_model_canvas: 'bmc',
+    porters_five_forces: 'porters',
+    strategic_decisions: 'strategic_decisions',
+    strategic_understanding: 'strategic_understanding',
+  };
+
+  private readonly userInputSteps = new Set<string>([
+    'strategic_decisions',
+    'strategic-decisions',
+    'prioritization',
+  ]);
+
+  private readonly intakeOnlySteps = new Set<string>([
+    'strategic_understanding',
+    'strategic-understanding',
+  ]);
+
+  private normalizeFrameworkKey(frameworkKey: string): string {
+    return this.frameworkKeyMap[frameworkKey] || frameworkKey;
+  }
+
+  private buildCustomStepPolicy(steps: JourneyStep[]): Array<{
+    originalKey: string;
+    normalizedKey: string;
+    policy: 'execute' | 'user_input' | 'intake_only';
+    reason: string;
+  }> {
+    return steps.map((step) => {
+      const normalizedKey = this.normalizeFrameworkKey(step.frameworkKey);
+      const normalizedHyphen = normalizedKey.replace(/_/g, '-');
+      if (this.intakeOnlySteps.has(normalizedKey) || this.intakeOnlySteps.has(normalizedHyphen)) {
+        return {
+          originalKey: step.frameworkKey,
+          normalizedKey,
+          policy: 'intake_only' as const,
+          reason: 'Strategic understanding is already captured during intake/classification.',
+        };
+      }
+      if (this.userInputSteps.has(normalizedKey) || this.userInputSteps.has(normalizedHyphen)) {
+        return {
+          originalKey: step.frameworkKey,
+          normalizedKey,
+          policy: 'user_input' as const,
+          reason: 'This step requires explicit user input and pauses orchestrator execution.',
+        };
+      }
+      return {
+        originalKey: step.frameworkKey,
+        normalizedKey,
+        policy: 'execute' as const,
+        reason: 'Framework is executable by JourneyOrchestrator.',
+      };
+    });
+  }
+
+  private buildFrameworkRoute(frameworkKey: string, understandingId: string, journeySessionId: string): string {
+    switch (frameworkKey) {
+      case 'five_whys':
+        return `/strategic-consultant/whys-tree/${understandingId}?journeySession=${journeySessionId}`;
+      case 'pestle':
+        return `/strategic-consultant/trend-analysis/${journeySessionId}/1`;
+      case 'segment_discovery':
+        return `/marketing-consultant?journeySession=${journeySessionId}`;
+      default:
+        return `/strategic-consultant/framework-insight/${journeySessionId}?framework=${frameworkKey}`;
+    }
+  }
+
   /**
    * Create a new journey template
    * Used for both system templates (pre-defined) and custom user journeys
@@ -362,7 +431,7 @@ export class JourneyBuilderService {
     userId: string;
     understandingId: string;
     templateId: string;
-  }): Promise<{ journeySessionId: string; firstFramework: string; versionNumber: number }> {
+  }): Promise<{ journeySessionId: string; firstFramework: string; versionNumber: number; navigationUrl: string }> {
     console.log('[Journey Builder] Starting custom journey execution for understanding:', params.understandingId);
 
     // Get the template
@@ -381,25 +450,16 @@ export class JourneyBuilderService {
       throw new Error('Template has no steps');
     }
 
-    // Map template framework keys to executor registry keys
-    // Templates may use longer names like 'business_model_canvas' but executors use 'bmc'
-    const frameworkKeyMap: Record<string, string> = {
-      'business_model_canvas': 'bmc',
-      'porters_five_forces': 'porters',
-      'strategic_decisions': 'strategic_decisions', // Pass through (not executed)
-    };
-
-    // Convert ALL template steps to normalized framework names (for navigation tracking)
-    const allSteps = template.steps
-      .filter(step => step.frameworkKey !== 'strategic_understanding') // Only filter out intake step
-      .map(step => frameworkKeyMap[step.frameworkKey] || step.frameworkKey);
-
-    // Filter to only executable frameworks (for AI analysis)
-    const nonExecutableSteps = ['strategic_decisions'];
-    const executableFrameworks = allSteps.filter(key => !nonExecutableSteps.includes(key));
+    const stepPolicy = this.buildCustomStepPolicy(template.steps);
+    const allSteps = stepPolicy
+      .filter((step) => step.policy !== 'intake_only')
+      .map((step) => step.normalizedKey);
+    const executableFrameworks = stepPolicy
+      .filter((step) => step.policy === 'execute')
+      .map((step) => step.normalizedKey);
 
     if (executableFrameworks.length === 0) {
-      throw new Error('Template has no executable frameworks after filtering');
+      throw new Error('Template has no executable frameworks after applying step policy');
     }
 
     const firstFramework = executableFrameworks[0];
@@ -415,26 +475,23 @@ export class JourneyBuilderService {
       frameworks: executableFrameworks,
       allSteps, // Pass ALL steps including non-executable ones for navigation
       templateId: params.templateId,
+      stepPolicy,
     });
-
-    // Also track in user_journeys for the wizard UI (backward compatibility)
-    await this.startJourney({
-      userId: params.userId,
-      templateId: params.templateId,
-      name: template.name,
-    });
+    const navigationUrl = this.buildFrameworkRoute(firstFramework, params.understandingId, journeySessionId);
 
     console.log('[Journey Builder] ✓ Custom journey started via orchestrator:', {
       journeySessionId,
       versionNumber,
       firstFramework,
       templateId: params.templateId,
+      navigationUrl,
     });
 
     return {
       journeySessionId,
       firstFramework,
       versionNumber,
+      navigationUrl,
     };
   }
 }

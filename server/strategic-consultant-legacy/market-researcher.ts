@@ -33,11 +33,32 @@ export interface ResearchFindings {
   sources: Source[];
   references: RawReference[];
   validation?: ValidationResult[];
+  researchQuality?: {
+    status: 'sufficient' | 'degraded';
+    reason: string;
+    metrics: {
+      totalQueries: number;
+      failedQueries: number;
+      emptyQueries: number;
+      successfulQueries: number;
+      failureRate: number;
+      emptyRate: number;
+      substantiveResultCount: number;
+      findingsCount: number;
+    };
+  };
 }
 
 export interface ResearchQuery {
   query: string;
   purpose: string;
+}
+
+interface SearchResultRecord {
+  query: string;
+  results: any[];
+  error?: string;
+  statusCode?: number;
 }
 
 export class MarketResearcher {
@@ -105,8 +126,12 @@ export class MarketResearcher {
     const whysText = whysPathToText(whysPath);
     const queries = await this.generateResearchQueries(rootCause, input, whysText);
     
-    const searchResults = await this.performWebSearch(queries, captureContext);
-    
+    const searchResultsWithStatus = await this.performWebSearch(queries, captureContext);
+    const searchResults = searchResultsWithStatus.map((result) => ({
+      query: result.query,
+      results: result.results,
+    }));
+
     const topSources = this.selectTopSources(searchResults);
     
     const sourceContents = await this.fetchSourceContent(topSources.slice(0, 3), captureContext);
@@ -127,12 +152,20 @@ export class MarketResearcher {
       ...findings.buyer_behavior,
       ...findings.regulatory_factors,
     ];
+    const researchQuality = this.assessResearchQuality(searchResultsWithStatus, allFindings.length);
+    if (researchQuality.status === 'degraded') {
+      console.warn(`[MarketResearcher] ⚠️ Research quality degraded: ${researchQuality.reason}`);
+      if (researchQuality.metrics.failureRate > 0.8) {
+        throw new Error(`[MarketResearcher] Research ingestion failed: ${researchQuality.reason}`);
+      }
+    }
 
     const validation = await this.validator.validateFindings(allFindings, findings.sources);
 
     return {
       ...findings,
       validation,
+      researchQuality,
     };
   }
 
@@ -244,7 +277,7 @@ Example for "Arabic language differentiates our enterprise software in UAE":
     return queries;
   }
 
-  async performSingleWebSearch(query: ResearchQuery): Promise<any> {
+  async performSingleWebSearch(query: ResearchQuery): Promise<SearchResultRecord> {
     try {
       const response = await fetch(`${API_BASE}/api/web-search`, {
         method: 'POST',
@@ -256,7 +289,12 @@ Example for "Arabic language differentiates our enterprise software in UAE":
 
       if (!response.ok) {
         console.error(`Search failed for query "${query.query}": ${response.status}`);
-        return { query: query.query, results: [] };
+        return {
+          query: query.query,
+          results: [],
+          error: `Search failed: ${response.status}`,
+          statusCode: response.status,
+        };
       }
 
       const data = await response.json();
@@ -271,11 +309,15 @@ Example for "Arabic language differentiates our enterprise software in UAE":
       return { query: query.query, results };
     } catch (error) {
       console.error(`Error searching for "${query.query}":`, error);
-      return { query: query.query, results: [] };
+      return {
+        query: query.query,
+        results: [],
+        error: error instanceof Error ? error.message : 'search_failed',
+      };
     }
   }
 
-  private async performWebSearch(queries: ResearchQuery[], captureContext?: CaptureContext): Promise<any[]> {
+  private async performWebSearch(queries: ResearchQuery[], captureContext?: CaptureContext): Promise<SearchResultRecord[]> {
     console.log('[MarketResearcher] Starting batched web search with', queries.length, 'queries (limit: 3 concurrent)');
     const searchPromises = queries.map((queryObj) => searchLimit(async () => {
       const searchFn = async () => {
@@ -289,7 +331,10 @@ Example for "Arabic language differentiates our enterprise software in UAE":
 
         if (!response.ok) {
           console.error(`Search failed for query "${queryObj.query}": ${response.status}`);
-          return { organic: [] };
+          return {
+            organic: [],
+            __statusCode: response.status,
+          };
         }
 
         return await response.json();
@@ -311,10 +356,18 @@ Example for "Arabic language differentiates our enterprise software in UAE":
             relevance: result.position ? 1 / result.position : 0.5,
           }));
 
-          return { query: queryObj.query, results };
+          const statusCode = typeof (data as any).__statusCode === 'number'
+            ? (data as any).__statusCode
+            : undefined;
+          const error = statusCode ? `Search failed: ${statusCode}` : undefined;
+          return { query: queryObj.query, results, error, statusCode };
         } catch (error) {
           console.error(`Error searching for "${queryObj.query}":`, error);
-          return { query: queryObj.query, results: [] };
+          return {
+            query: queryObj.query,
+            results: [],
+            error: error instanceof Error ? error.message : 'search_failed',
+          };
         }
       } else {
         // Fallback to direct search without capture
@@ -327,15 +380,66 @@ Example for "Arabic language differentiates our enterprise software in UAE":
             relevance: result.position ? 1 / result.position : 0.5,
           }));
 
-          return { query: queryObj.query, results };
+          const statusCode = typeof (data as any).__statusCode === 'number'
+            ? (data as any).__statusCode
+            : undefined;
+          const error = statusCode ? `Search failed: ${statusCode}` : undefined;
+          return { query: queryObj.query, results, error, statusCode };
         } catch (error) {
           console.error(`Error searching for "${queryObj.query}":`, error);
-          return { query: queryObj.query, results: [] };
+          return {
+            query: queryObj.query,
+            results: [],
+            error: error instanceof Error ? error.message : 'search_failed',
+          };
         }
       }
     }));
 
     return Promise.all(searchPromises);
+  }
+
+  private assessResearchQuality(
+    searchResults: SearchResultRecord[],
+    findingsCount: number
+  ): ResearchFindings['researchQuality'] {
+    const totalQueries = searchResults.length;
+    const failedQueries = searchResults.filter((result) => !!result.error).length;
+    const emptyQueries = searchResults.filter((result) => (result.results || []).length === 0).length;
+    const substantiveResultCount = searchResults.reduce(
+      (sum, result) => sum + ((result.results || []).length > 0 ? 1 : 0),
+      0
+    );
+    const successfulQueries = Math.max(0, totalQueries - failedQueries);
+    const failureRate = totalQueries > 0 ? failedQueries / totalQueries : 0;
+    const emptyRate = totalQueries > 0 ? emptyQueries / totalQueries : 0;
+
+    const degraded =
+      totalQueries === 0 ||
+      failureRate > 0.8 ||
+      emptyRate > 0.8 ||
+      findingsCount < 5;
+
+    const reasons: string[] = [];
+    if (totalQueries === 0) reasons.push('No research queries executed');
+    if (failureRate > 0.8) reasons.push(`${failedQueries}/${totalQueries} queries failed`);
+    if (emptyRate > 0.8) reasons.push(`${emptyQueries}/${totalQueries} queries returned no results`);
+    if (findingsCount < 5) reasons.push(`Only ${findingsCount} findings were synthesized from research`);
+
+    return {
+      status: degraded ? 'degraded' : 'sufficient',
+      reason: degraded ? reasons.join('; ') : 'Research coverage is sufficient',
+      metrics: {
+        totalQueries,
+        failedQueries,
+        emptyQueries,
+        successfulQueries,
+        failureRate,
+        emptyRate,
+        substantiveResultCount,
+        findingsCount,
+      },
+    };
   }
 
   private async fetchSourceContent(sources: Source[], captureContext?: CaptureContext): Promise<Map<string, string>> {

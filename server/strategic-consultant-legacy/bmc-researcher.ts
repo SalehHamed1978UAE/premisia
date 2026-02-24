@@ -39,6 +39,28 @@ export interface BMCResearchResult {
   recommendations: any[];
   assumptions?: Assumption[];
   contradictions?: Contradiction[];
+  researchQuality?: {
+    status: 'sufficient' | 'degraded';
+    reason: string;
+    metrics: {
+      totalQueries: number;
+      failedQueries: number;
+      emptyQueries: number;
+      successfulQueries: number;
+      failureRate: number;
+      emptyRate: number;
+      substantiveResultCount: number;
+      assumptionFindingsCount: number;
+      assumptionQueryCount: number;
+    };
+  };
+}
+
+interface SearchResultRecord {
+  query: string;
+  results: any[];
+  error?: string;
+  statusCode?: number;
 }
 
 export class BMCResearcher {
@@ -213,8 +235,12 @@ export class BMCResearcher {
     const allQueries = [...bmcQueries, ...assumptionOnlyQueries];
 
     emitProgress(`Conducting web research (${allQueries.length} queries across ${Math.ceil(allQueries.length / 5)} batches)`);
-    const searchResults = await this.performParallelWebSearch(allQueries, sink);
-    
+    const searchResultsWithStatus = await this.performParallelWebSearch(allQueries, sink);
+    const searchResults = searchResultsWithStatus.map((result) => ({
+      query: result.query,
+      results: result.results,
+    }));
+
     // Separate assumption search results - these apply to ALL blocks
     const assumptionResults = searchResults.filter(r => 
       assumptionOnlyQueries.some(q => q.query === r.query)
@@ -237,6 +263,17 @@ export class BMCResearcher {
     const assumptionFindings = assumptionResults.flatMap(sr => 
       (sr.results || []).map((r: any) => `${r.title}: ${r.snippet}`)
     );
+    const researchQuality = this.assessResearchQuality(
+      searchResultsWithStatus,
+      assumptionOnlyQueries.length,
+      assumptionFindings.length
+    );
+    if (researchQuality.status === 'degraded') {
+      console.warn(`[BMCResearcher] ⚠️ Research quality degraded: ${researchQuality.reason}`);
+      if (researchQuality.metrics.failureRate > 0.8) {
+        throw new Error(`[BMCResearcher] Research ingestion failed: ${researchQuality.reason}`);
+      }
+    }
     const contradictionResult = await this.assumptionValidator.detectContradictions(
       assumptions,
       assumptionFindings  // Context-preserved findings
@@ -405,11 +442,28 @@ export class BMCResearcher {
       partnersBlock,
       costBlock
     ];
-    const overallConfidence = this.calculateOverallConfidence(blocks);
+    let overallConfidence = this.calculateOverallConfidence(blocks);
+    if (researchQuality.status === 'degraded') {
+      overallConfidence = Math.min(overallConfidence, 0.55);
+    }
 
     // Step 6: Synthesize overall BMC with contradiction awareness
     emitProgress(`Generating overall Business Model Canvas synthesis`);
     const synthesis = await this.synthesizeOverallBMC(blocks, input, contradictionResult.contradictions);
+    if (researchQuality.status === 'degraded') {
+      synthesis.criticalGaps = Array.from(new Set([
+        'Research coverage is limited; validate strategic assumptions with additional primary sources before execution.',
+        ...synthesis.criticalGaps,
+      ]));
+      synthesis.recommendations = [
+        {
+          priority: 'high',
+          action: 'Run supplemental research to fill evidence gaps before committing budget.',
+          rationale: researchQuality.reason,
+        },
+        ...(Array.isArray(synthesis.recommendations) ? synthesis.recommendations : []),
+      ];
+    }
 
     // Step 7 (Task 17): Store BMC findings back into knowledge graph
     emitProgress(`Saving findings to knowledge graph`);
@@ -435,6 +489,7 @@ export class BMCResearcher {
       recommendations: synthesis.recommendations,
       assumptions,
       contradictions: contradictionResult.contradictions,
+      researchQuality,
     };
   }
 
@@ -773,7 +828,7 @@ Step 1: Same concept? Step 2: Different values?`;
     }
   }
 
-  private async performParallelWebSearch(queries: BMCQuery[], sink?: ResearchStreamSink): Promise<any[]> {
+  private async performParallelWebSearch(queries: BMCQuery[], sink?: ResearchStreamSink): Promise<SearchResultRecord[]> {
     const throttler = new RequestThrottler({
       maxConcurrent: 5,
       delayBetweenBatches: 200,
@@ -809,20 +864,77 @@ Step 1: Same concept? Step 2: Different values?`;
           relevance: result.position ? 1 / result.position : 0.5,
         }));
 
-        return { query: queryObj.query, results };
+        return { query: queryObj.query, results } as SearchResultRecord;
       } catch (error: any) {
         if (error.status === 429 || error.message?.includes('429')) {
           throw error;
         }
         console.error(`Error searching for "${queryObj.query}":`, error);
-        return { query: queryObj.query, results: [] };
+        return {
+          query: queryObj.query,
+          results: [],
+          error: error?.message || 'search_failed',
+          statusCode: typeof error?.status === 'number' ? error.status : undefined,
+        } as SearchResultRecord;
       }
     });
 
     return throttler.throttleAll(
       searchTasks, 
-      (taskIndex) => ({ query: queries[taskIndex].query, results: [] })
+      (taskIndex) => ({
+        query: queries[taskIndex].query,
+        results: [],
+        error: 'retry_exhausted_or_throttled',
+        statusCode: 429,
+      })
     );
+  }
+
+  private assessResearchQuality(
+    searchResults: SearchResultRecord[],
+    assumptionQueryCount: number,
+    assumptionFindingsCount: number
+  ): BMCResearchResult['researchQuality'] {
+    const totalQueries = searchResults.length;
+    const failedQueries = searchResults.filter((result) => !!result.error).length;
+    const emptyQueries = searchResults.filter((result) => (result.results || []).length === 0).length;
+    const substantiveResultCount = searchResults.reduce(
+      (sum, result) => sum + ((result.results || []).length > 0 ? 1 : 0),
+      0
+    );
+    const successfulQueries = Math.max(0, totalQueries - failedQueries);
+    const failureRate = totalQueries > 0 ? failedQueries / totalQueries : 0;
+    const emptyRate = totalQueries > 0 ? emptyQueries / totalQueries : 0;
+
+    const degraded =
+      totalQueries === 0 ||
+      failureRate > 0.8 ||
+      emptyRate > 0.8 ||
+      (assumptionQueryCount > 0 && assumptionFindingsCount < 5);
+
+    const reasons: string[] = [];
+    if (totalQueries === 0) reasons.push('No research queries executed');
+    if (failureRate > 0.8) reasons.push(`${failedQueries}/${totalQueries} queries failed`);
+    if (emptyRate > 0.8) reasons.push(`${emptyQueries}/${totalQueries} queries returned no results`);
+    if (assumptionQueryCount > 0 && assumptionFindingsCount < 5) {
+      reasons.push(`Assumption evidence too thin (${assumptionFindingsCount} findings for ${assumptionQueryCount} assumption queries)`);
+    }
+
+    return {
+      status: degraded ? 'degraded' : 'sufficient',
+      reason: degraded ? reasons.join('; ') : 'Research coverage is sufficient',
+      metrics: {
+        totalQueries,
+        failedQueries,
+        emptyQueries,
+        successfulQueries,
+        failureRate,
+        emptyRate,
+        substantiveResultCount,
+        assumptionFindingsCount,
+        assumptionQueryCount,
+      },
+    };
   }
 
   private extractUniqueSources(searchResults: any[]): Source[] {

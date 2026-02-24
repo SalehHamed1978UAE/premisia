@@ -714,7 +714,8 @@ RULES:
 - Owners must EXACTLY match a team member name from the list
 - Distribute ownership across different team members`;
 
-      const result = await aiClients.callWithFallback({
+      // Keep EPM benefit synthesis on Claude-only to avoid structure/quality drift.
+      const result = await aiClients.call("anthropic", {
         systemPrompt: 'You are an expert at writing strategic benefit descriptions for enterprise programs.',
         userMessage: prompt,
         maxTokens: 2000,
@@ -1995,7 +1996,8 @@ Examples of good program names:
 
 Generate ONLY the program name, nothing else.`;
 
-      const result = await aiClients.callWithFallback({
+      // Keep EPM naming on Claude-only for consistent strategic naming quality.
+      const result = await aiClients.call("anthropic", {
         systemPrompt: 'You are a program naming expert. Generate concise, professional program names.',
         userMessage: prompt,
         maxTokens: 100,

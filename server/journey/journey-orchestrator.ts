@@ -136,8 +136,14 @@ export class JourneyOrchestrator {
     frameworks: string[];
     allSteps?: string[]; // All journey steps including non-executable ones (for navigation)
     templateId?: string;
+    stepPolicy?: Array<{
+      originalKey: string;
+      normalizedKey: string;
+      policy: 'execute' | 'user_input' | 'intake_only';
+      reason: string;
+    }>;
   }): Promise<{ journeySessionId: string; versionNumber: number }> {
-    const { understandingId, userId, frameworks, allSteps, templateId } = params;
+    const { understandingId, userId, frameworks, allSteps, templateId, stepPolicy } = params;
 
     console.log(`[JourneyOrchestrator] Starting custom journey for understanding ${understandingId}`);
     console.log(`[JourneyOrchestrator] Custom frameworks: ${frameworks.join(', ')}`);
@@ -187,6 +193,7 @@ export class JourneyOrchestrator {
         executableFrameworks: frameworks, // Keep track of which are actually executable
         templateId,
         isCustomJourney: true,
+        stepPolicy,
       };
 
       // Insert new session with custom journey type and metadata

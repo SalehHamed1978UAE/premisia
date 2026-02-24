@@ -215,8 +215,8 @@ export default function ClassificationPage() {
             });
 
             if (startResponse.ok) {
-              const { journeySessionId, firstFramework } = await startResponse.json();
-              console.log('[ClassificationPage] Custom journey started - sessionId:', journeySessionId, 'firstFramework:', firstFramework);
+              const { journeySessionId, firstFramework, navigationUrl } = await startResponse.json();
+              console.log('[ClassificationPage] Custom journey started - sessionId:', journeySessionId, 'firstFramework:', firstFramework, 'navigationUrl:', navigationUrl);
 
               // Trigger journey execution in background
               console.log('[ClassificationPage] Triggering custom journey execution for session:', journeySessionId);
@@ -230,8 +230,8 @@ export default function ClassificationPage() {
                 }).catch(err => console.error('[ClassificationPage] Execution trigger failed:', err));
               });
 
-              // Navigate to the first framework in the custom journey
-              const frameworkRoute = getFrameworkRoute(firstFramework, understandingId!, journeySessionId);
+              // Navigate using server-computed route from orchestrator state.
+              const frameworkRoute = navigationUrl || getFrameworkRoute(firstFramework, understandingId!, journeySessionId);
               console.log('[ClassificationPage] Navigating to:', frameworkRoute);
               setLocation(frameworkRoute);
             } else {

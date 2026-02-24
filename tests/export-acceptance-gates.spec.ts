@@ -118,6 +118,31 @@ describe('Export acceptance gates', () => {
     expect(report.criticalIssues.some((i) => i.code === 'CSV_JSON_COUNT_MISMATCH')).toBe(true);
   });
 
+  it('presave mode defers CSV parity without failing the gate', () => {
+    const report = validateExportAcceptance({
+      mode: 'presave',
+      strategyJson: buildValidStrategyJson(),
+      epmJson: buildValidEpmJson(),
+    });
+
+    expect(report.criticalIssues.some((i) => i.code === 'CSV_MISSING')).toBe(false);
+    expect(report.warnings.some((i) => i.code === 'PRESAVE_CSV_PARITY_DEFERRED')).toBe(true);
+  });
+
+  it('presave mode still enforces framework correctness', () => {
+    const report = validateExportAcceptance({
+      mode: 'presave',
+      strategyJson: JSON.stringify({
+        journeySession: { journeyType: 'business_model_innovation' },
+        frameworks: ['five_whys', 'bmc', 'porters'],
+      }),
+      epmJson: buildValidEpmJson(),
+    });
+
+    expect(report.passed).toBe(false);
+    expect(report.criticalIssues.some((i) => i.code === 'FRAMEWORK_MISMATCH')).toBe(true);
+  });
+
   it('fails when dependency timing or critical path is invalid', () => {
     const epm = JSON.parse(buildValidEpmJson());
     epm.workstreams[1].startMonth = 1; // overlaps dependency WS001 ending at M1
